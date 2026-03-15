@@ -119,11 +119,11 @@ func (m *Agent) validate(all bool) error {
 	// no validation rules for Metadata
 
 	if all {
-		switch v := interface{}(m.GetRuntime()).(type) {
+		switch v := interface{}(m.GetConfig()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, AgentValidationError{
-					field:  "Runtime",
+					field:  "Config",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -131,16 +131,16 @@ func (m *Agent) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, AgentValidationError{
-					field:  "Runtime",
+					field:  "Config",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetConfig()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return AgentValidationError{
-				field:  "Runtime",
+				field:  "Config",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
@@ -227,6 +227,168 @@ var _ interface {
 var _Agent_Name_NotInLookup = map[string]struct{}{
 	"user": {},
 }
+
+// Validate checks the field values on AgentConfig with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *AgentConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AgentConfig with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in AgentConfigMultiError, or
+// nil if none found.
+func (m *AgentConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AgentConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AgentConfigValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AgentConfigValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AgentConfigValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	for idx, item := range m.GetMcpServers() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  fmt.Sprintf("McpServers[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  fmt.Sprintf("McpServers[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return AgentConfigValidationError{
+					field:  fmt.Sprintf("McpServers[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return AgentConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// AgentConfigMultiError is an error wrapping multiple validation errors
+// returned by AgentConfig.ValidateAll() if the designated constraints aren't met.
+type AgentConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AgentConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AgentConfigMultiError) AllErrors() []error { return m }
+
+// AgentConfigValidationError is the validation error returned by
+// AgentConfig.Validate if the designated constraints aren't met.
+type AgentConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AgentConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AgentConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AgentConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AgentConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AgentConfigValidationError) ErrorName() string { return "AgentConfigValidationError" }
+
+// Error satisfies the builtin error interface
+func (e AgentConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAgentConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AgentConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AgentConfigValidationError{}
 
 // Validate checks the field values on AgentRuntime with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
@@ -330,3 +492,125 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = AgentRuntimeValidationError{}
+
+// Validate checks the field values on MCPServer with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *MCPServer) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MCPServer with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in MCPServerMultiError, or nil
+// if none found.
+func (m *MCPServer) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MCPServer) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := MCPServerValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	// no validation rules for Transport
+
+	// no validation rules for Command
+
+	// no validation rules for Env
+
+	// no validation rules for Url
+
+	// no validation rules for Headers
+
+	// no validation rules for Metadata
+
+	if len(errors) > 0 {
+		return MCPServerMultiError(errors)
+	}
+
+	return nil
+}
+
+// MCPServerMultiError is an error wrapping multiple validation errors returned
+// by MCPServer.ValidateAll() if the designated constraints aren't met.
+type MCPServerMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MCPServerMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MCPServerMultiError) AllErrors() []error { return m }
+
+// MCPServerValidationError is the validation error returned by
+// MCPServer.Validate if the designated constraints aren't met.
+type MCPServerValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MCPServerValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MCPServerValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MCPServerValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MCPServerValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MCPServerValidationError) ErrorName() string { return "MCPServerValidationError" }
+
+// Error satisfies the builtin error interface
+func (e MCPServerValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMCPServer.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MCPServerValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MCPServerValidationError{}
