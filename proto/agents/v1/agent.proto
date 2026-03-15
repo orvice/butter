@@ -2,8 +2,72 @@ syntax = "proto3";
 
 package agents.v1;
 
-import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
-import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
 
 option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// Agent describes a declarative ADK agent configuration.
+message Agent {
+  // Name must be unique within an agent tree.
+  string name = 1 [(validate.rules).string = {
+    min_len: 1
+    not_in: ["user"]
+  }];
+
+  // Description helps the LLM decide when to delegate to this agent.
+  string description = 2;
+
+  // Nested sub-agents that this agent can delegate to.
+  repeated Agent sub_agents = 3;
+
+  // Labels are intended for indexing, routing, or coarse-grained filtering.
+  map<string, string> labels = 4;
+
+  // Metadata stores non-routing annotations that callers may want to keep.
+  map<string, string> metadata = 5;
+
+  // Runtime contains execution behavior toggles that map to ADK run config.
+  AgentRuntime runtime = 6;
+
+  // MCP servers define external tool providers this agent can connect to.
+  repeated MCPServer mcp_servers = 7;
+}
+
+// AgentRuntime captures runtime behavior flags that are safe to serialize.
+message AgentRuntime {
+  StreamingMode streaming_mode = 1;
+  bool save_input_blobs_as_artifacts = 2;
+}
+
+// MCPServer describes a serializable MCP server connection config.
+message MCPServer {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  MCPServerTransport transport = 2;
+
+  // Used by stdio-style transports.
+  string command = 3;
+  repeated string args = 4;
+  map<string, string> env = 5;
+
+  // Used by remote HTTP/SSE transports.
+  string url = 6;
+  map<string, string> headers = 7;
+
+  // Optional allowlist of tools exposed from this server.
+  repeated string tool_filter = 8;
+
+  map<string, string> metadata = 9;
+}
+
+enum StreamingMode {
+  STREAMING_MODE_UNSPECIFIED = 0;
+  STREAMING_MODE_NONE = 1;
+  STREAMING_MODE_SSE = 2;
+}
+
+enum MCPServerTransport {
+  MCP_SERVER_TRANSPORT_UNSPECIFIED = 0;
+  MCP_SERVER_TRANSPORT_STDIO = 1;
+  MCP_SERVER_TRANSPORT_STREAMABLE_HTTP = 2;
+  MCP_SERVER_TRANSPORT_SSE = 3;
+}
