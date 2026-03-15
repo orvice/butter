@@ -17,7 +17,6 @@ message AgentChannel {
   AgentSessionBinding session = 6;
 
   TelegramChannelConfig telegram = 10;
-  DiscordChannelConfig discord = 11;
 
   map<string, string> metadata = 20;
 }
@@ -59,18 +58,9 @@ message TelegramChannelConfig {
   repeated int64 allowed_user_ids = 5;
 }
 
-message DiscordChannelConfig {
-  string bot_token = 1;
-  string application_id = 2;
-  repeated string allowed_guild_ids = 3;
-  repeated string allowed_channel_ids = 4;
-  repeated string allowed_user_ids = 5;
-}
-
 enum AgentChannelPlatform {
   AGENT_CHANNEL_PLATFORM_UNSPECIFIED = 0;
   AGENT_CHANNEL_PLATFORM_TELEGRAM = 1;
-  AGENT_CHANNEL_PLATFORM_DISCORD = 2;
 }
 
 enum AgentTriggerType {
