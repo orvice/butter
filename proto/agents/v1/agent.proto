@@ -26,11 +26,17 @@ message Agent {
   // Metadata stores non-routing annotations that callers may want to keep.
   map<string, string> metadata = 5;
 
+  // Config contains execution and integration settings for this agent.
+  AgentConfig config = 6;
+}
+
+// AgentConfig groups agent-level runtime and integration settings.
+message AgentConfig {
   // Runtime contains execution behavior toggles that map to ADK run config.
-  AgentRuntime runtime = 6;
+  AgentRuntime runtime = 1;
 
   // MCP servers define external tool providers this agent can connect to.
-  repeated MCPServer mcp_servers = 7;
+  repeated MCPServer mcp_servers = 2;
 }
 
 // AgentRuntime captures runtime behavior flags that are safe to serialize.
