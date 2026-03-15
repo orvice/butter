@@ -3,7 +3,6 @@ syntax = "proto3";
 package agents.v1;
 
 import "validate/validate.proto";
-import "agents/v1/agentchannel.proto";
 
 option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 
@@ -29,9 +28,6 @@ message Agent {
 
   // Config contains execution and integration settings for this agent.
   AgentConfig config = 6;
-
-  // Channels define how this agent interacts with external platforms.
-  repeated AgentChannel channels = 7;
 }
 
 // AgentConfig groups agent-level runtime and integration settings.

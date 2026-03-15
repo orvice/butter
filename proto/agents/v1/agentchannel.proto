@@ -9,12 +9,13 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 // AgentChannel binds an agent to an external interaction platform.
 message AgentChannel {
   string name = 1 [(validate.rules).string.min_len = 1];
-  AgentChannelPlatform platform = 2;
-  bool enabled = 3;
+  string agent_name = 2 [(validate.rules).string.min_len = 1];
+  AgentChannelPlatform platform = 3;
+  bool enabled = 4;
 
-  repeated AgentTrigger triggers = 4;
-  AgentDelivery delivery = 5;
-  AgentSessionBinding session = 6;
+  repeated AgentTrigger triggers = 5;
+  AgentDelivery delivery = 6;
+  AgentSessionBinding session = 7;
 
   TelegramChannelConfig telegram = 10;
 
