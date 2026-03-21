@@ -147,39 +147,7 @@ func (m *Agent) validate(all bool) error {
 		}
 	}
 
-	for idx, item := range m.GetChannels() {
-		_, _ = idx, item
-
-		if all {
-			switch v := interface{}(item).(type) {
-			case interface{ ValidateAll() error }:
-				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, AgentValidationError{
-						field:  fmt.Sprintf("Channels[%v]", idx),
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			case interface{ Validate() error }:
-				if err := v.Validate(); err != nil {
-					errors = append(errors, AgentValidationError{
-						field:  fmt.Sprintf("Channels[%v]", idx),
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			}
-		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return AgentValidationError{
-					field:  fmt.Sprintf("Channels[%v]", idx),
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	}
+	// no validation rules for Type
 
 	if len(errors) > 0 {
 		return AgentMultiError(errors)
@@ -345,6 +313,175 @@ func (m *AgentConfig) validate(all bool) error {
 			}
 		}
 
+	}
+
+	switch v := m.TypeConfig.(type) {
+	case *AgentConfig_Llm:
+		if v == nil {
+			err := AgentConfigValidationError{
+				field:  "TypeConfig",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetLlm()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  "Llm",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  "Llm",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetLlm()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return AgentConfigValidationError{
+					field:  "Llm",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *AgentConfig_Loop:
+		if v == nil {
+			err := AgentConfigValidationError{
+				field:  "TypeConfig",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetLoop()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  "Loop",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  "Loop",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetLoop()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return AgentConfigValidationError{
+					field:  "Loop",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *AgentConfig_Sequential:
+		if v == nil {
+			err := AgentConfigValidationError{
+				field:  "TypeConfig",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetSequential()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  "Sequential",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  "Sequential",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetSequential()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return AgentConfigValidationError{
+					field:  "Sequential",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *AgentConfig_Parallel:
+		if v == nil {
+			err := AgentConfigValidationError{
+				field:  "TypeConfig",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetParallel()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  "Parallel",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  "Parallel",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetParallel()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return AgentConfigValidationError{
+					field:  "Parallel",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
 	}
 
 	if len(errors) > 0 {
@@ -526,6 +663,430 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = AgentRuntimeValidationError{}
+
+// Validate checks the field values on LLMAgentConfig with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *LLMAgentConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LLMAgentConfig with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in LLMAgentConfigMultiError,
+// or nil if none found.
+func (m *LLMAgentConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LLMAgentConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Model
+
+	// no validation rules for Instruction
+
+	// no validation rules for GlobalInstruction
+
+	// no validation rules for DisallowTransferToParent
+
+	// no validation rules for DisallowTransferToPeers
+
+	// no validation rules for IncludeContents
+
+	// no validation rules for OutputKey
+
+	// no validation rules for InputSchemaJson
+
+	// no validation rules for OutputSchemaJson
+
+	if len(errors) > 0 {
+		return LLMAgentConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// LLMAgentConfigMultiError is an error wrapping multiple validation errors
+// returned by LLMAgentConfig.ValidateAll() if the designated constraints
+// aren't met.
+type LLMAgentConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LLMAgentConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LLMAgentConfigMultiError) AllErrors() []error { return m }
+
+// LLMAgentConfigValidationError is the validation error returned by
+// LLMAgentConfig.Validate if the designated constraints aren't met.
+type LLMAgentConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e LLMAgentConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e LLMAgentConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e LLMAgentConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e LLMAgentConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e LLMAgentConfigValidationError) ErrorName() string { return "LLMAgentConfigValidationError" }
+
+// Error satisfies the builtin error interface
+func (e LLMAgentConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sLLMAgentConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = LLMAgentConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = LLMAgentConfigValidationError{}
+
+// Validate checks the field values on LoopAgentConfig with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *LoopAgentConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LoopAgentConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// LoopAgentConfigMultiError, or nil if none found.
+func (m *LoopAgentConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LoopAgentConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for MaxIterations
+
+	if len(errors) > 0 {
+		return LoopAgentConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// LoopAgentConfigMultiError is an error wrapping multiple validation errors
+// returned by LoopAgentConfig.ValidateAll() if the designated constraints
+// aren't met.
+type LoopAgentConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LoopAgentConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LoopAgentConfigMultiError) AllErrors() []error { return m }
+
+// LoopAgentConfigValidationError is the validation error returned by
+// LoopAgentConfig.Validate if the designated constraints aren't met.
+type LoopAgentConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e LoopAgentConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e LoopAgentConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e LoopAgentConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e LoopAgentConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e LoopAgentConfigValidationError) ErrorName() string { return "LoopAgentConfigValidationError" }
+
+// Error satisfies the builtin error interface
+func (e LoopAgentConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sLoopAgentConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = LoopAgentConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = LoopAgentConfigValidationError{}
+
+// Validate checks the field values on SequentialAgentConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SequentialAgentConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SequentialAgentConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// SequentialAgentConfigMultiError, or nil if none found.
+func (m *SequentialAgentConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SequentialAgentConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return SequentialAgentConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// SequentialAgentConfigMultiError is an error wrapping multiple validation
+// errors returned by SequentialAgentConfig.ValidateAll() if the designated
+// constraints aren't met.
+type SequentialAgentConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SequentialAgentConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SequentialAgentConfigMultiError) AllErrors() []error { return m }
+
+// SequentialAgentConfigValidationError is the validation error returned by
+// SequentialAgentConfig.Validate if the designated constraints aren't met.
+type SequentialAgentConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SequentialAgentConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SequentialAgentConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SequentialAgentConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SequentialAgentConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SequentialAgentConfigValidationError) ErrorName() string {
+	return "SequentialAgentConfigValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SequentialAgentConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSequentialAgentConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SequentialAgentConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SequentialAgentConfigValidationError{}
+
+// Validate checks the field values on ParallelAgentConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ParallelAgentConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ParallelAgentConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ParallelAgentConfigMultiError, or nil if none found.
+func (m *ParallelAgentConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ParallelAgentConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return ParallelAgentConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// ParallelAgentConfigMultiError is an error wrapping multiple validation
+// errors returned by ParallelAgentConfig.ValidateAll() if the designated
+// constraints aren't met.
+type ParallelAgentConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ParallelAgentConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ParallelAgentConfigMultiError) AllErrors() []error { return m }
+
+// ParallelAgentConfigValidationError is the validation error returned by
+// ParallelAgentConfig.Validate if the designated constraints aren't met.
+type ParallelAgentConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ParallelAgentConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ParallelAgentConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ParallelAgentConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ParallelAgentConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ParallelAgentConfigValidationError) ErrorName() string {
+	return "ParallelAgentConfigValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ParallelAgentConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sParallelAgentConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ParallelAgentConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ParallelAgentConfigValidationError{}
 
 // Validate checks the field values on MCPServer with the rules defined in the
 // proto definition for this message. If any rules are violated, the first

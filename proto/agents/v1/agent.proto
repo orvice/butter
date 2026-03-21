@@ -28,6 +28,9 @@ message Agent {
 
   // Config contains execution and integration settings for this agent.
   AgentConfig config = 6;
+
+  // Type indicates which ADK agent implementation this node represents.
+  AgentType type = 20;
 }
 
 // AgentConfig groups agent-level runtime and integration settings.
@@ -37,6 +40,14 @@ message AgentConfig {
 
   // MCP servers define external tool providers this agent can connect to.
   repeated MCPServer mcp_servers = 2;
+
+  // Type-specific config maps to ADK concrete agent config.
+  oneof type_config {
+    LLMAgentConfig llm = 20;
+    LoopAgentConfig loop = 21;
+    SequentialAgentConfig sequential = 22;
+    ParallelAgentConfig parallel = 23;
+  }
 }
 
 // AgentRuntime captures runtime behavior flags that are safe to serialize.
@@ -44,6 +55,44 @@ message AgentRuntime {
   StreamingMode streaming_mode = 1;
   bool save_input_blobs_as_artifacts = 2;
 }
+
+// LLMAgentConfig captures serializable options from llmagent.Config.
+message LLMAgentConfig {
+  // Model identifier (for example: "gemini-2.5-pro").
+  string model = 1;
+
+  // Instruction guides agent behavior for this node.
+  string instruction = 2;
+
+  // Global instruction applies across the entire agent tree (root takes effect).
+  string global_instruction = 3;
+
+  // Prevents transferring control to parent/peer agents.
+  bool disallow_transfer_to_parent = 4;
+  bool disallow_transfer_to_peers = 5;
+
+  // Controls whether prior conversation contents are included in model requests.
+  LLMIncludeContents include_contents = 6;
+
+  // Optional session state key to store agent output.
+  string output_key = 7;
+
+  // Optional schemas encoded as JSON text.
+  string input_schema_json = 8;
+  string output_schema_json = 9;
+}
+
+// LoopAgentConfig maps to workflow loopagent.Config.
+message LoopAgentConfig {
+  // Max loop iterations. 0 means run until escalation/termination.
+  uint32 max_iterations = 1;
+}
+
+// SequentialAgentConfig maps to workflow sequentialagent.Config.
+message SequentialAgentConfig {}
+
+// ParallelAgentConfig maps to workflow parallelagent.Config.
+message ParallelAgentConfig {}
 
 // MCPServer describes a serializable MCP server connection config.
 message MCPServer {
@@ -69,6 +118,22 @@ enum StreamingMode {
   STREAMING_MODE_UNSPECIFIED = 0;
   STREAMING_MODE_NONE = 1;
   STREAMING_MODE_SSE = 2;
+}
+
+// AgentType selects which concrete ADK agent type to instantiate.
+enum AgentType {
+  AGENT_TYPE_UNSPECIFIED = 0;
+  AGENT_TYPE_LLM = 1;
+  AGENT_TYPE_LOOP = 2;
+  AGENT_TYPE_SEQUENTIAL = 3;
+  AGENT_TYPE_PARALLEL = 4;
+}
+
+// LLMIncludeContents matches llmagent.IncludeContents values.
+enum LLMIncludeContents {
+  LLM_INCLUDE_CONTENTS_UNSPECIFIED = 0;
+  LLM_INCLUDE_CONTENTS_DEFAULT = 1;
+  LLM_INCLUDE_CONTENTS_NONE = 2;
 }
 
 enum MCPServerTransport {
