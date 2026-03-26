@@ -1,4 +1,5 @@
 .env
+.claude/
 .gocache/
 .gomodcache/
 /butter
