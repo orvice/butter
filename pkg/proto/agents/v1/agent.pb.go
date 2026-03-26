@@ -235,18 +235,25 @@ type Agent struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Name must be unique within an agent tree.
+	// @gotags: json:"name,omitempty" yaml:"name,omitempty"
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Description helps the LLM decide when to delegate to this agent.
+	// @gotags: json:"description,omitempty" yaml:"description,omitempty"
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	// Nested sub-agents that this agent can delegate to.
+	// @gotags: json:"sub_agents,omitempty" yaml:"sub_agents,omitempty"
 	SubAgents []*Agent `protobuf:"bytes,3,rep,name=sub_agents,json=subAgents,proto3" json:"sub_agents,omitempty"`
 	// Labels are intended for indexing, routing, or coarse-grained filtering.
+	// @gotags: json:"labels,omitempty" yaml:"labels,omitempty"
 	Labels map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Metadata stores non-routing annotations that callers may want to keep.
+	// @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
 	Metadata map[string]string `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Config contains execution and integration settings for this agent.
+	// @gotags: json:"config,omitempty" yaml:"config,omitempty"
 	Config *AgentConfig `protobuf:"bytes,6,opt,name=config,proto3" json:"config,omitempty"`
 	// Type indicates which ADK agent implementation this node represents.
+	// @gotags: json:"type,omitempty" yaml:"type,omitempty"
 	Type AgentType `protobuf:"varint,20,opt,name=type,proto3,enum=agents.v1.AgentType" json:"type,omitempty"`
 }
 
@@ -338,8 +345,10 @@ type AgentConfig struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Runtime contains execution behavior toggles that map to ADK run config.
+	// @gotags: json:"runtime,omitempty" yaml:"runtime,omitempty"
 	Runtime *AgentRuntime `protobuf:"bytes,1,opt,name=runtime,proto3" json:"runtime,omitempty"`
 	// MCP servers define external tool providers this agent can connect to.
+	// @gotags: json:"mcp_servers,omitempty" yaml:"mcp_servers,omitempty"
 	McpServers []*MCPServer `protobuf:"bytes,2,rep,name=mcp_servers,json=mcpServers,proto3" json:"mcp_servers,omitempty"`
 	// Type-specific config maps to ADK concrete agent config.
 	//
@@ -438,18 +447,22 @@ type isAgentConfig_TypeConfig interface {
 }
 
 type AgentConfig_Llm struct {
+	// @gotags: json:"llm,omitempty" yaml:"llm,omitempty"
 	Llm *LLMAgentConfig `protobuf:"bytes,20,opt,name=llm,proto3,oneof"`
 }
 
 type AgentConfig_Loop struct {
+	// @gotags: json:"loop,omitempty" yaml:"loop,omitempty"
 	Loop *LoopAgentConfig `protobuf:"bytes,21,opt,name=loop,proto3,oneof"`
 }
 
 type AgentConfig_Sequential struct {
+	// @gotags: json:"sequential,omitempty" yaml:"sequential,omitempty"
 	Sequential *SequentialAgentConfig `protobuf:"bytes,22,opt,name=sequential,proto3,oneof"`
 }
 
 type AgentConfig_Parallel struct {
+	// @gotags: json:"parallel,omitempty" yaml:"parallel,omitempty"
 	Parallel *ParallelAgentConfig `protobuf:"bytes,23,opt,name=parallel,proto3,oneof"`
 }
 
@@ -467,8 +480,10 @@ type AgentRuntime struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	StreamingMode             StreamingMode `protobuf:"varint,1,opt,name=streaming_mode,json=streamingMode,proto3,enum=agents.v1.StreamingMode" json:"streaming_mode,omitempty"`
-	SaveInputBlobsAsArtifacts bool          `protobuf:"varint,2,opt,name=save_input_blobs_as_artifacts,json=saveInputBlobsAsArtifacts,proto3" json:"save_input_blobs_as_artifacts,omitempty"`
+	// @gotags: json:"streaming_mode,omitempty" yaml:"streaming_mode,omitempty"
+	StreamingMode StreamingMode `protobuf:"varint,1,opt,name=streaming_mode,json=streamingMode,proto3,enum=agents.v1.StreamingMode" json:"streaming_mode,omitempty"`
+	// @gotags: json:"save_input_blobs_as_artifacts,omitempty" yaml:"save_input_blobs_as_artifacts,omitempty"
+	SaveInputBlobsAsArtifacts bool `protobuf:"varint,2,opt,name=save_input_blobs_as_artifacts,json=saveInputBlobsAsArtifacts,proto3" json:"save_input_blobs_as_artifacts,omitempty"`
 }
 
 func (x *AgentRuntime) Reset() {
@@ -524,20 +539,29 @@ type LLMAgentConfig struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Model identifier (for example: "gemini-2.5-pro").
+	// @gotags: json:"model,omitempty" yaml:"model,omitempty"
 	Model string `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	// Instruction guides agent behavior for this node.
+	// @gotags: json:"instruction,omitempty" yaml:"instruction,omitempty"
 	Instruction string `protobuf:"bytes,2,opt,name=instruction,proto3" json:"instruction,omitempty"`
 	// Global instruction applies across the entire agent tree (root takes effect).
+	// @gotags: json:"global_instruction,omitempty" yaml:"global_instruction,omitempty"
 	GlobalInstruction string `protobuf:"bytes,3,opt,name=global_instruction,json=globalInstruction,proto3" json:"global_instruction,omitempty"`
 	// Prevents transferring control to parent/peer agents.
+	// @gotags: json:"disallow_transfer_to_parent,omitempty" yaml:"disallow_transfer_to_parent,omitempty"
 	DisallowTransferToParent bool `protobuf:"varint,4,opt,name=disallow_transfer_to_parent,json=disallowTransferToParent,proto3" json:"disallow_transfer_to_parent,omitempty"`
-	DisallowTransferToPeers  bool `protobuf:"varint,5,opt,name=disallow_transfer_to_peers,json=disallowTransferToPeers,proto3" json:"disallow_transfer_to_peers,omitempty"`
+	// @gotags: json:"disallow_transfer_to_peers,omitempty" yaml:"disallow_transfer_to_peers,omitempty"
+	DisallowTransferToPeers bool `protobuf:"varint,5,opt,name=disallow_transfer_to_peers,json=disallowTransferToPeers,proto3" json:"disallow_transfer_to_peers,omitempty"`
 	// Controls whether prior conversation contents are included in model requests.
+	// @gotags: json:"include_contents,omitempty" yaml:"include_contents,omitempty"
 	IncludeContents LLMIncludeContents `protobuf:"varint,6,opt,name=include_contents,json=includeContents,proto3,enum=agents.v1.LLMIncludeContents" json:"include_contents,omitempty"`
 	// Optional session state key to store agent output.
+	// @gotags: json:"output_key,omitempty" yaml:"output_key,omitempty"
 	OutputKey string `protobuf:"bytes,7,opt,name=output_key,json=outputKey,proto3" json:"output_key,omitempty"`
 	// Optional schemas encoded as JSON text.
-	InputSchemaJson  string `protobuf:"bytes,8,opt,name=input_schema_json,json=inputSchemaJson,proto3" json:"input_schema_json,omitempty"`
+	// @gotags: json:"input_schema_json,omitempty" yaml:"input_schema_json,omitempty"
+	InputSchemaJson string `protobuf:"bytes,8,opt,name=input_schema_json,json=inputSchemaJson,proto3" json:"input_schema_json,omitempty"`
+	// @gotags: json:"output_schema_json,omitempty" yaml:"output_schema_json,omitempty"
 	OutputSchemaJson string `protobuf:"bytes,9,opt,name=output_schema_json,json=outputSchemaJson,proto3" json:"output_schema_json,omitempty"`
 }
 
@@ -643,6 +667,7 @@ type LoopAgentConfig struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Max loop iterations. 0 means run until escalation/termination.
+	// @gotags: json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"
 	MaxIterations uint32 `protobuf:"varint,1,opt,name=max_iterations,json=maxIterations,proto3" json:"max_iterations,omitempty"`
 }
 
@@ -769,18 +794,27 @@ type MCPServer struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name      string             `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// @gotags: json:"name,omitempty" yaml:"name,omitempty"
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// @gotags: json:"transport,omitempty" yaml:"transport,omitempty"
 	Transport MCPServerTransport `protobuf:"varint,2,opt,name=transport,proto3,enum=agents.v1.MCPServerTransport" json:"transport,omitempty"`
 	// Used by stdio-style transports.
-	Command string            `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
-	Args    []string          `protobuf:"bytes,4,rep,name=args,proto3" json:"args,omitempty"`
-	Env     map[string]string `protobuf:"bytes,5,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// @gotags: json:"command,omitempty" yaml:"command,omitempty"
+	Command string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
+	// @gotags: json:"args,omitempty" yaml:"args,omitempty"
+	Args []string `protobuf:"bytes,4,rep,name=args,proto3" json:"args,omitempty"`
+	// @gotags: json:"env,omitempty" yaml:"env,omitempty"
+	Env map[string]string `protobuf:"bytes,5,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Used by remote HTTP/SSE transports.
-	Url     string            `protobuf:"bytes,6,opt,name=url,proto3" json:"url,omitempty"`
+	// @gotags: json:"url,omitempty" yaml:"url,omitempty"
+	Url string `protobuf:"bytes,6,opt,name=url,proto3" json:"url,omitempty"`
+	// @gotags: json:"headers,omitempty" yaml:"headers,omitempty"
 	Headers map[string]string `protobuf:"bytes,7,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Optional allowlist of tools exposed from this server.
-	ToolFilter []string          `protobuf:"bytes,8,rep,name=tool_filter,json=toolFilter,proto3" json:"tool_filter,omitempty"`
-	Metadata   map[string]string `protobuf:"bytes,9,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// @gotags: json:"tool_filter,omitempty" yaml:"tool_filter,omitempty"
+	ToolFilter []string `protobuf:"bytes,8,rep,name=tool_filter,json=toolFilter,proto3" json:"tool_filter,omitempty"`
+	// @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+	Metadata map[string]string `protobuf:"bytes,9,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *MCPServer) Reset() {

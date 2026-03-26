@@ -1,11 +1,9 @@
 package config
 
-type AppConfig struct {
-	HTTP HTTPConfig `yaml:"http"`
-}
+import agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 
-type HTTPConfig struct {
-	Greeting string `yaml:"greeting"`
+type AppConfig struct {
+	Agents []agentsv1.Agent
 }
 
 func (c *AppConfig) Print() {}

@@ -9,82 +9,107 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 // Agent describes a declarative ADK agent configuration.
 message Agent {
   // Name must be unique within an agent tree.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
   string name = 1 [(validate.rules).string = {
     min_len: 1
     not_in: ["user"]
   }];
 
   // Description helps the LLM decide when to delegate to this agent.
+  // @gotags: json:"description,omitempty" yaml:"description,omitempty"
   string description = 2;
 
   // Nested sub-agents that this agent can delegate to.
+  // @gotags: json:"sub_agents,omitempty" yaml:"sub_agents,omitempty"
   repeated Agent sub_agents = 3;
 
   // Labels are intended for indexing, routing, or coarse-grained filtering.
+  // @gotags: json:"labels,omitempty" yaml:"labels,omitempty"
   map<string, string> labels = 4;
 
   // Metadata stores non-routing annotations that callers may want to keep.
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 5;
 
   // Config contains execution and integration settings for this agent.
+  // @gotags: json:"config,omitempty" yaml:"config,omitempty"
   AgentConfig config = 6;
 
   // Type indicates which ADK agent implementation this node represents.
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
   AgentType type = 20;
 }
 
 // AgentConfig groups agent-level runtime and integration settings.
 message AgentConfig {
   // Runtime contains execution behavior toggles that map to ADK run config.
+  // @gotags: json:"runtime,omitempty" yaml:"runtime,omitempty"
   AgentRuntime runtime = 1;
 
   // MCP servers define external tool providers this agent can connect to.
+  // @gotags: json:"mcp_servers,omitempty" yaml:"mcp_servers,omitempty"
   repeated MCPServer mcp_servers = 2;
 
   // Type-specific config maps to ADK concrete agent config.
   oneof type_config {
+    // @gotags: json:"llm,omitempty" yaml:"llm,omitempty"
     LLMAgentConfig llm = 20;
+    // @gotags: json:"loop,omitempty" yaml:"loop,omitempty"
     LoopAgentConfig loop = 21;
+    // @gotags: json:"sequential,omitempty" yaml:"sequential,omitempty"
     SequentialAgentConfig sequential = 22;
+    // @gotags: json:"parallel,omitempty" yaml:"parallel,omitempty"
     ParallelAgentConfig parallel = 23;
   }
 }
 
 // AgentRuntime captures runtime behavior flags that are safe to serialize.
 message AgentRuntime {
+  // @gotags: json:"streaming_mode,omitempty" yaml:"streaming_mode,omitempty"
   StreamingMode streaming_mode = 1;
+  // @gotags: json:"save_input_blobs_as_artifacts,omitempty" yaml:"save_input_blobs_as_artifacts,omitempty"
   bool save_input_blobs_as_artifacts = 2;
 }
 
 // LLMAgentConfig captures serializable options from llmagent.Config.
 message LLMAgentConfig {
   // Model identifier (for example: "gemini-2.5-pro").
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
   string model = 1;
 
   // Instruction guides agent behavior for this node.
+  // @gotags: json:"instruction,omitempty" yaml:"instruction,omitempty"
   string instruction = 2;
 
   // Global instruction applies across the entire agent tree (root takes effect).
+  // @gotags: json:"global_instruction,omitempty" yaml:"global_instruction,omitempty"
   string global_instruction = 3;
 
   // Prevents transferring control to parent/peer agents.
+  // @gotags: json:"disallow_transfer_to_parent,omitempty" yaml:"disallow_transfer_to_parent,omitempty"
   bool disallow_transfer_to_parent = 4;
+  // @gotags: json:"disallow_transfer_to_peers,omitempty" yaml:"disallow_transfer_to_peers,omitempty"
   bool disallow_transfer_to_peers = 5;
 
   // Controls whether prior conversation contents are included in model requests.
+  // @gotags: json:"include_contents,omitempty" yaml:"include_contents,omitempty"
   LLMIncludeContents include_contents = 6;
 
   // Optional session state key to store agent output.
+  // @gotags: json:"output_key,omitempty" yaml:"output_key,omitempty"
   string output_key = 7;
 
   // Optional schemas encoded as JSON text.
+  // @gotags: json:"input_schema_json,omitempty" yaml:"input_schema_json,omitempty"
   string input_schema_json = 8;
+  // @gotags: json:"output_schema_json,omitempty" yaml:"output_schema_json,omitempty"
   string output_schema_json = 9;
 }
 
 // LoopAgentConfig maps to workflow loopagent.Config.
 message LoopAgentConfig {
   // Max loop iterations. 0 means run until escalation/termination.
+  // @gotags: json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"
   uint32 max_iterations = 1;
 }
 
@@ -96,21 +121,30 @@ message ParallelAgentConfig {}
 
 // MCPServer describes a serializable MCP server connection config.
 message MCPServer {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
   string name = 1 [(validate.rules).string.min_len = 1];
+  // @gotags: json:"transport,omitempty" yaml:"transport,omitempty"
   MCPServerTransport transport = 2;
 
   // Used by stdio-style transports.
+  // @gotags: json:"command,omitempty" yaml:"command,omitempty"
   string command = 3;
+  // @gotags: json:"args,omitempty" yaml:"args,omitempty"
   repeated string args = 4;
+  // @gotags: json:"env,omitempty" yaml:"env,omitempty"
   map<string, string> env = 5;
 
   // Used by remote HTTP/SSE transports.
+  // @gotags: json:"url,omitempty" yaml:"url,omitempty"
   string url = 6;
+  // @gotags: json:"headers,omitempty" yaml:"headers,omitempty"
   map<string, string> headers = 7;
 
   // Optional allowlist of tools exposed from this server.
+  // @gotags: json:"tool_filter,omitempty" yaml:"tool_filter,omitempty"
   repeated string tool_filter = 8;
 
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 9;
 }
 
