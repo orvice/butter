@@ -26,7 +26,7 @@ type Service struct {
 }
 
 // NewService builds the agent registry from proto configs.
-func NewService(ctx context.Context, agents []agentsv1.Agent, sessionSvc session.Service) (*Service, error) {
+func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, sessionSvc session.Service) (*Service, error) {
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
 
@@ -40,7 +40,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, sessionSvc session
 			"description", agents[i].GetDescription(),
 		)
 
-		a, err := internalagent.NewFromProto(ctx, &agents[i])
+		a, err := internalagent.NewFromProto(ctx, &agents[i], providers)
 		if err != nil {
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}

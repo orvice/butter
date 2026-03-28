@@ -3,8 +3,9 @@ package config
 import agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 
 type AppConfig struct {
-	Agents   []agentsv1.Agent        `yaml:"agents"`
-	Channels []agentsv1.AgentChannel `yaml:"channels"`
+	Agents         []agentsv1.Agent         `yaml:"agents"`
+	Channels       []agentsv1.AgentChannel  `yaml:"channels"`
+	ModelProviders []agentsv1.ModelProvider `yaml:"model_providers"`
 
 	MongoURI      string `yaml:"mongo_uri"`
 	MongoDB       string `yaml:"mongo_db"`

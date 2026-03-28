@@ -72,7 +72,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
 
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewService(ctx, cfg.Agents, sessionSvc)
+	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, sessionSvc)
 	if err != nil {
 		logger.Error("failed to build runner service", "err", err)
 		return err

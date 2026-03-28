@@ -12,6 +12,31 @@ mongo_db: "butter"
 redis_addr: "localhost:6379"
 redis_password: ""
 
+# Model provider mappings
+# Maps model names to provider backends. If a model isn't listed here, Gemini is used as default.
+model_providers:
+  - name: gemini
+    type: gemini
+    # api_key: ""  # Uses GOOGLE_API_KEY env var by default
+    models:
+      - "gemini-2.5-flash"
+      - "gemini-2.5-pro"
+
+  - name: openai
+    type: openai
+    api_key: ""  # Set via env var or config
+    base_url: "https://api.openai.com/v1"
+    models:
+      - "gpt-4o"
+      - "gpt-4o-mini"
+
+  # Example: Ollama (OpenAI-compatible)
+  # - name: ollama
+  #   type: openai
+  #   base_url: "http://localhost:11434/v1"
+  #   models:
+  #     - "qwen3:8b"
+
 # Agent definitions
 agents:
   - name: assistant

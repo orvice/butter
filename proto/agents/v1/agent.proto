@@ -176,3 +176,26 @@ enum MCPServerTransport {
   MCP_SERVER_TRANSPORT_STREAMABLE_HTTP = 2;
   MCP_SERVER_TRANSPORT_SSE = 3;
 }
+
+// ModelProvider maps a set of model names to a provider backend.
+message ModelProvider {
+  // Human-readable name for this provider entry (e.g. "openai", "ollama").
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+
+  // Provider type: "gemini" or "openai".
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
+  string type = 2;
+
+  // API key for authentication. Can be injected via env vars.
+  // @gotags: json:"api_key,omitempty" yaml:"api_key,omitempty"
+  string api_key = 3;
+
+  // Base URL for OpenAI-compatible endpoints (e.g. "http://localhost:11434/v1").
+  // @gotags: json:"base_url,omitempty" yaml:"base_url,omitempty"
+  string base_url = 4;
+
+  // Model identifiers this provider serves.
+  // @gotags: json:"models,omitempty" yaml:"models,omitempty"
+  repeated string models = 5;
+}
