@@ -18,15 +18,16 @@ import (
 
 // Service manages an agent registry and per-channel ADK runners.
 type Service struct {
-	agents     map[string]agent.Agent
-	sessionSvc session.Service
+	agents       map[string]agent.Agent
+	sessionSvc   session.Service
+	pluginConfig adkrunner.PluginConfig
 
 	mu      sync.Mutex
 	runners map[string]*adkrunner.Runner // keyed by channel name
 }
 
 // NewService builds the agent registry from proto configs.
-func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, sessionSvc session.Service) (*Service, error) {
+func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, sessionSvc session.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
 
@@ -51,9 +52,10 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 	logger.Info("agent registry ready", "total_agents", len(registry))
 
 	return &Service{
-		agents:     registry,
-		sessionSvc: sessionSvc,
-		runners:    make(map[string]*adkrunner.Runner),
+		agents:       registry,
+		sessionSvc:   sessionSvc,
+		pluginConfig: pluginConfig,
+		runners:      make(map[string]*adkrunner.Runner),
 	}, nil
 }
 
@@ -89,6 +91,7 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag 
 		AppName:        channelName,
 		Agent:          ag,
 		SessionService: s.sessionSvc,
+		PluginConfig:   s.pluginConfig,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating runner for channel %q: %w", channelName, err)

@@ -1,11 +1,16 @@
 package config
 
-import agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+import (
+	"github.com/achetronic/adk-utils-go/plugin/langfuse"
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+)
 
 type AppConfig struct {
 	Agents         []agentsv1.Agent         `yaml:"agents"`
 	Channels       []agentsv1.AgentChannel  `yaml:"channels"`
 	ModelProviders []agentsv1.ModelProvider `yaml:"model_providers"`
+
+	Langfuse langfuse.Config `yaml:"langfuse"`
 
 	MongoURI      string `yaml:"mongo_uri"`
 	MongoDB       string `yaml:"mongo_db"`

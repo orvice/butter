@@ -4,9 +4,11 @@ import (
 	"context"
 
 	"butterfly.orx.me/core/log"
+	"github.com/achetronic/adk-utils-go/plugin/langfuse"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	adkrunner "google.golang.org/adk/runner"
 
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/channel/telegram"
@@ -70,9 +72,26 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
 
 	selector := telegram.NewAgentSelector(rdb)
 
+	// Setup Langfuse plugin if configured.
+	var pluginConfig adkrunner.PluginConfig
+	if cfg.Langfuse.IsEnabled() {
+		logger.Info("setting up langfuse plugin")
+		pc, shutdown, err := langfuse.Setup(&cfg.Langfuse)
+		if err != nil {
+			logger.Error("failed to setup langfuse", "err", err)
+			return err
+		}
+		pluginConfig = pc
+		go func() {
+			<-ctx.Done()
+			_ = shutdown(context.Background())
+		}()
+		logger.Info("langfuse plugin enabled")
+	}
+
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, sessionSvc)
+	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, sessionSvc, pluginConfig)
 	if err != nil {
 		logger.Error("failed to build runner service", "err", err)
 		return err

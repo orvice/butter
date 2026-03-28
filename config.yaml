@@ -12,6 +12,15 @@ mongo_db: "butter"
 redis_addr: "localhost:6379"
 redis_password: ""
 
+# Langfuse observability (optional — disabled when keys are empty)
+langfuse:
+  publicKey: ""       # LANGFUSE_PUBLIC_KEY
+  secretKey: ""       # LANGFUSE_SECRET_KEY
+  host: ""            # defaults to https://cloud.langfuse.com
+  # environment: ""   # e.g. "production", "staging"
+  # release: ""       # app version tag
+  # serviceName: ""   # OTel service name, defaults to "langfuse-adk"
+
 # Model provider mappings
 # Maps model names to provider backends. If a model isn't listed here, Gemini is used as default.
 model_providers:
