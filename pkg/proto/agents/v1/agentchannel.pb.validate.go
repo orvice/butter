@@ -626,6 +626,8 @@ func (m *TelegramChannelConfig) validate(all bool) error {
 
 	// no validation rules for WebhookSecret
 
+	// no validation rules for Debug
+
 	if len(errors) > 0 {
 		return TelegramChannelConfigMultiError(errors)
 	}

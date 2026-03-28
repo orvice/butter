@@ -9,6 +9,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"google.golang.org/adk/session"
 
 	"go.orx.me/apps/butter/internal/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -16,13 +17,14 @@ import (
 
 // Poller handles long-polling for a single Telegram AgentChannel.
 type Poller struct {
-	channelName string
-	channelCfg  *agentsv1.AgentChannel
-	telegramCfg *agentsv1.TelegramChannelConfig
-	bot         *bot.Bot
-	runner      *runner.Service
-	selector    *AgentSelector
-	agentNames  []string
+	channelName  string
+	channelCfg   *agentsv1.AgentChannel
+	telegramCfg  *agentsv1.TelegramChannelConfig
+	bot          *bot.Bot
+	runner       *runner.Service
+	selector     *AgentSelector
+	debugToggle  *DebugToggle
+	agentNames   []string
 }
 
 // NewPoller creates a new Telegram long-polling consumer.
@@ -30,6 +32,7 @@ func NewPoller(
 	channelCfg *agentsv1.AgentChannel,
 	runnerSvc *runner.Service,
 	selector *AgentSelector,
+	debugToggle *DebugToggle,
 	agentNames []string,
 ) (*Poller, error) {
 	p := &Poller{
@@ -38,6 +41,7 @@ func NewPoller(
 		telegramCfg: channelCfg.GetTelegram(),
 		runner:      runnerSvc,
 		selector:    selector,
+		debugToggle: debugToggle,
 		agentNames:  agentNames,
 	}
 
@@ -103,6 +107,12 @@ func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 	// Handle /agent commands.
 	if strings.HasPrefix(text, "/agent") {
 		p.handleAgentCommand(ctx, b, msg)
+		return
+	}
+
+	// Handle /debug toggle.
+	if strings.HasPrefix(text, "/debug") {
+		p.handleDebugCommand(ctx, b, msg)
 		return
 	}
 
@@ -208,6 +218,33 @@ func (p *Poller) handleAgentCommand(ctx context.Context, b *bot.Bot, msg *models
 	}
 }
 
+func (p *Poller) handleDebugCommand(ctx context.Context, b *bot.Bot, msg *models.Message) {
+	logger := log.FromContext(ctx)
+	sessionID := p.deriveSessionID(msg)
+
+	newState, err := p.debugToggle.Toggle(ctx, p.channelName, sessionID, p.telegramCfg.GetDebug())
+	if err != nil {
+		logger.Error("failed to toggle debug mode",
+			"channel", p.channelName,
+			"session_id", sessionID,
+			"err", err,
+		)
+		p.sendReply(ctx, b, msg, "Failed to toggle debug mode. Please try again.")
+		return
+	}
+
+	status := "OFF"
+	if newState {
+		status = "ON"
+	}
+	logger.Info("debug mode toggled",
+		"channel", p.channelName,
+		"session_id", sessionID,
+		"debug", newState,
+	)
+	p.sendReply(ctx, b, msg, fmt.Sprintf("Debug mode: %s", status))
+}
+
 func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Message) {
 	logger := log.FromContext(ctx)
 	sessionID := p.deriveSessionID(msg)
@@ -237,7 +274,28 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 		}
 	}
 
-	response, err := p.runner.Run(ctx, p.channelName, agentName, sessionID, userID, msg.Text)
+	// Build event callback for debug mode.
+	var onEvent runner.EventCallback
+	if IsDebugActive(ctx, p.debugToggle, p.channelName, sessionID, p.telegramCfg) {
+		onEvent = func(evt *session.Event) {
+			text := FormatDebugEvent(evt)
+			if text == "" {
+				return
+			}
+			if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: msg.Chat.ID,
+				Text:   text,
+			}); err != nil {
+				logger.Warn("failed to send debug message",
+					"channel", p.channelName,
+					"chat_id", msg.Chat.ID,
+					"err", err,
+				)
+			}
+		}
+	}
+
+	response, err := p.runner.Run(ctx, p.channelName, agentName, sessionID, userID, msg.Text, onEvent)
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", p.channelName,

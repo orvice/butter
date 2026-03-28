@@ -71,6 +71,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
 	}
 
 	selector := telegram.NewAgentSelector(rdb)
+	debugToggle := telegram.NewDebugToggle(rdb)
 
 	// Setup Langfuse plugin if configured.
 	var pluginConfig adkrunner.PluginConfig
@@ -98,7 +99,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
 	}
 
 	// Build channel manager.
-	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, selector)
+	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, selector, debugToggle)
 	if err != nil {
 		logger.Error("failed to create channel manager", "err", err)
 		return err

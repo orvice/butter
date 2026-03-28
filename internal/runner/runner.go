@@ -102,8 +102,13 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag 
 	return r, nil
 }
 
+// EventCallback is called for each non-final event during agent execution.
+// It receives the event and should not block for long.
+type EventCallback func(evt *session.Event)
+
 // Run executes an agent for a given channel, session, and input text.
-func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, userID, input string) (string, error) {
+// If onEvent is non-nil, it is called for each non-final event.
+func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, userID, input string, onEvent EventCallback) (string, error) {
 	logger := log.FromContext(ctx)
 
 	ag, ok := s.agents[agentName]
@@ -140,6 +145,9 @@ func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, us
 			return result.String(), fmt.Errorf("runner error: %w", err)
 		}
 		eventCount++
+		if onEvent != nil && !evt.IsFinalResponse() {
+			onEvent(evt)
+		}
 		if evt.IsFinalResponse() && evt.Content != nil {
 			for _, part := range evt.Content.Parts {
 				if part.Text != "" {

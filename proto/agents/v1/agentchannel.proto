@@ -57,6 +57,7 @@ message TelegramChannelConfig {
   string webhook_secret = 3;
   repeated int64 allowed_chat_ids = 4;
   repeated int64 allowed_user_ids = 5;
+  bool debug = 6;
 }
 
 enum AgentChannelPlatform {
