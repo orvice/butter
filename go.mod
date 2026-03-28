@@ -3,7 +3,7 @@ module go.orx.me/apps/butter
 go 1.25.0
 
 require (
-	butterfly.orx.me/core v0.0.0-20250621160607-8cd37657d336
+	butterfly.orx.me/core v0.0.0-20260314082709-d474cfa9a7ec
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-telegram/bot v1.20.0

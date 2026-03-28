@@ -1,5 +1,5 @@
-butterfly.orx.me/core v0.0.0-20250621160607-8cd37657d336 h1:+52l2ZM+Z/C6kEFgp1nAyIVcn2lfxRRGZdYCC21X+bs=
-butterfly.orx.me/core v0.0.0-20250621160607-8cd37657d336/go.mod h1:7aYYnZXQ1pwjsVJyl0k+GWGeGy/2/ToCRxPO6EFisOg=
+butterfly.orx.me/core v0.0.0-20260314082709-d474cfa9a7ec h1:s+nEBaKJh49Fg+LIokqw3oBCWItzXDboO6l28NJeAjU=
+butterfly.orx.me/core v0.0.0-20260314082709-d474cfa9a7ec/go.mod h1:7aYYnZXQ1pwjsVJyl0k+GWGeGy/2/ToCRxPO6EFisOg=
 cloud.google.com/go v0.123.0 h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE=
 cloud.google.com/go v0.123.0/go.mod h1:xBoMV08QcqUGuPW65Qfm1o9Y4zKZBpGS+7bImXLTAZU=
 cloud.google.com/go/auth v0.17.0 h1:74yCm7hCj2rUyyAocqnFzsAYXgJhrG26XCFimrc/Kz4=

@@ -26,8 +26,9 @@ func main() {
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 
 	svc := core.New(&app.Config{
-		Service: serviceName,
-		Config:  cfg,
+		Namespace: "ai",
+		Service:   serviceName,
+		Config:    cfg,
 		Router: func(r *gin.Engine) {
 			healthHandler.Register(r)
 		},
