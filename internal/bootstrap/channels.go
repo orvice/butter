@@ -1,0 +1,93 @@
+package bootstrap
+
+import (
+	"context"
+
+	"butterfly.orx.me/core/log"
+	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"go.orx.me/apps/butter/internal/channel"
+	"go.orx.me/apps/butter/internal/channel/telegram"
+	"go.orx.me/apps/butter/internal/config"
+	"go.orx.me/apps/butter/internal/runner"
+	mongosession "go.orx.me/apps/butter/internal/session/mongo"
+)
+
+// StartChannels initializes MongoDB, Redis, runner service, and channel manager,
+// then starts polling in a background goroutine.
+func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
+	logger := log.FromContext(ctx)
+
+	if len(cfg.Channels) == 0 {
+		logger.Info("no channels configured, skipping channel manager")
+		return nil
+	}
+
+	// Connect to MongoDB.
+	mongoURI := cfg.MongoURI
+	if mongoURI == "" {
+		mongoURI = "mongodb://localhost:27017"
+	}
+	logger.Info("connecting to mongodb", "uri", mongoURI)
+
+	mongoClient, err := mongo.Connect(options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		logger.Error("failed to connect to mongodb", "err", err)
+		return err
+	}
+
+	dbName := cfg.MongoDB
+	if dbName == "" {
+		dbName = "butter"
+	}
+	logger.Info("mongodb connected", "database", dbName)
+
+	sessionSvc, err := mongosession.New(ctx, mongoClient.Database(dbName))
+	if err != nil {
+		logger.Error("failed to create mongo session service", "err", err)
+		return err
+	}
+
+	// Connect to Redis.
+	redisAddr := cfg.RedisAddr
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+	logger.Info("connecting to redis", "addr", redisAddr)
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: cfg.RedisPassword,
+	})
+
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		logger.Warn("redis ping failed, agent selection may not persist", "err", err)
+	} else {
+		logger.Info("redis connected")
+	}
+
+	selector := telegram.NewAgentSelector(rdb)
+
+	// Build runner service.
+	logger.Info("building runner service", "agent_count", len(cfg.Agents))
+	runnerSvc, err := runner.NewService(ctx, cfg.Agents, sessionSvc)
+	if err != nil {
+		logger.Error("failed to build runner service", "err", err)
+		return err
+	}
+
+	// Build channel manager.
+	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, selector)
+	if err != nil {
+		logger.Error("failed to create channel manager", "err", err)
+		return err
+	}
+
+	// Start channels in background.
+	logger.Info("starting channel manager in background")
+	go mgr.Start(ctx)
+
+	return nil
+}
