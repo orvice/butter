@@ -1,0 +1,265 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// Agent describes a declarative ADK agent configuration.
+message Agent {
+  // Name must be unique within an agent tree.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1 [(validate.rules).string = {
+    min_len: 1
+    not_in: ["user"]
+  }];
+
+  // Description helps the LLM decide when to delegate to this agent.
+  // @gotags: json:"description,omitempty" yaml:"description,omitempty"
+  string description = 2;
+
+  // Nested sub-agents that this agent can delegate to.
+  // @gotags: json:"sub_agents,omitempty" yaml:"sub_agents,omitempty"
+  repeated Agent sub_agents = 3;
+
+  // Labels are intended for indexing, routing, or coarse-grained filtering.
+  // @gotags: json:"labels,omitempty" yaml:"labels,omitempty"
+  map<string, string> labels = 4;
+
+  // Metadata stores non-routing annotations that callers may want to keep.
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+  map<string, string> metadata = 5;
+
+  // Config contains execution and integration settings for this agent.
+  // @gotags: json:"config,omitempty" yaml:"config,omitempty"
+  AgentConfig config = 6;
+
+  // Type indicates which ADK agent implementation this node represents.
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
+  AgentType type = 20;
+}
+
+// AgentConfig groups agent-level runtime and integration settings.
+message AgentConfig {
+  // Runtime contains execution behavior toggles that map to ADK run config.
+  // @gotags: json:"runtime,omitempty" yaml:"runtime,omitempty"
+  AgentRuntime runtime = 1;
+
+  // MCP servers define external tool providers this agent can connect to.
+  // @gotags: json:"mcp_servers,omitempty" yaml:"mcp_servers,omitempty"
+  repeated MCPServer mcp_servers = 2;
+
+  // Context guard configures automatic context window management.
+  // @gotags: json:"context_guard,omitempty" yaml:"context_guard,omitempty"
+  ContextGuardConfig context_guard = 3;
+
+  // IDs referencing top-level shared MCP server configs.
+  // @gotags: json:"mcp_server_ids,omitempty" yaml:"mcp_server_ids,omitempty"
+  repeated string mcp_server_ids = 4;
+
+  // IDs referencing top-level shared remote agent configs.
+  // @gotags: json:"remote_agent_ids,omitempty" yaml:"remote_agent_ids,omitempty"
+  repeated string remote_agent_ids = 5;
+
+  // Type-specific config maps to ADK concrete agent config.
+  oneof type_config {
+    // @gotags: json:"llm,omitempty" yaml:"llm,omitempty"
+    LLMAgentConfig llm = 20;
+    // @gotags: json:"loop,omitempty" yaml:"loop,omitempty"
+    LoopAgentConfig loop = 21;
+    // @gotags: json:"sequential,omitempty" yaml:"sequential,omitempty"
+    SequentialAgentConfig sequential = 22;
+    // @gotags: json:"parallel,omitempty" yaml:"parallel,omitempty"
+    ParallelAgentConfig parallel = 23;
+  }
+}
+
+// AgentRuntime captures runtime behavior flags that are safe to serialize.
+message AgentRuntime {
+  // @gotags: json:"streaming_mode,omitempty" yaml:"streaming_mode,omitempty"
+  StreamingMode streaming_mode = 1;
+  // @gotags: json:"save_input_blobs_as_artifacts,omitempty" yaml:"save_input_blobs_as_artifacts,omitempty"
+  bool save_input_blobs_as_artifacts = 2;
+}
+
+// LLMAgentConfig captures serializable options from llmagent.Config.
+message LLMAgentConfig {
+  // Model identifier (for example: "gemini-2.5-pro").
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
+  string model = 1;
+
+  // Instruction guides agent behavior for this node.
+  // @gotags: json:"instruction,omitempty" yaml:"instruction,omitempty"
+  string instruction = 2;
+
+  // Global instruction applies across the entire agent tree (root takes effect).
+  // @gotags: json:"global_instruction,omitempty" yaml:"global_instruction,omitempty"
+  string global_instruction = 3;
+
+  // Prevents transferring control to parent/peer agents.
+  // @gotags: json:"disallow_transfer_to_parent,omitempty" yaml:"disallow_transfer_to_parent,omitempty"
+  bool disallow_transfer_to_parent = 4;
+  // @gotags: json:"disallow_transfer_to_peers,omitempty" yaml:"disallow_transfer_to_peers,omitempty"
+  bool disallow_transfer_to_peers = 5;
+
+  // Controls whether prior conversation contents are included in model requests.
+  // @gotags: json:"include_contents,omitempty" yaml:"include_contents,omitempty"
+  LLMIncludeContents include_contents = 6;
+
+  // Optional session state key to store agent output.
+  // @gotags: json:"output_key,omitempty" yaml:"output_key,omitempty"
+  string output_key = 7;
+
+  // Optional schemas encoded as JSON text.
+  // @gotags: json:"input_schema_json,omitempty" yaml:"input_schema_json,omitempty"
+  string input_schema_json = 8;
+  // @gotags: json:"output_schema_json,omitempty" yaml:"output_schema_json,omitempty"
+  string output_schema_json = 9;
+}
+
+// LoopAgentConfig maps to workflow loopagent.Config.
+message LoopAgentConfig {
+  // Max loop iterations. 0 means run until escalation/termination.
+  // @gotags: json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"
+  uint32 max_iterations = 1;
+}
+
+// SequentialAgentConfig maps to workflow sequentialagent.Config.
+message SequentialAgentConfig {}
+
+// ParallelAgentConfig maps to workflow parallelagent.Config.
+message ParallelAgentConfig {}
+
+// MCPServer describes a serializable MCP server connection config.
+message MCPServer {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // @gotags: json:"transport,omitempty" yaml:"transport,omitempty"
+  MCPServerTransport transport = 2;
+
+  // Unique identifier for referencing this server from agent configs.
+  // Required when used in the top-level mcp_server_configs list; optional when inline.
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty"
+  string id = 10;
+
+  // Used by stdio-style transports.
+  // @gotags: json:"command,omitempty" yaml:"command,omitempty"
+  string command = 3;
+  // @gotags: json:"args,omitempty" yaml:"args,omitempty"
+  repeated string args = 4;
+  // @gotags: json:"env,omitempty" yaml:"env,omitempty"
+  map<string, string> env = 5;
+
+  // Used by remote HTTP/SSE transports.
+  // @gotags: json:"url,omitempty" yaml:"url,omitempty"
+  string url = 6;
+  // @gotags: json:"headers,omitempty" yaml:"headers,omitempty"
+  map<string, string> headers = 7;
+
+  // Optional allowlist of tools exposed from this server.
+  // @gotags: json:"tool_filter,omitempty" yaml:"tool_filter,omitempty"
+  repeated string tool_filter = 8;
+
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+  map<string, string> metadata = 9;
+}
+
+enum StreamingMode {
+  STREAMING_MODE_UNSPECIFIED = 0;
+  STREAMING_MODE_NONE = 1;
+  STREAMING_MODE_SSE = 2;
+}
+
+// AgentType selects which concrete ADK agent type to instantiate.
+enum AgentType {
+  AGENT_TYPE_UNSPECIFIED = 0;
+  AGENT_TYPE_LLM = 1;
+  AGENT_TYPE_LOOP = 2;
+  AGENT_TYPE_SEQUENTIAL = 3;
+  AGENT_TYPE_PARALLEL = 4;
+}
+
+// LLMIncludeContents matches llmagent.IncludeContents values.
+enum LLMIncludeContents {
+  LLM_INCLUDE_CONTENTS_UNSPECIFIED = 0;
+  LLM_INCLUDE_CONTENTS_DEFAULT = 1;
+  LLM_INCLUDE_CONTENTS_NONE = 2;
+}
+
+enum MCPServerTransport {
+  MCP_SERVER_TRANSPORT_UNSPECIFIED = 0;
+  MCP_SERVER_TRANSPORT_STDIO = 1;
+  MCP_SERVER_TRANSPORT_STREAMABLE_HTTP = 2;
+  MCP_SERVER_TRANSPORT_SSE = 3;
+}
+
+// RemoteAgentProtocol selects the communication protocol for a remote agent.
+enum RemoteAgentProtocol {
+  REMOTE_AGENT_PROTOCOL_UNSPECIFIED = 0;
+  REMOTE_AGENT_PROTOCOL_A2A = 1;
+}
+
+// ContextGuardStrategy selects the compaction strategy for context management.
+enum ContextGuardStrategy {
+  CONTEXT_GUARD_STRATEGY_UNSPECIFIED = 0;
+  CONTEXT_GUARD_STRATEGY_THRESHOLD = 1;
+  CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW = 2;
+}
+
+// ContextGuardConfig configures automatic context window management for an agent.
+message ContextGuardConfig {
+  // Strategy to use for context compaction.
+  // @gotags: json:"strategy,omitempty" yaml:"strategy,omitempty"
+  ContextGuardStrategy strategy = 1;
+
+  // Maximum number of conversation turns before compaction (sliding window only).
+  // @gotags: json:"max_turns,omitempty" yaml:"max_turns,omitempty"
+  int32 max_turns = 2;
+
+  // Override for context window size in tokens. When set, bypasses the model registry.
+  // @gotags: json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"
+  int32 max_tokens = 3;
+}
+
+// RemoteAgent describes a remote agent reachable over a network protocol.
+message RemoteAgent {
+  // Unique identifier for referencing this remote agent from agent configs.
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty"
+  string id = 1 [(validate.rules).string.min_len = 1];
+
+  // Human-readable name for the remote agent.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 2 [(validate.rules).string.min_len = 1];
+
+  // Endpoint URL for communicating with the remote agent.
+  // @gotags: json:"url,omitempty" yaml:"url,omitempty"
+  string url = 3 [(validate.rules).string.min_len = 1];
+
+  // Communication protocol for this remote agent.
+  // @gotags: json:"protocol,omitempty" yaml:"protocol,omitempty"
+  RemoteAgentProtocol protocol = 4;
+}
+
+// ModelProvider maps a set of model names to a provider backend.
+message ModelProvider {
+  // Human-readable name for this provider entry (e.g. "openai", "ollama").
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+
+  // Provider type: "gemini" or "openai".
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
+  string type = 2;
+
+  // API key for authentication. Can be injected via env vars.
+  // @gotags: json:"api_key,omitempty" yaml:"api_key,omitempty"
+  string api_key = 3;
+
+  // Base URL for OpenAI-compatible endpoints (e.g. "http://localhost:11434/v1").
+  // @gotags: json:"base_url,omitempty" yaml:"base_url,omitempty"
+  string base_url = 4;
+
+  // Model identifiers this provider serves.
+  // @gotags: json:"models,omitempty" yaml:"models,omitempty"
+  repeated string models = 5;
+}

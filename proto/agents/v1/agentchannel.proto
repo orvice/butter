@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// AgentChannel binds an agent to an external interaction platform.
+message AgentChannel {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  string agent_name = 2 [(validate.rules).string.min_len = 1];
+  AgentChannelPlatform platform = 3;
+  bool enabled = 4;
+
+  repeated AgentTrigger triggers = 5;
+  AgentDelivery delivery = 6;
+  AgentSessionBinding session = 7;
+
+  TelegramChannelConfig telegram = 10;
+
+  map<string, string> metadata = 20;
+}
+
+// AgentTrigger defines when a channel should invoke the agent.
+message AgentTrigger {
+  AgentTriggerType type = 1;
+
+  // Commands used when type is COMMAND.
+  repeated string commands = 2;
+
+  // Prefixes used when type is MESSAGE.
+  repeated string prefixes = 3;
+
+  // When true, the agent is triggered only if explicitly mentioned.
+  bool require_mention = 4;
+}
+
+// AgentDelivery defines how agent output is delivered back to the platform.
+message AgentDelivery {
+  AgentReplyMode reply_mode = 1;
+  bool streaming_enabled = 2;
+  bool send_typing = 3;
+}
+
+// AgentSessionBinding defines how platform context maps to agent sessions.
+message AgentSessionBinding {
+  AgentSessionScope scope = 1;
+
+  // Optional template for custom session keys.
+  string key_template = 2;
+}
+
+message TelegramChannelConfig {
+  string bot_token = 1;
+  string webhook_url = 2;
+  string webhook_secret = 3;
+  repeated int64 allowed_chat_ids = 4;
+  repeated int64 allowed_user_ids = 5;
+  bool debug = 6;
+}
+
+enum AgentChannelPlatform {
+  AGENT_CHANNEL_PLATFORM_UNSPECIFIED = 0;
+  AGENT_CHANNEL_PLATFORM_TELEGRAM = 1;
+}
+
+enum AgentTriggerType {
+  AGENT_TRIGGER_TYPE_UNSPECIFIED = 0;
+  AGENT_TRIGGER_TYPE_MESSAGE = 1;
+  AGENT_TRIGGER_TYPE_COMMAND = 2;
+  AGENT_TRIGGER_TYPE_MENTION = 3;
+  AGENT_TRIGGER_TYPE_PRIVATE_CHAT = 4;
+}
+
+enum AgentReplyMode {
+  AGENT_REPLY_MODE_UNSPECIFIED = 0;
+  AGENT_REPLY_MODE_REPLY = 1;
+  AGENT_REPLY_MODE_THREAD = 2;
+  AGENT_REPLY_MODE_NEW_MESSAGE = 3;
+}
+
+enum AgentSessionScope {
+  AGENT_SESSION_SCOPE_UNSPECIFIED = 0;
+  AGENT_SESSION_SCOPE_USER = 1;
+  AGENT_SESSION_SCOPE_CHAT = 2;
+  AGENT_SESSION_SCOPE_THREAD = 3;
+  AGENT_SESSION_SCOPE_CUSTOM = 4;
+}
