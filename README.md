@@ -1,63 +1,132 @@
-# butter
+# Butter
 
-基于 `butterfly.orx.me/core` 初始化的服务骨架，已经按常见业务分层拆好入口、配置、handler、service、repo。
+Butter is a configuration-driven AI agent orchestration service built on the [Butterfly](https://butterfly.orx.me) framework and powered by [Google ADK (Agent Development Kit)](https://google.golang.org/adk). It allows you to define agent workflows via YAML/protobuf config and expose them through various channels like Telegram.
 
-## 项目结构
+## Features
+
+- **Multi-agent orchestration** — Define LLM, Loop, Sequential, and Parallel agent workflows in config
+- **MCP server integration** — Connect agents to external tools via Model Context Protocol (MCP) servers
+- **Channel-based delivery** — Bind agents to messaging platforms (currently Telegram) through configurable channels
+- **Remote agent support** — Delegate work to remote agents via A2A (Agent-to-Agent) protocol
+- **Session management** — Persistent conversation sessions backed by MongoDB
+- **Observability** — Built-in OpenTelemetry tracing and optional Langfuse integration
+- **Protobuf-defined config** — Agent and channel configurations are defined as protobuf messages, generated via `buf`
+
+## Architecture
 
 ```text
-.
-├── .env.example
-├── cmd
-│   └── butter
-│       └── main.go
-├── config
-│   └── butter.yaml
-├── internal
-│   ├── config
-│   │   └── config.go
-│   ├── handler
-│   │   └── http
-│   │       └── health.go
-│   ├── repo
-│   │   └── health.go
-│   └── service
-│       └── health.go
-├── go.mod
-└── go.sum
+┌─────────────────────────────────────────────────┐
+│                   cmd/butter                     │
+│            (Butterfly app bootstrap)             │
+└──────────┬──────────────────────────┬────────────┘
+           │                          │
+    ┌──────▼──────┐           ┌───────▼───────┐
+    │  HTTP Handler│           │   Channels    │
+    │  (Gin routes)│           │  (Telegram)   │
+    └──────┬──────┘           └───────┬───────┘
+           │                          │
+    ┌──────▼──────┐           ┌───────▼───────┐
+    │   Service    │           │    Runner     │
+    │   Layer      │           │  (ADK Agent)  │
+    └──────┬──────┘           └───────┬───────┘
+           │                          │
+    ┌──────▼──────┐           ┌───────▼───────┐
+    │    Repo      │           │    Session    │
+    │   Layer      │           │   (MongoDB)   │
+    └─────────────┘           └───────────────┘
 ```
 
-## 当前分层
+### Key Packages
 
-- `cmd/butter`: butterfly 应用启动和依赖装配
-- `internal/config`: 应用配置结构
-- `internal/handler/http`: HTTP 路由注册和请求处理
-- `internal/service`: 业务逻辑
-- `internal/repo`: 数据访问抽象占位，方便后续接 Redis/MySQL/Mongo
+| Package | Description |
+|---|---|
+| `cmd/butter` | Entry point — wires config, repos, services, handlers, and starts channels |
+| `internal/config` | `AppConfig` holding `[]Agent` and `[]AgentChannel` loaded from YAML |
+| `internal/agent` | `NewFromProto()` factory — converts proto agent configs into ADK agent instances |
+| `internal/channel` | Channel manager and platform adapters (Telegram) |
+| `internal/runner` | Executes agent invocations with session and context management |
+| `internal/session` | Session storage backends (MongoDB) |
+| `internal/handler/http` | Gin HTTP handlers |
+| `internal/service` | Business logic layer |
+| `internal/repo` | Data access abstractions |
+| `pkg/proto/agents/v1` | Generated Go code from protobuf definitions (**do not edit**) |
 
-## 本地运行
+### Proto Definitions
 
-1. 准备环境变量
+Located in `proto/agents/v1/`:
+
+- **`agent.proto`** — Agent tree configuration: `Agent`, `AgentConfig`, `LLMAgentConfig`, `MCPServer`, workflow agent configs (Loop, Sequential, Parallel), remote agent config, and context guard settings
+- **`agentchannel.proto`** — Platform bindings: `AgentChannel`, triggers, delivery, and Telegram-specific config
+
+## Getting Started
+
+### Prerequisites
+
+- Go 1.25+
+- [buf CLI](https://buf.build/) (for protobuf generation)
+- MongoDB (for session storage)
+
+### Setup
+
+1. **Clone and configure**
 
 ```bash
 cp .env.example .env
-export $(grep -v '^#' .env | xargs)
+# Edit .env with your settings
 ```
 
-2. 安装依赖并启动
+2. **Install dependencies**
 
 ```bash
 go mod tidy
+```
+
+3. **Run the service**
+
+```bash
+export $(grep -v '^#' .env | xargs)
 go run ./cmd/butter
 ```
 
-服务启动后可访问：
+4. **Verify it's running**
 
 ```bash
 curl http://127.0.0.1:8080/ping
+# {"service":"butter","message":"pong"}
 ```
 
-返回示例：
+### Configuration
 
-```json
-{"service":"butter","message":"pong"}
+The service is configured via a YAML file pointed to by `BUTTERFLY_CONFIG_FILE_PATH`. The config defines:
+
+- **Agents** — The agent tree: model, instructions, tools (MCP servers), sub-agents, and workflow type
+- **Agent Channels** — Bindings between agents and delivery platforms (e.g., Telegram bot token, allowed chats)
+
+### Protobuf Code Generation
+
+```bash
+# Generate Go code from proto definitions
+buf generate
+
+# Lint proto files
+buf lint
 ```
+
+### Running Tests
+
+```bash
+go test ./...
+```
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `BUTTERFLY_CONFIG_TYPE` | Config source type (e.g., `file`) |
+| `BUTTERFLY_CONFIG_FILE_PATH` | Path to the YAML config file |
+| `BUTTERFLY_TRACING_PROVIDER` | OpenTelemetry tracing provider (`http`) |
+| `BUTTERFLY_TRACING_ENDPOINT` | Tracing collector endpoint |
+
+## License
+
+See [LICENSE](LICENSE) for details.
