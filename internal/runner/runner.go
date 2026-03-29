@@ -223,6 +223,26 @@ func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, us
 		"input_len", len(input),
 	)
 
+	// Ensure session exists; create one if not found.
+	if _, err := s.sessionSvc.Get(ctx, &session.GetRequest{
+		AppName:   channelName,
+		UserID:    userID,
+		SessionID: sessionID,
+	}); err != nil {
+		logger.Info("session not found, creating new session",
+			"channel", channelName,
+			"session_id", sessionID,
+			"user_id", userID,
+		)
+		if _, err := s.sessionSvc.Create(ctx, &session.CreateRequest{
+			AppName:   channelName,
+			UserID:    userID,
+			SessionID: sessionID,
+		}); err != nil {
+			return "", fmt.Errorf("creating session: %w", err)
+		}
+	}
+
 	// Store compaction callback in context for the notifier plugin.
 	if onCompaction != nil {
 		ctx = WithCompactionCallback(ctx, onCompaction)
