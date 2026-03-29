@@ -62,17 +62,45 @@ message AgentConfig {
   // @gotags: json:"remote_agent_ids,omitempty" yaml:"remote_agent_ids,omitempty"
   repeated string remote_agent_ids = 5;
 
-  // Type-specific config maps to ADK concrete agent config.
-  oneof type_config {
-    // @gotags: json:"llm,omitempty" yaml:"llm,omitempty"
-    LLMAgentConfig llm = 20;
-    // @gotags: json:"loop,omitempty" yaml:"loop,omitempty"
-    LoopAgentConfig loop = 21;
-    // @gotags: json:"sequential,omitempty" yaml:"sequential,omitempty"
-    SequentialAgentConfig sequential = 22;
-    // @gotags: json:"parallel,omitempty" yaml:"parallel,omitempty"
-    ParallelAgentConfig parallel = 23;
-  }
+  // --- LLM agent fields (used when type is LLM or UNSPECIFIED) ---
+
+  // Model identifier (for example: "gemini-2.5-pro").
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
+  string model = 20;
+
+  // Instruction guides agent behavior for this node.
+  // @gotags: json:"instruction,omitempty" yaml:"instruction,omitempty"
+  string instruction = 21;
+
+  // Global instruction applies across the entire agent tree (root takes effect).
+  // @gotags: json:"global_instruction,omitempty" yaml:"global_instruction,omitempty"
+  string global_instruction = 22;
+
+  // Prevents transferring control to parent/peer agents.
+  // @gotags: json:"disallow_transfer_to_parent,omitempty" yaml:"disallow_transfer_to_parent,omitempty"
+  bool disallow_transfer_to_parent = 23;
+  // @gotags: json:"disallow_transfer_to_peers,omitempty" yaml:"disallow_transfer_to_peers,omitempty"
+  bool disallow_transfer_to_peers = 24;
+
+  // Controls whether prior conversation contents are included in model requests.
+  // @gotags: json:"include_contents,omitempty" yaml:"include_contents,omitempty"
+  LLMIncludeContents include_contents = 25;
+
+  // Optional session state key to store agent output.
+  // @gotags: json:"output_key,omitempty" yaml:"output_key,omitempty"
+  string output_key = 26;
+
+  // Optional schemas encoded as JSON text.
+  // @gotags: json:"input_schema_json,omitempty" yaml:"input_schema_json,omitempty"
+  string input_schema_json = 27;
+  // @gotags: json:"output_schema_json,omitempty" yaml:"output_schema_json,omitempty"
+  string output_schema_json = 28;
+
+  // --- Loop agent fields (used when type is LOOP) ---
+
+  // Max loop iterations. 0 means run until escalation/termination.
+  // @gotags: json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"
+  uint32 max_iterations = 30;
 }
 
 // AgentRuntime captures runtime behavior flags that are safe to serialize.
@@ -83,53 +111,6 @@ message AgentRuntime {
   bool save_input_blobs_as_artifacts = 2;
 }
 
-// LLMAgentConfig captures serializable options from llmagent.Config.
-message LLMAgentConfig {
-  // Model identifier (for example: "gemini-2.5-pro").
-  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
-  string model = 1;
-
-  // Instruction guides agent behavior for this node.
-  // @gotags: json:"instruction,omitempty" yaml:"instruction,omitempty"
-  string instruction = 2;
-
-  // Global instruction applies across the entire agent tree (root takes effect).
-  // @gotags: json:"global_instruction,omitempty" yaml:"global_instruction,omitempty"
-  string global_instruction = 3;
-
-  // Prevents transferring control to parent/peer agents.
-  // @gotags: json:"disallow_transfer_to_parent,omitempty" yaml:"disallow_transfer_to_parent,omitempty"
-  bool disallow_transfer_to_parent = 4;
-  // @gotags: json:"disallow_transfer_to_peers,omitempty" yaml:"disallow_transfer_to_peers,omitempty"
-  bool disallow_transfer_to_peers = 5;
-
-  // Controls whether prior conversation contents are included in model requests.
-  // @gotags: json:"include_contents,omitempty" yaml:"include_contents,omitempty"
-  LLMIncludeContents include_contents = 6;
-
-  // Optional session state key to store agent output.
-  // @gotags: json:"output_key,omitempty" yaml:"output_key,omitempty"
-  string output_key = 7;
-
-  // Optional schemas encoded as JSON text.
-  // @gotags: json:"input_schema_json,omitempty" yaml:"input_schema_json,omitempty"
-  string input_schema_json = 8;
-  // @gotags: json:"output_schema_json,omitempty" yaml:"output_schema_json,omitempty"
-  string output_schema_json = 9;
-}
-
-// LoopAgentConfig maps to workflow loopagent.Config.
-message LoopAgentConfig {
-  // Max loop iterations. 0 means run until escalation/termination.
-  // @gotags: json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"
-  uint32 max_iterations = 1;
-}
-
-// SequentialAgentConfig maps to workflow sequentialagent.Config.
-message SequentialAgentConfig {}
-
-// ParallelAgentConfig maps to workflow parallelagent.Config.
-message ParallelAgentConfig {}
 
 // MCPServer describes a serializable MCP server connection config.
 message MCPServer {

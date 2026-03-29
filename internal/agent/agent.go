@@ -64,17 +64,14 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 }
 
 func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agent, providers []agentsv1.ModelProvider) (agent.Agent, error) {
-	llmCfg := pb.GetConfig().GetLlm()
-	if llmCfg == nil {
-		return nil, fmt.Errorf("agent %q: LLM agent requires llm config", pb.GetName())
-	}
+	acfg := pb.GetConfig()
 
-	m, err := resolveModel(ctx, llmCfg.GetModel(), providers)
+	m, err := resolveModel(ctx, acfg.GetModel(), providers)
 	if err != nil {
-		return nil, fmt.Errorf("agent %q: creating model %q: %w", pb.GetName(), llmCfg.GetModel(), err)
+		return nil, fmt.Errorf("agent %q: creating model %q: %w", pb.GetName(), acfg.GetModel(), err)
 	}
 
-	toolsets, err := buildMCPToolsets(pb.GetConfig().GetMcpServers())
+	toolsets, err := buildMCPToolsets(acfg.GetMcpServers())
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: building MCP toolsets: %w", pb.GetName(), err)
 	}
@@ -84,15 +81,15 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agen
 		Description:              pb.GetDescription(),
 		SubAgents:                subAgents,
 		Model:                    m,
-		Instruction:              llmCfg.GetInstruction(),
-		GlobalInstruction:        llmCfg.GetGlobalInstruction(),
-		DisallowTransferToParent: llmCfg.GetDisallowTransferToParent(),
-		DisallowTransferToPeers:  llmCfg.GetDisallowTransferToPeers(),
-		OutputKey:                llmCfg.GetOutputKey(),
+		Instruction:              acfg.GetInstruction(),
+		GlobalInstruction:        acfg.GetGlobalInstruction(),
+		DisallowTransferToParent: acfg.GetDisallowTransferToParent(),
+		DisallowTransferToPeers:  acfg.GetDisallowTransferToPeers(),
+		OutputKey:                acfg.GetOutputKey(),
 		Toolsets:                 toolsets,
 	}
 
-	switch llmCfg.GetIncludeContents() {
+	switch acfg.GetIncludeContents() {
 	case agentsv1.LLMIncludeContents_LLM_INCLUDE_CONTENTS_NONE:
 		cfg.IncludeContents = llmagent.IncludeContentsNone
 	case agentsv1.LLMIncludeContents_LLM_INCLUDE_CONTENTS_DEFAULT:
@@ -103,11 +100,7 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agen
 }
 
 func newLoopAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent, error) {
-	loopCfg := pb.GetConfig().GetLoop()
-	var maxIter uint
-	if loopCfg != nil {
-		maxIter = uint(loopCfg.GetMaxIterations())
-	}
+	maxIter := uint(pb.GetConfig().GetMaxIterations())
 
 	return loopagent.New(loopagent.Config{
 		AgentConfig: agent.Config{

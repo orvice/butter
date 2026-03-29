@@ -60,31 +60,28 @@ agents:
     description: "A general-purpose assistant powered by Gemini"
     type: 1  # AGENT_TYPE_LLM
     config:
-      llm:
-        model: "gemini-2.5-flash"
-        instruction: "You are a helpful assistant. Answer questions clearly and concisely."
-        include_contents: 1  # LLM_INCLUDE_CONTENTS_DEFAULT
+      model: "gemini-2.5-flash"
+      instruction: "You are a helpful assistant. Answer questions clearly and concisely."
+      include_contents: 1  # LLM_INCLUDE_CONTENTS_DEFAULT
 
   - name: translator
     description: "Translates text between languages"
     type: 1  # AGENT_TYPE_LLM
     config:
-      llm:
-        model: "gemini-2.5-flash"
-        instruction: |
-          You are a translator. When the user sends text, detect the language
-          and translate it to English if it's not English, or to Chinese if it is English.
-          Only output the translation, no explanation.
+      model: "gemini-2.5-flash"
+      instruction: |
+        You are a translator. When the user sends text, detect the language
+        and translate it to English if it's not English, or to Chinese if it is English.
+        Only output the translation, no explanation.
 
   - name: summarizer
     description: "Summarizes long text into key points"
     type: 1  # AGENT_TYPE_LLM
     config:
-      llm:
-        model: "gemini-2.5-flash"
-        instruction: |
-          You are a summarizer. When the user sends text, extract the key points
-          and return a concise bullet-point summary. Keep it under 5 bullet points.
+      model: "gemini-2.5-flash"
+      instruction: |
+        You are a summarizer. When the user sends text, extract the key points
+        and return a concise bullet-point summary. Keep it under 5 bullet points.
 
 # Channel bindings
 channels:

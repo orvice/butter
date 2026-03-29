@@ -90,10 +90,10 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 	var walk func(a *agentsv1.Agent)
 	walk = func(a *agentsv1.Agent) {
 		if cg := a.GetConfig().GetContextGuard(); cg != nil && cg.GetStrategy() != agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_UNSPECIFIED {
-			if llmCfg := a.GetConfig().GetLlm(); llmCfg != nil {
+			if model := a.GetConfig().GetModel(); model != "" {
 				entries = append(entries, guardEntry{
 					name:      a.GetName(),
-					modelName: llmCfg.GetModel(),
+					modelName: model,
 					cfg:       cg,
 				})
 			}
