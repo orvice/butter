@@ -8,6 +8,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
+	"google.golang.org/adk/agent/remoteagent"
 	"google.golang.org/adk/agent/workflowagents/loopagent"
 	"google.golang.org/adk/agent/workflowagents/parallelagent"
 	"google.golang.org/adk/agent/workflowagents/sequentialagent"
@@ -20,7 +21,8 @@ import (
 // NewFromProto creates an ADK agent from an agentsv1.Agent proto config.
 // providers is the list of model provider mappings used to resolve LLM backends.
 // mcpRegistry is the shared MCP server config pool; agents reference entries by ID.
-func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer) (agent.Agent, error) {
+// remoteAgentRegistry is the shared remote agent config pool; agents reference entries by ID.
+func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
 	}
@@ -33,12 +35,19 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 	// Recursively build sub-agents.
 	subAgents := make([]agent.Agent, 0, len(pb.GetSubAgents()))
 	for _, sub := range pb.GetSubAgents() {
-		sa, err := NewFromProto(ctx, sub, providers, mcpRegistry)
+		sa, err := NewFromProto(ctx, sub, providers, mcpRegistry, remoteAgentRegistry)
 		if err != nil {
 			return nil, fmt.Errorf("building sub-agent %q: %w", sub.GetName(), err)
 		}
 		subAgents = append(subAgents, sa)
 	}
+
+	// Resolve remote agents and add as sub-agents.
+	remoteSubAgents, err := resolveRemoteAgents(pb, remoteAgentRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
+	}
+	subAgents = append(subAgents, remoteSubAgents...)
 
 	switch pb.GetType() {
 	case agentsv1.AgentType_AGENT_TYPE_LLM, agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED:
@@ -238,4 +247,46 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		req.Header.Set(k, v)
 	}
 	return t.base.RoundTrip(req)
+}
+
+// resolveRemoteAgents looks up remote_agent_ids in the registry and creates
+// ADK remote agents via the A2A protocol.
+func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent) ([]agent.Agent, error) {
+	cfg := pb.GetConfig()
+	if cfg == nil || len(cfg.GetRemoteAgentIds()) == 0 {
+		return nil, nil
+	}
+
+	// Build lookup from registry.
+	byID := make(map[string]*agentsv1.RemoteAgent, len(registry))
+	for i := range registry {
+		if id := registry[i].GetId(); id != "" {
+			byID[id] = &registry[i]
+		}
+	}
+
+	var agents []agent.Agent
+	for _, id := range cfg.GetRemoteAgentIds() {
+		ra, ok := byID[id]
+		if !ok {
+			return nil, fmt.Errorf("unknown remote_agent_id %q", id)
+		}
+
+		switch ra.GetProtocol() {
+		case agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_A2A:
+			a, err := remoteagent.NewA2A(remoteagent.A2AConfig{
+				Name:            ra.GetName(),
+				Description:     fmt.Sprintf("Remote A2A agent: %s", ra.GetName()),
+				AgentCardSource: ra.GetUrl(),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("creating remote agent %q: %w", ra.GetName(), err)
+			}
+			agents = append(agents, a)
+		default:
+			return nil, fmt.Errorf("remote agent %q: unsupported protocol %v", ra.GetName(), ra.GetProtocol())
+		}
+	}
+
+	return agents, nil
 }

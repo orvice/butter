@@ -58,6 +58,10 @@ message AgentConfig {
   // @gotags: json:"mcp_server_ids,omitempty" yaml:"mcp_server_ids,omitempty"
   repeated string mcp_server_ids = 4;
 
+  // IDs referencing top-level shared remote agent configs.
+  // @gotags: json:"remote_agent_ids,omitempty" yaml:"remote_agent_ids,omitempty"
+  repeated string remote_agent_ids = 5;
+
   // Type-specific config maps to ADK concrete agent config.
   oneof type_config {
     // @gotags: json:"llm,omitempty" yaml:"llm,omitempty"
@@ -190,6 +194,12 @@ enum MCPServerTransport {
   MCP_SERVER_TRANSPORT_SSE = 3;
 }
 
+// RemoteAgentProtocol selects the communication protocol for a remote agent.
+enum RemoteAgentProtocol {
+  REMOTE_AGENT_PROTOCOL_UNSPECIFIED = 0;
+  REMOTE_AGENT_PROTOCOL_A2A = 1;
+}
+
 // ContextGuardStrategy selects the compaction strategy for context management.
 enum ContextGuardStrategy {
   CONTEXT_GUARD_STRATEGY_UNSPECIFIED = 0;
@@ -210,6 +220,25 @@ message ContextGuardConfig {
   // Override for context window size in tokens. When set, bypasses the model registry.
   // @gotags: json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"
   int32 max_tokens = 3;
+}
+
+// RemoteAgent describes a remote agent reachable over a network protocol.
+message RemoteAgent {
+  // Unique identifier for referencing this remote agent from agent configs.
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty"
+  string id = 1 [(validate.rules).string.min_len = 1];
+
+  // Human-readable name for the remote agent.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 2 [(validate.rules).string.min_len = 1];
+
+  // Endpoint URL for communicating with the remote agent.
+  // @gotags: json:"url,omitempty" yaml:"url,omitempty"
+  string url = 3 [(validate.rules).string.min_len = 1];
+
+  // Communication protocol for this remote agent.
+  // @gotags: json:"protocol,omitempty" yaml:"protocol,omitempty"
+  RemoteAgentProtocol protocol = 4;
 }
 
 // ModelProvider maps a set of model names to a provider backend.

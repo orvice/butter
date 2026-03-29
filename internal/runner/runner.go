@@ -28,7 +28,7 @@ type Service struct {
 }
 
 // NewService builds the agent registry from proto configs.
-func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, sessionSvc session.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
+func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, sessionSvc session.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
 
@@ -42,7 +42,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 			"description", agents[i].GetDescription(),
 		)
 
-		a, err := internalagent.NewFromProto(ctx, &agents[i], providers, mcpRegistry)
+		a, err := internalagent.NewFromProto(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry)
 		if err != nil {
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}

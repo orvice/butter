@@ -46,6 +46,14 @@ model_providers:
   #   models:
   #     - "qwen3:8b"
 
+# Remote agent definitions (A2A protocol)
+# Define remote agents here and reference them by ID in agent configs via remote_agent_ids.
+remote_agents: []
+  # - id: "summarizer-remote"
+  #   name: "Remote Summarizer"
+  #   url: "https://agents.example.com/summarizer"
+  #   protocol: 1  # REMOTE_AGENT_PROTOCOL_A2A
+
 # Agent definitions
 agents:
   - name: assistant
