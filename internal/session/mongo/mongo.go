@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"sync"
@@ -12,7 +13,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"google.golang.org/adk/model"
 	"google.golang.org/adk/session"
+	"google.golang.org/genai"
 )
 
 const (
@@ -37,11 +40,8 @@ type eventDoc struct {
 	InvocationID string    `bson:"invocation_id"`
 	Author       string    `bson:"author"`
 	Branch       string    `bson:"branch"`
-	Content      any       `bson:"content"`
-	Actions      any       `bson:"actions"`
+	ContentJSON  []byte    `bson:"content_json,omitempty"`
 	Timestamp    time.Time `bson:"timestamp"`
-	// Store the full event as raw BSON for lossless round-trip.
-	Raw bson.Raw `bson:"raw,omitempty"`
 }
 
 // Service implements session.Service backed by MongoDB.
@@ -221,6 +221,17 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 		evt.Timestamp = ed.Timestamp
 		evt.Author = ed.Author
 		evt.Branch = ed.Branch
+		if len(ed.ContentJSON) > 0 {
+			var content genai.Content
+			if err := json.Unmarshal(ed.ContentJSON, &content); err != nil {
+				logger.Warn("failed to unmarshal event content",
+					"event_id", ed.EventID,
+					"err", err,
+				)
+			} else {
+				evt.LLMResponse = model.LLMResponse{Content: &content}
+			}
+		}
 		events = append(events, evt)
 	}
 
@@ -350,6 +361,14 @@ func (s *Service) AppendEvent(ctx context.Context, sess session.Session, evt *se
 		Timestamp:    evt.Timestamp,
 	}
 
+	if evt.Content != nil {
+		contentBytes, err := json.Marshal(evt.Content)
+		if err != nil {
+			return fmt.Errorf("marshaling event content: %w", err)
+		}
+		ed.ContentJSON = contentBytes
+	}
+
 	if _, err := s.events.InsertOne(ctx, ed); err != nil {
 		logger.Error("failed to insert event",
 			"session_id", sess.ID(),
@@ -381,12 +400,19 @@ func (s *Service) AppendEvent(ctx context.Context, sess session.Session, evt *se
 		return fmt.Errorf("updating session: %w", err)
 	}
 
-	// Also update the in-memory session state.
+	// Update in-memory session state and events.
 	if evt.Actions.StateDelta != nil {
 		st := sess.State()
 		for k, v := range evt.Actions.StateDelta {
 			st.Set(k, v)
 		}
+	}
+
+	if ms, ok := sess.(*mongoSession); ok {
+		ms.events.mu.Lock()
+		ms.events.events = append(ms.events.events, evt)
+		ms.events.mu.Unlock()
+		ms.lastUpdateTime = now
 	}
 
 	return nil
@@ -453,6 +479,7 @@ func (s *stateImpl) All() iter.Seq2[string, any] {
 
 // eventsImpl implements session.Events.
 type eventsImpl struct {
+	mu     sync.RWMutex
 	events []*session.Event
 }
 
@@ -465,7 +492,11 @@ func newEvents(events []*session.Event) *eventsImpl {
 
 func (e *eventsImpl) All() iter.Seq[*session.Event] {
 	return func(yield func(*session.Event) bool) {
-		for _, evt := range e.events {
+		e.mu.RLock()
+		snapshot := make([]*session.Event, len(e.events))
+		copy(snapshot, e.events)
+		e.mu.RUnlock()
+		for _, evt := range snapshot {
 			if !yield(evt) {
 				return
 			}
@@ -473,5 +504,14 @@ func (e *eventsImpl) All() iter.Seq[*session.Event] {
 	}
 }
 
-func (e *eventsImpl) Len() int                { return len(e.events) }
-func (e *eventsImpl) At(i int) *session.Event { return e.events[i] }
+func (e *eventsImpl) Len() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return len(e.events)
+}
+
+func (e *eventsImpl) At(i int) *session.Event {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.events[i]
+}
