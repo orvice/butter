@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"butterfly.orx.me/core/log"
+	"github.com/achetronic/adk-utils-go/plugin/contextguard"
 	"google.golang.org/adk/agent"
 	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
@@ -49,15 +50,107 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 		logger.Info("agent registered", "agent", name)
 	}
 
-	logger.Info("agent registry ready", "total_agents", len(registry))
+	// Build contextguard plugin if any agent has context_guard config.
+	guardPC, err := buildContextGuardPlugin(ctx, agents, providers)
+	if err != nil {
+		return nil, fmt.Errorf("building context guard plugin: %w", err)
+	}
+	pluginConfig = mergePluginConfigs(pluginConfig, guardPC)
 
-	return &Service{
+	svc := &Service{
 		agents:       registry,
 		sessionSvc:   sessionSvc,
 		pluginConfig: pluginConfig,
 		runners:      make(map[string]*adkrunner.Runner),
-	}, nil
+	}
+
+	// Add compaction notifier plugin (must be after contextguard).
+	if len(guardPC.Plugins) > 0 {
+		notifierPC := newCompactionNotifierPlugin()
+		svc.pluginConfig = mergePluginConfigs(svc.pluginConfig, notifierPC)
+	}
+
+	logger.Info("agent registry ready", "total_agents", len(registry))
+
+	return svc, nil
 }
+
+// buildContextGuardPlugin walks agent proto configs and builds a contextguard
+// plugin for agents that have context_guard configured.
+func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider) (adkrunner.PluginConfig, error) {
+	logger := log.FromContext(ctx)
+
+	// Collect all agents with context_guard config from the proto tree.
+	type guardEntry struct {
+		name      string
+		modelName string
+		cfg       *agentsv1.ContextGuardConfig
+	}
+	var entries []guardEntry
+	var walk func(a *agentsv1.Agent)
+	walk = func(a *agentsv1.Agent) {
+		if cg := a.GetConfig().GetContextGuard(); cg != nil && cg.GetStrategy() != agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_UNSPECIFIED {
+			if llmCfg := a.GetConfig().GetLlm(); llmCfg != nil {
+				entries = append(entries, guardEntry{
+					name:      a.GetName(),
+					modelName: llmCfg.GetModel(),
+					cfg:       cg,
+				})
+			}
+		}
+		for _, sub := range a.GetSubAgents() {
+			walk(sub)
+		}
+	}
+	for i := range agents {
+		walk(&agents[i])
+	}
+
+	if len(entries) == 0 {
+		return adkrunner.PluginConfig{}, nil
+	}
+
+	registry := contextguard.NewCrushRegistry()
+	guard := contextguard.New(registry)
+
+	for _, e := range entries {
+		m, err := internalagent.ResolveModel(ctx, e.modelName, providers)
+		if err != nil {
+			return adkrunner.PluginConfig{}, fmt.Errorf("resolving model %q for context guard on agent %q: %w", e.modelName, e.name, err)
+		}
+
+		var opts []contextguard.AgentOption
+		switch e.cfg.GetStrategy() {
+		case agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW:
+			maxTurns := int(e.cfg.GetMaxTurns())
+			if maxTurns <= 0 {
+				maxTurns = 20
+			}
+			opts = append(opts, contextguard.WithSlidingWindow(maxTurns))
+		}
+		if e.cfg.GetMaxTokens() > 0 {
+			opts = append(opts, contextguard.WithMaxTokens(int(e.cfg.GetMaxTokens())))
+		}
+
+		guard.Add(e.name, m, opts...)
+		logger.Info("context guard configured",
+			"agent", e.name,
+			"strategy", e.cfg.GetStrategy().String(),
+			"max_turns", e.cfg.GetMaxTurns(),
+			"max_tokens", e.cfg.GetMaxTokens(),
+		)
+	}
+
+	return guard.PluginConfig(), nil
+}
+
+// mergePluginConfigs combines two PluginConfigs by appending their plugin slices.
+func mergePluginConfigs(a, b adkrunner.PluginConfig) adkrunner.PluginConfig {
+	merged := a
+	merged.Plugins = append(merged.Plugins, b.Plugins...)
+	return merged
+}
+
 
 // AgentNames returns all registered agent names.
 func (s *Service) AgentNames() []string {
@@ -108,7 +201,8 @@ type EventCallback func(evt *session.Event)
 
 // Run executes an agent for a given channel, session, and input text.
 // If onEvent is non-nil, it is called for each non-final event.
-func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, userID, input string, onEvent EventCallback) (string, error) {
+// If onCompaction is non-nil, it is called when context compaction is detected.
+func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, userID, input string, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
 	logger := log.FromContext(ctx)
 
 	ag, ok := s.agents[agentName]
@@ -128,6 +222,11 @@ func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, us
 		"user_id", userID,
 		"input_len", len(input),
 	)
+
+	// Store compaction callback in context for the notifier plugin.
+	if onCompaction != nil {
+		ctx = WithCompactionCallback(ctx, onCompaction)
+	}
 
 	msg := genai.NewContentFromText(input, genai.RoleUser)
 

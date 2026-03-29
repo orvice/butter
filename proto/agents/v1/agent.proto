@@ -50,6 +50,10 @@ message AgentConfig {
   // @gotags: json:"mcp_servers,omitempty" yaml:"mcp_servers,omitempty"
   repeated MCPServer mcp_servers = 2;
 
+  // Context guard configures automatic context window management.
+  // @gotags: json:"context_guard,omitempty" yaml:"context_guard,omitempty"
+  ContextGuardConfig context_guard = 3;
+
   // Type-specific config maps to ADK concrete agent config.
   oneof type_config {
     // @gotags: json:"llm,omitempty" yaml:"llm,omitempty"
@@ -175,6 +179,28 @@ enum MCPServerTransport {
   MCP_SERVER_TRANSPORT_STDIO = 1;
   MCP_SERVER_TRANSPORT_STREAMABLE_HTTP = 2;
   MCP_SERVER_TRANSPORT_SSE = 3;
+}
+
+// ContextGuardStrategy selects the compaction strategy for context management.
+enum ContextGuardStrategy {
+  CONTEXT_GUARD_STRATEGY_UNSPECIFIED = 0;
+  CONTEXT_GUARD_STRATEGY_THRESHOLD = 1;
+  CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW = 2;
+}
+
+// ContextGuardConfig configures automatic context window management for an agent.
+message ContextGuardConfig {
+  // Strategy to use for context compaction.
+  // @gotags: json:"strategy,omitempty" yaml:"strategy,omitempty"
+  ContextGuardStrategy strategy = 1;
+
+  // Maximum number of conversation turns before compaction (sliding window only).
+  // @gotags: json:"max_turns,omitempty" yaml:"max_turns,omitempty"
+  int32 max_turns = 2;
+
+  // Override for context window size in tokens. When set, bypasses the model registry.
+  // @gotags: json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"
+  int32 max_tokens = 3;
 }
 
 // ModelProvider maps a set of model names to a provider backend.

@@ -12,8 +12,12 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-// resolveModel looks up the model name in the provider list and returns the appropriate model.LLM.
+// ResolveModel looks up the model name in the provider list and returns the appropriate model.LLM.
 // Falls back to Gemini if no provider matches.
+func ResolveModel(ctx context.Context, modelName string, providers []agentsv1.ModelProvider) (model.LLM, error) {
+	return resolveModel(ctx, modelName, providers)
+}
+
 func resolveModel(ctx context.Context, modelName string, providers []agentsv1.ModelProvider) (model.LLM, error) {
 	for i := range providers {
 		p := &providers[i]

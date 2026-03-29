@@ -295,7 +295,25 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 		}
 	}
 
-	response, err := p.runner.Run(ctx, p.channelName, agentName, sessionID, userID, msg.Text, onEvent)
+	// Build compaction callback for debug mode.
+	var onCompaction runner.CompactionCallback
+	if onEvent != nil {
+		onCompaction = func(agentName string) {
+			text := fmt.Sprintf("[DEBUG] Context compacted (agent: %s)", agentName)
+			if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: msg.Chat.ID,
+				Text:   text,
+			}); err != nil {
+				logger.Warn("failed to send compaction debug message",
+					"channel", p.channelName,
+					"chat_id", msg.Chat.ID,
+					"err", err,
+				)
+			}
+		}
+	}
+
+	response, err := p.runner.Run(ctx, p.channelName, agentName, sessionID, userID, msg.Text, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", p.channelName,
