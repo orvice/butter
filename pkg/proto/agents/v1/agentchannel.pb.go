@@ -235,15 +235,24 @@ type AgentChannel struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name      string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	AgentName string                 `protobuf:"bytes,2,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty"`
-	Platform  AgentChannelPlatform   `protobuf:"varint,3,opt,name=platform,proto3,enum=agents.v1.AgentChannelPlatform" json:"platform,omitempty"`
-	Enabled   bool                   `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Triggers  []*AgentTrigger        `protobuf:"bytes,5,rep,name=triggers,proto3" json:"triggers,omitempty"`
-	Delivery  *AgentDelivery         `protobuf:"bytes,6,opt,name=delivery,proto3" json:"delivery,omitempty"`
-	Session   *AgentSessionBinding   `protobuf:"bytes,7,opt,name=session,proto3" json:"session,omitempty"`
-	Telegram  *TelegramChannelConfig `protobuf:"bytes,10,opt,name=telegram,proto3" json:"telegram,omitempty"`
-	Metadata  map[string]string      `protobuf:"bytes,20,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// @gotags: json:"name,omitempty" yaml:"name,omitempty"
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty" yaml:"name,omitempty"`
+	// @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty"
+	AgentName string `protobuf:"bytes,2,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty" yaml:"agent_name,omitempty"`
+	// @gotags: json:"platform,omitempty" yaml:"platform,omitempty"
+	Platform AgentChannelPlatform `protobuf:"varint,3,opt,name=platform,proto3,enum=agents.v1.AgentChannelPlatform" json:"platform,omitempty" yaml:"platform,omitempty"`
+	// @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
+	Enabled bool `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	// @gotags: json:"triggers,omitempty" yaml:"triggers,omitempty"
+	Triggers []*AgentTrigger `protobuf:"bytes,5,rep,name=triggers,proto3" json:"triggers,omitempty" yaml:"triggers,omitempty"`
+	// @gotags: json:"delivery,omitempty" yaml:"delivery,omitempty"
+	Delivery *AgentDelivery `protobuf:"bytes,6,opt,name=delivery,proto3" json:"delivery,omitempty" yaml:"delivery,omitempty"`
+	// @gotags: json:"session,omitempty" yaml:"session,omitempty"
+	Session *AgentSessionBinding `protobuf:"bytes,7,opt,name=session,proto3" json:"session,omitempty" yaml:"session,omitempty"`
+	// @gotags: json:"telegram,omitempty" yaml:"telegram,omitempty"
+	Telegram *TelegramChannelConfig `protobuf:"bytes,10,opt,name=telegram,proto3" json:"telegram,omitempty" yaml:"telegram,omitempty"`
+	// @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+	Metadata map[string]string `protobuf:"bytes,20,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" yaml:"metadata,omitempty"`
 }
 
 func (x *AgentChannel) Reset() {
@@ -347,13 +356,17 @@ type AgentTrigger struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Type AgentTriggerType `protobuf:"varint,1,opt,name=type,proto3,enum=agents.v1.AgentTriggerType" json:"type,omitempty"`
+	// @gotags: json:"type,omitempty" yaml:"type,omitempty"
+	Type AgentTriggerType `protobuf:"varint,1,opt,name=type,proto3,enum=agents.v1.AgentTriggerType" json:"type,omitempty" yaml:"type,omitempty"`
 	// Commands used when type is COMMAND.
-	Commands []string `protobuf:"bytes,2,rep,name=commands,proto3" json:"commands,omitempty"`
+	// @gotags: json:"commands,omitempty" yaml:"commands,omitempty"
+	Commands []string `protobuf:"bytes,2,rep,name=commands,proto3" json:"commands,omitempty" yaml:"commands,omitempty"`
 	// Prefixes used when type is MESSAGE.
-	Prefixes []string `protobuf:"bytes,3,rep,name=prefixes,proto3" json:"prefixes,omitempty"`
+	// @gotags: json:"prefixes,omitempty" yaml:"prefixes,omitempty"
+	Prefixes []string `protobuf:"bytes,3,rep,name=prefixes,proto3" json:"prefixes,omitempty" yaml:"prefixes,omitempty"`
 	// When true, the agent is triggered only if explicitly mentioned.
-	RequireMention bool `protobuf:"varint,4,opt,name=require_mention,json=requireMention,proto3" json:"require_mention,omitempty"`
+	// @gotags: json:"require_mention,omitempty" yaml:"require_mention,omitempty"
+	RequireMention bool `protobuf:"varint,4,opt,name=require_mention,json=requireMention,proto3" json:"require_mention,omitempty" yaml:"require_mention,omitempty"`
 }
 
 func (x *AgentTrigger) Reset() {
@@ -422,9 +435,12 @@ type AgentDelivery struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ReplyMode        AgentReplyMode `protobuf:"varint,1,opt,name=reply_mode,json=replyMode,proto3,enum=agents.v1.AgentReplyMode" json:"reply_mode,omitempty"`
-	StreamingEnabled bool           `protobuf:"varint,2,opt,name=streaming_enabled,json=streamingEnabled,proto3" json:"streaming_enabled,omitempty"`
-	SendTyping       bool           `protobuf:"varint,3,opt,name=send_typing,json=sendTyping,proto3" json:"send_typing,omitempty"`
+	// @gotags: json:"reply_mode,omitempty" yaml:"reply_mode,omitempty"
+	ReplyMode AgentReplyMode `protobuf:"varint,1,opt,name=reply_mode,json=replyMode,proto3,enum=agents.v1.AgentReplyMode" json:"reply_mode,omitempty" yaml:"reply_mode,omitempty"`
+	// @gotags: json:"streaming_enabled,omitempty" yaml:"streaming_enabled,omitempty"
+	StreamingEnabled bool `protobuf:"varint,2,opt,name=streaming_enabled,json=streamingEnabled,proto3" json:"streaming_enabled,omitempty" yaml:"streaming_enabled,omitempty"`
+	// @gotags: json:"send_typing,omitempty" yaml:"send_typing,omitempty"
+	SendTyping bool `protobuf:"varint,3,opt,name=send_typing,json=sendTyping,proto3" json:"send_typing,omitempty" yaml:"send_typing,omitempty"`
 }
 
 func (x *AgentDelivery) Reset() {
@@ -486,9 +502,11 @@ type AgentSessionBinding struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Scope AgentSessionScope `protobuf:"varint,1,opt,name=scope,proto3,enum=agents.v1.AgentSessionScope" json:"scope,omitempty"`
+	// @gotags: json:"scope,omitempty" yaml:"scope,omitempty"
+	Scope AgentSessionScope `protobuf:"varint,1,opt,name=scope,proto3,enum=agents.v1.AgentSessionScope" json:"scope,omitempty" yaml:"scope,omitempty"`
 	// Optional template for custom session keys.
-	KeyTemplate string `protobuf:"bytes,2,opt,name=key_template,json=keyTemplate,proto3" json:"key_template,omitempty"`
+	// @gotags: json:"key_template,omitempty" yaml:"key_template,omitempty"
+	KeyTemplate string `protobuf:"bytes,2,opt,name=key_template,json=keyTemplate,proto3" json:"key_template,omitempty" yaml:"key_template,omitempty"`
 }
 
 func (x *AgentSessionBinding) Reset() {
@@ -542,12 +560,18 @@ type TelegramChannelConfig struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	BotToken       string  `protobuf:"bytes,1,opt,name=bot_token,json=botToken,proto3" json:"bot_token,omitempty"`
-	WebhookUrl     string  `protobuf:"bytes,2,opt,name=webhook_url,json=webhookUrl,proto3" json:"webhook_url,omitempty"`
-	WebhookSecret  string  `protobuf:"bytes,3,opt,name=webhook_secret,json=webhookSecret,proto3" json:"webhook_secret,omitempty"`
-	AllowedChatIds []int64 `protobuf:"varint,4,rep,packed,name=allowed_chat_ids,json=allowedChatIds,proto3" json:"allowed_chat_ids,omitempty"`
-	AllowedUserIds []int64 `protobuf:"varint,5,rep,packed,name=allowed_user_ids,json=allowedUserIds,proto3" json:"allowed_user_ids,omitempty"`
-	Debug          bool    `protobuf:"varint,6,opt,name=debug,proto3" json:"debug,omitempty"`
+	// @gotags: json:"bot_token,omitempty" yaml:"bot_token,omitempty"
+	BotToken string `protobuf:"bytes,1,opt,name=bot_token,json=botToken,proto3" json:"bot_token,omitempty" yaml:"bot_token,omitempty"`
+	// @gotags: json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"
+	WebhookUrl string `protobuf:"bytes,2,opt,name=webhook_url,json=webhookUrl,proto3" json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"`
+	// @gotags: json:"webhook_secret,omitempty" yaml:"webhook_secret,omitempty"
+	WebhookSecret string `protobuf:"bytes,3,opt,name=webhook_secret,json=webhookSecret,proto3" json:"webhook_secret,omitempty" yaml:"webhook_secret,omitempty"`
+	// @gotags: json:"allowed_chat_ids,omitempty" yaml:"allowed_chat_ids,omitempty"
+	AllowedChatIds []int64 `protobuf:"varint,4,rep,packed,name=allowed_chat_ids,json=allowedChatIds,proto3" json:"allowed_chat_ids,omitempty" yaml:"allowed_chat_ids,omitempty"`
+	// @gotags: json:"allowed_user_ids,omitempty" yaml:"allowed_user_ids,omitempty"
+	AllowedUserIds []int64 `protobuf:"varint,5,rep,packed,name=allowed_user_ids,json=allowedUserIds,proto3" json:"allowed_user_ids,omitempty" yaml:"allowed_user_ids,omitempty"`
+	// @gotags: json:"debug,omitempty" yaml:"debug,omitempty"
+	Debug bool `protobuf:"varint,6,opt,name=debug,proto3" json:"debug,omitempty" yaml:"debug,omitempty"`
 }
 
 func (x *TelegramChannelConfig) Reset() {
