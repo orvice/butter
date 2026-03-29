@@ -19,12 +19,13 @@ import (
 
 // StartChannels initializes MongoDB, Redis, runner service, and channel manager,
 // then starts polling in a background goroutine.
-func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
+// It returns the runner service so callers (e.g. A2A handler) can use it.
+func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service, error) {
 	logger := log.FromContext(ctx)
 
 	if len(cfg.Channels) == 0 {
 		logger.Info("no channels configured, skipping channel manager")
-		return nil
+		return nil, nil
 	}
 
 	// Connect to MongoDB.
@@ -37,7 +38,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
 	mongoClient, err := mongo.Connect(options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		logger.Error("failed to connect to mongodb", "err", err)
-		return err
+		return nil, err
 	}
 
 	dbName := cfg.MongoDB
@@ -49,7 +50,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
 	sessionSvc, err := mongosession.New(ctx, mongoClient.Database(dbName))
 	if err != nil {
 		logger.Error("failed to create mongo session service", "err", err)
-		return err
+		return nil, err
 	}
 
 	// Connect to Redis.
@@ -80,7 +81,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
 		pc, shutdown, err := langfuse.Setup(&cfg.Langfuse)
 		if err != nil {
 			logger.Error("failed to setup langfuse", "err", err)
-			return err
+			return nil, err
 		}
 		pluginConfig = pc
 		go func() {
@@ -95,19 +96,19 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) error {
 	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, sessionSvc, pluginConfig)
 	if err != nil {
 		logger.Error("failed to build runner service", "err", err)
-		return err
+		return nil, err
 	}
 
 	// Build channel manager.
 	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, selector, debugToggle)
 	if err != nil {
 		logger.Error("failed to create channel manager", "err", err)
-		return err
+		return nil, err
 	}
 
 	// Start channels in background.
 	logger.Info("starting channel manager in background")
 	go mgr.Start(ctx)
 
-	return nil
+	return runnerSvc, nil
 }
