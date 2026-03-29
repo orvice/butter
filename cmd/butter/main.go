@@ -22,6 +22,7 @@ func main() {
 	healthRepo := repo.NewHealthRepository()
 	healthService := service.NewHealthService(healthRepo, cfg)
 	healthHandler := httpHandler.NewHealthHandler(healthService)
+	a2aHandler := httpHandler.NewA2AHandler(cfg)
 
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 
@@ -31,10 +32,18 @@ func main() {
 		Config:    cfg,
 		Router: func(r *gin.Engine) {
 			healthHandler.Register(r)
+			a2aHandler.Register(r)
 		},
 		InitFunc: []func() error{
 			func() error {
-				return bootstrap.StartChannels(channelCtx, cfg)
+				runnerSvc, err := bootstrap.StartChannels(channelCtx, cfg)
+				if err != nil {
+					return err
+				}
+				if runnerSvc != nil {
+					a2aHandler.SetRunnerService(runnerSvc)
+				}
+				return nil
 			},
 		},
 		TeardownFunc: []func() error{

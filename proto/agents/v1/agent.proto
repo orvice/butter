@@ -38,6 +38,10 @@ message Agent {
   // Type indicates which ADK agent implementation this node represents.
   // @gotags: json:"type,omitempty" yaml:"type,omitempty"
   AgentType type = 20;
+
+  // Whether this agent should be exposed via A2A protocol over HTTP.
+  // @gotags: json:"enable_a2a,omitempty" yaml:"enable_a2a,omitempty"
+  bool enable_a2a = 21;
 }
 
 // AgentConfig groups agent-level runtime and integration settings.

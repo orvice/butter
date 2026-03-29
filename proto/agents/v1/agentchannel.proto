@@ -8,55 +8,79 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 
 // AgentChannel binds an agent to an external interaction platform.
 message AgentChannel {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
   string name = 1 [(validate.rules).string.min_len = 1];
+  // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty"
   string agent_name = 2 [(validate.rules).string.min_len = 1];
+  // @gotags: json:"platform,omitempty" yaml:"platform,omitempty"
   AgentChannelPlatform platform = 3;
+  // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
   bool enabled = 4;
 
+  // @gotags: json:"triggers,omitempty" yaml:"triggers,omitempty"
   repeated AgentTrigger triggers = 5;
+  // @gotags: json:"delivery,omitempty" yaml:"delivery,omitempty"
   AgentDelivery delivery = 6;
+  // @gotags: json:"session,omitempty" yaml:"session,omitempty"
   AgentSessionBinding session = 7;
 
+  // @gotags: json:"telegram,omitempty" yaml:"telegram,omitempty"
   TelegramChannelConfig telegram = 10;
 
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 20;
 }
 
 // AgentTrigger defines when a channel should invoke the agent.
 message AgentTrigger {
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
   AgentTriggerType type = 1;
 
   // Commands used when type is COMMAND.
+  // @gotags: json:"commands,omitempty" yaml:"commands,omitempty"
   repeated string commands = 2;
 
   // Prefixes used when type is MESSAGE.
+  // @gotags: json:"prefixes,omitempty" yaml:"prefixes,omitempty"
   repeated string prefixes = 3;
 
   // When true, the agent is triggered only if explicitly mentioned.
+  // @gotags: json:"require_mention,omitempty" yaml:"require_mention,omitempty"
   bool require_mention = 4;
 }
 
 // AgentDelivery defines how agent output is delivered back to the platform.
 message AgentDelivery {
+  // @gotags: json:"reply_mode,omitempty" yaml:"reply_mode,omitempty"
   AgentReplyMode reply_mode = 1;
+  // @gotags: json:"streaming_enabled,omitempty" yaml:"streaming_enabled,omitempty"
   bool streaming_enabled = 2;
+  // @gotags: json:"send_typing,omitempty" yaml:"send_typing,omitempty"
   bool send_typing = 3;
 }
 
 // AgentSessionBinding defines how platform context maps to agent sessions.
 message AgentSessionBinding {
+  // @gotags: json:"scope,omitempty" yaml:"scope,omitempty"
   AgentSessionScope scope = 1;
 
   // Optional template for custom session keys.
+  // @gotags: json:"key_template,omitempty" yaml:"key_template,omitempty"
   string key_template = 2;
 }
 
 message TelegramChannelConfig {
+  // @gotags: json:"bot_token,omitempty" yaml:"bot_token,omitempty"
   string bot_token = 1;
+  // @gotags: json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"
   string webhook_url = 2;
+  // @gotags: json:"webhook_secret,omitempty" yaml:"webhook_secret,omitempty"
   string webhook_secret = 3;
+  // @gotags: json:"allowed_chat_ids,omitempty" yaml:"allowed_chat_ids,omitempty"
   repeated int64 allowed_chat_ids = 4;
+  // @gotags: json:"allowed_user_ids,omitempty" yaml:"allowed_user_ids,omitempty"
   repeated int64 allowed_user_ids = 5;
+  // @gotags: json:"debug,omitempty" yaml:"debug,omitempty"
   bool debug = 6;
 }
 
