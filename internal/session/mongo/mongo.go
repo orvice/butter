@@ -41,7 +41,7 @@ type eventDoc struct {
 	Actions      any       `bson:"actions"`
 	Timestamp    time.Time `bson:"timestamp"`
 	// Store the full event as raw BSON for lossless round-trip.
-	Raw bson.Raw `bson:"raw"`
+	Raw bson.Raw `bson:"raw,omitempty"`
 }
 
 // Service implements session.Service backed by MongoDB.
