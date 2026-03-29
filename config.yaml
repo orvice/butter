@@ -46,6 +46,24 @@ model_providers:
   #   models:
   #     - "qwen3:8b"
 
+# Shared MCP server definitions
+# Define MCP servers here and reference them by ID in agent configs via mcp_server_ids.
+mcp_server_configs: []
+  # Streamable HTTP transport example
+  # - id: "search-api"
+  #   name: "Search API"
+  #   transport: 2  # MCP_SERVER_TRANSPORT_STREAMABLE_HTTP
+  #   url: "https://mcp.example.com/search"
+  #   headers:
+  #     Authorization: "Bearer YOUR_TOKEN"
+  #   tool_filter: ["web_search", "image_search"]
+
+  # SSE transport example
+  # - id: "sse-tools"
+  #   name: "SSE Tools"
+  #   transport: 3  # MCP_SERVER_TRANSPORT_SSE
+  #   url: "https://mcp.example.com/sse"
+
 # Remote agent definitions (A2A protocol)
 # Define remote agents here and reference them by ID in agent configs via remote_agent_ids.
 remote_agents: []
@@ -63,6 +81,13 @@ agents:
       model: "gemini-2.5-flash"
       instruction: "You are a helpful assistant. Answer questions clearly and concisely."
       include_contents: 1  # LLM_INCLUDE_CONTENTS_DEFAULT
+      # Reference shared MCP servers by ID:
+      # mcp_server_ids: ["search-api", "sse-tools"]
+      # Or define inline MCP servers:
+      # mcp_servers:
+      #   - name: "My MCP Server"
+      #     transport: 2  # MCP_SERVER_TRANSPORT_STREAMABLE_HTTP
+      #     url: "https://mcp.example.com/tools"
 
   - name: translator
     description: "Translates text between languages"
