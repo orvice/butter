@@ -6,9 +6,10 @@ import (
 )
 
 type AppConfig struct {
-	Agents         []agentsv1.Agent         `yaml:"agents"`
-	Channels       []agentsv1.AgentChannel  `yaml:"channels"`
-	ModelProviders []agentsv1.ModelProvider `yaml:"model_providers"`
+	Agents           []agentsv1.Agent         `yaml:"agents"`
+	Channels         []agentsv1.AgentChannel  `yaml:"channels"`
+	ModelProviders   []agentsv1.ModelProvider  `yaml:"model_providers"`
+	MCPServerConfigs []agentsv1.MCPServer      `yaml:"mcp_server_configs"`
 
 	Langfuse langfuse.Config `yaml:"langfuse"`
 

@@ -1152,6 +1152,8 @@ func (m *MCPServer) validate(all bool) error {
 
 	// no validation rules for Transport
 
+	// no validation rules for Id
+
 	// no validation rules for Command
 
 	// no validation rules for Env

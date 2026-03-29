@@ -54,6 +54,10 @@ message AgentConfig {
   // @gotags: json:"context_guard,omitempty" yaml:"context_guard,omitempty"
   ContextGuardConfig context_guard = 3;
 
+  // IDs referencing top-level shared MCP server configs.
+  // @gotags: json:"mcp_server_ids,omitempty" yaml:"mcp_server_ids,omitempty"
+  repeated string mcp_server_ids = 4;
+
   // Type-specific config maps to ADK concrete agent config.
   oneof type_config {
     // @gotags: json:"llm,omitempty" yaml:"llm,omitempty"
@@ -129,6 +133,11 @@ message MCPServer {
   string name = 1 [(validate.rules).string.min_len = 1];
   // @gotags: json:"transport,omitempty" yaml:"transport,omitempty"
   MCPServerTransport transport = 2;
+
+  // Unique identifier for referencing this server from agent configs.
+  // Required when used in the top-level mcp_server_configs list; optional when inline.
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty"
+  string id = 10;
 
   // Used by stdio-style transports.
   // @gotags: json:"command,omitempty" yaml:"command,omitempty"

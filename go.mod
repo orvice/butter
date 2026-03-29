@@ -4,11 +4,12 @@ go 1.25.5
 
 require (
 	butterfly.orx.me/core v0.0.0-20260314082709-d474cfa9a7ec
-	github.com/achetronic/adk-utils-go v0.10.0
+	github.com/achetronic/adk-utils-go v0.12.0
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-telegram/bot v1.20.0
 	github.com/google/uuid v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/redis/go-redis/v9 v9.17.2
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	google.golang.org/adk v1.0.0
@@ -46,6 +47,7 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/safehtml v0.1.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
@@ -81,6 +83,8 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
@@ -90,6 +94,7 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.40.0 // indirect
