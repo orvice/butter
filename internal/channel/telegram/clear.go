@@ -26,7 +26,7 @@ func (p *Poller) handleClearCommand(ctx context.Context, b *bot.Bot, msg *models
 			"session_id", sessionID,
 			"err", err,
 		)
-		p.sendReply(ctx, b, msg, "Failed to clear session. Please try again.")
+		p.sendReply(ctx, b, msg, "❌ Failed to clear session. Please try again.")
 		return
 	}
 
@@ -34,5 +34,5 @@ func (p *Poller) handleClearCommand(ctx context.Context, b *bot.Bot, msg *models
 		"channel", p.channelName,
 		"session_id", sessionID,
 	)
-	p.sendReply(ctx, b, msg, "Session cleared.")
+	p.sendReply(ctx, b, msg, "🧹 Session cleared.")
 }

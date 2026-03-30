@@ -206,7 +206,7 @@ func (p *Poller) handleAgentCommand(ctx context.Context, b *bot.Bot, msg *models
 				"channel", p.channelName,
 				"requested_agent", arg,
 			)
-			p.sendReply(ctx, b, msg, fmt.Sprintf("Unknown agent: %q\n\nAvailable: %s", arg, strings.Join(p.agentNames, ", ")))
+			p.sendReply(ctx, b, msg, fmt.Sprintf("❓ Unknown agent: %q\n\n📋 Available: %s", arg, strings.Join(p.agentNames, ", ")))
 			return
 		}
 		if err := p.selector.Set(ctx, p.channelName, sessionID, arg); err != nil {
@@ -216,7 +216,7 @@ func (p *Poller) handleAgentCommand(ctx context.Context, b *bot.Bot, msg *models
 				"agent", arg,
 				"err", err,
 			)
-			p.sendReply(ctx, b, msg, "Failed to switch agent. Please try again.")
+			p.sendReply(ctx, b, msg, "❌ Failed to switch agent. Please try again.")
 			return
 		}
 		logger.Info("agent switched",
@@ -224,7 +224,7 @@ func (p *Poller) handleAgentCommand(ctx context.Context, b *bot.Bot, msg *models
 			"session_id", sessionID,
 			"agent", arg,
 		)
-		p.sendReply(ctx, b, msg, fmt.Sprintf("Switched to agent: %s", arg))
+		p.sendReply(ctx, b, msg, fmt.Sprintf("✅ Switched to agent: %s", arg))
 	}
 }
 
@@ -239,7 +239,7 @@ func (p *Poller) handleDebugCommand(ctx context.Context, b *bot.Bot, msg *models
 			"session_id", sessionID,
 			"err", err,
 		)
-		p.sendReply(ctx, b, msg, "Failed to toggle debug mode. Please try again.")
+		p.sendReply(ctx, b, msg, "❌ Failed to toggle debug mode. Please try again.")
 		return
 	}
 
@@ -327,7 +327,7 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 			"session_id", sessionID,
 			"err", err,
 		)
-		p.sendReply(ctx, b, msg, "Sorry, something went wrong processing your message.")
+		p.sendReply(ctx, b, msg, "⚠️ Sorry, something went wrong processing your message.")
 		return
 	}
 
@@ -413,9 +413,9 @@ func userIDFromMsg(msg *models.Message) int64 {
 // sendDebugStatus sends (or edits) a message showing debug state with a toggle button.
 // If editMsgID is non-zero the existing message is edited; otherwise a new message is sent.
 func (p *Poller) sendDebugStatus(ctx context.Context, b *bot.Bot, chatID any, editMsgID int, active bool) {
-	label := "Debug: OFF"
+	label := "🔴 Debug: OFF"
 	if active {
-		label = "Debug: ON"
+		label = "🟢 Debug: ON"
 	}
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -426,7 +426,7 @@ func (p *Poller) sendDebugStatus(ctx context.Context, b *bot.Bot, chatID any, ed
 		if _, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      chatID,
 			MessageID:   editMsgID,
-			Text:        "Debug mode",
+			Text:        "🐛 Debug mode",
 			ReplyMarkup: kb,
 		}); err != nil {
 			log.FromContext(ctx).Warn("failed to edit debug status message", "err", err)
@@ -462,7 +462,7 @@ func (p *Poller) sendAgentList(ctx context.Context, b *bot.Bot, msg *models.Mess
 	}
 	params := &bot.SendMessageParams{
 		ChatID:      msg.Chat.ID,
-		Text:        "Select agent:",
+		Text:        "🤖 Select agent:",
 		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
 	}
 	replyMode := p.channelCfg.GetDelivery().GetReplyMode()
@@ -498,7 +498,7 @@ func (p *Poller) handleDebugToggleCallback(ctx context.Context, b *bot.Bot, upda
 	newState, err := p.debugToggle.Toggle(ctx, p.channelName, sessionID, p.telegramCfg.GetDebug())
 	if err != nil {
 		logger.Error("failed to toggle debug via button", "channel", p.channelName, "session_id", sessionID, "err", err)
-		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "Failed to toggle debug."}) //nolint:errcheck
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "❌ Failed to toggle debug."}) //nolint:errcheck
 		return
 	}
 
@@ -506,11 +506,11 @@ func (p *Poller) handleDebugToggleCallback(ctx context.Context, b *bot.Bot, upda
 
 	p.sendDebugStatus(ctx, b, msg.Chat.ID, msg.ID, newState)
 
-	status := "OFF"
+	status := "🔴 OFF"
 	if newState {
-		status = "ON"
+		status = "🟢 ON"
 	}
-	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "Debug " + status}) //nolint:errcheck
+	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "🐛 Debug " + status}) //nolint:errcheck
 }
 
 // handleAgentSelectCallback handles the inline button press for agent selection.
@@ -533,14 +533,14 @@ func (p *Poller) handleAgentSelectCallback(ctx context.Context, b *bot.Bot, upda
 
 	agentName := strings.TrimPrefix(cq.Data, callbackAgentSelectPrefix)
 	if !p.runner.HasAgent(agentName) {
-		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "Unknown agent."}) //nolint:errcheck
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "❓ Unknown agent."}) //nolint:errcheck
 		return
 	}
 
 	sessionID := p.deriveSessionIDFromCallback(cq)
 	if err := p.selector.Set(ctx, p.channelName, sessionID, agentName); err != nil {
 		logger.Error("failed to set agent via button", "channel", p.channelName, "session_id", sessionID, "err", err)
-		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "Failed to switch agent."}) //nolint:errcheck
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "❌ Failed to switch agent."}) //nolint:errcheck
 		return
 	}
 
@@ -571,7 +571,7 @@ func (p *Poller) handleAgentSelectCallback(ctx context.Context, b *bot.Bot, upda
 		logger.Warn("failed to edit agent list keyboard", "err", err)
 	}
 
-	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "Switched to " + agentName}) //nolint:errcheck
+	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "✅ Switched to " + agentName}) //nolint:errcheck
 }
 
 func (p *Poller) deriveSessionIDFromCallback(cq *models.CallbackQuery) string {
