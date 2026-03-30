@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package agents.v1;
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// ContextSource identifies the transport-level origin of a request.
+enum ContextSource {
+  CONTEXT_SOURCE_UNSPECIFIED = 0;
+  CONTEXT_SOURCE_CHANNEL = 1; // Bot channel implementations (Telegram, Discord, etc.)
+  CONTEXT_SOURCE_A2A = 2;     // Agent-to-Agent protocol
+  CONTEXT_SOURCE_API = 3;     // Direct HTTP API calls
+  CONTEXT_SOURCE_MCP = 4;     // Model Context Protocol tool invocations
+}
+
+// ChatType indicates whether the conversation is private or group.
+enum ChatType {
+  CHAT_TYPE_UNSPECIFIED = 0;
+  CHAT_TYPE_PRIVATE = 1;
+  CHAT_TYPE_GROUP = 2;
+}
+
+// ContextInfo carries per-conversation metadata through the agent execution pipeline.
+message ContextInfo {
+  // Unique identifier for this context instance, generated per request.
+  // @gotags: json:"uuid,omitempty" yaml:"uuid,omitempty"
+  string uuid = 1;
+
+  // Session identifier for the conversation.
+  // @gotags: json:"session_id,omitempty" yaml:"session_id,omitempty"
+  string session_id = 2;
+
+  // User identifier.
+  // @gotags: json:"user_id,omitempty" yaml:"user_id,omitempty"
+  string user_id = 3;
+
+  // Channel through which the request arrived.
+  // @gotags: json:"channel_name,omitempty" yaml:"channel_name,omitempty"
+  string channel_name = 4;
+
+  // Transport-level origin of the request.
+  // @gotags: json:"source,omitempty" yaml:"source,omitempty"
+  ContextSource source = 5;
+
+  // Chat/conversation identifier (e.g., Telegram chat ID, A2A task ID).
+  // @gotags: json:"chat_id,omitempty" yaml:"chat_id,omitempty"
+  string chat_id = 6;
+
+  // Specific channel type within the source (e.g., "telegram", "discord", "rest").
+  // @gotags: json:"channel_type,omitempty" yaml:"channel_type,omitempty"
+  string channel_type = 7;
+
+  // Whether the conversation is private or group.
+  // @gotags: json:"chat_type,omitempty" yaml:"chat_type,omitempty"
+  ChatType chat_type = 8;
+
+  // Generic key-value map for source-specific context data.
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+  map<string, string> metadata = 10;
+}
