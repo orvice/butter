@@ -24,7 +24,9 @@ func NewManager(
 	cfg *config.AppConfig,
 	runnerSvc *runner.Service,
 	selector *telegram.AgentSelector,
+	modelSelector *telegram.ModelSelector,
 	debugToggle *telegram.DebugToggle,
+	modelNames []string,
 ) (*Manager, error) {
 	logger := log.FromContext(ctx)
 	agentNames := runnerSvc.AgentNames()
@@ -54,7 +56,7 @@ func NewManager(
 			"session_scope", ch.GetSession().GetScope().String(),
 		)
 
-		p, err := telegram.NewPoller(ch, runnerSvc, selector, debugToggle, agentNames)
+		p, err := telegram.NewPoller(ch, runnerSvc, selector, modelSelector, debugToggle, agentNames, modelNames)
 		if err != nil {
 			return nil, fmt.Errorf("creating poller for channel %q: %w", ch.GetName(), err)
 		}

@@ -9,6 +9,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/achetronic/adk-utils-go/plugin/contextguard"
 	"google.golang.org/adk/agent"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/adk/memory"
 	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
@@ -30,12 +31,16 @@ type AgentStatus struct {
 type Service struct {
 	agents       map[string]agent.Agent
 	agentsProto  map[string]*agentsv1.Agent // original proto configs keyed by name
+	providers    []agentsv1.ModelProvider   // model providers for runtime resolution
+	mcpRegistry  []agentsv1.MCPServer
+	remoteAgents []agentsv1.RemoteAgent
 	sessionSvc   session.Service
 	memorySvc    memory.Service
 	pluginConfig adkrunner.PluginConfig
 
-	mu      sync.Mutex
-	runners map[string]*adkrunner.Runner // keyed by channel name
+	mu              sync.Mutex
+	runners         map[string]*adkrunner.Runner // keyed by channel name
+	overriddenCache map[string]agent.Agent       // keyed by "agentName:modelOverride"
 }
 
 // NewService builds the agent registry from proto configs.
@@ -43,6 +48,11 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
+
+	// Validate model alias uniqueness.
+	if err := internalagent.ValidateModelAliases(providers); err != nil {
+		return nil, fmt.Errorf("model config validation: %w", err)
+	}
 
 	logger.Info("building agent registry", "agent_count", len(agents))
 
@@ -71,12 +81,16 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 	pluginConfig = mergePluginConfigs(pluginConfig, guardPC)
 
 	svc := &Service{
-		agents:       registry,
-		agentsProto:  protoRegistry,
-		sessionSvc:   sessionSvc,
-		memorySvc:    memorySvc,
-		pluginConfig: pluginConfig,
-		runners:      make(map[string]*adkrunner.Runner),
+		agents:          registry,
+		agentsProto:     protoRegistry,
+		providers:       providers,
+		mcpRegistry:     mcpRegistry,
+		remoteAgents:    remoteAgentRegistry,
+		sessionSvc:      sessionSvc,
+		memorySvc:       memorySvc,
+		pluginConfig:    pluginConfig,
+		runners:         make(map[string]*adkrunner.Runner),
+		overriddenCache: make(map[string]agent.Agent),
 	}
 
 	// Add compaction notifier plugin (must be after contextguard).
@@ -182,6 +196,20 @@ func (s *Service) HasAgent(name string) bool {
 	return ok
 }
 
+// ModelProviders returns the configured model providers.
+func (s *Service) ModelProviders() []agentsv1.ModelProvider {
+	return s.providers
+}
+
+// GetAgentModel returns the model name configured for the named agent, or empty string.
+func (s *Service) GetAgentModel(name string) string {
+	pb, ok := s.agentsProto[name]
+	if !ok {
+		return ""
+	}
+	return pb.GetConfig().GetModel()
+}
+
 // GetAgentStatus returns a status tree for the named agent, or nil if not found.
 func (s *Service) GetAgentStatus(name string) *AgentStatus {
 	pb, ok := s.agentsProto[name]
@@ -236,6 +264,40 @@ func (s *Service) GetSession(ctx context.Context, channelName, sessionID, userID
 	return resp.Session, nil
 }
 
+// buildOverriddenAgent creates (or returns cached) an agent with its model replaced.
+func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOverride string) (agent.Agent, error) {
+	cacheKey := agentName + ":" + modelOverride
+	s.mu.Lock()
+	if cached, ok := s.overriddenCache[cacheKey]; ok {
+		s.mu.Unlock()
+		return cached, nil
+	}
+	s.mu.Unlock()
+
+	pb, ok := s.agentsProto[agentName]
+	if !ok {
+		return nil, fmt.Errorf("unknown agent: %q", agentName)
+	}
+
+	// Resolve the model alias to get the actual model name.
+	resolvedName, _ := internalagent.ResolveModelAlias(modelOverride, s.providers)
+
+	// Clone the proto and override the model field.
+	clone := proto.Clone(pb).(*agentsv1.Agent)
+	clone.Config.Model = resolvedName
+
+	a, err := internalagent.NewFromProto(ctx, clone, s.providers, s.mcpRegistry, s.remoteAgents)
+	if err != nil {
+		return nil, err
+	}
+
+	s.mu.Lock()
+	s.overriddenCache[cacheKey] = a
+	s.mu.Unlock()
+
+	return a, nil
+}
+
 // getOrCreateRunner returns a runner for the given channel and agent.
 func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag agent.Agent) (*adkrunner.Runner, error) {
 	logger := log.FromContext(ctx)
@@ -270,9 +332,10 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag 
 type EventCallback func(evt *session.Event)
 
 // Run executes an agent with the given context info and input text.
+// modelOverride, if non-empty, overrides the agent's configured model (resolved by alias or name).
 // If onEvent is non-nil, it is called for each non-final event.
 // If onCompaction is non-nil, it is called when context compaction is detected.
-func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
+func (s *Service) Run(ctx context.Context, agentName, input, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
 	channelName := ctxInfo.GetChannelName()
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
@@ -292,6 +355,16 @@ func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *age
 		return "", fmt.Errorf("unknown agent: %q", agentName)
 	}
 
+	// If model override is set, rebuild the agent with the overridden model.
+	if modelOverride != "" {
+		logger.Info("applying model override", "model_override", modelOverride)
+		overriddenAg, err := s.buildOverriddenAgent(ctx, agentName, modelOverride)
+		if err != nil {
+			return "", fmt.Errorf("building model-overridden agent: %w", err)
+		}
+		ag = overriddenAg
+	}
+
 	r, err := s.getOrCreateRunner(ctx, channelName, ag)
 	if err != nil {
 		return "", err
@@ -299,6 +372,7 @@ func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *age
 
 	logger.Debug("invoking ADK runner",
 		"input_len", len(input),
+		"model_override", modelOverride,
 	)
 
 	// Ensure session exists; create one if not found.

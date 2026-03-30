@@ -9,6 +9,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/runner"
 )
 
@@ -25,6 +26,23 @@ func (p *Poller) handleStatusCommand(ctx context.Context, b *bot.Bot, msg *model
 		sb.WriteString(formatAgentStatus(agentStatus, 0))
 	} else {
 		sb.WriteString(fmt.Sprintf("🤖 Agent: %s (no detail available)\n", activeAgent))
+	}
+
+	// Model status.
+	activeModel := p.getActiveModel(ctx, sessionID)
+	if activeModel != "" {
+		resolvedName, found := internalagent.ResolveModelAlias(activeModel, p.runner.ModelProviders())
+		if found && resolvedName != activeModel {
+			sb.WriteString(fmt.Sprintf("🧠 Model: %s (%s)\n", activeModel, resolvedName))
+		} else {
+			sb.WriteString(fmt.Sprintf("🧠 Model: %s\n", activeModel))
+		}
+	} else {
+		// Show agent's default model.
+		agentModel := p.runner.GetAgentModel(activeAgent)
+		if agentModel != "" {
+			sb.WriteString(fmt.Sprintf("🧠 Model: %s (agent default)\n", agentModel))
+		}
 	}
 
 	// Session status.
