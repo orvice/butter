@@ -123,6 +123,12 @@ func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 		return
 	}
 
+	// Handle /status.
+	if strings.HasPrefix(text, "/status") {
+		p.handleStatusCommand(ctx, b, msg)
+		return
+	}
+
 	p.handleMessage(ctx, b, msg)
 }
 

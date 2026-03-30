@@ -17,9 +17,18 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+// AgentStatus holds a snapshot of an agent's configuration for display.
+type AgentStatus struct {
+	Name        string
+	Description string
+	MCPServers  []string
+	SubAgents   []*AgentStatus
+}
+
 // Service manages an agent registry and per-channel ADK runners.
 type Service struct {
 	agents       map[string]agent.Agent
+	agentsProto  map[string]*agentsv1.Agent // original proto configs keyed by name
 	sessionSvc   session.Service
 	pluginConfig adkrunner.PluginConfig
 
@@ -31,6 +40,7 @@ type Service struct {
 func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, sessionSvc session.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
+	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
 
 	logger.Info("building agent registry", "agent_count", len(agents))
 
@@ -47,6 +57,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}
 		registry[name] = a
+		protoRegistry[name] = &agents[i]
 		logger.Info("agent registered", "agent", name)
 	}
 
@@ -59,6 +70,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 
 	svc := &Service{
 		agents:       registry,
+		agentsProto:  protoRegistry,
 		sessionSvc:   sessionSvc,
 		pluginConfig: pluginConfig,
 		runners:      make(map[string]*adkrunner.Runner),
@@ -165,6 +177,42 @@ func (s *Service) AgentNames() []string {
 func (s *Service) HasAgent(name string) bool {
 	_, ok := s.agents[name]
 	return ok
+}
+
+// GetAgentStatus returns a status tree for the named agent, or nil if not found.
+func (s *Service) GetAgentStatus(name string) *AgentStatus {
+	pb, ok := s.agentsProto[name]
+	if !ok {
+		return nil
+	}
+	return buildAgentStatus(pb)
+}
+
+func buildAgentStatus(pb *agentsv1.Agent) *AgentStatus {
+	st := &AgentStatus{
+		Name:        pb.GetName(),
+		Description: pb.GetDescription(),
+	}
+	for _, srv := range pb.GetConfig().GetMcpServers() {
+		st.MCPServers = append(st.MCPServers, srv.GetName())
+	}
+	for _, sub := range pb.GetSubAgents() {
+		st.SubAgents = append(st.SubAgents, buildAgentStatus(sub))
+	}
+	return st
+}
+
+// GetSession retrieves the session for the given channel, session, and user.
+func (s *Service) GetSession(ctx context.Context, channelName, sessionID, userID string) (session.Session, error) {
+	resp, err := s.sessionSvc.Get(ctx, &session.GetRequest{
+		AppName:   channelName,
+		UserID:    userID,
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Session, nil
 }
 
 // getOrCreateRunner returns a runner for the given channel and agent.
