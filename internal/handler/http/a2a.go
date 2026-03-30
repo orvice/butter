@@ -109,10 +109,19 @@ func (h *A2AHandler) TaskSend(c *gin.Context) {
 		sessionID = uuid.New().String()
 	}
 
-	channelName := "a2a:" + agentName
-	userID := "a2a"
+	ctxInfo := &agentsv1.ContextInfo{
+		Uuid:        uuid.New().String(),
+		SessionId:   sessionID,
+		UserId:      "a2a",
+		ChannelName: "a2a:" + agentName,
+		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_A2A,
+		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
+		Metadata: map[string]string{
+			"task_id": sessionID,
+		},
+	}
 
-	result, err := svc.Run(c.Request.Context(), channelName, agentName, sessionID, userID, input, nil, nil)
+	result, err := svc.Run(c.Request.Context(), agentName, input, ctxInfo, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusOK, jsonRPCError(req.ID, -32000, err.Error()))
 		return

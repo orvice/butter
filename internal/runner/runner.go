@@ -265,11 +265,15 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag 
 // It receives the event and should not block for long.
 type EventCallback func(evt *session.Event)
 
-// Run executes an agent for a given channel, session, and input text.
+// Run executes an agent with the given context info and input text.
 // If onEvent is non-nil, it is called for each non-final event.
 // If onCompaction is non-nil, it is called when context compaction is detected.
-func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, userID, input string, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
+func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
 	logger := log.FromContext(ctx)
+
+	channelName := ctxInfo.GetChannelName()
+	sessionID := ctxInfo.GetSessionId()
+	userID := ctxInfo.GetUserId()
 
 	ag, ok := s.agents[agentName]
 	if !ok {
@@ -286,6 +290,7 @@ func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, us
 		"agent", agentName,
 		"session_id", sessionID,
 		"user_id", userID,
+		"source", ctxInfo.GetSource().String(),
 		"input_len", len(input),
 	)
 

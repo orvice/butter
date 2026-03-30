@@ -9,6 +9,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/google/uuid"
 	"google.golang.org/adk/session"
 
 	"go.orx.me/apps/butter/internal/runner"
@@ -319,7 +320,37 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 		}
 	}
 
-	response, err := p.runner.Run(ctx, p.channelName, agentName, sessionID, userID, msg.Text, onEvent, onCompaction)
+	chatType := agentsv1.ChatType_CHAT_TYPE_PRIVATE
+	if msg.Chat.Type == models.ChatTypeGroup || msg.Chat.Type == models.ChatTypeSupergroup {
+		chatType = agentsv1.ChatType_CHAT_TYPE_GROUP
+	}
+
+	ctxInfo := &agentsv1.ContextInfo{
+		Uuid:        uuid.New().String(),
+		SessionId:   sessionID,
+		UserId:      userID,
+		ChannelName: p.channelName,
+		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_CHANNEL,
+		ChatId:      fmt.Sprintf("%d", msg.Chat.ID),
+		ChannelType: "telegram",
+		ChatType:    chatType,
+		Metadata: map[string]string{
+			"chat_id": fmt.Sprintf("%d", msg.Chat.ID),
+		},
+	}
+	if msg.From != nil {
+		if msg.From.Username != "" {
+			ctxInfo.Metadata["username"] = msg.From.Username
+		}
+		if msg.From.FirstName != "" {
+			ctxInfo.Metadata["first_name"] = msg.From.FirstName
+		}
+		if msg.From.LastName != "" {
+			ctxInfo.Metadata["last_name"] = msg.From.LastName
+		}
+	}
+
+	response, err := p.runner.Run(ctx, agentName, msg.Text, ctxInfo, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", p.channelName,
