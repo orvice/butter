@@ -9,6 +9,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/achetronic/adk-utils-go/plugin/contextguard"
 	"google.golang.org/adk/agent"
+	"google.golang.org/adk/memory"
 	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
@@ -30,6 +31,7 @@ type Service struct {
 	agents       map[string]agent.Agent
 	agentsProto  map[string]*agentsv1.Agent // original proto configs keyed by name
 	sessionSvc   session.Service
+	memorySvc    memory.Service
 	pluginConfig adkrunner.PluginConfig
 
 	mu      sync.Mutex
@@ -37,7 +39,7 @@ type Service struct {
 }
 
 // NewService builds the agent registry from proto configs.
-func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, sessionSvc session.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
+func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, sessionSvc session.Service, memorySvc memory.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
@@ -72,6 +74,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 		agents:       registry,
 		agentsProto:  protoRegistry,
 		sessionSvc:   sessionSvc,
+		memorySvc:    memorySvc,
 		pluginConfig: pluginConfig,
 		runners:      make(map[string]*adkrunner.Runner),
 	}
@@ -250,6 +253,7 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag 
 		AppName:        channelName,
 		Agent:          ag,
 		SessionService: s.sessionSvc,
+		MemoryService:  s.memorySvc,
 		PluginConfig:   s.pluginConfig,
 	})
 	if err != nil {

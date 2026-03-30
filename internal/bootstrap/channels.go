@@ -61,7 +61,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 		logger.Error("failed to create mongo memory service", "err", err)
 		return nil, err
 	}
-	_ = memorySvc // TODO: wire into runner when memory plugin is added
 
 	// Connect to Redis.
 	redisAddr := cfg.RedisAddr
@@ -103,7 +102,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, sessionSvc, pluginConfig)
+	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, sessionSvc, memorySvc, pluginConfig)
 	if err != nil {
 		logger.Error("failed to build runner service", "err", err)
 		return nil, err
