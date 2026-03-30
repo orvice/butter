@@ -440,12 +440,15 @@ func (p *Poller) deriveSessionID(msg *models.Message) string {
 func (p *Poller) sendReply(ctx context.Context, b *bot.Bot, msg *models.Message, text string) {
 	logger := log.FromContext(ctx)
 
-	params := &bot.SendMessageParams{
-		ChatID: msg.Chat.ID,
-		Text:   text,
-	}
-
 	replyMode := p.channelCfg.GetDelivery().GetReplyMode()
+
+	// Try sending with HTML parse mode for Markdown rendering.
+	htmlText := markdownToTelegramHTML(text)
+	params := &bot.SendMessageParams{
+		ChatID:    msg.Chat.ID,
+		Text:      htmlText,
+		ParseMode: models.ParseModeHTML,
+	}
 	if replyMode == agentsv1.AgentReplyMode_AGENT_REPLY_MODE_REPLY {
 		params.ReplyParameters = &models.ReplyParameters{
 			MessageID: msg.ID,
@@ -453,19 +456,30 @@ func (p *Poller) sendReply(ctx context.Context, b *bot.Bot, msg *models.Message,
 	}
 
 	if _, err := b.SendMessage(ctx, params); err != nil {
-		logger.Error("failed to send telegram message",
+		// Fall back to plain text if HTML parsing fails.
+		logger.Warn("HTML send failed, falling back to plain text",
 			"channel", p.channelName,
 			"chat_id", msg.Chat.ID,
 			"err", err,
 		)
-	} else {
-		logger.Debug("telegram message sent",
-			"channel", p.channelName,
-			"chat_id", msg.Chat.ID,
-			"reply_mode", replyMode.String(),
-			"text_len", len(text),
-		)
+		params.Text = text
+		params.ParseMode = ""
+		if _, err2 := b.SendMessage(ctx, params); err2 != nil {
+			logger.Error("failed to send telegram message",
+				"channel", p.channelName,
+				"chat_id", msg.Chat.ID,
+				"err", err2,
+			)
+			return
+		}
 	}
+
+	logger.Debug("telegram message sent",
+		"channel", p.channelName,
+		"chat_id", msg.Chat.ID,
+		"reply_mode", replyMode.String(),
+		"text_len", len(text),
+	)
 }
 
 func userIDFromMsg(msg *models.Message) int64 {
