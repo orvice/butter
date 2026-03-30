@@ -12,7 +12,6 @@ import (
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/channel"
-	"go.orx.me/apps/butter/internal/channel/telegram"
 	"go.orx.me/apps/butter/internal/config"
 	mongomemory "go.orx.me/apps/butter/internal/memory/mongo"
 	"go.orx.me/apps/butter/internal/runner"
@@ -81,10 +80,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 		logger.Info("redis connected")
 	}
 
-	selector := telegram.NewAgentSelector(rdb)
-	modelSelector := telegram.NewModelSelector(rdb)
-	debugToggle := telegram.NewDebugToggle(rdb)
-
 	// Setup Langfuse plugin if configured.
 	var pluginConfig adkrunner.PluginConfig
 	if cfg.Langfuse.IsEnabled() {
@@ -118,7 +113,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 	}
 
 	// Build channel manager.
-	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, selector, modelSelector, debugToggle, modelNames)
+	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, rdb, modelNames)
 	if err != nil {
 		logger.Error("failed to create channel manager", "err", err)
 		return nil, err
