@@ -27,6 +27,10 @@ message AgentChannel {
   // @gotags: json:"telegram,omitempty" yaml:"telegram,omitempty"
   TelegramChannelConfig telegram = 10;
 
+  // Optional model override (alias or name). Overrides the agent's configured model.
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
+  string model = 11;
+
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 20;
 }

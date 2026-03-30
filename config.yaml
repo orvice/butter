@@ -28,23 +28,28 @@ model_providers:
     type: gemini
     # api_key: ""  # Uses GOOGLE_API_KEY env var by default
     models:
-      - "gemini-2.5-flash"
-      - "gemini-2.5-pro"
+      - name: "gemini-2.5-flash"
+        alias: "flash"
+      - name: "gemini-2.5-pro"
+        alias: "pro"
 
   - name: openai
     type: openai
     api_key: ""  # Set via env var or config
     base_url: "https://api.openai.com/v1"
     models:
-      - "gpt-4o"
-      - "gpt-4o-mini"
+      - name: "gpt-4o"
+        alias: "4o"
+      - name: "gpt-4o-mini"
+        alias: "4o-mini"
 
   # Example: Ollama (OpenAI-compatible)
   # - name: ollama
   #   type: openai
   #   base_url: "http://localhost:11434/v1"
   #   models:
-  #     - "qwen3:8b"
+  #     - name: "qwen3:8b"
+  #       alias: "qwen"
 
 # Shared MCP server definitions
 # Define MCP servers here and reference them by ID in agent configs via mcp_server_ids.
@@ -78,7 +83,7 @@ agents:
     description: "A general-purpose assistant powered by Gemini"
     type: 1  # AGENT_TYPE_LLM
     config:
-      model: "gemini-2.5-flash"
+      model: "flash"  # alias for gemini-2.5-flash
       instruction: "You are a helpful assistant. Answer questions clearly and concisely."
       include_contents: 1  # LLM_INCLUDE_CONTENTS_DEFAULT
       # Reference shared MCP servers by ID:
@@ -93,7 +98,7 @@ agents:
     description: "Translates text between languages"
     type: 1  # AGENT_TYPE_LLM
     config:
-      model: "gemini-2.5-flash"
+      model: "flash"  # alias for gemini-2.5-flash
       instruction: |
         You are a translator. When the user sends text, detect the language
         and translate it to English if it's not English, or to Chinese if it is English.
@@ -103,7 +108,7 @@ agents:
     description: "Summarizes long text into key points"
     type: 1  # AGENT_TYPE_LLM
     config:
-      model: "gemini-2.5-flash"
+      model: "flash"  # alias for gemini-2.5-flash
       instruction: |
         You are a summarizer. When the user sends text, extract the key points
         and return a concise bullet-point summary. Keep it under 5 bullet points.
@@ -114,6 +119,7 @@ channels:
     agent_name: assistant  # default agent for this channel
     platform: 1  # AGENT_CHANNEL_PLATFORM_TELEGRAM
     enabled: true
+    # model: "pro"  # optional: override agent's model (by alias or name)
 
     triggers:
       - type: 1  # AGENT_TRIGGER_TYPE_MESSAGE (all text messages)

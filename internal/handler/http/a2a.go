@@ -121,7 +121,7 @@ func (h *A2AHandler) TaskSend(c *gin.Context) {
 		},
 	}
 
-	result, err := svc.Run(c.Request.Context(), agentName, input, ctxInfo, nil, nil)
+	result, err := svc.Run(c.Request.Context(), agentName, input, "", ctxInfo, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusOK, jsonRPCError(req.ID, -32000, err.Error()))
 		return

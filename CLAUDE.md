@@ -13,13 +13,13 @@ cp .env.example .env && export $(grep -v '^#' .env | xargs)
 go run ./cmd/butter
 
 # Build
-go build ./cmd/butter
+make build
 
 # Run tests
 go test ./...
 
-# Generate protobuf code (requires buf CLI)
-buf generate
+# Generate protobuf code and inject custom tags (requires buf CLI and protoc-go-inject-tag)
+make buf
 
 # Lint protos
 buf lint

@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	adkrunner "google.golang.org/adk/runner"
 
+	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/channel/telegram"
 	"go.orx.me/apps/butter/internal/config"
@@ -81,6 +82,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 	}
 
 	selector := telegram.NewAgentSelector(rdb)
+	modelSelector := telegram.NewModelSelector(rdb)
 	debugToggle := telegram.NewDebugToggle(rdb)
 
 	// Setup Langfuse plugin if configured.
@@ -108,8 +110,15 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 		return nil, err
 	}
 
+	// Collect model aliases for the /model command.
+	modelInfos := internalagent.AllModelAliases(cfg.ModelProviders)
+	modelNames := make([]string, len(modelInfos))
+	for i, m := range modelInfos {
+		modelNames[i] = m.Alias
+	}
+
 	// Build channel manager.
-	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, selector, debugToggle)
+	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, selector, modelSelector, debugToggle, modelNames)
 	if err != nil {
 		logger.Error("failed to create channel manager", "err", err)
 		return nil, err

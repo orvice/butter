@@ -204,6 +204,8 @@ func (m *AgentChannel) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for Model
+
 	// no validation rules for Metadata
 
 	if len(errors) > 0 {

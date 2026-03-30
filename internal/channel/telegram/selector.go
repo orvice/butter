@@ -46,6 +46,43 @@ func (s *AgentSelector) Set(ctx context.Context, channelName, sessionID, agentNa
 	return nil
 }
 
+const modelKeyPrefix = "butter:model_sel:"
+
+// ModelSelector stores per-session model selection in Redis.
+type ModelSelector struct {
+	rdb *redis.Client
+}
+
+// NewModelSelector creates a new Redis-backed model selector.
+func NewModelSelector(rdb *redis.Client) *ModelSelector {
+	return &ModelSelector{rdb: rdb}
+}
+
+func modelSelectorKey(channelName, sessionID string) string {
+	return modelKeyPrefix + channelName + ":" + sessionID
+}
+
+// Get returns the selected model alias for a session.
+// Returns empty string if no selection exists.
+func (s *ModelSelector) Get(ctx context.Context, channelName, sessionID string) (string, error) {
+	val, err := s.rdb.Get(ctx, modelSelectorKey(channelName, sessionID)).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("redis get model selection: %w", err)
+	}
+	return val, nil
+}
+
+// Set stores the selected model alias for a session.
+func (s *ModelSelector) Set(ctx context.Context, channelName, sessionID, modelAlias string) error {
+	if err := s.rdb.Set(ctx, modelSelectorKey(channelName, sessionID), modelAlias, 0).Err(); err != nil {
+		return fmt.Errorf("redis set model selection: %w", err)
+	}
+	return nil
+}
+
 // parseAgentCommand parses "/agent <subcommand>" text.
 // Returns (subcommand, arg). For "/agent list" → ("list", "").
 // For "/agent foo" → ("switch", "foo"). For non-agent commands → ("", "").
