@@ -129,6 +129,12 @@ func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 		return
 	}
 
+	// Handle /clear.
+	if strings.HasPrefix(text, "/clear") {
+		p.handleClearCommand(ctx, b, msg)
+		return
+	}
+
 	p.handleMessage(ctx, b, msg)
 }
 

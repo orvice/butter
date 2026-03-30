@@ -202,6 +202,24 @@ func buildAgentStatus(pb *agentsv1.Agent) *AgentStatus {
 	return st
 }
 
+// ClearSession deletes and recreates a session, effectively clearing its context.
+func (s *Service) ClearSession(ctx context.Context, channelName, sessionID, userID string) error {
+	// Delete the existing session (ignore not-found errors).
+	_ = s.sessionSvc.Delete(ctx, &session.DeleteRequest{
+		AppName:   channelName,
+		UserID:    userID,
+		SessionID: sessionID,
+	})
+
+	// Recreate an empty session with the same ID.
+	_, err := s.sessionSvc.Create(ctx, &session.CreateRequest{
+		AppName:   channelName,
+		UserID:    userID,
+		SessionID: sessionID,
+	})
+	return err
+}
+
 // GetSession retrieves the session for the given channel, session, and user.
 func (s *Service) GetSession(ctx context.Context, channelName, sessionID, userID string) (session.Session, error) {
 	resp, err := s.sessionSvc.Get(ctx, &session.GetRequest{
