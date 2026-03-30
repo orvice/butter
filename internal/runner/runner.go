@@ -269,11 +269,19 @@ type EventCallback func(evt *session.Event)
 // If onEvent is non-nil, it is called for each non-final event.
 // If onCompaction is non-nil, it is called when context compaction is detected.
 func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
-	logger := log.FromContext(ctx)
-
 	channelName := ctxInfo.GetChannelName()
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
+
+	logger := log.FromContext(ctx).With(
+		"uuid", ctxInfo.GetUuid(),
+		"channel", channelName,
+		"agent", agentName,
+		"session_id", sessionID,
+		"user_id", userID,
+		"source", ctxInfo.GetSource().String(),
+	)
+	ctx = log.WithLogger(ctx, logger)
 
 	ag, ok := s.agents[agentName]
 	if !ok {
@@ -286,11 +294,6 @@ func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *age
 	}
 
 	logger.Debug("invoking ADK runner",
-		"channel", channelName,
-		"agent", agentName,
-		"session_id", sessionID,
-		"user_id", userID,
-		"source", ctxInfo.GetSource().String(),
 		"input_len", len(input),
 	)
 
@@ -300,11 +303,7 @@ func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *age
 		UserID:    userID,
 		SessionID: sessionID,
 	}); err != nil {
-		logger.Info("session not found, creating new session",
-			"channel", channelName,
-			"session_id", sessionID,
-			"user_id", userID,
-		)
+		logger.Info("session not found, creating new session")
 		if _, err := s.sessionSvc.Create(ctx, &session.CreateRequest{
 			AppName:   channelName,
 			UserID:    userID,
@@ -326,9 +325,6 @@ func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *age
 	for evt, err := range r.Run(ctx, userID, sessionID, msg, agent.RunConfig{}) {
 		if err != nil {
 			logger.Error("ADK runner event error",
-				"channel", channelName,
-				"agent", agentName,
-				"session_id", sessionID,
 				"event_count", eventCount,
 				"err", err,
 			)
@@ -348,9 +344,6 @@ func (s *Service) Run(ctx context.Context, agentName, input string, ctxInfo *age
 	}
 
 	logger.Debug("ADK runner completed",
-		"channel", channelName,
-		"agent", agentName,
-		"session_id", sessionID,
 		"event_count", eventCount,
 		"response_len", result.Len(),
 	)
