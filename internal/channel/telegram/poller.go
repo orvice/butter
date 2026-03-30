@@ -326,7 +326,7 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 	}
 
 	ctxInfo := &agentsv1.ContextInfo{
-		Uuid:        uuid.New().String(),
+		Uuid:        uuid.Must(uuid.NewV7()).String(),
 		SessionId:   sessionID,
 		UserId:      userID,
 		ChannelName: p.channelName,

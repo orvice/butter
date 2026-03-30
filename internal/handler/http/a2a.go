@@ -110,7 +110,7 @@ func (h *A2AHandler) TaskSend(c *gin.Context) {
 	}
 
 	ctxInfo := &agentsv1.ContextInfo{
-		Uuid:        uuid.New().String(),
+		Uuid:        uuid.Must(uuid.NewV7()).String(),
 		SessionId:   sessionID,
 		UserId:      "a2a",
 		ChannelName: "a2a:" + agentName,
