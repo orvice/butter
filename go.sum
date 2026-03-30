@@ -1,5 +1,5 @@
-butterfly.orx.me/core v0.0.0-20260314082709-d474cfa9a7ec h1:s+nEBaKJh49Fg+LIokqw3oBCWItzXDboO6l28NJeAjU=
-butterfly.orx.me/core v0.0.0-20260314082709-d474cfa9a7ec/go.mod h1:7aYYnZXQ1pwjsVJyl0k+GWGeGy/2/ToCRxPO6EFisOg=
+butterfly.orx.me/core v0.0.0-20260330130232-9b8f79feef83 h1:qlSL+KeEgfDQcjBcBFrqfq58Q3X/Z1pkVMEQNCng8Bk=
+butterfly.orx.me/core v0.0.0-20260330130232-9b8f79feef83/go.mod h1:7aYYnZXQ1pwjsVJyl0k+GWGeGy/2/ToCRxPO6EFisOg=
 charm.land/catwalk v0.25.0 h1:bRkP8NPm3Tc+R89yVmaAQVk1jtyWxENJRu6BXwkCo8I=
 charm.land/catwalk v0.25.0/go.mod h1:rFC/V96rIHX7VES215c/qzI1EW/Moo1ggs1Q6seTy5s=
 cloud.google.com/go v0.123.0 h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE=
