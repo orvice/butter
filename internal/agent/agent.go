@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"butterfly.orx.me/core/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
@@ -64,7 +65,29 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 }
 
 func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agent, providers []agentsv1.ModelProvider) (agent.Agent, error) {
+	logger := log.FromContext(ctx)
 	acfg := pb.GetConfig()
+
+	mcpServers := acfg.GetMcpServers()
+	mcpNames := make([]string, 0, len(mcpServers))
+	for _, s := range mcpServers {
+		mcpNames = append(mcpNames, s.GetName())
+	}
+
+	subAgentNames := make([]string, 0, len(subAgents))
+	for _, sa := range subAgents {
+		subAgentNames = append(subAgentNames, sa.Name())
+	}
+
+	logger.Info("initializing LLM agent",
+		"agent", pb.GetName(),
+		"model", acfg.GetModel(),
+		"mcp_servers", mcpNames,
+		"sub_agents", subAgentNames,
+		"output_key", acfg.GetOutputKey(),
+		"disallow_transfer_to_parent", acfg.GetDisallowTransferToParent(),
+		"disallow_transfer_to_peers", acfg.GetDisallowTransferToPeers(),
+	)
 
 	m, err := resolveModel(ctx, acfg.GetModel(), providers)
 	if err != nil {
