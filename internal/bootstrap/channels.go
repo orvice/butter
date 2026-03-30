@@ -13,6 +13,7 @@ import (
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/channel/telegram"
 	"go.orx.me/apps/butter/internal/config"
+	mongomemory "go.orx.me/apps/butter/internal/memory/mongo"
 	"go.orx.me/apps/butter/internal/runner"
 	mongosession "go.orx.me/apps/butter/internal/session/mongo"
 )
@@ -47,11 +48,20 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 	}
 	logger.Info("mongodb connected", "database", dbName)
 
-	sessionSvc, err := mongosession.New(ctx, mongoClient.Database(dbName))
+	db := mongoClient.Database(dbName)
+
+	sessionSvc, err := mongosession.New(ctx, db)
 	if err != nil {
 		logger.Error("failed to create mongo session service", "err", err)
 		return nil, err
 	}
+
+	memorySvc, err := mongomemory.New(ctx, db)
+	if err != nil {
+		logger.Error("failed to create mongo memory service", "err", err)
+		return nil, err
+	}
+	_ = memorySvc // TODO: wire into runner when memory plugin is added
 
 	// Connect to Redis.
 	redisAddr := cfg.RedisAddr
