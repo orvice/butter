@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	butterfly.orx.me/core v0.0.0-20260330130232-9b8f79feef83
+	github.com/Mad-Pixels/goldmark-tgmd v0.0.10
 	github.com/achetronic/adk-utils-go v0.12.0
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
@@ -98,6 +99,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
+	github.com/yuin/goldmark v1.6.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.40.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.60.0 // indirect

@@ -442,12 +442,12 @@ func (p *Poller) sendReply(ctx context.Context, b *bot.Bot, msg *models.Message,
 
 	replyMode := p.channelCfg.GetDelivery().GetReplyMode()
 
-	// Try sending with HTML parse mode for Markdown rendering.
-	htmlText := markdownToTelegramHTML(text)
+	// Try sending with MarkdownV2 parse mode for Markdown rendering.
+	mdV2Text := markdownToTelegramMarkdownV2(text)
 	params := &bot.SendMessageParams{
 		ChatID:    msg.Chat.ID,
-		Text:      htmlText,
-		ParseMode: models.ParseModeHTML,
+		Text:      mdV2Text,
+		ParseMode: models.ParseModeMarkdown,
 	}
 	if replyMode == agentsv1.AgentReplyMode_AGENT_REPLY_MODE_REPLY {
 		params.ReplyParameters = &models.ReplyParameters{
@@ -457,7 +457,7 @@ func (p *Poller) sendReply(ctx context.Context, b *bot.Bot, msg *models.Message,
 
 	if _, err := b.SendMessage(ctx, params); err != nil {
 		// Fall back to plain text if HTML parsing fails.
-		logger.Warn("HTML send failed, falling back to plain text",
+		logger.Warn("MarkdownV2 send failed, falling back to plain text",
 			"channel", p.channelName,
 			"chat_id", msg.Chat.ID,
 			"err", err,
