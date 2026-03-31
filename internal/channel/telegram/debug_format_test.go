@@ -20,11 +20,31 @@ func TestFormatDebugEvent_ToolCall(t *testing.T) {
 	}
 
 	got := FormatDebugEvent(evt)
-	if !strings.Contains(got, "[DEBUG] Tool: search(") {
-		t.Errorf("expected tool call format, got: %s", got)
+	if !strings.Contains(got, "🔧") {
+		t.Errorf("expected tool emoji, got: %s", got)
+	}
+	if !strings.Contains(got, "`search`") {
+		t.Errorf("expected tool name in backticks, got: %s", got)
 	}
 	if !strings.Contains(got, "hello world") {
 		t.Errorf("expected args in output, got: %s", got)
+	}
+}
+
+func TestFormatDebugEvent_ToolCallNoArgs(t *testing.T) {
+	evt := session.NewEvent("inv-1")
+	evt.Content = &genai.Content{
+		Parts: []*genai.Part{
+			{FunctionCall: &genai.FunctionCall{
+				Name: "ping",
+				Args: nil,
+			}},
+		},
+	}
+
+	got := FormatDebugEvent(evt)
+	if !strings.Contains(got, "`ping()`") {
+		t.Errorf("expected tool name with empty parens, got: %s", got)
 	}
 }
 
@@ -34,9 +54,17 @@ func TestFormatDebugEvent_Transfer(t *testing.T) {
 	evt.Actions.TransferToAgent = "specialist"
 
 	got := FormatDebugEvent(evt)
-	want := "[DEBUG] Transfer: router -> specialist"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
+	if !strings.Contains(got, "🔀") {
+		t.Errorf("expected transfer emoji, got: %s", got)
+	}
+	if !strings.Contains(got, "`router`") {
+		t.Errorf("expected source agent in backticks, got: %s", got)
+	}
+	if !strings.Contains(got, "`specialist`") {
+		t.Errorf("expected target agent in backticks, got: %s", got)
+	}
+	if !strings.Contains(got, "➡️") {
+		t.Errorf("expected arrow emoji, got: %s", got)
 	}
 }
 
@@ -62,11 +90,24 @@ func TestFormatDebugEvent_TransferAndToolCall(t *testing.T) {
 	}
 
 	got := FormatDebugEvent(evt)
-	if !strings.Contains(got, "[DEBUG] Transfer: agent-a -> agent-b") {
-		t.Errorf("expected transfer line, got: %s", got)
+	if !strings.Contains(got, "`agent-a`") {
+		t.Errorf("expected source agent, got: %s", got)
 	}
-	if !strings.Contains(got, "[DEBUG] Tool: lookup(") {
-		t.Errorf("expected tool call line, got: %s", got)
+	if !strings.Contains(got, "`agent-b`") {
+		t.Errorf("expected target agent, got: %s", got)
+	}
+	if !strings.Contains(got, "`lookup`") {
+		t.Errorf("expected tool call, got: %s", got)
+	}
+}
+
+func TestFormatCompactionEvent(t *testing.T) {
+	got := FormatCompactionEvent("my-agent")
+	if !strings.Contains(got, "📦") {
+		t.Errorf("expected compaction emoji, got: %s", got)
+	}
+	if !strings.Contains(got, "`my-agent`") {
+		t.Errorf("expected agent name in backticks, got: %s", got)
 	}
 }
 
