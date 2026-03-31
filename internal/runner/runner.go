@@ -234,17 +234,17 @@ func (s *Service) GetSession(ctx context.Context, channelName, sessionID, userID
 }
 
 // getOrCreateRunner returns a runner for the given channel and agent.
-func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag agent.Agent) (*adkrunner.Runner, error) {
+func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName string, ag agent.Agent) (*adkrunner.Runner, error) {
 	logger := log.FromContext(ctx)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := channelName
+	key := channelName + ":" + agentName
 	if r, ok := s.runners[key]; ok {
 		return r, nil
 	}
 
-	logger.Info("creating new ADK runner", "channel", channelName)
+	logger.Info("creating new ADK runner", "channel", channelName, "agent", agentName)
 
 	r, err := adkrunner.New(adkrunner.Config{
 		AppName:        channelName,
@@ -257,7 +257,7 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag 
 	}
 
 	s.runners[key] = r
-	logger.Info("ADK runner created", "channel", channelName)
+	logger.Info("ADK runner created", "channel", channelName, "agent", agentName)
 	return r, nil
 }
 
@@ -276,7 +276,7 @@ func (s *Service) Run(ctx context.Context, channelName, agentName, sessionID, us
 		return "", fmt.Errorf("unknown agent: %q", agentName)
 	}
 
-	r, err := s.getOrCreateRunner(ctx, channelName, ag)
+	r, err := s.getOrCreateRunner(ctx, channelName, agentName, ag)
 	if err != nil {
 		return "", err
 	}
