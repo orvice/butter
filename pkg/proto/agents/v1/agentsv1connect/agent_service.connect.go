@@ -28,6 +28,8 @@ const (
 	MCPServerServiceName = "agents.v1.MCPServerService"
 	// RemoteAgentServiceName is the fully-qualified name of the RemoteAgentService service.
 	RemoteAgentServiceName = "agents.v1.RemoteAgentService"
+	// SessionServiceName is the fully-qualified name of the SessionService service.
+	SessionServiceName = "agents.v1.SessionService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -81,6 +83,21 @@ const (
 	// RemoteAgentServiceDeleteRemoteAgentProcedure is the fully-qualified name of the
 	// RemoteAgentService's DeleteRemoteAgent RPC.
 	RemoteAgentServiceDeleteRemoteAgentProcedure = "/agents.v1.RemoteAgentService/DeleteRemoteAgent"
+	// SessionServiceCreateSessionProcedure is the fully-qualified name of the SessionService's
+	// CreateSession RPC.
+	SessionServiceCreateSessionProcedure = "/agents.v1.SessionService/CreateSession"
+	// SessionServiceGetSessionProcedure is the fully-qualified name of the SessionService's GetSession
+	// RPC.
+	SessionServiceGetSessionProcedure = "/agents.v1.SessionService/GetSession"
+	// SessionServiceListSessionsProcedure is the fully-qualified name of the SessionService's
+	// ListSessions RPC.
+	SessionServiceListSessionsProcedure = "/agents.v1.SessionService/ListSessions"
+	// SessionServiceDeleteSessionProcedure is the fully-qualified name of the SessionService's
+	// DeleteSession RPC.
+	SessionServiceDeleteSessionProcedure = "/agents.v1.SessionService/DeleteSession"
+	// SessionServiceReplySessionProcedure is the fully-qualified name of the SessionService's
+	// ReplySession RPC.
+	SessionServiceReplySessionProcedure = "/agents.v1.SessionService/ReplySession"
 )
 
 // AgentServiceClient is a client for the agents.v1.AgentService service.
@@ -603,4 +620,188 @@ func (UnimplementedRemoteAgentServiceHandler) UpdateRemoteAgent(context.Context,
 
 func (UnimplementedRemoteAgentServiceHandler) DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[emptypb.Empty], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.DeleteRemoteAgent is not implemented"))
+}
+
+// SessionServiceClient is a client for the agents.v1.SessionService service.
+type SessionServiceClient interface {
+	// CreateSession creates a new session for the given agent.
+	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.SessionInfo], error)
+	// GetSession retrieves a session by ID, optionally with recent events.
+	GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.SessionDetail], error)
+	// ListSessions lists sessions for a given app and user.
+	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
+	// DeleteSession deletes a session and its events.
+	DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[emptypb.Empty], error)
+	// ReplySession sends a user message to an existing session and returns the agent response.
+	ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error)
+}
+
+// NewSessionServiceClient constructs a client for the agents.v1.SessionService service. By default,
+// it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and
+// sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC()
+// or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) SessionServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	sessionServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("SessionService").Methods()
+	return &sessionServiceClient{
+		createSession: connect.NewClient[v1.CreateSessionRequest, v1.SessionInfo](
+			httpClient,
+			baseURL+SessionServiceCreateSessionProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("CreateSession")),
+			connect.WithClientOptions(opts...),
+		),
+		getSession: connect.NewClient[v1.GetSessionRequest, v1.SessionDetail](
+			httpClient,
+			baseURL+SessionServiceGetSessionProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("GetSession")),
+			connect.WithClientOptions(opts...),
+		),
+		listSessions: connect.NewClient[v1.ListSessionsRequest, v1.ListSessionsResponse](
+			httpClient,
+			baseURL+SessionServiceListSessionsProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("ListSessions")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteSession: connect.NewClient[v1.DeleteSessionRequest, emptypb.Empty](
+			httpClient,
+			baseURL+SessionServiceDeleteSessionProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("DeleteSession")),
+			connect.WithClientOptions(opts...),
+		),
+		replySession: connect.NewClient[v1.ReplySessionRequest, v1.ReplySessionResponse](
+			httpClient,
+			baseURL+SessionServiceReplySessionProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("ReplySession")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// sessionServiceClient implements SessionServiceClient.
+type sessionServiceClient struct {
+	createSession *connect.Client[v1.CreateSessionRequest, v1.SessionInfo]
+	getSession    *connect.Client[v1.GetSessionRequest, v1.SessionDetail]
+	listSessions  *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
+	deleteSession *connect.Client[v1.DeleteSessionRequest, emptypb.Empty]
+	replySession  *connect.Client[v1.ReplySessionRequest, v1.ReplySessionResponse]
+}
+
+// CreateSession calls agents.v1.SessionService.CreateSession.
+func (c *sessionServiceClient) CreateSession(ctx context.Context, req *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.SessionInfo], error) {
+	return c.createSession.CallUnary(ctx, req)
+}
+
+// GetSession calls agents.v1.SessionService.GetSession.
+func (c *sessionServiceClient) GetSession(ctx context.Context, req *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.SessionDetail], error) {
+	return c.getSession.CallUnary(ctx, req)
+}
+
+// ListSessions calls agents.v1.SessionService.ListSessions.
+func (c *sessionServiceClient) ListSessions(ctx context.Context, req *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error) {
+	return c.listSessions.CallUnary(ctx, req)
+}
+
+// DeleteSession calls agents.v1.SessionService.DeleteSession.
+func (c *sessionServiceClient) DeleteSession(ctx context.Context, req *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[emptypb.Empty], error) {
+	return c.deleteSession.CallUnary(ctx, req)
+}
+
+// ReplySession calls agents.v1.SessionService.ReplySession.
+func (c *sessionServiceClient) ReplySession(ctx context.Context, req *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error) {
+	return c.replySession.CallUnary(ctx, req)
+}
+
+// SessionServiceHandler is an implementation of the agents.v1.SessionService service.
+type SessionServiceHandler interface {
+	// CreateSession creates a new session for the given agent.
+	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.SessionInfo], error)
+	// GetSession retrieves a session by ID, optionally with recent events.
+	GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.SessionDetail], error)
+	// ListSessions lists sessions for a given app and user.
+	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
+	// DeleteSession deletes a session and its events.
+	DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[emptypb.Empty], error)
+	// ReplySession sends a user message to an existing session and returns the agent response.
+	ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error)
+}
+
+// NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
+// path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	sessionServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("SessionService").Methods()
+	sessionServiceCreateSessionHandler := connect.NewUnaryHandler(
+		SessionServiceCreateSessionProcedure,
+		svc.CreateSession,
+		connect.WithSchema(sessionServiceMethods.ByName("CreateSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	sessionServiceGetSessionHandler := connect.NewUnaryHandler(
+		SessionServiceGetSessionProcedure,
+		svc.GetSession,
+		connect.WithSchema(sessionServiceMethods.ByName("GetSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	sessionServiceListSessionsHandler := connect.NewUnaryHandler(
+		SessionServiceListSessionsProcedure,
+		svc.ListSessions,
+		connect.WithSchema(sessionServiceMethods.ByName("ListSessions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	sessionServiceDeleteSessionHandler := connect.NewUnaryHandler(
+		SessionServiceDeleteSessionProcedure,
+		svc.DeleteSession,
+		connect.WithSchema(sessionServiceMethods.ByName("DeleteSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	sessionServiceReplySessionHandler := connect.NewUnaryHandler(
+		SessionServiceReplySessionProcedure,
+		svc.ReplySession,
+		connect.WithSchema(sessionServiceMethods.ByName("ReplySession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case SessionServiceCreateSessionProcedure:
+			sessionServiceCreateSessionHandler.ServeHTTP(w, r)
+		case SessionServiceGetSessionProcedure:
+			sessionServiceGetSessionHandler.ServeHTTP(w, r)
+		case SessionServiceListSessionsProcedure:
+			sessionServiceListSessionsHandler.ServeHTTP(w, r)
+		case SessionServiceDeleteSessionProcedure:
+			sessionServiceDeleteSessionHandler.ServeHTTP(w, r)
+		case SessionServiceReplySessionProcedure:
+			sessionServiceReplySessionHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedSessionServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedSessionServiceHandler struct{}
+
+func (UnimplementedSessionServiceHandler) CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.SessionInfo], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.CreateSession is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.SessionDetail], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.GetSession is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.ListSessions is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[emptypb.Empty], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.DeleteSession is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.ReplySession is not implemented"))
 }

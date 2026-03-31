@@ -32,6 +32,8 @@ func main() {
 	agentTwirp := agentsv1.NewAgentServiceServer(configapi.NewAgentServiceServer(cfgStore))
 	mcpTwirp := agentsv1.NewMCPServerServiceServer(configapi.NewMCPServerServiceServer(cfgStore))
 	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(configapi.NewRemoteAgentServiceServer(cfgStore))
+	sessionSvcServer := configapi.NewSessionServiceServer()
+	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer)
 
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 
@@ -47,18 +49,25 @@ func main() {
 			r.Any(agentTwirp.PathPrefix()+"*path", gin.WrapH(agentTwirp))
 			r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
 			r.Any(remoteTwirp.PathPrefix()+"*path", gin.WrapH(remoteTwirp))
+			r.Any(sessionTwirp.PathPrefix()+"*path", gin.WrapH(sessionTwirp))
 		},
 		InitFunc: []func() error{
 			func() error {
 				// Seed config store from YAML config
 				cfgStore.Seed(cfg.Agents, cfg.MCPServerConfigs, cfg.RemoteAgents)
 
-				runnerSvc, err := bootstrap.StartChannels(channelCtx, cfg)
+				result, err := bootstrap.StartChannels(channelCtx, cfg)
 				if err != nil {
 					return err
 				}
-				if runnerSvc != nil {
-					a2aHandler.SetRunnerService(runnerSvc)
+				if result != nil {
+					if result.RunnerSvc != nil {
+						a2aHandler.SetRunnerService(result.RunnerSvc)
+						sessionSvcServer.SetRunnerService(result.RunnerSvc)
+					}
+					if result.SessionSvc != nil {
+						sessionSvcServer.SetSessionService(result.SessionSvc)
+					}
 				}
 				return nil
 			},
