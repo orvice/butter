@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/runner"
@@ -121,7 +122,8 @@ func (h *A2AHandler) TaskSend(c *gin.Context) {
 		},
 	}
 
-	result, err := svc.Run(c.Request.Context(), agentName, input, "", ctxInfo, nil, nil)
+	parts := []*genai.Part{genai.NewPartFromText(input)}
+	result, err := svc.Run(c.Request.Context(), agentName, parts, "", ctxInfo, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusOK, jsonRPCError(req.ID, -32000, err.Error()))
 		return

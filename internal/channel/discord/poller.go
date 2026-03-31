@@ -122,7 +122,8 @@ func (p *Poller) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageC
 	}
 
 	text := m.Content
-	if text == "" {
+	hasImages := hasImageAttachments(m)
+	if text == "" && !hasImages {
 		return
 	}
 
@@ -365,8 +366,15 @@ func (p *Poller) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate)
 		}
 	}
 
+	// Build multimodal input parts from message (text + optional image attachments).
+	parts := buildMessageParts(p.ctx, m)
+	if len(parts) == 0 {
+		logger.Debug("no input parts to send", "channel", p.channelName)
+		return
+	}
+
 	modelOverride := p.getActiveModel(sessionID)
-	response, err := p.runner.Run(p.ctx, agentName, m.Content, modelOverride, ctxInfo, onEvent, onCompaction)
+	response, err := p.runner.Run(p.ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", p.channelName,
