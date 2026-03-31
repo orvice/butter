@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "agents/v1/agent.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// AgentService manages Agent configurations.
+service AgentService {
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+  rpc GetAgent(GetAgentRequest) returns (Agent);
+  rpc CreateAgent(CreateAgentRequest) returns (Agent);
+  rpc UpdateAgent(UpdateAgentRequest) returns (Agent);
+  rpc DeleteAgent(DeleteAgentRequest) returns (google.protobuf.Empty);
+}
+
+// MCPServerService manages MCP Server configurations.
+service MCPServerService {
+  rpc ListMCPServers(ListMCPServersRequest) returns (ListMCPServersResponse);
+  rpc GetMCPServer(GetMCPServerRequest) returns (MCPServer);
+  rpc CreateMCPServer(CreateMCPServerRequest) returns (MCPServer);
+  rpc UpdateMCPServer(UpdateMCPServerRequest) returns (MCPServer);
+  rpc DeleteMCPServer(DeleteMCPServerRequest) returns (google.protobuf.Empty);
+}
+
+// RemoteAgentService manages Remote Agent configurations.
+service RemoteAgentService {
+  rpc ListRemoteAgents(ListRemoteAgentsRequest) returns (ListRemoteAgentsResponse);
+  rpc GetRemoteAgent(GetRemoteAgentRequest) returns (RemoteAgent);
+  rpc CreateRemoteAgent(CreateRemoteAgentRequest) returns (RemoteAgent);
+  rpc UpdateRemoteAgent(UpdateRemoteAgentRequest) returns (RemoteAgent);
+  rpc DeleteRemoteAgent(DeleteRemoteAgentRequest) returns (google.protobuf.Empty);
+}
+
+// --- Agent messages ---
+
+message ListAgentsRequest {}
+
+message ListAgentsResponse {
+  repeated Agent agents = 1;
+}
+
+message GetAgentRequest {
+  string name = 1;
+}
+
+message CreateAgentRequest {
+  Agent agent = 1;
+}
+
+message UpdateAgentRequest {
+  Agent agent = 1;
+}
+
+message DeleteAgentRequest {
+  string name = 1;
+}
+
+// --- MCPServer messages ---
+
+message ListMCPServersRequest {}
+
+message ListMCPServersResponse {
+  repeated MCPServer mcp_servers = 1;
+}
+
+message GetMCPServerRequest {
+  string id = 1;
+}
+
+message CreateMCPServerRequest {
+  MCPServer mcp_server = 1;
+}
+
+message UpdateMCPServerRequest {
+  MCPServer mcp_server = 1;
+}
+
+message DeleteMCPServerRequest {
+  string id = 1;
+}
+
+// --- RemoteAgent messages ---
+
+message ListRemoteAgentsRequest {}
+
+message ListRemoteAgentsResponse {
+  repeated RemoteAgent remote_agents = 1;
+}
+
+message GetRemoteAgentRequest {
+  string id = 1;
+}
+
+message CreateRemoteAgentRequest {
+  RemoteAgent remote_agent = 1;
+}
+
+message UpdateRemoteAgentRequest {
+  RemoteAgent remote_agent = 1;
+}
+
+message DeleteRemoteAgentRequest {
+  string id = 1;
+}
