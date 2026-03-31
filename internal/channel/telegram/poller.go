@@ -303,16 +303,7 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 			if text == "" {
 				return
 			}
-			if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: msg.Chat.ID,
-				Text:   text,
-			}); err != nil {
-				logger.Warn("failed to send debug message",
-					"channel", p.channelName,
-					"chat_id", msg.Chat.ID,
-					"err", err,
-				)
-			}
+			p.sendDebugMessage(ctx, b, msg.Chat.ID, text)
 		}
 	}
 
@@ -320,17 +311,8 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 	var onCompaction runner.CompactionCallback
 	if onEvent != nil {
 		onCompaction = func(agentName string) {
-			text := fmt.Sprintf("[DEBUG] Context compacted (agent: %s)", agentName)
-			if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: msg.Chat.ID,
-				Text:   text,
-			}); err != nil {
-				logger.Warn("failed to send compaction debug message",
-					"channel", p.channelName,
-					"chat_id", msg.Chat.ID,
-					"err", err,
-				)
-			}
+			text := FormatCompactionEvent(agentName)
+			p.sendDebugMessage(ctx, b, msg.Chat.ID, text)
 		}
 	}
 
@@ -487,6 +469,29 @@ func userIDFromMsg(msg *models.Message) int64 {
 		return msg.From.ID
 	}
 	return 0
+}
+
+// sendDebugMessage sends a debug event message with MarkdownV2 formatting.
+func (p *Poller) sendDebugMessage(ctx context.Context, b *bot.Bot, chatID int64, text string) {
+	logger := log.FromContext(ctx)
+	mdV2Text := markdownToTelegramMarkdownV2(text)
+	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:    chatID,
+		Text:      mdV2Text,
+		ParseMode: models.ParseModeMarkdown,
+	}); err != nil {
+		// Fall back to plain text.
+		if _, err2 := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: chatID,
+			Text:   text,
+		}); err2 != nil {
+			logger.Warn("failed to send debug message",
+				"channel", p.channelName,
+				"chat_id", chatID,
+				"err", err2,
+			)
+		}
+	}
 }
 
 // sendDebugStatus sends (or edits) a message showing debug state with a toggle button.

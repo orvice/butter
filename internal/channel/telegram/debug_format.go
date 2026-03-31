@@ -10,7 +10,8 @@ import (
 
 const maxArgLen = 200
 
-// FormatDebugEvent converts an ADK event into a human-readable debug string.
+// FormatDebugEvent converts an ADK event into a Markdown-formatted debug string
+// with emojis for readability in Telegram.
 // Returns empty string if the event has no debug-relevant content.
 func FormatDebugEvent(evt *session.Event) string {
 	var parts []string
@@ -21,7 +22,7 @@ func FormatDebugEvent(evt *session.Event) string {
 		if from == "" {
 			from = "unknown"
 		}
-		parts = append(parts, fmt.Sprintf("[DEBUG] Transfer: %s -> %s", from, evt.Actions.TransferToAgent))
+		parts = append(parts, fmt.Sprintf("🔀 *Transfer*: `%s` ➡️ `%s`", from, evt.Actions.TransferToAgent))
 	}
 
 	// Check for function calls in content parts.
@@ -30,7 +31,11 @@ func FormatDebugEvent(evt *session.Event) string {
 			if part.FunctionCall != nil {
 				fc := part.FunctionCall
 				args := formatArgs(fc.Args)
-				parts = append(parts, fmt.Sprintf("[DEBUG] Tool: %s(%s)", fc.Name, args))
+				if args != "" {
+					parts = append(parts, fmt.Sprintf("🔧 *Tool*: `%s`\n```json\n%s\n```", fc.Name, args))
+				} else {
+					parts = append(parts, fmt.Sprintf("🔧 *Tool*: `%s()`", fc.Name))
+				}
 			}
 		}
 	}
@@ -38,11 +43,17 @@ func FormatDebugEvent(evt *session.Event) string {
 	return strings.Join(parts, "\n")
 }
 
+// FormatCompactionEvent returns a Markdown-formatted debug string for context
+// compaction events.
+func FormatCompactionEvent(agentName string) string {
+	return fmt.Sprintf("📦 *Context compacted* — agent: `%s`", agentName)
+}
+
 func formatArgs(args map[string]any) string {
 	if len(args) == 0 {
 		return ""
 	}
-	b, err := json.Marshal(args)
+	b, err := json.MarshalIndent(args, "", "  ")
 	if err != nil {
 		return "..."
 	}
