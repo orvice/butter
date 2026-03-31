@@ -1,4 +1,4 @@
-package telegram
+package discord
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const keyPrefix = "butter:agent_sel:"
+const agentKeyPrefix = "butter:agent_sel:"
 
 // AgentSelector stores per-session agent selection in Redis.
 type AgentSelector struct {
@@ -21,14 +21,13 @@ func NewAgentSelector(rdb *redis.Client) *AgentSelector {
 	return &AgentSelector{rdb: rdb}
 }
 
-func selectorKey(channelName, sessionID string) string {
-	return keyPrefix + channelName + ":" + sessionID
+func agentSelectorKey(channelName, sessionID string) string {
+	return agentKeyPrefix + channelName + ":" + sessionID
 }
 
 // Get returns the selected agent name for a session.
-// Returns empty string if no selection exists.
 func (s *AgentSelector) Get(ctx context.Context, channelName, sessionID string) (string, error) {
-	val, err := s.rdb.Get(ctx, selectorKey(channelName, sessionID)).Result()
+	val, err := s.rdb.Get(ctx, agentSelectorKey(channelName, sessionID)).Result()
 	if errors.Is(err, redis.Nil) {
 		return "", nil
 	}
@@ -40,7 +39,7 @@ func (s *AgentSelector) Get(ctx context.Context, channelName, sessionID string) 
 
 // Set stores the selected agent name for a session.
 func (s *AgentSelector) Set(ctx context.Context, channelName, sessionID, agentName string) error {
-	if err := s.rdb.Set(ctx, selectorKey(channelName, sessionID), agentName, 0).Err(); err != nil {
+	if err := s.rdb.Set(ctx, agentSelectorKey(channelName, sessionID), agentName, 0).Err(); err != nil {
 		return fmt.Errorf("redis set agent selection: %w", err)
 	}
 	return nil
@@ -63,7 +62,6 @@ func modelSelectorKey(channelName, sessionID string) string {
 }
 
 // Get returns the selected model alias for a session.
-// Returns empty string if no selection exists.
 func (s *ModelSelector) Get(ctx context.Context, channelName, sessionID string) (string, error) {
 	val, err := s.rdb.Get(ctx, modelSelectorKey(channelName, sessionID)).Result()
 	if errors.Is(err, redis.Nil) {
@@ -85,23 +83,19 @@ func (s *ModelSelector) Set(ctx context.Context, channelName, sessionID, modelAl
 
 // parseAgentCommand parses "/agent <subcommand>" text.
 // Returns (subcommand, arg). For "/agent list" → ("list", "").
-// For "/agent foo" → ("switch", "foo"). For non-agent commands → ("", "").
+// For "/agent foo" → ("switch", "foo").
 func parseAgentCommand(text string) (subcommand, arg string) {
 	text = strings.TrimSpace(text)
 	if !strings.HasPrefix(text, "/agent") {
 		return "", ""
 	}
-
 	parts := strings.Fields(text)
 	if len(parts) == 1 {
-		// Just "/agent" with no args — treat as list.
 		return "list", ""
 	}
-
 	sub := parts[1]
 	if sub == "list" {
 		return "list", ""
 	}
-
 	return "switch", sub
 }

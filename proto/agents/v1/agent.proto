@@ -226,6 +226,18 @@ message RemoteAgent {
   RemoteAgentProtocol protocol = 4;
 }
 
+// ModelConfig describes a single model within a provider.
+message ModelConfig {
+  // The actual provider model identifier (e.g. "gemini-2.5-pro", "gpt-4o").
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+
+  // Short alias for referencing this model (e.g. "pro", "flash").
+  // Agents and channels use alias to reference models.
+  // @gotags: json:"alias,omitempty" yaml:"alias,omitempty"
+  string alias = 2;
+}
+
 // ModelProvider maps a set of model names to a provider backend.
 message ModelProvider {
   // Human-readable name for this provider entry (e.g. "openai", "ollama").
@@ -244,7 +256,7 @@ message ModelProvider {
   // @gotags: json:"base_url,omitempty" yaml:"base_url,omitempty"
   string base_url = 4;
 
-  // Model identifiers this provider serves.
+  // Models this provider serves.
   // @gotags: json:"models,omitempty" yaml:"models,omitempty"
-  repeated string models = 5;
+  repeated ModelConfig models = 5;
 }

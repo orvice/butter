@@ -9,6 +9,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/google/uuid"
 	"google.golang.org/adk/session"
 
 	"go.orx.me/apps/butter/internal/runner"
@@ -16,20 +17,23 @@ import (
 )
 
 const (
-	callbackDebugToggle   = "debug_toggle"
+	callbackDebugToggle       = "debug_toggle"
 	callbackAgentSelectPrefix = "agent_select:"
+	callbackModelSelectPrefix = "model_select:"
 )
 
 // Poller handles long-polling for a single Telegram AgentChannel.
 type Poller struct {
-	channelName  string
-	channelCfg   *agentsv1.AgentChannel
-	telegramCfg  *agentsv1.TelegramChannelConfig
-	bot          *bot.Bot
-	runner       *runner.Service
-	selector     *AgentSelector
-	debugToggle  *DebugToggle
-	agentNames   []string
+	channelName   string
+	channelCfg    *agentsv1.AgentChannel
+	telegramCfg   *agentsv1.TelegramChannelConfig
+	bot           *bot.Bot
+	runner        *runner.Service
+	selector      *AgentSelector
+	modelSelector *ModelSelector
+	debugToggle   *DebugToggle
+	agentNames    []string
+	modelNames    []string // available model aliases
 }
 
 // NewPoller creates a new Telegram long-polling consumer.
@@ -37,17 +41,21 @@ func NewPoller(
 	channelCfg *agentsv1.AgentChannel,
 	runnerSvc *runner.Service,
 	selector *AgentSelector,
+	modelSelector *ModelSelector,
 	debugToggle *DebugToggle,
 	agentNames []string,
+	modelNames []string,
 ) (*Poller, error) {
 	p := &Poller{
-		channelName: channelCfg.GetName(),
-		channelCfg:  channelCfg,
-		telegramCfg: channelCfg.GetTelegram(),
-		runner:      runnerSvc,
-		selector:    selector,
-		debugToggle: debugToggle,
-		agentNames:  agentNames,
+		channelName:   channelCfg.GetName(),
+		channelCfg:    channelCfg,
+		telegramCfg:   channelCfg.GetTelegram(),
+		runner:        runnerSvc,
+		selector:      selector,
+		modelSelector: modelSelector,
+		debugToggle:   debugToggle,
+		agentNames:    agentNames,
+		modelNames:    modelNames,
 	}
 
 	b, err := bot.New(
@@ -55,6 +63,7 @@ func NewPoller(
 		bot.WithDefaultHandler(p.handleUpdate),
 		bot.WithCallbackQueryDataHandler(callbackDebugToggle, bot.MatchTypeExact, p.handleDebugToggleCallback),
 		bot.WithCallbackQueryDataHandler(callbackAgentSelectPrefix, bot.MatchTypePrefix, p.handleAgentSelectCallback),
+		bot.WithCallbackQueryDataHandler(callbackModelSelectPrefix, bot.MatchTypePrefix, p.handleModelSelectCallback),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating telegram bot for channel %q: %w", channelCfg.GetName(), err)
@@ -114,6 +123,12 @@ func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 	// Handle /agent commands.
 	if strings.HasPrefix(text, "/agent") {
 		p.handleAgentCommand(ctx, b, msg)
+		return
+	}
+
+	// Handle /model commands.
+	if strings.HasPrefix(text, "/model") {
+		p.handleModelCommand(ctx, b, msg)
 		return
 	}
 
@@ -319,7 +334,38 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 		}
 	}
 
-	response, err := p.runner.Run(ctx, p.channelName, agentName, sessionID, userID, msg.Text, onEvent, onCompaction)
+	chatType := agentsv1.ChatType_CHAT_TYPE_PRIVATE
+	if msg.Chat.Type == models.ChatTypeGroup || msg.Chat.Type == models.ChatTypeSupergroup {
+		chatType = agentsv1.ChatType_CHAT_TYPE_GROUP
+	}
+
+	ctxInfo := &agentsv1.ContextInfo{
+		Uuid:        uuid.Must(uuid.NewV7()).String(),
+		SessionId:   sessionID,
+		UserId:      userID,
+		ChannelName: p.channelName,
+		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_CHANNEL,
+		ChatId:      fmt.Sprintf("%d", msg.Chat.ID),
+		ChannelType: "telegram",
+		ChatType:    chatType,
+		Metadata: map[string]string{
+			"chat_id": fmt.Sprintf("%d", msg.Chat.ID),
+		},
+	}
+	if msg.From != nil {
+		if msg.From.Username != "" {
+			ctxInfo.Metadata["username"] = msg.From.Username
+		}
+		if msg.From.FirstName != "" {
+			ctxInfo.Metadata["first_name"] = msg.From.FirstName
+		}
+		if msg.From.LastName != "" {
+			ctxInfo.Metadata["last_name"] = msg.From.LastName
+		}
+	}
+
+	modelOverride := p.getActiveModel(ctx, sessionID)
+	response, err := p.runner.Run(ctx, agentName, msg.Text, modelOverride, ctxInfo, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", p.channelName,
@@ -343,6 +389,25 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 	)
 
 	p.sendReply(ctx, b, msg, response)
+}
+
+// getActiveModel returns the effective model override for this session.
+// Precedence: runtime /model selection > channel config model > "" (no override).
+func (p *Poller) getActiveModel(ctx context.Context, sessionID string) string {
+	if p.modelSelector != nil {
+		logger := log.FromContext(ctx)
+		selected, err := p.modelSelector.Get(ctx, p.channelName, sessionID)
+		if err != nil {
+			logger.Warn("failed to get model selection from redis, using channel default",
+				"channel", p.channelName,
+				"session_id", sessionID,
+				"err", err,
+			)
+		} else if selected != "" {
+			return selected
+		}
+	}
+	return p.channelCfg.GetModel()
 }
 
 func (p *Poller) getActiveAgent(ctx context.Context, sessionID string) string {
@@ -375,12 +440,15 @@ func (p *Poller) deriveSessionID(msg *models.Message) string {
 func (p *Poller) sendReply(ctx context.Context, b *bot.Bot, msg *models.Message, text string) {
 	logger := log.FromContext(ctx)
 
-	params := &bot.SendMessageParams{
-		ChatID: msg.Chat.ID,
-		Text:   text,
-	}
-
 	replyMode := p.channelCfg.GetDelivery().GetReplyMode()
+
+	// Try sending with HTML parse mode for Markdown rendering.
+	htmlText := markdownToTelegramHTML(text)
+	params := &bot.SendMessageParams{
+		ChatID:    msg.Chat.ID,
+		Text:      htmlText,
+		ParseMode: models.ParseModeHTML,
+	}
 	if replyMode == agentsv1.AgentReplyMode_AGENT_REPLY_MODE_REPLY {
 		params.ReplyParameters = &models.ReplyParameters{
 			MessageID: msg.ID,
@@ -388,19 +456,30 @@ func (p *Poller) sendReply(ctx context.Context, b *bot.Bot, msg *models.Message,
 	}
 
 	if _, err := b.SendMessage(ctx, params); err != nil {
-		logger.Error("failed to send telegram message",
+		// Fall back to plain text if HTML parsing fails.
+		logger.Warn("HTML send failed, falling back to plain text",
 			"channel", p.channelName,
 			"chat_id", msg.Chat.ID,
 			"err", err,
 		)
-	} else {
-		logger.Debug("telegram message sent",
-			"channel", p.channelName,
-			"chat_id", msg.Chat.ID,
-			"reply_mode", replyMode.String(),
-			"text_len", len(text),
-		)
+		params.Text = text
+		params.ParseMode = ""
+		if _, err2 := b.SendMessage(ctx, params); err2 != nil {
+			logger.Error("failed to send telegram message",
+				"channel", p.channelName,
+				"chat_id", msg.Chat.ID,
+				"err", err2,
+			)
+			return
+		}
 	}
+
+	logger.Debug("telegram message sent",
+		"channel", p.channelName,
+		"chat_id", msg.Chat.ID,
+		"reply_mode", replyMode.String(),
+		"text_len", len(text),
+	)
 }
 
 func userIDFromMsg(msg *models.Message) int64 {
@@ -572,6 +651,115 @@ func (p *Poller) handleAgentSelectCallback(ctx context.Context, b *bot.Bot, upda
 	}
 
 	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "✅ Switched to " + agentName}) //nolint:errcheck
+}
+
+// handleModelCommand handles /model commands.
+func (p *Poller) handleModelCommand(ctx context.Context, b *bot.Bot, msg *models.Message) {
+	sessionID := p.deriveSessionID(msg)
+	activeModel := p.getActiveModel(ctx, sessionID)
+	p.sendModelList(ctx, b, msg, activeModel)
+}
+
+// sendModelList sends a message listing all models as inline buttons.
+func (p *Poller) sendModelList(ctx context.Context, b *bot.Bot, msg *models.Message, activeModel string) {
+	var rows [][]models.InlineKeyboardButton
+	for i := 0; i < len(p.modelNames); i += 2 {
+		var row []models.InlineKeyboardButton
+		for j := i; j < i+2 && j < len(p.modelNames); j++ {
+			alias := p.modelNames[j]
+			label := alias
+			if alias == activeModel {
+				label = "✅ " + alias
+			}
+			row = append(row, models.InlineKeyboardButton{
+				Text:         label,
+				CallbackData: callbackModelSelectPrefix + alias,
+			})
+		}
+		rows = append(rows, row)
+	}
+	params := &bot.SendMessageParams{
+		ChatID:      msg.Chat.ID,
+		Text:        "🧠 Select model:",
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
+	}
+	replyMode := p.channelCfg.GetDelivery().GetReplyMode()
+	if replyMode == agentsv1.AgentReplyMode_AGENT_REPLY_MODE_REPLY {
+		params.ReplyParameters = &models.ReplyParameters{MessageID: msg.ID}
+	}
+	if _, err := b.SendMessage(ctx, params); err != nil {
+		log.FromContext(ctx).Error("failed to send model list", "channel", p.channelName, "err", err)
+	}
+}
+
+// handleModelSelectCallback handles the inline button press for model selection.
+func (p *Poller) handleModelSelectCallback(ctx context.Context, b *bot.Bot, update *models.Update) {
+	logger := log.FromContext(ctx)
+	cq := update.CallbackQuery
+	if cq == nil {
+		return
+	}
+
+	msg := callbackMessage(cq)
+	if msg == nil {
+		return
+	}
+
+	if !p.isAllowedCallbackQuery(cq) {
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID}) //nolint:errcheck
+		return
+	}
+
+	modelAlias := strings.TrimPrefix(cq.Data, callbackModelSelectPrefix)
+
+	// Validate the model alias exists.
+	validModel := false
+	for _, m := range p.modelNames {
+		if m == modelAlias {
+			validModel = true
+			break
+		}
+	}
+	if !validModel {
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "❓ Unknown model."}) //nolint:errcheck
+		return
+	}
+
+	sessionID := p.deriveSessionIDFromCallback(cq)
+	if err := p.modelSelector.Set(ctx, p.channelName, sessionID, modelAlias); err != nil {
+		logger.Error("failed to set model via button", "channel", p.channelName, "session_id", sessionID, "err", err)
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "❌ Failed to switch model."}) //nolint:errcheck
+		return
+	}
+
+	logger.Info("model switched via button", "channel", p.channelName, "session_id", sessionID, "model", modelAlias)
+
+	// Rebuild the keyboard to reflect the new active model.
+	var rows [][]models.InlineKeyboardButton
+	for i := 0; i < len(p.modelNames); i += 2 {
+		var row []models.InlineKeyboardButton
+		for j := i; j < i+2 && j < len(p.modelNames); j++ {
+			alias := p.modelNames[j]
+			label := alias
+			if alias == modelAlias {
+				label = "✅ " + alias
+			}
+			row = append(row, models.InlineKeyboardButton{
+				Text:         label,
+				CallbackData: callbackModelSelectPrefix + alias,
+			})
+		}
+		rows = append(rows, row)
+	}
+	if _, err := b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
+		ChatID:      msg.Chat.ID,
+		MessageID:   msg.ID,
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
+	}); err != nil {
+		logger.Warn("failed to edit model list keyboard", "err", err)
+	}
+
+	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "✅ Switched to " + modelAlias}) //nolint:errcheck
 }
 
 func (p *Poller) deriveSessionIDFromCallback(cq *models.CallbackQuery) string {

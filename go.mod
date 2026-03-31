@@ -3,8 +3,9 @@ module go.orx.me/apps/butter
 go 1.25.5
 
 require (
-	butterfly.orx.me/core v0.0.0-20260314082709-d474cfa9a7ec
+	butterfly.orx.me/core v0.0.0-20260330130232-9b8f79feef83
 	github.com/achetronic/adk-utils-go v0.12.0
+	github.com/bwmarrin/discordgo v0.29.0
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-telegram/bot v1.20.0

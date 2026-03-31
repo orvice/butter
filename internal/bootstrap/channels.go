@@ -10,9 +10,10 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	adkrunner "google.golang.org/adk/runner"
 
+	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/channel"
-	"go.orx.me/apps/butter/internal/channel/telegram"
 	"go.orx.me/apps/butter/internal/config"
+	mongomemory "go.orx.me/apps/butter/internal/memory/mongo"
 	"go.orx.me/apps/butter/internal/runner"
 	mongosession "go.orx.me/apps/butter/internal/session/mongo"
 )
@@ -47,9 +48,17 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 	}
 	logger.Info("mongodb connected", "database", dbName)
 
-	sessionSvc, err := mongosession.New(ctx, mongoClient.Database(dbName))
+	db := mongoClient.Database(dbName)
+
+	sessionSvc, err := mongosession.New(ctx, db)
 	if err != nil {
 		logger.Error("failed to create mongo session service", "err", err)
+		return nil, err
+	}
+
+	memorySvc, err := mongomemory.New(ctx, db)
+	if err != nil {
+		logger.Error("failed to create mongo memory service", "err", err)
 		return nil, err
 	}
 
@@ -71,9 +80,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 		logger.Info("redis connected")
 	}
 
-	selector := telegram.NewAgentSelector(rdb)
-	debugToggle := telegram.NewDebugToggle(rdb)
-
 	// Setup Langfuse plugin if configured.
 	var pluginConfig adkrunner.PluginConfig
 	if cfg.Langfuse.IsEnabled() {
@@ -93,14 +99,21 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, sessionSvc, pluginConfig)
+	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, sessionSvc, memorySvc, pluginConfig)
 	if err != nil {
 		logger.Error("failed to build runner service", "err", err)
 		return nil, err
 	}
 
+	// Collect model aliases for the /model command.
+	modelInfos := internalagent.AllModelAliases(cfg.ModelProviders)
+	modelNames := make([]string, len(modelInfos))
+	for i, m := range modelInfos {
+		modelNames[i] = m.Alias
+	}
+
 	// Build channel manager.
-	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, selector, debugToggle)
+	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, rdb, modelNames)
 	if err != nil {
 		logger.Error("failed to create channel manager", "err", err)
 		return nil, err

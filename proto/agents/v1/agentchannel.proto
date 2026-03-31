@@ -27,6 +27,13 @@ message AgentChannel {
   // @gotags: json:"telegram,omitempty" yaml:"telegram,omitempty"
   TelegramChannelConfig telegram = 10;
 
+  // @gotags: json:"discord,omitempty" yaml:"discord,omitempty"
+  DiscordChannelConfig discord = 12;
+
+  // Optional model override (alias or name). Overrides the agent's configured model.
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
+  string model = 11;
+
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 20;
 }
@@ -84,9 +91,21 @@ message TelegramChannelConfig {
   bool debug = 6;
 }
 
+message DiscordChannelConfig {
+  // @gotags: json:"bot_token,omitempty" yaml:"bot_token,omitempty"
+  string bot_token = 1;
+  // @gotags: json:"allowed_guild_ids,omitempty" yaml:"allowed_guild_ids,omitempty"
+  repeated string allowed_guild_ids = 2;
+  // @gotags: json:"allowed_channel_ids,omitempty" yaml:"allowed_channel_ids,omitempty"
+  repeated string allowed_channel_ids = 3;
+  // @gotags: json:"debug,omitempty" yaml:"debug,omitempty"
+  bool debug = 4;
+}
+
 enum AgentChannelPlatform {
   AGENT_CHANNEL_PLATFORM_UNSPECIFIED = 0;
   AGENT_CHANNEL_PLATFORM_TELEGRAM = 1;
+  AGENT_CHANNEL_PLATFORM_DISCORD = 2;
 }
 
 enum AgentTriggerType {
