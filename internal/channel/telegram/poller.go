@@ -115,7 +115,8 @@ func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 	}
 
 	text := msg.Text
-	if text == "" {
+	hasPhoto := len(msg.Photo) > 0
+	if text == "" && !hasPhoto {
 		logger.Debug("ignoring non-text message", "channel", p.channelName)
 		return
 	}
@@ -346,8 +347,23 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 		}
 	}
 
+	// Build multimodal input parts from message (text + optional photo).
+	parts, err := buildMessageParts(ctx, b, msg)
+	if err != nil {
+		logger.Error("failed to build message parts",
+			"channel", p.channelName,
+			"err", err,
+		)
+		p.sendReply(ctx, b, msg, "⚠️ Sorry, I couldn't process the image in your message.")
+		return
+	}
+	if len(parts) == 0 {
+		logger.Debug("no input parts to send", "channel", p.channelName)
+		return
+	}
+
 	modelOverride := p.getActiveModel(ctx, sessionID)
-	response, err := p.runner.Run(ctx, agentName, msg.Text, modelOverride, ctxInfo, onEvent, onCompaction)
+	response, err := p.runner.Run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", p.channelName,

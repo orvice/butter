@@ -331,11 +331,12 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName,
 // It receives the event and should not block for long.
 type EventCallback func(evt *session.Event)
 
-// Run executes an agent with the given context info and input text.
+// Run executes an agent with the given context info and multimodal input parts.
+// parts must contain at least one element (text and/or image parts).
 // modelOverride, if non-empty, overrides the agent's configured model (resolved by alias or name).
 // If onEvent is non-nil, it is called for each non-final event.
 // If onCompaction is non-nil, it is called when context compaction is detected.
-func (s *Service) Run(ctx context.Context, agentName, input, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
+func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
 	channelName := ctxInfo.GetChannelName()
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
@@ -349,6 +350,10 @@ func (s *Service) Run(ctx context.Context, agentName, input, modelOverride strin
 		"source", ctxInfo.GetSource().String(),
 	)
 	ctx = log.WithLogger(ctx, logger)
+
+	if len(parts) == 0 {
+		return "", fmt.Errorf("empty input: at least one part is required")
+	}
 
 	ag, ok := s.agents[agentName]
 	if !ok {
@@ -371,7 +376,7 @@ func (s *Service) Run(ctx context.Context, agentName, input, modelOverride strin
 	}
 
 	logger.Debug("invoking ADK runner",
-		"input_len", len(input),
+		"parts_count", len(parts),
 		"model_override", modelOverride,
 	)
 
@@ -396,7 +401,7 @@ func (s *Service) Run(ctx context.Context, agentName, input, modelOverride strin
 		ctx = WithCompactionCallback(ctx, onCompaction)
 	}
 
-	msg := genai.NewContentFromText(input, genai.RoleUser)
+	msg := &genai.Content{Parts: parts, Role: genai.RoleUser}
 
 	var result strings.Builder
 	eventCount := 0
