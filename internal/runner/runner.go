@@ -298,18 +298,18 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	return a, nil
 }
 
-// getOrCreateRunner returns a runner for the given channel and agent.
-func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag agent.Agent) (*adkrunner.Runner, error) {
+// getOrCreateRunner returns a runner for the given channel, agent, and model override.
+func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName, modelOverride string, ag agent.Agent) (*adkrunner.Runner, error) {
 	logger := log.FromContext(ctx)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := channelName
+	key := channelName + ":" + agentName + ":" + modelOverride
 	if r, ok := s.runners[key]; ok {
 		return r, nil
 	}
 
-	logger.Info("creating new ADK runner", "channel", channelName)
+	logger.Info("creating new ADK runner", "channel", channelName, "agent", agentName, "model_override", modelOverride)
 
 	r, err := adkrunner.New(adkrunner.Config{
 		AppName:        channelName,
@@ -323,7 +323,7 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName string, ag 
 	}
 
 	s.runners[key] = r
-	logger.Info("ADK runner created", "channel", channelName)
+	logger.Info("ADK runner created", "channel", channelName, "agent", agentName, "model_override", modelOverride)
 	return r, nil
 }
 
@@ -365,7 +365,7 @@ func (s *Service) Run(ctx context.Context, agentName, input, modelOverride strin
 		ag = overriddenAg
 	}
 
-	r, err := s.getOrCreateRunner(ctx, channelName, ag)
+	r, err := s.getOrCreateRunner(ctx, channelName, agentName, modelOverride, ag)
 	if err != nil {
 		return "", err
 	}
