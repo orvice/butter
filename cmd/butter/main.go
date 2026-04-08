@@ -42,6 +42,7 @@ func main() {
 		Service:   serviceName,
 		Config:    cfg,
 		Router: func(r *gin.Engine) {
+			r.Use(httpHandler.APITokenAuthMiddleware(cfg))
 			healthHandler.Register(r)
 			a2aHandler.Register(r)
 

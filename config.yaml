@@ -4,6 +4,10 @@
 http:
   greeting: "Hello from Butter!"
 
+# Optional shared API token. When set, API requests must include:
+# Authorization: Bearer <token>
+apiToken: ""
+
 # MongoDB for ADK session persistence
 mongo_uri: "mongodb://localhost:27017"
 mongo_db: "butter"
