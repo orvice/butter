@@ -3,6 +3,8 @@ package configapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"sync"
 
 	"github.com/twitchtv/twirp"
@@ -90,7 +92,16 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.Get
 		NumRecentEvents: int(req.GetNumRecentEvents()),
 	})
 	if err != nil {
-		return nil, twirp.NotFoundError(err.Error())
+		if errors.Is(err, context.Canceled) {
+			return nil, twirp.NewError(twirp.Canceled, err.Error())
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, twirp.NewError(twirp.DeadlineExceeded, err.Error())
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "session not found") {
+			return nil, twirp.NotFoundError(err.Error())
+		}
+		return nil, twirp.InternalErrorWith(err)
 	}
 
 	detail := &agentsv1.SessionDetail{
