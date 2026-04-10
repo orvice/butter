@@ -95,12 +95,19 @@ curl http://127.0.0.1:8080/ping
 # {"service":"butter","message":"pong"}
 ```
 
+If `apiToken` is configured in `config.yaml`, API endpoints other than `/ping` require:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:8080/a2a/<agent-name> 
+```
+
 ### Configuration
 
 The service is configured via a YAML file pointed to by `BUTTERFLY_CONFIG_FILE_PATH`. The config defines:
 
 - **Agents** — The agent tree: model, instructions, tools (MCP servers), sub-agents, and workflow type
 - **Agent Channels** — Bindings between agents and delivery platforms (e.g., Telegram bot token, allowed chats)
+- **apiToken** — Optional shared bearer token for protecting HTTP API routes; `/ping` remains public for health checks
 
 ### Protobuf Code Generation
 

@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	adkrunner "google.golang.org/adk/runner"
+	"google.golang.org/adk/session"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/channel"
@@ -18,15 +19,42 @@ import (
 	mongosession "go.orx.me/apps/butter/internal/session/mongo"
 )
 
+// BootstrapResult holds the services created during bootstrap.
+type BootstrapResult struct {
+	RunnerSvc  *runner.Service
+	SessionSvc session.Service
+}
+
 // StartChannels initializes MongoDB, Redis, runner service, and channel manager,
 // then starts polling in a background goroutine.
-// It returns the runner service so callers (e.g. A2A handler) can use it.
-func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service, error) {
+// It returns the bootstrap result containing the runner and session services.
+func StartChannels(ctx context.Context, cfg *config.AppConfig) (*BootstrapResult, error) {
 	logger := log.FromContext(ctx)
 
 	if len(cfg.Channels) == 0 {
 		logger.Info("no channels configured, skipping channel manager")
-		return nil, nil
+
+		// Still initialize MongoDB and session service for API use.
+		mongoURI := cfg.MongoURI
+		if mongoURI == "" {
+			mongoURI = "mongodb://localhost:27017"
+		}
+		dbName := cfg.MongoDB
+		if dbName == "" {
+			dbName = "butter"
+		}
+		mongoClient, err := mongo.Connect(options.Client().ApplyURI(mongoURI))
+		if err != nil {
+			logger.Warn("failed to connect to mongodb, session API will not be available", "err", err)
+			return nil, nil
+		}
+		db := mongoClient.Database(dbName)
+		sessionSvc, err := mongosession.New(ctx, db)
+		if err != nil {
+			logger.Warn("failed to create session service, session API will not be available", "err", err)
+			return nil, nil
+		}
+		return &BootstrapResult{SessionSvc: sessionSvc}, nil
 	}
 
 	// Connect to MongoDB.
@@ -123,5 +151,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*runner.Service,
 	logger.Info("starting channel manager in background")
 	go mgr.Start(ctx)
 
-	return runnerSvc, nil
+	return &BootstrapResult{
+		RunnerSvc:  runnerSvc,
+		SessionSvc: sessionSvc,
+	}, nil
 }

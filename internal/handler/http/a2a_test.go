@@ -20,6 +20,7 @@ func newTestConfig(agents ...agentsv1.Agent) *config.AppConfig {
 func setupTestRouter(cfg *config.AppConfig) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
+	r.Use(APITokenAuthMiddleware(cfg))
 	h := NewA2AHandler(cfg)
 	h.Register(r)
 	return r
@@ -176,5 +177,38 @@ func TestTaskSend_InvalidMethod(t *testing.T) {
 	// This test verifies the agent lookup passes for an enabled agent.
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 (no runner), got %d", w.Code)
+	}
+}
+
+func TestTaskSend_UnauthorizedWithoutToken(t *testing.T) {
+	cfg := &config.AppConfig{
+		APIToken: "secret-token",
+		Agents: []agentsv1.Agent{{
+			Name:      "test-agent",
+			EnableA2A: true,
+		}},
+	}
+	router := setupTestRouter(cfg)
+
+	body := JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      1,
+		Method:  "tasks/send",
+		Params: TaskSendParams{
+			Message: Message{
+				Role:  "user",
+				Parts: []MessagePart{{Type: "text", Text: "hello"}},
+			},
+		},
+	}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/a2a/test-agent", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when auth token missing, got %d", w.Code)
 	}
 }

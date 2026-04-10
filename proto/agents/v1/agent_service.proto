@@ -1,0 +1,206 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "agents/v1/agent.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// AgentService manages Agent configurations.
+service AgentService {
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+  rpc GetAgent(GetAgentRequest) returns (Agent);
+  rpc CreateAgent(CreateAgentRequest) returns (Agent);
+  rpc UpdateAgent(UpdateAgentRequest) returns (Agent);
+  rpc DeleteAgent(DeleteAgentRequest) returns (google.protobuf.Empty);
+}
+
+// MCPServerService manages MCP Server configurations.
+service MCPServerService {
+  rpc ListMCPServers(ListMCPServersRequest) returns (ListMCPServersResponse);
+  rpc GetMCPServer(GetMCPServerRequest) returns (MCPServer);
+  rpc CreateMCPServer(CreateMCPServerRequest) returns (MCPServer);
+  rpc UpdateMCPServer(UpdateMCPServerRequest) returns (MCPServer);
+  rpc DeleteMCPServer(DeleteMCPServerRequest) returns (google.protobuf.Empty);
+}
+
+// RemoteAgentService manages Remote Agent configurations.
+service RemoteAgentService {
+  rpc ListRemoteAgents(ListRemoteAgentsRequest) returns (ListRemoteAgentsResponse);
+  rpc GetRemoteAgent(GetRemoteAgentRequest) returns (RemoteAgent);
+  rpc CreateRemoteAgent(CreateRemoteAgentRequest) returns (RemoteAgent);
+  rpc UpdateRemoteAgent(UpdateRemoteAgentRequest) returns (RemoteAgent);
+  rpc DeleteRemoteAgent(DeleteRemoteAgentRequest) returns (google.protobuf.Empty);
+}
+
+// --- Agent messages ---
+
+message ListAgentsRequest {}
+
+message ListAgentsResponse {
+  repeated Agent agents = 1;
+}
+
+message GetAgentRequest {
+  string name = 1;
+}
+
+message CreateAgentRequest {
+  Agent agent = 1;
+}
+
+message UpdateAgentRequest {
+  Agent agent = 1;
+}
+
+message DeleteAgentRequest {
+  string name = 1;
+}
+
+// --- MCPServer messages ---
+
+message ListMCPServersRequest {}
+
+message ListMCPServersResponse {
+  repeated MCPServer mcp_servers = 1;
+}
+
+message GetMCPServerRequest {
+  string id = 1;
+}
+
+message CreateMCPServerRequest {
+  MCPServer mcp_server = 1;
+}
+
+message UpdateMCPServerRequest {
+  MCPServer mcp_server = 1;
+}
+
+message DeleteMCPServerRequest {
+  string id = 1;
+}
+
+// --- RemoteAgent messages ---
+
+message ListRemoteAgentsRequest {}
+
+message ListRemoteAgentsResponse {
+  repeated RemoteAgent remote_agents = 1;
+}
+
+message GetRemoteAgentRequest {
+  string id = 1;
+}
+
+message CreateRemoteAgentRequest {
+  RemoteAgent remote_agent = 1;
+}
+
+message UpdateRemoteAgentRequest {
+  RemoteAgent remote_agent = 1;
+}
+
+message DeleteRemoteAgentRequest {
+  string id = 1;
+}
+
+// =============================================================================
+// SessionService manages agent sessions (create, get, list, delete, reply).
+// =============================================================================
+
+service SessionService {
+  // CreateSession creates a new session for the given agent.
+  rpc CreateSession(CreateSessionRequest) returns (SessionInfo);
+  // GetSession retrieves a session by ID, optionally with recent events.
+  rpc GetSession(GetSessionRequest) returns (SessionDetail);
+  // ListSessions lists sessions for a given app and user.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  // DeleteSession deletes a session and its events.
+  rpc DeleteSession(DeleteSessionRequest) returns (google.protobuf.Empty);
+  // ReplySession sends a user message to an existing session and returns the agent response.
+  rpc ReplySession(ReplySessionRequest) returns (ReplySessionResponse);
+}
+
+// --- Session messages ---
+
+message CreateSessionRequest {
+  // App name (channel name) for the session.
+  string app_name = 1;
+  // User ID owning the session.
+  string user_id = 2;
+  // Optional session ID; auto-generated if empty.
+  string session_id = 3;
+  // Optional initial state.
+  google.protobuf.Struct state = 4;
+}
+
+message GetSessionRequest {
+  string app_name = 1;
+  string user_id = 2;
+  string session_id = 3;
+  // Max number of recent events to include. 0 = all.
+  int32 num_recent_events = 4;
+}
+
+message ListSessionsRequest {
+  string app_name = 1;
+  string user_id = 2;
+}
+
+message ListSessionsResponse {
+  repeated SessionInfo sessions = 1;
+}
+
+message DeleteSessionRequest {
+  string app_name = 1;
+  string user_id = 2;
+  string session_id = 3;
+}
+
+message ReplySessionRequest {
+  // Name of the agent to invoke.
+  string agent_name = 1;
+  // App name (channel name) for session lookup.
+  string app_name = 2;
+  string user_id = 3;
+  string session_id = 4;
+  // The user message text to send.
+  string message = 5;
+  // Optional model override (alias or full name).
+  string model_override = 6;
+}
+
+message ReplySessionResponse {
+  // The agent's response text.
+  string response = 1;
+}
+
+// SessionInfo is a lightweight session summary (no events).
+message SessionInfo {
+  string session_id = 1;
+  string app_name = 2;
+  string user_id = 3;
+  google.protobuf.Struct state = 4;
+  google.protobuf.Timestamp last_update_time = 5;
+}
+
+// SessionDetail includes the session info plus recent events.
+message SessionDetail {
+  SessionInfo session = 1;
+  repeated SessionEvent events = 2;
+}
+
+// SessionEvent is a serializable representation of a session event.
+message SessionEvent {
+  string event_id = 1;
+  string invocation_id = 2;
+  string author = 3;
+  string branch = 4;
+  // Content serialized as JSON string (genai.Content).
+  string content_json = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}

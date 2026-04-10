@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	butterfly.orx.me/core v0.0.0-20260330130232-9b8f79feef83
+	connectrpc.com/connect v1.19.1
 	github.com/Mad-Pixels/goldmark-tgmd v0.0.10
 	github.com/achetronic/adk-utils-go v0.12.0
 	github.com/bwmarrin/discordgo v0.29.0
@@ -13,10 +14,12 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/redis/go-redis/v9 v9.17.2
+	github.com/twitchtv/twirp v8.1.3+incompatible
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	google.golang.org/adk v1.0.0
 	google.golang.org/genai v1.40.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57
+	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -127,7 +130,6 @@ require (
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
-	google.golang.org/grpc v1.79.3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/omap v1.2.0 // indirect
 	rsc.io/ordered v1.1.1 // indirect
