@@ -27,7 +27,7 @@ func main() {
 		InitFunc: []func() error{
 			func() error {
 				handlers.SeedConfig(cfg)
-				result, err := bootstrap.StartChannels(channelCtx, cfg)
+				result, err := bootstrap.StartChannels(channelCtx, cfg, handlers.ConfigStore())
 				if err != nil {
 					return err
 				}

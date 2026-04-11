@@ -12,10 +12,12 @@ import (
 	"google.golang.org/adk/session"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
+	systemagent "go.orx.me/apps/butter/internal/agent/system"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
 	internalcron "go.orx.me/apps/butter/internal/cron"
 	mongomemory "go.orx.me/apps/butter/internal/memory/mongo"
+	"go.orx.me/apps/butter/internal/repo/configstore"
 	"go.orx.me/apps/butter/internal/runner"
 	mongosession "go.orx.me/apps/butter/internal/session/mongo"
 )
@@ -30,7 +32,8 @@ type BootstrapResult struct {
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
 // and cron scheduler. It returns the bootstrap result.
-func StartChannels(ctx context.Context, cfg *config.AppConfig) (*BootstrapResult, error) {
+// cfgStore is the shared config store used by the system agent for agent queries.
+func StartChannels(ctx context.Context, cfg *config.AppConfig, cfgStore *configstore.Store) (*BootstrapResult, error) {
 	logger := log.FromContext(ctx)
 
 	// Connect to MongoDB.
@@ -146,6 +149,22 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*BootstrapResult
 		<-stopCtx.Done()
 		logger.Info("cron scheduler stopped")
 	}()
+
+	// Register built-in system agent.
+	if runnerSvc.HasAgent(systemagent.AgentName) {
+		logger.Warn("user-configured agent conflicts with built-in system agent, skipping user agent", "name", systemagent.AgentName)
+	}
+	if cfg.SystemAgentModel != "" {
+		sysAgent, err := systemagent.NewAgent(ctx, cfgStore, cronScheduler, cronExecRepo, cfg.SystemAgentModel, cfg.ModelProviders)
+		if err != nil {
+			logger.Error("failed to create system agent", "err", err)
+		} else {
+			runnerSvc.RegisterAgent(systemagent.AgentName, sysAgent)
+			logger.Info("system agent registered", "model", cfg.SystemAgentModel)
+		}
+	} else {
+		logger.Info("system agent disabled (no system_agent_model configured)")
+	}
 
 	return &BootstrapResult{
 		RunnerSvc:     runnerSvc,

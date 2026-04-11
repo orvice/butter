@@ -12,6 +12,7 @@ type AppConfig struct {
 	MCPServerConfigs []agentsv1.MCPServer     `yaml:"mcp_server_configs"`
 	RemoteAgents     []agentsv1.RemoteAgent   `yaml:"remote_agents"`
 	APIToken         string                   `yaml:"apiToken"`
+	SystemAgentModel string                   `yaml:"system_agent_model"`
 
 	Langfuse langfuse.Config `yaml:"langfuse"`
 

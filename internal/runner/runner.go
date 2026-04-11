@@ -180,6 +180,14 @@ func mergePluginConfigs(a, b adkrunner.PluginConfig) adkrunner.PluginConfig {
 	return merged
 }
 
+// RegisterAgent adds an agent to the registry. If an agent with the same name
+// already exists, it is replaced and a warning is logged.
+func (s *Service) RegisterAgent(name string, ag agent.Agent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agents[name] = ag
+}
+
 // AgentNames returns all registered agent names.
 func (s *Service) AgentNames() []string {
 	names := make([]string, 0, len(s.agents))
