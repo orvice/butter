@@ -25,14 +25,14 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 	}
 
 	// Create
-	agent, err := svc.CreateAgent(ctx, &agentsv1.CreateAgentRequest{
+	createResp, err := svc.CreateAgent(ctx, &agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{Name: "a1", Description: "test"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if agent.GetName() != "a1" {
-		t.Fatalf("expected a1, got %s", agent.GetName())
+	if createResp.GetAgent().GetName() != "a1" {
+		t.Fatalf("expected a1, got %s", createResp.GetAgent().GetName())
 	}
 
 	// Create duplicate
@@ -47,12 +47,12 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 	}
 
 	// Get
-	agent, err = svc.GetAgent(ctx, &agentsv1.GetAgentRequest{Name: "a1"})
+	getResp, err := svc.GetAgent(ctx, &agentsv1.GetAgentRequest{Name: "a1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if agent.GetDescription() != "test" {
-		t.Fatalf("expected test, got %s", agent.GetDescription())
+	if getResp.GetAgent().GetDescription() != "test" {
+		t.Fatalf("expected test, got %s", getResp.GetAgent().GetDescription())
 	}
 
 	// Get not found
@@ -62,14 +62,14 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 	}
 
 	// Update
-	agent, err = svc.UpdateAgent(ctx, &agentsv1.UpdateAgentRequest{
+	updateResp, err := svc.UpdateAgent(ctx, &agentsv1.UpdateAgentRequest{
 		Agent: &agentsv1.Agent{Name: "a1", Description: "updated"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if agent.GetDescription() != "updated" {
-		t.Fatalf("expected updated, got %s", agent.GetDescription())
+	if updateResp.GetAgent().GetDescription() != "updated" {
+		t.Fatalf("expected updated, got %s", updateResp.GetAgent().GetDescription())
 	}
 
 	// Delete
@@ -96,8 +96,8 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created.GetId() != "m1" {
-		t.Fatalf("expected m1, got %s", created.GetId())
+	if created.GetMcpServer().GetId() != "m1" {
+		t.Fatalf("expected m1, got %s", created.GetMcpServer().GetId())
 	}
 
 	_, err = svc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{
@@ -111,8 +111,8 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.GetName() != "mcp1" {
-		t.Fatalf("expected mcp1, got %s", got.GetName())
+	if got.GetMcpServer().GetName() != "mcp1" {
+		t.Fatalf("expected mcp1, got %s", got.GetMcpServer().GetName())
 	}
 
 	_, err = svc.DeleteMCPServer(ctx, &agentsv1.DeleteMCPServerRequest{Id: "m1"})
@@ -137,8 +137,8 @@ func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created.GetId() != "r1" {
-		t.Fatalf("expected r1, got %s", created.GetId())
+	if created.GetRemoteAgent().GetId() != "r1" {
+		t.Fatalf("expected r1, got %s", created.GetRemoteAgent().GetId())
 	}
 
 	_, err = svc.CreateRemoteAgent(ctx, &agentsv1.CreateRemoteAgentRequest{
@@ -152,8 +152,8 @@ func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.GetName() != "ra1" {
-		t.Fatalf("expected ra1, got %s", got.GetName())
+	if got.GetRemoteAgent().GetName() != "ra1" {
+		t.Fatalf("expected ra1, got %s", got.GetRemoteAgent().GetName())
 	}
 
 	_, err = svc.DeleteRemoteAgent(ctx, &agentsv1.DeleteRemoteAgentRequest{Id: "r1"})

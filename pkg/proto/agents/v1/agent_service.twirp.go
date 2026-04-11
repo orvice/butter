@@ -16,8 +16,6 @@ import proto "google.golang.org/protobuf/proto"
 import twirp "github.com/twitchtv/twirp"
 import ctxsetters "github.com/twitchtv/twirp/ctxsetters"
 
-import google_protobuf3 "google.golang.org/protobuf/types/known/emptypb"
-
 import bytes "bytes"
 import errors "errors"
 import path "path"
@@ -37,13 +35,13 @@ const _ = twirp.TwirpPackageMinVersion_8_1_0
 type AgentService interface {
 	ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error)
 
-	GetAgent(context.Context, *GetAgentRequest) (*Agent, error)
+	GetAgent(context.Context, *GetAgentRequest) (*GetAgentResponse, error)
 
-	CreateAgent(context.Context, *CreateAgentRequest) (*Agent, error)
+	CreateAgent(context.Context, *CreateAgentRequest) (*CreateAgentResponse, error)
 
-	UpdateAgent(context.Context, *UpdateAgentRequest) (*Agent, error)
+	UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error)
 
-	DeleteAgent(context.Context, *DeleteAgentRequest) (*google_protobuf3.Empty, error)
+	DeleteAgent(context.Context, *DeleteAgentRequest) (*DeleteAgentResponse, error)
 }
 
 // ============================
@@ -142,13 +140,13 @@ func (c *agentServiceProtobufClient) callListAgents(ctx context.Context, in *Lis
 	return out, nil
 }
 
-func (c *agentServiceProtobufClient) GetAgent(ctx context.Context, in *GetAgentRequest) (*Agent, error) {
+func (c *agentServiceProtobufClient) GetAgent(ctx context.Context, in *GetAgentRequest) (*GetAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "AgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetAgent")
 	caller := c.callGetAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetAgentRequest) (*Agent, error) {
+		caller = func(ctx context.Context, req *GetAgentRequest) (*GetAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetAgentRequest)
@@ -159,9 +157,9 @@ func (c *agentServiceProtobufClient) GetAgent(ctx context.Context, in *GetAgentR
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*GetAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -171,8 +169,8 @@ func (c *agentServiceProtobufClient) GetAgent(ctx context.Context, in *GetAgentR
 	return caller(ctx, in)
 }
 
-func (c *agentServiceProtobufClient) callGetAgent(ctx context.Context, in *GetAgentRequest) (*Agent, error) {
-	out := new(Agent)
+func (c *agentServiceProtobufClient) callGetAgent(ctx context.Context, in *GetAgentRequest) (*GetAgentResponse, error) {
+	out := new(GetAgentResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -188,13 +186,13 @@ func (c *agentServiceProtobufClient) callGetAgent(ctx context.Context, in *GetAg
 	return out, nil
 }
 
-func (c *agentServiceProtobufClient) CreateAgent(ctx context.Context, in *CreateAgentRequest) (*Agent, error) {
+func (c *agentServiceProtobufClient) CreateAgent(ctx context.Context, in *CreateAgentRequest) (*CreateAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "AgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateAgent")
 	caller := c.callCreateAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateAgentRequest) (*Agent, error) {
+		caller = func(ctx context.Context, req *CreateAgentRequest) (*CreateAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateAgentRequest)
@@ -205,9 +203,9 @@ func (c *agentServiceProtobufClient) CreateAgent(ctx context.Context, in *Create
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*CreateAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -217,8 +215,8 @@ func (c *agentServiceProtobufClient) CreateAgent(ctx context.Context, in *Create
 	return caller(ctx, in)
 }
 
-func (c *agentServiceProtobufClient) callCreateAgent(ctx context.Context, in *CreateAgentRequest) (*Agent, error) {
-	out := new(Agent)
+func (c *agentServiceProtobufClient) callCreateAgent(ctx context.Context, in *CreateAgentRequest) (*CreateAgentResponse, error) {
+	out := new(CreateAgentResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -234,13 +232,13 @@ func (c *agentServiceProtobufClient) callCreateAgent(ctx context.Context, in *Cr
 	return out, nil
 }
 
-func (c *agentServiceProtobufClient) UpdateAgent(ctx context.Context, in *UpdateAgentRequest) (*Agent, error) {
+func (c *agentServiceProtobufClient) UpdateAgent(ctx context.Context, in *UpdateAgentRequest) (*UpdateAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "AgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateAgent")
 	caller := c.callUpdateAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateAgentRequest) (*Agent, error) {
+		caller = func(ctx context.Context, req *UpdateAgentRequest) (*UpdateAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateAgentRequest)
@@ -251,9 +249,9 @@ func (c *agentServiceProtobufClient) UpdateAgent(ctx context.Context, in *Update
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*UpdateAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -263,8 +261,8 @@ func (c *agentServiceProtobufClient) UpdateAgent(ctx context.Context, in *Update
 	return caller(ctx, in)
 }
 
-func (c *agentServiceProtobufClient) callUpdateAgent(ctx context.Context, in *UpdateAgentRequest) (*Agent, error) {
-	out := new(Agent)
+func (c *agentServiceProtobufClient) callUpdateAgent(ctx context.Context, in *UpdateAgentRequest) (*UpdateAgentResponse, error) {
+	out := new(UpdateAgentResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -280,13 +278,13 @@ func (c *agentServiceProtobufClient) callUpdateAgent(ctx context.Context, in *Up
 	return out, nil
 }
 
-func (c *agentServiceProtobufClient) DeleteAgent(ctx context.Context, in *DeleteAgentRequest) (*google_protobuf3.Empty, error) {
+func (c *agentServiceProtobufClient) DeleteAgent(ctx context.Context, in *DeleteAgentRequest) (*DeleteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "AgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteAgent")
 	caller := c.callDeleteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteAgentRequest) (*google_protobuf3.Empty, error) {
+		caller = func(ctx context.Context, req *DeleteAgentRequest) (*DeleteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteAgentRequest)
@@ -297,9 +295,9 @@ func (c *agentServiceProtobufClient) DeleteAgent(ctx context.Context, in *Delete
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -309,8 +307,8 @@ func (c *agentServiceProtobufClient) DeleteAgent(ctx context.Context, in *Delete
 	return caller(ctx, in)
 }
 
-func (c *agentServiceProtobufClient) callDeleteAgent(ctx context.Context, in *DeleteAgentRequest) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *agentServiceProtobufClient) callDeleteAgent(ctx context.Context, in *DeleteAgentRequest) (*DeleteAgentResponse, error) {
+	out := new(DeleteAgentResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -422,13 +420,13 @@ func (c *agentServiceJSONClient) callListAgents(ctx context.Context, in *ListAge
 	return out, nil
 }
 
-func (c *agentServiceJSONClient) GetAgent(ctx context.Context, in *GetAgentRequest) (*Agent, error) {
+func (c *agentServiceJSONClient) GetAgent(ctx context.Context, in *GetAgentRequest) (*GetAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "AgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetAgent")
 	caller := c.callGetAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetAgentRequest) (*Agent, error) {
+		caller = func(ctx context.Context, req *GetAgentRequest) (*GetAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetAgentRequest)
@@ -439,9 +437,9 @@ func (c *agentServiceJSONClient) GetAgent(ctx context.Context, in *GetAgentReque
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*GetAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -451,8 +449,8 @@ func (c *agentServiceJSONClient) GetAgent(ctx context.Context, in *GetAgentReque
 	return caller(ctx, in)
 }
 
-func (c *agentServiceJSONClient) callGetAgent(ctx context.Context, in *GetAgentRequest) (*Agent, error) {
-	out := new(Agent)
+func (c *agentServiceJSONClient) callGetAgent(ctx context.Context, in *GetAgentRequest) (*GetAgentResponse, error) {
+	out := new(GetAgentResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -468,13 +466,13 @@ func (c *agentServiceJSONClient) callGetAgent(ctx context.Context, in *GetAgentR
 	return out, nil
 }
 
-func (c *agentServiceJSONClient) CreateAgent(ctx context.Context, in *CreateAgentRequest) (*Agent, error) {
+func (c *agentServiceJSONClient) CreateAgent(ctx context.Context, in *CreateAgentRequest) (*CreateAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "AgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateAgent")
 	caller := c.callCreateAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateAgentRequest) (*Agent, error) {
+		caller = func(ctx context.Context, req *CreateAgentRequest) (*CreateAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateAgentRequest)
@@ -485,9 +483,9 @@ func (c *agentServiceJSONClient) CreateAgent(ctx context.Context, in *CreateAgen
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*CreateAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -497,8 +495,8 @@ func (c *agentServiceJSONClient) CreateAgent(ctx context.Context, in *CreateAgen
 	return caller(ctx, in)
 }
 
-func (c *agentServiceJSONClient) callCreateAgent(ctx context.Context, in *CreateAgentRequest) (*Agent, error) {
-	out := new(Agent)
+func (c *agentServiceJSONClient) callCreateAgent(ctx context.Context, in *CreateAgentRequest) (*CreateAgentResponse, error) {
+	out := new(CreateAgentResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -514,13 +512,13 @@ func (c *agentServiceJSONClient) callCreateAgent(ctx context.Context, in *Create
 	return out, nil
 }
 
-func (c *agentServiceJSONClient) UpdateAgent(ctx context.Context, in *UpdateAgentRequest) (*Agent, error) {
+func (c *agentServiceJSONClient) UpdateAgent(ctx context.Context, in *UpdateAgentRequest) (*UpdateAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "AgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateAgent")
 	caller := c.callUpdateAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateAgentRequest) (*Agent, error) {
+		caller = func(ctx context.Context, req *UpdateAgentRequest) (*UpdateAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateAgentRequest)
@@ -531,9 +529,9 @@ func (c *agentServiceJSONClient) UpdateAgent(ctx context.Context, in *UpdateAgen
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*UpdateAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -543,8 +541,8 @@ func (c *agentServiceJSONClient) UpdateAgent(ctx context.Context, in *UpdateAgen
 	return caller(ctx, in)
 }
 
-func (c *agentServiceJSONClient) callUpdateAgent(ctx context.Context, in *UpdateAgentRequest) (*Agent, error) {
-	out := new(Agent)
+func (c *agentServiceJSONClient) callUpdateAgent(ctx context.Context, in *UpdateAgentRequest) (*UpdateAgentResponse, error) {
+	out := new(UpdateAgentResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -560,13 +558,13 @@ func (c *agentServiceJSONClient) callUpdateAgent(ctx context.Context, in *Update
 	return out, nil
 }
 
-func (c *agentServiceJSONClient) DeleteAgent(ctx context.Context, in *DeleteAgentRequest) (*google_protobuf3.Empty, error) {
+func (c *agentServiceJSONClient) DeleteAgent(ctx context.Context, in *DeleteAgentRequest) (*DeleteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "AgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteAgent")
 	caller := c.callDeleteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteAgentRequest) (*google_protobuf3.Empty, error) {
+		caller = func(ctx context.Context, req *DeleteAgentRequest) (*DeleteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteAgentRequest)
@@ -577,9 +575,9 @@ func (c *agentServiceJSONClient) DeleteAgent(ctx context.Context, in *DeleteAgen
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -589,8 +587,8 @@ func (c *agentServiceJSONClient) DeleteAgent(ctx context.Context, in *DeleteAgen
 	return caller(ctx, in)
 }
 
-func (c *agentServiceJSONClient) callDeleteAgent(ctx context.Context, in *DeleteAgentRequest) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *agentServiceJSONClient) callDeleteAgent(ctx context.Context, in *DeleteAgentRequest) (*DeleteAgentResponse, error) {
+	out := new(DeleteAgentResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -947,7 +945,7 @@ func (s *agentServiceServer) serveGetAgentJSON(ctx context.Context, resp http.Re
 
 	handler := s.AgentService.GetAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetAgentRequest) (*Agent, error) {
+		handler = func(ctx context.Context, req *GetAgentRequest) (*GetAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetAgentRequest)
@@ -958,9 +956,9 @@ func (s *agentServiceServer) serveGetAgentJSON(ctx context.Context, resp http.Re
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*GetAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -969,7 +967,7 @@ func (s *agentServiceServer) serveGetAgentJSON(ctx context.Context, resp http.Re
 	}
 
 	// Call service method
-	var respContent *Agent
+	var respContent *GetAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -980,7 +978,7 @@ func (s *agentServiceServer) serveGetAgentJSON(ctx context.Context, resp http.Re
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Agent and nil error while calling GetAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetAgentResponse and nil error while calling GetAgent. nil responses are not supported"))
 		return
 	}
 
@@ -1028,7 +1026,7 @@ func (s *agentServiceServer) serveGetAgentProtobuf(ctx context.Context, resp htt
 
 	handler := s.AgentService.GetAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetAgentRequest) (*Agent, error) {
+		handler = func(ctx context.Context, req *GetAgentRequest) (*GetAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetAgentRequest)
@@ -1039,9 +1037,9 @@ func (s *agentServiceServer) serveGetAgentProtobuf(ctx context.Context, resp htt
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*GetAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1050,7 +1048,7 @@ func (s *agentServiceServer) serveGetAgentProtobuf(ctx context.Context, resp htt
 	}
 
 	// Call service method
-	var respContent *Agent
+	var respContent *GetAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1061,7 +1059,7 @@ func (s *agentServiceServer) serveGetAgentProtobuf(ctx context.Context, resp htt
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Agent and nil error while calling GetAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetAgentResponse and nil error while calling GetAgent. nil responses are not supported"))
 		return
 	}
 
@@ -1127,7 +1125,7 @@ func (s *agentServiceServer) serveCreateAgentJSON(ctx context.Context, resp http
 
 	handler := s.AgentService.CreateAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateAgentRequest) (*Agent, error) {
+		handler = func(ctx context.Context, req *CreateAgentRequest) (*CreateAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateAgentRequest)
@@ -1138,9 +1136,9 @@ func (s *agentServiceServer) serveCreateAgentJSON(ctx context.Context, resp http
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*CreateAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1149,7 +1147,7 @@ func (s *agentServiceServer) serveCreateAgentJSON(ctx context.Context, resp http
 	}
 
 	// Call service method
-	var respContent *Agent
+	var respContent *CreateAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1160,7 +1158,7 @@ func (s *agentServiceServer) serveCreateAgentJSON(ctx context.Context, resp http
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Agent and nil error while calling CreateAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateAgentResponse and nil error while calling CreateAgent. nil responses are not supported"))
 		return
 	}
 
@@ -1208,7 +1206,7 @@ func (s *agentServiceServer) serveCreateAgentProtobuf(ctx context.Context, resp 
 
 	handler := s.AgentService.CreateAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateAgentRequest) (*Agent, error) {
+		handler = func(ctx context.Context, req *CreateAgentRequest) (*CreateAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateAgentRequest)
@@ -1219,9 +1217,9 @@ func (s *agentServiceServer) serveCreateAgentProtobuf(ctx context.Context, resp 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*CreateAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1230,7 +1228,7 @@ func (s *agentServiceServer) serveCreateAgentProtobuf(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *Agent
+	var respContent *CreateAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1241,7 +1239,7 @@ func (s *agentServiceServer) serveCreateAgentProtobuf(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Agent and nil error while calling CreateAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateAgentResponse and nil error while calling CreateAgent. nil responses are not supported"))
 		return
 	}
 
@@ -1307,7 +1305,7 @@ func (s *agentServiceServer) serveUpdateAgentJSON(ctx context.Context, resp http
 
 	handler := s.AgentService.UpdateAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateAgentRequest) (*Agent, error) {
+		handler = func(ctx context.Context, req *UpdateAgentRequest) (*UpdateAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateAgentRequest)
@@ -1318,9 +1316,9 @@ func (s *agentServiceServer) serveUpdateAgentJSON(ctx context.Context, resp http
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*UpdateAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1329,7 +1327,7 @@ func (s *agentServiceServer) serveUpdateAgentJSON(ctx context.Context, resp http
 	}
 
 	// Call service method
-	var respContent *Agent
+	var respContent *UpdateAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1340,7 +1338,7 @@ func (s *agentServiceServer) serveUpdateAgentJSON(ctx context.Context, resp http
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Agent and nil error while calling UpdateAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateAgentResponse and nil error while calling UpdateAgent. nil responses are not supported"))
 		return
 	}
 
@@ -1388,7 +1386,7 @@ func (s *agentServiceServer) serveUpdateAgentProtobuf(ctx context.Context, resp 
 
 	handler := s.AgentService.UpdateAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateAgentRequest) (*Agent, error) {
+		handler = func(ctx context.Context, req *UpdateAgentRequest) (*UpdateAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateAgentRequest)
@@ -1399,9 +1397,9 @@ func (s *agentServiceServer) serveUpdateAgentProtobuf(ctx context.Context, resp 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*Agent)
+				typedResp, ok := resp.(*UpdateAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*Agent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1410,7 +1408,7 @@ func (s *agentServiceServer) serveUpdateAgentProtobuf(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *Agent
+	var respContent *UpdateAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1421,7 +1419,7 @@ func (s *agentServiceServer) serveUpdateAgentProtobuf(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Agent and nil error while calling UpdateAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateAgentResponse and nil error while calling UpdateAgent. nil responses are not supported"))
 		return
 	}
 
@@ -1487,7 +1485,7 @@ func (s *agentServiceServer) serveDeleteAgentJSON(ctx context.Context, resp http
 
 	handler := s.AgentService.DeleteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteAgentRequest) (*google_protobuf3.Empty, error) {
+		handler = func(ctx context.Context, req *DeleteAgentRequest) (*DeleteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteAgentRequest)
@@ -1498,9 +1496,9 @@ func (s *agentServiceServer) serveDeleteAgentJSON(ctx context.Context, resp http
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1509,7 +1507,7 @@ func (s *agentServiceServer) serveDeleteAgentJSON(ctx context.Context, resp http
 	}
 
 	// Call service method
-	var respContent *google_protobuf3.Empty
+	var respContent *DeleteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1520,7 +1518,7 @@ func (s *agentServiceServer) serveDeleteAgentJSON(ctx context.Context, resp http
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *google_protobuf3.Empty and nil error while calling DeleteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteAgentResponse and nil error while calling DeleteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -1568,7 +1566,7 @@ func (s *agentServiceServer) serveDeleteAgentProtobuf(ctx context.Context, resp 
 
 	handler := s.AgentService.DeleteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteAgentRequest) (*google_protobuf3.Empty, error) {
+		handler = func(ctx context.Context, req *DeleteAgentRequest) (*DeleteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteAgentRequest)
@@ -1579,9 +1577,9 @@ func (s *agentServiceServer) serveDeleteAgentProtobuf(ctx context.Context, resp 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1590,7 +1588,7 @@ func (s *agentServiceServer) serveDeleteAgentProtobuf(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *google_protobuf3.Empty
+	var respContent *DeleteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1601,7 +1599,7 @@ func (s *agentServiceServer) serveDeleteAgentProtobuf(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *google_protobuf3.Empty and nil error while calling DeleteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteAgentResponse and nil error while calling DeleteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -1648,13 +1646,13 @@ func (s *agentServiceServer) PathPrefix() string {
 type MCPServerService interface {
 	ListMCPServers(context.Context, *ListMCPServersRequest) (*ListMCPServersResponse, error)
 
-	GetMCPServer(context.Context, *GetMCPServerRequest) (*MCPServer, error)
+	GetMCPServer(context.Context, *GetMCPServerRequest) (*GetMCPServerResponse, error)
 
-	CreateMCPServer(context.Context, *CreateMCPServerRequest) (*MCPServer, error)
+	CreateMCPServer(context.Context, *CreateMCPServerRequest) (*CreateMCPServerResponse, error)
 
-	UpdateMCPServer(context.Context, *UpdateMCPServerRequest) (*MCPServer, error)
+	UpdateMCPServer(context.Context, *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error)
 
-	DeleteMCPServer(context.Context, *DeleteMCPServerRequest) (*google_protobuf3.Empty, error)
+	DeleteMCPServer(context.Context, *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error)
 }
 
 // ================================
@@ -1753,13 +1751,13 @@ func (c *mCPServerServiceProtobufClient) callListMCPServers(ctx context.Context,
 	return out, nil
 }
 
-func (c *mCPServerServiceProtobufClient) GetMCPServer(ctx context.Context, in *GetMCPServerRequest) (*MCPServer, error) {
+func (c *mCPServerServiceProtobufClient) GetMCPServer(ctx context.Context, in *GetMCPServerRequest) (*GetMCPServerResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "MCPServerService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetMCPServer")
 	caller := c.callGetMCPServer
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetMCPServerRequest) (*MCPServer, error) {
+		caller = func(ctx context.Context, req *GetMCPServerRequest) (*GetMCPServerResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetMCPServerRequest)
@@ -1770,9 +1768,9 @@ func (c *mCPServerServiceProtobufClient) GetMCPServer(ctx context.Context, in *G
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*GetMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1782,8 +1780,8 @@ func (c *mCPServerServiceProtobufClient) GetMCPServer(ctx context.Context, in *G
 	return caller(ctx, in)
 }
 
-func (c *mCPServerServiceProtobufClient) callGetMCPServer(ctx context.Context, in *GetMCPServerRequest) (*MCPServer, error) {
-	out := new(MCPServer)
+func (c *mCPServerServiceProtobufClient) callGetMCPServer(ctx context.Context, in *GetMCPServerRequest) (*GetMCPServerResponse, error) {
+	out := new(GetMCPServerResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -1799,13 +1797,13 @@ func (c *mCPServerServiceProtobufClient) callGetMCPServer(ctx context.Context, i
 	return out, nil
 }
 
-func (c *mCPServerServiceProtobufClient) CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest) (*MCPServer, error) {
+func (c *mCPServerServiceProtobufClient) CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "MCPServerService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateMCPServer")
 	caller := c.callCreateMCPServer
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateMCPServerRequest) (*MCPServer, error) {
+		caller = func(ctx context.Context, req *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateMCPServerRequest)
@@ -1816,9 +1814,9 @@ func (c *mCPServerServiceProtobufClient) CreateMCPServer(ctx context.Context, in
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*CreateMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1828,8 +1826,8 @@ func (c *mCPServerServiceProtobufClient) CreateMCPServer(ctx context.Context, in
 	return caller(ctx, in)
 }
 
-func (c *mCPServerServiceProtobufClient) callCreateMCPServer(ctx context.Context, in *CreateMCPServerRequest) (*MCPServer, error) {
-	out := new(MCPServer)
+func (c *mCPServerServiceProtobufClient) callCreateMCPServer(ctx context.Context, in *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
+	out := new(CreateMCPServerResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -1845,13 +1843,13 @@ func (c *mCPServerServiceProtobufClient) callCreateMCPServer(ctx context.Context
 	return out, nil
 }
 
-func (c *mCPServerServiceProtobufClient) UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest) (*MCPServer, error) {
+func (c *mCPServerServiceProtobufClient) UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "MCPServerService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateMCPServer")
 	caller := c.callUpdateMCPServer
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateMCPServerRequest) (*MCPServer, error) {
+		caller = func(ctx context.Context, req *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateMCPServerRequest)
@@ -1862,9 +1860,9 @@ func (c *mCPServerServiceProtobufClient) UpdateMCPServer(ctx context.Context, in
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*UpdateMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1874,8 +1872,8 @@ func (c *mCPServerServiceProtobufClient) UpdateMCPServer(ctx context.Context, in
 	return caller(ctx, in)
 }
 
-func (c *mCPServerServiceProtobufClient) callUpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest) (*MCPServer, error) {
-	out := new(MCPServer)
+func (c *mCPServerServiceProtobufClient) callUpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
+	out := new(UpdateMCPServerResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -1891,13 +1889,13 @@ func (c *mCPServerServiceProtobufClient) callUpdateMCPServer(ctx context.Context
 	return out, nil
 }
 
-func (c *mCPServerServiceProtobufClient) DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest) (*google_protobuf3.Empty, error) {
+func (c *mCPServerServiceProtobufClient) DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "MCPServerService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteMCPServer")
 	caller := c.callDeleteMCPServer
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteMCPServerRequest) (*google_protobuf3.Empty, error) {
+		caller = func(ctx context.Context, req *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteMCPServerRequest)
@@ -1908,9 +1906,9 @@ func (c *mCPServerServiceProtobufClient) DeleteMCPServer(ctx context.Context, in
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1920,8 +1918,8 @@ func (c *mCPServerServiceProtobufClient) DeleteMCPServer(ctx context.Context, in
 	return caller(ctx, in)
 }
 
-func (c *mCPServerServiceProtobufClient) callDeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *mCPServerServiceProtobufClient) callDeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
+	out := new(DeleteMCPServerResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -2033,13 +2031,13 @@ func (c *mCPServerServiceJSONClient) callListMCPServers(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *mCPServerServiceJSONClient) GetMCPServer(ctx context.Context, in *GetMCPServerRequest) (*MCPServer, error) {
+func (c *mCPServerServiceJSONClient) GetMCPServer(ctx context.Context, in *GetMCPServerRequest) (*GetMCPServerResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "MCPServerService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetMCPServer")
 	caller := c.callGetMCPServer
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetMCPServerRequest) (*MCPServer, error) {
+		caller = func(ctx context.Context, req *GetMCPServerRequest) (*GetMCPServerResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetMCPServerRequest)
@@ -2050,9 +2048,9 @@ func (c *mCPServerServiceJSONClient) GetMCPServer(ctx context.Context, in *GetMC
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*GetMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2062,8 +2060,8 @@ func (c *mCPServerServiceJSONClient) GetMCPServer(ctx context.Context, in *GetMC
 	return caller(ctx, in)
 }
 
-func (c *mCPServerServiceJSONClient) callGetMCPServer(ctx context.Context, in *GetMCPServerRequest) (*MCPServer, error) {
-	out := new(MCPServer)
+func (c *mCPServerServiceJSONClient) callGetMCPServer(ctx context.Context, in *GetMCPServerRequest) (*GetMCPServerResponse, error) {
+	out := new(GetMCPServerResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -2079,13 +2077,13 @@ func (c *mCPServerServiceJSONClient) callGetMCPServer(ctx context.Context, in *G
 	return out, nil
 }
 
-func (c *mCPServerServiceJSONClient) CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest) (*MCPServer, error) {
+func (c *mCPServerServiceJSONClient) CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "MCPServerService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateMCPServer")
 	caller := c.callCreateMCPServer
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateMCPServerRequest) (*MCPServer, error) {
+		caller = func(ctx context.Context, req *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateMCPServerRequest)
@@ -2096,9 +2094,9 @@ func (c *mCPServerServiceJSONClient) CreateMCPServer(ctx context.Context, in *Cr
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*CreateMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2108,8 +2106,8 @@ func (c *mCPServerServiceJSONClient) CreateMCPServer(ctx context.Context, in *Cr
 	return caller(ctx, in)
 }
 
-func (c *mCPServerServiceJSONClient) callCreateMCPServer(ctx context.Context, in *CreateMCPServerRequest) (*MCPServer, error) {
-	out := new(MCPServer)
+func (c *mCPServerServiceJSONClient) callCreateMCPServer(ctx context.Context, in *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
+	out := new(CreateMCPServerResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -2125,13 +2123,13 @@ func (c *mCPServerServiceJSONClient) callCreateMCPServer(ctx context.Context, in
 	return out, nil
 }
 
-func (c *mCPServerServiceJSONClient) UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest) (*MCPServer, error) {
+func (c *mCPServerServiceJSONClient) UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "MCPServerService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateMCPServer")
 	caller := c.callUpdateMCPServer
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateMCPServerRequest) (*MCPServer, error) {
+		caller = func(ctx context.Context, req *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateMCPServerRequest)
@@ -2142,9 +2140,9 @@ func (c *mCPServerServiceJSONClient) UpdateMCPServer(ctx context.Context, in *Up
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*UpdateMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2154,8 +2152,8 @@ func (c *mCPServerServiceJSONClient) UpdateMCPServer(ctx context.Context, in *Up
 	return caller(ctx, in)
 }
 
-func (c *mCPServerServiceJSONClient) callUpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest) (*MCPServer, error) {
-	out := new(MCPServer)
+func (c *mCPServerServiceJSONClient) callUpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
+	out := new(UpdateMCPServerResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -2171,13 +2169,13 @@ func (c *mCPServerServiceJSONClient) callUpdateMCPServer(ctx context.Context, in
 	return out, nil
 }
 
-func (c *mCPServerServiceJSONClient) DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest) (*google_protobuf3.Empty, error) {
+func (c *mCPServerServiceJSONClient) DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "MCPServerService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteMCPServer")
 	caller := c.callDeleteMCPServer
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteMCPServerRequest) (*google_protobuf3.Empty, error) {
+		caller = func(ctx context.Context, req *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteMCPServerRequest)
@@ -2188,9 +2186,9 @@ func (c *mCPServerServiceJSONClient) DeleteMCPServer(ctx context.Context, in *De
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2200,8 +2198,8 @@ func (c *mCPServerServiceJSONClient) DeleteMCPServer(ctx context.Context, in *De
 	return caller(ctx, in)
 }
 
-func (c *mCPServerServiceJSONClient) callDeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *mCPServerServiceJSONClient) callDeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
+	out := new(DeleteMCPServerResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -2558,7 +2556,7 @@ func (s *mCPServerServiceServer) serveGetMCPServerJSON(ctx context.Context, resp
 
 	handler := s.MCPServerService.GetMCPServer
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetMCPServerRequest) (*MCPServer, error) {
+		handler = func(ctx context.Context, req *GetMCPServerRequest) (*GetMCPServerResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetMCPServerRequest)
@@ -2569,9 +2567,9 @@ func (s *mCPServerServiceServer) serveGetMCPServerJSON(ctx context.Context, resp
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*GetMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2580,7 +2578,7 @@ func (s *mCPServerServiceServer) serveGetMCPServerJSON(ctx context.Context, resp
 	}
 
 	// Call service method
-	var respContent *MCPServer
+	var respContent *GetMCPServerResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -2591,7 +2589,7 @@ func (s *mCPServerServiceServer) serveGetMCPServerJSON(ctx context.Context, resp
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *MCPServer and nil error while calling GetMCPServer. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetMCPServerResponse and nil error while calling GetMCPServer. nil responses are not supported"))
 		return
 	}
 
@@ -2639,7 +2637,7 @@ func (s *mCPServerServiceServer) serveGetMCPServerProtobuf(ctx context.Context, 
 
 	handler := s.MCPServerService.GetMCPServer
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetMCPServerRequest) (*MCPServer, error) {
+		handler = func(ctx context.Context, req *GetMCPServerRequest) (*GetMCPServerResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetMCPServerRequest)
@@ -2650,9 +2648,9 @@ func (s *mCPServerServiceServer) serveGetMCPServerProtobuf(ctx context.Context, 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*GetMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2661,7 +2659,7 @@ func (s *mCPServerServiceServer) serveGetMCPServerProtobuf(ctx context.Context, 
 	}
 
 	// Call service method
-	var respContent *MCPServer
+	var respContent *GetMCPServerResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -2672,7 +2670,7 @@ func (s *mCPServerServiceServer) serveGetMCPServerProtobuf(ctx context.Context, 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *MCPServer and nil error while calling GetMCPServer. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetMCPServerResponse and nil error while calling GetMCPServer. nil responses are not supported"))
 		return
 	}
 
@@ -2738,7 +2736,7 @@ func (s *mCPServerServiceServer) serveCreateMCPServerJSON(ctx context.Context, r
 
 	handler := s.MCPServerService.CreateMCPServer
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateMCPServerRequest) (*MCPServer, error) {
+		handler = func(ctx context.Context, req *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateMCPServerRequest)
@@ -2749,9 +2747,9 @@ func (s *mCPServerServiceServer) serveCreateMCPServerJSON(ctx context.Context, r
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*CreateMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2760,7 +2758,7 @@ func (s *mCPServerServiceServer) serveCreateMCPServerJSON(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *MCPServer
+	var respContent *CreateMCPServerResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -2771,7 +2769,7 @@ func (s *mCPServerServiceServer) serveCreateMCPServerJSON(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *MCPServer and nil error while calling CreateMCPServer. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateMCPServerResponse and nil error while calling CreateMCPServer. nil responses are not supported"))
 		return
 	}
 
@@ -2819,7 +2817,7 @@ func (s *mCPServerServiceServer) serveCreateMCPServerProtobuf(ctx context.Contex
 
 	handler := s.MCPServerService.CreateMCPServer
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateMCPServerRequest) (*MCPServer, error) {
+		handler = func(ctx context.Context, req *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateMCPServerRequest)
@@ -2830,9 +2828,9 @@ func (s *mCPServerServiceServer) serveCreateMCPServerProtobuf(ctx context.Contex
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*CreateMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2841,7 +2839,7 @@ func (s *mCPServerServiceServer) serveCreateMCPServerProtobuf(ctx context.Contex
 	}
 
 	// Call service method
-	var respContent *MCPServer
+	var respContent *CreateMCPServerResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -2852,7 +2850,7 @@ func (s *mCPServerServiceServer) serveCreateMCPServerProtobuf(ctx context.Contex
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *MCPServer and nil error while calling CreateMCPServer. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateMCPServerResponse and nil error while calling CreateMCPServer. nil responses are not supported"))
 		return
 	}
 
@@ -2918,7 +2916,7 @@ func (s *mCPServerServiceServer) serveUpdateMCPServerJSON(ctx context.Context, r
 
 	handler := s.MCPServerService.UpdateMCPServer
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateMCPServerRequest) (*MCPServer, error) {
+		handler = func(ctx context.Context, req *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateMCPServerRequest)
@@ -2929,9 +2927,9 @@ func (s *mCPServerServiceServer) serveUpdateMCPServerJSON(ctx context.Context, r
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*UpdateMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2940,7 +2938,7 @@ func (s *mCPServerServiceServer) serveUpdateMCPServerJSON(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *MCPServer
+	var respContent *UpdateMCPServerResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -2951,7 +2949,7 @@ func (s *mCPServerServiceServer) serveUpdateMCPServerJSON(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *MCPServer and nil error while calling UpdateMCPServer. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateMCPServerResponse and nil error while calling UpdateMCPServer. nil responses are not supported"))
 		return
 	}
 
@@ -2999,7 +2997,7 @@ func (s *mCPServerServiceServer) serveUpdateMCPServerProtobuf(ctx context.Contex
 
 	handler := s.MCPServerService.UpdateMCPServer
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateMCPServerRequest) (*MCPServer, error) {
+		handler = func(ctx context.Context, req *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateMCPServerRequest)
@@ -3010,9 +3008,9 @@ func (s *mCPServerServiceServer) serveUpdateMCPServerProtobuf(ctx context.Contex
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*MCPServer)
+				typedResp, ok := resp.(*UpdateMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*MCPServer) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3021,7 +3019,7 @@ func (s *mCPServerServiceServer) serveUpdateMCPServerProtobuf(ctx context.Contex
 	}
 
 	// Call service method
-	var respContent *MCPServer
+	var respContent *UpdateMCPServerResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -3032,7 +3030,7 @@ func (s *mCPServerServiceServer) serveUpdateMCPServerProtobuf(ctx context.Contex
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *MCPServer and nil error while calling UpdateMCPServer. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateMCPServerResponse and nil error while calling UpdateMCPServer. nil responses are not supported"))
 		return
 	}
 
@@ -3098,7 +3096,7 @@ func (s *mCPServerServiceServer) serveDeleteMCPServerJSON(ctx context.Context, r
 
 	handler := s.MCPServerService.DeleteMCPServer
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteMCPServerRequest) (*google_protobuf3.Empty, error) {
+		handler = func(ctx context.Context, req *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteMCPServerRequest)
@@ -3109,9 +3107,9 @@ func (s *mCPServerServiceServer) serveDeleteMCPServerJSON(ctx context.Context, r
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3120,7 +3118,7 @@ func (s *mCPServerServiceServer) serveDeleteMCPServerJSON(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *google_protobuf3.Empty
+	var respContent *DeleteMCPServerResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -3131,7 +3129,7 @@ func (s *mCPServerServiceServer) serveDeleteMCPServerJSON(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *google_protobuf3.Empty and nil error while calling DeleteMCPServer. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteMCPServerResponse and nil error while calling DeleteMCPServer. nil responses are not supported"))
 		return
 	}
 
@@ -3179,7 +3177,7 @@ func (s *mCPServerServiceServer) serveDeleteMCPServerProtobuf(ctx context.Contex
 
 	handler := s.MCPServerService.DeleteMCPServer
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteMCPServerRequest) (*google_protobuf3.Empty, error) {
+		handler = func(ctx context.Context, req *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteMCPServerRequest)
@@ -3190,9 +3188,9 @@ func (s *mCPServerServiceServer) serveDeleteMCPServerProtobuf(ctx context.Contex
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteMCPServerResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteMCPServerResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3201,7 +3199,7 @@ func (s *mCPServerServiceServer) serveDeleteMCPServerProtobuf(ctx context.Contex
 	}
 
 	// Call service method
-	var respContent *google_protobuf3.Empty
+	var respContent *DeleteMCPServerResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -3212,7 +3210,7 @@ func (s *mCPServerServiceServer) serveDeleteMCPServerProtobuf(ctx context.Contex
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *google_protobuf3.Empty and nil error while calling DeleteMCPServer. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteMCPServerResponse and nil error while calling DeleteMCPServer. nil responses are not supported"))
 		return
 	}
 
@@ -3259,13 +3257,13 @@ func (s *mCPServerServiceServer) PathPrefix() string {
 type RemoteAgentService interface {
 	ListRemoteAgents(context.Context, *ListRemoteAgentsRequest) (*ListRemoteAgentsResponse, error)
 
-	GetRemoteAgent(context.Context, *GetRemoteAgentRequest) (*RemoteAgent, error)
+	GetRemoteAgent(context.Context, *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error)
 
-	CreateRemoteAgent(context.Context, *CreateRemoteAgentRequest) (*RemoteAgent, error)
+	CreateRemoteAgent(context.Context, *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error)
 
-	UpdateRemoteAgent(context.Context, *UpdateRemoteAgentRequest) (*RemoteAgent, error)
+	UpdateRemoteAgent(context.Context, *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error)
 
-	DeleteRemoteAgent(context.Context, *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error)
+	DeleteRemoteAgent(context.Context, *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error)
 }
 
 // ==================================
@@ -3364,13 +3362,13 @@ func (c *remoteAgentServiceProtobufClient) callListRemoteAgents(ctx context.Cont
 	return out, nil
 }
 
-func (c *remoteAgentServiceProtobufClient) GetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest) (*RemoteAgent, error) {
+func (c *remoteAgentServiceProtobufClient) GetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "RemoteAgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetRemoteAgent")
 	caller := c.callGetRemoteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetRemoteAgentRequest) (*RemoteAgent, error) {
+		caller = func(ctx context.Context, req *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetRemoteAgentRequest)
@@ -3381,9 +3379,9 @@ func (c *remoteAgentServiceProtobufClient) GetRemoteAgent(ctx context.Context, i
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*GetRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3393,8 +3391,8 @@ func (c *remoteAgentServiceProtobufClient) GetRemoteAgent(ctx context.Context, i
 	return caller(ctx, in)
 }
 
-func (c *remoteAgentServiceProtobufClient) callGetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest) (*RemoteAgent, error) {
-	out := new(RemoteAgent)
+func (c *remoteAgentServiceProtobufClient) callGetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
+	out := new(GetRemoteAgentResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -3410,13 +3408,13 @@ func (c *remoteAgentServiceProtobufClient) callGetRemoteAgent(ctx context.Contex
 	return out, nil
 }
 
-func (c *remoteAgentServiceProtobufClient) CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest) (*RemoteAgent, error) {
+func (c *remoteAgentServiceProtobufClient) CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "RemoteAgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateRemoteAgent")
 	caller := c.callCreateRemoteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateRemoteAgentRequest) (*RemoteAgent, error) {
+		caller = func(ctx context.Context, req *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateRemoteAgentRequest)
@@ -3427,9 +3425,9 @@ func (c *remoteAgentServiceProtobufClient) CreateRemoteAgent(ctx context.Context
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*CreateRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3439,8 +3437,8 @@ func (c *remoteAgentServiceProtobufClient) CreateRemoteAgent(ctx context.Context
 	return caller(ctx, in)
 }
 
-func (c *remoteAgentServiceProtobufClient) callCreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest) (*RemoteAgent, error) {
-	out := new(RemoteAgent)
+func (c *remoteAgentServiceProtobufClient) callCreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
+	out := new(CreateRemoteAgentResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -3456,13 +3454,13 @@ func (c *remoteAgentServiceProtobufClient) callCreateRemoteAgent(ctx context.Con
 	return out, nil
 }
 
-func (c *remoteAgentServiceProtobufClient) UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
+func (c *remoteAgentServiceProtobufClient) UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "RemoteAgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateRemoteAgent")
 	caller := c.callUpdateRemoteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
+		caller = func(ctx context.Context, req *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateRemoteAgentRequest)
@@ -3473,9 +3471,9 @@ func (c *remoteAgentServiceProtobufClient) UpdateRemoteAgent(ctx context.Context
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*UpdateRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3485,8 +3483,8 @@ func (c *remoteAgentServiceProtobufClient) UpdateRemoteAgent(ctx context.Context
 	return caller(ctx, in)
 }
 
-func (c *remoteAgentServiceProtobufClient) callUpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
-	out := new(RemoteAgent)
+func (c *remoteAgentServiceProtobufClient) callUpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
+	out := new(UpdateRemoteAgentResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -3502,13 +3500,13 @@ func (c *remoteAgentServiceProtobufClient) callUpdateRemoteAgent(ctx context.Con
 	return out, nil
 }
 
-func (c *remoteAgentServiceProtobufClient) DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error) {
+func (c *remoteAgentServiceProtobufClient) DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "RemoteAgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteRemoteAgent")
 	caller := c.callDeleteRemoteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error) {
+		caller = func(ctx context.Context, req *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteRemoteAgentRequest)
@@ -3519,9 +3517,9 @@ func (c *remoteAgentServiceProtobufClient) DeleteRemoteAgent(ctx context.Context
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3531,8 +3529,8 @@ func (c *remoteAgentServiceProtobufClient) DeleteRemoteAgent(ctx context.Context
 	return caller(ctx, in)
 }
 
-func (c *remoteAgentServiceProtobufClient) callDeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *remoteAgentServiceProtobufClient) callDeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
+	out := new(DeleteRemoteAgentResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -3644,13 +3642,13 @@ func (c *remoteAgentServiceJSONClient) callListRemoteAgents(ctx context.Context,
 	return out, nil
 }
 
-func (c *remoteAgentServiceJSONClient) GetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest) (*RemoteAgent, error) {
+func (c *remoteAgentServiceJSONClient) GetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "RemoteAgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetRemoteAgent")
 	caller := c.callGetRemoteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetRemoteAgentRequest) (*RemoteAgent, error) {
+		caller = func(ctx context.Context, req *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetRemoteAgentRequest)
@@ -3661,9 +3659,9 @@ func (c *remoteAgentServiceJSONClient) GetRemoteAgent(ctx context.Context, in *G
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*GetRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3673,8 +3671,8 @@ func (c *remoteAgentServiceJSONClient) GetRemoteAgent(ctx context.Context, in *G
 	return caller(ctx, in)
 }
 
-func (c *remoteAgentServiceJSONClient) callGetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest) (*RemoteAgent, error) {
-	out := new(RemoteAgent)
+func (c *remoteAgentServiceJSONClient) callGetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
+	out := new(GetRemoteAgentResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -3690,13 +3688,13 @@ func (c *remoteAgentServiceJSONClient) callGetRemoteAgent(ctx context.Context, i
 	return out, nil
 }
 
-func (c *remoteAgentServiceJSONClient) CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest) (*RemoteAgent, error) {
+func (c *remoteAgentServiceJSONClient) CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "RemoteAgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateRemoteAgent")
 	caller := c.callCreateRemoteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateRemoteAgentRequest) (*RemoteAgent, error) {
+		caller = func(ctx context.Context, req *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateRemoteAgentRequest)
@@ -3707,9 +3705,9 @@ func (c *remoteAgentServiceJSONClient) CreateRemoteAgent(ctx context.Context, in
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*CreateRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3719,8 +3717,8 @@ func (c *remoteAgentServiceJSONClient) CreateRemoteAgent(ctx context.Context, in
 	return caller(ctx, in)
 }
 
-func (c *remoteAgentServiceJSONClient) callCreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest) (*RemoteAgent, error) {
-	out := new(RemoteAgent)
+func (c *remoteAgentServiceJSONClient) callCreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
+	out := new(CreateRemoteAgentResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -3736,13 +3734,13 @@ func (c *remoteAgentServiceJSONClient) callCreateRemoteAgent(ctx context.Context
 	return out, nil
 }
 
-func (c *remoteAgentServiceJSONClient) UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
+func (c *remoteAgentServiceJSONClient) UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "RemoteAgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateRemoteAgent")
 	caller := c.callUpdateRemoteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
+		caller = func(ctx context.Context, req *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateRemoteAgentRequest)
@@ -3753,9 +3751,9 @@ func (c *remoteAgentServiceJSONClient) UpdateRemoteAgent(ctx context.Context, in
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*UpdateRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3765,8 +3763,8 @@ func (c *remoteAgentServiceJSONClient) UpdateRemoteAgent(ctx context.Context, in
 	return caller(ctx, in)
 }
 
-func (c *remoteAgentServiceJSONClient) callUpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
-	out := new(RemoteAgent)
+func (c *remoteAgentServiceJSONClient) callUpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
+	out := new(UpdateRemoteAgentResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -3782,13 +3780,13 @@ func (c *remoteAgentServiceJSONClient) callUpdateRemoteAgent(ctx context.Context
 	return out, nil
 }
 
-func (c *remoteAgentServiceJSONClient) DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error) {
+func (c *remoteAgentServiceJSONClient) DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "RemoteAgentService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteRemoteAgent")
 	caller := c.callDeleteRemoteAgent
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error) {
+		caller = func(ctx context.Context, req *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteRemoteAgentRequest)
@@ -3799,9 +3797,9 @@ func (c *remoteAgentServiceJSONClient) DeleteRemoteAgent(ctx context.Context, in
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -3811,8 +3809,8 @@ func (c *remoteAgentServiceJSONClient) DeleteRemoteAgent(ctx context.Context, in
 	return caller(ctx, in)
 }
 
-func (c *remoteAgentServiceJSONClient) callDeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *remoteAgentServiceJSONClient) callDeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
+	out := new(DeleteRemoteAgentResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -4169,7 +4167,7 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentJSON(ctx context.Context, 
 
 	handler := s.RemoteAgentService.GetRemoteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetRemoteAgentRequest) (*RemoteAgent, error) {
+		handler = func(ctx context.Context, req *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetRemoteAgentRequest)
@@ -4180,9 +4178,9 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentJSON(ctx context.Context, 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*GetRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4191,7 +4189,7 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentJSON(ctx context.Context, 
 	}
 
 	// Call service method
-	var respContent *RemoteAgent
+	var respContent *GetRemoteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -4202,7 +4200,7 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentJSON(ctx context.Context, 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoteAgent and nil error while calling GetRemoteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetRemoteAgentResponse and nil error while calling GetRemoteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -4250,7 +4248,7 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentProtobuf(ctx context.Conte
 
 	handler := s.RemoteAgentService.GetRemoteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetRemoteAgentRequest) (*RemoteAgent, error) {
+		handler = func(ctx context.Context, req *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetRemoteAgentRequest)
@@ -4261,9 +4259,9 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentProtobuf(ctx context.Conte
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*GetRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4272,7 +4270,7 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentProtobuf(ctx context.Conte
 	}
 
 	// Call service method
-	var respContent *RemoteAgent
+	var respContent *GetRemoteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -4283,7 +4281,7 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentProtobuf(ctx context.Conte
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoteAgent and nil error while calling GetRemoteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetRemoteAgentResponse and nil error while calling GetRemoteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -4349,7 +4347,7 @@ func (s *remoteAgentServiceServer) serveCreateRemoteAgentJSON(ctx context.Contex
 
 	handler := s.RemoteAgentService.CreateRemoteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateRemoteAgentRequest) (*RemoteAgent, error) {
+		handler = func(ctx context.Context, req *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateRemoteAgentRequest)
@@ -4360,9 +4358,9 @@ func (s *remoteAgentServiceServer) serveCreateRemoteAgentJSON(ctx context.Contex
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*CreateRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4371,7 +4369,7 @@ func (s *remoteAgentServiceServer) serveCreateRemoteAgentJSON(ctx context.Contex
 	}
 
 	// Call service method
-	var respContent *RemoteAgent
+	var respContent *CreateRemoteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -4382,7 +4380,7 @@ func (s *remoteAgentServiceServer) serveCreateRemoteAgentJSON(ctx context.Contex
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoteAgent and nil error while calling CreateRemoteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateRemoteAgentResponse and nil error while calling CreateRemoteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -4430,7 +4428,7 @@ func (s *remoteAgentServiceServer) serveCreateRemoteAgentProtobuf(ctx context.Co
 
 	handler := s.RemoteAgentService.CreateRemoteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateRemoteAgentRequest) (*RemoteAgent, error) {
+		handler = func(ctx context.Context, req *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateRemoteAgentRequest)
@@ -4441,9 +4439,9 @@ func (s *remoteAgentServiceServer) serveCreateRemoteAgentProtobuf(ctx context.Co
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*CreateRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4452,7 +4450,7 @@ func (s *remoteAgentServiceServer) serveCreateRemoteAgentProtobuf(ctx context.Co
 	}
 
 	// Call service method
-	var respContent *RemoteAgent
+	var respContent *CreateRemoteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -4463,7 +4461,7 @@ func (s *remoteAgentServiceServer) serveCreateRemoteAgentProtobuf(ctx context.Co
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoteAgent and nil error while calling CreateRemoteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateRemoteAgentResponse and nil error while calling CreateRemoteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -4529,7 +4527,7 @@ func (s *remoteAgentServiceServer) serveUpdateRemoteAgentJSON(ctx context.Contex
 
 	handler := s.RemoteAgentService.UpdateRemoteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
+		handler = func(ctx context.Context, req *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateRemoteAgentRequest)
@@ -4540,9 +4538,9 @@ func (s *remoteAgentServiceServer) serveUpdateRemoteAgentJSON(ctx context.Contex
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*UpdateRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4551,7 +4549,7 @@ func (s *remoteAgentServiceServer) serveUpdateRemoteAgentJSON(ctx context.Contex
 	}
 
 	// Call service method
-	var respContent *RemoteAgent
+	var respContent *UpdateRemoteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -4562,7 +4560,7 @@ func (s *remoteAgentServiceServer) serveUpdateRemoteAgentJSON(ctx context.Contex
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoteAgent and nil error while calling UpdateRemoteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateRemoteAgentResponse and nil error while calling UpdateRemoteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -4610,7 +4608,7 @@ func (s *remoteAgentServiceServer) serveUpdateRemoteAgentProtobuf(ctx context.Co
 
 	handler := s.RemoteAgentService.UpdateRemoteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
+		handler = func(ctx context.Context, req *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateRemoteAgentRequest)
@@ -4621,9 +4619,9 @@ func (s *remoteAgentServiceServer) serveUpdateRemoteAgentProtobuf(ctx context.Co
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*RemoteAgent)
+				typedResp, ok := resp.(*UpdateRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*RemoteAgent) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4632,7 +4630,7 @@ func (s *remoteAgentServiceServer) serveUpdateRemoteAgentProtobuf(ctx context.Co
 	}
 
 	// Call service method
-	var respContent *RemoteAgent
+	var respContent *UpdateRemoteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -4643,7 +4641,7 @@ func (s *remoteAgentServiceServer) serveUpdateRemoteAgentProtobuf(ctx context.Co
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *RemoteAgent and nil error while calling UpdateRemoteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateRemoteAgentResponse and nil error while calling UpdateRemoteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -4709,7 +4707,7 @@ func (s *remoteAgentServiceServer) serveDeleteRemoteAgentJSON(ctx context.Contex
 
 	handler := s.RemoteAgentService.DeleteRemoteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error) {
+		handler = func(ctx context.Context, req *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteRemoteAgentRequest)
@@ -4720,9 +4718,9 @@ func (s *remoteAgentServiceServer) serveDeleteRemoteAgentJSON(ctx context.Contex
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4731,7 +4729,7 @@ func (s *remoteAgentServiceServer) serveDeleteRemoteAgentJSON(ctx context.Contex
 	}
 
 	// Call service method
-	var respContent *google_protobuf3.Empty
+	var respContent *DeleteRemoteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -4742,7 +4740,7 @@ func (s *remoteAgentServiceServer) serveDeleteRemoteAgentJSON(ctx context.Contex
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *google_protobuf3.Empty and nil error while calling DeleteRemoteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteRemoteAgentResponse and nil error while calling DeleteRemoteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -4790,7 +4788,7 @@ func (s *remoteAgentServiceServer) serveDeleteRemoteAgentProtobuf(ctx context.Co
 
 	handler := s.RemoteAgentService.DeleteRemoteAgent
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteRemoteAgentRequest) (*google_protobuf3.Empty, error) {
+		handler = func(ctx context.Context, req *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteRemoteAgentRequest)
@@ -4801,9 +4799,9 @@ func (s *remoteAgentServiceServer) serveDeleteRemoteAgentProtobuf(ctx context.Co
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteRemoteAgentResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteRemoteAgentResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4812,7 +4810,7 @@ func (s *remoteAgentServiceServer) serveDeleteRemoteAgentProtobuf(ctx context.Co
 	}
 
 	// Call service method
-	var respContent *google_protobuf3.Empty
+	var respContent *DeleteRemoteAgentResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -4823,7 +4821,7 @@ func (s *remoteAgentServiceServer) serveDeleteRemoteAgentProtobuf(ctx context.Co
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *google_protobuf3.Empty and nil error while calling DeleteRemoteAgent. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteRemoteAgentResponse and nil error while calling DeleteRemoteAgent. nil responses are not supported"))
 		return
 	}
 
@@ -4868,16 +4866,16 @@ func (s *remoteAgentServiceServer) PathPrefix() string {
 
 type SessionService interface {
 	// CreateSession creates a new session for the given agent.
-	CreateSession(context.Context, *CreateSessionRequest) (*SessionInfo, error)
+	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 
 	// GetSession retrieves a session by ID, optionally with recent events.
-	GetSession(context.Context, *GetSessionRequest) (*SessionDetail, error)
+	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
 
 	// ListSessions lists sessions for a given app and user.
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 
 	// DeleteSession deletes a session and its events.
-	DeleteSession(context.Context, *DeleteSessionRequest) (*google_protobuf3.Empty, error)
+	DeleteSession(context.Context, *DeleteSessionRequest) (*DeleteSessionResponse, error)
 
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(context.Context, *ReplySessionRequest) (*ReplySessionResponse, error)
@@ -4933,13 +4931,13 @@ func NewSessionServiceProtobufClient(baseURL string, client HTTPClient, opts ...
 	}
 }
 
-func (c *sessionServiceProtobufClient) CreateSession(ctx context.Context, in *CreateSessionRequest) (*SessionInfo, error) {
+func (c *sessionServiceProtobufClient) CreateSession(ctx context.Context, in *CreateSessionRequest) (*CreateSessionResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "SessionService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateSession")
 	caller := c.callCreateSession
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateSessionRequest) (*SessionInfo, error) {
+		caller = func(ctx context.Context, req *CreateSessionRequest) (*CreateSessionResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateSessionRequest)
@@ -4950,9 +4948,9 @@ func (c *sessionServiceProtobufClient) CreateSession(ctx context.Context, in *Cr
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SessionInfo)
+				typedResp, ok := resp.(*CreateSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SessionInfo) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -4962,8 +4960,8 @@ func (c *sessionServiceProtobufClient) CreateSession(ctx context.Context, in *Cr
 	return caller(ctx, in)
 }
 
-func (c *sessionServiceProtobufClient) callCreateSession(ctx context.Context, in *CreateSessionRequest) (*SessionInfo, error) {
-	out := new(SessionInfo)
+func (c *sessionServiceProtobufClient) callCreateSession(ctx context.Context, in *CreateSessionRequest) (*CreateSessionResponse, error) {
+	out := new(CreateSessionResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -4979,13 +4977,13 @@ func (c *sessionServiceProtobufClient) callCreateSession(ctx context.Context, in
 	return out, nil
 }
 
-func (c *sessionServiceProtobufClient) GetSession(ctx context.Context, in *GetSessionRequest) (*SessionDetail, error) {
+func (c *sessionServiceProtobufClient) GetSession(ctx context.Context, in *GetSessionRequest) (*GetSessionResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "SessionService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetSession")
 	caller := c.callGetSession
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetSessionRequest) (*SessionDetail, error) {
+		caller = func(ctx context.Context, req *GetSessionRequest) (*GetSessionResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetSessionRequest)
@@ -4996,9 +4994,9 @@ func (c *sessionServiceProtobufClient) GetSession(ctx context.Context, in *GetSe
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SessionDetail)
+				typedResp, ok := resp.(*GetSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SessionDetail) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5008,8 +5006,8 @@ func (c *sessionServiceProtobufClient) GetSession(ctx context.Context, in *GetSe
 	return caller(ctx, in)
 }
 
-func (c *sessionServiceProtobufClient) callGetSession(ctx context.Context, in *GetSessionRequest) (*SessionDetail, error) {
-	out := new(SessionDetail)
+func (c *sessionServiceProtobufClient) callGetSession(ctx context.Context, in *GetSessionRequest) (*GetSessionResponse, error) {
+	out := new(GetSessionResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -5071,13 +5069,13 @@ func (c *sessionServiceProtobufClient) callListSessions(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *sessionServiceProtobufClient) DeleteSession(ctx context.Context, in *DeleteSessionRequest) (*google_protobuf3.Empty, error) {
+func (c *sessionServiceProtobufClient) DeleteSession(ctx context.Context, in *DeleteSessionRequest) (*DeleteSessionResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "SessionService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteSession")
 	caller := c.callDeleteSession
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteSessionRequest) (*google_protobuf3.Empty, error) {
+		caller = func(ctx context.Context, req *DeleteSessionRequest) (*DeleteSessionResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteSessionRequest)
@@ -5088,9 +5086,9 @@ func (c *sessionServiceProtobufClient) DeleteSession(ctx context.Context, in *De
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5100,8 +5098,8 @@ func (c *sessionServiceProtobufClient) DeleteSession(ctx context.Context, in *De
 	return caller(ctx, in)
 }
 
-func (c *sessionServiceProtobufClient) callDeleteSession(ctx context.Context, in *DeleteSessionRequest) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *sessionServiceProtobufClient) callDeleteSession(ctx context.Context, in *DeleteSessionRequest) (*DeleteSessionResponse, error) {
+	out := new(DeleteSessionResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -5213,13 +5211,13 @@ func NewSessionServiceJSONClient(baseURL string, client HTTPClient, opts ...twir
 	}
 }
 
-func (c *sessionServiceJSONClient) CreateSession(ctx context.Context, in *CreateSessionRequest) (*SessionInfo, error) {
+func (c *sessionServiceJSONClient) CreateSession(ctx context.Context, in *CreateSessionRequest) (*CreateSessionResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "SessionService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateSession")
 	caller := c.callCreateSession
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateSessionRequest) (*SessionInfo, error) {
+		caller = func(ctx context.Context, req *CreateSessionRequest) (*CreateSessionResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateSessionRequest)
@@ -5230,9 +5228,9 @@ func (c *sessionServiceJSONClient) CreateSession(ctx context.Context, in *Create
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SessionInfo)
+				typedResp, ok := resp.(*CreateSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SessionInfo) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5242,8 +5240,8 @@ func (c *sessionServiceJSONClient) CreateSession(ctx context.Context, in *Create
 	return caller(ctx, in)
 }
 
-func (c *sessionServiceJSONClient) callCreateSession(ctx context.Context, in *CreateSessionRequest) (*SessionInfo, error) {
-	out := new(SessionInfo)
+func (c *sessionServiceJSONClient) callCreateSession(ctx context.Context, in *CreateSessionRequest) (*CreateSessionResponse, error) {
+	out := new(CreateSessionResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -5259,13 +5257,13 @@ func (c *sessionServiceJSONClient) callCreateSession(ctx context.Context, in *Cr
 	return out, nil
 }
 
-func (c *sessionServiceJSONClient) GetSession(ctx context.Context, in *GetSessionRequest) (*SessionDetail, error) {
+func (c *sessionServiceJSONClient) GetSession(ctx context.Context, in *GetSessionRequest) (*GetSessionResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "SessionService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetSession")
 	caller := c.callGetSession
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetSessionRequest) (*SessionDetail, error) {
+		caller = func(ctx context.Context, req *GetSessionRequest) (*GetSessionResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetSessionRequest)
@@ -5276,9 +5274,9 @@ func (c *sessionServiceJSONClient) GetSession(ctx context.Context, in *GetSessio
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SessionDetail)
+				typedResp, ok := resp.(*GetSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SessionDetail) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5288,8 +5286,8 @@ func (c *sessionServiceJSONClient) GetSession(ctx context.Context, in *GetSessio
 	return caller(ctx, in)
 }
 
-func (c *sessionServiceJSONClient) callGetSession(ctx context.Context, in *GetSessionRequest) (*SessionDetail, error) {
-	out := new(SessionDetail)
+func (c *sessionServiceJSONClient) callGetSession(ctx context.Context, in *GetSessionRequest) (*GetSessionResponse, error) {
+	out := new(GetSessionResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -5351,13 +5349,13 @@ func (c *sessionServiceJSONClient) callListSessions(ctx context.Context, in *Lis
 	return out, nil
 }
 
-func (c *sessionServiceJSONClient) DeleteSession(ctx context.Context, in *DeleteSessionRequest) (*google_protobuf3.Empty, error) {
+func (c *sessionServiceJSONClient) DeleteSession(ctx context.Context, in *DeleteSessionRequest) (*DeleteSessionResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "SessionService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteSession")
 	caller := c.callDeleteSession
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteSessionRequest) (*google_protobuf3.Empty, error) {
+		caller = func(ctx context.Context, req *DeleteSessionRequest) (*DeleteSessionResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteSessionRequest)
@@ -5368,9 +5366,9 @@ func (c *sessionServiceJSONClient) DeleteSession(ctx context.Context, in *Delete
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5380,8 +5378,8 @@ func (c *sessionServiceJSONClient) DeleteSession(ctx context.Context, in *Delete
 	return caller(ctx, in)
 }
 
-func (c *sessionServiceJSONClient) callDeleteSession(ctx context.Context, in *DeleteSessionRequest) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *sessionServiceJSONClient) callDeleteSession(ctx context.Context, in *DeleteSessionRequest) (*DeleteSessionResponse, error) {
+	out := new(DeleteSessionResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -5604,7 +5602,7 @@ func (s *sessionServiceServer) serveCreateSessionJSON(ctx context.Context, resp 
 
 	handler := s.SessionService.CreateSession
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateSessionRequest) (*SessionInfo, error) {
+		handler = func(ctx context.Context, req *CreateSessionRequest) (*CreateSessionResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateSessionRequest)
@@ -5615,9 +5613,9 @@ func (s *sessionServiceServer) serveCreateSessionJSON(ctx context.Context, resp 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SessionInfo)
+				typedResp, ok := resp.(*CreateSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SessionInfo) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5626,7 +5624,7 @@ func (s *sessionServiceServer) serveCreateSessionJSON(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *SessionInfo
+	var respContent *CreateSessionResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -5637,7 +5635,7 @@ func (s *sessionServiceServer) serveCreateSessionJSON(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *SessionInfo and nil error while calling CreateSession. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateSessionResponse and nil error while calling CreateSession. nil responses are not supported"))
 		return
 	}
 
@@ -5685,7 +5683,7 @@ func (s *sessionServiceServer) serveCreateSessionProtobuf(ctx context.Context, r
 
 	handler := s.SessionService.CreateSession
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateSessionRequest) (*SessionInfo, error) {
+		handler = func(ctx context.Context, req *CreateSessionRequest) (*CreateSessionResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateSessionRequest)
@@ -5696,9 +5694,9 @@ func (s *sessionServiceServer) serveCreateSessionProtobuf(ctx context.Context, r
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SessionInfo)
+				typedResp, ok := resp.(*CreateSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SessionInfo) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5707,7 +5705,7 @@ func (s *sessionServiceServer) serveCreateSessionProtobuf(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *SessionInfo
+	var respContent *CreateSessionResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -5718,7 +5716,7 @@ func (s *sessionServiceServer) serveCreateSessionProtobuf(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *SessionInfo and nil error while calling CreateSession. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateSessionResponse and nil error while calling CreateSession. nil responses are not supported"))
 		return
 	}
 
@@ -5784,7 +5782,7 @@ func (s *sessionServiceServer) serveGetSessionJSON(ctx context.Context, resp htt
 
 	handler := s.SessionService.GetSession
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetSessionRequest) (*SessionDetail, error) {
+		handler = func(ctx context.Context, req *GetSessionRequest) (*GetSessionResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetSessionRequest)
@@ -5795,9 +5793,9 @@ func (s *sessionServiceServer) serveGetSessionJSON(ctx context.Context, resp htt
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SessionDetail)
+				typedResp, ok := resp.(*GetSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SessionDetail) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5806,7 +5804,7 @@ func (s *sessionServiceServer) serveGetSessionJSON(ctx context.Context, resp htt
 	}
 
 	// Call service method
-	var respContent *SessionDetail
+	var respContent *GetSessionResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -5817,7 +5815,7 @@ func (s *sessionServiceServer) serveGetSessionJSON(ctx context.Context, resp htt
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *SessionDetail and nil error while calling GetSession. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetSessionResponse and nil error while calling GetSession. nil responses are not supported"))
 		return
 	}
 
@@ -5865,7 +5863,7 @@ func (s *sessionServiceServer) serveGetSessionProtobuf(ctx context.Context, resp
 
 	handler := s.SessionService.GetSession
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetSessionRequest) (*SessionDetail, error) {
+		handler = func(ctx context.Context, req *GetSessionRequest) (*GetSessionResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetSessionRequest)
@@ -5876,9 +5874,9 @@ func (s *sessionServiceServer) serveGetSessionProtobuf(ctx context.Context, resp
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*SessionDetail)
+				typedResp, ok := resp.(*GetSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*SessionDetail) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -5887,7 +5885,7 @@ func (s *sessionServiceServer) serveGetSessionProtobuf(ctx context.Context, resp
 	}
 
 	// Call service method
-	var respContent *SessionDetail
+	var respContent *GetSessionResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -5898,7 +5896,7 @@ func (s *sessionServiceServer) serveGetSessionProtobuf(ctx context.Context, resp
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *SessionDetail and nil error while calling GetSession. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetSessionResponse and nil error while calling GetSession. nil responses are not supported"))
 		return
 	}
 
@@ -6144,7 +6142,7 @@ func (s *sessionServiceServer) serveDeleteSessionJSON(ctx context.Context, resp 
 
 	handler := s.SessionService.DeleteSession
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteSessionRequest) (*google_protobuf3.Empty, error) {
+		handler = func(ctx context.Context, req *DeleteSessionRequest) (*DeleteSessionResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteSessionRequest)
@@ -6155,9 +6153,9 @@ func (s *sessionServiceServer) serveDeleteSessionJSON(ctx context.Context, resp 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -6166,7 +6164,7 @@ func (s *sessionServiceServer) serveDeleteSessionJSON(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *google_protobuf3.Empty
+	var respContent *DeleteSessionResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -6177,7 +6175,7 @@ func (s *sessionServiceServer) serveDeleteSessionJSON(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *google_protobuf3.Empty and nil error while calling DeleteSession. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteSessionResponse and nil error while calling DeleteSession. nil responses are not supported"))
 		return
 	}
 
@@ -6225,7 +6223,7 @@ func (s *sessionServiceServer) serveDeleteSessionProtobuf(ctx context.Context, r
 
 	handler := s.SessionService.DeleteSession
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteSessionRequest) (*google_protobuf3.Empty, error) {
+		handler = func(ctx context.Context, req *DeleteSessionRequest) (*DeleteSessionResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteSessionRequest)
@@ -6236,9 +6234,9 @@ func (s *sessionServiceServer) serveDeleteSessionProtobuf(ctx context.Context, r
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*google_protobuf3.Empty)
+				typedResp, ok := resp.(*DeleteSessionResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*google_protobuf3.Empty) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteSessionResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -6247,7 +6245,7 @@ func (s *sessionServiceServer) serveDeleteSessionProtobuf(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *google_protobuf3.Empty
+	var respContent *DeleteSessionResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -6258,7 +6256,7 @@ func (s *sessionServiceServer) serveDeleteSessionProtobuf(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *google_protobuf3.Empty and nil error while calling DeleteSession. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteSessionResponse and nil error while calling DeleteSession. nil responses are not supported"))
 		return
 	}
 
@@ -7043,80 +7041,89 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 1191 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x98, 0xdb, 0x6e, 0xdb, 0x36,
-	0x18, 0xc7, 0x61, 0x3b, 0x71, 0x92, 0xcf, 0x87, 0x24, 0x8c, 0x63, 0xab, 0x5a, 0xb3, 0x24, 0x0a,
-	0xb2, 0x19, 0x05, 0x66, 0x2f, 0xee, 0x06, 0x74, 0xe8, 0x50, 0x60, 0xab, 0x8b, 0xd4, 0x41, 0xbb,
-	0x14, 0xca, 0x82, 0x01, 0xdb, 0x85, 0xa1, 0x58, 0xac, 0xab, 0xcd, 0x3a, 0x4c, 0x94, 0x8d, 0xf5,
-	0x1d, 0x76, 0x35, 0x60, 0xc0, 0xde, 0x63, 0x2f, 0xb1, 0x17, 0xd8, 0xc5, 0xb0, 0x97, 0x19, 0x44,
-	0x52, 0x32, 0x29, 0x4a, 0x5e, 0x8f, 0x77, 0x26, 0xbf, 0x03, 0x3f, 0xfe, 0x3f, 0x8a, 0xfc, 0x25,
-	0x70, 0x60, 0x4d, 0xb1, 0x17, 0x91, 0xfe, 0xe2, 0xac, 0x4f, 0x7f, 0x8d, 0x09, 0x0e, 0x17, 0xce,
-	0x04, 0xf7, 0x82, 0xd0, 0x8f, 0x7c, 0xb4, 0xc5, 0xcc, 0xbd, 0xc5, 0x99, 0xbe, 0x9f, 0xf1, 0x64,
-	0x1e, 0xfa, 0x07, 0x53, 0xdf, 0x9f, 0xce, 0x70, 0x9f, 0x8e, 0x6e, 0xe6, 0xcf, 0xfb, 0xd8, 0x0d,
-	0xa2, 0x97, 0xdc, 0x78, 0x98, 0x35, 0x46, 0x8e, 0x8b, 0x49, 0x64, 0xb9, 0x01, 0x77, 0xb8, 0x9d,
-	0x75, 0x20, 0x51, 0x38, 0x9f, 0xf0, 0xdc, 0xc6, 0x1e, 0xec, 0x3e, 0x71, 0x48, 0xf4, 0x15, 0x5d,
-	0xd8, 0xc4, 0x3f, 0xcf, 0x31, 0x89, 0x8c, 0x07, 0x80, 0xc4, 0x49, 0x12, 0xf8, 0x1e, 0xc1, 0xa8,
-	0x0b, 0x55, 0x56, 0x9f, 0x56, 0x3a, 0xaa, 0x74, 0x6b, 0x83, 0x9d, 0x5e, 0x5a, 0x79, 0x8f, 0xba,
-	0x9a, 0xdc, 0x6e, 0x9c, 0xc2, 0xf6, 0x39, 0x66, 0xe1, 0x3c, 0x25, 0x42, 0xb0, 0xe6, 0x59, 0x2e,
-	0xd6, 0x4a, 0x47, 0xa5, 0xee, 0x96, 0x49, 0x7f, 0x1b, 0x5f, 0x02, 0x7a, 0x18, 0x62, 0x2b, 0xc2,
-	0x92, 0xe7, 0x47, 0xb0, 0x4e, 0xd3, 0x50, 0xd7, 0xbc, 0x55, 0x98, 0x39, 0x8e, 0xbe, 0x0e, 0xec,
-	0x37, 0x8d, 0xee, 0x02, 0x1a, 0xe2, 0x19, 0xce, 0x44, 0xe7, 0x55, 0xd9, 0x81, 0xfd, 0x58, 0x8c,
-	0xa7, 0x0f, 0x9f, 0x5d, 0xe1, 0x70, 0x81, 0xc3, 0x54, 0xa5, 0x4b, 0x68, 0x67, 0x0d, 0x5c, 0xa9,
-	0xcf, 0xa1, 0xe6, 0x4e, 0x02, 0xda, 0x67, 0x1c, 0x26, 0x72, 0xb5, 0x84, 0x52, 0xd2, 0x18, 0x13,
-	0xdc, 0x49, 0xc0, 0xc3, 0x8d, 0x53, 0xd8, 0x3b, 0xc7, 0xcb, 0x7c, 0x49, 0x51, 0x4d, 0x28, 0x3b,
-	0x36, 0x2f, 0xa9, 0xec, 0xd8, 0xc6, 0x53, 0x68, 0x33, 0xd9, 0x14, 0xcf, 0xbb, 0x00, 0xcb, 0x75,
-	0xb9, 0x02, 0xf9, 0xcb, 0x6e, 0xa5, 0xcb, 0xc6, 0xe9, 0x98, 0x8e, 0xef, 0x26, 0x5d, 0x17, 0xda,
-	0x4c, 0xd8, 0xff, 0xdd, 0xc7, 0x2d, 0xe8, 0xc4, 0xfa, 0x99, 0xd8, 0xf5, 0x79, 0x1b, 0x52, 0x69,
-	0xbf, 0x03, 0x4d, 0x35, 0x71, 0x71, 0xef, 0x43, 0x23, 0xa4, 0xf3, 0x63, 0xe9, 0x34, 0xb6, 0x85,
-	0xc2, 0x84, 0x38, 0xb3, 0x1e, 0x0a, 0x49, 0x8c, 0x8f, 0x61, 0xff, 0x1c, 0x8b, 0x79, 0x8b, 0x8a,
-	0xbb, 0x06, 0x8d, 0x89, 0x9c, 0xe3, 0xfb, 0x05, 0xd4, 0xc5, 0x0a, 0xb8, 0x32, 0x45, 0x05, 0xd4,
-	0x84, 0x02, 0xe2, 0xb4, 0x4c, 0xec, 0x77, 0x9b, 0xf6, 0x0e, 0x68, 0x4c, 0xf4, 0x57, 0xd8, 0xd9,
-	0x1f, 0x25, 0x68, 0xb1, 0xad, 0x5d, 0x61, 0x42, 0x1c, 0xdf, 0x4b, 0x1c, 0x6f, 0xc1, 0xa6, 0x15,
-	0x04, 0x63, 0xe1, 0x03, 0xd8, 0xb0, 0x82, 0xe0, 0x1b, 0xcb, 0xc5, 0xa8, 0x03, 0x1b, 0x73, 0x82,
-	0xc3, 0xb1, 0x63, 0x6b, 0x65, 0x6a, 0xa9, 0xc6, 0xc3, 0x91, 0x8d, 0x0e, 0x00, 0x08, 0xcb, 0x12,
-	0xdb, 0x2a, 0xd4, 0xb6, 0xc5, 0x67, 0x46, 0x36, 0xfa, 0x04, 0xd6, 0x49, 0x64, 0x45, 0x58, 0x5b,
-	0xa3, 0x7b, 0xe9, 0xf4, 0xd8, 0x5d, 0xd4, 0x4b, 0xee, 0xa2, 0xde, 0x15, 0xbd, 0x8b, 0x4c, 0xe6,
-	0x65, 0xfc, 0x56, 0x82, 0xdd, 0x73, 0x1c, 0xbd, 0xff, 0xba, 0xee, 0xc0, 0xae, 0x37, 0x77, 0xc7,
-	0x21, 0x9e, 0xc4, 0xf7, 0x31, 0x5e, 0xd0, 0x73, 0x14, 0xd7, 0xb8, 0x6e, 0x6e, 0x7b, 0x73, 0xd7,
-	0xa4, 0xf3, 0x8f, 0xe8, 0xb4, 0x31, 0x82, 0xbd, 0xf8, 0x2c, 0xf2, 0xa2, 0xc8, 0x5b, 0x54, 0x65,
-	0x5c, 0x40, 0x4b, 0x4e, 0xc5, 0x8f, 0xf4, 0x00, 0x36, 0x79, 0x6d, 0x79, 0xa7, 0x99, 0xbb, 0x8f,
-	0xbc, 0xe7, 0xbe, 0x99, 0xfa, 0x19, 0x0e, 0xb4, 0x58, 0xcb, 0xdf, 0xbb, 0x5a, 0xc6, 0x5f, 0x25,
-	0xd8, 0x33, 0x71, 0x30, 0x7b, 0x99, 0x59, 0xea, 0x00, 0x80, 0x3d, 0x68, 0xc2, 0x62, 0xec, 0x35,
-	0xa3, 0xcb, 0x89, 0x95, 0x94, 0x0b, 0x2b, 0xa9, 0xac, 0xa8, 0x64, 0x2d, 0xdb, 0x37, 0x0d, 0x36,
-	0x5c, 0x4c, 0x88, 0x35, 0xc5, 0xda, 0x3a, 0xcb, 0xc8, 0x87, 0xe8, 0x14, 0x9a, 0xae, 0x6f, 0xe3,
-	0xd9, 0xd8, 0x5f, 0xe0, 0x30, 0x74, 0x6c, 0xac, 0x55, 0xa9, 0x43, 0x83, 0xce, 0x5e, 0xf2, 0x49,
-	0x63, 0x00, 0x2d, 0x79, 0x27, 0xbc, 0x03, 0x3a, 0x6c, 0x86, 0xfc, 0x37, 0xdf, 0x48, 0x3a, 0x36,
-	0xfe, 0x2e, 0x41, 0x4d, 0xe8, 0x41, 0xa6, 0xc6, 0x52, 0xb6, 0xc6, 0x37, 0xd9, 0xf6, 0xeb, 0x7d,
-	0x27, 0x68, 0x08, 0x3b, 0x33, 0x8b, 0x44, 0xe3, 0x39, 0xbd, 0x4a, 0xc6, 0xf1, 0x8b, 0x4f, 0xf5,
-	0xa8, 0x0d, 0x74, 0x25, 0xf2, 0xdb, 0x04, 0x07, 0xcc, 0x66, 0x1c, 0xc3, 0x6e, 0x9f, 0x78, 0xd2,
-	0x08, 0xa1, 0xc1, 0xb7, 0x35, 0xc4, 0x91, 0xe5, 0xcc, 0xd0, 0xa7, 0xb0, 0xc1, 0xb7, 0x91, 0x73,
-	0xf7, 0x88, 0xa7, 0x30, 0x71, 0x43, 0x7d, 0xa8, 0xf2, 0x8f, 0xa7, 0x4c, 0x8f, 0x6d, 0x47, 0x0d,
-	0xa0, 0x5f, 0x91, 0xc9, 0xdd, 0x8c, 0x7f, 0x4b, 0x50, 0x17, 0x0d, 0xb1, 0x5a, 0xd4, 0xb4, 0x94,
-	0x72, 0x83, 0x8e, 0x47, 0x36, 0x3a, 0x81, 0x86, 0xe3, 0x2d, 0xfc, 0x89, 0x15, 0x71, 0xa9, 0x99,
-	0x9a, 0xf5, 0xe5, 0xe4, 0xc8, 0x46, 0x6d, 0xa8, 0x5a, 0xf3, 0xe8, 0x85, 0x1f, 0x26, 0x8a, 0xb2,
-	0x51, 0x3c, 0x7f, 0x13, 0x5a, 0xde, 0xe4, 0x05, 0x3f, 0x44, 0x7c, 0x84, 0x8e, 0xa1, 0x3e, 0xf1,
-	0xbd, 0x28, 0x5e, 0xf1, 0x47, 0xe2, 0x7b, 0xfc, 0x18, 0xd5, 0xf8, 0xdc, 0x05, 0xf1, 0x3d, 0x74,
-	0x0f, 0xb6, 0x52, 0x86, 0xa2, 0xa7, 0x68, 0xb5, 0xac, 0x4b, 0xe7, 0xc1, 0x3f, 0x65, 0xa8, 0xd3,
-	0xbb, 0xf7, 0x8a, 0x11, 0x1e, 0x1a, 0x01, 0x2c, 0x41, 0x0a, 0xdd, 0x16, 0xd4, 0x51, 0xa0, 0x4b,
-	0x3f, 0x28, 0xb0, 0xf2, 0x13, 0x7a, 0x0f, 0x36, 0x13, 0xa6, 0x42, 0xba, 0xe0, 0x9a, 0x01, 0x2d,
-	0x5d, 0x21, 0x1e, 0xf4, 0x00, 0x6a, 0x02, 0x66, 0x21, 0x71, 0x1d, 0x15, 0xbf, 0xf2, 0xe3, 0x05,
-	0xd0, 0x92, 0xe2, 0x55, 0x00, 0xcb, 0x89, 0x1f, 0x42, 0x4d, 0x40, 0x2d, 0x29, 0x5e, 0x45, 0x30,
-	0xbd, 0xad, 0x48, 0xfd, 0x28, 0xa6, 0xdd, 0xc1, 0xef, 0x15, 0xd8, 0x49, 0x91, 0x22, 0xd1, 0xf7,
-	0x1a, 0x9a, 0x32, 0x82, 0xa1, 0xa3, 0x8c, 0x8a, 0x0a, 0xb6, 0xe9, 0xc7, 0x2b, 0x3c, 0xb8, 0xd6,
-	0x43, 0xa8, 0x8b, 0x20, 0x86, 0x3e, 0x94, 0xf5, 0xce, 0x92, 0x8d, 0x9e, 0x0b, 0x45, 0xe8, 0x02,
-	0xb6, 0x33, 0x9c, 0x86, 0x8e, 0x15, 0xed, 0x5f, 0x3d, 0x57, 0x06, 0xd2, 0xa4, 0x5c, 0xf9, 0x00,
-	0x57, 0x90, 0xeb, 0x09, 0x6c, 0x67, 0x08, 0x4d, 0xca, 0x95, 0x4f, 0x6f, 0x85, 0x7d, 0xf9, 0xb3,
-	0x02, 0x48, 0xa0, 0x8e, 0xa4, 0x33, 0x3f, 0xc0, 0x4e, 0x96, 0xe0, 0x90, 0x91, 0x51, 0x3e, 0x87,
-	0xfc, 0xf4, 0x93, 0x95, 0x3e, 0xbc, 0x3f, 0x17, 0xd0, 0x94, 0x29, 0x4e, 0x6a, 0x7b, 0x2e, 0xe0,
-	0xe9, 0x05, 0x1c, 0x85, 0x9e, 0xc1, 0xae, 0x02, 0x7a, 0xe8, 0x44, 0xe9, 0xd3, 0xeb, 0x65, 0x54,
-	0x18, 0x4f, 0xca, 0x58, 0x44, 0x80, 0xab, 0x32, 0x2a, 0x78, 0x27, 0x65, 0x2c, 0x82, 0xbf, 0xc2,
-	0xae, 0xfd, 0x5a, 0x81, 0x26, 0xbf, 0x87, 0x93, 0x8e, 0x3d, 0x86, 0x86, 0x84, 0x85, 0xe8, 0x50,
-	0x11, 0x41, 0x7e, 0xff, 0xf5, 0x82, 0xe7, 0x01, 0x0d, 0x01, 0x96, 0x14, 0x27, 0xdd, 0x7a, 0x0a,
-	0xdc, 0xe9, 0x9a, 0x9a, 0x83, 0xbf, 0x46, 0x97, 0x50, 0x17, 0x61, 0x49, 0xfa, 0x08, 0x73, 0x80,
-	0x4c, 0x3f, 0x2c, 0xb4, 0xf3, 0x53, 0xf3, 0x18, 0x1a, 0x12, 0x31, 0x49, 0x1b, 0xcc, 0x63, 0xa9,
-	0x22, 0xf5, 0xe2, 0xd2, 0x44, 0x8a, 0x90, 0x4a, 0xcb, 0x01, 0x25, 0xa9, 0xb4, 0x3c, 0xfc, 0xf8,
-	0xfa, 0xb3, 0xef, 0x07, 0x53, 0xbf, 0xe7, 0x87, 0xbf, 0xf4, 0x5c, 0xdc, 0xb7, 0x82, 0x80, 0xf4,
-	0x6f, 0xe6, 0x51, 0x84, 0xc3, 0x7e, 0xf0, 0xd3, 0x94, 0xfd, 0xe1, 0xde, 0x4f, 0xff, 0x35, 0x70,
-	0x9f, 0xfd, 0x5a, 0x9c, 0xdd, 0x54, 0xa9, 0xe5, 0xee, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xa3,
-	0x51, 0x57, 0x9c, 0x61, 0x10, 0x00, 0x00,
+	// 1339 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x58, 0xdd, 0x72, 0xdb, 0x44,
+	0x14, 0x1e, 0xc7, 0x8d, 0x93, 0x1c, 0xff, 0x24, 0x59, 0x3b, 0xb6, 0xa3, 0x36, 0x6d, 0xb2, 0x21,
+	0x90, 0xe9, 0x0c, 0x36, 0x71, 0x61, 0x06, 0x28, 0x3f, 0x03, 0x09, 0x93, 0x71, 0x49, 0x1b, 0x46,
+	0x21, 0xd0, 0x81, 0x99, 0x7a, 0x14, 0x6b, 0xeb, 0x0a, 0xac, 0x1f, 0x24, 0xd9, 0x03, 0x6f, 0xc0,
+	0x35, 0x57, 0xbc, 0x00, 0xef, 0xd2, 0x17, 0xe0, 0x8a, 0x17, 0xe0, 0x31, 0x18, 0xed, 0xae, 0xac,
+	0x5d, 0x69, 0x65, 0x9a, 0x3a, 0xbd, 0xb3, 0xf6, 0x9c, 0xfd, 0xce, 0xb7, 0xe7, 0x1c, 0xad, 0xbe,
+	0x63, 0xd8, 0x31, 0x46, 0xc4, 0x09, 0x83, 0xee, 0xf4, 0xa8, 0x4b, 0x7f, 0x0d, 0x02, 0xe2, 0x4f,
+	0xad, 0x21, 0xe9, 0x78, 0xbe, 0x1b, 0xba, 0x68, 0x8d, 0x99, 0x3b, 0xd3, 0x23, 0x6d, 0x2b, 0xe5,
+	0xc9, 0x3c, 0xb4, 0x3b, 0x23, 0xd7, 0x1d, 0x8d, 0x49, 0x97, 0x3e, 0x5d, 0x4d, 0x9e, 0x77, 0x83,
+	0xd0, 0x9f, 0x0c, 0x63, 0xeb, 0xbd, 0xb4, 0x35, 0xb4, 0x6c, 0x12, 0x84, 0x86, 0xed, 0x31, 0x07,
+	0x5c, 0x87, 0xcd, 0x33, 0x2b, 0x08, 0xbf, 0xa0, 0xd8, 0x3a, 0xf9, 0x65, 0x42, 0x82, 0x10, 0x7f,
+	0x06, 0x48, 0x5c, 0x0c, 0x3c, 0xd7, 0x09, 0x08, 0x3a, 0x84, 0x12, 0xa3, 0xd0, 0x2e, 0xec, 0x16,
+	0x0f, 0xcb, 0xbd, 0x8d, 0xce, 0x8c, 0x5c, 0x87, 0xba, 0xea, 0xdc, 0x8e, 0x0f, 0x60, 0xfd, 0x94,
+	0xb0, 0xed, 0x1c, 0x12, 0x21, 0xb8, 0xe5, 0x18, 0x36, 0x69, 0x17, 0x76, 0x0b, 0x87, 0x6b, 0x3a,
+	0xfd, 0x8d, 0x3f, 0x86, 0x8d, 0xc4, 0x8d, 0x07, 0x79, 0x1b, 0x96, 0x29, 0x08, 0x75, 0x54, 0xc5,
+	0x60, 0x66, 0xfc, 0x09, 0xa0, 0x63, 0x9f, 0x18, 0x21, 0x91, 0xa2, 0xbc, 0xea, 0xee, 0x4f, 0xa1,
+	0x2e, 0xed, 0xbe, 0x7e, 0xf0, 0x4b, 0xcf, 0x5c, 0x20, 0xb8, 0xb4, 0xfb, 0x9a, 0xc1, 0x0f, 0x01,
+	0x9d, 0x90, 0x31, 0x49, 0x05, 0x57, 0xe5, 0x77, 0x0b, 0xea, 0x92, 0x27, 0x0b, 0x84, 0x5b, 0xb0,
+	0x15, 0x55, 0xf7, 0xf1, 0xf1, 0x37, 0x17, 0xc4, 0x9f, 0x12, 0x7f, 0x56, 0xf6, 0x73, 0x68, 0xa6,
+	0x0d, 0x9c, 0xdb, 0x07, 0x50, 0xb6, 0x87, 0x1e, 0xed, 0x4d, 0xe2, 0xc7, 0xf5, 0x6f, 0x08, 0x0c,
+	0x67, 0x7b, 0x74, 0xb0, 0x87, 0x1e, 0xdf, 0x8e, 0x0f, 0xa0, 0x7e, 0x4a, 0x12, 0xbc, 0x98, 0x6b,
+	0x0d, 0x96, 0x2c, 0x93, 0x33, 0x5d, 0xb2, 0x4c, 0xfc, 0x35, 0x34, 0x64, 0x37, 0x1e, 0xf5, 0x01,
+	0x40, 0x12, 0x95, 0xa7, 0x45, 0x1d, 0x74, 0x6d, 0x16, 0x14, 0x3f, 0x86, 0x26, 0x2b, 0x6d, 0x26,
+	0xec, 0x6b, 0xc1, 0x3d, 0x81, 0x56, 0x06, 0x6e, 0x41, 0x7a, 0xac, 0xf8, 0x37, 0x46, 0x2f, 0x03,
+	0xb7, 0x08, 0xbd, 0x43, 0x68, 0xb2, 0x96, 0xf9, 0xdf, 0xa2, 0x6d, 0x43, 0x2b, 0xe3, 0xc9, 0x1b,
+	0x6c, 0x1b, 0x5a, 0x51, 0x1f, 0xe9, 0xc4, 0x76, 0x79, 0xef, 0xcd, 0x5a, 0xec, 0x7b, 0x68, 0x67,
+	0x4d, 0x9c, 0xf0, 0x43, 0xa8, 0xfa, 0x74, 0x7d, 0x20, 0x5d, 0x33, 0x4d, 0x81, 0xb3, 0xb0, 0x4f,
+	0xaf, 0xf8, 0x02, 0x08, 0x7e, 0x07, 0xb6, 0x4e, 0x89, 0x88, 0x9b, 0xc7, 0xfb, 0x02, 0x9a, 0x69,
+	0x47, 0x1e, 0xff, 0x23, 0xa8, 0x88, 0xf1, 0x79, 0xca, 0xf2, 0xc2, 0x97, 0x85, 0xf0, 0xf8, 0x12,
+	0xda, 0xac, 0x4b, 0x14, 0x04, 0x16, 0x80, 0xfd, 0x0e, 0xb6, 0x15, 0xb0, 0x37, 0x42, 0x97, 0x75,
+	0xcd, 0x8d, 0xd3, 0x55, 0xc0, 0x2e, 0x4e, 0xf7, 0x3e, 0xb4, 0x59, 0xab, 0xbd, 0x42, 0x79, 0x6f,
+	0xc3, 0xb6, 0xc2, 0x97, 0x37, 0xe6, 0x9f, 0x05, 0x68, 0xb0, 0x84, 0x5e, 0x90, 0x20, 0xb0, 0x5c,
+	0x27, 0x46, 0xd9, 0x86, 0x55, 0xc3, 0xf3, 0x06, 0xc2, 0x0d, 0xba, 0x62, 0x78, 0xde, 0x13, 0xc3,
+	0x26, 0xa8, 0x05, 0x2b, 0x93, 0x80, 0xf8, 0x03, 0xcb, 0x6c, 0x2f, 0x51, 0x4b, 0x29, 0x7a, 0xec,
+	0x9b, 0x68, 0x07, 0x20, 0x60, 0x28, 0x91, 0xad, 0x48, 0x6d, 0x6b, 0x7c, 0xa5, 0x6f, 0xa2, 0x77,
+	0x61, 0x39, 0x08, 0x8d, 0x90, 0xb4, 0x6f, 0xd1, 0x83, 0xb6, 0x3a, 0xec, 0x4b, 0xdc, 0x89, 0xbf,
+	0xc4, 0x9d, 0x0b, 0xfa, 0x9d, 0xd6, 0x99, 0x17, 0xee, 0xc3, 0x56, 0x8a, 0x19, 0xcf, 0xdb, 0x7b,
+	0xb0, 0xc2, 0x41, 0x15, 0x29, 0xe3, 0xce, 0x7d, 0xe7, 0xb9, 0xab, 0xc7, 0x6e, 0xf8, 0x8f, 0x02,
+	0x6c, 0x9e, 0x92, 0xf0, 0xcd, 0x1f, 0xf1, 0x3e, 0x6c, 0x3a, 0x13, 0x7b, 0xe0, 0x93, 0x61, 0x24,
+	0x5c, 0xc8, 0x94, 0xbe, 0xb4, 0xd1, 0x71, 0x97, 0xf5, 0x75, 0x67, 0x62, 0xeb, 0x74, 0xfd, 0x2b,
+	0xba, 0x8c, 0x2f, 0x01, 0x89, 0x9c, 0xf8, 0xe1, 0x3e, 0x87, 0x5a, 0x1c, 0xc0, 0x24, 0xa1, 0x61,
+	0x8d, 0xf9, 0x19, 0xdb, 0xd9, 0x33, 0x9e, 0x50, 0xbb, 0x5e, 0x0d, 0xc4, 0x47, 0xdc, 0x87, 0x7a,
+	0x74, 0x9f, 0x70, 0x9f, 0x60, 0x81, 0xc3, 0xe2, 0x47, 0xd0, 0x90, 0xa1, 0x38, 0xc7, 0x1e, 0xac,
+	0xf2, 0x98, 0xaa, 0x1b, 0x49, 0xac, 0xc0, 0xcc, 0x0f, 0x5b, 0xd0, 0x60, 0x5d, 0xf8, 0xc6, 0x8b,
+	0x10, 0x7d, 0xcd, 0x53, 0xa1, 0x78, 0xb3, 0xbf, 0x2c, 0x40, 0x5d, 0x27, 0xde, 0xf8, 0xb7, 0x14,
+	0x87, 0x1d, 0x00, 0xa6, 0x34, 0x05, 0x16, 0x4c, 0x66, 0x52, 0x1e, 0x22, 0xc5, 0xa5, 0x5c, 0x8a,
+	0xc5, 0x39, 0x14, 0x6f, 0xa5, 0xfb, 0xa4, 0x0d, 0x2b, 0x36, 0x09, 0x02, 0x63, 0x44, 0xda, 0xcb,
+	0x0c, 0x91, 0x3f, 0xa2, 0x03, 0xa8, 0xd9, 0xae, 0x49, 0xc6, 0x03, 0x77, 0x4a, 0x7c, 0xdf, 0x32,
+	0x49, 0xbb, 0x44, 0x1d, 0xaa, 0x74, 0xf5, 0x9c, 0x2f, 0xe2, 0x1e, 0x34, 0xe4, 0x93, 0xf0, 0xd2,
+	0x68, 0xb0, 0xea, 0xf3, 0xdf, 0xfc, 0x20, 0xb3, 0x67, 0xfc, 0x77, 0x01, 0xca, 0x42, 0x71, 0x52,
+	0x1c, 0x0b, 0x69, 0x8e, 0xaf, 0x73, 0xec, 0xeb, 0xbd, 0xe2, 0xe8, 0x04, 0x36, 0xc6, 0x46, 0x10,
+	0x0e, 0x26, 0xf4, 0x8e, 0x1c, 0x44, 0x4a, 0x9c, 0xe6, 0xa3, 0xdc, 0xd3, 0x32, 0x3b, 0xbf, 0x8d,
+	0x65, 0xba, 0x5e, 0x8b, 0xf6, 0xb0, 0x6b, 0x35, 0x5a, 0xc4, 0x3e, 0x54, 0xa5, 0x37, 0xe2, 0xfa,
+	0x17, 0x04, 0xea, 0x42, 0x89, 0xbf, 0xac, 0x4b, 0xb4, 0x9f, 0x5b, 0xd9, 0x0d, 0xf4, 0xad, 0xd5,
+	0xb9, 0x1b, 0xfe, 0xa7, 0x00, 0x15, 0xd1, 0x10, 0x65, 0x8b, 0x9a, 0x92, 0x54, 0xae, 0xd0, 0xe7,
+	0xbe, 0x89, 0xf6, 0xa1, 0x6a, 0x39, 0x53, 0x77, 0x68, 0x84, 0x3c, 0xd5, 0x2c, 0x9b, 0x95, 0x64,
+	0xb1, 0x6f, 0xa2, 0x26, 0x94, 0x8c, 0x49, 0xf8, 0xc2, 0xf5, 0xe3, 0x8c, 0xb2, 0xa7, 0x68, 0xfd,
+	0xca, 0x37, 0x9c, 0xe1, 0x0b, 0xde, 0x44, 0xfc, 0x09, 0xed, 0x41, 0x65, 0xe8, 0x3a, 0x61, 0x14,
+	0xf1, 0xa7, 0xc0, 0x75, 0x78, 0x1b, 0x95, 0xf9, 0xda, 0xa3, 0xc0, 0x75, 0xd0, 0x87, 0xb0, 0x36,
+	0x9b, 0x6d, 0x68, 0x17, 0xcd, 0x4f, 0x6b, 0xe2, 0xdc, 0xfb, 0xbd, 0x08, 0x15, 0xfa, 0x9d, 0xb8,
+	0x60, 0xa3, 0x17, 0xea, 0x03, 0x24, 0xe3, 0x0f, 0xba, 0x23, 0x64, 0x27, 0x33, 0x2a, 0x69, 0x3b,
+	0x39, 0x56, 0xde, 0xa1, 0xc7, 0xb0, 0x1a, 0x8f, 0x38, 0x48, 0x13, 0x5c, 0x53, 0xe3, 0x91, 0x76,
+	0x5b, 0x69, 0xe3, 0x20, 0x67, 0x50, 0x16, 0xa6, 0x15, 0x24, 0x86, 0xcc, 0xce, 0x40, 0xda, 0xdd,
+	0x3c, 0x73, 0x82, 0x26, 0x8c, 0x1f, 0x12, 0x5a, 0x76, 0xa8, 0x91, 0xd0, 0x54, 0x53, 0xcb, 0x19,
+	0x94, 0x85, 0x19, 0x43, 0x42, 0xcb, 0x4e, 0x29, 0x12, 0x9a, 0x62, 0x34, 0xe9, 0xbd, 0x2c, 0xc2,
+	0xc6, 0x4c, 0x4f, 0xc6, 0xe5, 0xb8, 0x84, 0x9a, 0x3c, 0x96, 0xa0, 0xdd, 0x54, 0xd2, 0x33, 0xa3,
+	0x8c, 0xb6, 0x37, 0xc7, 0x83, 0x33, 0x3f, 0x87, 0x8a, 0x38, 0x75, 0xa0, 0xbb, 0x72, 0x09, 0xd2,
+	0x02, 0x58, 0xbb, 0x97, 0x6b, 0xe7, 0x80, 0x4f, 0x61, 0x3d, 0x35, 0x2a, 0xa0, 0xbd, 0x4c, 0x2d,
+	0x32, 0xb0, 0x78, 0x9e, 0x4b, 0x82, 0x9c, 0x52, 0xf9, 0x12, 0xb2, 0x7a, 0xa0, 0x90, 0x90, 0xf3,
+	0x86, 0x84, 0xa7, 0xb0, 0x9e, 0x52, 0xf1, 0x12, 0xb2, 0x7a, 0x16, 0x90, 0x90, 0x73, 0x86, 0x80,
+	0xde, 0xbf, 0x45, 0x40, 0x82, 0x06, 0x8b, 0x8b, 0xf9, 0x23, 0x6c, 0xa4, 0x07, 0x00, 0x84, 0x53,
+	0xc5, 0x52, 0x0c, 0x0e, 0xda, 0xfe, 0x5c, 0x1f, 0x7e, 0x9a, 0x4b, 0xa8, 0xc9, 0xda, 0x5e, 0xea,
+	0x14, 0xe5, 0x7c, 0x20, 0x75, 0x4a, 0xce, 0x60, 0xf0, 0x0c, 0x36, 0x33, 0x32, 0x1c, 0xed, 0x67,
+	0xea, 0xa6, 0x00, 0x7f, 0x6b, 0xbe, 0x53, 0x82, 0x9f, 0xd1, 0xcd, 0x12, 0x7e, 0x9e, 0x58, 0x97,
+	0xf0, 0xf3, 0xa5, 0xf7, 0x33, 0xd8, 0xcc, 0x68, 0x62, 0x09, 0x3f, 0x4f, 0x5d, 0x4b, 0xf8, 0xb9,
+	0xb2, 0xba, 0xf7, 0x57, 0x11, 0x6a, 0xfc, 0xf3, 0x10, 0x97, 0x59, 0x87, 0xaa, 0x24, 0x67, 0xd1,
+	0xbd, 0x4c, 0x26, 0x64, 0x59, 0xa2, 0xed, 0xe6, 0x3b, 0xf0, 0x63, 0xf4, 0x01, 0x12, 0x09, 0x29,
+	0x5d, 0xcb, 0x19, 0xb5, 0x2b, 0x5d, 0xcb, 0x0a, 0xdd, 0x79, 0x0e, 0x15, 0x51, 0xeb, 0x49, 0xef,
+	0xbe, 0x42, 0x4f, 0x4a, 0xef, 0xbe, 0x52, 0x24, 0xea, 0x50, 0x95, 0x54, 0x98, 0x74, 0x5e, 0x95,
+	0x14, 0x94, 0xce, 0xab, 0x14, 0x70, 0x11, 0x49, 0x51, 0xf5, 0x48, 0x24, 0x15, 0xc2, 0x4e, 0x22,
+	0xa9, 0x92, 0x4b, 0x5f, 0xbe, 0xff, 0x43, 0x6f, 0xe4, 0x76, 0x5c, 0xff, 0xd7, 0x8e, 0x4d, 0xba,
+	0x86, 0xe7, 0x05, 0xdd, 0xab, 0x49, 0x18, 0x12, 0xbf, 0xeb, 0xfd, 0x3c, 0x62, 0xff, 0x10, 0x76,
+	0x67, 0xff, 0x31, 0x3e, 0x64, 0xbf, 0xa6, 0x47, 0x57, 0x25, 0x6a, 0x79, 0xf0, 0x5f, 0x00, 0x00,
+	0x00, 0xff, 0xff, 0x3a, 0xb2, 0x2a, 0xd9, 0xaa, 0x14, 0x00, 0x00,
 }

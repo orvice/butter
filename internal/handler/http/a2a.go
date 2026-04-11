@@ -162,10 +162,10 @@ type MessagePart struct {
 
 // AgentCard represents an A2A agent card.
 type AgentCard struct {
-	Name         string     `json:"name"`
-	Description  string     `json:"description,omitempty"`
-	URL          string     `json:"url"`
-	Version      string     `json:"version"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description,omitempty"`
+	URL          string       `json:"url"`
+	Version      string       `json:"version"`
 	Capabilities Capabilities `json:"capabilities"`
 }
 

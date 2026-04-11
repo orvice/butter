@@ -81,6 +81,12 @@ remote_agents: []
   #   url: "https://agents.example.com/summarizer"
   #   protocol: 1  # REMOTE_AGENT_PROTOCOL_A2A
 
+# Cron jobs are managed via API (stored in MongoDB).
+# Use the CronJobService API to create/update/delete cron jobs:
+#   POST /api/agents.v1.CronJobService/CreateCronJob
+#   POST /api/agents.v1.CronJobService/ListCronJobs
+#   POST /api/agents.v1.CronJobService/ListCronExecutions
+
 # Agent definitions
 agents:
   - name: assistant

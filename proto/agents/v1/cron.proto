@@ -1,0 +1,190 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// CronJob defines a scheduled agent execution.
+message CronJob {
+  // Unique name identifying this cron job.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1 [(validate.rules).string.min_len = 1];
+
+  // Cron expression (5-field) or predefined schedule (@every, @daily, etc.).
+  // @gotags: json:"schedule,omitempty" yaml:"schedule,omitempty"
+  string schedule = 2 [(validate.rules).string.min_len = 1];
+
+  // Name of the agent to execute.
+  // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty"
+  string agent_name = 3 [(validate.rules).string.min_len = 1];
+
+  // Input message to send to the agent on each execution.
+  // @gotags: json:"input,omitempty" yaml:"input,omitempty"
+  string input = 4;
+
+  // IANA timezone name (e.g. "Asia/Shanghai"). Defaults to UTC if empty.
+  // @gotags: json:"timezone,omitempty" yaml:"timezone,omitempty"
+  string timezone = 5;
+
+  // Whether this cron job is enabled. Defaults to true.
+  // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
+  bool enabled = 6;
+
+  // Delivery configuration for execution results.
+  // @gotags: json:"delivery,omitempty" yaml:"delivery,omitempty"
+  CronDelivery delivery = 7;
+
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+  map<string, string> metadata = 10;
+}
+
+// CronDelivery defines how cron execution results are delivered.
+message CronDelivery {
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
+  CronDeliveryType type = 1;
+
+  // Webhook URL for WEBHOOK delivery type.
+  // @gotags: json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"
+  string webhook_url = 2;
+
+  // Channel name referencing an existing AgentChannel for CHANNEL delivery type.
+  // @gotags: json:"channel_name,omitempty" yaml:"channel_name,omitempty"
+  string channel_name = 3;
+
+  // Target chat/conversation ID for CHANNEL delivery type.
+  // @gotags: json:"chat_id,omitempty" yaml:"chat_id,omitempty"
+  string chat_id = 4;
+}
+
+// CronDeliveryType selects how cron results are delivered.
+enum CronDeliveryType {
+  CRON_DELIVERY_TYPE_UNSPECIFIED = 0;
+  CRON_DELIVERY_TYPE_LOG = 1;
+  CRON_DELIVERY_TYPE_WEBHOOK = 2;
+  CRON_DELIVERY_TYPE_CHANNEL = 3;
+}
+
+// CronExecution records a single cron job execution.
+message CronExecution {
+  // Unique execution identifier.
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+
+  // Name of the cron job that was executed.
+  // @gotags: json:"job_name,omitempty" yaml:"job_name,omitempty" bson:"job_name,omitempty"
+  string job_name = 2;
+
+  // Name of the agent that was executed.
+  // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty" bson:"agent_name,omitempty"
+  string agent_name = 3;
+
+  // Execution status.
+  // @gotags: json:"status,omitempty" yaml:"status,omitempty" bson:"status,omitempty"
+  CronExecutionStatus status = 4;
+
+  // Input message sent to the agent.
+  // @gotags: json:"input,omitempty" yaml:"input,omitempty" bson:"input,omitempty"
+  string input = 5;
+
+  // Agent output text or error message.
+  // @gotags: json:"output,omitempty" yaml:"output,omitempty" bson:"output,omitempty"
+  string output = 6;
+
+  // When the execution started.
+  // @gotags: json:"started_at,omitempty" yaml:"started_at,omitempty" bson:"started_at,omitempty"
+  google.protobuf.Timestamp started_at = 7;
+
+  // When the execution finished.
+  // @gotags: json:"finished_at,omitempty" yaml:"finished_at,omitempty" bson:"finished_at,omitempty"
+  google.protobuf.Timestamp finished_at = 8;
+}
+
+// CronExecutionStatus indicates the outcome of a cron execution.
+enum CronExecutionStatus {
+  CRON_EXECUTION_STATUS_UNSPECIFIED = 0;
+  CRON_EXECUTION_STATUS_SUCCESS = 1;
+  CRON_EXECUTION_STATUS_ERROR = 2;
+}
+
+// CronJobService manages cron jobs and their execution history.
+service CronJobService {
+  // ListCronJobs returns all cron jobs.
+  rpc ListCronJobs(ListCronJobsRequest) returns (ListCronJobsResponse);
+  // GetCronJob returns a single cron job by name.
+  rpc GetCronJob(GetCronJobRequest) returns (GetCronJobResponse);
+  // CreateCronJob creates a new cron job and schedules it.
+  rpc CreateCronJob(CreateCronJobRequest) returns (CreateCronJobResponse);
+  // UpdateCronJob updates an existing cron job and reschedules it.
+  rpc UpdateCronJob(UpdateCronJobRequest) returns (UpdateCronJobResponse);
+  // DeleteCronJob removes a cron job and unschedules it.
+  rpc DeleteCronJob(DeleteCronJobRequest) returns (DeleteCronJobResponse);
+  // ListCronExecutions returns execution records, optionally filtered by job name.
+  rpc ListCronExecutions(ListCronExecutionsRequest) returns (ListCronExecutionsResponse);
+}
+
+// --- CronJobService messages ---
+
+message ListCronJobsRequest {}
+
+message ListCronJobsResponse {
+  repeated CronJob cron_jobs = 1;
+}
+
+message GetCronJobRequest {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+}
+
+message CreateCronJobRequest {
+  CronJob cron_job = 1;
+}
+
+message UpdateCronJobRequest {
+  CronJob cron_job = 1;
+}
+
+message DeleteCronJobRequest {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+}
+
+message GetCronJobResponse {
+  CronJob cron_job = 1;
+}
+
+message CreateCronJobResponse {
+  CronJob cron_job = 1;
+}
+
+message UpdateCronJobResponse {
+  CronJob cron_job = 1;
+}
+
+message DeleteCronJobResponse {
+  CronJob cron_job = 1;
+}
+
+message ListCronExecutionsRequest {
+  // Optional: filter by job name. Empty returns all.
+  // @gotags: json:"job_name,omitempty" yaml:"job_name,omitempty"
+  string job_name = 1;
+
+  // Maximum number of records to return. Defaults to 20.
+  // @gotags: json:"page_size,omitempty" yaml:"page_size,omitempty"
+  int32 page_size = 2;
+
+  // Pagination token from a previous response.
+  // @gotags: json:"page_token,omitempty" yaml:"page_token,omitempty"
+  string page_token = 3;
+}
+
+message ListCronExecutionsResponse {
+  repeated CronExecution executions = 1;
+
+  // Token for the next page. Empty if no more results.
+  // @gotags: json:"next_page_token,omitempty" yaml:"next_page_token,omitempty"
+  string next_page_token = 2;
+}

@@ -14,6 +14,7 @@ import (
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
+	internalcron "go.orx.me/apps/butter/internal/cron"
 	mongomemory "go.orx.me/apps/butter/internal/memory/mongo"
 	"go.orx.me/apps/butter/internal/runner"
 	mongosession "go.orx.me/apps/butter/internal/session/mongo"
@@ -21,41 +22,16 @@ import (
 
 // BootstrapResult holds the services created during bootstrap.
 type BootstrapResult struct {
-	RunnerSvc  *runner.Service
-	SessionSvc session.Service
+	RunnerSvc     *runner.Service
+	SessionSvc    session.Service
+	CronScheduler *internalcron.Scheduler
+	CronRepo      internalcron.ExecutionRepo
 }
 
-// StartChannels initializes MongoDB, Redis, runner service, and channel manager,
-// then starts polling in a background goroutine.
-// It returns the bootstrap result containing the runner and session services.
+// StartChannels initializes MongoDB, Redis, runner service, channel manager,
+// and cron scheduler. It returns the bootstrap result.
 func StartChannels(ctx context.Context, cfg *config.AppConfig) (*BootstrapResult, error) {
 	logger := log.FromContext(ctx)
-
-	if len(cfg.Channels) == 0 {
-		logger.Info("no channels configured, skipping channel manager")
-
-		// Still initialize MongoDB and session service for API use.
-		mongoURI := cfg.MongoURI
-		if mongoURI == "" {
-			mongoURI = "mongodb://localhost:27017"
-		}
-		dbName := cfg.MongoDB
-		if dbName == "" {
-			dbName = "butter"
-		}
-		mongoClient, err := mongo.Connect(options.Client().ApplyURI(mongoURI))
-		if err != nil {
-			logger.Warn("failed to connect to mongodb, session API will not be available", "err", err)
-			return nil, nil
-		}
-		db := mongoClient.Database(dbName)
-		sessionSvc, err := mongosession.New(ctx, db)
-		if err != nil {
-			logger.Warn("failed to create session service, session API will not be available", "err", err)
-			return nil, nil
-		}
-		return &BootstrapResult{SessionSvc: sessionSvc}, nil
-	}
 
 	// Connect to MongoDB.
 	mongoURI := cfg.MongoURI
@@ -133,26 +109,48 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*BootstrapResult
 		return nil, err
 	}
 
-	// Collect model aliases for the /model command.
-	modelInfos := internalagent.AllModelAliases(cfg.ModelProviders)
-	modelNames := make([]string, len(modelInfos))
-	for i, m := range modelInfos {
-		modelNames[i] = m.Alias
+	// Start channels if configured.
+	if len(cfg.Channels) > 0 {
+		modelInfos := internalagent.AllModelAliases(cfg.ModelProviders)
+		modelNames := make([]string, len(modelInfos))
+		for i, m := range modelInfos {
+			modelNames[i] = m.Alias
+		}
+
+		mgr, err := channel.NewManager(ctx, cfg, runnerSvc, rdb, modelNames)
+		if err != nil {
+			logger.Error("failed to create channel manager", "err", err)
+			return nil, err
+		}
+
+		logger.Info("starting channel manager in background")
+		go mgr.Start(ctx)
+	} else {
+		logger.Info("no channels configured, skipping channel manager")
 	}
 
-	// Build channel manager.
-	mgr, err := channel.NewManager(ctx, cfg, runnerSvc, rdb, modelNames)
+	// Initialize cron scheduler (jobs are loaded from MongoDB).
+	cronExecRepo := internalcron.NewMongoExecutionRepo(db)
+	cronJobRepo := internalcron.NewMongoJobRepo(db)
+	cronScheduler, err := internalcron.NewScheduler(ctx, runnerSvc, cronJobRepo, cronExecRepo)
 	if err != nil {
-		logger.Error("failed to create channel manager", "err", err)
+		logger.Error("failed to create cron scheduler", "err", err)
 		return nil, err
 	}
+	cronScheduler.Start()
+	logger.Info("cron scheduler started")
 
-	// Start channels in background.
-	logger.Info("starting channel manager in background")
-	go mgr.Start(ctx)
+	go func() {
+		<-ctx.Done()
+		stopCtx := cronScheduler.Stop()
+		<-stopCtx.Done()
+		logger.Info("cron scheduler stopped")
+	}()
 
 	return &BootstrapResult{
-		RunnerSvc:  runnerSvc,
-		SessionSvc: sessionSvc,
+		RunnerSvc:     runnerSvc,
+		SessionSvc:    sessionSvc,
+		CronScheduler: cronScheduler,
+		CronRepo:      cronExecRepo,
 	}, nil
 }

@@ -9,16 +9,16 @@ import (
 
 func TestIsAllowed(t *testing.T) {
 	tests := []struct {
-		name           string
-		allowedGuilds  []string
-		allowedChans   []string
-		guildID        string
-		channelID      string
-		want           bool
+		name          string
+		allowedGuilds []string
+		allowedChans  []string
+		guildID       string
+		channelID     string
+		want          bool
 	}{
 		{
-			name:      "empty allowlists allow all",
-			guildID:   "111", channelID: "222",
+			name:    "empty allowlists allow all",
+			guildID: "111", channelID: "222",
 			want: true,
 		},
 		{
@@ -49,7 +49,7 @@ func TestIsAllowed(t *testing.T) {
 			name:    "DM with no guild (empty guild ID) passes guild filter",
 			guildID: "", channelID: "222",
 			allowedGuilds: []string{"100"},
-			want: true,
+			want:          true,
 		},
 	}
 
