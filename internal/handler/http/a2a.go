@@ -9,7 +9,7 @@ import (
 	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/config"
-	"go.orx.me/apps/butter/internal/runner"
+	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 

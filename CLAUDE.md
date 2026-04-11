@@ -32,12 +32,20 @@ Module: `go.orx.me/apps/butter`
 A service skeleton built on `butterfly.orx.me/core` (Butterfly framework) with an agent system powered by Google ADK (`google.golang.org/adk`).
 
 **Layers:**
-- `cmd/butter/main.go` — Entry point. Wires config, repos, services, handlers, and registers Gin routes via Butterfly's `core.New()`.
+- `cmd/butter/main.go` — Entry point. Wires config, services, handlers, and registers Gin routes via Butterfly's `core.New()`.
+- `internal/app/` — Application bootstrap and wiring. Split by concern: `routes.go` (HTTP/Twirp setup), `channels.go` (orchestration), `runtime.go` (MongoDB/Redis/Langfuse init), `cron.go` (scheduler init), `system_agent.go` (built-in agent registration).
 - `internal/config/` — `AppConfig` holds `[]agentsv1.Agent` and `[]agentsv1.AgentChannel` loaded from YAML by Butterfly.
 - `internal/handler/http/` — Gin HTTP handlers.
+- `internal/transport/twirp/` — Twirp RPC server implementations (agent, session, cron, MCP server, remote agent services).
 - `internal/service/` — Business logic.
 - `internal/repo/` — Data access abstractions.
+- `internal/store/config/` — In-memory CRUD store for agent/MCP/remote-agent configurations.
 - `internal/agent/` — `NewFromProto()` factory: converts proto `agentsv1.Agent` configs into ADK agent instances (LLM, Loop, Sequential, Parallel).
+- `internal/runtime/runner/` — Agent runner service managing per-channel ADK runners.
+- `internal/runtime/cron/` — Cron scheduler for automated agent execution.
+- `internal/runtime/session/` — Session persistence (MongoDB implementation).
+- `internal/runtime/memory/` — Memory persistence (MongoDB implementation).
+- `internal/channel/` — Platform channel implementations (Telegram, Discord).
 - `pkg/agent/` — Thin wrapper around ADK `agent.Agent`.
 - `pkg/proto/agents/v1/` — Generated Go code from protos. **Do not edit.**
 

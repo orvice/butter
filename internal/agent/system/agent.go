@@ -9,8 +9,8 @@ import (
 	"google.golang.org/adk/tool"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
-	"go.orx.me/apps/butter/internal/cron"
-	"go.orx.me/apps/butter/internal/repo/configstore"
+	"go.orx.me/apps/butter/internal/runtime/cron"
+	"go.orx.me/apps/butter/internal/store/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 

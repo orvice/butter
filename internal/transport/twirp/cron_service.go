@@ -1,11 +1,11 @@
-package configapi
+package twirp
 
 import (
 	"context"
 
 	"github.com/twitchtv/twirp"
 
-	"go.orx.me/apps/butter/internal/cron"
+	"go.orx.me/apps/butter/internal/runtime/cron"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 

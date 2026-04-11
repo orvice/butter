@@ -7,7 +7,7 @@ import (
 	"butterfly.orx.me/core"
 	"butterfly.orx.me/core/app"
 
-	"go.orx.me/apps/butter/internal/bootstrap"
+	butterapp "go.orx.me/apps/butter/internal/app"
 	appconfig "go.orx.me/apps/butter/internal/config"
 )
 
@@ -15,7 +15,7 @@ const serviceName = "butter"
 
 func main() {
 	cfg := new(appconfig.AppConfig)
-	router, handlers := bootstrap.SetupRoutes(cfg)
+	router, handlers := butterapp.SetupRoutes(cfg)
 
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 
@@ -27,7 +27,7 @@ func main() {
 		InitFunc: []func() error{
 			func() error {
 				handlers.SeedConfig(cfg)
-				result, err := bootstrap.StartChannels(channelCtx, cfg, handlers.ConfigStore())
+				result, err := butterapp.StartChannels(channelCtx, cfg, handlers.ConfigStore())
 				if err != nil {
 					return err
 				}

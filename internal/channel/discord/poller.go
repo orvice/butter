@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/adk/session"
 
-	"go.orx.me/apps/butter/internal/runner"
+	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 

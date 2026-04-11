@@ -6,7 +6,7 @@ import (
 	"time"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
-	"go.orx.me/apps/butter/internal/runner"
+	"go.orx.me/apps/butter/internal/runtime/runner"
 )
 
 func (p *Poller) formatStatusMessage(sessionID, userID string) string {
