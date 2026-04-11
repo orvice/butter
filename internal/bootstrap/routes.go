@@ -41,6 +41,11 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 }
 
+// ConfigStore returns the shared config store.
+func (h *Handlers) ConfigStore() *configstore.Store {
+	return h.cfgStore
+}
+
 // SeedConfig seeds the config store from YAML config.
 func (h *Handlers) SeedConfig(cfg *config.AppConfig) {
 	h.cfgStore.Seed(cfg.Agents, cfg.MCPServerConfigs, cfg.RemoteAgents)
