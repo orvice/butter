@@ -41,7 +41,7 @@ func (s *CronJobServiceServer) ListCronJobs(ctx context.Context, _ *agentsv1.Lis
 	return &agentsv1.ListCronJobsResponse{CronJobs: jobs}, nil
 }
 
-func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *agentsv1.GetCronJobRequest) (*agentsv1.CronJob, error) {
+func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *agentsv1.GetCronJobRequest) (*agentsv1.GetCronJobResponse, error) {
 	if s.scheduler == nil {
 		return nil, twirp.NotFoundError("cron scheduler not initialized")
 	}
@@ -49,10 +49,10 @@ func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *agentsv1.Get
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	return job, nil
+	return &agentsv1.GetCronJobResponse{CronJob: job}, nil
 }
 
-func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.CreateCronJobRequest) (*agentsv1.CronJob, error) {
+func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.CreateCronJobRequest) (*agentsv1.CreateCronJobResponse, error) {
 	if s.scheduler == nil {
 		return nil, twirp.InternalError("cron scheduler not initialized")
 	}
@@ -60,10 +60,10 @@ func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.
 	if err := s.scheduler.AddJob(ctx, job); err != nil {
 		return nil, toTwirpError(err)
 	}
-	return job, nil
+	return &agentsv1.CreateCronJobResponse{CronJob: job}, nil
 }
 
-func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.UpdateCronJobRequest) (*agentsv1.CronJob, error) {
+func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.UpdateCronJobRequest) (*agentsv1.UpdateCronJobResponse, error) {
 	if s.scheduler == nil {
 		return nil, twirp.InternalError("cron scheduler not initialized")
 	}
@@ -71,14 +71,13 @@ func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.
 	if err := s.scheduler.UpdateJob(ctx, job); err != nil {
 		return nil, toTwirpError(err)
 	}
-	return job, nil
+	return &agentsv1.UpdateCronJobResponse{CronJob: job}, nil
 }
 
-func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.DeleteCronJobRequest) (*agentsv1.CronJob, error) {
+func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.DeleteCronJobRequest) (*agentsv1.DeleteCronJobResponse, error) {
 	if s.scheduler == nil {
 		return nil, twirp.InternalError("cron scheduler not initialized")
 	}
-	// Get the job before deleting so we can return it.
 	job, err := s.scheduler.GetJob(ctx, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
@@ -86,7 +85,7 @@ func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.
 	if err := s.scheduler.RemoveJob(ctx, req.GetName()); err != nil {
 		return nil, toTwirpError(err)
 	}
-	return job, nil
+	return &agentsv1.DeleteCronJobResponse{CronJob: job}, nil
 }
 
 func (s *CronJobServiceServer) ListCronExecutions(ctx context.Context, req *agentsv1.ListCronExecutionsRequest) (*agentsv1.ListCronExecutionsResponse, error) {

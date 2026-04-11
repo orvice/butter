@@ -32,16 +32,16 @@ type CronJobService interface {
 	ListCronJobs(context.Context, *ListCronJobsRequest) (*ListCronJobsResponse, error)
 
 	// GetCronJob returns a single cron job by name.
-	GetCronJob(context.Context, *GetCronJobRequest) (*CronJob, error)
+	GetCronJob(context.Context, *GetCronJobRequest) (*GetCronJobResponse, error)
 
 	// CreateCronJob creates a new cron job and schedules it.
-	CreateCronJob(context.Context, *CreateCronJobRequest) (*CronJob, error)
+	CreateCronJob(context.Context, *CreateCronJobRequest) (*CreateCronJobResponse, error)
 
 	// UpdateCronJob updates an existing cron job and reschedules it.
-	UpdateCronJob(context.Context, *UpdateCronJobRequest) (*CronJob, error)
+	UpdateCronJob(context.Context, *UpdateCronJobRequest) (*UpdateCronJobResponse, error)
 
 	// DeleteCronJob removes a cron job and unschedules it.
-	DeleteCronJob(context.Context, *DeleteCronJobRequest) (*CronJob, error)
+	DeleteCronJob(context.Context, *DeleteCronJobRequest) (*DeleteCronJobResponse, error)
 
 	// ListCronExecutions returns execution records, optionally filtered by job name.
 	ListCronExecutions(context.Context, *ListCronExecutionsRequest) (*ListCronExecutionsResponse, error)
@@ -144,13 +144,13 @@ func (c *cronJobServiceProtobufClient) callListCronJobs(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *cronJobServiceProtobufClient) GetCronJob(ctx context.Context, in *GetCronJobRequest) (*CronJob, error) {
+func (c *cronJobServiceProtobufClient) GetCronJob(ctx context.Context, in *GetCronJobRequest) (*GetCronJobResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetCronJob")
 	caller := c.callGetCronJob
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetCronJobRequest) (*CronJob, error) {
+		caller = func(ctx context.Context, req *GetCronJobRequest) (*GetCronJobResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetCronJobRequest)
@@ -161,9 +161,9 @@ func (c *cronJobServiceProtobufClient) GetCronJob(ctx context.Context, in *GetCr
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*GetCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -173,8 +173,8 @@ func (c *cronJobServiceProtobufClient) GetCronJob(ctx context.Context, in *GetCr
 	return caller(ctx, in)
 }
 
-func (c *cronJobServiceProtobufClient) callGetCronJob(ctx context.Context, in *GetCronJobRequest) (*CronJob, error) {
-	out := new(CronJob)
+func (c *cronJobServiceProtobufClient) callGetCronJob(ctx context.Context, in *GetCronJobRequest) (*GetCronJobResponse, error) {
+	out := new(GetCronJobResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -190,13 +190,13 @@ func (c *cronJobServiceProtobufClient) callGetCronJob(ctx context.Context, in *G
 	return out, nil
 }
 
-func (c *cronJobServiceProtobufClient) CreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CronJob, error) {
+func (c *cronJobServiceProtobufClient) CreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CreateCronJobResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateCronJob")
 	caller := c.callCreateCronJob
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
+		caller = func(ctx context.Context, req *CreateCronJobRequest) (*CreateCronJobResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateCronJobRequest)
@@ -207,9 +207,9 @@ func (c *cronJobServiceProtobufClient) CreateCronJob(ctx context.Context, in *Cr
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*CreateCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -219,8 +219,8 @@ func (c *cronJobServiceProtobufClient) CreateCronJob(ctx context.Context, in *Cr
 	return caller(ctx, in)
 }
 
-func (c *cronJobServiceProtobufClient) callCreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CronJob, error) {
-	out := new(CronJob)
+func (c *cronJobServiceProtobufClient) callCreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CreateCronJobResponse, error) {
+	out := new(CreateCronJobResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -236,13 +236,13 @@ func (c *cronJobServiceProtobufClient) callCreateCronJob(ctx context.Context, in
 	return out, nil
 }
 
-func (c *cronJobServiceProtobufClient) UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*CronJob, error) {
+func (c *cronJobServiceProtobufClient) UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateCronJob")
 	caller := c.callUpdateCronJob
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
+		caller = func(ctx context.Context, req *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateCronJobRequest)
@@ -253,9 +253,9 @@ func (c *cronJobServiceProtobufClient) UpdateCronJob(ctx context.Context, in *Up
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*UpdateCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -265,8 +265,8 @@ func (c *cronJobServiceProtobufClient) UpdateCronJob(ctx context.Context, in *Up
 	return caller(ctx, in)
 }
 
-func (c *cronJobServiceProtobufClient) callUpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*CronJob, error) {
-	out := new(CronJob)
+func (c *cronJobServiceProtobufClient) callUpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
+	out := new(UpdateCronJobResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -282,13 +282,13 @@ func (c *cronJobServiceProtobufClient) callUpdateCronJob(ctx context.Context, in
 	return out, nil
 }
 
-func (c *cronJobServiceProtobufClient) DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*CronJob, error) {
+func (c *cronJobServiceProtobufClient) DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteCronJob")
 	caller := c.callDeleteCronJob
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteCronJobRequest) (*CronJob, error) {
+		caller = func(ctx context.Context, req *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteCronJobRequest)
@@ -299,9 +299,9 @@ func (c *cronJobServiceProtobufClient) DeleteCronJob(ctx context.Context, in *De
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*DeleteCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -311,8 +311,8 @@ func (c *cronJobServiceProtobufClient) DeleteCronJob(ctx context.Context, in *De
 	return caller(ctx, in)
 }
 
-func (c *cronJobServiceProtobufClient) callDeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*CronJob, error) {
-	out := new(CronJob)
+func (c *cronJobServiceProtobufClient) callDeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
+	out := new(DeleteCronJobResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -471,13 +471,13 @@ func (c *cronJobServiceJSONClient) callListCronJobs(ctx context.Context, in *Lis
 	return out, nil
 }
 
-func (c *cronJobServiceJSONClient) GetCronJob(ctx context.Context, in *GetCronJobRequest) (*CronJob, error) {
+func (c *cronJobServiceJSONClient) GetCronJob(ctx context.Context, in *GetCronJobRequest) (*GetCronJobResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetCronJob")
 	caller := c.callGetCronJob
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetCronJobRequest) (*CronJob, error) {
+		caller = func(ctx context.Context, req *GetCronJobRequest) (*GetCronJobResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetCronJobRequest)
@@ -488,9 +488,9 @@ func (c *cronJobServiceJSONClient) GetCronJob(ctx context.Context, in *GetCronJo
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*GetCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -500,8 +500,8 @@ func (c *cronJobServiceJSONClient) GetCronJob(ctx context.Context, in *GetCronJo
 	return caller(ctx, in)
 }
 
-func (c *cronJobServiceJSONClient) callGetCronJob(ctx context.Context, in *GetCronJobRequest) (*CronJob, error) {
-	out := new(CronJob)
+func (c *cronJobServiceJSONClient) callGetCronJob(ctx context.Context, in *GetCronJobRequest) (*GetCronJobResponse, error) {
+	out := new(GetCronJobResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -517,13 +517,13 @@ func (c *cronJobServiceJSONClient) callGetCronJob(ctx context.Context, in *GetCr
 	return out, nil
 }
 
-func (c *cronJobServiceJSONClient) CreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CronJob, error) {
+func (c *cronJobServiceJSONClient) CreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CreateCronJobResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateCronJob")
 	caller := c.callCreateCronJob
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
+		caller = func(ctx context.Context, req *CreateCronJobRequest) (*CreateCronJobResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateCronJobRequest)
@@ -534,9 +534,9 @@ func (c *cronJobServiceJSONClient) CreateCronJob(ctx context.Context, in *Create
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*CreateCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -546,8 +546,8 @@ func (c *cronJobServiceJSONClient) CreateCronJob(ctx context.Context, in *Create
 	return caller(ctx, in)
 }
 
-func (c *cronJobServiceJSONClient) callCreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CronJob, error) {
-	out := new(CronJob)
+func (c *cronJobServiceJSONClient) callCreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CreateCronJobResponse, error) {
+	out := new(CreateCronJobResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -563,13 +563,13 @@ func (c *cronJobServiceJSONClient) callCreateCronJob(ctx context.Context, in *Cr
 	return out, nil
 }
 
-func (c *cronJobServiceJSONClient) UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*CronJob, error) {
+func (c *cronJobServiceJSONClient) UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateCronJob")
 	caller := c.callUpdateCronJob
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
+		caller = func(ctx context.Context, req *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateCronJobRequest)
@@ -580,9 +580,9 @@ func (c *cronJobServiceJSONClient) UpdateCronJob(ctx context.Context, in *Update
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*UpdateCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -592,8 +592,8 @@ func (c *cronJobServiceJSONClient) UpdateCronJob(ctx context.Context, in *Update
 	return caller(ctx, in)
 }
 
-func (c *cronJobServiceJSONClient) callUpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*CronJob, error) {
-	out := new(CronJob)
+func (c *cronJobServiceJSONClient) callUpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
+	out := new(UpdateCronJobResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -609,13 +609,13 @@ func (c *cronJobServiceJSONClient) callUpdateCronJob(ctx context.Context, in *Up
 	return out, nil
 }
 
-func (c *cronJobServiceJSONClient) DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*CronJob, error) {
+func (c *cronJobServiceJSONClient) DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteCronJob")
 	caller := c.callDeleteCronJob
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteCronJobRequest) (*CronJob, error) {
+		caller = func(ctx context.Context, req *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteCronJobRequest)
@@ -626,9 +626,9 @@ func (c *cronJobServiceJSONClient) DeleteCronJob(ctx context.Context, in *Delete
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*DeleteCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -638,8 +638,8 @@ func (c *cronJobServiceJSONClient) DeleteCronJob(ctx context.Context, in *Delete
 	return caller(ctx, in)
 }
 
-func (c *cronJobServiceJSONClient) callDeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*CronJob, error) {
-	out := new(CronJob)
+func (c *cronJobServiceJSONClient) callDeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
+	out := new(DeleteCronJobResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -1045,7 +1045,7 @@ func (s *cronJobServiceServer) serveGetCronJobJSON(ctx context.Context, resp htt
 
 	handler := s.CronJobService.GetCronJob
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetCronJobRequest) (*CronJob, error) {
+		handler = func(ctx context.Context, req *GetCronJobRequest) (*GetCronJobResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetCronJobRequest)
@@ -1056,9 +1056,9 @@ func (s *cronJobServiceServer) serveGetCronJobJSON(ctx context.Context, resp htt
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*GetCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1067,7 +1067,7 @@ func (s *cronJobServiceServer) serveGetCronJobJSON(ctx context.Context, resp htt
 	}
 
 	// Call service method
-	var respContent *CronJob
+	var respContent *GetCronJobResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1078,7 +1078,7 @@ func (s *cronJobServiceServer) serveGetCronJobJSON(ctx context.Context, resp htt
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling GetCronJob. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetCronJobResponse and nil error while calling GetCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -1126,7 +1126,7 @@ func (s *cronJobServiceServer) serveGetCronJobProtobuf(ctx context.Context, resp
 
 	handler := s.CronJobService.GetCronJob
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetCronJobRequest) (*CronJob, error) {
+		handler = func(ctx context.Context, req *GetCronJobRequest) (*GetCronJobResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*GetCronJobRequest)
@@ -1137,9 +1137,9 @@ func (s *cronJobServiceServer) serveGetCronJobProtobuf(ctx context.Context, resp
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*GetCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1148,7 +1148,7 @@ func (s *cronJobServiceServer) serveGetCronJobProtobuf(ctx context.Context, resp
 	}
 
 	// Call service method
-	var respContent *CronJob
+	var respContent *GetCronJobResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1159,7 +1159,7 @@ func (s *cronJobServiceServer) serveGetCronJobProtobuf(ctx context.Context, resp
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling GetCronJob. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetCronJobResponse and nil error while calling GetCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -1225,7 +1225,7 @@ func (s *cronJobServiceServer) serveCreateCronJobJSON(ctx context.Context, resp 
 
 	handler := s.CronJobService.CreateCronJob
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
+		handler = func(ctx context.Context, req *CreateCronJobRequest) (*CreateCronJobResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateCronJobRequest)
@@ -1236,9 +1236,9 @@ func (s *cronJobServiceServer) serveCreateCronJobJSON(ctx context.Context, resp 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*CreateCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1247,7 +1247,7 @@ func (s *cronJobServiceServer) serveCreateCronJobJSON(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *CronJob
+	var respContent *CreateCronJobResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1258,7 +1258,7 @@ func (s *cronJobServiceServer) serveCreateCronJobJSON(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling CreateCronJob. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateCronJobResponse and nil error while calling CreateCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -1306,7 +1306,7 @@ func (s *cronJobServiceServer) serveCreateCronJobProtobuf(ctx context.Context, r
 
 	handler := s.CronJobService.CreateCronJob
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
+		handler = func(ctx context.Context, req *CreateCronJobRequest) (*CreateCronJobResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*CreateCronJobRequest)
@@ -1317,9 +1317,9 @@ func (s *cronJobServiceServer) serveCreateCronJobProtobuf(ctx context.Context, r
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*CreateCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1328,7 +1328,7 @@ func (s *cronJobServiceServer) serveCreateCronJobProtobuf(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *CronJob
+	var respContent *CreateCronJobResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1339,7 +1339,7 @@ func (s *cronJobServiceServer) serveCreateCronJobProtobuf(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling CreateCronJob. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateCronJobResponse and nil error while calling CreateCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -1405,7 +1405,7 @@ func (s *cronJobServiceServer) serveUpdateCronJobJSON(ctx context.Context, resp 
 
 	handler := s.CronJobService.UpdateCronJob
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
+		handler = func(ctx context.Context, req *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateCronJobRequest)
@@ -1416,9 +1416,9 @@ func (s *cronJobServiceServer) serveUpdateCronJobJSON(ctx context.Context, resp 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*UpdateCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1427,7 +1427,7 @@ func (s *cronJobServiceServer) serveUpdateCronJobJSON(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *CronJob
+	var respContent *UpdateCronJobResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1438,7 +1438,7 @@ func (s *cronJobServiceServer) serveUpdateCronJobJSON(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling UpdateCronJob. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateCronJobResponse and nil error while calling UpdateCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -1486,7 +1486,7 @@ func (s *cronJobServiceServer) serveUpdateCronJobProtobuf(ctx context.Context, r
 
 	handler := s.CronJobService.UpdateCronJob
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
+		handler = func(ctx context.Context, req *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*UpdateCronJobRequest)
@@ -1497,9 +1497,9 @@ func (s *cronJobServiceServer) serveUpdateCronJobProtobuf(ctx context.Context, r
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*UpdateCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1508,7 +1508,7 @@ func (s *cronJobServiceServer) serveUpdateCronJobProtobuf(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *CronJob
+	var respContent *UpdateCronJobResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1519,7 +1519,7 @@ func (s *cronJobServiceServer) serveUpdateCronJobProtobuf(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling UpdateCronJob. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateCronJobResponse and nil error while calling UpdateCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -1585,7 +1585,7 @@ func (s *cronJobServiceServer) serveDeleteCronJobJSON(ctx context.Context, resp 
 
 	handler := s.CronJobService.DeleteCronJob
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteCronJobRequest) (*CronJob, error) {
+		handler = func(ctx context.Context, req *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteCronJobRequest)
@@ -1596,9 +1596,9 @@ func (s *cronJobServiceServer) serveDeleteCronJobJSON(ctx context.Context, resp 
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*DeleteCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1607,7 +1607,7 @@ func (s *cronJobServiceServer) serveDeleteCronJobJSON(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *CronJob
+	var respContent *DeleteCronJobResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1618,7 +1618,7 @@ func (s *cronJobServiceServer) serveDeleteCronJobJSON(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling DeleteCronJob. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteCronJobResponse and nil error while calling DeleteCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -1666,7 +1666,7 @@ func (s *cronJobServiceServer) serveDeleteCronJobProtobuf(ctx context.Context, r
 
 	handler := s.CronJobService.DeleteCronJob
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteCronJobRequest) (*CronJob, error) {
+		handler = func(ctx context.Context, req *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
 					typedReq, ok := req.(*DeleteCronJobRequest)
@@ -1677,9 +1677,9 @@ func (s *cronJobServiceServer) serveDeleteCronJobProtobuf(ctx context.Context, r
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CronJob)
+				typedResp, ok := resp.(*DeleteCronJobResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteCronJobResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1688,7 +1688,7 @@ func (s *cronJobServiceServer) serveDeleteCronJobProtobuf(ctx context.Context, r
 	}
 
 	// Call service method
-	var respContent *CronJob
+	var respContent *DeleteCronJobResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1699,7 +1699,7 @@ func (s *cronJobServiceServer) serveDeleteCronJobProtobuf(ctx context.Context, r
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling DeleteCronJob. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteCronJobResponse and nil error while calling DeleteCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -1919,66 +1919,69 @@ func (s *cronJobServiceServer) PathPrefix() string {
 }
 
 var twirpFileDescriptor1 = []byte{
-	// 970 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0x51, 0x73, 0xe2, 0x54,
-	0x14, 0x36, 0xd0, 0x42, 0x38, 0x6c, 0x2b, 0xde, 0xc5, 0x6d, 0x36, 0x75, 0x0b, 0x45, 0x77, 0xed,
-	0x74, 0xc6, 0x64, 0xca, 0x3a, 0xce, 0x6a, 0x1d, 0x67, 0x5a, 0x88, 0x5d, 0xd6, 0x0a, 0x9d, 0x00,
-	0xea, 0xfa, 0x92, 0x49, 0xc8, 0x5d, 0x48, 0x1b, 0x72, 0x63, 0x72, 0x83, 0x6d, 0x1f, 0x1c, 0x7f,
-	0x83, 0xcf, 0xfe, 0x0f, 0xff, 0x89, 0x7f, 0xc3, 0x77, 0x9f, 0x9c, 0xe4, 0x26, 0x6c, 0x02, 0x61,
-	0xf6, 0xc1, 0xb7, 0xdc, 0x73, 0xbe, 0xfb, 0x9d, 0x73, 0xcf, 0xf9, 0x3e, 0x06, 0xa8, 0xeb, 0x53,
-	0xec, 0x50, 0x5f, 0x5e, 0x9c, 0xc8, 0x13, 0x8f, 0x38, 0x92, 0xeb, 0x11, 0x4a, 0x50, 0x85, 0x45,
-	0xa5, 0xc5, 0x89, 0xd8, 0x98, 0x12, 0x32, 0xb5, 0xb1, 0x1c, 0x25, 0x8c, 0xe0, 0x8d, 0x4c, 0xad,
-	0x39, 0xf6, 0xa9, 0x3e, 0x77, 0x19, 0x56, 0xdc, 0x5b, 0xe8, 0xb6, 0x65, 0xea, 0x14, 0xcb, 0xc9,
-	0x07, 0x4b, 0xb4, 0xfe, 0x29, 0x40, 0xb9, 0xe3, 0x11, 0xe7, 0x15, 0x31, 0xd0, 0x3e, 0x6c, 0x39,
-	0xfa, 0x1c, 0x0b, 0x5c, 0x93, 0x3b, 0xaa, 0x9c, 0x97, 0xff, 0x3d, 0xdf, 0xf2, 0x0a, 0x35, 0x4e,
-	0x8d, 0x82, 0xe8, 0x63, 0xe0, 0xfd, 0xc9, 0x0c, 0x9b, 0x81, 0x8d, 0x85, 0x42, 0x16, 0xb0, 0x4c,
-	0xa0, 0x67, 0x00, 0x51, 0x53, 0x5a, 0xc4, 0x53, 0xcc, 0xc2, 0x58, 0xbf, 0xfd, 0x90, 0xac, 0x0e,
-	0xdb, 0x96, 0xe3, 0x06, 0x54, 0xd8, 0x0a, 0x21, 0x2a, 0x3b, 0x20, 0x11, 0xf8, 0xb0, 0xef, 0x7b,
-	0xe2, 0x60, 0x61, 0x3b, 0x4a, 0x2c, 0xcf, 0x48, 0x80, 0x32, 0x76, 0x74, 0xc3, 0xc6, 0xa6, 0x50,
-	0x6a, 0x72, 0x47, 0xbc, 0x9a, 0x1c, 0xd1, 0x73, 0xe0, 0x4d, 0x6c, 0x5b, 0x0b, 0xec, 0xdd, 0x09,
-	0xe5, 0x26, 0x77, 0x54, 0x6d, 0xef, 0x49, 0xcb, 0xc9, 0x48, 0xe1, 0xdb, 0xba, 0x71, 0x5a, 0x5d,
-	0x02, 0xd1, 0xd7, 0xc0, 0xcf, 0x31, 0xd5, 0x4d, 0x9d, 0xea, 0x02, 0x34, 0x8b, 0x47, 0xd5, 0x76,
-	0x73, 0xe5, 0xd2, 0x2b, 0x62, 0x48, 0xdf, 0xc7, 0x10, 0xc5, 0xa1, 0xe1, 0xed, 0xe4, 0x86, 0x78,
-	0x0a, 0x3b, 0x99, 0x14, 0xaa, 0x41, 0xf1, 0x06, 0xdf, 0xb1, 0xc1, 0xa9, 0xe1, 0x67, 0xf8, 0xc2,
-	0x85, 0x6e, 0x07, 0xf1, 0xac, 0x54, 0x76, 0xf8, 0xaa, 0xf0, 0x82, 0x6b, 0xfd, 0xc9, 0xc1, 0x83,
-	0x74, 0x57, 0x48, 0x86, 0x2d, 0x7a, 0xe7, 0xb2, 0xb1, 0xef, 0xb6, 0xf7, 0x37, 0x34, 0x3f, 0xba,
-	0x73, 0xb1, 0x1a, 0x01, 0x51, 0x03, 0xaa, 0xbf, 0x62, 0x63, 0x46, 0xc8, 0x8d, 0x16, 0x78, 0x76,
-	0x5c, 0x01, 0xe2, 0xd0, 0xd8, 0xb3, 0xd1, 0x21, 0x3c, 0x98, 0xcc, 0x74, 0xc7, 0xc1, 0x76, 0x6a,
-	0x11, 0x6a, 0x35, 0x8e, 0x45, 0x1b, 0xd8, 0x83, 0xf2, 0x64, 0xa6, 0x53, 0xcd, 0x32, 0xe3, 0x1d,
-	0x94, 0xc2, 0x63, 0xcf, 0x6c, 0xfd, 0x55, 0x80, 0x9d, 0xb0, 0xae, 0x72, 0x8b, 0x27, 0x01, 0xb5,
-	0x88, 0x83, 0x76, 0xa1, 0x60, 0x99, 0xf1, 0xdb, 0x0a, 0x96, 0x89, 0x1e, 0x03, 0x7f, 0x4d, 0x0c,
-	0xc6, 0xcc, 0x6a, 0x97, 0xaf, 0x89, 0x11, 0xb1, 0x3e, 0x59, 0xdf, 0x7f, 0x7a, 0xed, 0x5f, 0x40,
-	0xc9, 0xa7, 0x3a, 0x0d, 0xfc, 0xa8, 0xe6, 0x6e, 0xfb, 0x60, 0xe5, 0xad, 0xcb, 0x9a, 0xc3, 0x08,
-	0xa5, 0xc6, 0xe8, 0xb7, 0x72, 0xd9, 0x4e, 0xcb, 0xe5, 0x11, 0x94, 0x48, 0x40, 0xc3, 0x70, 0x89,
-	0xbd, 0x80, 0x9d, 0xd0, 0x97, 0x00, 0x3e, 0xd5, 0x3d, 0x8a, 0x4d, 0x4d, 0xa7, 0xb1, 0x24, 0x44,
-	0x89, 0x39, 0x44, 0x4a, 0x1c, 0x22, 0x8d, 0x12, 0x87, 0xa8, 0x95, 0x18, 0x7d, 0x46, 0xd1, 0x29,
-	0x54, 0xdf, 0x58, 0x8e, 0xe5, 0xcf, 0xd8, 0x5d, 0xfe, 0x9d, 0x77, 0x21, 0x81, 0x9f, 0xd1, 0xd6,
-	0x87, 0xf0, 0xf0, 0xd2, 0xf2, 0x69, 0x2c, 0x1e, 0x5f, 0xc5, 0xbf, 0x04, 0xd8, 0xa7, 0xad, 0x0b,
-	0xa8, 0x67, 0xc3, 0xbe, 0x4b, 0x1c, 0x1f, 0x23, 0x19, 0x2a, 0xa1, 0x99, 0xb5, 0x6b, 0x62, 0xf8,
-	0x02, 0x17, 0x69, 0x10, 0xad, 0x6b, 0x50, 0xe5, 0x27, 0xf1, 0xc5, 0xd6, 0xa7, 0xf0, 0xc1, 0x05,
-	0x4e, 0x78, 0x62, 0x76, 0x84, 0xd2, 0x9e, 0x65, 0x56, 0x6d, 0x29, 0x50, 0xef, 0x78, 0x58, 0xa7,
-	0x78, 0x05, 0xfb, 0x19, 0xf0, 0x49, 0xc5, 0x08, 0x9f, 0x5f, 0xb0, 0x1c, 0x17, 0x0c, 0x69, 0xc6,
-	0xae, 0xf9, 0xbf, 0x69, 0x8e, 0xa1, 0xde, 0xc5, 0x36, 0x5e, 0xa3, 0xc9, 0xeb, 0xdc, 0x83, 0xc7,
-	0xc9, 0xac, 0x96, 0x5a, 0x48, 0x06, 0x99, 0xd1, 0x1d, 0x97, 0xd5, 0xdd, 0x3e, 0x54, 0x5c, 0x7d,
-	0x8a, 0x35, 0xdf, 0xba, 0x67, 0x9a, 0xdc, 0x56, 0xf9, 0x30, 0x30, 0xb4, 0xee, 0x23, 0x51, 0x46,
-	0x49, 0x4a, 0x6e, 0xb0, 0x93, 0x88, 0x32, 0x8c, 0x8c, 0xc2, 0x40, 0xeb, 0x37, 0x10, 0xf3, 0x6a,
-	0xc6, 0x5b, 0x7a, 0x01, 0x80, 0x97, 0xd1, 0x78, 0x4d, 0xc2, 0x26, 0xd9, 0xaa, 0x29, 0x2c, 0x7a,
-	0x06, 0xef, 0x3b, 0xf8, 0x96, 0x6a, 0xa9, 0xda, 0xcc, 0x2d, 0x3b, 0x61, 0xf8, 0x2a, 0xa9, 0x7f,
-	0xfc, 0x07, 0x07, 0xb5, 0x55, 0xa3, 0xa3, 0x16, 0x1c, 0x74, 0xd4, 0x41, 0x5f, 0xeb, 0x2a, 0x97,
-	0xbd, 0x1f, 0x14, 0xf5, 0xb5, 0x36, 0x7a, 0x7d, 0xa5, 0x68, 0xe3, 0xfe, 0xf0, 0x4a, 0xe9, 0xf4,
-	0xbe, 0xed, 0x29, 0xdd, 0xda, 0x7b, 0x48, 0x84, 0x47, 0x39, 0x98, 0xcb, 0xc1, 0x45, 0x8d, 0x43,
-	0x07, 0x20, 0xe6, 0xe4, 0x7e, 0x54, 0xce, 0x5f, 0x0e, 0x06, 0xdf, 0xd5, 0x0a, 0x1b, 0xf2, 0x9d,
-	0x97, 0x67, 0xfd, 0xbe, 0x72, 0x59, 0x2b, 0x1e, 0xff, 0xce, 0xc1, 0xc3, 0x1c, 0x47, 0xa2, 0xa7,
-	0x70, 0x18, 0xdd, 0x53, 0x7e, 0x52, 0x3a, 0xe3, 0x51, 0x6f, 0xd0, 0xd7, 0x86, 0xa3, 0xb3, 0xd1,
-	0x78, 0xb8, 0xd2, 0xda, 0x21, 0x3c, 0xc9, 0x87, 0x0d, 0xc7, 0x9d, 0x8e, 0x32, 0x1c, 0xd6, 0x38,
-	0xd4, 0x80, 0xfd, 0x7c, 0x88, 0xa2, 0xaa, 0x03, 0xb5, 0x56, 0x68, 0xff, 0x5d, 0x84, 0xdd, 0x58,
-	0x32, 0x43, 0xec, 0x2d, 0xac, 0x09, 0x46, 0x03, 0x78, 0x90, 0xb6, 0x12, 0x4a, 0xff, 0x7e, 0xe4,
-	0x58, 0x4f, 0x6c, 0x6c, 0xcc, 0xc7, 0xdb, 0xfd, 0x06, 0xe0, 0xad, 0xa5, 0xd0, 0x47, 0x29, 0xf8,
-	0x9a, 0xd3, 0xc4, 0x1c, 0x91, 0xa3, 0x6e, 0xf8, 0x5b, 0x99, 0x72, 0x1a, 0x6a, 0x64, 0x40, 0xeb,
-	0x1e, 0xdc, 0xc4, 0x92, 0x31, 0x5a, 0x86, 0x25, 0xcf, 0x82, 0x9b, 0x58, 0x32, 0x3e, 0xcb, 0xb0,
-	0xe4, 0x39, 0x30, 0x97, 0x45, 0x07, 0xb4, 0xee, 0x06, 0xf4, 0x49, 0xce, 0x20, 0xd7, 0x0c, 0x2a,
-	0x3e, 0x7d, 0x07, 0x8a, 0x0d, 0xfd, 0xfc, 0xf3, 0x9f, 0xdb, 0x53, 0x22, 0x11, 0xef, 0x56, 0x9a,
-	0x63, 0x59, 0x77, 0x5d, 0x5f, 0x36, 0x02, 0x4a, 0xb1, 0x27, 0xbb, 0x37, 0x53, 0xf6, 0x0f, 0x46,
-	0x5e, 0xfe, 0xdf, 0x39, 0x65, 0x5f, 0x8b, 0x13, 0xa3, 0x14, 0x65, 0x9e, 0xff, 0x17, 0x00, 0x00,
-	0xff, 0xff, 0x10, 0xb7, 0xec, 0x26, 0x0c, 0x09, 0x00, 0x00,
+	// 1009 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xcf, 0x73, 0xdb, 0x44,
+	0x14, 0x46, 0x4e, 0x62, 0x3b, 0x2f, 0x3f, 0x30, 0xdb, 0xb4, 0x71, 0x15, 0x92, 0x38, 0x86, 0x96,
+	0x4c, 0x66, 0x90, 0x26, 0x2e, 0xc3, 0x14, 0xc2, 0x25, 0x71, 0xd4, 0xd4, 0x25, 0xd8, 0x99, 0xb5,
+	0x0d, 0x94, 0x8b, 0x46, 0xb2, 0xb6, 0x8e, 0x12, 0x59, 0x2b, 0xa4, 0x95, 0x49, 0x72, 0x60, 0xb8,
+	0x73, 0xe3, 0xcc, 0xff, 0xc1, 0x9f, 0xc5, 0x9d, 0x13, 0x23, 0xed, 0xca, 0x91, 0x6c, 0x79, 0x3a,
+	0x84, 0x9b, 0xf6, 0xbd, 0x6f, 0xbf, 0xf7, 0x63, 0xdf, 0xf7, 0x6c, 0xd8, 0x30, 0x86, 0xc4, 0x65,
+	0x81, 0x3a, 0x3e, 0x54, 0x07, 0x3e, 0x75, 0x15, 0xcf, 0xa7, 0x8c, 0xa2, 0x65, 0x6e, 0x55, 0xc6,
+	0x87, 0xf2, 0xee, 0x90, 0xd2, 0xa1, 0x43, 0xd4, 0xd8, 0x61, 0x86, 0xef, 0x54, 0x66, 0x8f, 0x48,
+	0xc0, 0x8c, 0x91, 0xc7, 0xb1, 0xf2, 0xe6, 0xd8, 0x70, 0x6c, 0xcb, 0x60, 0x44, 0x4d, 0x3e, 0xb8,
+	0xa3, 0xfe, 0x77, 0x01, 0x4a, 0x4d, 0x9f, 0xba, 0x6f, 0xa8, 0x89, 0xb6, 0x60, 0xd1, 0x35, 0x46,
+	0xa4, 0x2a, 0xd5, 0xa4, 0xfd, 0xe5, 0x93, 0xd2, 0x3f, 0x27, 0x8b, 0x7e, 0xa1, 0x22, 0xe1, 0xd8,
+	0x88, 0x3e, 0x81, 0x72, 0x30, 0xb8, 0x24, 0x56, 0xe8, 0x90, 0x6a, 0x21, 0x0b, 0x98, 0x38, 0xd0,
+	0x73, 0x80, 0x38, 0x29, 0x3d, 0xe6, 0x59, 0xc8, 0xc2, 0x78, 0xbe, 0xed, 0x88, 0x6c, 0x03, 0x96,
+	0x6c, 0xd7, 0x0b, 0x59, 0x75, 0x31, 0x82, 0x60, 0x7e, 0x40, 0x32, 0x94, 0xa3, 0xbc, 0xef, 0xa8,
+	0x4b, 0xaa, 0x4b, 0xb1, 0x63, 0x72, 0x46, 0x55, 0x28, 0x11, 0xd7, 0x30, 0x1d, 0x62, 0x55, 0x8b,
+	0x35, 0x69, 0xbf, 0x8c, 0x93, 0x23, 0x7a, 0x01, 0x65, 0x8b, 0x38, 0xf6, 0x98, 0xf8, 0xb7, 0xd5,
+	0x52, 0x4d, 0xda, 0x5f, 0x69, 0x6c, 0x2a, 0x93, 0xce, 0x28, 0x51, 0x6d, 0xa7, 0xc2, 0x8d, 0x27,
+	0x40, 0xf4, 0x0d, 0x94, 0x47, 0x84, 0x19, 0x96, 0xc1, 0x8c, 0x2a, 0xd4, 0x16, 0xf6, 0x57, 0x1a,
+	0xb5, 0xa9, 0x4b, 0x6f, 0xa8, 0xa9, 0x7c, 0x27, 0x20, 0x9a, 0xcb, 0xa2, 0xdb, 0xc9, 0x0d, 0xf9,
+	0x08, 0xd6, 0x32, 0x2e, 0x54, 0x81, 0x85, 0x6b, 0x72, 0xcb, 0x1b, 0x87, 0xa3, 0xcf, 0xa8, 0xc2,
+	0xb1, 0xe1, 0x84, 0xa2, 0x57, 0x98, 0x1f, 0xbe, 0x2e, 0xbc, 0x94, 0xea, 0x7f, 0x4a, 0xb0, 0x9a,
+	0xce, 0x0a, 0xa9, 0xb0, 0xc8, 0x6e, 0x3d, 0xde, 0xf6, 0xf5, 0xc6, 0xd6, 0x9c, 0xe4, 0x7b, 0xb7,
+	0x1e, 0xc1, 0x31, 0x10, 0xed, 0xc2, 0xca, 0x2f, 0xc4, 0xbc, 0xa4, 0xf4, 0x5a, 0x0f, 0x7d, 0x47,
+	0x44, 0x00, 0x61, 0xea, 0xfb, 0x0e, 0xda, 0x83, 0xd5, 0xc1, 0xa5, 0xe1, 0xba, 0xc4, 0x49, 0x3d,
+	0x04, 0x5e, 0x11, 0xb6, 0xf8, 0x05, 0x36, 0xa1, 0x34, 0xb8, 0x34, 0x98, 0x6e, 0x5b, 0xe2, 0x0d,
+	0x8a, 0xd1, 0xb1, 0x65, 0xd5, 0xff, 0x2a, 0xc0, 0x5a, 0x14, 0x57, 0xbb, 0x21, 0x83, 0x90, 0xd9,
+	0xd4, 0x45, 0xeb, 0x50, 0xb0, 0x2d, 0x51, 0x5b, 0xc1, 0xb6, 0xd0, 0x53, 0x28, 0x5f, 0x51, 0x93,
+	0x33, 0xf3, 0xd8, 0xa5, 0x2b, 0x6a, 0xc6, 0xac, 0xdb, 0xb3, 0xef, 0x9f, 0x7e, 0xf6, 0x2f, 0xa1,
+	0x18, 0x30, 0x83, 0x85, 0x41, 0x1c, 0x73, 0xbd, 0xb1, 0x33, 0x55, 0xeb, 0x24, 0x66, 0x37, 0x46,
+	0x61, 0x81, 0xbe, 0x1f, 0x97, 0xa5, 0xf4, 0xb8, 0x3c, 0x81, 0x22, 0x0d, 0x59, 0x64, 0x2e, 0xf2,
+	0x0a, 0xf8, 0x09, 0x7d, 0x05, 0x10, 0x30, 0xc3, 0x67, 0xc4, 0xd2, 0x0d, 0x26, 0x46, 0x42, 0x56,
+	0xb8, 0x42, 0x94, 0x44, 0x21, 0x4a, 0x2f, 0x51, 0x08, 0x5e, 0x16, 0xe8, 0x63, 0x86, 0x8e, 0x60,
+	0xe5, 0x9d, 0xed, 0xda, 0xc1, 0x25, 0xbf, 0x5b, 0x7e, 0xef, 0x5d, 0x48, 0xe0, 0xc7, 0xac, 0xfe,
+	0x18, 0x1e, 0x9d, 0xdb, 0x01, 0x13, 0xc3, 0x13, 0x60, 0xf2, 0x73, 0x48, 0x02, 0x56, 0x3f, 0x83,
+	0x8d, 0xac, 0x39, 0xf0, 0xa8, 0x1b, 0x10, 0xa4, 0xc2, 0x72, 0x24, 0x66, 0xfd, 0x8a, 0x9a, 0x41,
+	0x55, 0x8a, 0x67, 0x10, 0xcd, 0xce, 0x20, 0x2e, 0x0f, 0xc4, 0xc5, 0xfa, 0x67, 0xf0, 0xd1, 0x19,
+	0x49, 0x78, 0x04, 0x3b, 0x42, 0x69, 0xcd, 0x72, 0xa9, 0xd6, 0x35, 0xd8, 0x68, 0xfa, 0xc4, 0x60,
+	0x64, 0x0a, 0xfb, 0x39, 0x94, 0x93, 0x88, 0x31, 0x3e, 0x3f, 0x60, 0x49, 0x04, 0x8c, 0x68, 0xfa,
+	0x9e, 0xf5, 0xbf, 0x69, 0x0e, 0x60, 0xe3, 0x94, 0x38, 0x64, 0x86, 0x26, 0x2f, 0xf3, 0x26, 0xa0,
+	0x74, 0x89, 0xa2, 0x53, 0xff, 0x31, 0xe0, 0x2b, 0x78, 0x3c, 0x55, 0xfe, 0x83, 0x79, 0xa6, 0xea,
+	0x7f, 0x30, 0xcf, 0x54, 0x03, 0x1e, 0xc6, 0xe3, 0xc3, 0xd3, 0x64, 0x90, 0x26, 0x42, 0x49, 0xa6,
+	0x2c, 0x23, 0x4a, 0x29, 0x2b, 0xca, 0x2d, 0x58, 0xf6, 0x8c, 0x21, 0xd1, 0x03, 0xfb, 0x8e, 0x0b,
+	0x76, 0x09, 0x97, 0x23, 0x43, 0xd7, 0xbe, 0x8b, 0x15, 0x1b, 0x3b, 0x19, 0xbd, 0x26, 0x6e, 0xa2,
+	0xd8, 0xc8, 0xd2, 0x8b, 0x0c, 0xf5, 0x5f, 0x41, 0xce, 0x8b, 0x29, 0x0a, 0x78, 0x09, 0x40, 0x26,
+	0x56, 0x31, 0xc3, 0xd5, 0x79, 0x9a, 0xc6, 0x29, 0x2c, 0x7a, 0x0e, 0x1f, 0xba, 0xe4, 0x86, 0xe9,
+	0xa9, 0xd8, 0x7c, 0x95, 0xac, 0x45, 0xe6, 0x8b, 0x24, 0xfe, 0xc1, 0x1f, 0x12, 0x54, 0xa6, 0xb7,
+	0x20, 0xaa, 0xc3, 0x4e, 0x13, 0x77, 0xda, 0xfa, 0xa9, 0x76, 0xde, 0xfa, 0x5e, 0xc3, 0x6f, 0xf5,
+	0xde, 0xdb, 0x0b, 0x4d, 0xef, 0xb7, 0xbb, 0x17, 0x5a, 0xb3, 0xf5, 0xaa, 0xa5, 0x9d, 0x56, 0x3e,
+	0x40, 0x32, 0x3c, 0xc9, 0xc1, 0x9c, 0x77, 0xce, 0x2a, 0x12, 0xda, 0x01, 0x39, 0xc7, 0xf7, 0x83,
+	0x76, 0xf2, 0xba, 0xd3, 0xf9, 0xb6, 0x52, 0x98, 0xe3, 0x6f, 0xbe, 0x3e, 0x6e, 0xb7, 0xb5, 0xf3,
+	0xca, 0xc2, 0xc1, 0x6f, 0x12, 0x3c, 0xca, 0x59, 0x57, 0xe8, 0x19, 0xec, 0xc5, 0xf7, 0xb4, 0x1f,
+	0xb5, 0x66, 0xbf, 0xd7, 0xea, 0xb4, 0xf5, 0x6e, 0xef, 0xb8, 0xd7, 0xef, 0x4e, 0xa5, 0xb6, 0x07,
+	0xdb, 0xf9, 0xb0, 0x6e, 0xbf, 0xd9, 0xd4, 0xba, 0xdd, 0x8a, 0x84, 0x76, 0x61, 0x2b, 0x1f, 0xa2,
+	0x61, 0xdc, 0xc1, 0x95, 0x42, 0xe3, 0xf7, 0x45, 0x58, 0x17, 0x03, 0xd2, 0x25, 0xfe, 0xd8, 0x1e,
+	0x10, 0xd4, 0x81, 0xd5, 0xf4, 0x9e, 0x41, 0xe9, 0xe5, 0x9a, 0xb3, 0x97, 0xe4, 0xdd, 0xb9, 0x7e,
+	0xf1, 0xba, 0x2d, 0x80, 0x7b, 0x31, 0xa2, 0x8f, 0x53, 0xf0, 0x99, 0x35, 0x24, 0x6f, 0xcf, 0xf1,
+	0x0a, 0x2a, 0x1c, 0xfd, 0xa6, 0xa4, 0x24, 0x89, 0x76, 0x33, 0x53, 0x32, 0xbb, 0xab, 0xe4, 0xda,
+	0x7c, 0xc0, 0x3d, 0x67, 0x46, 0x9e, 0x19, 0xce, 0xbc, 0xc5, 0x95, 0xe1, 0xcc, 0x57, 0x36, 0x86,
+	0xb5, 0x8c, 0x54, 0x33, 0x9c, 0x79, 0x5b, 0x2c, 0xc3, 0x99, 0xaf, 0x72, 0x03, 0xd0, 0xac, 0x84,
+	0xd0, 0xa7, 0x39, 0xdd, 0x9f, 0x51, 0xb5, 0xfc, 0xec, 0x3d, 0x28, 0x1e, 0xe2, 0xe4, 0x8b, 0x9f,
+	0x1a, 0x43, 0xaa, 0x50, 0xff, 0x46, 0x19, 0x11, 0xd5, 0xf0, 0xbc, 0x40, 0x35, 0x43, 0xc6, 0x88,
+	0xaf, 0x7a, 0xd7, 0x43, 0xfe, 0x9f, 0x50, 0x9d, 0xfc, 0x83, 0x3c, 0xe2, 0x5f, 0xe3, 0x43, 0xb3,
+	0x18, 0x7b, 0x5e, 0xfc, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x0e, 0xe4, 0x23, 0x6e, 0x5e, 0x0a, 0x00,
+	0x00,
 }

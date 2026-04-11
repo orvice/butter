@@ -58,13 +58,13 @@ type CronJobServiceClient interface {
 	// ListCronJobs returns all cron jobs.
 	ListCronJobs(context.Context, *connect.Request[v1.ListCronJobsRequest]) (*connect.Response[v1.ListCronJobsResponse], error)
 	// GetCronJob returns a single cron job by name.
-	GetCronJob(context.Context, *connect.Request[v1.GetCronJobRequest]) (*connect.Response[v1.CronJob], error)
+	GetCronJob(context.Context, *connect.Request[v1.GetCronJobRequest]) (*connect.Response[v1.GetCronJobResponse], error)
 	// CreateCronJob creates a new cron job and schedules it.
-	CreateCronJob(context.Context, *connect.Request[v1.CreateCronJobRequest]) (*connect.Response[v1.CronJob], error)
+	CreateCronJob(context.Context, *connect.Request[v1.CreateCronJobRequest]) (*connect.Response[v1.CreateCronJobResponse], error)
 	// UpdateCronJob updates an existing cron job and reschedules it.
-	UpdateCronJob(context.Context, *connect.Request[v1.UpdateCronJobRequest]) (*connect.Response[v1.CronJob], error)
+	UpdateCronJob(context.Context, *connect.Request[v1.UpdateCronJobRequest]) (*connect.Response[v1.UpdateCronJobResponse], error)
 	// DeleteCronJob removes a cron job and unschedules it.
-	DeleteCronJob(context.Context, *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.CronJob], error)
+	DeleteCronJob(context.Context, *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.DeleteCronJobResponse], error)
 	// ListCronExecutions returns execution records, optionally filtered by job name.
 	ListCronExecutions(context.Context, *connect.Request[v1.ListCronExecutionsRequest]) (*connect.Response[v1.ListCronExecutionsResponse], error)
 }
@@ -86,25 +86,25 @@ func NewCronJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(cronJobServiceMethods.ByName("ListCronJobs")),
 			connect.WithClientOptions(opts...),
 		),
-		getCronJob: connect.NewClient[v1.GetCronJobRequest, v1.CronJob](
+		getCronJob: connect.NewClient[v1.GetCronJobRequest, v1.GetCronJobResponse](
 			httpClient,
 			baseURL+CronJobServiceGetCronJobProcedure,
 			connect.WithSchema(cronJobServiceMethods.ByName("GetCronJob")),
 			connect.WithClientOptions(opts...),
 		),
-		createCronJob: connect.NewClient[v1.CreateCronJobRequest, v1.CronJob](
+		createCronJob: connect.NewClient[v1.CreateCronJobRequest, v1.CreateCronJobResponse](
 			httpClient,
 			baseURL+CronJobServiceCreateCronJobProcedure,
 			connect.WithSchema(cronJobServiceMethods.ByName("CreateCronJob")),
 			connect.WithClientOptions(opts...),
 		),
-		updateCronJob: connect.NewClient[v1.UpdateCronJobRequest, v1.CronJob](
+		updateCronJob: connect.NewClient[v1.UpdateCronJobRequest, v1.UpdateCronJobResponse](
 			httpClient,
 			baseURL+CronJobServiceUpdateCronJobProcedure,
 			connect.WithSchema(cronJobServiceMethods.ByName("UpdateCronJob")),
 			connect.WithClientOptions(opts...),
 		),
-		deleteCronJob: connect.NewClient[v1.DeleteCronJobRequest, v1.CronJob](
+		deleteCronJob: connect.NewClient[v1.DeleteCronJobRequest, v1.DeleteCronJobResponse](
 			httpClient,
 			baseURL+CronJobServiceDeleteCronJobProcedure,
 			connect.WithSchema(cronJobServiceMethods.ByName("DeleteCronJob")),
@@ -122,10 +122,10 @@ func NewCronJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 // cronJobServiceClient implements CronJobServiceClient.
 type cronJobServiceClient struct {
 	listCronJobs       *connect.Client[v1.ListCronJobsRequest, v1.ListCronJobsResponse]
-	getCronJob         *connect.Client[v1.GetCronJobRequest, v1.CronJob]
-	createCronJob      *connect.Client[v1.CreateCronJobRequest, v1.CronJob]
-	updateCronJob      *connect.Client[v1.UpdateCronJobRequest, v1.CronJob]
-	deleteCronJob      *connect.Client[v1.DeleteCronJobRequest, v1.CronJob]
+	getCronJob         *connect.Client[v1.GetCronJobRequest, v1.GetCronJobResponse]
+	createCronJob      *connect.Client[v1.CreateCronJobRequest, v1.CreateCronJobResponse]
+	updateCronJob      *connect.Client[v1.UpdateCronJobRequest, v1.UpdateCronJobResponse]
+	deleteCronJob      *connect.Client[v1.DeleteCronJobRequest, v1.DeleteCronJobResponse]
 	listCronExecutions *connect.Client[v1.ListCronExecutionsRequest, v1.ListCronExecutionsResponse]
 }
 
@@ -135,22 +135,22 @@ func (c *cronJobServiceClient) ListCronJobs(ctx context.Context, req *connect.Re
 }
 
 // GetCronJob calls agents.v1.CronJobService.GetCronJob.
-func (c *cronJobServiceClient) GetCronJob(ctx context.Context, req *connect.Request[v1.GetCronJobRequest]) (*connect.Response[v1.CronJob], error) {
+func (c *cronJobServiceClient) GetCronJob(ctx context.Context, req *connect.Request[v1.GetCronJobRequest]) (*connect.Response[v1.GetCronJobResponse], error) {
 	return c.getCronJob.CallUnary(ctx, req)
 }
 
 // CreateCronJob calls agents.v1.CronJobService.CreateCronJob.
-func (c *cronJobServiceClient) CreateCronJob(ctx context.Context, req *connect.Request[v1.CreateCronJobRequest]) (*connect.Response[v1.CronJob], error) {
+func (c *cronJobServiceClient) CreateCronJob(ctx context.Context, req *connect.Request[v1.CreateCronJobRequest]) (*connect.Response[v1.CreateCronJobResponse], error) {
 	return c.createCronJob.CallUnary(ctx, req)
 }
 
 // UpdateCronJob calls agents.v1.CronJobService.UpdateCronJob.
-func (c *cronJobServiceClient) UpdateCronJob(ctx context.Context, req *connect.Request[v1.UpdateCronJobRequest]) (*connect.Response[v1.CronJob], error) {
+func (c *cronJobServiceClient) UpdateCronJob(ctx context.Context, req *connect.Request[v1.UpdateCronJobRequest]) (*connect.Response[v1.UpdateCronJobResponse], error) {
 	return c.updateCronJob.CallUnary(ctx, req)
 }
 
 // DeleteCronJob calls agents.v1.CronJobService.DeleteCronJob.
-func (c *cronJobServiceClient) DeleteCronJob(ctx context.Context, req *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.CronJob], error) {
+func (c *cronJobServiceClient) DeleteCronJob(ctx context.Context, req *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.DeleteCronJobResponse], error) {
 	return c.deleteCronJob.CallUnary(ctx, req)
 }
 
@@ -164,13 +164,13 @@ type CronJobServiceHandler interface {
 	// ListCronJobs returns all cron jobs.
 	ListCronJobs(context.Context, *connect.Request[v1.ListCronJobsRequest]) (*connect.Response[v1.ListCronJobsResponse], error)
 	// GetCronJob returns a single cron job by name.
-	GetCronJob(context.Context, *connect.Request[v1.GetCronJobRequest]) (*connect.Response[v1.CronJob], error)
+	GetCronJob(context.Context, *connect.Request[v1.GetCronJobRequest]) (*connect.Response[v1.GetCronJobResponse], error)
 	// CreateCronJob creates a new cron job and schedules it.
-	CreateCronJob(context.Context, *connect.Request[v1.CreateCronJobRequest]) (*connect.Response[v1.CronJob], error)
+	CreateCronJob(context.Context, *connect.Request[v1.CreateCronJobRequest]) (*connect.Response[v1.CreateCronJobResponse], error)
 	// UpdateCronJob updates an existing cron job and reschedules it.
-	UpdateCronJob(context.Context, *connect.Request[v1.UpdateCronJobRequest]) (*connect.Response[v1.CronJob], error)
+	UpdateCronJob(context.Context, *connect.Request[v1.UpdateCronJobRequest]) (*connect.Response[v1.UpdateCronJobResponse], error)
 	// DeleteCronJob removes a cron job and unschedules it.
-	DeleteCronJob(context.Context, *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.CronJob], error)
+	DeleteCronJob(context.Context, *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.DeleteCronJobResponse], error)
 	// ListCronExecutions returns execution records, optionally filtered by job name.
 	ListCronExecutions(context.Context, *connect.Request[v1.ListCronExecutionsRequest]) (*connect.Response[v1.ListCronExecutionsResponse], error)
 }
@@ -245,19 +245,19 @@ func (UnimplementedCronJobServiceHandler) ListCronJobs(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.CronJobService.ListCronJobs is not implemented"))
 }
 
-func (UnimplementedCronJobServiceHandler) GetCronJob(context.Context, *connect.Request[v1.GetCronJobRequest]) (*connect.Response[v1.CronJob], error) {
+func (UnimplementedCronJobServiceHandler) GetCronJob(context.Context, *connect.Request[v1.GetCronJobRequest]) (*connect.Response[v1.GetCronJobResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.CronJobService.GetCronJob is not implemented"))
 }
 
-func (UnimplementedCronJobServiceHandler) CreateCronJob(context.Context, *connect.Request[v1.CreateCronJobRequest]) (*connect.Response[v1.CronJob], error) {
+func (UnimplementedCronJobServiceHandler) CreateCronJob(context.Context, *connect.Request[v1.CreateCronJobRequest]) (*connect.Response[v1.CreateCronJobResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.CronJobService.CreateCronJob is not implemented"))
 }
 
-func (UnimplementedCronJobServiceHandler) UpdateCronJob(context.Context, *connect.Request[v1.UpdateCronJobRequest]) (*connect.Response[v1.CronJob], error) {
+func (UnimplementedCronJobServiceHandler) UpdateCronJob(context.Context, *connect.Request[v1.UpdateCronJobRequest]) (*connect.Response[v1.UpdateCronJobResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.CronJobService.UpdateCronJob is not implemented"))
 }
 
-func (UnimplementedCronJobServiceHandler) DeleteCronJob(context.Context, *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.CronJob], error) {
+func (UnimplementedCronJobServiceHandler) DeleteCronJob(context.Context, *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.DeleteCronJobResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.CronJobService.DeleteCronJob is not implemented"))
 }
 

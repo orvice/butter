@@ -36,13 +36,13 @@ type CronJobServiceClient interface {
 	// ListCronJobs returns all cron jobs.
 	ListCronJobs(ctx context.Context, in *ListCronJobsRequest, opts ...grpc.CallOption) (*ListCronJobsResponse, error)
 	// GetCronJob returns a single cron job by name.
-	GetCronJob(ctx context.Context, in *GetCronJobRequest, opts ...grpc.CallOption) (*CronJob, error)
+	GetCronJob(ctx context.Context, in *GetCronJobRequest, opts ...grpc.CallOption) (*GetCronJobResponse, error)
 	// CreateCronJob creates a new cron job and schedules it.
-	CreateCronJob(ctx context.Context, in *CreateCronJobRequest, opts ...grpc.CallOption) (*CronJob, error)
+	CreateCronJob(ctx context.Context, in *CreateCronJobRequest, opts ...grpc.CallOption) (*CreateCronJobResponse, error)
 	// UpdateCronJob updates an existing cron job and reschedules it.
-	UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest, opts ...grpc.CallOption) (*CronJob, error)
+	UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest, opts ...grpc.CallOption) (*UpdateCronJobResponse, error)
 	// DeleteCronJob removes a cron job and unschedules it.
-	DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest, opts ...grpc.CallOption) (*CronJob, error)
+	DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest, opts ...grpc.CallOption) (*DeleteCronJobResponse, error)
 	// ListCronExecutions returns execution records, optionally filtered by job name.
 	ListCronExecutions(ctx context.Context, in *ListCronExecutionsRequest, opts ...grpc.CallOption) (*ListCronExecutionsResponse, error)
 }
@@ -65,9 +65,9 @@ func (c *cronJobServiceClient) ListCronJobs(ctx context.Context, in *ListCronJob
 	return out, nil
 }
 
-func (c *cronJobServiceClient) GetCronJob(ctx context.Context, in *GetCronJobRequest, opts ...grpc.CallOption) (*CronJob, error) {
+func (c *cronJobServiceClient) GetCronJob(ctx context.Context, in *GetCronJobRequest, opts ...grpc.CallOption) (*GetCronJobResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CronJob)
+	out := new(GetCronJobResponse)
 	err := c.cc.Invoke(ctx, CronJobService_GetCronJob_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -75,9 +75,9 @@ func (c *cronJobServiceClient) GetCronJob(ctx context.Context, in *GetCronJobReq
 	return out, nil
 }
 
-func (c *cronJobServiceClient) CreateCronJob(ctx context.Context, in *CreateCronJobRequest, opts ...grpc.CallOption) (*CronJob, error) {
+func (c *cronJobServiceClient) CreateCronJob(ctx context.Context, in *CreateCronJobRequest, opts ...grpc.CallOption) (*CreateCronJobResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CronJob)
+	out := new(CreateCronJobResponse)
 	err := c.cc.Invoke(ctx, CronJobService_CreateCronJob_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -85,9 +85,9 @@ func (c *cronJobServiceClient) CreateCronJob(ctx context.Context, in *CreateCron
 	return out, nil
 }
 
-func (c *cronJobServiceClient) UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest, opts ...grpc.CallOption) (*CronJob, error) {
+func (c *cronJobServiceClient) UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest, opts ...grpc.CallOption) (*UpdateCronJobResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CronJob)
+	out := new(UpdateCronJobResponse)
 	err := c.cc.Invoke(ctx, CronJobService_UpdateCronJob_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -95,9 +95,9 @@ func (c *cronJobServiceClient) UpdateCronJob(ctx context.Context, in *UpdateCron
 	return out, nil
 }
 
-func (c *cronJobServiceClient) DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest, opts ...grpc.CallOption) (*CronJob, error) {
+func (c *cronJobServiceClient) DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest, opts ...grpc.CallOption) (*DeleteCronJobResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CronJob)
+	out := new(DeleteCronJobResponse)
 	err := c.cc.Invoke(ctx, CronJobService_DeleteCronJob_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -124,13 +124,13 @@ type CronJobServiceServer interface {
 	// ListCronJobs returns all cron jobs.
 	ListCronJobs(context.Context, *ListCronJobsRequest) (*ListCronJobsResponse, error)
 	// GetCronJob returns a single cron job by name.
-	GetCronJob(context.Context, *GetCronJobRequest) (*CronJob, error)
+	GetCronJob(context.Context, *GetCronJobRequest) (*GetCronJobResponse, error)
 	// CreateCronJob creates a new cron job and schedules it.
-	CreateCronJob(context.Context, *CreateCronJobRequest) (*CronJob, error)
+	CreateCronJob(context.Context, *CreateCronJobRequest) (*CreateCronJobResponse, error)
 	// UpdateCronJob updates an existing cron job and reschedules it.
-	UpdateCronJob(context.Context, *UpdateCronJobRequest) (*CronJob, error)
+	UpdateCronJob(context.Context, *UpdateCronJobRequest) (*UpdateCronJobResponse, error)
 	// DeleteCronJob removes a cron job and unschedules it.
-	DeleteCronJob(context.Context, *DeleteCronJobRequest) (*CronJob, error)
+	DeleteCronJob(context.Context, *DeleteCronJobRequest) (*DeleteCronJobResponse, error)
 	// ListCronExecutions returns execution records, optionally filtered by job name.
 	ListCronExecutions(context.Context, *ListCronExecutionsRequest) (*ListCronExecutionsResponse, error)
 	mustEmbedUnimplementedCronJobServiceServer()
@@ -146,16 +146,16 @@ type UnimplementedCronJobServiceServer struct{}
 func (UnimplementedCronJobServiceServer) ListCronJobs(context.Context, *ListCronJobsRequest) (*ListCronJobsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCronJobs not implemented")
 }
-func (UnimplementedCronJobServiceServer) GetCronJob(context.Context, *GetCronJobRequest) (*CronJob, error) {
+func (UnimplementedCronJobServiceServer) GetCronJob(context.Context, *GetCronJobRequest) (*GetCronJobResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCronJob not implemented")
 }
-func (UnimplementedCronJobServiceServer) CreateCronJob(context.Context, *CreateCronJobRequest) (*CronJob, error) {
+func (UnimplementedCronJobServiceServer) CreateCronJob(context.Context, *CreateCronJobRequest) (*CreateCronJobResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateCronJob not implemented")
 }
-func (UnimplementedCronJobServiceServer) UpdateCronJob(context.Context, *UpdateCronJobRequest) (*CronJob, error) {
+func (UnimplementedCronJobServiceServer) UpdateCronJob(context.Context, *UpdateCronJobRequest) (*UpdateCronJobResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateCronJob not implemented")
 }
-func (UnimplementedCronJobServiceServer) DeleteCronJob(context.Context, *DeleteCronJobRequest) (*CronJob, error) {
+func (UnimplementedCronJobServiceServer) DeleteCronJob(context.Context, *DeleteCronJobRequest) (*DeleteCronJobResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteCronJob not implemented")
 }
 func (UnimplementedCronJobServiceServer) ListCronExecutions(context.Context, *ListCronExecutionsRequest) (*ListCronExecutionsResponse, error) {

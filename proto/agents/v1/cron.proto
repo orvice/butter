@@ -114,13 +114,13 @@ service CronJobService {
   // ListCronJobs returns all cron jobs.
   rpc ListCronJobs(ListCronJobsRequest) returns (ListCronJobsResponse);
   // GetCronJob returns a single cron job by name.
-  rpc GetCronJob(GetCronJobRequest) returns (CronJob);
+  rpc GetCronJob(GetCronJobRequest) returns (GetCronJobResponse);
   // CreateCronJob creates a new cron job and schedules it.
-  rpc CreateCronJob(CreateCronJobRequest) returns (CronJob);
+  rpc CreateCronJob(CreateCronJobRequest) returns (CreateCronJobResponse);
   // UpdateCronJob updates an existing cron job and reschedules it.
-  rpc UpdateCronJob(UpdateCronJobRequest) returns (CronJob);
+  rpc UpdateCronJob(UpdateCronJobRequest) returns (UpdateCronJobResponse);
   // DeleteCronJob removes a cron job and unschedules it.
-  rpc DeleteCronJob(DeleteCronJobRequest) returns (CronJob);
+  rpc DeleteCronJob(DeleteCronJobRequest) returns (DeleteCronJobResponse);
   // ListCronExecutions returns execution records, optionally filtered by job name.
   rpc ListCronExecutions(ListCronExecutionsRequest) returns (ListCronExecutionsResponse);
 }
@@ -149,6 +149,22 @@ message UpdateCronJobRequest {
 message DeleteCronJobRequest {
   // @gotags: json:"name,omitempty" yaml:"name,omitempty"
   string name = 1;
+}
+
+message GetCronJobResponse {
+  CronJob cron_job = 1;
+}
+
+message CreateCronJobResponse {
+  CronJob cron_job = 1;
+}
+
+message UpdateCronJobResponse {
+  CronJob cron_job = 1;
+}
+
+message DeleteCronJobResponse {
+  CronJob cron_job = 1;
 }
 
 message ListCronExecutionsRequest {
