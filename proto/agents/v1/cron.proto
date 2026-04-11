@@ -109,10 +109,18 @@ enum CronExecutionStatus {
   CRON_EXECUTION_STATUS_ERROR = 2;
 }
 
-// CronJobService provides read access to cron jobs and their execution history.
+// CronJobService manages cron jobs and their execution history.
 service CronJobService {
-  // ListCronJobs returns all configured cron jobs.
+  // ListCronJobs returns all cron jobs.
   rpc ListCronJobs(ListCronJobsRequest) returns (ListCronJobsResponse);
+  // GetCronJob returns a single cron job by name.
+  rpc GetCronJob(GetCronJobRequest) returns (CronJob);
+  // CreateCronJob creates a new cron job and schedules it.
+  rpc CreateCronJob(CreateCronJobRequest) returns (CronJob);
+  // UpdateCronJob updates an existing cron job and reschedules it.
+  rpc UpdateCronJob(UpdateCronJobRequest) returns (CronJob);
+  // DeleteCronJob removes a cron job and unschedules it.
+  rpc DeleteCronJob(DeleteCronJobRequest) returns (CronJob);
   // ListCronExecutions returns execution records, optionally filtered by job name.
   rpc ListCronExecutions(ListCronExecutionsRequest) returns (ListCronExecutionsResponse);
 }
@@ -123,6 +131,24 @@ message ListCronJobsRequest {}
 
 message ListCronJobsResponse {
   repeated CronJob cron_jobs = 1;
+}
+
+message GetCronJobRequest {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+}
+
+message CreateCronJobRequest {
+  CronJob cron_job = 1;
+}
+
+message UpdateCronJobRequest {
+  CronJob cron_job = 1;
+}
+
+message DeleteCronJobRequest {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
 }
 
 message ListCronExecutionsRequest {

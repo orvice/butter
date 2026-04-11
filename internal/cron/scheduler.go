@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -20,16 +21,19 @@ import (
 
 // Scheduler manages cron-based agent execution.
 type Scheduler struct {
-	cron      *robfigcron.Cron
-	runner    *runner.Service
-	repo      ExecutionRepo
-	jobs      []agentsv1.CronJob
-	ctx       context.Context
-	cancelFn  context.CancelFunc
+	cron     *robfigcron.Cron
+	runner   *runner.Service
+	execRepo ExecutionRepo
+	jobRepo  JobRepo
+	ctx      context.Context
+	cancelFn context.CancelFunc
+
+	mu       sync.Mutex
+	entryIDs map[string]robfigcron.EntryID // job name -> cron entry ID
 }
 
-// NewScheduler creates a scheduler and registers all enabled cron jobs.
-func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobs []agentsv1.CronJob, repo ExecutionRepo) (*Scheduler, error) {
+// NewScheduler creates a scheduler, loads jobs from the repo, and registers them.
+func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRepo, execRepo ExecutionRepo) (*Scheduler, error) {
 	logger := log.FromContext(ctx)
 	schedCtx, cancel := context.WithCancel(ctx)
 
@@ -38,63 +42,27 @@ func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobs []agentsv
 	s := &Scheduler{
 		cron:     c,
 		runner:   runnerSvc,
-		repo:     repo,
-		jobs:     jobs,
+		execRepo: execRepo,
+		jobRepo:  jobRepo,
 		ctx:      schedCtx,
 		cancelFn: cancel,
+		entryIDs: make(map[string]robfigcron.EntryID),
 	}
 
-	for i := range jobs {
-		job := &jobs[i]
-		if !job.GetEnabled() {
-			logger.Info("skipping disabled cron job", "job", job.GetName())
-			continue
-		}
-
-		if !runnerSvc.HasAgent(job.GetAgentName()) {
-			logger.Error("cron job references unknown agent, skipping",
-				"job", job.GetName(),
-				"agent", job.GetAgentName(),
-			)
-			continue
-		}
-
-		schedule := job.GetSchedule()
-
-		if tz := job.GetTimezone(); tz != "" {
-			if _, err := loadTimezone(tz); err != nil {
-				logger.Error("invalid timezone for cron job, skipping",
-					"job", job.GetName(),
-					"timezone", tz,
-					"err", err,
-				)
-				continue
-			}
-			schedule = fmt.Sprintf("CRON_TZ=%s %s", tz, schedule)
-		}
-
-		sched, err := parseSchedule(schedule)
-		if err != nil {
-			logger.Error("invalid cron expression, skipping",
-				"job", job.GetName(),
-				"schedule", job.GetSchedule(),
-				"err", err,
-			)
-			continue
-		}
-
-		c.Schedule(sched, robfigcron.FuncJob(func() {
-			s.executeJob(job)
-		}))
-
-		logger.Info("registered cron job",
-			"job", job.GetName(),
-			"schedule", job.GetSchedule(),
-			"agent", job.GetAgentName(),
-			"timezone", job.GetTimezone(),
-		)
+	// Load existing jobs from MongoDB.
+	jobs, err := jobRepo.List(ctx)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("loading cron jobs: %w", err)
 	}
 
+	for _, job := range jobs {
+		if err := s.registerJob(job); err != nil {
+			logger.Error("failed to register cron job", "job", job.GetName(), "err", err)
+		}
+	}
+
+	logger.Info("cron scheduler initialized", "job_count", len(jobs))
 	return s, nil
 }
 
@@ -109,9 +77,101 @@ func (s *Scheduler) Stop() context.Context {
 	return s.cron.Stop()
 }
 
-// Jobs returns the configured cron jobs.
-func (s *Scheduler) Jobs() []agentsv1.CronJob {
-	return s.jobs
+// AddJob persists and schedules a new cron job.
+func (s *Scheduler) AddJob(ctx context.Context, job *agentsv1.CronJob) error {
+	if err := s.jobRepo.Create(ctx, job); err != nil {
+		return err
+	}
+	return s.registerJob(job)
+}
+
+// UpdateJob updates a persisted cron job and reschedules it.
+func (s *Scheduler) UpdateJob(ctx context.Context, job *agentsv1.CronJob) error {
+	if err := s.jobRepo.Update(ctx, job); err != nil {
+		return err
+	}
+	s.unregisterJob(job.GetName())
+	return s.registerJob(job)
+}
+
+// RemoveJob removes a cron job from persistence and unschedules it.
+func (s *Scheduler) RemoveJob(ctx context.Context, name string) error {
+	if err := s.jobRepo.Delete(ctx, name); err != nil {
+		return err
+	}
+	s.unregisterJob(name)
+	return nil
+}
+
+// GetJob returns a cron job by name.
+func (s *Scheduler) GetJob(ctx context.Context, name string) (*agentsv1.CronJob, error) {
+	return s.jobRepo.Get(ctx, name)
+}
+
+// ListJobs returns all cron jobs.
+func (s *Scheduler) ListJobs(ctx context.Context) ([]*agentsv1.CronJob, error) {
+	return s.jobRepo.List(ctx)
+}
+
+// registerJob adds a job to the cron scheduler (in-memory).
+func (s *Scheduler) registerJob(job *agentsv1.CronJob) error {
+	logger := log.FromContext(s.ctx)
+
+	if !job.GetEnabled() {
+		logger.Info("skipping disabled cron job", "job", job.GetName())
+		return nil
+	}
+
+	if !s.runner.HasAgent(job.GetAgentName()) {
+		return fmt.Errorf("cron job %q references unknown agent %q", job.GetName(), job.GetAgentName())
+	}
+
+	schedule := job.GetSchedule()
+	if tz := job.GetTimezone(); tz != "" {
+		if _, err := loadTimezone(tz); err != nil {
+			return fmt.Errorf("invalid timezone %q: %w", tz, err)
+		}
+		schedule = fmt.Sprintf("CRON_TZ=%s %s", tz, schedule)
+	}
+
+	sched, err := parseSchedule(schedule)
+	if err != nil {
+		return fmt.Errorf("invalid cron expression %q: %w", job.GetSchedule(), err)
+	}
+
+	// Capture job name for the closure — the proto pointer is safe since we store it in MongoDB.
+	jobName := job.GetName()
+	entryID := s.cron.Schedule(sched, robfigcron.FuncJob(func() {
+		// Re-read the job from repo to get the latest config.
+		current, err := s.jobRepo.Get(s.ctx, jobName)
+		if err != nil {
+			logger.Error("failed to load cron job for execution", "job", jobName, "err", err)
+			return
+		}
+		s.executeJob(current)
+	}))
+
+	s.mu.Lock()
+	s.entryIDs[job.GetName()] = entryID
+	s.mu.Unlock()
+
+	logger.Info("registered cron job",
+		"job", job.GetName(),
+		"schedule", job.GetSchedule(),
+		"agent", job.GetAgentName(),
+		"timezone", job.GetTimezone(),
+	)
+	return nil
+}
+
+// unregisterJob removes a job from the cron scheduler (in-memory).
+func (s *Scheduler) unregisterJob(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entryID, ok := s.entryIDs[name]; ok {
+		s.cron.Remove(entryID)
+		delete(s.entryIDs, name)
+	}
 }
 
 func (s *Scheduler) executeJob(job *agentsv1.CronJob) {
@@ -178,7 +238,7 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) {
 	}
 
 	// Persist execution record.
-	if saveErr := s.repo.Save(s.ctx, exec); saveErr != nil {
+	if saveErr := s.execRepo.Save(s.ctx, exec); saveErr != nil {
 		logger.Error("failed to save cron execution record",
 			"job", job.GetName(),
 			"exec_id", execID,

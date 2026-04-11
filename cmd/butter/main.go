@@ -8,6 +8,8 @@ import (
 	"butterfly.orx.me/core/app"
 	"github.com/gin-gonic/gin"
 
+	"github.com/twitchtv/twirp"
+
 	"go.orx.me/apps/butter/internal/bootstrap"
 	appconfig "go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
@@ -29,13 +31,14 @@ func main() {
 
 	// Config store and Twirp services
 	cfgStore := configstore.New()
-	agentTwirp := agentsv1.NewAgentServiceServer(configapi.NewAgentServiceServer(cfgStore))
-	mcpTwirp := agentsv1.NewMCPServerServiceServer(configapi.NewMCPServerServiceServer(cfgStore))
-	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(configapi.NewRemoteAgentServiceServer(cfgStore))
+	pathPrefix := twirp.WithServerPathPrefix("/api")
+	agentTwirp := agentsv1.NewAgentServiceServer(configapi.NewAgentServiceServer(cfgStore), pathPrefix)
+	mcpTwirp := agentsv1.NewMCPServerServiceServer(configapi.NewMCPServerServiceServer(cfgStore), pathPrefix)
+	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(configapi.NewRemoteAgentServiceServer(cfgStore), pathPrefix)
 	sessionSvcServer := configapi.NewSessionServiceServer()
-	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer)
+	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer, pathPrefix)
 	cronSvcServer := configapi.NewCronJobServiceServer()
-	cronTwirp := agentsv1.NewCronJobServiceServer(cronSvcServer)
+	cronTwirp := agentsv1.NewCronJobServiceServer(cronSvcServer, pathPrefix)
 
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 
@@ -48,7 +51,7 @@ func main() {
 			healthHandler.Register(r)
 			a2aHandler.Register(r)
 
-			// Mount Twirp handlers — Twirp includes /twirp prefix by default
+			// Mount Twirp handlers under /api prefix
 			r.Any(agentTwirp.PathPrefix()+"*path", gin.WrapH(agentTwirp))
 			r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
 			r.Any(remoteTwirp.PathPrefix()+"*path", gin.WrapH(remoteTwirp))

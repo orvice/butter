@@ -26,10 +26,22 @@ const _ = twirp.TwirpPackageMinVersion_8_1_0
 // CronJobService Interface
 // ========================
 
-// CronJobService provides read access to cron jobs and their execution history.
+// CronJobService manages cron jobs and their execution history.
 type CronJobService interface {
-	// ListCronJobs returns all configured cron jobs.
+	// ListCronJobs returns all cron jobs.
 	ListCronJobs(context.Context, *ListCronJobsRequest) (*ListCronJobsResponse, error)
+
+	// GetCronJob returns a single cron job by name.
+	GetCronJob(context.Context, *GetCronJobRequest) (*CronJob, error)
+
+	// CreateCronJob creates a new cron job and schedules it.
+	CreateCronJob(context.Context, *CreateCronJobRequest) (*CronJob, error)
+
+	// UpdateCronJob updates an existing cron job and reschedules it.
+	UpdateCronJob(context.Context, *UpdateCronJobRequest) (*CronJob, error)
+
+	// DeleteCronJob removes a cron job and unschedules it.
+	DeleteCronJob(context.Context, *DeleteCronJobRequest) (*CronJob, error)
 
 	// ListCronExecutions returns execution records, optionally filtered by job name.
 	ListCronExecutions(context.Context, *ListCronExecutionsRequest) (*ListCronExecutionsResponse, error)
@@ -41,7 +53,7 @@ type CronJobService interface {
 
 type cronJobServiceProtobufClient struct {
 	client      HTTPClient
-	urls        [2]string
+	urls        [6]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -69,8 +81,12 @@ func NewCronJobServiceProtobufClient(baseURL string, client HTTPClient, opts ...
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "agents.v1", "CronJobService")
-	urls := [2]string{
+	urls := [6]string{
 		serviceURL + "ListCronJobs",
+		serviceURL + "GetCronJob",
+		serviceURL + "CreateCronJob",
+		serviceURL + "UpdateCronJob",
+		serviceURL + "DeleteCronJob",
 		serviceURL + "ListCronExecutions",
 	}
 
@@ -128,6 +144,190 @@ func (c *cronJobServiceProtobufClient) callListCronJobs(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *cronJobServiceProtobufClient) GetCronJob(ctx context.Context, in *GetCronJobRequest) (*CronJob, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
+	ctx = ctxsetters.WithMethodName(ctx, "GetCronJob")
+	caller := c.callGetCronJob
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *GetCronJobRequest) (*CronJob, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetCronJobRequest) when calling interceptor")
+					}
+					return c.callGetCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *cronJobServiceProtobufClient) callGetCronJob(ctx context.Context, in *GetCronJobRequest) (*CronJob, error) {
+	out := new(CronJob)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *cronJobServiceProtobufClient) CreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CronJob, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
+	ctx = ctxsetters.WithMethodName(ctx, "CreateCronJob")
+	caller := c.callCreateCronJob
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CreateCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CreateCronJobRequest) when calling interceptor")
+					}
+					return c.callCreateCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *cronJobServiceProtobufClient) callCreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CronJob, error) {
+	out := new(CronJob)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *cronJobServiceProtobufClient) UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*CronJob, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
+	ctx = ctxsetters.WithMethodName(ctx, "UpdateCronJob")
+	caller := c.callUpdateCronJob
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*UpdateCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateCronJobRequest) when calling interceptor")
+					}
+					return c.callUpdateCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *cronJobServiceProtobufClient) callUpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*CronJob, error) {
+	out := new(CronJob)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *cronJobServiceProtobufClient) DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*CronJob, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
+	ctx = ctxsetters.WithMethodName(ctx, "DeleteCronJob")
+	caller := c.callDeleteCronJob
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *DeleteCronJobRequest) (*CronJob, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*DeleteCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteCronJobRequest) when calling interceptor")
+					}
+					return c.callDeleteCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *cronJobServiceProtobufClient) callDeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*CronJob, error) {
+	out := new(CronJob)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
 func (c *cronJobServiceProtobufClient) ListCronExecutions(ctx context.Context, in *ListCronExecutionsRequest) (*ListCronExecutionsResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
@@ -159,7 +359,7 @@ func (c *cronJobServiceProtobufClient) ListCronExecutions(ctx context.Context, i
 
 func (c *cronJobServiceProtobufClient) callListCronExecutions(ctx context.Context, in *ListCronExecutionsRequest) (*ListCronExecutionsResponse, error) {
 	out := new(ListCronExecutionsResponse)
-	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -180,7 +380,7 @@ func (c *cronJobServiceProtobufClient) callListCronExecutions(ctx context.Contex
 
 type cronJobServiceJSONClient struct {
 	client      HTTPClient
-	urls        [2]string
+	urls        [6]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -208,8 +408,12 @@ func NewCronJobServiceJSONClient(baseURL string, client HTTPClient, opts ...twir
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "agents.v1", "CronJobService")
-	urls := [2]string{
+	urls := [6]string{
 		serviceURL + "ListCronJobs",
+		serviceURL + "GetCronJob",
+		serviceURL + "CreateCronJob",
+		serviceURL + "UpdateCronJob",
+		serviceURL + "DeleteCronJob",
 		serviceURL + "ListCronExecutions",
 	}
 
@@ -267,6 +471,190 @@ func (c *cronJobServiceJSONClient) callListCronJobs(ctx context.Context, in *Lis
 	return out, nil
 }
 
+func (c *cronJobServiceJSONClient) GetCronJob(ctx context.Context, in *GetCronJobRequest) (*CronJob, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
+	ctx = ctxsetters.WithMethodName(ctx, "GetCronJob")
+	caller := c.callGetCronJob
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *GetCronJobRequest) (*CronJob, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetCronJobRequest) when calling interceptor")
+					}
+					return c.callGetCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *cronJobServiceJSONClient) callGetCronJob(ctx context.Context, in *GetCronJobRequest) (*CronJob, error) {
+	out := new(CronJob)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *cronJobServiceJSONClient) CreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CronJob, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
+	ctx = ctxsetters.WithMethodName(ctx, "CreateCronJob")
+	caller := c.callCreateCronJob
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CreateCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CreateCronJobRequest) when calling interceptor")
+					}
+					return c.callCreateCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *cronJobServiceJSONClient) callCreateCronJob(ctx context.Context, in *CreateCronJobRequest) (*CronJob, error) {
+	out := new(CronJob)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *cronJobServiceJSONClient) UpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*CronJob, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
+	ctx = ctxsetters.WithMethodName(ctx, "UpdateCronJob")
+	caller := c.callUpdateCronJob
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*UpdateCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateCronJobRequest) when calling interceptor")
+					}
+					return c.callUpdateCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *cronJobServiceJSONClient) callUpdateCronJob(ctx context.Context, in *UpdateCronJobRequest) (*CronJob, error) {
+	out := new(CronJob)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *cronJobServiceJSONClient) DeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*CronJob, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
+	ctx = ctxsetters.WithMethodName(ctx, "DeleteCronJob")
+	caller := c.callDeleteCronJob
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *DeleteCronJobRequest) (*CronJob, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*DeleteCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteCronJobRequest) when calling interceptor")
+					}
+					return c.callDeleteCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *cronJobServiceJSONClient) callDeleteCronJob(ctx context.Context, in *DeleteCronJobRequest) (*CronJob, error) {
+	out := new(CronJob)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
 func (c *cronJobServiceJSONClient) ListCronExecutions(ctx context.Context, in *ListCronExecutionsRequest) (*ListCronExecutionsResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "CronJobService")
@@ -298,7 +686,7 @@ func (c *cronJobServiceJSONClient) ListCronExecutions(ctx context.Context, in *L
 
 func (c *cronJobServiceJSONClient) callListCronExecutions(ctx context.Context, in *ListCronExecutionsRequest) (*ListCronExecutionsResponse, error) {
 	out := new(ListCronExecutionsResponse)
-	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -412,6 +800,18 @@ func (s *cronJobServiceServer) ServeHTTP(resp http.ResponseWriter, req *http.Req
 	switch method {
 	case "ListCronJobs":
 		s.serveListCronJobs(ctx, resp, req)
+		return
+	case "GetCronJob":
+		s.serveGetCronJob(ctx, resp, req)
+		return
+	case "CreateCronJob":
+		s.serveCreateCronJob(ctx, resp, req)
+		return
+	case "UpdateCronJob":
+		s.serveUpdateCronJob(ctx, resp, req)
+		return
+	case "DeleteCronJob":
+		s.serveDeleteCronJob(ctx, resp, req)
 		return
 	case "ListCronExecutions":
 		s.serveListCronExecutions(ctx, resp, req)
@@ -580,6 +980,726 @@ func (s *cronJobServiceServer) serveListCronJobsProtobuf(ctx context.Context, re
 	}
 	if respContent == nil {
 		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListCronJobsResponse and nil error while calling ListCronJobs. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *cronJobServiceServer) serveGetCronJob(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveGetCronJobJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveGetCronJobProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *cronJobServiceServer) serveGetCronJobJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "GetCronJob")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(GetCronJobRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.CronJobService.GetCronJob
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *GetCronJobRequest) (*CronJob, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetCronJobRequest) when calling interceptor")
+					}
+					return s.CronJobService.GetCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CronJob
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling GetCronJob. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *cronJobServiceServer) serveGetCronJobProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "GetCronJob")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(GetCronJobRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.CronJobService.GetCronJob
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *GetCronJobRequest) (*CronJob, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetCronJobRequest) when calling interceptor")
+					}
+					return s.CronJobService.GetCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CronJob
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling GetCronJob. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *cronJobServiceServer) serveCreateCronJob(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveCreateCronJobJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveCreateCronJobProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *cronJobServiceServer) serveCreateCronJobJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "CreateCronJob")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(CreateCronJobRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.CronJobService.CreateCronJob
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CreateCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CreateCronJobRequest) when calling interceptor")
+					}
+					return s.CronJobService.CreateCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CronJob
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling CreateCronJob. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *cronJobServiceServer) serveCreateCronJobProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "CreateCronJob")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(CreateCronJobRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.CronJobService.CreateCronJob
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *CreateCronJobRequest) (*CronJob, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CreateCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CreateCronJobRequest) when calling interceptor")
+					}
+					return s.CronJobService.CreateCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CronJob
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling CreateCronJob. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *cronJobServiceServer) serveUpdateCronJob(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveUpdateCronJobJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveUpdateCronJobProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *cronJobServiceServer) serveUpdateCronJobJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "UpdateCronJob")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(UpdateCronJobRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.CronJobService.UpdateCronJob
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*UpdateCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateCronJobRequest) when calling interceptor")
+					}
+					return s.CronJobService.UpdateCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CronJob
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling UpdateCronJob. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *cronJobServiceServer) serveUpdateCronJobProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "UpdateCronJob")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(UpdateCronJobRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.CronJobService.UpdateCronJob
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *UpdateCronJobRequest) (*CronJob, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*UpdateCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateCronJobRequest) when calling interceptor")
+					}
+					return s.CronJobService.UpdateCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CronJob
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling UpdateCronJob. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *cronJobServiceServer) serveDeleteCronJob(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveDeleteCronJobJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveDeleteCronJobProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *cronJobServiceServer) serveDeleteCronJobJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "DeleteCronJob")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(DeleteCronJobRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.CronJobService.DeleteCronJob
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *DeleteCronJobRequest) (*CronJob, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*DeleteCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteCronJobRequest) when calling interceptor")
+					}
+					return s.CronJobService.DeleteCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CronJob
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling DeleteCronJob. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *cronJobServiceServer) serveDeleteCronJobProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "DeleteCronJob")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(DeleteCronJobRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.CronJobService.DeleteCronJob
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *DeleteCronJobRequest) (*CronJob, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*DeleteCronJobRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteCronJobRequest) when calling interceptor")
+					}
+					return s.CronJobService.DeleteCronJob(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CronJob)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CronJob) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CronJob
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CronJob and nil error while calling DeleteCronJob. nil responses are not supported"))
 		return
 	}
 
@@ -799,60 +1919,66 @@ func (s *cronJobServiceServer) PathPrefix() string {
 }
 
 var twirpFileDescriptor1 = []byte{
-	// 867 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x55, 0x41, 0x73, 0xdb, 0x44,
-	0x14, 0x46, 0x4a, 0x62, 0xcb, 0xcf, 0x49, 0xd0, 0x6c, 0x43, 0xa3, 0x2a, 0xd3, 0xc4, 0x31, 0xb4,
-	0x93, 0xe9, 0x41, 0x9a, 0xb8, 0x0c, 0x53, 0x08, 0x97, 0xc4, 0x11, 0xad, 0x4b, 0xb0, 0x33, 0x2b,
-	0x1b, 0x28, 0x17, 0xcd, 0xca, 0xda, 0xda, 0x4a, 0x64, 0xad, 0x90, 0x56, 0x26, 0xc9, 0x81, 0xe1,
-	0x37, 0x70, 0xe6, 0x7f, 0xf0, 0x07, 0xf8, 0x3f, 0xdc, 0x39, 0x31, 0xd2, 0x4a, 0xae, 0x9d, 0xd8,
-	0xd3, 0x9b, 0xf6, 0x7d, 0xdf, 0xdb, 0xf7, 0xde, 0x7e, 0xdf, 0x1b, 0xc1, 0x0e, 0x19, 0xd1, 0x90,
-	0x27, 0xe6, 0xf4, 0xd8, 0x1c, 0xc6, 0x2c, 0x34, 0xa2, 0x98, 0x71, 0x86, 0x6a, 0x22, 0x6a, 0x4c,
-	0x8f, 0xf5, 0x83, 0x11, 0x63, 0xa3, 0x80, 0x9a, 0x39, 0xe0, 0xa6, 0xef, 0x4d, 0xee, 0x4f, 0x68,
-	0xc2, 0xc9, 0x24, 0x12, 0x5c, 0x7d, 0x77, 0x4a, 0x02, 0xdf, 0x23, 0x9c, 0x9a, 0xe5, 0x87, 0x00,
-	0x9a, 0xff, 0xca, 0x50, 0x6d, 0xc7, 0x2c, 0x7c, 0xcb, 0x5c, 0xb4, 0x07, 0xeb, 0x21, 0x99, 0x50,
-	0x4d, 0x6a, 0x48, 0x47, 0xb5, 0xb3, 0xea, 0x7f, 0x67, 0xeb, 0xb1, 0xac, 0x4a, 0x38, 0x0f, 0xa2,
-	0xcf, 0x41, 0x49, 0x86, 0x63, 0xea, 0xa5, 0x01, 0xd5, 0xe4, 0x45, 0xc2, 0x0c, 0x40, 0xcf, 0x01,
-	0xf2, 0xa6, 0x9c, 0xfc, 0x9e, 0xb5, 0x45, 0x9a, 0xe8, 0xb7, 0x9b, 0x5d, 0xb6, 0x03, 0x1b, 0x7e,
-	0x18, 0xa5, 0x5c, 0x5b, 0xcf, 0x28, 0x58, 0x1c, 0x90, 0x0e, 0x4a, 0xd6, 0xf7, 0x1d, 0x0b, 0xa9,
-	0xb6, 0x91, 0x03, 0xb3, 0x33, 0xd2, 0xa0, 0x4a, 0x43, 0xe2, 0x06, 0xd4, 0xd3, 0x2a, 0x0d, 0xe9,
-	0x48, 0xc1, 0xe5, 0x11, 0xbd, 0x04, 0xc5, 0xa3, 0x81, 0x3f, 0xa5, 0xf1, 0xad, 0x56, 0x6d, 0x48,
-	0x47, 0xf5, 0xd6, 0xae, 0x31, 0x7b, 0x19, 0x23, 0x9b, 0xed, 0xbc, 0x80, 0xf1, 0x8c, 0x88, 0xbe,
-	0x05, 0x65, 0x42, 0x39, 0xf1, 0x08, 0x27, 0x1a, 0x34, 0xd6, 0x8e, 0xea, 0xad, 0xc6, 0xbd, 0xa4,
-	0xb7, 0xcc, 0x35, 0x7e, 0x28, 0x28, 0x56, 0xc8, 0xb3, 0xec, 0x32, 0x43, 0x3f, 0x81, 0xad, 0x05,
-	0x08, 0xa9, 0xb0, 0x76, 0x4d, 0x6f, 0xc5, 0xc3, 0xe1, 0xec, 0x33, 0x9b, 0x70, 0x4a, 0x82, 0xb4,
-	0x78, 0x2b, 0x2c, 0x0e, 0xdf, 0xc8, 0xaf, 0xa4, 0xe6, 0x5f, 0x12, 0x6c, 0xce, 0x77, 0x85, 0x4c,
-	0x58, 0xe7, 0xb7, 0x91, 0x78, 0xf6, 0xed, 0xd6, 0xde, 0x8a, 0xe6, 0xfb, 0xb7, 0x11, 0xc5, 0x39,
-	0x11, 0x1d, 0x40, 0xfd, 0x37, 0xea, 0x8e, 0x19, 0xbb, 0x76, 0xd2, 0x38, 0x28, 0x2a, 0x40, 0x11,
-	0x1a, 0xc4, 0x01, 0x3a, 0x84, 0xcd, 0xe1, 0x98, 0x84, 0x21, 0x0d, 0xe6, 0x84, 0xc0, 0xf5, 0x22,
-	0x96, 0x2b, 0xb0, 0x0b, 0xd5, 0xe1, 0x98, 0x70, 0xc7, 0xf7, 0x0a, 0x0d, 0x2a, 0xd9, 0xb1, 0xe3,
-	0x35, 0xff, 0x96, 0x61, 0x2b, 0xab, 0x6b, 0xdd, 0xd0, 0x61, 0xca, 0x7d, 0x16, 0xa2, 0x6d, 0x90,
-	0x7d, 0xaf, 0x98, 0x4d, 0xf6, 0x3d, 0xf4, 0x04, 0x94, 0x2b, 0xe6, 0x8a, 0x9b, 0x45, 0xed, 0xea,
-	0x15, 0x73, 0xf3, 0x5b, 0x9f, 0x3e, 0xd4, 0x7f, 0x5e, 0xf6, 0xaf, 0xa0, 0x92, 0x70, 0xc2, 0xd3,
-	0x24, 0xaf, 0xb9, 0xdd, 0xda, 0xbf, 0x37, 0xeb, 0xac, 0xa6, 0x9d, 0xb3, 0x70, 0xc1, 0xfe, 0x60,
-	0x97, 0x8d, 0x79, 0xbb, 0x3c, 0x86, 0x0a, 0x4b, 0x79, 0x16, 0xae, 0x88, 0x09, 0xc4, 0x09, 0x7d,
-	0x0d, 0x90, 0x70, 0x12, 0x73, 0xea, 0x39, 0x84, 0x17, 0x96, 0xd0, 0x0d, 0xb1, 0x21, 0x46, 0xb9,
-	0x21, 0x46, 0xbf, 0xdc, 0x10, 0x5c, 0x2b, 0xd8, 0xa7, 0x1c, 0x9d, 0x40, 0xfd, 0xbd, 0x1f, 0xfa,
-	0xc9, 0x58, 0xe4, 0x2a, 0x1f, 0xcd, 0x85, 0x92, 0x7e, 0xca, 0x9b, 0x9f, 0xc1, 0xa3, 0x0b, 0x3f,
-	0xe1, 0x85, 0x79, 0x12, 0x4c, 0x7f, 0x4d, 0x69, 0xc2, 0x9b, 0xaf, 0x61, 0x67, 0x31, 0x9c, 0x44,
-	0x2c, 0x4c, 0x28, 0x32, 0xa1, 0x96, 0x2d, 0xb3, 0x73, 0xc5, 0xdc, 0x44, 0x93, 0x72, 0x0f, 0xa2,
-	0x87, 0x1e, 0xc4, 0xca, 0xb0, 0x48, 0x6c, 0xc6, 0xf0, 0xa4, 0xbc, 0x68, 0xf6, 0x50, 0x65, 0x95,
-	0x05, 0x51, 0xa4, 0x45, 0x51, 0xf6, 0xa0, 0x16, 0x91, 0x11, 0x75, 0x12, 0xff, 0x4e, 0x08, 0xb6,
-	0x81, 0x95, 0x2c, 0x60, 0xfb, 0x77, 0xb9, 0x62, 0x39, 0xc8, 0xd9, 0x35, 0x0d, 0x4b, 0xc5, 0xb2,
-	0x48, 0x3f, 0x0b, 0x34, 0x7f, 0x07, 0x7d, 0x59, 0xcd, 0x62, 0x84, 0x57, 0x00, 0x74, 0x16, 0x2d,
-	0x66, 0xd0, 0x56, 0x69, 0x8a, 0xe7, 0xb8, 0xe8, 0x39, 0x7c, 0x1a, 0xd2, 0x1b, 0xee, 0xcc, 0xd5,
-	0x16, 0x56, 0xda, 0xca, 0xc2, 0x97, 0x65, 0xfd, 0x17, 0x7f, 0x4a, 0xa0, 0xde, 0xdf, 0x02, 0xd4,
-	0x84, 0xfd, 0x36, 0xee, 0x75, 0x9d, 0x73, 0xeb, 0xa2, 0xf3, 0xa3, 0x85, 0xdf, 0x39, 0xfd, 0x77,
-	0x97, 0x96, 0x33, 0xe8, 0xda, 0x97, 0x56, 0xbb, 0xf3, 0x5d, 0xc7, 0x3a, 0x57, 0x3f, 0x41, 0x3a,
-	0x3c, 0x5e, 0xc2, 0xb9, 0xe8, 0xbd, 0x56, 0x25, 0xb4, 0x0f, 0xfa, 0x12, 0xec, 0x27, 0xeb, 0xec,
-	0x4d, 0xaf, 0xf7, 0xbd, 0x2a, 0xaf, 0xc0, 0xdb, 0x6f, 0x4e, 0xbb, 0x5d, 0xeb, 0x42, 0x5d, 0x7b,
-	0xf1, 0x87, 0x04, 0x8f, 0x96, 0xd8, 0x15, 0x3d, 0x83, 0xc3, 0x3c, 0xcf, 0xfa, 0xd9, 0x6a, 0x0f,
-	0xfa, 0x9d, 0x5e, 0xd7, 0xb1, 0xfb, 0xa7, 0xfd, 0x81, 0x7d, 0xaf, 0xb5, 0x43, 0x78, 0xba, 0x9c,
-	0x66, 0x0f, 0xda, 0x6d, 0xcb, 0xb6, 0x55, 0x09, 0x1d, 0xc0, 0xde, 0x72, 0x8a, 0x85, 0x71, 0x0f,
-	0xab, 0x72, 0xeb, 0x1f, 0x09, 0xb6, 0x0b, 0x87, 0xd8, 0x34, 0x9e, 0xfa, 0x43, 0x8a, 0x7a, 0xb0,
-	0x39, 0xef, 0x33, 0x34, 0xbf, 0x5c, 0x4b, 0x7c, 0xa9, 0x1f, 0xac, 0xc4, 0x0b, 0x75, 0x09, 0xa0,
-	0x87, 0xda, 0xa3, 0x2f, 0x96, 0xa4, 0x3d, 0xb0, 0xa3, 0xfe, 0xec, 0x23, 0x2c, 0x51, 0xe2, 0xec,
-	0xcb, 0x5f, 0x5a, 0x23, 0x66, 0xb0, 0xf8, 0xc6, 0x98, 0x50, 0x93, 0x44, 0x51, 0x62, 0xba, 0x29,
-	0xe7, 0x34, 0x36, 0xa3, 0xeb, 0x91, 0xf8, 0x99, 0x99, 0xb3, 0x5f, 0xdf, 0x89, 0xf8, 0x9a, 0x1e,
-	0xbb, 0x95, 0x1c, 0x79, 0xf9, 0x7f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x8a, 0x12, 0xaf, 0x32, 0x17,
-	0x07, 0x00, 0x00,
+	// 970 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0x51, 0x73, 0xe2, 0x54,
+	0x14, 0x36, 0xd0, 0x42, 0x38, 0x6c, 0x2b, 0xde, 0xc5, 0x6d, 0x36, 0x75, 0x0b, 0x45, 0x77, 0xed,
+	0x74, 0xc6, 0x64, 0xca, 0x3a, 0xce, 0x6a, 0x1d, 0x67, 0x5a, 0x88, 0x5d, 0xd6, 0x0a, 0x9d, 0x00,
+	0xea, 0xfa, 0x92, 0x49, 0xc8, 0x5d, 0x48, 0x1b, 0x72, 0x63, 0x72, 0x83, 0x6d, 0x1f, 0x1c, 0x7f,
+	0x83, 0xcf, 0xfe, 0x0f, 0xff, 0x89, 0x7f, 0xc3, 0x77, 0x9f, 0x9c, 0xe4, 0x26, 0x6c, 0x02, 0x61,
+	0xf6, 0xc1, 0xb7, 0xdc, 0x73, 0xbe, 0xfb, 0x9d, 0x73, 0xcf, 0xf9, 0x3e, 0x06, 0xa8, 0xeb, 0x53,
+	0xec, 0x50, 0x5f, 0x5e, 0x9c, 0xc8, 0x13, 0x8f, 0x38, 0x92, 0xeb, 0x11, 0x4a, 0x50, 0x85, 0x45,
+	0xa5, 0xc5, 0x89, 0xd8, 0x98, 0x12, 0x32, 0xb5, 0xb1, 0x1c, 0x25, 0x8c, 0xe0, 0x8d, 0x4c, 0xad,
+	0x39, 0xf6, 0xa9, 0x3e, 0x77, 0x19, 0x56, 0xdc, 0x5b, 0xe8, 0xb6, 0x65, 0xea, 0x14, 0xcb, 0xc9,
+	0x07, 0x4b, 0xb4, 0xfe, 0x29, 0x40, 0xb9, 0xe3, 0x11, 0xe7, 0x15, 0x31, 0xd0, 0x3e, 0x6c, 0x39,
+	0xfa, 0x1c, 0x0b, 0x5c, 0x93, 0x3b, 0xaa, 0x9c, 0x97, 0xff, 0x3d, 0xdf, 0xf2, 0x0a, 0x35, 0x4e,
+	0x8d, 0x82, 0xe8, 0x63, 0xe0, 0xfd, 0xc9, 0x0c, 0x9b, 0x81, 0x8d, 0x85, 0x42, 0x16, 0xb0, 0x4c,
+	0xa0, 0x67, 0x00, 0x51, 0x53, 0x5a, 0xc4, 0x53, 0xcc, 0xc2, 0x58, 0xbf, 0xfd, 0x90, 0xac, 0x0e,
+	0xdb, 0x96, 0xe3, 0x06, 0x54, 0xd8, 0x0a, 0x21, 0x2a, 0x3b, 0x20, 0x11, 0xf8, 0xb0, 0xef, 0x7b,
+	0xe2, 0x60, 0x61, 0x3b, 0x4a, 0x2c, 0xcf, 0x48, 0x80, 0x32, 0x76, 0x74, 0xc3, 0xc6, 0xa6, 0x50,
+	0x6a, 0x72, 0x47, 0xbc, 0x9a, 0x1c, 0xd1, 0x73, 0xe0, 0x4d, 0x6c, 0x5b, 0x0b, 0xec, 0xdd, 0x09,
+	0xe5, 0x26, 0x77, 0x54, 0x6d, 0xef, 0x49, 0xcb, 0xc9, 0x48, 0xe1, 0xdb, 0xba, 0x71, 0x5a, 0x5d,
+	0x02, 0xd1, 0xd7, 0xc0, 0xcf, 0x31, 0xd5, 0x4d, 0x9d, 0xea, 0x02, 0x34, 0x8b, 0x47, 0xd5, 0x76,
+	0x73, 0xe5, 0xd2, 0x2b, 0x62, 0x48, 0xdf, 0xc7, 0x10, 0xc5, 0xa1, 0xe1, 0xed, 0xe4, 0x86, 0x78,
+	0x0a, 0x3b, 0x99, 0x14, 0xaa, 0x41, 0xf1, 0x06, 0xdf, 0xb1, 0xc1, 0xa9, 0xe1, 0x67, 0xf8, 0xc2,
+	0x85, 0x6e, 0x07, 0xf1, 0xac, 0x54, 0x76, 0xf8, 0xaa, 0xf0, 0x82, 0x6b, 0xfd, 0xc9, 0xc1, 0x83,
+	0x74, 0x57, 0x48, 0x86, 0x2d, 0x7a, 0xe7, 0xb2, 0xb1, 0xef, 0xb6, 0xf7, 0x37, 0x34, 0x3f, 0xba,
+	0x73, 0xb1, 0x1a, 0x01, 0x51, 0x03, 0xaa, 0xbf, 0x62, 0x63, 0x46, 0xc8, 0x8d, 0x16, 0x78, 0x76,
+	0x5c, 0x01, 0xe2, 0xd0, 0xd8, 0xb3, 0xd1, 0x21, 0x3c, 0x98, 0xcc, 0x74, 0xc7, 0xc1, 0x76, 0x6a,
+	0x11, 0x6a, 0x35, 0x8e, 0x45, 0x1b, 0xd8, 0x83, 0xf2, 0x64, 0xa6, 0x53, 0xcd, 0x32, 0xe3, 0x1d,
+	0x94, 0xc2, 0x63, 0xcf, 0x6c, 0xfd, 0x55, 0x80, 0x9d, 0xb0, 0xae, 0x72, 0x8b, 0x27, 0x01, 0xb5,
+	0x88, 0x83, 0x76, 0xa1, 0x60, 0x99, 0xf1, 0xdb, 0x0a, 0x96, 0x89, 0x1e, 0x03, 0x7f, 0x4d, 0x0c,
+	0xc6, 0xcc, 0x6a, 0x97, 0xaf, 0x89, 0x11, 0xb1, 0x3e, 0x59, 0xdf, 0x7f, 0x7a, 0xed, 0x5f, 0x40,
+	0xc9, 0xa7, 0x3a, 0x0d, 0xfc, 0xa8, 0xe6, 0x6e, 0xfb, 0x60, 0xe5, 0xad, 0xcb, 0x9a, 0xc3, 0x08,
+	0xa5, 0xc6, 0xe8, 0xb7, 0x72, 0xd9, 0x4e, 0xcb, 0xe5, 0x11, 0x94, 0x48, 0x40, 0xc3, 0x70, 0x89,
+	0xbd, 0x80, 0x9d, 0xd0, 0x97, 0x00, 0x3e, 0xd5, 0x3d, 0x8a, 0x4d, 0x4d, 0xa7, 0xb1, 0x24, 0x44,
+	0x89, 0x39, 0x44, 0x4a, 0x1c, 0x22, 0x8d, 0x12, 0x87, 0xa8, 0x95, 0x18, 0x7d, 0x46, 0xd1, 0x29,
+	0x54, 0xdf, 0x58, 0x8e, 0xe5, 0xcf, 0xd8, 0x5d, 0xfe, 0x9d, 0x77, 0x21, 0x81, 0x9f, 0xd1, 0xd6,
+	0x87, 0xf0, 0xf0, 0xd2, 0xf2, 0x69, 0x2c, 0x1e, 0x5f, 0xc5, 0xbf, 0x04, 0xd8, 0xa7, 0xad, 0x0b,
+	0xa8, 0x67, 0xc3, 0xbe, 0x4b, 0x1c, 0x1f, 0x23, 0x19, 0x2a, 0xa1, 0x99, 0xb5, 0x6b, 0x62, 0xf8,
+	0x02, 0x17, 0x69, 0x10, 0xad, 0x6b, 0x50, 0xe5, 0x27, 0xf1, 0xc5, 0xd6, 0xa7, 0xf0, 0xc1, 0x05,
+	0x4e, 0x78, 0x62, 0x76, 0x84, 0xd2, 0x9e, 0x65, 0x56, 0x6d, 0x29, 0x50, 0xef, 0x78, 0x58, 0xa7,
+	0x78, 0x05, 0xfb, 0x19, 0xf0, 0x49, 0xc5, 0x08, 0x9f, 0x5f, 0xb0, 0x1c, 0x17, 0x0c, 0x69, 0xc6,
+	0xae, 0xf9, 0xbf, 0x69, 0x8e, 0xa1, 0xde, 0xc5, 0x36, 0x5e, 0xa3, 0xc9, 0xeb, 0xdc, 0x83, 0xc7,
+	0xc9, 0xac, 0x96, 0x5a, 0x48, 0x06, 0x99, 0xd1, 0x1d, 0x97, 0xd5, 0xdd, 0x3e, 0x54, 0x5c, 0x7d,
+	0x8a, 0x35, 0xdf, 0xba, 0x67, 0x9a, 0xdc, 0x56, 0xf9, 0x30, 0x30, 0xb4, 0xee, 0x23, 0x51, 0x46,
+	0x49, 0x4a, 0x6e, 0xb0, 0x93, 0x88, 0x32, 0x8c, 0x8c, 0xc2, 0x40, 0xeb, 0x37, 0x10, 0xf3, 0x6a,
+	0xc6, 0x5b, 0x7a, 0x01, 0x80, 0x97, 0xd1, 0x78, 0x4d, 0xc2, 0x26, 0xd9, 0xaa, 0x29, 0x2c, 0x7a,
+	0x06, 0xef, 0x3b, 0xf8, 0x96, 0x6a, 0xa9, 0xda, 0xcc, 0x2d, 0x3b, 0x61, 0xf8, 0x2a, 0xa9, 0x7f,
+	0xfc, 0x07, 0x07, 0xb5, 0x55, 0xa3, 0xa3, 0x16, 0x1c, 0x74, 0xd4, 0x41, 0x5f, 0xeb, 0x2a, 0x97,
+	0xbd, 0x1f, 0x14, 0xf5, 0xb5, 0x36, 0x7a, 0x7d, 0xa5, 0x68, 0xe3, 0xfe, 0xf0, 0x4a, 0xe9, 0xf4,
+	0xbe, 0xed, 0x29, 0xdd, 0xda, 0x7b, 0x48, 0x84, 0x47, 0x39, 0x98, 0xcb, 0xc1, 0x45, 0x8d, 0x43,
+	0x07, 0x20, 0xe6, 0xe4, 0x7e, 0x54, 0xce, 0x5f, 0x0e, 0x06, 0xdf, 0xd5, 0x0a, 0x1b, 0xf2, 0x9d,
+	0x97, 0x67, 0xfd, 0xbe, 0x72, 0x59, 0x2b, 0x1e, 0xff, 0xce, 0xc1, 0xc3, 0x1c, 0x47, 0xa2, 0xa7,
+	0x70, 0x18, 0xdd, 0x53, 0x7e, 0x52, 0x3a, 0xe3, 0x51, 0x6f, 0xd0, 0xd7, 0x86, 0xa3, 0xb3, 0xd1,
+	0x78, 0xb8, 0xd2, 0xda, 0x21, 0x3c, 0xc9, 0x87, 0x0d, 0xc7, 0x9d, 0x8e, 0x32, 0x1c, 0xd6, 0x38,
+	0xd4, 0x80, 0xfd, 0x7c, 0x88, 0xa2, 0xaa, 0x03, 0xb5, 0x56, 0x68, 0xff, 0x5d, 0x84, 0xdd, 0x58,
+	0x32, 0x43, 0xec, 0x2d, 0xac, 0x09, 0x46, 0x03, 0x78, 0x90, 0xb6, 0x12, 0x4a, 0xff, 0x7e, 0xe4,
+	0x58, 0x4f, 0x6c, 0x6c, 0xcc, 0xc7, 0xdb, 0xfd, 0x06, 0xe0, 0xad, 0xa5, 0xd0, 0x47, 0x29, 0xf8,
+	0x9a, 0xd3, 0xc4, 0x1c, 0x91, 0xa3, 0x6e, 0xf8, 0x5b, 0x99, 0x72, 0x1a, 0x6a, 0x64, 0x40, 0xeb,
+	0x1e, 0xdc, 0xc4, 0x92, 0x31, 0x5a, 0x86, 0x25, 0xcf, 0x82, 0x9b, 0x58, 0x32, 0x3e, 0xcb, 0xb0,
+	0xe4, 0x39, 0x30, 0x97, 0x45, 0x07, 0xb4, 0xee, 0x06, 0xf4, 0x49, 0xce, 0x20, 0xd7, 0x0c, 0x2a,
+	0x3e, 0x7d, 0x07, 0x8a, 0x0d, 0xfd, 0xfc, 0xf3, 0x9f, 0xdb, 0x53, 0x22, 0x11, 0xef, 0x56, 0x9a,
+	0x63, 0x59, 0x77, 0x5d, 0x5f, 0x36, 0x02, 0x4a, 0xb1, 0x27, 0xbb, 0x37, 0x53, 0xf6, 0x0f, 0x46,
+	0x5e, 0xfe, 0xdf, 0x39, 0x65, 0x5f, 0x8b, 0x13, 0xa3, 0x14, 0x65, 0x9e, 0xff, 0x17, 0x00, 0x00,
+	0xff, 0xff, 0x10, 0xb7, 0xec, 0x26, 0x0c, 0x09, 0x00, 0x00,
 }
