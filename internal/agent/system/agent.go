@@ -53,6 +53,15 @@ func NewAgent(ctx context.Context, store *configstore.Store, scheduler *cron.Sch
 	})
 }
 
+// NewBuilderFunc returns an AgentBuilderFunc that can rebuild the system agent
+// with a different model. This allows the system agent to inherit the model
+// from the current chat's model selection.
+func NewBuilderFunc(store *configstore.Store, scheduler *cron.Scheduler, execRepo cron.ExecutionRepo, providers []agentsv1.ModelProvider) func(ctx context.Context, model string) (agent.Agent, error) {
+	return func(ctx context.Context, model string) (agent.Agent, error) {
+		return NewAgent(ctx, store, scheduler, execRepo, model, providers)
+	}
+}
+
 func buildTools(store *configstore.Store, scheduler *cron.Scheduler, execRepo cron.ExecutionRepo) ([]tool.Tool, error) {
 	builders := []func() (tool.Tool, error){
 		func() (tool.Tool, error) { return newListAgentsTool(store) },
