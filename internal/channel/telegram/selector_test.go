@@ -4,9 +4,9 @@ import "testing"
 
 func TestParseAgentCommand(t *testing.T) {
 	tests := []struct {
-		input      string
-		wantSub    string
-		wantArg    string
+		input   string
+		wantSub string
+		wantArg string
 	}{
 		{"/agent list", "list", ""},
 		{"/agent summarizer", "switch", "summarizer"},

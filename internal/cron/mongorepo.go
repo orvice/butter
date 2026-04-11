@@ -129,17 +129,17 @@ func (r *MongoExecutionRepo) GetByID(ctx context.Context, id string) (*agentsv1.
 
 // cronJobDoc is the MongoDB document for a cron job config.
 type cronJobDoc struct {
-	Name        string            `bson:"_id"`
-	Schedule    string            `bson:"schedule"`
-	AgentName   string            `bson:"agent_name"`
-	Input       string            `bson:"input"`
-	Timezone    string            `bson:"timezone"`
-	Enabled     bool              `bson:"enabled"`
-	DeliveryType int32            `bson:"delivery_type"`
-	WebhookURL  string            `bson:"webhook_url"`
-	ChannelName string            `bson:"channel_name"`
-	ChatID      string            `bson:"chat_id"`
-	Metadata    map[string]string `bson:"metadata,omitempty"`
+	Name         string            `bson:"_id"`
+	Schedule     string            `bson:"schedule"`
+	AgentName    string            `bson:"agent_name"`
+	Input        string            `bson:"input"`
+	Timezone     string            `bson:"timezone"`
+	Enabled      bool              `bson:"enabled"`
+	DeliveryType int32             `bson:"delivery_type"`
+	WebhookURL   string            `bson:"webhook_url"`
+	ChannelName  string            `bson:"channel_name"`
+	ChatID       string            `bson:"chat_id"`
+	Metadata     map[string]string `bson:"metadata,omitempty"`
 }
 
 func jobDocFromProto(j *agentsv1.CronJob) *cronJobDoc {

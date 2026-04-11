@@ -428,11 +428,11 @@ type mongoSession struct {
 	lastUpdateTime time.Time
 }
 
-func (s *mongoSession) ID() string              { return s.id }
-func (s *mongoSession) AppName() string          { return s.appName }
-func (s *mongoSession) UserID() string           { return s.userID }
-func (s *mongoSession) State() session.State     { return s.state }
-func (s *mongoSession) Events() session.Events   { return s.events }
+func (s *mongoSession) ID() string                { return s.id }
+func (s *mongoSession) AppName() string           { return s.appName }
+func (s *mongoSession) UserID() string            { return s.userID }
+func (s *mongoSession) State() session.State      { return s.state }
+func (s *mongoSession) Events() session.Events    { return s.events }
 func (s *mongoSession) LastUpdateTime() time.Time { return s.lastUpdateTime }
 
 // stateImpl implements session.State backed by a map.

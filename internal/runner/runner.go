@@ -9,11 +9,11 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/achetronic/adk-utils-go/plugin/contextguard"
 	"google.golang.org/adk/agent"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/adk/memory"
 	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
+	"google.golang.org/protobuf/proto"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -179,7 +179,6 @@ func mergePluginConfigs(a, b adkrunner.PluginConfig) adkrunner.PluginConfig {
 	merged.Plugins = append(merged.Plugins, b.Plugins...)
 	return merged
 }
-
 
 // AgentNames returns all registered agent names.
 func (s *Service) AgentNames() []string {
