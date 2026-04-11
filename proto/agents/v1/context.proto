@@ -8,9 +8,9 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 enum ContextSource {
   CONTEXT_SOURCE_UNSPECIFIED = 0;
   CONTEXT_SOURCE_CHANNEL = 1; // Bot channel implementations (Telegram, Discord, etc.)
-  CONTEXT_SOURCE_A2A = 2;     // Agent-to-Agent protocol
-  CONTEXT_SOURCE_API = 3;     // Direct HTTP API calls
-  CONTEXT_SOURCE_MCP = 4;     // Model Context Protocol tool invocations
+  CONTEXT_SOURCE_A2A = 2; // Agent-to-Agent protocol
+  CONTEXT_SOURCE_API = 3; // Direct HTTP API calls
+  CONTEXT_SOURCE_MCP = 4; // Model Context Protocol tool invocations
 }
 
 // ChatType indicates whether the conversation is private or group.

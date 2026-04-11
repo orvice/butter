@@ -115,7 +115,6 @@ message AgentRuntime {
   bool save_input_blobs_as_artifacts = 2;
 }
 
-
 // MCPServer describes a serializable MCP server connection config.
 message MCPServer {
   // @gotags: json:"name,omitempty" yaml:"name,omitempty"
