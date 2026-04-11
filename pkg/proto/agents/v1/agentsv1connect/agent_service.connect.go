@@ -9,7 +9,6 @@ import (
 	context "context"
 	errors "errors"
 	v1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	http "net/http"
 	strings "strings"
 )
@@ -103,10 +102,10 @@ const (
 // AgentServiceClient is a client for the agents.v1.AgentService service.
 type AgentServiceClient interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
-	GetAgent(context.Context, *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.Agent], error)
-	CreateAgent(context.Context, *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.Agent], error)
-	UpdateAgent(context.Context, *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.Agent], error)
-	DeleteAgent(context.Context, *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[emptypb.Empty], error)
+	GetAgent(context.Context, *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.GetAgentResponse], error)
+	CreateAgent(context.Context, *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.CreateAgentResponse], error)
+	UpdateAgent(context.Context, *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.UpdateAgentResponse], error)
+	DeleteAgent(context.Context, *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[v1.DeleteAgentResponse], error)
 }
 
 // NewAgentServiceClient constructs a client for the agents.v1.AgentService service. By default, it
@@ -126,25 +125,25 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("ListAgents")),
 			connect.WithClientOptions(opts...),
 		),
-		getAgent: connect.NewClient[v1.GetAgentRequest, v1.Agent](
+		getAgent: connect.NewClient[v1.GetAgentRequest, v1.GetAgentResponse](
 			httpClient,
 			baseURL+AgentServiceGetAgentProcedure,
 			connect.WithSchema(agentServiceMethods.ByName("GetAgent")),
 			connect.WithClientOptions(opts...),
 		),
-		createAgent: connect.NewClient[v1.CreateAgentRequest, v1.Agent](
+		createAgent: connect.NewClient[v1.CreateAgentRequest, v1.CreateAgentResponse](
 			httpClient,
 			baseURL+AgentServiceCreateAgentProcedure,
 			connect.WithSchema(agentServiceMethods.ByName("CreateAgent")),
 			connect.WithClientOptions(opts...),
 		),
-		updateAgent: connect.NewClient[v1.UpdateAgentRequest, v1.Agent](
+		updateAgent: connect.NewClient[v1.UpdateAgentRequest, v1.UpdateAgentResponse](
 			httpClient,
 			baseURL+AgentServiceUpdateAgentProcedure,
 			connect.WithSchema(agentServiceMethods.ByName("UpdateAgent")),
 			connect.WithClientOptions(opts...),
 		),
-		deleteAgent: connect.NewClient[v1.DeleteAgentRequest, emptypb.Empty](
+		deleteAgent: connect.NewClient[v1.DeleteAgentRequest, v1.DeleteAgentResponse](
 			httpClient,
 			baseURL+AgentServiceDeleteAgentProcedure,
 			connect.WithSchema(agentServiceMethods.ByName("DeleteAgent")),
@@ -156,10 +155,10 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 // agentServiceClient implements AgentServiceClient.
 type agentServiceClient struct {
 	listAgents  *connect.Client[v1.ListAgentsRequest, v1.ListAgentsResponse]
-	getAgent    *connect.Client[v1.GetAgentRequest, v1.Agent]
-	createAgent *connect.Client[v1.CreateAgentRequest, v1.Agent]
-	updateAgent *connect.Client[v1.UpdateAgentRequest, v1.Agent]
-	deleteAgent *connect.Client[v1.DeleteAgentRequest, emptypb.Empty]
+	getAgent    *connect.Client[v1.GetAgentRequest, v1.GetAgentResponse]
+	createAgent *connect.Client[v1.CreateAgentRequest, v1.CreateAgentResponse]
+	updateAgent *connect.Client[v1.UpdateAgentRequest, v1.UpdateAgentResponse]
+	deleteAgent *connect.Client[v1.DeleteAgentRequest, v1.DeleteAgentResponse]
 }
 
 // ListAgents calls agents.v1.AgentService.ListAgents.
@@ -168,32 +167,32 @@ func (c *agentServiceClient) ListAgents(ctx context.Context, req *connect.Reques
 }
 
 // GetAgent calls agents.v1.AgentService.GetAgent.
-func (c *agentServiceClient) GetAgent(ctx context.Context, req *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.Agent], error) {
+func (c *agentServiceClient) GetAgent(ctx context.Context, req *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.GetAgentResponse], error) {
 	return c.getAgent.CallUnary(ctx, req)
 }
 
 // CreateAgent calls agents.v1.AgentService.CreateAgent.
-func (c *agentServiceClient) CreateAgent(ctx context.Context, req *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.Agent], error) {
+func (c *agentServiceClient) CreateAgent(ctx context.Context, req *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.CreateAgentResponse], error) {
 	return c.createAgent.CallUnary(ctx, req)
 }
 
 // UpdateAgent calls agents.v1.AgentService.UpdateAgent.
-func (c *agentServiceClient) UpdateAgent(ctx context.Context, req *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.Agent], error) {
+func (c *agentServiceClient) UpdateAgent(ctx context.Context, req *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.UpdateAgentResponse], error) {
 	return c.updateAgent.CallUnary(ctx, req)
 }
 
 // DeleteAgent calls agents.v1.AgentService.DeleteAgent.
-func (c *agentServiceClient) DeleteAgent(ctx context.Context, req *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[emptypb.Empty], error) {
+func (c *agentServiceClient) DeleteAgent(ctx context.Context, req *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[v1.DeleteAgentResponse], error) {
 	return c.deleteAgent.CallUnary(ctx, req)
 }
 
 // AgentServiceHandler is an implementation of the agents.v1.AgentService service.
 type AgentServiceHandler interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
-	GetAgent(context.Context, *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.Agent], error)
-	CreateAgent(context.Context, *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.Agent], error)
-	UpdateAgent(context.Context, *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.Agent], error)
-	DeleteAgent(context.Context, *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[emptypb.Empty], error)
+	GetAgent(context.Context, *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.GetAgentResponse], error)
+	CreateAgent(context.Context, *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.CreateAgentResponse], error)
+	UpdateAgent(context.Context, *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.UpdateAgentResponse], error)
+	DeleteAgent(context.Context, *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[v1.DeleteAgentResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -258,29 +257,29 @@ func (UnimplementedAgentServiceHandler) ListAgents(context.Context, *connect.Req
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ListAgents is not implemented"))
 }
 
-func (UnimplementedAgentServiceHandler) GetAgent(context.Context, *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.Agent], error) {
+func (UnimplementedAgentServiceHandler) GetAgent(context.Context, *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.GetAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.GetAgent is not implemented"))
 }
 
-func (UnimplementedAgentServiceHandler) CreateAgent(context.Context, *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.Agent], error) {
+func (UnimplementedAgentServiceHandler) CreateAgent(context.Context, *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.CreateAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.CreateAgent is not implemented"))
 }
 
-func (UnimplementedAgentServiceHandler) UpdateAgent(context.Context, *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.Agent], error) {
+func (UnimplementedAgentServiceHandler) UpdateAgent(context.Context, *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.UpdateAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.UpdateAgent is not implemented"))
 }
 
-func (UnimplementedAgentServiceHandler) DeleteAgent(context.Context, *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[emptypb.Empty], error) {
+func (UnimplementedAgentServiceHandler) DeleteAgent(context.Context, *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[v1.DeleteAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.DeleteAgent is not implemented"))
 }
 
 // MCPServerServiceClient is a client for the agents.v1.MCPServerService service.
 type MCPServerServiceClient interface {
 	ListMCPServers(context.Context, *connect.Request[v1.ListMCPServersRequest]) (*connect.Response[v1.ListMCPServersResponse], error)
-	GetMCPServer(context.Context, *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.MCPServer], error)
-	CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.MCPServer], error)
-	UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.MCPServer], error)
-	DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[emptypb.Empty], error)
+	GetMCPServer(context.Context, *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.GetMCPServerResponse], error)
+	CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.CreateMCPServerResponse], error)
+	UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error)
+	DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error)
 }
 
 // NewMCPServerServiceClient constructs a client for the agents.v1.MCPServerService service. By
@@ -300,25 +299,25 @@ func NewMCPServerServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(mCPServerServiceMethods.ByName("ListMCPServers")),
 			connect.WithClientOptions(opts...),
 		),
-		getMCPServer: connect.NewClient[v1.GetMCPServerRequest, v1.MCPServer](
+		getMCPServer: connect.NewClient[v1.GetMCPServerRequest, v1.GetMCPServerResponse](
 			httpClient,
 			baseURL+MCPServerServiceGetMCPServerProcedure,
 			connect.WithSchema(mCPServerServiceMethods.ByName("GetMCPServer")),
 			connect.WithClientOptions(opts...),
 		),
-		createMCPServer: connect.NewClient[v1.CreateMCPServerRequest, v1.MCPServer](
+		createMCPServer: connect.NewClient[v1.CreateMCPServerRequest, v1.CreateMCPServerResponse](
 			httpClient,
 			baseURL+MCPServerServiceCreateMCPServerProcedure,
 			connect.WithSchema(mCPServerServiceMethods.ByName("CreateMCPServer")),
 			connect.WithClientOptions(opts...),
 		),
-		updateMCPServer: connect.NewClient[v1.UpdateMCPServerRequest, v1.MCPServer](
+		updateMCPServer: connect.NewClient[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse](
 			httpClient,
 			baseURL+MCPServerServiceUpdateMCPServerProcedure,
 			connect.WithSchema(mCPServerServiceMethods.ByName("UpdateMCPServer")),
 			connect.WithClientOptions(opts...),
 		),
-		deleteMCPServer: connect.NewClient[v1.DeleteMCPServerRequest, emptypb.Empty](
+		deleteMCPServer: connect.NewClient[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse](
 			httpClient,
 			baseURL+MCPServerServiceDeleteMCPServerProcedure,
 			connect.WithSchema(mCPServerServiceMethods.ByName("DeleteMCPServer")),
@@ -330,10 +329,10 @@ func NewMCPServerServiceClient(httpClient connect.HTTPClient, baseURL string, op
 // mCPServerServiceClient implements MCPServerServiceClient.
 type mCPServerServiceClient struct {
 	listMCPServers  *connect.Client[v1.ListMCPServersRequest, v1.ListMCPServersResponse]
-	getMCPServer    *connect.Client[v1.GetMCPServerRequest, v1.MCPServer]
-	createMCPServer *connect.Client[v1.CreateMCPServerRequest, v1.MCPServer]
-	updateMCPServer *connect.Client[v1.UpdateMCPServerRequest, v1.MCPServer]
-	deleteMCPServer *connect.Client[v1.DeleteMCPServerRequest, emptypb.Empty]
+	getMCPServer    *connect.Client[v1.GetMCPServerRequest, v1.GetMCPServerResponse]
+	createMCPServer *connect.Client[v1.CreateMCPServerRequest, v1.CreateMCPServerResponse]
+	updateMCPServer *connect.Client[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse]
+	deleteMCPServer *connect.Client[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse]
 }
 
 // ListMCPServers calls agents.v1.MCPServerService.ListMCPServers.
@@ -342,32 +341,32 @@ func (c *mCPServerServiceClient) ListMCPServers(ctx context.Context, req *connec
 }
 
 // GetMCPServer calls agents.v1.MCPServerService.GetMCPServer.
-func (c *mCPServerServiceClient) GetMCPServer(ctx context.Context, req *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.MCPServer], error) {
+func (c *mCPServerServiceClient) GetMCPServer(ctx context.Context, req *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.GetMCPServerResponse], error) {
 	return c.getMCPServer.CallUnary(ctx, req)
 }
 
 // CreateMCPServer calls agents.v1.MCPServerService.CreateMCPServer.
-func (c *mCPServerServiceClient) CreateMCPServer(ctx context.Context, req *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.MCPServer], error) {
+func (c *mCPServerServiceClient) CreateMCPServer(ctx context.Context, req *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.CreateMCPServerResponse], error) {
 	return c.createMCPServer.CallUnary(ctx, req)
 }
 
 // UpdateMCPServer calls agents.v1.MCPServerService.UpdateMCPServer.
-func (c *mCPServerServiceClient) UpdateMCPServer(ctx context.Context, req *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.MCPServer], error) {
+func (c *mCPServerServiceClient) UpdateMCPServer(ctx context.Context, req *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error) {
 	return c.updateMCPServer.CallUnary(ctx, req)
 }
 
 // DeleteMCPServer calls agents.v1.MCPServerService.DeleteMCPServer.
-func (c *mCPServerServiceClient) DeleteMCPServer(ctx context.Context, req *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[emptypb.Empty], error) {
+func (c *mCPServerServiceClient) DeleteMCPServer(ctx context.Context, req *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error) {
 	return c.deleteMCPServer.CallUnary(ctx, req)
 }
 
 // MCPServerServiceHandler is an implementation of the agents.v1.MCPServerService service.
 type MCPServerServiceHandler interface {
 	ListMCPServers(context.Context, *connect.Request[v1.ListMCPServersRequest]) (*connect.Response[v1.ListMCPServersResponse], error)
-	GetMCPServer(context.Context, *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.MCPServer], error)
-	CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.MCPServer], error)
-	UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.MCPServer], error)
-	DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[emptypb.Empty], error)
+	GetMCPServer(context.Context, *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.GetMCPServerResponse], error)
+	CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.CreateMCPServerResponse], error)
+	UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error)
+	DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error)
 }
 
 // NewMCPServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -432,29 +431,29 @@ func (UnimplementedMCPServerServiceHandler) ListMCPServers(context.Context, *con
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.ListMCPServers is not implemented"))
 }
 
-func (UnimplementedMCPServerServiceHandler) GetMCPServer(context.Context, *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.MCPServer], error) {
+func (UnimplementedMCPServerServiceHandler) GetMCPServer(context.Context, *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.GetMCPServerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.GetMCPServer is not implemented"))
 }
 
-func (UnimplementedMCPServerServiceHandler) CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.MCPServer], error) {
+func (UnimplementedMCPServerServiceHandler) CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.CreateMCPServerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.CreateMCPServer is not implemented"))
 }
 
-func (UnimplementedMCPServerServiceHandler) UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.MCPServer], error) {
+func (UnimplementedMCPServerServiceHandler) UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.UpdateMCPServer is not implemented"))
 }
 
-func (UnimplementedMCPServerServiceHandler) DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[emptypb.Empty], error) {
+func (UnimplementedMCPServerServiceHandler) DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.DeleteMCPServer is not implemented"))
 }
 
 // RemoteAgentServiceClient is a client for the agents.v1.RemoteAgentService service.
 type RemoteAgentServiceClient interface {
 	ListRemoteAgents(context.Context, *connect.Request[v1.ListRemoteAgentsRequest]) (*connect.Response[v1.ListRemoteAgentsResponse], error)
-	GetRemoteAgent(context.Context, *connect.Request[v1.GetRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error)
-	CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error)
-	UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error)
-	DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[emptypb.Empty], error)
+	GetRemoteAgent(context.Context, *connect.Request[v1.GetRemoteAgentRequest]) (*connect.Response[v1.GetRemoteAgentResponse], error)
+	CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.CreateRemoteAgentResponse], error)
+	UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.UpdateRemoteAgentResponse], error)
+	DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error)
 }
 
 // NewRemoteAgentServiceClient constructs a client for the agents.v1.RemoteAgentService service. By
@@ -474,25 +473,25 @@ func NewRemoteAgentServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(remoteAgentServiceMethods.ByName("ListRemoteAgents")),
 			connect.WithClientOptions(opts...),
 		),
-		getRemoteAgent: connect.NewClient[v1.GetRemoteAgentRequest, v1.RemoteAgent](
+		getRemoteAgent: connect.NewClient[v1.GetRemoteAgentRequest, v1.GetRemoteAgentResponse](
 			httpClient,
 			baseURL+RemoteAgentServiceGetRemoteAgentProcedure,
 			connect.WithSchema(remoteAgentServiceMethods.ByName("GetRemoteAgent")),
 			connect.WithClientOptions(opts...),
 		),
-		createRemoteAgent: connect.NewClient[v1.CreateRemoteAgentRequest, v1.RemoteAgent](
+		createRemoteAgent: connect.NewClient[v1.CreateRemoteAgentRequest, v1.CreateRemoteAgentResponse](
 			httpClient,
 			baseURL+RemoteAgentServiceCreateRemoteAgentProcedure,
 			connect.WithSchema(remoteAgentServiceMethods.ByName("CreateRemoteAgent")),
 			connect.WithClientOptions(opts...),
 		),
-		updateRemoteAgent: connect.NewClient[v1.UpdateRemoteAgentRequest, v1.RemoteAgent](
+		updateRemoteAgent: connect.NewClient[v1.UpdateRemoteAgentRequest, v1.UpdateRemoteAgentResponse](
 			httpClient,
 			baseURL+RemoteAgentServiceUpdateRemoteAgentProcedure,
 			connect.WithSchema(remoteAgentServiceMethods.ByName("UpdateRemoteAgent")),
 			connect.WithClientOptions(opts...),
 		),
-		deleteRemoteAgent: connect.NewClient[v1.DeleteRemoteAgentRequest, emptypb.Empty](
+		deleteRemoteAgent: connect.NewClient[v1.DeleteRemoteAgentRequest, v1.DeleteRemoteAgentResponse](
 			httpClient,
 			baseURL+RemoteAgentServiceDeleteRemoteAgentProcedure,
 			connect.WithSchema(remoteAgentServiceMethods.ByName("DeleteRemoteAgent")),
@@ -504,10 +503,10 @@ func NewRemoteAgentServiceClient(httpClient connect.HTTPClient, baseURL string, 
 // remoteAgentServiceClient implements RemoteAgentServiceClient.
 type remoteAgentServiceClient struct {
 	listRemoteAgents  *connect.Client[v1.ListRemoteAgentsRequest, v1.ListRemoteAgentsResponse]
-	getRemoteAgent    *connect.Client[v1.GetRemoteAgentRequest, v1.RemoteAgent]
-	createRemoteAgent *connect.Client[v1.CreateRemoteAgentRequest, v1.RemoteAgent]
-	updateRemoteAgent *connect.Client[v1.UpdateRemoteAgentRequest, v1.RemoteAgent]
-	deleteRemoteAgent *connect.Client[v1.DeleteRemoteAgentRequest, emptypb.Empty]
+	getRemoteAgent    *connect.Client[v1.GetRemoteAgentRequest, v1.GetRemoteAgentResponse]
+	createRemoteAgent *connect.Client[v1.CreateRemoteAgentRequest, v1.CreateRemoteAgentResponse]
+	updateRemoteAgent *connect.Client[v1.UpdateRemoteAgentRequest, v1.UpdateRemoteAgentResponse]
+	deleteRemoteAgent *connect.Client[v1.DeleteRemoteAgentRequest, v1.DeleteRemoteAgentResponse]
 }
 
 // ListRemoteAgents calls agents.v1.RemoteAgentService.ListRemoteAgents.
@@ -516,32 +515,32 @@ func (c *remoteAgentServiceClient) ListRemoteAgents(ctx context.Context, req *co
 }
 
 // GetRemoteAgent calls agents.v1.RemoteAgentService.GetRemoteAgent.
-func (c *remoteAgentServiceClient) GetRemoteAgent(ctx context.Context, req *connect.Request[v1.GetRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error) {
+func (c *remoteAgentServiceClient) GetRemoteAgent(ctx context.Context, req *connect.Request[v1.GetRemoteAgentRequest]) (*connect.Response[v1.GetRemoteAgentResponse], error) {
 	return c.getRemoteAgent.CallUnary(ctx, req)
 }
 
 // CreateRemoteAgent calls agents.v1.RemoteAgentService.CreateRemoteAgent.
-func (c *remoteAgentServiceClient) CreateRemoteAgent(ctx context.Context, req *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error) {
+func (c *remoteAgentServiceClient) CreateRemoteAgent(ctx context.Context, req *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.CreateRemoteAgentResponse], error) {
 	return c.createRemoteAgent.CallUnary(ctx, req)
 }
 
 // UpdateRemoteAgent calls agents.v1.RemoteAgentService.UpdateRemoteAgent.
-func (c *remoteAgentServiceClient) UpdateRemoteAgent(ctx context.Context, req *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error) {
+func (c *remoteAgentServiceClient) UpdateRemoteAgent(ctx context.Context, req *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.UpdateRemoteAgentResponse], error) {
 	return c.updateRemoteAgent.CallUnary(ctx, req)
 }
 
 // DeleteRemoteAgent calls agents.v1.RemoteAgentService.DeleteRemoteAgent.
-func (c *remoteAgentServiceClient) DeleteRemoteAgent(ctx context.Context, req *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[emptypb.Empty], error) {
+func (c *remoteAgentServiceClient) DeleteRemoteAgent(ctx context.Context, req *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error) {
 	return c.deleteRemoteAgent.CallUnary(ctx, req)
 }
 
 // RemoteAgentServiceHandler is an implementation of the agents.v1.RemoteAgentService service.
 type RemoteAgentServiceHandler interface {
 	ListRemoteAgents(context.Context, *connect.Request[v1.ListRemoteAgentsRequest]) (*connect.Response[v1.ListRemoteAgentsResponse], error)
-	GetRemoteAgent(context.Context, *connect.Request[v1.GetRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error)
-	CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error)
-	UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error)
-	DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[emptypb.Empty], error)
+	GetRemoteAgent(context.Context, *connect.Request[v1.GetRemoteAgentRequest]) (*connect.Response[v1.GetRemoteAgentResponse], error)
+	CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.CreateRemoteAgentResponse], error)
+	UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.UpdateRemoteAgentResponse], error)
+	DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error)
 }
 
 // NewRemoteAgentServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -606,32 +605,32 @@ func (UnimplementedRemoteAgentServiceHandler) ListRemoteAgents(context.Context, 
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.ListRemoteAgents is not implemented"))
 }
 
-func (UnimplementedRemoteAgentServiceHandler) GetRemoteAgent(context.Context, *connect.Request[v1.GetRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error) {
+func (UnimplementedRemoteAgentServiceHandler) GetRemoteAgent(context.Context, *connect.Request[v1.GetRemoteAgentRequest]) (*connect.Response[v1.GetRemoteAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.GetRemoteAgent is not implemented"))
 }
 
-func (UnimplementedRemoteAgentServiceHandler) CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error) {
+func (UnimplementedRemoteAgentServiceHandler) CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.CreateRemoteAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.CreateRemoteAgent is not implemented"))
 }
 
-func (UnimplementedRemoteAgentServiceHandler) UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.RemoteAgent], error) {
+func (UnimplementedRemoteAgentServiceHandler) UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.UpdateRemoteAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.UpdateRemoteAgent is not implemented"))
 }
 
-func (UnimplementedRemoteAgentServiceHandler) DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[emptypb.Empty], error) {
+func (UnimplementedRemoteAgentServiceHandler) DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.DeleteRemoteAgent is not implemented"))
 }
 
 // SessionServiceClient is a client for the agents.v1.SessionService service.
 type SessionServiceClient interface {
 	// CreateSession creates a new session for the given agent.
-	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.SessionInfo], error)
+	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error)
 	// GetSession retrieves a session by ID, optionally with recent events.
-	GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.SessionDetail], error)
+	GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.GetSessionResponse], error)
 	// ListSessions lists sessions for a given app and user.
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
 	// DeleteSession deletes a session and its events.
-	DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[emptypb.Empty], error)
+	DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[v1.DeleteSessionResponse], error)
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error)
 }
@@ -647,13 +646,13 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 	baseURL = strings.TrimRight(baseURL, "/")
 	sessionServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("SessionService").Methods()
 	return &sessionServiceClient{
-		createSession: connect.NewClient[v1.CreateSessionRequest, v1.SessionInfo](
+		createSession: connect.NewClient[v1.CreateSessionRequest, v1.CreateSessionResponse](
 			httpClient,
 			baseURL+SessionServiceCreateSessionProcedure,
 			connect.WithSchema(sessionServiceMethods.ByName("CreateSession")),
 			connect.WithClientOptions(opts...),
 		),
-		getSession: connect.NewClient[v1.GetSessionRequest, v1.SessionDetail](
+		getSession: connect.NewClient[v1.GetSessionRequest, v1.GetSessionResponse](
 			httpClient,
 			baseURL+SessionServiceGetSessionProcedure,
 			connect.WithSchema(sessionServiceMethods.ByName("GetSession")),
@@ -665,7 +664,7 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("ListSessions")),
 			connect.WithClientOptions(opts...),
 		),
-		deleteSession: connect.NewClient[v1.DeleteSessionRequest, emptypb.Empty](
+		deleteSession: connect.NewClient[v1.DeleteSessionRequest, v1.DeleteSessionResponse](
 			httpClient,
 			baseURL+SessionServiceDeleteSessionProcedure,
 			connect.WithSchema(sessionServiceMethods.ByName("DeleteSession")),
@@ -682,20 +681,20 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // sessionServiceClient implements SessionServiceClient.
 type sessionServiceClient struct {
-	createSession *connect.Client[v1.CreateSessionRequest, v1.SessionInfo]
-	getSession    *connect.Client[v1.GetSessionRequest, v1.SessionDetail]
+	createSession *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
+	getSession    *connect.Client[v1.GetSessionRequest, v1.GetSessionResponse]
 	listSessions  *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
-	deleteSession *connect.Client[v1.DeleteSessionRequest, emptypb.Empty]
+	deleteSession *connect.Client[v1.DeleteSessionRequest, v1.DeleteSessionResponse]
 	replySession  *connect.Client[v1.ReplySessionRequest, v1.ReplySessionResponse]
 }
 
 // CreateSession calls agents.v1.SessionService.CreateSession.
-func (c *sessionServiceClient) CreateSession(ctx context.Context, req *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.SessionInfo], error) {
+func (c *sessionServiceClient) CreateSession(ctx context.Context, req *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error) {
 	return c.createSession.CallUnary(ctx, req)
 }
 
 // GetSession calls agents.v1.SessionService.GetSession.
-func (c *sessionServiceClient) GetSession(ctx context.Context, req *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.SessionDetail], error) {
+func (c *sessionServiceClient) GetSession(ctx context.Context, req *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.GetSessionResponse], error) {
 	return c.getSession.CallUnary(ctx, req)
 }
 
@@ -705,7 +704,7 @@ func (c *sessionServiceClient) ListSessions(ctx context.Context, req *connect.Re
 }
 
 // DeleteSession calls agents.v1.SessionService.DeleteSession.
-func (c *sessionServiceClient) DeleteSession(ctx context.Context, req *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[emptypb.Empty], error) {
+func (c *sessionServiceClient) DeleteSession(ctx context.Context, req *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[v1.DeleteSessionResponse], error) {
 	return c.deleteSession.CallUnary(ctx, req)
 }
 
@@ -717,13 +716,13 @@ func (c *sessionServiceClient) ReplySession(ctx context.Context, req *connect.Re
 // SessionServiceHandler is an implementation of the agents.v1.SessionService service.
 type SessionServiceHandler interface {
 	// CreateSession creates a new session for the given agent.
-	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.SessionInfo], error)
+	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error)
 	// GetSession retrieves a session by ID, optionally with recent events.
-	GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.SessionDetail], error)
+	GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.GetSessionResponse], error)
 	// ListSessions lists sessions for a given app and user.
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
 	// DeleteSession deletes a session and its events.
-	DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[emptypb.Empty], error)
+	DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[v1.DeleteSessionResponse], error)
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error)
 }
@@ -786,11 +785,11 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 // UnimplementedSessionServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedSessionServiceHandler struct{}
 
-func (UnimplementedSessionServiceHandler) CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.SessionInfo], error) {
+func (UnimplementedSessionServiceHandler) CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.CreateSession is not implemented"))
 }
 
-func (UnimplementedSessionServiceHandler) GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.SessionDetail], error) {
+func (UnimplementedSessionServiceHandler) GetSession(context.Context, *connect.Request[v1.GetSessionRequest]) (*connect.Response[v1.GetSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.GetSession is not implemented"))
 }
 
@@ -798,7 +797,7 @@ func (UnimplementedSessionServiceHandler) ListSessions(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.ListSessions is not implemented"))
 }
 
-func (UnimplementedSessionServiceHandler) DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[emptypb.Empty], error) {
+func (UnimplementedSessionServiceHandler) DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[v1.DeleteSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.DeleteSession is not implemented"))
 }
 

@@ -3,8 +3,6 @@ package configapi
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	"go.orx.me/apps/butter/internal/repo/configstore"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -21,33 +19,33 @@ func (s *RemoteAgentServiceServer) ListRemoteAgents(_ context.Context, _ *agents
 	return &agentsv1.ListRemoteAgentsResponse{RemoteAgents: s.store.ListRemoteAgents()}, nil
 }
 
-func (s *RemoteAgentServiceServer) GetRemoteAgent(_ context.Context, req *agentsv1.GetRemoteAgentRequest) (*agentsv1.RemoteAgent, error) {
+func (s *RemoteAgentServiceServer) GetRemoteAgent(_ context.Context, req *agentsv1.GetRemoteAgentRequest) (*agentsv1.GetRemoteAgentResponse, error) {
 	r, err := s.store.GetRemoteAgent(req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	return r, nil
+	return &agentsv1.GetRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
-func (s *RemoteAgentServiceServer) CreateRemoteAgent(_ context.Context, req *agentsv1.CreateRemoteAgentRequest) (*agentsv1.RemoteAgent, error) {
+func (s *RemoteAgentServiceServer) CreateRemoteAgent(_ context.Context, req *agentsv1.CreateRemoteAgentRequest) (*agentsv1.CreateRemoteAgentResponse, error) {
 	r, err := s.store.CreateRemoteAgent(req.GetRemoteAgent())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	return r, nil
+	return &agentsv1.CreateRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
-func (s *RemoteAgentServiceServer) UpdateRemoteAgent(_ context.Context, req *agentsv1.UpdateRemoteAgentRequest) (*agentsv1.RemoteAgent, error) {
+func (s *RemoteAgentServiceServer) UpdateRemoteAgent(_ context.Context, req *agentsv1.UpdateRemoteAgentRequest) (*agentsv1.UpdateRemoteAgentResponse, error) {
 	r, err := s.store.UpdateRemoteAgent(req.GetRemoteAgent())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	return r, nil
+	return &agentsv1.UpdateRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
-func (s *RemoteAgentServiceServer) DeleteRemoteAgent(_ context.Context, req *agentsv1.DeleteRemoteAgentRequest) (*emptypb.Empty, error) {
+func (s *RemoteAgentServiceServer) DeleteRemoteAgent(_ context.Context, req *agentsv1.DeleteRemoteAgentRequest) (*agentsv1.DeleteRemoteAgentResponse, error) {
 	if err := s.store.DeleteRemoteAgent(req.GetId()); err != nil {
 		return nil, toTwirpError(err)
 	}
-	return &emptypb.Empty{}, nil
+	return &agentsv1.DeleteRemoteAgentResponse{}, nil
 }

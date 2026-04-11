@@ -9,7 +9,6 @@ import (
 
 	"github.com/twitchtv/twirp"
 	"google.golang.org/genai"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -55,7 +54,7 @@ func (s *SessionServiceServer) getRunnerSvc() *runner.Service {
 	return s.runnerSvc
 }
 
-func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.CreateSessionRequest) (*agentsv1.SessionInfo, error) {
+func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.CreateSessionRequest) (*agentsv1.CreateSessionResponse, error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "session service not available")
@@ -76,10 +75,10 @@ func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.
 		return nil, twirp.InternalErrorWith(err)
 	}
 
-	return sessionToInfo(resp.Session), nil
+	return &agentsv1.CreateSessionResponse{Session: sessionToInfo(resp.Session)}, nil
 }
 
-func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.GetSessionRequest) (*agentsv1.SessionDetail, error) {
+func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.GetSessionRequest) (*agentsv1.GetSessionResponse, error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "session service not available")
@@ -112,7 +111,7 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.Get
 		detail.Events = append(detail.Events, eventToProto(evt))
 	}
 
-	return detail, nil
+	return &agentsv1.GetSessionResponse{SessionDetail: detail}, nil
 }
 
 func (s *SessionServiceServer) ListSessions(ctx context.Context, req *agentsv1.ListSessionsRequest) (*agentsv1.ListSessionsResponse, error) {
@@ -137,7 +136,7 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *agentsv1.L
 	return &agentsv1.ListSessionsResponse{Sessions: infos}, nil
 }
 
-func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.DeleteSessionRequest) (*emptypb.Empty, error) {
+func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.DeleteSessionRequest) (*agentsv1.DeleteSessionResponse, error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "session service not available")
@@ -151,7 +150,7 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
-	return &emptypb.Empty{}, nil
+	return &agentsv1.DeleteSessionResponse{}, nil
 }
 
 func (s *SessionServiceServer) ReplySession(ctx context.Context, req *agentsv1.ReplySessionRequest) (*agentsv1.ReplySessionResponse, error) {

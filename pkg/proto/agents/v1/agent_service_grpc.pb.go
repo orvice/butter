@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -34,10 +33,10 @@ const (
 // AgentService manages Agent configurations.
 type AgentServiceClient interface {
 	ListAgents(ctx context.Context, in *ListAgentsRequest, opts ...grpc.CallOption) (*ListAgentsResponse, error)
-	GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*Agent, error)
-	CreateAgent(ctx context.Context, in *CreateAgentRequest, opts ...grpc.CallOption) (*Agent, error)
-	UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*Agent, error)
-	DeleteAgent(ctx context.Context, in *DeleteAgentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*GetAgentResponse, error)
+	CreateAgent(ctx context.Context, in *CreateAgentRequest, opts ...grpc.CallOption) (*CreateAgentResponse, error)
+	UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*UpdateAgentResponse, error)
+	DeleteAgent(ctx context.Context, in *DeleteAgentRequest, opts ...grpc.CallOption) (*DeleteAgentResponse, error)
 }
 
 type agentServiceClient struct {
@@ -58,9 +57,9 @@ func (c *agentServiceClient) ListAgents(ctx context.Context, in *ListAgentsReque
 	return out, nil
 }
 
-func (c *agentServiceClient) GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*Agent, error) {
+func (c *agentServiceClient) GetAgent(ctx context.Context, in *GetAgentRequest, opts ...grpc.CallOption) (*GetAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Agent)
+	out := new(GetAgentResponse)
 	err := c.cc.Invoke(ctx, AgentService_GetAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -68,9 +67,9 @@ func (c *agentServiceClient) GetAgent(ctx context.Context, in *GetAgentRequest, 
 	return out, nil
 }
 
-func (c *agentServiceClient) CreateAgent(ctx context.Context, in *CreateAgentRequest, opts ...grpc.CallOption) (*Agent, error) {
+func (c *agentServiceClient) CreateAgent(ctx context.Context, in *CreateAgentRequest, opts ...grpc.CallOption) (*CreateAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Agent)
+	out := new(CreateAgentResponse)
 	err := c.cc.Invoke(ctx, AgentService_CreateAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -78,9 +77,9 @@ func (c *agentServiceClient) CreateAgent(ctx context.Context, in *CreateAgentReq
 	return out, nil
 }
 
-func (c *agentServiceClient) UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*Agent, error) {
+func (c *agentServiceClient) UpdateAgent(ctx context.Context, in *UpdateAgentRequest, opts ...grpc.CallOption) (*UpdateAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Agent)
+	out := new(UpdateAgentResponse)
 	err := c.cc.Invoke(ctx, AgentService_UpdateAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -88,9 +87,9 @@ func (c *agentServiceClient) UpdateAgent(ctx context.Context, in *UpdateAgentReq
 	return out, nil
 }
 
-func (c *agentServiceClient) DeleteAgent(ctx context.Context, in *DeleteAgentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *agentServiceClient) DeleteAgent(ctx context.Context, in *DeleteAgentRequest, opts ...grpc.CallOption) (*DeleteAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(DeleteAgentResponse)
 	err := c.cc.Invoke(ctx, AgentService_DeleteAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -105,10 +104,10 @@ func (c *agentServiceClient) DeleteAgent(ctx context.Context, in *DeleteAgentReq
 // AgentService manages Agent configurations.
 type AgentServiceServer interface {
 	ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error)
-	GetAgent(context.Context, *GetAgentRequest) (*Agent, error)
-	CreateAgent(context.Context, *CreateAgentRequest) (*Agent, error)
-	UpdateAgent(context.Context, *UpdateAgentRequest) (*Agent, error)
-	DeleteAgent(context.Context, *DeleteAgentRequest) (*emptypb.Empty, error)
+	GetAgent(context.Context, *GetAgentRequest) (*GetAgentResponse, error)
+	CreateAgent(context.Context, *CreateAgentRequest) (*CreateAgentResponse, error)
+	UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error)
+	DeleteAgent(context.Context, *DeleteAgentRequest) (*DeleteAgentResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -122,16 +121,16 @@ type UnimplementedAgentServiceServer struct{}
 func (UnimplementedAgentServiceServer) ListAgents(context.Context, *ListAgentsRequest) (*ListAgentsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAgents not implemented")
 }
-func (UnimplementedAgentServiceServer) GetAgent(context.Context, *GetAgentRequest) (*Agent, error) {
+func (UnimplementedAgentServiceServer) GetAgent(context.Context, *GetAgentRequest) (*GetAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAgent not implemented")
 }
-func (UnimplementedAgentServiceServer) CreateAgent(context.Context, *CreateAgentRequest) (*Agent, error) {
+func (UnimplementedAgentServiceServer) CreateAgent(context.Context, *CreateAgentRequest) (*CreateAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateAgent not implemented")
 }
-func (UnimplementedAgentServiceServer) UpdateAgent(context.Context, *UpdateAgentRequest) (*Agent, error) {
+func (UnimplementedAgentServiceServer) UpdateAgent(context.Context, *UpdateAgentRequest) (*UpdateAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateAgent not implemented")
 }
-func (UnimplementedAgentServiceServer) DeleteAgent(context.Context, *DeleteAgentRequest) (*emptypb.Empty, error) {
+func (UnimplementedAgentServiceServer) DeleteAgent(context.Context, *DeleteAgentRequest) (*DeleteAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteAgent not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
@@ -292,10 +291,10 @@ const (
 // MCPServerService manages MCP Server configurations.
 type MCPServerServiceClient interface {
 	ListMCPServers(ctx context.Context, in *ListMCPServersRequest, opts ...grpc.CallOption) (*ListMCPServersResponse, error)
-	GetMCPServer(ctx context.Context, in *GetMCPServerRequest, opts ...grpc.CallOption) (*MCPServer, error)
-	CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest, opts ...grpc.CallOption) (*MCPServer, error)
-	UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest, opts ...grpc.CallOption) (*MCPServer, error)
-	DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetMCPServer(ctx context.Context, in *GetMCPServerRequest, opts ...grpc.CallOption) (*GetMCPServerResponse, error)
+	CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest, opts ...grpc.CallOption) (*CreateMCPServerResponse, error)
+	UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest, opts ...grpc.CallOption) (*UpdateMCPServerResponse, error)
+	DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest, opts ...grpc.CallOption) (*DeleteMCPServerResponse, error)
 }
 
 type mCPServerServiceClient struct {
@@ -316,9 +315,9 @@ func (c *mCPServerServiceClient) ListMCPServers(ctx context.Context, in *ListMCP
 	return out, nil
 }
 
-func (c *mCPServerServiceClient) GetMCPServer(ctx context.Context, in *GetMCPServerRequest, opts ...grpc.CallOption) (*MCPServer, error) {
+func (c *mCPServerServiceClient) GetMCPServer(ctx context.Context, in *GetMCPServerRequest, opts ...grpc.CallOption) (*GetMCPServerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(MCPServer)
+	out := new(GetMCPServerResponse)
 	err := c.cc.Invoke(ctx, MCPServerService_GetMCPServer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -326,9 +325,9 @@ func (c *mCPServerServiceClient) GetMCPServer(ctx context.Context, in *GetMCPSer
 	return out, nil
 }
 
-func (c *mCPServerServiceClient) CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest, opts ...grpc.CallOption) (*MCPServer, error) {
+func (c *mCPServerServiceClient) CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest, opts ...grpc.CallOption) (*CreateMCPServerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(MCPServer)
+	out := new(CreateMCPServerResponse)
 	err := c.cc.Invoke(ctx, MCPServerService_CreateMCPServer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -336,9 +335,9 @@ func (c *mCPServerServiceClient) CreateMCPServer(ctx context.Context, in *Create
 	return out, nil
 }
 
-func (c *mCPServerServiceClient) UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest, opts ...grpc.CallOption) (*MCPServer, error) {
+func (c *mCPServerServiceClient) UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest, opts ...grpc.CallOption) (*UpdateMCPServerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(MCPServer)
+	out := new(UpdateMCPServerResponse)
 	err := c.cc.Invoke(ctx, MCPServerService_UpdateMCPServer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -346,9 +345,9 @@ func (c *mCPServerServiceClient) UpdateMCPServer(ctx context.Context, in *Update
 	return out, nil
 }
 
-func (c *mCPServerServiceClient) DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *mCPServerServiceClient) DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest, opts ...grpc.CallOption) (*DeleteMCPServerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(DeleteMCPServerResponse)
 	err := c.cc.Invoke(ctx, MCPServerService_DeleteMCPServer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -363,10 +362,10 @@ func (c *mCPServerServiceClient) DeleteMCPServer(ctx context.Context, in *Delete
 // MCPServerService manages MCP Server configurations.
 type MCPServerServiceServer interface {
 	ListMCPServers(context.Context, *ListMCPServersRequest) (*ListMCPServersResponse, error)
-	GetMCPServer(context.Context, *GetMCPServerRequest) (*MCPServer, error)
-	CreateMCPServer(context.Context, *CreateMCPServerRequest) (*MCPServer, error)
-	UpdateMCPServer(context.Context, *UpdateMCPServerRequest) (*MCPServer, error)
-	DeleteMCPServer(context.Context, *DeleteMCPServerRequest) (*emptypb.Empty, error)
+	GetMCPServer(context.Context, *GetMCPServerRequest) (*GetMCPServerResponse, error)
+	CreateMCPServer(context.Context, *CreateMCPServerRequest) (*CreateMCPServerResponse, error)
+	UpdateMCPServer(context.Context, *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error)
+	DeleteMCPServer(context.Context, *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error)
 	mustEmbedUnimplementedMCPServerServiceServer()
 }
 
@@ -380,16 +379,16 @@ type UnimplementedMCPServerServiceServer struct{}
 func (UnimplementedMCPServerServiceServer) ListMCPServers(context.Context, *ListMCPServersRequest) (*ListMCPServersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMCPServers not implemented")
 }
-func (UnimplementedMCPServerServiceServer) GetMCPServer(context.Context, *GetMCPServerRequest) (*MCPServer, error) {
+func (UnimplementedMCPServerServiceServer) GetMCPServer(context.Context, *GetMCPServerRequest) (*GetMCPServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMCPServer not implemented")
 }
-func (UnimplementedMCPServerServiceServer) CreateMCPServer(context.Context, *CreateMCPServerRequest) (*MCPServer, error) {
+func (UnimplementedMCPServerServiceServer) CreateMCPServer(context.Context, *CreateMCPServerRequest) (*CreateMCPServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateMCPServer not implemented")
 }
-func (UnimplementedMCPServerServiceServer) UpdateMCPServer(context.Context, *UpdateMCPServerRequest) (*MCPServer, error) {
+func (UnimplementedMCPServerServiceServer) UpdateMCPServer(context.Context, *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateMCPServer not implemented")
 }
-func (UnimplementedMCPServerServiceServer) DeleteMCPServer(context.Context, *DeleteMCPServerRequest) (*emptypb.Empty, error) {
+func (UnimplementedMCPServerServiceServer) DeleteMCPServer(context.Context, *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteMCPServer not implemented")
 }
 func (UnimplementedMCPServerServiceServer) mustEmbedUnimplementedMCPServerServiceServer() {}
@@ -550,10 +549,10 @@ const (
 // RemoteAgentService manages Remote Agent configurations.
 type RemoteAgentServiceClient interface {
 	ListRemoteAgents(ctx context.Context, in *ListRemoteAgentsRequest, opts ...grpc.CallOption) (*ListRemoteAgentsResponse, error)
-	GetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest, opts ...grpc.CallOption) (*RemoteAgent, error)
-	CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest, opts ...grpc.CallOption) (*RemoteAgent, error)
-	UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest, opts ...grpc.CallOption) (*RemoteAgent, error)
-	DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest, opts ...grpc.CallOption) (*GetRemoteAgentResponse, error)
+	CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest, opts ...grpc.CallOption) (*CreateRemoteAgentResponse, error)
+	UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest, opts ...grpc.CallOption) (*UpdateRemoteAgentResponse, error)
+	DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest, opts ...grpc.CallOption) (*DeleteRemoteAgentResponse, error)
 }
 
 type remoteAgentServiceClient struct {
@@ -574,9 +573,9 @@ func (c *remoteAgentServiceClient) ListRemoteAgents(ctx context.Context, in *Lis
 	return out, nil
 }
 
-func (c *remoteAgentServiceClient) GetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest, opts ...grpc.CallOption) (*RemoteAgent, error) {
+func (c *remoteAgentServiceClient) GetRemoteAgent(ctx context.Context, in *GetRemoteAgentRequest, opts ...grpc.CallOption) (*GetRemoteAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemoteAgent)
+	out := new(GetRemoteAgentResponse)
 	err := c.cc.Invoke(ctx, RemoteAgentService_GetRemoteAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -584,9 +583,9 @@ func (c *remoteAgentServiceClient) GetRemoteAgent(ctx context.Context, in *GetRe
 	return out, nil
 }
 
-func (c *remoteAgentServiceClient) CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest, opts ...grpc.CallOption) (*RemoteAgent, error) {
+func (c *remoteAgentServiceClient) CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest, opts ...grpc.CallOption) (*CreateRemoteAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemoteAgent)
+	out := new(CreateRemoteAgentResponse)
 	err := c.cc.Invoke(ctx, RemoteAgentService_CreateRemoteAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -594,9 +593,9 @@ func (c *remoteAgentServiceClient) CreateRemoteAgent(ctx context.Context, in *Cr
 	return out, nil
 }
 
-func (c *remoteAgentServiceClient) UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest, opts ...grpc.CallOption) (*RemoteAgent, error) {
+func (c *remoteAgentServiceClient) UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest, opts ...grpc.CallOption) (*UpdateRemoteAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemoteAgent)
+	out := new(UpdateRemoteAgentResponse)
 	err := c.cc.Invoke(ctx, RemoteAgentService_UpdateRemoteAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -604,9 +603,9 @@ func (c *remoteAgentServiceClient) UpdateRemoteAgent(ctx context.Context, in *Up
 	return out, nil
 }
 
-func (c *remoteAgentServiceClient) DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *remoteAgentServiceClient) DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest, opts ...grpc.CallOption) (*DeleteRemoteAgentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(DeleteRemoteAgentResponse)
 	err := c.cc.Invoke(ctx, RemoteAgentService_DeleteRemoteAgent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -621,10 +620,10 @@ func (c *remoteAgentServiceClient) DeleteRemoteAgent(ctx context.Context, in *De
 // RemoteAgentService manages Remote Agent configurations.
 type RemoteAgentServiceServer interface {
 	ListRemoteAgents(context.Context, *ListRemoteAgentsRequest) (*ListRemoteAgentsResponse, error)
-	GetRemoteAgent(context.Context, *GetRemoteAgentRequest) (*RemoteAgent, error)
-	CreateRemoteAgent(context.Context, *CreateRemoteAgentRequest) (*RemoteAgent, error)
-	UpdateRemoteAgent(context.Context, *UpdateRemoteAgentRequest) (*RemoteAgent, error)
-	DeleteRemoteAgent(context.Context, *DeleteRemoteAgentRequest) (*emptypb.Empty, error)
+	GetRemoteAgent(context.Context, *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error)
+	CreateRemoteAgent(context.Context, *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error)
+	UpdateRemoteAgent(context.Context, *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error)
+	DeleteRemoteAgent(context.Context, *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error)
 	mustEmbedUnimplementedRemoteAgentServiceServer()
 }
 
@@ -638,16 +637,16 @@ type UnimplementedRemoteAgentServiceServer struct{}
 func (UnimplementedRemoteAgentServiceServer) ListRemoteAgents(context.Context, *ListRemoteAgentsRequest) (*ListRemoteAgentsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRemoteAgents not implemented")
 }
-func (UnimplementedRemoteAgentServiceServer) GetRemoteAgent(context.Context, *GetRemoteAgentRequest) (*RemoteAgent, error) {
+func (UnimplementedRemoteAgentServiceServer) GetRemoteAgent(context.Context, *GetRemoteAgentRequest) (*GetRemoteAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRemoteAgent not implemented")
 }
-func (UnimplementedRemoteAgentServiceServer) CreateRemoteAgent(context.Context, *CreateRemoteAgentRequest) (*RemoteAgent, error) {
+func (UnimplementedRemoteAgentServiceServer) CreateRemoteAgent(context.Context, *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateRemoteAgent not implemented")
 }
-func (UnimplementedRemoteAgentServiceServer) UpdateRemoteAgent(context.Context, *UpdateRemoteAgentRequest) (*RemoteAgent, error) {
+func (UnimplementedRemoteAgentServiceServer) UpdateRemoteAgent(context.Context, *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateRemoteAgent not implemented")
 }
-func (UnimplementedRemoteAgentServiceServer) DeleteRemoteAgent(context.Context, *DeleteRemoteAgentRequest) (*emptypb.Empty, error) {
+func (UnimplementedRemoteAgentServiceServer) DeleteRemoteAgent(context.Context, *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteRemoteAgent not implemented")
 }
 func (UnimplementedRemoteAgentServiceServer) mustEmbedUnimplementedRemoteAgentServiceServer() {}
@@ -806,13 +805,13 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SessionServiceClient interface {
 	// CreateSession creates a new session for the given agent.
-	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*SessionInfo, error)
+	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
 	// GetSession retrieves a session by ID, optionally with recent events.
-	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*SessionDetail, error)
+	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
 	// ListSessions lists sessions for a given app and user.
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	// DeleteSession deletes a session and its events.
-	DeleteSession(ctx context.Context, in *DeleteSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteSession(ctx context.Context, in *DeleteSessionRequest, opts ...grpc.CallOption) (*DeleteSessionResponse, error)
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(ctx context.Context, in *ReplySessionRequest, opts ...grpc.CallOption) (*ReplySessionResponse, error)
 }
@@ -825,9 +824,9 @@ func NewSessionServiceClient(cc grpc.ClientConnInterface) SessionServiceClient {
 	return &sessionServiceClient{cc}
 }
 
-func (c *sessionServiceClient) CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*SessionInfo, error) {
+func (c *sessionServiceClient) CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SessionInfo)
+	out := new(CreateSessionResponse)
 	err := c.cc.Invoke(ctx, SessionService_CreateSession_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -835,9 +834,9 @@ func (c *sessionServiceClient) CreateSession(ctx context.Context, in *CreateSess
 	return out, nil
 }
 
-func (c *sessionServiceClient) GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*SessionDetail, error) {
+func (c *sessionServiceClient) GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SessionDetail)
+	out := new(GetSessionResponse)
 	err := c.cc.Invoke(ctx, SessionService_GetSession_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -855,9 +854,9 @@ func (c *sessionServiceClient) ListSessions(ctx context.Context, in *ListSession
 	return out, nil
 }
 
-func (c *sessionServiceClient) DeleteSession(ctx context.Context, in *DeleteSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *sessionServiceClient) DeleteSession(ctx context.Context, in *DeleteSessionRequest, opts ...grpc.CallOption) (*DeleteSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(DeleteSessionResponse)
 	err := c.cc.Invoke(ctx, SessionService_DeleteSession_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -880,13 +879,13 @@ func (c *sessionServiceClient) ReplySession(ctx context.Context, in *ReplySessio
 // for forward compatibility.
 type SessionServiceServer interface {
 	// CreateSession creates a new session for the given agent.
-	CreateSession(context.Context, *CreateSessionRequest) (*SessionInfo, error)
+	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 	// GetSession retrieves a session by ID, optionally with recent events.
-	GetSession(context.Context, *GetSessionRequest) (*SessionDetail, error)
+	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
 	// ListSessions lists sessions for a given app and user.
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	// DeleteSession deletes a session and its events.
-	DeleteSession(context.Context, *DeleteSessionRequest) (*emptypb.Empty, error)
+	DeleteSession(context.Context, *DeleteSessionRequest) (*DeleteSessionResponse, error)
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(context.Context, *ReplySessionRequest) (*ReplySessionResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
@@ -899,16 +898,16 @@ type SessionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSessionServiceServer struct{}
 
-func (UnimplementedSessionServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*SessionInfo, error) {
+func (UnimplementedSessionServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateSession not implemented")
 }
-func (UnimplementedSessionServiceServer) GetSession(context.Context, *GetSessionRequest) (*SessionDetail, error) {
+func (UnimplementedSessionServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
 }
 func (UnimplementedSessionServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
 }
-func (UnimplementedSessionServiceServer) DeleteSession(context.Context, *DeleteSessionRequest) (*emptypb.Empty, error) {
+func (UnimplementedSessionServiceServer) DeleteSession(context.Context, *DeleteSessionRequest) (*DeleteSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteSession not implemented")
 }
 func (UnimplementedSessionServiceServer) ReplySession(context.Context, *ReplySessionRequest) (*ReplySessionResponse, error) {
