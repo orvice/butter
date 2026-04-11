@@ -14,6 +14,7 @@ import (
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
+	internalcron "go.orx.me/apps/butter/internal/cron"
 	mongomemory "go.orx.me/apps/butter/internal/memory/mongo"
 	"go.orx.me/apps/butter/internal/runner"
 	mongosession "go.orx.me/apps/butter/internal/session/mongo"
@@ -21,8 +22,10 @@ import (
 
 // BootstrapResult holds the services created during bootstrap.
 type BootstrapResult struct {
-	RunnerSvc  *runner.Service
-	SessionSvc session.Service
+	RunnerSvc     *runner.Service
+	SessionSvc    session.Service
+	CronScheduler *internalcron.Scheduler
+	CronRepo      internalcron.ExecutionRepo
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, and channel manager,
@@ -31,8 +34,8 @@ type BootstrapResult struct {
 func StartChannels(ctx context.Context, cfg *config.AppConfig) (*BootstrapResult, error) {
 	logger := log.FromContext(ctx)
 
-	if len(cfg.Channels) == 0 {
-		logger.Info("no channels configured, skipping channel manager")
+	if len(cfg.Channels) == 0 && len(cfg.CronJobs) == 0 {
+		logger.Info("no channels or cron jobs configured, skipping channel manager")
 
 		// Still initialize MongoDB and session service for API use.
 		mongoURI := cfg.MongoURI
@@ -151,8 +154,32 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig) (*BootstrapResult
 	logger.Info("starting channel manager in background")
 	go mgr.Start(ctx)
 
+	// Initialize cron scheduler if cron jobs are configured.
+	var cronScheduler *internalcron.Scheduler
+	var cronRepo internalcron.ExecutionRepo
+	if len(cfg.CronJobs) > 0 {
+		cronRepo = internalcron.NewMongoExecutionRepo(db)
+		var err error
+		cronScheduler, err = internalcron.NewScheduler(ctx, runnerSvc, cfg.CronJobs, cronRepo)
+		if err != nil {
+			logger.Error("failed to create cron scheduler", "err", err)
+			return nil, err
+		}
+		cronScheduler.Start()
+		logger.Info("cron scheduler started", "job_count", len(cfg.CronJobs))
+
+		go func() {
+			<-ctx.Done()
+			stopCtx := cronScheduler.Stop()
+			<-stopCtx.Done()
+			logger.Info("cron scheduler stopped")
+		}()
+	}
+
 	return &BootstrapResult{
-		RunnerSvc:  runnerSvc,
-		SessionSvc: sessionSvc,
+		RunnerSvc:     runnerSvc,
+		SessionSvc:    sessionSvc,
+		CronScheduler: cronScheduler,
+		CronRepo:      cronRepo,
 	}, nil
 }

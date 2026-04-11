@@ -11,6 +11,7 @@ type AppConfig struct {
 	ModelProviders   []agentsv1.ModelProvider `yaml:"model_providers"`
 	MCPServerConfigs []agentsv1.MCPServer     `yaml:"mcp_server_configs"`
 	RemoteAgents     []agentsv1.RemoteAgent   `yaml:"remote_agents"`
+	CronJobs         []agentsv1.CronJob       `yaml:"cron_jobs"`
 	APIToken         string                   `yaml:"apiToken"`
 
 	Langfuse langfuse.Config `yaml:"langfuse"`

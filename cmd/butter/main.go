@@ -34,6 +34,8 @@ func main() {
 	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(configapi.NewRemoteAgentServiceServer(cfgStore))
 	sessionSvcServer := configapi.NewSessionServiceServer()
 	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer)
+	cronSvcServer := configapi.NewCronJobServiceServer()
+	cronTwirp := agentsv1.NewCronJobServiceServer(cronSvcServer)
 
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 
@@ -51,6 +53,7 @@ func main() {
 			r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
 			r.Any(remoteTwirp.PathPrefix()+"*path", gin.WrapH(remoteTwirp))
 			r.Any(sessionTwirp.PathPrefix()+"*path", gin.WrapH(sessionTwirp))
+			r.Any(cronTwirp.PathPrefix()+"*path", gin.WrapH(cronTwirp))
 		},
 		InitFunc: []func() error{
 			func() error {
@@ -68,6 +71,12 @@ func main() {
 					}
 					if result.SessionSvc != nil {
 						sessionSvcServer.SetSessionService(result.SessionSvc)
+					}
+					if result.CronScheduler != nil {
+						cronSvcServer.SetScheduler(result.CronScheduler)
+					}
+					if result.CronRepo != nil {
+						cronSvcServer.SetExecutionRepo(result.CronRepo)
 					}
 				}
 				return nil

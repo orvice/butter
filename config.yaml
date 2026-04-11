@@ -81,6 +81,20 @@ remote_agents: []
   #   url: "https://agents.example.com/summarizer"
   #   protocol: 1  # REMOTE_AGENT_PROTOCOL_A2A
 
+# Cron jobs — scheduled agent execution
+cron_jobs: []
+  # - name: "daily-summary"
+  #   schedule: "0 9 * * *"        # 09:00 daily
+  #   agent_name: "assistant"
+  #   input: "Generate a daily summary"
+  #   timezone: "Asia/Shanghai"     # defaults to UTC
+  #   enabled: true
+  #   delivery:
+  #     type: 1                     # CRON_DELIVERY_TYPE_LOG (1=LOG, 2=WEBHOOK, 3=CHANNEL)
+  #     # webhook_url: "https://example.com/hook"   # for WEBHOOK type
+  #     # channel_name: "my-telegram-bot"            # for CHANNEL type
+  #     # chat_id: "123456"                          # for CHANNEL type
+
 # Agent definitions
 agents:
   - name: assistant
