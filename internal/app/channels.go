@@ -65,6 +65,16 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, cfgStore *configs
 		return nil, err
 	}
 
+	// Initialize cron scheduler.
+	cronScheduler, cronExecRepo, err := startCron(ctx, db, runnerSvc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Register built-in system agent before channel manager so it appears
+	// in the agent list exposed to Telegram/Discord.
+	registerSystemAgent(ctx, cfg, runnerSvc, cfgStore, cronScheduler, cronExecRepo)
+
 	// Start channels if configured.
 	if len(cfg.Channels) > 0 {
 		modelInfos := internalagent.AllModelAliases(cfg.ModelProviders)
@@ -84,15 +94,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, cfgStore *configs
 	} else {
 		logger.Info("no channels configured, skipping channel manager")
 	}
-
-	// Initialize cron scheduler.
-	cronScheduler, cronExecRepo, err := startCron(ctx, db, runnerSvc)
-	if err != nil {
-		return nil, err
-	}
-
-	// Register built-in system agent.
-	registerSystemAgent(ctx, cfg, runnerSvc, cfgStore, cronScheduler, cronExecRepo)
 
 	return &BootstrapResult{
 		RunnerSvc:     runnerSvc,

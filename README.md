@@ -6,46 +6,54 @@ Butter is a configuration-driven AI agent orchestration service built on the [Bu
 
 - **Multi-agent orchestration** — Define LLM, Loop, Sequential, and Parallel agent workflows in config
 - **MCP server integration** — Connect agents to external tools via Model Context Protocol (MCP) servers
-- **Channel-based delivery** — Bind agents to messaging platforms (currently Telegram) through configurable channels
+- **Channel-based delivery** — Bind agents to messaging platforms (Telegram, Discord) through configurable channels
 - **Remote agent support** — Delegate work to remote agents via A2A (Agent-to-Agent) protocol
 - **Session management** — Persistent conversation sessions backed by MongoDB
 - **Observability** — Built-in OpenTelemetry tracing and optional Langfuse integration
+- **Cron scheduling** — Automated agent execution via configurable cron jobs backed by MongoDB
+- **Built-in system agent** — Administrative agent for managing agents and cron jobs, automatically inherits chat model
 - **Protobuf-defined config** — Agent and channel configurations are defined as protobuf messages, generated via `buf`
 
 ## Architecture
 
 ```text
-┌─────────────────────────────────────────────────┐
-│                   cmd/butter                     │
-│            (Butterfly app bootstrap)             │
-└──────────┬──────────────────────────┬────────────┘
+┌─────────────────────────────────────────────────────┐
+│                    cmd/butter                        │
+│             (Butterfly app bootstrap)                │
+└──────────┬──────────────────────────┬────────────────┘
            │                          │
-    ┌──────▼──────┐           ┌───────▼───────┐
-    │  HTTP Handler│           │   Channels    │
-    │  (Gin routes)│           │  (Telegram)   │
-    └──────┬──────┘           └───────┬───────┘
+    ┌──────▼──────┐           ┌───────▼────────┐
+    │ HTTP/Twirp   │           │    Channels    │
+    │  Handlers    │           │ (TG, Discord)  │
+    └──────┬──────┘           └───────┬────────┘
            │                          │
-    ┌──────▼──────┐           ┌───────▼───────┐
-    │   Service    │           │    Runner     │
-    │   Layer      │           │  (ADK Agent)  │
-    └──────┬──────┘           └───────┬───────┘
+    ┌──────▼──────┐           ┌───────▼────────┐
+    │  Application │           │    Runner      │
+    │  (Twirp API) │           │  (ADK Agent)   │
+    └──────┬──────┘           └───────┬────────┘
            │                          │
-    ┌──────▼──────┐           ┌───────▼───────┐
-    │    Repo      │           │    Session    │
-    │   Layer      │           │   (MongoDB)   │
-    └─────────────┘           └───────────────┘
+    ┌──────▼──────┐           ┌───────▼────────┐
+    │   Store      │           │   Runtime      │
+    │  (Config)    │           │ (Session/Cron) │
+    └─────────────┘           └────────────────┘
 ```
 
 ### Key Packages
 
 | Package | Description |
 |---|---|
-| `cmd/butter` | Entry point — wires config, repos, services, handlers, and starts channels |
+| `cmd/butter` | Entry point — wires config, services, handlers, and starts channels |
+| `internal/app` | Application bootstrap and wiring, split by concern (routes, runtime, channels, cron, system agent) |
 | `internal/config` | `AppConfig` holding `[]Agent` and `[]AgentChannel` loaded from YAML |
 | `internal/agent` | `NewFromProto()` factory — converts proto agent configs into ADK agent instances |
-| `internal/channel` | Channel manager and platform adapters (Telegram) |
-| `internal/runner` | Executes agent invocations with session and context management |
-| `internal/session` | Session storage backends (MongoDB) |
+| `internal/agent/system` | Built-in system agent for administrative operations (agent queries, cron management) |
+| `internal/application` | Twirp RPC server implementations (agent, session, cron, MCP server, remote agent APIs) |
+| `internal/channel` | Channel manager and platform adapters (Telegram, Discord) |
+| `internal/runtime/runner` | Executes agent invocations with session, model override, and context management |
+| `internal/runtime/cron` | Cron scheduler for automated agent execution |
+| `internal/runtime/session` | Session storage backends (MongoDB) |
+| `internal/runtime/memory` | Memory storage backends (MongoDB) |
+| `internal/store/config` | In-memory CRUD store for agent, MCP server, and remote agent configurations |
 | `internal/handler/http` | Gin HTTP handlers |
 | `internal/service` | Business logic layer |
 | `internal/repo` | Data access abstractions |
