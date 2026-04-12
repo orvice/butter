@@ -9,15 +9,15 @@ import (
 	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/store/config"
 	"go.orx.me/apps/butter/internal/service"
-	twirphandler "go.orx.me/apps/butter/internal/transport/twirp"
+	"go.orx.me/apps/butter/internal/application"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 // Handlers holds all HTTP/Twirp handlers that need post-bootstrap wiring.
 type Handlers struct {
 	a2aHandler       *httpHandler.A2AHandler
-	sessionSvcServer *twirphandler.SessionServiceServer
-	cronSvcServer    *twirphandler.CronJobServiceServer
+	sessionSvcServer *application.SessionServiceServer
+	cronSvcServer    *application.CronJobServiceServer
 	cfgStore         *configstore.Store
 }
 
@@ -61,12 +61,12 @@ func SetupRoutes(cfg *config.AppConfig) (func(r *gin.Engine), *Handlers) {
 
 	cfgStore := configstore.New()
 	pathPrefix := twirp.WithServerPathPrefix("/api")
-	agentTwirp := agentsv1.NewAgentServiceServer(twirphandler.NewAgentServiceServer(cfgStore), pathPrefix)
-	mcpTwirp := agentsv1.NewMCPServerServiceServer(twirphandler.NewMCPServerServiceServer(cfgStore), pathPrefix)
-	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(twirphandler.NewRemoteAgentServiceServer(cfgStore), pathPrefix)
-	sessionSvcServer := twirphandler.NewSessionServiceServer()
+	agentTwirp := agentsv1.NewAgentServiceServer(application.NewAgentServiceServer(cfgStore), pathPrefix)
+	mcpTwirp := agentsv1.NewMCPServerServiceServer(application.NewMCPServerServiceServer(cfgStore), pathPrefix)
+	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(application.NewRemoteAgentServiceServer(cfgStore), pathPrefix)
+	sessionSvcServer := application.NewSessionServiceServer()
 	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer, pathPrefix)
-	cronSvcServer := twirphandler.NewCronJobServiceServer()
+	cronSvcServer := application.NewCronJobServiceServer()
 	cronTwirp := agentsv1.NewCronJobServiceServer(cronSvcServer, pathPrefix)
 
 	router := func(r *gin.Engine) {

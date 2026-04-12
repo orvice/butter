@@ -1,4 +1,4 @@
-package twirp
+package application
 
 import (
 	"context"

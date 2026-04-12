@@ -36,7 +36,7 @@ A service skeleton built on `butterfly.orx.me/core` (Butterfly framework) with a
 - `internal/app/` — Application bootstrap and wiring. Split by concern: `routes.go` (HTTP/Twirp setup), `channels.go` (orchestration), `runtime.go` (MongoDB/Redis/Langfuse init), `cron.go` (scheduler init), `system_agent.go` (built-in agent registration).
 - `internal/config/` — `AppConfig` holds `[]agentsv1.Agent` and `[]agentsv1.AgentChannel` loaded from YAML by Butterfly.
 - `internal/handler/http/` — Gin HTTP handlers.
-- `internal/transport/twirp/` — Twirp RPC server implementations (agent, session, cron, MCP server, remote agent services).
+- `internal/application/` — Twirp RPC server implementations (agent, session, cron, MCP server, remote agent services).
 - `internal/service/` — Business logic.
 - `internal/repo/` — Data access abstractions.
 - `internal/store/config/` — In-memory CRUD store for agent/MCP/remote-agent configurations.
