@@ -1,4 +1,4 @@
-package configapi
+package application
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/twitchtv/twirp"
 
-	"go.orx.me/apps/butter/internal/repo/configstore"
+	"go.orx.me/apps/butter/internal/store/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 

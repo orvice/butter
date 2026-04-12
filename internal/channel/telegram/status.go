@@ -10,7 +10,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
-	"go.orx.me/apps/butter/internal/runner"
+	"go.orx.me/apps/butter/internal/runtime/runner"
 )
 
 func (p *Poller) handleStatusCommand(ctx context.Context, b *bot.Bot, msg *models.Message) {

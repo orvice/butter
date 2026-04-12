@@ -27,16 +27,21 @@ type AgentStatus struct {
 	SubAgents   []*AgentStatus
 }
 
+// AgentBuilderFunc is a function that builds an agent with a specific model.
+// It is used for agents that cannot be rebuilt from proto (e.g., system agent).
+type AgentBuilderFunc func(ctx context.Context, model string) (agent.Agent, error)
+
 // Service manages an agent registry and per-channel ADK runners.
 type Service struct {
-	agents       map[string]agent.Agent
-	agentsProto  map[string]*agentsv1.Agent // original proto configs keyed by name
-	providers    []agentsv1.ModelProvider   // model providers for runtime resolution
-	mcpRegistry  []agentsv1.MCPServer
-	remoteAgents []agentsv1.RemoteAgent
-	sessionSvc   session.Service
-	memorySvc    memory.Service
-	pluginConfig adkrunner.PluginConfig
+	agents        map[string]agent.Agent
+	agentsProto   map[string]*agentsv1.Agent   // original proto configs keyed by name
+	agentBuilders map[string]AgentBuilderFunc  // dynamic builder funcs keyed by agent name
+	providers     []agentsv1.ModelProvider     // model providers for runtime resolution
+	mcpRegistry   []agentsv1.MCPServer
+	remoteAgents  []agentsv1.RemoteAgent
+	sessionSvc    session.Service
+	memorySvc     memory.Service
+	pluginConfig  adkrunner.PluginConfig
 
 	mu              sync.Mutex
 	runners         map[string]*adkrunner.Runner // keyed by channel name
@@ -83,6 +88,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 	svc := &Service{
 		agents:          registry,
 		agentsProto:     protoRegistry,
+		agentBuilders:   make(map[string]AgentBuilderFunc),
 		providers:       providers,
 		mcpRegistry:     mcpRegistry,
 		remoteAgents:    remoteAgentRegistry,
@@ -188,6 +194,16 @@ func (s *Service) RegisterAgent(name string, ag agent.Agent) {
 	s.agents[name] = ag
 }
 
+// RegisterAgentWithBuilder adds an agent with a builder function that can
+// rebuild it with a different model. This is used for agents that are not
+// proto-based (e.g., system agent) but still need to support model overrides.
+func (s *Service) RegisterAgentWithBuilder(name string, ag agent.Agent, builder AgentBuilderFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agents[name] = ag
+	s.agentBuilders[name] = builder
+}
+
 // AgentNames returns all registered agent names.
 func (s *Service) AgentNames() []string {
 	names := make([]string, 0, len(s.agents))
@@ -281,19 +297,24 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	}
 	s.mu.Unlock()
 
-	pb, ok := s.agentsProto[agentName]
-	if !ok {
-		return nil, fmt.Errorf("unknown agent: %q", agentName)
-	}
-
 	// Resolve the model alias to get the actual model name.
 	resolvedName, _ := internalagent.ResolveModelAlias(modelOverride, s.providers)
 
-	// Clone the proto and override the model field.
-	clone := proto.Clone(pb).(*agentsv1.Agent)
-	clone.Config.Model = resolvedName
+	var a agent.Agent
+	var err error
 
-	a, err := internalagent.NewFromProto(ctx, clone, s.providers, s.mcpRegistry, s.remoteAgents)
+	if pb, ok := s.agentsProto[agentName]; ok {
+		// Proto-based agent: clone proto and override model.
+		clone := proto.Clone(pb).(*agentsv1.Agent)
+		clone.Config.Model = resolvedName
+		a, err = internalagent.NewFromProto(ctx, clone, s.providers, s.mcpRegistry, s.remoteAgents)
+	} else if builder, ok := s.agentBuilders[agentName]; ok {
+		// Builder-based agent: rebuild with the resolved model.
+		a, err = builder(ctx, resolvedName)
+	} else {
+		return nil, fmt.Errorf("agent %q has no proto config or builder for model override", agentName)
+	}
+
 	if err != nil {
 		return nil, err
 	}

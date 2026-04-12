@@ -1,4 +1,4 @@
-package bootstrap
+package app
 
 import (
 	"github.com/gin-gonic/gin"
@@ -7,17 +7,17 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/repo"
-	"go.orx.me/apps/butter/internal/repo/configstore"
+	"go.orx.me/apps/butter/internal/store/config"
 	"go.orx.me/apps/butter/internal/service"
-	"go.orx.me/apps/butter/internal/service/configapi"
+	"go.orx.me/apps/butter/internal/application"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 // Handlers holds all HTTP/Twirp handlers that need post-bootstrap wiring.
 type Handlers struct {
 	a2aHandler       *httpHandler.A2AHandler
-	sessionSvcServer *configapi.SessionServiceServer
-	cronSvcServer    *configapi.CronJobServiceServer
+	sessionSvcServer *application.SessionServiceServer
+	cronSvcServer    *application.CronJobServiceServer
 	cfgStore         *configstore.Store
 }
 
@@ -61,12 +61,12 @@ func SetupRoutes(cfg *config.AppConfig) (func(r *gin.Engine), *Handlers) {
 
 	cfgStore := configstore.New()
 	pathPrefix := twirp.WithServerPathPrefix("/api")
-	agentTwirp := agentsv1.NewAgentServiceServer(configapi.NewAgentServiceServer(cfgStore), pathPrefix)
-	mcpTwirp := agentsv1.NewMCPServerServiceServer(configapi.NewMCPServerServiceServer(cfgStore), pathPrefix)
-	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(configapi.NewRemoteAgentServiceServer(cfgStore), pathPrefix)
-	sessionSvcServer := configapi.NewSessionServiceServer()
+	agentTwirp := agentsv1.NewAgentServiceServer(application.NewAgentServiceServer(cfgStore), pathPrefix)
+	mcpTwirp := agentsv1.NewMCPServerServiceServer(application.NewMCPServerServiceServer(cfgStore), pathPrefix)
+	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(application.NewRemoteAgentServiceServer(cfgStore), pathPrefix)
+	sessionSvcServer := application.NewSessionServiceServer()
 	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer, pathPrefix)
-	cronSvcServer := configapi.NewCronJobServiceServer()
+	cronSvcServer := application.NewCronJobServiceServer()
 	cronTwirp := agentsv1.NewCronJobServiceServer(cronSvcServer, pathPrefix)
 
 	router := func(r *gin.Engine) {
