@@ -3,6 +3,7 @@ syntax = "proto3";
 package agents.v1;
 
 import "agents/v1/agent.proto";
+import "agents/v1/agentchannel.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -148,6 +149,53 @@ message DeleteRemoteAgentRequest {
 }
 
 message DeleteRemoteAgentResponse {}
+
+// --- Channel messages ---
+
+message ListChannelsRequest {}
+
+message ListChannelsResponse {
+  repeated AgentChannel channels = 1;
+}
+
+message GetChannelRequest {
+  string name = 1;
+}
+
+message GetChannelResponse {
+  AgentChannel channel = 1;
+}
+
+message CreateChannelRequest {
+  AgentChannel channel = 1;
+}
+
+message CreateChannelResponse {
+  AgentChannel channel = 1;
+}
+
+message UpdateChannelRequest {
+  AgentChannel channel = 1;
+}
+
+message UpdateChannelResponse {
+  AgentChannel channel = 1;
+}
+
+message DeleteChannelRequest {
+  string name = 1;
+}
+
+message DeleteChannelResponse {}
+
+// ChannelService manages AgentChannel configurations.
+service ChannelService {
+  rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
+  rpc GetChannel(GetChannelRequest) returns (GetChannelResponse);
+  rpc CreateChannel(CreateChannelRequest) returns (CreateChannelResponse);
+  rpc UpdateChannel(UpdateChannelRequest) returns (UpdateChannelResponse);
+  rpc DeleteChannel(DeleteChannelRequest) returns (DeleteChannelResponse);
+}
 
 // =============================================================================
 // SessionService manages agent sessions (create, get, list, delete, reply).

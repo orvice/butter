@@ -4,12 +4,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/twitchtv/twirp"
 
+	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/repo"
-	"go.orx.me/apps/butter/internal/store/config"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/config/memory"
 	"go.orx.me/apps/butter/internal/service"
-	"go.orx.me/apps/butter/internal/application"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -18,7 +19,11 @@ type Handlers struct {
 	a2aHandler       *httpHandler.A2AHandler
 	sessionSvcServer *application.SessionServiceServer
 	cronSvcServer    *application.CronJobServiceServer
-	cfgStore         *configstore.Store
+	configStore      *memory.Store
+	agentRepo        configrepo.AgentRepository
+	mcpServerRepo    configrepo.MCPServerRepository
+	remoteAgentRepo  configrepo.RemoteAgentRepository
+	channelRepo      configrepo.ChannelRepository
 }
 
 // Wire connects the bootstrap result to the handlers.
@@ -41,14 +46,17 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 }
 
-// ConfigStore returns the shared config store.
-func (h *Handlers) ConfigStore() *configstore.Store {
-	return h.cfgStore
+// AgentRepo returns the agent repository.
+func (h *Handlers) AgentRepo() configrepo.AgentRepository {
+	return h.agentRepo
 }
 
-// SeedConfig seeds the config store from YAML config.
+// SeedConfig seeds the config repositories from YAML config.
 func (h *Handlers) SeedConfig(cfg *config.AppConfig) {
-	h.cfgStore.Seed(cfg.Agents, cfg.MCPServerConfigs, cfg.RemoteAgents)
+	// For the memory backend, use the direct Seed method.
+	if h.configStore != nil {
+		h.configStore.Seed(nil, cfg.Agents, cfg.MCPServerConfigs, cfg.RemoteAgents, cfg.Channels)
+	}
 }
 
 // SetupRoutes creates all handlers and returns a Gin router function plus
@@ -59,11 +67,13 @@ func SetupRoutes(cfg *config.AppConfig) (func(r *gin.Engine), *Handlers) {
 	healthHandler := httpHandler.NewHealthHandler(healthService)
 	a2aHandler := httpHandler.NewA2AHandler(cfg)
 
-	cfgStore := configstore.New()
+	memStore := memory.New()
+
 	pathPrefix := twirp.WithServerPathPrefix("/api")
-	agentTwirp := agentsv1.NewAgentServiceServer(application.NewAgentServiceServer(cfgStore), pathPrefix)
-	mcpTwirp := agentsv1.NewMCPServerServiceServer(application.NewMCPServerServiceServer(cfgStore), pathPrefix)
-	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(application.NewRemoteAgentServiceServer(cfgStore), pathPrefix)
+	agentTwirp := agentsv1.NewAgentServiceServer(application.NewAgentServiceServer(memStore), pathPrefix)
+	mcpTwirp := agentsv1.NewMCPServerServiceServer(application.NewMCPServerServiceServer(memStore), pathPrefix)
+	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(application.NewRemoteAgentServiceServer(memStore), pathPrefix)
+	channelTwirp := agentsv1.NewChannelServiceServer(application.NewChannelServiceServer(memStore), pathPrefix)
 	sessionSvcServer := application.NewSessionServiceServer()
 	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer, pathPrefix)
 	cronSvcServer := application.NewCronJobServiceServer()
@@ -78,6 +88,7 @@ func SetupRoutes(cfg *config.AppConfig) (func(r *gin.Engine), *Handlers) {
 		r.Any(agentTwirp.PathPrefix()+"*path", gin.WrapH(agentTwirp))
 		r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
 		r.Any(remoteTwirp.PathPrefix()+"*path", gin.WrapH(remoteTwirp))
+		r.Any(channelTwirp.PathPrefix()+"*path", gin.WrapH(channelTwirp))
 		r.Any(sessionTwirp.PathPrefix()+"*path", gin.WrapH(sessionTwirp))
 		r.Any(cronTwirp.PathPrefix()+"*path", gin.WrapH(cronTwirp))
 	}
@@ -86,7 +97,11 @@ func SetupRoutes(cfg *config.AppConfig) (func(r *gin.Engine), *Handlers) {
 		a2aHandler:       a2aHandler,
 		sessionSvcServer: sessionSvcServer,
 		cronSvcServer:    cronSvcServer,
-		cfgStore:         cfgStore,
+		configStore:      memStore,
+		agentRepo:        memStore,
+		mcpServerRepo:    memStore,
+		remoteAgentRepo:  memStore,
+		channelRepo:      memStore,
 	}
 
 	return router, handlers

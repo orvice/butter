@@ -9,11 +9,11 @@ import (
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
-	configstore "go.orx.me/apps/butter/internal/store/config"
 )
 
 // BootstrapResult holds the services created during bootstrap.
@@ -26,8 +26,8 @@ type BootstrapResult struct {
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
 // and cron scheduler. It returns the bootstrap result.
-// cfgStore is the shared config store used by the system agent for agent queries.
-func StartChannels(ctx context.Context, cfg *config.AppConfig, cfgStore *configstore.Store) (*BootstrapResult, error) {
+// agentRepo is the shared agent repository used by the system agent for agent queries.
+func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configrepo.AgentRepository) (*BootstrapResult, error) {
 	logger := log.FromContext(ctx)
 
 	// Connect to MongoDB.
@@ -73,7 +73,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, cfgStore *configs
 
 	// Register built-in system agent before channel manager so it appears
 	// in the agent list exposed to Telegram/Discord.
-	registerSystemAgent(ctx, cfg, runnerSvc, cfgStore, cronScheduler, cronExecRepo)
+	registerSystemAgent(ctx, cfg, runnerSvc, agentRepo, cronScheduler, cronExecRepo)
 
 	// Start channels if configured.
 	if len(cfg.Channels) > 0 {

@@ -6,12 +6,12 @@ import (
 
 	"github.com/twitchtv/twirp"
 
-	"go.orx.me/apps/butter/internal/store/config"
+	"go.orx.me/apps/butter/internal/repo/config/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 func TestAgentServiceServer_CRUD(t *testing.T) {
-	store := configstore.New()
+	store := memory.New()
 	svc := NewAgentServiceServer(store)
 	ctx := context.Background()
 
@@ -86,7 +86,7 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 }
 
 func TestMCPServerServiceServer_CRUD(t *testing.T) {
-	store := configstore.New()
+	store := memory.New()
 	svc := NewMCPServerServiceServer(store)
 	ctx := context.Background()
 
@@ -127,7 +127,7 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 }
 
 func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
-	store := configstore.New()
+	store := memory.New()
 	svc := NewRemoteAgentServiceServer(store)
 	ctx := context.Background()
 

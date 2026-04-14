@@ -9,8 +9,8 @@ import (
 	"google.golang.org/adk/tool"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/cron"
-	"go.orx.me/apps/butter/internal/store/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -31,10 +31,10 @@ Be concise and helpful. Format results clearly for the user.`
 )
 
 // NewAgent creates the built-in system agent with administrative tools.
-// It requires a config store (for agent queries), a cron scheduler, and an execution repo.
+// It requires an agent repository (for agent queries), a cron scheduler, and an execution repo.
 // model is the LLM model name to use; providers are used to resolve it.
-func NewAgent(ctx context.Context, store *configstore.Store, scheduler *cron.Scheduler, execRepo cron.ExecutionRepo, model string, providers []agentsv1.ModelProvider) (agent.Agent, error) {
-	tools, err := buildTools(store, scheduler, execRepo)
+func NewAgent(ctx context.Context, agentRepo configrepo.AgentRepository, scheduler *cron.Scheduler, execRepo cron.ExecutionRepo, model string, providers []agentsv1.ModelProvider) (agent.Agent, error) {
+	tools, err := buildTools(agentRepo, scheduler, execRepo)
 	if err != nil {
 		return nil, fmt.Errorf("building system agent tools: %w", err)
 	}
@@ -56,16 +56,16 @@ func NewAgent(ctx context.Context, store *configstore.Store, scheduler *cron.Sch
 // NewBuilderFunc returns an AgentBuilderFunc that can rebuild the system agent
 // with a different model. This allows the system agent to inherit the model
 // from the current chat's model selection.
-func NewBuilderFunc(store *configstore.Store, scheduler *cron.Scheduler, execRepo cron.ExecutionRepo, providers []agentsv1.ModelProvider) func(ctx context.Context, model string) (agent.Agent, error) {
+func NewBuilderFunc(agentRepo configrepo.AgentRepository, scheduler *cron.Scheduler, execRepo cron.ExecutionRepo, providers []agentsv1.ModelProvider) func(ctx context.Context, model string) (agent.Agent, error) {
 	return func(ctx context.Context, model string) (agent.Agent, error) {
-		return NewAgent(ctx, store, scheduler, execRepo, model, providers)
+		return NewAgent(ctx, agentRepo, scheduler, execRepo, model, providers)
 	}
 }
 
-func buildTools(store *configstore.Store, scheduler *cron.Scheduler, execRepo cron.ExecutionRepo) ([]tool.Tool, error) {
+func buildTools(agentRepo configrepo.AgentRepository, scheduler *cron.Scheduler, execRepo cron.ExecutionRepo) ([]tool.Tool, error) {
 	builders := []func() (tool.Tool, error){
-		func() (tool.Tool, error) { return newListAgentsTool(store) },
-		func() (tool.Tool, error) { return newGetAgentTool(store) },
+		func() (tool.Tool, error) { return newListAgentsTool(agentRepo) },
+		func() (tool.Tool, error) { return newGetAgentTool(agentRepo) },
 		func() (tool.Tool, error) { return newListCronJobsTool(scheduler) },
 		func() (tool.Tool, error) { return newCreateCronJobTool(scheduler) },
 		func() (tool.Tool, error) { return newUpdateCronJobTool(scheduler) },

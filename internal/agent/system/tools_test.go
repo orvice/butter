@@ -7,17 +7,17 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"go.orx.me/apps/butter/internal/repo/config/memory"
 	"go.orx.me/apps/butter/internal/runtime/cron"
-	"go.orx.me/apps/butter/internal/store/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 func TestNewListAgentsTool(t *testing.T) {
-	store := configstore.New()
-	store.Seed([]agentsv1.Agent{
+	store := memory.New()
+	store.Seed(context.Background(), []agentsv1.Agent{
 		{Name: "agent-a", Description: "First agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM},
 		{Name: "agent-b", Description: "Second agent", Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL},
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	tool, err := newListAgentsTool(store)
 	if err != nil {
@@ -29,10 +29,10 @@ func TestNewListAgentsTool(t *testing.T) {
 }
 
 func TestNewGetAgentTool(t *testing.T) {
-	store := configstore.New()
-	store.Seed([]agentsv1.Agent{
+	store := memory.New()
+	store.Seed(context.Background(), []agentsv1.Agent{
 		{Name: "test-agent", Description: "A test agent"},
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	tool, err := newGetAgentTool(store)
 	if err != nil {
@@ -126,7 +126,7 @@ func TestNewListCronExecutionsTool(t *testing.T) {
 }
 
 func TestBuildTools(t *testing.T) {
-	store := configstore.New()
+	store := memory.New()
 	scheduler := newTestScheduler(t, &mockJobRepo{})
 	execRepo := &mockExecRepo{}
 

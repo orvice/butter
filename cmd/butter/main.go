@@ -27,7 +27,7 @@ func main() {
 		InitFunc: []func() error{
 			func() error {
 				handlers.SeedConfig(cfg)
-				result, err := butterapp.StartChannels(channelCtx, cfg, handlers.ConfigStore())
+				result, err := butterapp.StartChannels(channelCtx, cfg, handlers.AgentRepo())
 				if err != nil {
 					return err
 				}
