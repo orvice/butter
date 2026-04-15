@@ -22,12 +22,13 @@ type BootstrapResult struct {
 	SessionSvc    session.Service
 	CronScheduler *internalcron.Scheduler
 	CronRepo      internalcron.ExecutionRepo
+	ChannelMgr    *channel.Manager
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
 // and cron scheduler. It returns the bootstrap result.
 // agentRepo is the shared agent repository used by the system agent for agent queries.
-func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configrepo.AgentRepository) (*BootstrapResult, error) {
+func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configrepo.AgentRepository, channelRepo configrepo.ChannelRepository) (*BootstrapResult, error) {
 	logger := log.FromContext(ctx)
 
 	// Connect to MongoDB.
@@ -75,30 +76,26 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// in the agent list exposed to Telegram/Discord.
 	registerSystemAgent(ctx, cfg, runnerSvc, agentRepo, cronScheduler, cronExecRepo)
 
-	// Start channels if configured.
-	if len(cfg.Channels) > 0 {
-		modelInfos := internalagent.AllModelAliases(cfg.ModelProviders)
-		modelNames := make([]string, len(modelInfos))
-		for i, m := range modelInfos {
-			modelNames[i] = m.Alias
-		}
-
-		mgr, err := channel.NewManager(ctx, cfg, runnerSvc, rdb, modelNames)
-		if err != nil {
-			logger.Error("failed to create channel manager", "err", err)
-			return nil, err
-		}
-
-		logger.Info("starting channel manager in background")
-		go mgr.Start(ctx)
-	} else {
-		logger.Info("no channels configured, skipping channel manager")
+	modelInfos := internalagent.AllModelAliases(cfg.ModelProviders)
+	modelNames := make([]string, len(modelInfos))
+	for i, m := range modelInfos {
+		modelNames[i] = m.Alias
 	}
+
+	mgr, err := channel.NewManager(ctx, channelRepo, runnerSvc, rdb, modelNames)
+	if err != nil {
+		logger.Error("failed to create channel manager", "err", err)
+		return nil, err
+	}
+
+	logger.Info("starting channel manager in background")
+	go mgr.Start(ctx)
 
 	return &BootstrapResult{
 		RunnerSvc:     runnerSvc,
 		SessionSvc:    sessionSvc,
 		CronScheduler: cronScheduler,
 		CronRepo:      cronExecRepo,
+		ChannelMgr:    mgr,
 	}, nil
 }

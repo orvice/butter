@@ -2,17 +2,23 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 type ChannelServiceServer struct {
-	repo configrepo.ChannelRepository
+	repo    configrepo.ChannelRepository
+	runtime ConfigRuntime
 }
 
 func NewChannelServiceServer(repo configrepo.ChannelRepository) *ChannelServiceServer {
 	return &ChannelServiceServer{repo: repo}
+}
+
+func (s *ChannelServiceServer) SetRuntime(runtime ConfigRuntime) {
+	s.runtime = runtime
 }
 
 func (s *ChannelServiceServer) ListChannels(ctx context.Context, _ *agentsv1.ListChannelsRequest) (*agentsv1.ListChannelsResponse, error) {
@@ -36,6 +42,9 @@ func (s *ChannelServiceServer) CreateChannel(ctx context.Context, req *agentsv1.
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.CreateChannelResponse{Channel: c}, nil
 }
 
@@ -44,6 +53,9 @@ func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *agentsv1.
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.UpdateChannelResponse{Channel: c}, nil
 }
 
@@ -51,5 +63,18 @@ func (s *ChannelServiceServer) DeleteChannel(ctx context.Context, req *agentsv1.
 	if err := s.repo.DeleteChannel(ctx, req.GetName()); err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.DeleteChannelResponse{}, nil
+}
+
+func (s *ChannelServiceServer) reloadRuntime(ctx context.Context) error {
+	if s.runtime == nil {
+		return nil
+	}
+	if err := s.runtime.ReloadChannels(ctx); err != nil {
+		return toTwirpError(fmt.Errorf("reload channels: %w", err))
+	}
+	return nil
 }

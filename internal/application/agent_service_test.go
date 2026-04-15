@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/twitchtv/twirp"
@@ -9,6 +10,21 @@ import (
 	"go.orx.me/apps/butter/internal/repo/config/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+type reloadTracker struct {
+	calls int
+	err   error
+}
+
+func (r *reloadTracker) ReloadRunner(context.Context) error {
+	r.calls++
+	return r.err
+}
+
+func (r *reloadTracker) ReloadChannels(context.Context) error {
+	r.calls++
+	return r.err
+}
 
 func TestAgentServiceServer_CRUD(t *testing.T) {
 	store := memory.New()
@@ -164,5 +180,105 @@ func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
 	_, err = svc.GetRemoteAgent(ctx, &agentsv1.GetRemoteAgentRequest{Id: "r1"})
 	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.NotFound {
 		t.Fatalf("expected NotFound, got %v", err)
+	}
+}
+
+func TestChannelServiceServer_ReloadsRuntime(t *testing.T) {
+	store := memory.New()
+	svc := NewChannelServiceServer(store)
+	runtime := &reloadTracker{}
+	svc.SetRuntime(runtime)
+	ctx := context.Background()
+
+	_, err := svc.CreateChannel(ctx, &agentsv1.CreateChannelRequest{
+		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.calls != 1 {
+		t.Fatalf("expected 1 reload call, got %d", runtime.calls)
+	}
+
+	_, err = svc.UpdateChannel(ctx, &agentsv1.UpdateChannelRequest{
+		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent2"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.calls != 2 {
+		t.Fatalf("expected 2 reload calls, got %d", runtime.calls)
+	}
+
+	_, err = svc.DeleteChannel(ctx, &agentsv1.DeleteChannelRequest{Name: "ch1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.calls != 3 {
+		t.Fatalf("expected 3 reload calls, got %d", runtime.calls)
+	}
+}
+
+func TestChannelServiceServer_ReloadError(t *testing.T) {
+	store := memory.New()
+	svc := NewChannelServiceServer(store)
+	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
+
+	_, err := svc.CreateChannel(context.Background(), &agentsv1.CreateChannelRequest{
+		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
+	})
+	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
+		t.Fatalf("expected Internal, got %v", err)
+	}
+}
+
+func TestAgentServiceServer_ReloadsRuntime(t *testing.T) {
+	store := memory.New()
+	svc := NewAgentServiceServer(store)
+	runtime := &reloadTracker{}
+	svc.SetRuntime(runtime)
+
+	_, err := svc.CreateAgent(context.Background(), &agentsv1.CreateAgentRequest{
+		Agent: &agentsv1.Agent{Name: "a1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.calls != 1 {
+		t.Fatalf("expected 1 reload call, got %d", runtime.calls)
+	}
+}
+
+func TestMCPServerServiceServer_ReloadsRuntime(t *testing.T) {
+	store := memory.New()
+	svc := NewMCPServerServiceServer(store)
+	runtime := &reloadTracker{}
+	svc.SetRuntime(runtime)
+
+	_, err := svc.CreateMCPServer(context.Background(), &agentsv1.CreateMCPServerRequest{
+		McpServer: &agentsv1.MCPServer{Id: "m1", Name: "mcp1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.calls != 1 {
+		t.Fatalf("expected 1 reload call, got %d", runtime.calls)
+	}
+}
+
+func TestRemoteAgentServiceServer_ReloadsRuntime(t *testing.T) {
+	store := memory.New()
+	svc := NewRemoteAgentServiceServer(store)
+	runtime := &reloadTracker{}
+	svc.SetRuntime(runtime)
+
+	_, err := svc.CreateRemoteAgent(context.Background(), &agentsv1.CreateRemoteAgentRequest{
+		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1", Name: "ra1", Url: "http://example.com"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.calls != 1 {
+		t.Fatalf("expected 1 reload call, got %d", runtime.calls)
 	}
 }

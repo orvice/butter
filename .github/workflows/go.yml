@@ -13,6 +13,25 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
     - uses: actions/checkout@v4
 
@@ -25,4 +44,7 @@ jobs:
       run: go build -v ./...
 
     - name: Test
+      env:
+        MONGO_URI: mongodb://localhost:27017
+        REDIS_ADDR: localhost:6379
       run: go test -v ./...

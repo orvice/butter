@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 	"github.com/twitchtv/twirp"
 
@@ -9,7 +11,6 @@ import (
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/repo"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
-	"go.orx.me/apps/butter/internal/repo/config/memory"
 	"go.orx.me/apps/butter/internal/service"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -17,9 +18,14 @@ import (
 // Handlers holds all HTTP/Twirp handlers that need post-bootstrap wiring.
 type Handlers struct {
 	a2aHandler       *httpHandler.A2AHandler
+	agentSvcServer   *application.AgentServiceServer
+	mcpSvcServer     *application.MCPServerServiceServer
+	remoteSvcServer  *application.RemoteAgentServiceServer
 	sessionSvcServer *application.SessionServiceServer
 	cronSvcServer    *application.CronJobServiceServer
-	configStore      *memory.Store
+	channelSvcServer *application.ChannelServiceServer
+	configStore      *ConfigStore
+	configRuntime    *ConfigRuntime
 	agentRepo        configrepo.AgentRepository
 	mcpServerRepo    configrepo.MCPServerRepository
 	remoteAgentRepo  configrepo.RemoteAgentRepository
@@ -44,6 +50,18 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if result.CronRepo != nil {
 		h.cronSvcServer.SetExecutionRepo(result.CronRepo)
 	}
+	if h.configRuntime != nil {
+		if result.RunnerSvc != nil {
+			h.configRuntime.SetRunnerService(result.RunnerSvc)
+		}
+		if result.ChannelMgr != nil {
+			h.configRuntime.SetChannelManager(result.ChannelMgr)
+		}
+		h.agentSvcServer.SetRuntime(h.configRuntime)
+		h.mcpSvcServer.SetRuntime(h.configRuntime)
+		h.remoteSvcServer.SetRuntime(h.configRuntime)
+		h.channelSvcServer.SetRuntime(h.configRuntime)
+	}
 }
 
 // AgentRepo returns the agent repository.
@@ -51,12 +69,17 @@ func (h *Handlers) AgentRepo() configrepo.AgentRepository {
 	return h.agentRepo
 }
 
-// SeedConfig seeds the config repositories from YAML config.
-func (h *Handlers) SeedConfig(cfg *config.AppConfig) {
-	// For the memory backend, use the direct Seed method.
-	if h.configStore != nil {
-		h.configStore.Seed(nil, cfg.Agents, cfg.MCPServerConfigs, cfg.RemoteAgents, cfg.Channels)
+// ChannelRepo returns the channel repository.
+func (h *Handlers) ChannelRepo() configrepo.ChannelRepository {
+	return h.channelRepo
+}
+
+// SeedConfig initializes and seeds the config repositories from AppConfig.
+func (h *Handlers) SeedConfig(ctx context.Context, cfg *config.AppConfig) error {
+	if h.configStore == nil {
+		return nil
 	}
+	return h.configStore.InitFromConfig(ctx, cfg)
 }
 
 // SetupRoutes creates all handlers and returns a Gin router function plus
@@ -67,13 +90,18 @@ func SetupRoutes(cfg *config.AppConfig) (func(r *gin.Engine), *Handlers) {
 	healthHandler := httpHandler.NewHealthHandler(healthService)
 	a2aHandler := httpHandler.NewA2AHandler(cfg)
 
-	memStore := memory.New()
+	configStore := NewConfigStore()
+	configRuntime := NewConfigRuntime(configStore, cfg)
 
 	pathPrefix := twirp.WithServerPathPrefix("/api")
-	agentTwirp := agentsv1.NewAgentServiceServer(application.NewAgentServiceServer(memStore), pathPrefix)
-	mcpTwirp := agentsv1.NewMCPServerServiceServer(application.NewMCPServerServiceServer(memStore), pathPrefix)
-	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(application.NewRemoteAgentServiceServer(memStore), pathPrefix)
-	channelTwirp := agentsv1.NewChannelServiceServer(application.NewChannelServiceServer(memStore), pathPrefix)
+	agentSvcServer := application.NewAgentServiceServer(configStore)
+	mcpSvcServer := application.NewMCPServerServiceServer(configStore)
+	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
+	agentTwirp := agentsv1.NewAgentServiceServer(agentSvcServer, pathPrefix)
+	mcpTwirp := agentsv1.NewMCPServerServiceServer(mcpSvcServer, pathPrefix)
+	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(remoteSvcServer, pathPrefix)
+	channelSvcServer := application.NewChannelServiceServer(configStore)
+	channelTwirp := agentsv1.NewChannelServiceServer(channelSvcServer, pathPrefix)
 	sessionSvcServer := application.NewSessionServiceServer()
 	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer, pathPrefix)
 	cronSvcServer := application.NewCronJobServiceServer()
@@ -95,13 +123,18 @@ func SetupRoutes(cfg *config.AppConfig) (func(r *gin.Engine), *Handlers) {
 
 	handlers := &Handlers{
 		a2aHandler:       a2aHandler,
+		agentSvcServer:   agentSvcServer,
+		mcpSvcServer:     mcpSvcServer,
+		remoteSvcServer:  remoteSvcServer,
 		sessionSvcServer: sessionSvcServer,
 		cronSvcServer:    cronSvcServer,
-		configStore:      memStore,
-		agentRepo:        memStore,
-		mcpServerRepo:    memStore,
-		remoteAgentRepo:  memStore,
-		channelRepo:      memStore,
+		channelSvcServer: channelSvcServer,
+		configStore:      configStore,
+		configRuntime:    configRuntime,
+		agentRepo:        configStore,
+		mcpServerRepo:    configStore,
+		remoteAgentRepo:  configStore,
+		channelRepo:      configStore,
 	}
 
 	return router, handlers

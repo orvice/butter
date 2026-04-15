@@ -7,3 +7,4 @@ openspec/
 .kilocode/
 .superpowers/
 front/.vite/deps/
+.agents/

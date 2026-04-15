@@ -26,8 +26,10 @@ func main() {
 		Router:    router,
 		InitFunc: []func() error{
 			func() error {
-				handlers.SeedConfig(cfg)
-				result, err := butterapp.StartChannels(channelCtx, cfg, handlers.AgentRepo())
+				if err := handlers.SeedConfig(channelCtx, cfg); err != nil {
+					return err
+				}
+				result, err := butterapp.StartChannels(channelCtx, cfg, handlers.AgentRepo(), handlers.ChannelRepo())
 				if err != nil {
 					return err
 				}

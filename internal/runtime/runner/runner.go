@@ -33,15 +33,16 @@ type AgentBuilderFunc func(ctx context.Context, model string) (agent.Agent, erro
 
 // Service manages an agent registry and per-channel ADK runners.
 type Service struct {
-	agents        map[string]agent.Agent
-	agentsProto   map[string]*agentsv1.Agent   // original proto configs keyed by name
-	agentBuilders map[string]AgentBuilderFunc  // dynamic builder funcs keyed by agent name
-	providers     []agentsv1.ModelProvider     // model providers for runtime resolution
-	mcpRegistry   []agentsv1.MCPServer
-	remoteAgents  []agentsv1.RemoteAgent
-	sessionSvc    session.Service
-	memorySvc     memory.Service
-	pluginConfig  adkrunner.PluginConfig
+	agents           map[string]agent.Agent
+	agentsProto      map[string]*agentsv1.Agent  // original proto configs keyed by name
+	agentBuilders    map[string]AgentBuilderFunc // dynamic builder funcs keyed by agent name
+	providers        []agentsv1.ModelProvider    // model providers for runtime resolution
+	mcpRegistry      []agentsv1.MCPServer
+	remoteAgents     []agentsv1.RemoteAgent
+	sessionSvc       session.Service
+	memorySvc        memory.Service
+	basePluginConfig adkrunner.PluginConfig
+	pluginConfig     adkrunner.PluginConfig
 
 	mu              sync.Mutex
 	runners         map[string]*adkrunner.Runner // keyed by channel name
@@ -51,6 +52,7 @@ type Service struct {
 // NewService builds the agent registry from proto configs.
 func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, sessionSvc session.Service, memorySvc memory.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
 	logger := log.FromContext(ctx)
+	basePluginConfig := pluginConfig
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
 
@@ -86,17 +88,18 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 	pluginConfig = mergePluginConfigs(pluginConfig, guardPC)
 
 	svc := &Service{
-		agents:          registry,
-		agentsProto:     protoRegistry,
-		agentBuilders:   make(map[string]AgentBuilderFunc),
-		providers:       providers,
-		mcpRegistry:     mcpRegistry,
-		remoteAgents:    remoteAgentRegistry,
-		sessionSvc:      sessionSvc,
-		memorySvc:       memorySvc,
-		pluginConfig:    pluginConfig,
-		runners:         make(map[string]*adkrunner.Runner),
-		overriddenCache: make(map[string]agent.Agent),
+		agents:           registry,
+		agentsProto:      protoRegistry,
+		agentBuilders:    make(map[string]AgentBuilderFunc),
+		providers:        providers,
+		mcpRegistry:      mcpRegistry,
+		remoteAgents:     remoteAgentRegistry,
+		sessionSvc:       sessionSvc,
+		memorySvc:        memorySvc,
+		basePluginConfig: basePluginConfig,
+		pluginConfig:     pluginConfig,
+		runners:          make(map[string]*adkrunner.Runner),
+		overriddenCache:  make(map[string]agent.Agent),
 	}
 
 	// Add compaction notifier plugin (must be after contextguard).
@@ -204,8 +207,59 @@ func (s *Service) RegisterAgentWithBuilder(name string, ag agent.Agent, builder 
 	s.agentBuilders[name] = builder
 }
 
+// ReloadProtoAgents rebuilds all proto-configured agents and refreshes runtime registries.
+func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) error {
+	logger := log.FromContext(ctx)
+	registry := make(map[string]agent.Agent, len(agents))
+	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
+
+	for i := range agents {
+		name := agents[i].GetName()
+		a, err := internalagent.NewFromProto(ctx, &agents[i], s.providers, mcpRegistry, remoteAgentRegistry)
+		if err != nil {
+			return fmt.Errorf("rebuilding agent %q: %w", name, err)
+		}
+		registry[name] = a
+		protoRegistry[name] = &agents[i]
+	}
+
+	guardPC, err := buildContextGuardPlugin(ctx, agents, s.providers)
+	if err != nil {
+		return fmt.Errorf("building context guard plugin: %w", err)
+	}
+	pluginConfig := mergePluginConfigs(s.basePluginConfig, guardPC)
+	if len(guardPC.Plugins) > 0 {
+		pluginConfig = mergePluginConfigs(pluginConfig, newCompactionNotifierPlugin())
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for name, ag := range s.agents {
+		if _, isProto := protoRegistry[name]; isProto {
+			continue
+		}
+		if _, hasBuilder := s.agentBuilders[name]; hasBuilder {
+			registry[name] = ag
+		}
+	}
+
+	s.agents = registry
+	s.agentsProto = protoRegistry
+	s.mcpRegistry = mcpRegistry
+	s.remoteAgents = remoteAgentRegistry
+	s.pluginConfig = pluginConfig
+	s.runners = make(map[string]*adkrunner.Runner)
+	s.overriddenCache = make(map[string]agent.Agent)
+
+	logger.Info("runner service reloaded", "proto_agents", len(protoRegistry), "total_agents", len(registry))
+	return nil
+}
+
 // AgentNames returns all registered agent names.
 func (s *Service) AgentNames() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	names := make([]string, 0, len(s.agents))
 	for name := range s.agents {
 		names = append(names, name)
@@ -215,6 +269,8 @@ func (s *Service) AgentNames() []string {
 
 // HasAgent checks if an agent with the given name exists.
 func (s *Service) HasAgent(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	_, ok := s.agents[name]
 	return ok
 }
@@ -226,6 +282,8 @@ func (s *Service) ModelProviders() []agentsv1.ModelProvider {
 
 // GetAgentModel returns the model name configured for the named agent, or empty string.
 func (s *Service) GetAgentModel(name string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	pb, ok := s.agentsProto[name]
 	if !ok {
 		return ""
@@ -235,6 +293,8 @@ func (s *Service) GetAgentModel(name string) string {
 
 // GetAgentStatus returns a status tree for the named agent, or nil if not found.
 func (s *Service) GetAgentStatus(name string) *AgentStatus {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	pb, ok := s.agentsProto[name]
 	if !ok {
 		return nil
@@ -303,12 +363,19 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	var a agent.Agent
 	var err error
 
-	if pb, ok := s.agentsProto[agentName]; ok {
+	s.mu.Lock()
+	pb, hasProto := s.agentsProto[agentName]
+	builder, hasBuilder := s.agentBuilders[agentName]
+	mcpRegistry := s.mcpRegistry
+	remoteAgents := s.remoteAgents
+	s.mu.Unlock()
+
+	if hasProto {
 		// Proto-based agent: clone proto and override model.
 		clone := proto.Clone(pb).(*agentsv1.Agent)
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProto(ctx, clone, s.providers, s.mcpRegistry, s.remoteAgents)
-	} else if builder, ok := s.agentBuilders[agentName]; ok {
+		a, err = internalagent.NewFromProto(ctx, clone, s.providers, mcpRegistry, remoteAgents)
+	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)
 	} else {
@@ -383,7 +450,9 @@ func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part
 		return "", fmt.Errorf("empty input: at least one part is required")
 	}
 
+	s.mu.Lock()
 	ag, ok := s.agents[agentName]
+	s.mu.Unlock()
 	if !ok {
 		return "", fmt.Errorf("unknown agent: %q", agentName)
 	}

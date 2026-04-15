@@ -11,11 +11,16 @@ import (
 )
 
 type AgentServiceServer struct {
-	repo configrepo.AgentRepository
+	repo    configrepo.AgentRepository
+	runtime ConfigRuntime
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
 	return &AgentServiceServer{repo: repo}
+}
+
+func (s *AgentServiceServer) SetRuntime(runtime ConfigRuntime) {
+	s.runtime = runtime
 }
 
 func (s *AgentServiceServer) ListAgents(ctx context.Context, _ *agentsv1.ListAgentsRequest) (*agentsv1.ListAgentsResponse, error) {
@@ -39,6 +44,9 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *agentsv1.Crea
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.CreateAgentResponse{Agent: a}, nil
 }
 
@@ -47,6 +55,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.Upda
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.UpdateAgentResponse{Agent: a}, nil
 }
 
@@ -54,7 +65,25 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.Dele
 	if err := s.repo.DeleteAgent(ctx, req.GetName()); err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.DeleteAgentResponse{}, nil
+}
+
+func (s *AgentServiceServer) reloadRuntime(ctx context.Context) error {
+	if s.runtime == nil {
+		return nil
+	}
+	if err := s.runtime.ReloadRunner(ctx); err != nil {
+		return toTwirpError(err)
+	}
+	return nil
+}
+
+type ConfigRuntime interface {
+	ReloadRunner(ctx context.Context) error
+	ReloadChannels(ctx context.Context) error
 }
 
 func toTwirpError(err error) twirp.Error {

@@ -8,11 +8,16 @@ import (
 )
 
 type RemoteAgentServiceServer struct {
-	repo configrepo.RemoteAgentRepository
+	repo    configrepo.RemoteAgentRepository
+	runtime ConfigRuntime
 }
 
 func NewRemoteAgentServiceServer(repo configrepo.RemoteAgentRepository) *RemoteAgentServiceServer {
 	return &RemoteAgentServiceServer{repo: repo}
+}
+
+func (s *RemoteAgentServiceServer) SetRuntime(runtime ConfigRuntime) {
+	s.runtime = runtime
 }
 
 func (s *RemoteAgentServiceServer) ListRemoteAgents(ctx context.Context, _ *agentsv1.ListRemoteAgentsRequest) (*agentsv1.ListRemoteAgentsResponse, error) {
@@ -36,6 +41,9 @@ func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *a
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.CreateRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
@@ -44,6 +52,9 @@ func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *a
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.UpdateRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
@@ -51,5 +62,18 @@ func (s *RemoteAgentServiceServer) DeleteRemoteAgent(ctx context.Context, req *a
 	if err := s.repo.DeleteRemoteAgent(ctx, req.GetId()); err != nil {
 		return nil, toTwirpError(err)
 	}
+	if err := s.reloadRuntime(ctx); err != nil {
+		return nil, err
+	}
 	return &agentsv1.DeleteRemoteAgentResponse{}, nil
+}
+
+func (s *RemoteAgentServiceServer) reloadRuntime(ctx context.Context) error {
+	if s.runtime == nil {
+		return nil
+	}
+	if err := s.runtime.ReloadRunner(ctx); err != nil {
+		return toTwirpError(err)
+	}
+	return nil
 }
