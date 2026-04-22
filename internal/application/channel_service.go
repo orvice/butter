@@ -6,6 +6,7 @@ import (
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type ChannelServiceServer struct {
@@ -38,33 +39,74 @@ func (s *ChannelServiceServer) GetChannel(ctx context.Context, req *agentsv1.Get
 }
 
 func (s *ChannelServiceServer) CreateChannel(ctx context.Context, req *agentsv1.CreateChannelRequest) (*agentsv1.CreateChannelResponse, error) {
-	c, err := s.repo.CreateChannel(ctx, req.GetChannel())
+	c, err := mutateWithRuntime(
+		func() (*agentsv1.AgentChannel, error) {
+			return s.repo.CreateChannel(ctx, req.GetChannel())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if err := s.repo.DeleteChannel(ctx, req.GetChannel().GetName()); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
 	if err != nil {
 		return nil, toTwirpError(err)
-	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
 	}
 	return &agentsv1.CreateChannelResponse{Channel: c}, nil
 }
 
 func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *agentsv1.UpdateChannelRequest) (*agentsv1.UpdateChannelResponse, error) {
-	c, err := s.repo.UpdateChannel(ctx, req.GetChannel())
+	prev, err := s.repo.GetChannel(ctx, req.GetChannel().GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
+
+	c, err := mutateWithRuntime(
+		func() (*agentsv1.AgentChannel, error) {
+			return s.repo.UpdateChannel(ctx, req.GetChannel())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if _, err := s.repo.UpdateChannel(ctx, proto.Clone(prev).(*agentsv1.AgentChannel)); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		return nil, toTwirpError(err)
 	}
 	return &agentsv1.UpdateChannelResponse{Channel: c}, nil
 }
 
 func (s *ChannelServiceServer) DeleteChannel(ctx context.Context, req *agentsv1.DeleteChannelRequest) (*agentsv1.DeleteChannelResponse, error) {
-	if err := s.repo.DeleteChannel(ctx, req.GetName()); err != nil {
+	prev, err := s.repo.GetChannel(ctx, req.GetName())
+	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
+
+	err = deleteWithRuntime(
+		func() error {
+			return s.repo.DeleteChannel(ctx, req.GetName())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if _, err := s.repo.CreateChannel(ctx, proto.Clone(prev).(*agentsv1.AgentChannel)); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		return nil, toTwirpError(err)
 	}
 	return &agentsv1.DeleteChannelResponse{}, nil
 }

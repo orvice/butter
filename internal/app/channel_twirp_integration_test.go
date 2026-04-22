@@ -63,6 +63,9 @@ func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
 	}
 
 	tracker := &runtimeTracker{}
+	handlers.agentSvcServer.SetRuntime(tracker)
+	handlers.mcpSvcServer.SetRuntime(tracker)
+	handlers.remoteSvcServer.SetRuntime(tracker)
 	handlers.channelSvcServer.SetRuntime(tracker)
 
 	gin.SetMode(gin.TestMode)

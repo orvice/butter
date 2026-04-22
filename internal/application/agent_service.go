@@ -8,6 +8,7 @@ import (
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type AgentServiceServer struct {
@@ -40,33 +41,74 @@ func (s *AgentServiceServer) GetAgent(ctx context.Context, req *agentsv1.GetAgen
 }
 
 func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *agentsv1.CreateAgentRequest) (*agentsv1.CreateAgentResponse, error) {
-	a, err := s.repo.CreateAgent(ctx, req.GetAgent())
+	a, err := mutateWithRuntime(
+		func() (*agentsv1.Agent, error) {
+			return s.repo.CreateAgent(ctx, req.GetAgent())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if err := s.repo.DeleteAgent(ctx, req.GetAgent().GetName()); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
 	if err != nil {
 		return nil, toTwirpError(err)
-	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
 	}
 	return &agentsv1.CreateAgentResponse{Agent: a}, nil
 }
 
 func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.UpdateAgentRequest) (*agentsv1.UpdateAgentResponse, error) {
-	a, err := s.repo.UpdateAgent(ctx, req.GetAgent())
+	prev, err := s.repo.GetAgent(ctx, req.GetAgent().GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
+
+	a, err := mutateWithRuntime(
+		func() (*agentsv1.Agent, error) {
+			return s.repo.UpdateAgent(ctx, req.GetAgent())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if _, err := s.repo.UpdateAgent(ctx, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		return nil, toTwirpError(err)
 	}
 	return &agentsv1.UpdateAgentResponse{Agent: a}, nil
 }
 
 func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.DeleteAgentRequest) (*agentsv1.DeleteAgentResponse, error) {
-	if err := s.repo.DeleteAgent(ctx, req.GetName()); err != nil {
+	prev, err := s.repo.GetAgent(ctx, req.GetName())
+	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
+
+	err = deleteWithRuntime(
+		func() error {
+			return s.repo.DeleteAgent(ctx, req.GetName())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if _, err := s.repo.CreateAgent(ctx, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		return nil, toTwirpError(err)
 	}
 	return &agentsv1.DeleteAgentResponse{}, nil
 }
@@ -87,6 +129,9 @@ type ConfigRuntime interface {
 }
 
 func toTwirpError(err error) twirp.Error {
+	if twerr, ok := err.(twirp.Error); ok {
+		return twerr
+	}
 	if errors.Is(err, configrepo.ErrNotFound) {
 		return twirp.NotFoundError(err.Error())
 	}

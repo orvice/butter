@@ -5,6 +5,7 @@ import (
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type MCPServerServiceServer struct {
@@ -37,33 +38,74 @@ func (s *MCPServerServiceServer) GetMCPServer(ctx context.Context, req *agentsv1
 }
 
 func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agentsv1.CreateMCPServerRequest) (*agentsv1.CreateMCPServerResponse, error) {
-	m, err := s.repo.CreateMCPServer(ctx, req.GetMcpServer())
+	m, err := mutateWithRuntime(
+		func() (*agentsv1.MCPServer, error) {
+			return s.repo.CreateMCPServer(ctx, req.GetMcpServer())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if err := s.repo.DeleteMCPServer(ctx, req.GetMcpServer().GetId()); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
 	if err != nil {
 		return nil, toTwirpError(err)
-	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
 	}
 	return &agentsv1.CreateMCPServerResponse{McpServer: m}, nil
 }
 
 func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agentsv1.UpdateMCPServerRequest) (*agentsv1.UpdateMCPServerResponse, error) {
-	m, err := s.repo.UpdateMCPServer(ctx, req.GetMcpServer())
+	prev, err := s.repo.GetMCPServer(ctx, req.GetMcpServer().GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
+
+	m, err := mutateWithRuntime(
+		func() (*agentsv1.MCPServer, error) {
+			return s.repo.UpdateMCPServer(ctx, req.GetMcpServer())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if _, err := s.repo.UpdateMCPServer(ctx, proto.Clone(prev).(*agentsv1.MCPServer)); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		return nil, toTwirpError(err)
 	}
 	return &agentsv1.UpdateMCPServerResponse{McpServer: m}, nil
 }
 
 func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agentsv1.DeleteMCPServerRequest) (*agentsv1.DeleteMCPServerResponse, error) {
-	if err := s.repo.DeleteMCPServer(ctx, req.GetId()); err != nil {
+	prev, err := s.repo.GetMCPServer(ctx, req.GetId())
+	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
+
+	err = deleteWithRuntime(
+		func() error {
+			return s.repo.DeleteMCPServer(ctx, req.GetId())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if _, err := s.repo.CreateMCPServer(ctx, proto.Clone(prev).(*agentsv1.MCPServer)); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		return nil, toTwirpError(err)
 	}
 	return &agentsv1.DeleteMCPServerResponse{}, nil
 }

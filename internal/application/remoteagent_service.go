@@ -5,6 +5,7 @@ import (
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type RemoteAgentServiceServer struct {
@@ -37,33 +38,74 @@ func (s *RemoteAgentServiceServer) GetRemoteAgent(ctx context.Context, req *agen
 }
 
 func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *agentsv1.CreateRemoteAgentRequest) (*agentsv1.CreateRemoteAgentResponse, error) {
-	r, err := s.repo.CreateRemoteAgent(ctx, req.GetRemoteAgent())
+	r, err := mutateWithRuntime(
+		func() (*agentsv1.RemoteAgent, error) {
+			return s.repo.CreateRemoteAgent(ctx, req.GetRemoteAgent())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if err := s.repo.DeleteRemoteAgent(ctx, req.GetRemoteAgent().GetId()); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
 	if err != nil {
 		return nil, toTwirpError(err)
-	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
 	}
 	return &agentsv1.CreateRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
 func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *agentsv1.UpdateRemoteAgentRequest) (*agentsv1.UpdateRemoteAgentResponse, error) {
-	r, err := s.repo.UpdateRemoteAgent(ctx, req.GetRemoteAgent())
+	prev, err := s.repo.GetRemoteAgent(ctx, req.GetRemoteAgent().GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
+
+	r, err := mutateWithRuntime(
+		func() (*agentsv1.RemoteAgent, error) {
+			return s.repo.UpdateRemoteAgent(ctx, req.GetRemoteAgent())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if _, err := s.repo.UpdateRemoteAgent(ctx, proto.Clone(prev).(*agentsv1.RemoteAgent)); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		return nil, toTwirpError(err)
 	}
 	return &agentsv1.UpdateRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
 func (s *RemoteAgentServiceServer) DeleteRemoteAgent(ctx context.Context, req *agentsv1.DeleteRemoteAgentRequest) (*agentsv1.DeleteRemoteAgentResponse, error) {
-	if err := s.repo.DeleteRemoteAgent(ctx, req.GetId()); err != nil {
+	prev, err := s.repo.GetRemoteAgent(ctx, req.GetId())
+	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.reloadRuntime(ctx); err != nil {
-		return nil, err
+
+	err = deleteWithRuntime(
+		func() error {
+			return s.repo.DeleteRemoteAgent(ctx, req.GetId())
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			if _, err := s.repo.CreateRemoteAgent(ctx, proto.Clone(prev).(*agentsv1.RemoteAgent)); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		return nil, toTwirpError(err)
 	}
 	return &agentsv1.DeleteRemoteAgentResponse{}, nil
 }
