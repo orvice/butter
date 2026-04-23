@@ -4861,6 +4861,1617 @@ func (s *remoteAgentServiceServer) PathPrefix() string {
 }
 
 // ========================
+// ChannelService Interface
+// ========================
+
+// ChannelService manages AgentChannel configurations.
+type ChannelService interface {
+	ListChannels(context.Context, *ListChannelsRequest) (*ListChannelsResponse, error)
+
+	GetChannel(context.Context, *GetChannelRequest) (*GetChannelResponse, error)
+
+	CreateChannel(context.Context, *CreateChannelRequest) (*CreateChannelResponse, error)
+
+	UpdateChannel(context.Context, *UpdateChannelRequest) (*UpdateChannelResponse, error)
+
+	DeleteChannel(context.Context, *DeleteChannelRequest) (*DeleteChannelResponse, error)
+}
+
+// ==============================
+// ChannelService Protobuf Client
+// ==============================
+
+type channelServiceProtobufClient struct {
+	client      HTTPClient
+	urls        [5]string
+	interceptor twirp.Interceptor
+	opts        twirp.ClientOptions
+}
+
+// NewChannelServiceProtobufClient creates a Protobuf client that implements the ChannelService interface.
+// It communicates using Protobuf and can be configured with a custom HTTPClient.
+func NewChannelServiceProtobufClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) ChannelService {
+	if c, ok := client.(*http.Client); ok {
+		client = withoutRedirects(c)
+	}
+
+	clientOpts := twirp.ClientOptions{}
+	for _, o := range opts {
+		o(&clientOpts)
+	}
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	literalURLs := false
+	_ = clientOpts.ReadOpt("literalURLs", &literalURLs)
+	var pathPrefix string
+	if ok := clientOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
+	serviceURL := sanitizeBaseURL(baseURL)
+	serviceURL += baseServicePath(pathPrefix, "agents.v1", "ChannelService")
+	urls := [5]string{
+		serviceURL + "ListChannels",
+		serviceURL + "GetChannel",
+		serviceURL + "CreateChannel",
+		serviceURL + "UpdateChannel",
+		serviceURL + "DeleteChannel",
+	}
+
+	return &channelServiceProtobufClient{
+		client:      client,
+		urls:        urls,
+		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
+		opts:        clientOpts,
+	}
+}
+
+func (c *channelServiceProtobufClient) ListChannels(ctx context.Context, in *ListChannelsRequest) (*ListChannelsResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "ListChannels")
+	caller := c.callListChannels
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *ListChannelsRequest) (*ListChannelsResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListChannelsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListChannelsRequest) when calling interceptor")
+					}
+					return c.callListChannels(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListChannelsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListChannelsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceProtobufClient) callListChannels(ctx context.Context, in *ListChannelsRequest) (*ListChannelsResponse, error) {
+	out := new(ListChannelsResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *channelServiceProtobufClient) GetChannel(ctx context.Context, in *GetChannelRequest) (*GetChannelResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "GetChannel")
+	caller := c.callGetChannel
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *GetChannelRequest) (*GetChannelResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetChannelRequest) when calling interceptor")
+					}
+					return c.callGetChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*GetChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*GetChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceProtobufClient) callGetChannel(ctx context.Context, in *GetChannelRequest) (*GetChannelResponse, error) {
+	out := new(GetChannelResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *channelServiceProtobufClient) CreateChannel(ctx context.Context, in *CreateChannelRequest) (*CreateChannelResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "CreateChannel")
+	caller := c.callCreateChannel
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *CreateChannelRequest) (*CreateChannelResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CreateChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CreateChannelRequest) when calling interceptor")
+					}
+					return c.callCreateChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CreateChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceProtobufClient) callCreateChannel(ctx context.Context, in *CreateChannelRequest) (*CreateChannelResponse, error) {
+	out := new(CreateChannelResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *channelServiceProtobufClient) UpdateChannel(ctx context.Context, in *UpdateChannelRequest) (*UpdateChannelResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "UpdateChannel")
+	caller := c.callUpdateChannel
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *UpdateChannelRequest) (*UpdateChannelResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*UpdateChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateChannelRequest) when calling interceptor")
+					}
+					return c.callUpdateChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*UpdateChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceProtobufClient) callUpdateChannel(ctx context.Context, in *UpdateChannelRequest) (*UpdateChannelResponse, error) {
+	out := new(UpdateChannelResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *channelServiceProtobufClient) DeleteChannel(ctx context.Context, in *DeleteChannelRequest) (*DeleteChannelResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "DeleteChannel")
+	caller := c.callDeleteChannel
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *DeleteChannelRequest) (*DeleteChannelResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*DeleteChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteChannelRequest) when calling interceptor")
+					}
+					return c.callDeleteChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*DeleteChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceProtobufClient) callDeleteChannel(ctx context.Context, in *DeleteChannelRequest) (*DeleteChannelResponse, error) {
+	out := new(DeleteChannelResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+// ==========================
+// ChannelService JSON Client
+// ==========================
+
+type channelServiceJSONClient struct {
+	client      HTTPClient
+	urls        [5]string
+	interceptor twirp.Interceptor
+	opts        twirp.ClientOptions
+}
+
+// NewChannelServiceJSONClient creates a JSON client that implements the ChannelService interface.
+// It communicates using JSON and can be configured with a custom HTTPClient.
+func NewChannelServiceJSONClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) ChannelService {
+	if c, ok := client.(*http.Client); ok {
+		client = withoutRedirects(c)
+	}
+
+	clientOpts := twirp.ClientOptions{}
+	for _, o := range opts {
+		o(&clientOpts)
+	}
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	literalURLs := false
+	_ = clientOpts.ReadOpt("literalURLs", &literalURLs)
+	var pathPrefix string
+	if ok := clientOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
+	serviceURL := sanitizeBaseURL(baseURL)
+	serviceURL += baseServicePath(pathPrefix, "agents.v1", "ChannelService")
+	urls := [5]string{
+		serviceURL + "ListChannels",
+		serviceURL + "GetChannel",
+		serviceURL + "CreateChannel",
+		serviceURL + "UpdateChannel",
+		serviceURL + "DeleteChannel",
+	}
+
+	return &channelServiceJSONClient{
+		client:      client,
+		urls:        urls,
+		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
+		opts:        clientOpts,
+	}
+}
+
+func (c *channelServiceJSONClient) ListChannels(ctx context.Context, in *ListChannelsRequest) (*ListChannelsResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "ListChannels")
+	caller := c.callListChannels
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *ListChannelsRequest) (*ListChannelsResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListChannelsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListChannelsRequest) when calling interceptor")
+					}
+					return c.callListChannels(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListChannelsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListChannelsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceJSONClient) callListChannels(ctx context.Context, in *ListChannelsRequest) (*ListChannelsResponse, error) {
+	out := new(ListChannelsResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *channelServiceJSONClient) GetChannel(ctx context.Context, in *GetChannelRequest) (*GetChannelResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "GetChannel")
+	caller := c.callGetChannel
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *GetChannelRequest) (*GetChannelResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetChannelRequest) when calling interceptor")
+					}
+					return c.callGetChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*GetChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*GetChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceJSONClient) callGetChannel(ctx context.Context, in *GetChannelRequest) (*GetChannelResponse, error) {
+	out := new(GetChannelResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *channelServiceJSONClient) CreateChannel(ctx context.Context, in *CreateChannelRequest) (*CreateChannelResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "CreateChannel")
+	caller := c.callCreateChannel
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *CreateChannelRequest) (*CreateChannelResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CreateChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CreateChannelRequest) when calling interceptor")
+					}
+					return c.callCreateChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CreateChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceJSONClient) callCreateChannel(ctx context.Context, in *CreateChannelRequest) (*CreateChannelResponse, error) {
+	out := new(CreateChannelResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *channelServiceJSONClient) UpdateChannel(ctx context.Context, in *UpdateChannelRequest) (*UpdateChannelResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "UpdateChannel")
+	caller := c.callUpdateChannel
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *UpdateChannelRequest) (*UpdateChannelResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*UpdateChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateChannelRequest) when calling interceptor")
+					}
+					return c.callUpdateChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*UpdateChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceJSONClient) callUpdateChannel(ctx context.Context, in *UpdateChannelRequest) (*UpdateChannelResponse, error) {
+	out := new(UpdateChannelResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *channelServiceJSONClient) DeleteChannel(ctx context.Context, in *DeleteChannelRequest) (*DeleteChannelResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithMethodName(ctx, "DeleteChannel")
+	caller := c.callDeleteChannel
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *DeleteChannelRequest) (*DeleteChannelResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*DeleteChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteChannelRequest) when calling interceptor")
+					}
+					return c.callDeleteChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*DeleteChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *channelServiceJSONClient) callDeleteChannel(ctx context.Context, in *DeleteChannelRequest) (*DeleteChannelResponse, error) {
+	out := new(DeleteChannelResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+// =============================
+// ChannelService Server Handler
+// =============================
+
+type channelServiceServer struct {
+	ChannelService
+	interceptor      twirp.Interceptor
+	hooks            *twirp.ServerHooks
+	pathPrefix       string // prefix for routing
+	jsonSkipDefaults bool   // do not include unpopulated fields (default values) in the response
+	jsonCamelCase    bool   // JSON fields are serialized as lowerCamelCase rather than keeping the original proto names
+}
+
+// NewChannelServiceServer builds a TwirpServer that can be used as an http.Handler to handle
+// HTTP requests that are routed to the right method in the provided svc implementation.
+// The opts are twirp.ServerOption modifiers, for example twirp.WithServerHooks(hooks).
+func NewChannelServiceServer(svc ChannelService, opts ...interface{}) TwirpServer {
+	serverOpts := newServerOpts(opts)
+
+	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
+	jsonSkipDefaults := false
+	_ = serverOpts.ReadOpt("jsonSkipDefaults", &jsonSkipDefaults)
+	jsonCamelCase := false
+	_ = serverOpts.ReadOpt("jsonCamelCase", &jsonCamelCase)
+	var pathPrefix string
+	if ok := serverOpts.ReadOpt("pathPrefix", &pathPrefix); !ok {
+		pathPrefix = "/twirp" // default prefix
+	}
+
+	return &channelServiceServer{
+		ChannelService:   svc,
+		hooks:            serverOpts.Hooks,
+		interceptor:      twirp.ChainInterceptors(serverOpts.Interceptors...),
+		pathPrefix:       pathPrefix,
+		jsonSkipDefaults: jsonSkipDefaults,
+		jsonCamelCase:    jsonCamelCase,
+	}
+}
+
+// writeError writes an HTTP response with a valid Twirp error format, and triggers hooks.
+// If err is not a twirp.Error, it will get wrapped with twirp.InternalErrorWith(err)
+func (s *channelServiceServer) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
+	writeError(ctx, resp, err, s.hooks)
+}
+
+// handleRequestBodyError is used to handle error when the twirp server cannot read request
+func (s *channelServiceServer) handleRequestBodyError(ctx context.Context, resp http.ResponseWriter, msg string, err error) {
+	if context.Canceled == ctx.Err() {
+		s.writeError(ctx, resp, twirp.NewError(twirp.Canceled, "failed to read request: context canceled"))
+		return
+	}
+	if context.DeadlineExceeded == ctx.Err() {
+		s.writeError(ctx, resp, twirp.NewError(twirp.DeadlineExceeded, "failed to read request: deadline exceeded"))
+		return
+	}
+	s.writeError(ctx, resp, twirp.WrapError(malformedRequestError(msg), err))
+}
+
+// ChannelServicePathPrefix is a convenience constant that may identify URL paths.
+// Should be used with caution, it only matches routes generated by Twirp Go clients,
+// with the default "/twirp" prefix and default CamelCase service and method names.
+// More info: https://twitchtv.github.io/twirp/docs/routing.html
+const ChannelServicePathPrefix = "/twirp/agents.v1.ChannelService/"
+
+func (s *channelServiceServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "ChannelService")
+	ctx = ctxsetters.WithResponseWriter(ctx, resp)
+
+	var err error
+	ctx, err = callRequestReceived(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	if req.Method != "POST" {
+		msg := fmt.Sprintf("unsupported method %q (only POST is allowed)", req.Method)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+
+	// Verify path format: [<prefix>]/<package>.<Service>/<Method>
+	prefix, pkgService, method := parseTwirpPath(req.URL.Path)
+	if pkgService != "agents.v1.ChannelService" {
+		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+	if prefix != s.pathPrefix {
+		msg := fmt.Sprintf("invalid path prefix %q, expected %q, on path %q", prefix, s.pathPrefix, req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+
+	switch method {
+	case "ListChannels":
+		s.serveListChannels(ctx, resp, req)
+		return
+	case "GetChannel":
+		s.serveGetChannel(ctx, resp, req)
+		return
+	case "CreateChannel":
+		s.serveCreateChannel(ctx, resp, req)
+		return
+	case "UpdateChannel":
+		s.serveUpdateChannel(ctx, resp, req)
+		return
+	case "DeleteChannel":
+		s.serveDeleteChannel(ctx, resp, req)
+		return
+	default:
+		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
+		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
+		return
+	}
+}
+
+func (s *channelServiceServer) serveListChannels(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveListChannelsJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveListChannelsProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *channelServiceServer) serveListChannelsJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListChannels")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(ListChannelsRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.ChannelService.ListChannels
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *ListChannelsRequest) (*ListChannelsResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListChannelsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListChannelsRequest) when calling interceptor")
+					}
+					return s.ChannelService.ListChannels(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListChannelsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListChannelsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *ListChannelsResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListChannelsResponse and nil error while calling ListChannels. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveListChannelsProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListChannels")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(ListChannelsRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.ChannelService.ListChannels
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *ListChannelsRequest) (*ListChannelsResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListChannelsRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListChannelsRequest) when calling interceptor")
+					}
+					return s.ChannelService.ListChannels(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListChannelsResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListChannelsResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *ListChannelsResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListChannelsResponse and nil error while calling ListChannels. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveGetChannel(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveGetChannelJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveGetChannelProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *channelServiceServer) serveGetChannelJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "GetChannel")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(GetChannelRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.ChannelService.GetChannel
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *GetChannelRequest) (*GetChannelResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetChannelRequest) when calling interceptor")
+					}
+					return s.ChannelService.GetChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*GetChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*GetChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *GetChannelResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetChannelResponse and nil error while calling GetChannel. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveGetChannelProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "GetChannel")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(GetChannelRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.ChannelService.GetChannel
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *GetChannelRequest) (*GetChannelResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*GetChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*GetChannelRequest) when calling interceptor")
+					}
+					return s.ChannelService.GetChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*GetChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*GetChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *GetChannelResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetChannelResponse and nil error while calling GetChannel. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveCreateChannel(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveCreateChannelJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveCreateChannelProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *channelServiceServer) serveCreateChannelJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "CreateChannel")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(CreateChannelRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.ChannelService.CreateChannel
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *CreateChannelRequest) (*CreateChannelResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CreateChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CreateChannelRequest) when calling interceptor")
+					}
+					return s.ChannelService.CreateChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CreateChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CreateChannelResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateChannelResponse and nil error while calling CreateChannel. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveCreateChannelProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "CreateChannel")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(CreateChannelRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.ChannelService.CreateChannel
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *CreateChannelRequest) (*CreateChannelResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CreateChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CreateChannelRequest) when calling interceptor")
+					}
+					return s.ChannelService.CreateChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*CreateChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *CreateChannelResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateChannelResponse and nil error while calling CreateChannel. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveUpdateChannel(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveUpdateChannelJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveUpdateChannelProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *channelServiceServer) serveUpdateChannelJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "UpdateChannel")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(UpdateChannelRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.ChannelService.UpdateChannel
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *UpdateChannelRequest) (*UpdateChannelResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*UpdateChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateChannelRequest) when calling interceptor")
+					}
+					return s.ChannelService.UpdateChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*UpdateChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *UpdateChannelResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateChannelResponse and nil error while calling UpdateChannel. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveUpdateChannelProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "UpdateChannel")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(UpdateChannelRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.ChannelService.UpdateChannel
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *UpdateChannelRequest) (*UpdateChannelResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*UpdateChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateChannelRequest) when calling interceptor")
+					}
+					return s.ChannelService.UpdateChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*UpdateChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *UpdateChannelResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateChannelResponse and nil error while calling UpdateChannel. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveDeleteChannel(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveDeleteChannelJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveDeleteChannelProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *channelServiceServer) serveDeleteChannelJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "DeleteChannel")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(DeleteChannelRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.ChannelService.DeleteChannel
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *DeleteChannelRequest) (*DeleteChannelResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*DeleteChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteChannelRequest) when calling interceptor")
+					}
+					return s.ChannelService.DeleteChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*DeleteChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *DeleteChannelResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteChannelResponse and nil error while calling DeleteChannel. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) serveDeleteChannelProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "DeleteChannel")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(DeleteChannelRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.ChannelService.DeleteChannel
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *DeleteChannelRequest) (*DeleteChannelResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*DeleteChannelRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteChannelRequest) when calling interceptor")
+					}
+					return s.ChannelService.DeleteChannel(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*DeleteChannelResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteChannelResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *DeleteChannelResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteChannelResponse and nil error while calling DeleteChannel. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *channelServiceServer) ServiceDescriptor() ([]byte, int) {
+	return twirpFileDescriptor0, 3
+}
+
+func (s *channelServiceServer) ProtocGenTwirpVersion() string {
+	return "v8.1.3"
+}
+
+// PathPrefix returns the base service path, in the form: "/<prefix>/<package>.<Service>/"
+// that is everything in a Twirp route except for the <Method>. This can be used for routing,
+// for example to identify the requests that are targeted to this service in a mux.
+func (s *channelServiceServer) PathPrefix() string {
+	return baseServicePath(s.pathPrefix, "agents.v1", "ChannelService")
+}
+
+// ========================
 // SessionService Interface
 // ========================
 
@@ -6461,7 +8072,7 @@ func (s *sessionServiceServer) serveReplySessionProtobuf(ctx context.Context, re
 }
 
 func (s *sessionServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor0, 3
+	return twirpFileDescriptor0, 4
 }
 
 func (s *sessionServiceServer) ProtocGenTwirpVersion() string {
@@ -7041,89 +8652,99 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 1339 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x58, 0xdd, 0x72, 0xdb, 0x44,
-	0x14, 0x1e, 0xc7, 0x8d, 0x93, 0x1c, 0xff, 0x24, 0x59, 0x3b, 0xb6, 0xa3, 0x36, 0x6d, 0xb2, 0x21,
-	0x90, 0xe9, 0x0c, 0x36, 0x71, 0x61, 0x06, 0x28, 0x3f, 0x03, 0x09, 0x93, 0x71, 0x49, 0x1b, 0x46,
-	0x21, 0xd0, 0x81, 0x99, 0x7a, 0x14, 0x6b, 0xeb, 0x0a, 0xac, 0x1f, 0x24, 0xd9, 0x03, 0x6f, 0xc0,
-	0x35, 0x57, 0xbc, 0x00, 0xef, 0xd2, 0x17, 0xe0, 0x8a, 0x17, 0xe0, 0x31, 0x18, 0xed, 0xae, 0xac,
-	0x5d, 0x69, 0x65, 0x9a, 0x3a, 0xbd, 0xb3, 0xf6, 0x9c, 0xfd, 0xce, 0xb7, 0xe7, 0x1c, 0xad, 0xbe,
-	0x63, 0xd8, 0x31, 0x46, 0xc4, 0x09, 0x83, 0xee, 0xf4, 0xa8, 0x4b, 0x7f, 0x0d, 0x02, 0xe2, 0x4f,
-	0xad, 0x21, 0xe9, 0x78, 0xbe, 0x1b, 0xba, 0x68, 0x8d, 0x99, 0x3b, 0xd3, 0x23, 0x6d, 0x2b, 0xe5,
-	0xc9, 0x3c, 0xb4, 0x3b, 0x23, 0xd7, 0x1d, 0x8d, 0x49, 0x97, 0x3e, 0x5d, 0x4d, 0x9e, 0x77, 0x83,
-	0xd0, 0x9f, 0x0c, 0x63, 0xeb, 0xbd, 0xb4, 0x35, 0xb4, 0x6c, 0x12, 0x84, 0x86, 0xed, 0x31, 0x07,
-	0x5c, 0x87, 0xcd, 0x33, 0x2b, 0x08, 0xbf, 0xa0, 0xd8, 0x3a, 0xf9, 0x65, 0x42, 0x82, 0x10, 0x7f,
-	0x06, 0x48, 0x5c, 0x0c, 0x3c, 0xd7, 0x09, 0x08, 0x3a, 0x84, 0x12, 0xa3, 0xd0, 0x2e, 0xec, 0x16,
-	0x0f, 0xcb, 0xbd, 0x8d, 0xce, 0x8c, 0x5c, 0x87, 0xba, 0xea, 0xdc, 0x8e, 0x0f, 0x60, 0xfd, 0x94,
-	0xb0, 0xed, 0x1c, 0x12, 0x21, 0xb8, 0xe5, 0x18, 0x36, 0x69, 0x17, 0x76, 0x0b, 0x87, 0x6b, 0x3a,
-	0xfd, 0x8d, 0x3f, 0x86, 0x8d, 0xc4, 0x8d, 0x07, 0x79, 0x1b, 0x96, 0x29, 0x08, 0x75, 0x54, 0xc5,
-	0x60, 0x66, 0xfc, 0x09, 0xa0, 0x63, 0x9f, 0x18, 0x21, 0x91, 0xa2, 0xbc, 0xea, 0xee, 0x4f, 0xa1,
-	0x2e, 0xed, 0xbe, 0x7e, 0xf0, 0x4b, 0xcf, 0x5c, 0x20, 0xb8, 0xb4, 0xfb, 0x9a, 0xc1, 0x0f, 0x01,
-	0x9d, 0x90, 0x31, 0x49, 0x05, 0x57, 0xe5, 0x77, 0x0b, 0xea, 0x92, 0x27, 0x0b, 0x84, 0x5b, 0xb0,
-	0x15, 0x55, 0xf7, 0xf1, 0xf1, 0x37, 0x17, 0xc4, 0x9f, 0x12, 0x7f, 0x56, 0xf6, 0x73, 0x68, 0xa6,
-	0x0d, 0x9c, 0xdb, 0x07, 0x50, 0xb6, 0x87, 0x1e, 0xed, 0x4d, 0xe2, 0xc7, 0xf5, 0x6f, 0x08, 0x0c,
-	0x67, 0x7b, 0x74, 0xb0, 0x87, 0x1e, 0xdf, 0x8e, 0x0f, 0xa0, 0x7e, 0x4a, 0x12, 0xbc, 0x98, 0x6b,
-	0x0d, 0x96, 0x2c, 0x93, 0x33, 0x5d, 0xb2, 0x4c, 0xfc, 0x35, 0x34, 0x64, 0x37, 0x1e, 0xf5, 0x01,
-	0x40, 0x12, 0x95, 0xa7, 0x45, 0x1d, 0x74, 0x6d, 0x16, 0x14, 0x3f, 0x86, 0x26, 0x2b, 0x6d, 0x26,
-	0xec, 0x6b, 0xc1, 0x3d, 0x81, 0x56, 0x06, 0x6e, 0x41, 0x7a, 0xac, 0xf8, 0x37, 0x46, 0x2f, 0x03,
-	0xb7, 0x08, 0xbd, 0x43, 0x68, 0xb2, 0x96, 0xf9, 0xdf, 0xa2, 0x6d, 0x43, 0x2b, 0xe3, 0xc9, 0x1b,
-	0x6c, 0x1b, 0x5a, 0x51, 0x1f, 0xe9, 0xc4, 0x76, 0x79, 0xef, 0xcd, 0x5a, 0xec, 0x7b, 0x68, 0x67,
-	0x4d, 0x9c, 0xf0, 0x43, 0xa8, 0xfa, 0x74, 0x7d, 0x20, 0x5d, 0x33, 0x4d, 0x81, 0xb3, 0xb0, 0x4f,
-	0xaf, 0xf8, 0x02, 0x08, 0x7e, 0x07, 0xb6, 0x4e, 0x89, 0x88, 0x9b, 0xc7, 0xfb, 0x02, 0x9a, 0x69,
-	0x47, 0x1e, 0xff, 0x23, 0xa8, 0x88, 0xf1, 0x79, 0xca, 0xf2, 0xc2, 0x97, 0x85, 0xf0, 0xf8, 0x12,
-	0xda, 0xac, 0x4b, 0x14, 0x04, 0x16, 0x80, 0xfd, 0x0e, 0xb6, 0x15, 0xb0, 0x37, 0x42, 0x97, 0x75,
-	0xcd, 0x8d, 0xd3, 0x55, 0xc0, 0x2e, 0x4e, 0xf7, 0x3e, 0xb4, 0x59, 0xab, 0xbd, 0x42, 0x79, 0x6f,
-	0xc3, 0xb6, 0xc2, 0x97, 0x37, 0xe6, 0x9f, 0x05, 0x68, 0xb0, 0x84, 0x5e, 0x90, 0x20, 0xb0, 0x5c,
-	0x27, 0x46, 0xd9, 0x86, 0x55, 0xc3, 0xf3, 0x06, 0xc2, 0x0d, 0xba, 0x62, 0x78, 0xde, 0x13, 0xc3,
-	0x26, 0xa8, 0x05, 0x2b, 0x93, 0x80, 0xf8, 0x03, 0xcb, 0x6c, 0x2f, 0x51, 0x4b, 0x29, 0x7a, 0xec,
-	0x9b, 0x68, 0x07, 0x20, 0x60, 0x28, 0x91, 0xad, 0x48, 0x6d, 0x6b, 0x7c, 0xa5, 0x6f, 0xa2, 0x77,
-	0x61, 0x39, 0x08, 0x8d, 0x90, 0xb4, 0x6f, 0xd1, 0x83, 0xb6, 0x3a, 0xec, 0x4b, 0xdc, 0x89, 0xbf,
-	0xc4, 0x9d, 0x0b, 0xfa, 0x9d, 0xd6, 0x99, 0x17, 0xee, 0xc3, 0x56, 0x8a, 0x19, 0xcf, 0xdb, 0x7b,
-	0xb0, 0xc2, 0x41, 0x15, 0x29, 0xe3, 0xce, 0x7d, 0xe7, 0xb9, 0xab, 0xc7, 0x6e, 0xf8, 0x8f, 0x02,
-	0x6c, 0x9e, 0x92, 0xf0, 0xcd, 0x1f, 0xf1, 0x3e, 0x6c, 0x3a, 0x13, 0x7b, 0xe0, 0x93, 0x61, 0x24,
-	0x5c, 0xc8, 0x94, 0xbe, 0xb4, 0xd1, 0x71, 0x97, 0xf5, 0x75, 0x67, 0x62, 0xeb, 0x74, 0xfd, 0x2b,
-	0xba, 0x8c, 0x2f, 0x01, 0x89, 0x9c, 0xf8, 0xe1, 0x3e, 0x87, 0x5a, 0x1c, 0xc0, 0x24, 0xa1, 0x61,
-	0x8d, 0xf9, 0x19, 0xdb, 0xd9, 0x33, 0x9e, 0x50, 0xbb, 0x5e, 0x0d, 0xc4, 0x47, 0xdc, 0x87, 0x7a,
-	0x74, 0x9f, 0x70, 0x9f, 0x60, 0x81, 0xc3, 0xe2, 0x47, 0xd0, 0x90, 0xa1, 0x38, 0xc7, 0x1e, 0xac,
-	0xf2, 0x98, 0xaa, 0x1b, 0x49, 0xac, 0xc0, 0xcc, 0x0f, 0x5b, 0xd0, 0x60, 0x5d, 0xf8, 0xc6, 0x8b,
-	0x10, 0x7d, 0xcd, 0x53, 0xa1, 0x78, 0xb3, 0xbf, 0x2c, 0x40, 0x5d, 0x27, 0xde, 0xf8, 0xb7, 0x14,
-	0x87, 0x1d, 0x00, 0xa6, 0x34, 0x05, 0x16, 0x4c, 0x66, 0x52, 0x1e, 0x22, 0xc5, 0xa5, 0x5c, 0x8a,
-	0xc5, 0x39, 0x14, 0x6f, 0xa5, 0xfb, 0xa4, 0x0d, 0x2b, 0x36, 0x09, 0x02, 0x63, 0x44, 0xda, 0xcb,
-	0x0c, 0x91, 0x3f, 0xa2, 0x03, 0xa8, 0xd9, 0xae, 0x49, 0xc6, 0x03, 0x77, 0x4a, 0x7c, 0xdf, 0x32,
-	0x49, 0xbb, 0x44, 0x1d, 0xaa, 0x74, 0xf5, 0x9c, 0x2f, 0xe2, 0x1e, 0x34, 0xe4, 0x93, 0xf0, 0xd2,
-	0x68, 0xb0, 0xea, 0xf3, 0xdf, 0xfc, 0x20, 0xb3, 0x67, 0xfc, 0x77, 0x01, 0xca, 0x42, 0x71, 0x52,
-	0x1c, 0x0b, 0x69, 0x8e, 0xaf, 0x73, 0xec, 0xeb, 0xbd, 0xe2, 0xe8, 0x04, 0x36, 0xc6, 0x46, 0x10,
-	0x0e, 0x26, 0xf4, 0x8e, 0x1c, 0x44, 0x4a, 0x9c, 0xe6, 0xa3, 0xdc, 0xd3, 0x32, 0x3b, 0xbf, 0x8d,
-	0x65, 0xba, 0x5e, 0x8b, 0xf6, 0xb0, 0x6b, 0x35, 0x5a, 0xc4, 0x3e, 0x54, 0xa5, 0x37, 0xe2, 0xfa,
-	0x17, 0x04, 0xea, 0x42, 0x89, 0xbf, 0xac, 0x4b, 0xb4, 0x9f, 0x5b, 0xd9, 0x0d, 0xf4, 0xad, 0xd5,
-	0xb9, 0x1b, 0xfe, 0xa7, 0x00, 0x15, 0xd1, 0x10, 0x65, 0x8b, 0x9a, 0x92, 0x54, 0xae, 0xd0, 0xe7,
-	0xbe, 0x89, 0xf6, 0xa1, 0x6a, 0x39, 0x53, 0x77, 0x68, 0x84, 0x3c, 0xd5, 0x2c, 0x9b, 0x95, 0x64,
-	0xb1, 0x6f, 0xa2, 0x26, 0x94, 0x8c, 0x49, 0xf8, 0xc2, 0xf5, 0xe3, 0x8c, 0xb2, 0xa7, 0x68, 0xfd,
-	0xca, 0x37, 0x9c, 0xe1, 0x0b, 0xde, 0x44, 0xfc, 0x09, 0xed, 0x41, 0x65, 0xe8, 0x3a, 0x61, 0x14,
-	0xf1, 0xa7, 0xc0, 0x75, 0x78, 0x1b, 0x95, 0xf9, 0xda, 0xa3, 0xc0, 0x75, 0xd0, 0x87, 0xb0, 0x36,
-	0x9b, 0x6d, 0x68, 0x17, 0xcd, 0x4f, 0x6b, 0xe2, 0xdc, 0xfb, 0xbd, 0x08, 0x15, 0xfa, 0x9d, 0xb8,
-	0x60, 0xa3, 0x17, 0xea, 0x03, 0x24, 0xe3, 0x0f, 0xba, 0x23, 0x64, 0x27, 0x33, 0x2a, 0x69, 0x3b,
-	0x39, 0x56, 0xde, 0xa1, 0xc7, 0xb0, 0x1a, 0x8f, 0x38, 0x48, 0x13, 0x5c, 0x53, 0xe3, 0x91, 0x76,
-	0x5b, 0x69, 0xe3, 0x20, 0x67, 0x50, 0x16, 0xa6, 0x15, 0x24, 0x86, 0xcc, 0xce, 0x40, 0xda, 0xdd,
-	0x3c, 0x73, 0x82, 0x26, 0x8c, 0x1f, 0x12, 0x5a, 0x76, 0xa8, 0x91, 0xd0, 0x54, 0x53, 0xcb, 0x19,
-	0x94, 0x85, 0x19, 0x43, 0x42, 0xcb, 0x4e, 0x29, 0x12, 0x9a, 0x62, 0x34, 0xe9, 0xbd, 0x2c, 0xc2,
-	0xc6, 0x4c, 0x4f, 0xc6, 0xe5, 0xb8, 0x84, 0x9a, 0x3c, 0x96, 0xa0, 0xdd, 0x54, 0xd2, 0x33, 0xa3,
-	0x8c, 0xb6, 0x37, 0xc7, 0x83, 0x33, 0x3f, 0x87, 0x8a, 0x38, 0x75, 0xa0, 0xbb, 0x72, 0x09, 0xd2,
-	0x02, 0x58, 0xbb, 0x97, 0x6b, 0xe7, 0x80, 0x4f, 0x61, 0x3d, 0x35, 0x2a, 0xa0, 0xbd, 0x4c, 0x2d,
-	0x32, 0xb0, 0x78, 0x9e, 0x4b, 0x82, 0x9c, 0x52, 0xf9, 0x12, 0xb2, 0x7a, 0xa0, 0x90, 0x90, 0xf3,
-	0x86, 0x84, 0xa7, 0xb0, 0x9e, 0x52, 0xf1, 0x12, 0xb2, 0x7a, 0x16, 0x90, 0x90, 0x73, 0x86, 0x80,
-	0xde, 0xbf, 0x45, 0x40, 0x82, 0x06, 0x8b, 0x8b, 0xf9, 0x23, 0x6c, 0xa4, 0x07, 0x00, 0x84, 0x53,
-	0xc5, 0x52, 0x0c, 0x0e, 0xda, 0xfe, 0x5c, 0x1f, 0x7e, 0x9a, 0x4b, 0xa8, 0xc9, 0xda, 0x5e, 0xea,
-	0x14, 0xe5, 0x7c, 0x20, 0x75, 0x4a, 0xce, 0x60, 0xf0, 0x0c, 0x36, 0x33, 0x32, 0x1c, 0xed, 0x67,
-	0xea, 0xa6, 0x00, 0x7f, 0x6b, 0xbe, 0x53, 0x82, 0x9f, 0xd1, 0xcd, 0x12, 0x7e, 0x9e, 0x58, 0x97,
-	0xf0, 0xf3, 0xa5, 0xf7, 0x33, 0xd8, 0xcc, 0x68, 0x62, 0x09, 0x3f, 0x4f, 0x5d, 0x4b, 0xf8, 0xb9,
-	0xb2, 0xba, 0xf7, 0x57, 0x11, 0x6a, 0xfc, 0xf3, 0x10, 0x97, 0x59, 0x87, 0xaa, 0x24, 0x67, 0xd1,
-	0xbd, 0x4c, 0x26, 0x64, 0x59, 0xa2, 0xed, 0xe6, 0x3b, 0xf0, 0x63, 0xf4, 0x01, 0x12, 0x09, 0x29,
-	0x5d, 0xcb, 0x19, 0xb5, 0x2b, 0x5d, 0xcb, 0x0a, 0xdd, 0x79, 0x0e, 0x15, 0x51, 0xeb, 0x49, 0xef,
-	0xbe, 0x42, 0x4f, 0x4a, 0xef, 0xbe, 0x52, 0x24, 0xea, 0x50, 0x95, 0x54, 0x98, 0x74, 0x5e, 0x95,
-	0x14, 0x94, 0xce, 0xab, 0x14, 0x70, 0x11, 0x49, 0x51, 0xf5, 0x48, 0x24, 0x15, 0xc2, 0x4e, 0x22,
-	0xa9, 0x92, 0x4b, 0x5f, 0xbe, 0xff, 0x43, 0x6f, 0xe4, 0x76, 0x5c, 0xff, 0xd7, 0x8e, 0x4d, 0xba,
-	0x86, 0xe7, 0x05, 0xdd, 0xab, 0x49, 0x18, 0x12, 0xbf, 0xeb, 0xfd, 0x3c, 0x62, 0xff, 0x10, 0x76,
-	0x67, 0xff, 0x31, 0x3e, 0x64, 0xbf, 0xa6, 0x47, 0x57, 0x25, 0x6a, 0x79, 0xf0, 0x5f, 0x00, 0x00,
-	0x00, 0xff, 0xff, 0x3a, 0xb2, 0x2a, 0xd9, 0xaa, 0x14, 0x00, 0x00,
+	// 1498 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x59, 0xed, 0x6e, 0x1b, 0x45,
+	0x17, 0x96, 0xe3, 0xe6, 0xeb, 0xf8, 0x23, 0xc9, 0x24, 0x8e, 0x1d, 0xb7, 0x69, 0xd3, 0xe9, 0xdb,
+	0xb7, 0x51, 0x25, 0x6c, 0xe2, 0x82, 0x04, 0x94, 0x0f, 0x41, 0x8a, 0x22, 0xf7, 0x2b, 0x68, 0x43,
+	0xa0, 0x02, 0xa9, 0xd6, 0xc6, 0x9e, 0xa6, 0x86, 0x78, 0x77, 0xd9, 0x5d, 0x5b, 0x70, 0x07, 0xfc,
+	0xe6, 0x17, 0x37, 0x80, 0xc4, 0xa5, 0xf4, 0x06, 0xf8, 0xc5, 0x0d, 0x70, 0x19, 0x68, 0x67, 0xce,
+	0xee, 0xce, 0xcc, 0xce, 0x9a, 0x24, 0x4e, 0xff, 0x79, 0xe6, 0x9c, 0x79, 0xce, 0x33, 0xe7, 0x9c,
+	0x99, 0x9d, 0x47, 0x86, 0x6d, 0xfb, 0x94, 0x39, 0x61, 0xd0, 0x9e, 0xec, 0xb5, 0xf9, 0xaf, 0x5e,
+	0xc0, 0xfc, 0xc9, 0xb0, 0xcf, 0x5a, 0x9e, 0xef, 0x86, 0x2e, 0x59, 0x16, 0xe6, 0xd6, 0x64, 0xaf,
+	0x59, 0xd3, 0x3c, 0x85, 0x47, 0xf3, 0x86, 0x36, 0xdd, 0x7f, 0x6d, 0x3b, 0x0e, 0x3b, 0x8b, 0xad,
+	0xa7, 0xae, 0x7b, 0x7a, 0xc6, 0xda, 0x7c, 0x74, 0x32, 0x7e, 0xd5, 0x0e, 0x42, 0x7f, 0xdc, 0x8f,
+	0xd7, 0xde, 0xd2, 0xad, 0xe1, 0x70, 0xc4, 0x82, 0xd0, 0x1e, 0x79, 0xc2, 0x81, 0xae, 0xc3, 0xda,
+	0xd3, 0x61, 0x10, 0x7e, 0xce, 0x43, 0x58, 0xec, 0xa7, 0x31, 0x0b, 0x42, 0xfa, 0x29, 0x10, 0x79,
+	0x32, 0xf0, 0x5c, 0x27, 0x60, 0x64, 0x17, 0x16, 0x04, 0x93, 0x46, 0x61, 0xa7, 0xb8, 0x5b, 0xea,
+	0xac, 0xb6, 0x12, 0xea, 0x2d, 0xee, 0x6a, 0xa1, 0x9d, 0xde, 0x85, 0x95, 0x03, 0x26, 0x96, 0x23,
+	0x24, 0x21, 0x70, 0xcd, 0xb1, 0x47, 0xac, 0x51, 0xd8, 0x29, 0xec, 0x2e, 0x5b, 0xfc, 0x37, 0xfd,
+	0x08, 0x56, 0x53, 0x37, 0x0c, 0xf2, 0x7f, 0x98, 0xe7, 0x20, 0xdc, 0xd1, 0x14, 0x43, 0x98, 0xe9,
+	0xc7, 0x40, 0xf6, 0x7d, 0x66, 0x87, 0x4c, 0x89, 0x72, 0xde, 0xd5, 0x9f, 0xc0, 0xba, 0xb2, 0xfa,
+	0xe2, 0xc1, 0x8f, 0xbd, 0xc1, 0x0c, 0xc1, 0x95, 0xd5, 0x17, 0x0c, 0xbe, 0x0b, 0xe4, 0x11, 0x3b,
+	0x63, 0x5a, 0x70, 0x53, 0x7e, 0x6b, 0xb0, 0xae, 0x78, 0x8a, 0x40, 0xb4, 0x0e, 0xb5, 0xa8, 0xba,
+	0xcf, 0xf6, 0xbf, 0x3a, 0x62, 0xfe, 0x84, 0xf9, 0x49, 0xd9, 0x0f, 0x61, 0x53, 0x37, 0x20, 0xb7,
+	0xf7, 0xa1, 0x34, 0xea, 0x7b, 0xbc, 0x73, 0x99, 0x1f, 0xd7, 0x7f, 0x43, 0x62, 0x98, 0xac, 0xb1,
+	0x60, 0xd4, 0xf7, 0x70, 0x39, 0xbd, 0x0b, 0xeb, 0x07, 0x2c, 0xc5, 0x8b, 0xb9, 0x56, 0x61, 0x6e,
+	0x38, 0x40, 0xa6, 0x73, 0xc3, 0x01, 0x7d, 0x02, 0x1b, 0xaa, 0x1b, 0x46, 0x7d, 0x00, 0x90, 0x46,
+	0xc5, 0xb4, 0x98, 0x83, 0x2e, 0x27, 0x41, 0xe9, 0x33, 0xd8, 0x14, 0xa5, 0xcd, 0x84, 0xbd, 0x14,
+	0xdc, 0x73, 0xa8, 0x67, 0xe0, 0x66, 0xa4, 0x27, 0x8a, 0x7f, 0x65, 0xf4, 0x32, 0x70, 0xb3, 0xd0,
+	0xdb, 0x85, 0x4d, 0xd1, 0x32, 0xff, 0x59, 0xb4, 0x2d, 0xa8, 0x67, 0x3c, 0xb1, 0xc1, 0xb6, 0xa0,
+	0x1e, 0xf5, 0x91, 0xc5, 0x46, 0x2e, 0xf6, 0x5e, 0xd2, 0x62, 0xdf, 0x42, 0x23, 0x6b, 0x42, 0xc2,
+	0x0f, 0xa1, 0xe2, 0xf3, 0xf9, 0x9e, 0x72, 0xcd, 0x6c, 0x4a, 0x9c, 0xa5, 0x75, 0x56, 0xd9, 0x97,
+	0x40, 0xe8, 0x3d, 0xa8, 0x1d, 0x30, 0x19, 0x37, 0x8f, 0xf7, 0x11, 0x6c, 0xea, 0x8e, 0x18, 0xff,
+	0x43, 0x28, 0xcb, 0xf1, 0x31, 0x65, 0x79, 0xe1, 0x4b, 0x52, 0x78, 0x7a, 0x0c, 0x0d, 0xd1, 0x25,
+	0x06, 0x02, 0x33, 0xc0, 0x7e, 0x03, 0x5b, 0x06, 0xd8, 0x2b, 0xa1, 0x2b, 0xba, 0xe6, 0xca, 0xe9,
+	0x1a, 0x60, 0x67, 0xa7, 0x7b, 0x1f, 0x1a, 0xa2, 0xd5, 0xce, 0x51, 0xde, 0xeb, 0xb0, 0x65, 0xf0,
+	0xc5, 0xc6, 0xac, 0xc1, 0x7a, 0xd4, 0x7d, 0xfb, 0xe2, 0x03, 0x9a, 0x34, 0xe5, 0x13, 0xd8, 0x50,
+	0xa7, 0x93, 0x13, 0xb4, 0x84, 0xdf, 0xda, 0xb8, 0x17, 0xeb, 0xfa, 0xa5, 0x8c, 0x6b, 0xac, 0xc4,
+	0x91, 0xde, 0x83, 0xb5, 0x03, 0x96, 0xcc, 0x4f, 0xb9, 0x9d, 0x0f, 0x80, 0xc8, 0x8e, 0x18, 0x73,
+	0x0f, 0x16, 0x11, 0x0a, 0x33, 0x94, 0x1b, 0x32, 0xf6, 0xa3, 0x5d, 0xd8, 0x10, 0x5d, 0xa2, 0x05,
+	0xbd, 0x04, 0xd4, 0x63, 0xa8, 0x69, 0x50, 0x33, 0xd1, 0x12, 0xdd, 0x70, 0x25, 0xb4, 0x34, 0xa8,
+	0xcb, 0xd3, 0xba, 0x0f, 0x1b, 0xa2, 0x41, 0xce, 0x51, 0xa2, 0x3a, 0xd4, 0x34, 0x5f, 0x6c, 0xa4,
+	0xdf, 0x0b, 0x71, 0xce, 0x8f, 0x58, 0x10, 0x0c, 0x5d, 0x27, 0x46, 0xd9, 0x82, 0x25, 0xdb, 0xf3,
+	0x7a, 0x12, 0xd2, 0xa2, 0xed, 0x79, 0xcf, 0xed, 0x11, 0x23, 0x75, 0x58, 0x1c, 0x07, 0xcc, 0xef,
+	0x0d, 0x07, 0x8d, 0x39, 0x6e, 0x59, 0x88, 0x86, 0xdd, 0x01, 0xd9, 0x06, 0x08, 0x04, 0x4a, 0x64,
+	0x2b, 0x72, 0xdb, 0x32, 0xce, 0x74, 0x07, 0xe4, 0x1d, 0x98, 0x0f, 0x42, 0x3b, 0x64, 0x8d, 0x6b,
+	0xb8, 0x43, 0xf1, 0xa4, 0x6b, 0xc5, 0x4f, 0xba, 0xd6, 0x11, 0x7f, 0xf0, 0x59, 0xc2, 0x8b, 0x76,
+	0xe3, 0x12, 0x26, 0xcc, 0x30, 0x57, 0xef, 0xc2, 0x22, 0x82, 0x1a, 0xce, 0x1e, 0x3a, 0x77, 0x9d,
+	0x57, 0xae, 0x15, 0xbb, 0xd1, 0xdf, 0x0a, 0xbc, 0x97, 0xdf, 0xfe, 0x16, 0xef, 0xc3, 0x9a, 0x33,
+	0x1e, 0xf5, 0x7c, 0xd6, 0x8f, 0xde, 0xc7, 0x6c, 0xc2, 0x6f, 0xff, 0x68, 0xbb, 0xf3, 0xd6, 0x8a,
+	0x33, 0x1e, 0x59, 0x7c, 0xfe, 0x4b, 0x3e, 0x4d, 0x8f, 0xf9, 0xb1, 0xd1, 0x37, 0xf7, 0x19, 0x54,
+	0xe3, 0x00, 0x03, 0x16, 0xda, 0xc3, 0xb8, 0x1f, 0x1a, 0xd9, 0x3d, 0x3e, 0xe2, 0x76, 0xab, 0x12,
+	0xc8, 0x43, 0xda, 0x15, 0x57, 0x03, 0xfa, 0x04, 0x33, 0x6c, 0x96, 0x3e, 0x16, 0xd7, 0x49, 0x0a,
+	0x85, 0x1c, 0x3b, 0xb0, 0x84, 0x31, 0x4d, 0x9f, 0x36, 0xb9, 0x02, 0x89, 0x1f, 0x1d, 0xc6, 0xdd,
+	0xfa, 0xd6, 0x8b, 0x90, 0x36, 0xbb, 0x96, 0x5b, 0xfa, 0xa6, 0x00, 0xeb, 0x16, 0xf3, 0xce, 0x7e,
+	0xd1, 0x38, 0x6c, 0x03, 0x08, 0x41, 0x23, 0xb1, 0x10, 0x6a, 0x86, 0xf3, 0x90, 0x29, 0xce, 0xe5,
+	0x52, 0x2c, 0x4e, 0xa1, 0x78, 0x4d, 0xef, 0x93, 0x06, 0x2c, 0x8e, 0x58, 0x10, 0xd8, 0xa7, 0xac,
+	0x31, 0x2f, 0x10, 0x71, 0x48, 0xee, 0x42, 0x75, 0xe4, 0x0e, 0xd8, 0x59, 0xcf, 0x9d, 0x30, 0xdf,
+	0x1f, 0x0e, 0x58, 0x63, 0x81, 0x3b, 0x54, 0xf8, 0xec, 0x21, 0x4e, 0xd2, 0x0e, 0x6c, 0xa8, 0x3b,
+	0xc1, 0xd2, 0x34, 0x61, 0xc9, 0xc7, 0xdf, 0xb8, 0x91, 0x64, 0x4c, 0xff, 0x2a, 0x40, 0x49, 0x2a,
+	0x8e, 0xc6, 0xb1, 0xa0, 0x73, 0xbc, 0xcc, 0xb6, 0x2f, 0x76, 0xc4, 0xc9, 0x23, 0x58, 0x3d, 0xb3,
+	0x83, 0xb0, 0x37, 0xe6, 0x77, 0x62, 0x2f, 0x92, 0x74, 0x3c, 0x1f, 0xa5, 0x4e, 0x33, 0xb3, 0xf2,
+	0xeb, 0x58, 0xef, 0x59, 0xd5, 0x68, 0x8d, 0xb8, 0x46, 0xa3, 0x49, 0xea, 0x43, 0x45, 0x39, 0x11,
+	0x17, 0xbf, 0x20, 0x48, 0x1b, 0x16, 0xf0, 0xb0, 0xce, 0x65, 0x3e, 0x8f, 0xb8, 0x80, 0x9f, 0x5a,
+	0x0b, 0xdd, 0xe8, 0xdf, 0x05, 0x28, 0xcb, 0x86, 0x28, 0x5b, 0xdc, 0x94, 0xa6, 0x72, 0x91, 0x8f,
+	0xbb, 0x03, 0x72, 0x07, 0x2a, 0x43, 0x67, 0xe2, 0xf6, 0xed, 0x10, 0x53, 0x2d, 0xb2, 0x59, 0x4e,
+	0x27, 0xbb, 0x03, 0xb2, 0x09, 0x0b, 0xf6, 0x38, 0x7c, 0xed, 0xfa, 0x71, 0x46, 0xc5, 0x28, 0x9a,
+	0x3f, 0xf1, 0x6d, 0xa7, 0xff, 0x1a, 0x9b, 0x08, 0x47, 0xe4, 0x36, 0x94, 0xfb, 0xae, 0x13, 0x46,
+	0x11, 0x7f, 0x08, 0x5c, 0x07, 0xdb, 0xa8, 0x84, 0x73, 0x8f, 0x03, 0xd7, 0x21, 0x1f, 0xc0, 0x72,
+	0x22, 0x92, 0x79, 0x17, 0x4d, 0x4f, 0x6b, 0xea, 0xdc, 0xf9, 0xb5, 0x08, 0x65, 0xfe, 0xd1, 0x39,
+	0x12, 0x0a, 0x9f, 0x74, 0x01, 0x52, 0x1d, 0x4d, 0x6e, 0x48, 0xd9, 0xc9, 0x68, 0xee, 0xe6, 0x76,
+	0x8e, 0x15, 0x3b, 0x74, 0x1f, 0x96, 0x62, 0xad, 0x4c, 0x9a, 0x92, 0xab, 0xa6, 0xb3, 0x9b, 0xd7,
+	0x8d, 0x36, 0x04, 0x79, 0x0a, 0x25, 0x49, 0xf6, 0x12, 0x39, 0x64, 0x56, 0x4c, 0x37, 0x6f, 0xe6,
+	0x99, 0x53, 0x34, 0x49, 0xc7, 0x2a, 0x68, 0x59, 0x75, 0xac, 0xa0, 0x99, 0xe4, 0xef, 0x53, 0x28,
+	0x49, 0x62, 0x55, 0x41, 0xcb, 0xca, 0x5d, 0x05, 0xcd, 0xa0, 0x71, 0x3b, 0x6f, 0x8a, 0xb0, 0x9a,
+	0x08, 0x93, 0xb8, 0x1c, 0xc7, 0x50, 0x55, 0xf5, 0x2d, 0xd9, 0xd1, 0x92, 0x9e, 0xd1, 0xc4, 0xcd,
+	0xdb, 0x53, 0x3c, 0x90, 0xf9, 0x21, 0x94, 0x65, 0xf9, 0x4a, 0x6e, 0xaa, 0x25, 0xd0, 0x95, 0x54,
+	0xf3, 0x56, 0xae, 0x1d, 0x01, 0x5f, 0xc0, 0x8a, 0xa6, 0x39, 0xc9, 0xed, 0x4c, 0x2d, 0x32, 0xb0,
+	0x74, 0x9a, 0x4b, 0x8a, 0xac, 0xc9, 0x45, 0x05, 0xd9, 0xac, 0x4c, 0x15, 0xe4, 0x3c, 0xb5, 0xf9,
+	0x02, 0x56, 0x34, 0x39, 0xa8, 0x20, 0x9b, 0x45, 0xa5, 0x82, 0x9c, 0xa3, 0x26, 0x3b, 0xff, 0x14,
+	0x81, 0x48, 0x8f, 0xf9, 0xb8, 0x98, 0xdf, 0xc3, 0xaa, 0xae, 0x24, 0x09, 0xd5, 0x8a, 0x65, 0x50,
+	0xa0, 0xcd, 0x3b, 0x53, 0x7d, 0x70, 0x37, 0xc7, 0x50, 0x55, 0x45, 0xa2, 0xd2, 0x29, 0x46, 0xa1,
+	0xa9, 0x74, 0x4a, 0x8e, 0xc2, 0x7c, 0x09, 0x6b, 0x19, 0x3d, 0x47, 0xee, 0x64, 0xea, 0x66, 0x00,
+	0xff, 0xdf, 0x74, 0xa7, 0x14, 0x3f, 0x23, 0xc0, 0x14, 0xfc, 0x3c, 0xd5, 0xa7, 0xe0, 0xe7, 0x6b,
+	0xb8, 0x97, 0xb0, 0x96, 0x11, 0x57, 0x0a, 0x7e, 0x9e, 0x4c, 0x53, 0xf0, 0x73, 0xf5, 0x59, 0xe7,
+	0xcf, 0x22, 0x54, 0xf1, 0xa9, 0x1d, 0x97, 0xf9, 0x10, 0xca, 0xb2, 0x36, 0x53, 0x0e, 0x97, 0x41,
+	0xcb, 0x29, 0x87, 0xcb, 0x28, 0xea, 0xba, 0x00, 0xa9, 0xec, 0x52, 0xee, 0xe4, 0x8c, 0x6c, 0x53,
+	0xee, 0x64, 0x83, 0x56, 0xb3, 0xa0, 0xa2, 0xa8, 0x25, 0x72, 0x2b, 0x53, 0x25, 0x0d, 0x70, 0x27,
+	0xdf, 0x21, 0xc5, 0x54, 0xa4, 0x8e, 0x82, 0x69, 0xd2, 0x53, 0x0a, 0xa6, 0x59, 0x25, 0x59, 0x50,
+	0x51, 0x64, 0x8c, 0x82, 0x69, 0x12, 0x43, 0x0a, 0xa6, 0x51, 0x01, 0x75, 0xfe, 0x28, 0x42, 0x15,
+	0xbf, 0xe4, 0x71, 0xa9, 0x92, 0x74, 0xe0, 0xbc, 0x21, 0x1d, 0xea, 0x0b, 0xd2, 0x90, 0x0e, 0xfd,
+	0x61, 0x26, 0xaa, 0x15, 0x03, 0x6a, 0xd5, 0xd2, 0xd0, 0xb6, 0x73, 0xac, 0xe9, 0x35, 0x2d, 0x3f,
+	0xcb, 0x33, 0x9d, 0xa4, 0x3d, 0xfd, 0x33, 0x9d, 0x94, 0x79, 0xcf, 0x27, 0x69, 0x35, 0xed, 0xd7,
+	0xf4, 0x6a, 0x37, 0xa4, 0xd5, 0x40, 0x52, 0x7e, 0xa0, 0x2a, 0x24, 0x0d, 0x6f, 0x70, 0x85, 0xa4,
+	0xe9, 0x65, 0xfb, 0xc5, 0x7b, 0xdf, 0x75, 0x4e, 0xdd, 0x96, 0xeb, 0xff, 0xdc, 0x1a, 0xb1, 0xb6,
+	0xed, 0x79, 0x41, 0xfb, 0x64, 0x1c, 0x86, 0xcc, 0x6f, 0x7b, 0x3f, 0x9e, 0x8a, 0x7f, 0x05, 0xda,
+	0xc9, 0xdf, 0x0b, 0x0f, 0xc5, 0xaf, 0xc9, 0xde, 0xc9, 0x02, 0xb7, 0x3c, 0xf8, 0x37, 0x00, 0x00,
+	0xff, 0xff, 0x67, 0xdf, 0xf0, 0x93, 0xbc, 0x18, 0x00, 0x00,
 }

@@ -7,8 +7,8 @@ import (
 	"google.golang.org/adk/tool"
 	"google.golang.org/adk/tool/functiontool"
 
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/cron"
-	"go.orx.me/apps/butter/internal/store/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -26,12 +26,15 @@ type listAgentsResult struct {
 	Agents []agentInfo `json:"agents"`
 }
 
-func newListAgentsTool(store *configstore.Store) (tool.Tool, error) {
+func newListAgentsTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "list_agents",
 		Description: "List all registered agents with their names, types, and descriptions.",
 	}, func(_ tool.Context, _ listAgentsArgs) (listAgentsResult, error) {
-		agents := store.ListAgents()
+		agents, err := agentRepo.ListAgents(context.Background())
+		if err != nil {
+			return listAgentsResult{}, err
+		}
 		infos := make([]agentInfo, 0, len(agents))
 		for _, a := range agents {
 			infos = append(infos, agentInfo{
@@ -57,12 +60,12 @@ type getAgentResult struct {
 	SubAgents   []string `json:"sub_agents,omitempty"`
 }
 
-func newGetAgentTool(store *configstore.Store) (tool.Tool, error) {
+func newGetAgentTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "get_agent",
 		Description: "Get detailed configuration of a specific agent by name.",
 	}, func(_ tool.Context, args getAgentArgs) (getAgentResult, error) {
-		a, err := store.GetAgent(args.Name)
+		a, err := agentRepo.GetAgent(context.Background(), args.Name)
 		if err != nil {
 			return getAgentResult{}, fmt.Errorf("agent %q not found", args.Name)
 		}

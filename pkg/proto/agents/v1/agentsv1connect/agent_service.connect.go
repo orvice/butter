@@ -27,6 +27,8 @@ const (
 	MCPServerServiceName = "agents.v1.MCPServerService"
 	// RemoteAgentServiceName is the fully-qualified name of the RemoteAgentService service.
 	RemoteAgentServiceName = "agents.v1.RemoteAgentService"
+	// ChannelServiceName is the fully-qualified name of the ChannelService service.
+	ChannelServiceName = "agents.v1.ChannelService"
 	// SessionServiceName is the fully-qualified name of the SessionService service.
 	SessionServiceName = "agents.v1.SessionService"
 )
@@ -82,6 +84,21 @@ const (
 	// RemoteAgentServiceDeleteRemoteAgentProcedure is the fully-qualified name of the
 	// RemoteAgentService's DeleteRemoteAgent RPC.
 	RemoteAgentServiceDeleteRemoteAgentProcedure = "/agents.v1.RemoteAgentService/DeleteRemoteAgent"
+	// ChannelServiceListChannelsProcedure is the fully-qualified name of the ChannelService's
+	// ListChannels RPC.
+	ChannelServiceListChannelsProcedure = "/agents.v1.ChannelService/ListChannels"
+	// ChannelServiceGetChannelProcedure is the fully-qualified name of the ChannelService's GetChannel
+	// RPC.
+	ChannelServiceGetChannelProcedure = "/agents.v1.ChannelService/GetChannel"
+	// ChannelServiceCreateChannelProcedure is the fully-qualified name of the ChannelService's
+	// CreateChannel RPC.
+	ChannelServiceCreateChannelProcedure = "/agents.v1.ChannelService/CreateChannel"
+	// ChannelServiceUpdateChannelProcedure is the fully-qualified name of the ChannelService's
+	// UpdateChannel RPC.
+	ChannelServiceUpdateChannelProcedure = "/agents.v1.ChannelService/UpdateChannel"
+	// ChannelServiceDeleteChannelProcedure is the fully-qualified name of the ChannelService's
+	// DeleteChannel RPC.
+	ChannelServiceDeleteChannelProcedure = "/agents.v1.ChannelService/DeleteChannel"
 	// SessionServiceCreateSessionProcedure is the fully-qualified name of the SessionService's
 	// CreateSession RPC.
 	SessionServiceCreateSessionProcedure = "/agents.v1.SessionService/CreateSession"
@@ -619,6 +636,180 @@ func (UnimplementedRemoteAgentServiceHandler) UpdateRemoteAgent(context.Context,
 
 func (UnimplementedRemoteAgentServiceHandler) DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.DeleteRemoteAgent is not implemented"))
+}
+
+// ChannelServiceClient is a client for the agents.v1.ChannelService service.
+type ChannelServiceClient interface {
+	ListChannels(context.Context, *connect.Request[v1.ListChannelsRequest]) (*connect.Response[v1.ListChannelsResponse], error)
+	GetChannel(context.Context, *connect.Request[v1.GetChannelRequest]) (*connect.Response[v1.GetChannelResponse], error)
+	CreateChannel(context.Context, *connect.Request[v1.CreateChannelRequest]) (*connect.Response[v1.CreateChannelResponse], error)
+	UpdateChannel(context.Context, *connect.Request[v1.UpdateChannelRequest]) (*connect.Response[v1.UpdateChannelResponse], error)
+	DeleteChannel(context.Context, *connect.Request[v1.DeleteChannelRequest]) (*connect.Response[v1.DeleteChannelResponse], error)
+}
+
+// NewChannelServiceClient constructs a client for the agents.v1.ChannelService service. By default,
+// it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and
+// sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC()
+// or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewChannelServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) ChannelServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	channelServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("ChannelService").Methods()
+	return &channelServiceClient{
+		listChannels: connect.NewClient[v1.ListChannelsRequest, v1.ListChannelsResponse](
+			httpClient,
+			baseURL+ChannelServiceListChannelsProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("ListChannels")),
+			connect.WithClientOptions(opts...),
+		),
+		getChannel: connect.NewClient[v1.GetChannelRequest, v1.GetChannelResponse](
+			httpClient,
+			baseURL+ChannelServiceGetChannelProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("GetChannel")),
+			connect.WithClientOptions(opts...),
+		),
+		createChannel: connect.NewClient[v1.CreateChannelRequest, v1.CreateChannelResponse](
+			httpClient,
+			baseURL+ChannelServiceCreateChannelProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("CreateChannel")),
+			connect.WithClientOptions(opts...),
+		),
+		updateChannel: connect.NewClient[v1.UpdateChannelRequest, v1.UpdateChannelResponse](
+			httpClient,
+			baseURL+ChannelServiceUpdateChannelProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("UpdateChannel")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteChannel: connect.NewClient[v1.DeleteChannelRequest, v1.DeleteChannelResponse](
+			httpClient,
+			baseURL+ChannelServiceDeleteChannelProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("DeleteChannel")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// channelServiceClient implements ChannelServiceClient.
+type channelServiceClient struct {
+	listChannels  *connect.Client[v1.ListChannelsRequest, v1.ListChannelsResponse]
+	getChannel    *connect.Client[v1.GetChannelRequest, v1.GetChannelResponse]
+	createChannel *connect.Client[v1.CreateChannelRequest, v1.CreateChannelResponse]
+	updateChannel *connect.Client[v1.UpdateChannelRequest, v1.UpdateChannelResponse]
+	deleteChannel *connect.Client[v1.DeleteChannelRequest, v1.DeleteChannelResponse]
+}
+
+// ListChannels calls agents.v1.ChannelService.ListChannels.
+func (c *channelServiceClient) ListChannels(ctx context.Context, req *connect.Request[v1.ListChannelsRequest]) (*connect.Response[v1.ListChannelsResponse], error) {
+	return c.listChannels.CallUnary(ctx, req)
+}
+
+// GetChannel calls agents.v1.ChannelService.GetChannel.
+func (c *channelServiceClient) GetChannel(ctx context.Context, req *connect.Request[v1.GetChannelRequest]) (*connect.Response[v1.GetChannelResponse], error) {
+	return c.getChannel.CallUnary(ctx, req)
+}
+
+// CreateChannel calls agents.v1.ChannelService.CreateChannel.
+func (c *channelServiceClient) CreateChannel(ctx context.Context, req *connect.Request[v1.CreateChannelRequest]) (*connect.Response[v1.CreateChannelResponse], error) {
+	return c.createChannel.CallUnary(ctx, req)
+}
+
+// UpdateChannel calls agents.v1.ChannelService.UpdateChannel.
+func (c *channelServiceClient) UpdateChannel(ctx context.Context, req *connect.Request[v1.UpdateChannelRequest]) (*connect.Response[v1.UpdateChannelResponse], error) {
+	return c.updateChannel.CallUnary(ctx, req)
+}
+
+// DeleteChannel calls agents.v1.ChannelService.DeleteChannel.
+func (c *channelServiceClient) DeleteChannel(ctx context.Context, req *connect.Request[v1.DeleteChannelRequest]) (*connect.Response[v1.DeleteChannelResponse], error) {
+	return c.deleteChannel.CallUnary(ctx, req)
+}
+
+// ChannelServiceHandler is an implementation of the agents.v1.ChannelService service.
+type ChannelServiceHandler interface {
+	ListChannels(context.Context, *connect.Request[v1.ListChannelsRequest]) (*connect.Response[v1.ListChannelsResponse], error)
+	GetChannel(context.Context, *connect.Request[v1.GetChannelRequest]) (*connect.Response[v1.GetChannelResponse], error)
+	CreateChannel(context.Context, *connect.Request[v1.CreateChannelRequest]) (*connect.Response[v1.CreateChannelResponse], error)
+	UpdateChannel(context.Context, *connect.Request[v1.UpdateChannelRequest]) (*connect.Response[v1.UpdateChannelResponse], error)
+	DeleteChannel(context.Context, *connect.Request[v1.DeleteChannelRequest]) (*connect.Response[v1.DeleteChannelResponse], error)
+}
+
+// NewChannelServiceHandler builds an HTTP handler from the service implementation. It returns the
+// path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewChannelServiceHandler(svc ChannelServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	channelServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("ChannelService").Methods()
+	channelServiceListChannelsHandler := connect.NewUnaryHandler(
+		ChannelServiceListChannelsProcedure,
+		svc.ListChannels,
+		connect.WithSchema(channelServiceMethods.ByName("ListChannels")),
+		connect.WithHandlerOptions(opts...),
+	)
+	channelServiceGetChannelHandler := connect.NewUnaryHandler(
+		ChannelServiceGetChannelProcedure,
+		svc.GetChannel,
+		connect.WithSchema(channelServiceMethods.ByName("GetChannel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	channelServiceCreateChannelHandler := connect.NewUnaryHandler(
+		ChannelServiceCreateChannelProcedure,
+		svc.CreateChannel,
+		connect.WithSchema(channelServiceMethods.ByName("CreateChannel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	channelServiceUpdateChannelHandler := connect.NewUnaryHandler(
+		ChannelServiceUpdateChannelProcedure,
+		svc.UpdateChannel,
+		connect.WithSchema(channelServiceMethods.ByName("UpdateChannel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	channelServiceDeleteChannelHandler := connect.NewUnaryHandler(
+		ChannelServiceDeleteChannelProcedure,
+		svc.DeleteChannel,
+		connect.WithSchema(channelServiceMethods.ByName("DeleteChannel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.ChannelService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case ChannelServiceListChannelsProcedure:
+			channelServiceListChannelsHandler.ServeHTTP(w, r)
+		case ChannelServiceGetChannelProcedure:
+			channelServiceGetChannelHandler.ServeHTTP(w, r)
+		case ChannelServiceCreateChannelProcedure:
+			channelServiceCreateChannelHandler.ServeHTTP(w, r)
+		case ChannelServiceUpdateChannelProcedure:
+			channelServiceUpdateChannelHandler.ServeHTTP(w, r)
+		case ChannelServiceDeleteChannelProcedure:
+			channelServiceDeleteChannelHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedChannelServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedChannelServiceHandler struct{}
+
+func (UnimplementedChannelServiceHandler) ListChannels(context.Context, *connect.Request[v1.ListChannelsRequest]) (*connect.Response[v1.ListChannelsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.ListChannels is not implemented"))
+}
+
+func (UnimplementedChannelServiceHandler) GetChannel(context.Context, *connect.Request[v1.GetChannelRequest]) (*connect.Response[v1.GetChannelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.GetChannel is not implemented"))
+}
+
+func (UnimplementedChannelServiceHandler) CreateChannel(context.Context, *connect.Request[v1.CreateChannelRequest]) (*connect.Response[v1.CreateChannelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.CreateChannel is not implemented"))
+}
+
+func (UnimplementedChannelServiceHandler) UpdateChannel(context.Context, *connect.Request[v1.UpdateChannelRequest]) (*connect.Response[v1.UpdateChannelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.UpdateChannel is not implemented"))
+}
+
+func (UnimplementedChannelServiceHandler) DeleteChannel(context.Context, *connect.Request[v1.DeleteChannelRequest]) (*connect.Response[v1.DeleteChannelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.DeleteChannel is not implemented"))
 }
 
 // SessionServiceClient is a client for the agents.v1.SessionService service.

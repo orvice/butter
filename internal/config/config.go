@@ -21,7 +21,8 @@ type AppConfig struct {
 	RedisAddr     string `yaml:"redis_addr"`
 	RedisPassword string `yaml:"redis_password"`
 
-	HTTP HTTPConfig `yaml:"http"`
+	HTTP           HTTPConfig `yaml:"http"`
+	StorageBackend string     `yaml:"storage_backend"` // "memory" (default) or "mongo"
 }
 
 type HTTPConfig struct {
