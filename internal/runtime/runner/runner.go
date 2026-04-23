@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
+	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -39,6 +40,7 @@ type Service struct {
 	providers        []agentsv1.ModelProvider    // model providers for runtime resolution
 	mcpRegistry      []agentsv1.MCPServer
 	remoteAgents     []agentsv1.RemoteAgent
+	daemonRegistry   *daemon.Registry
 	sessionSvc       session.Service
 	memorySvc        memory.Service
 	basePluginConfig adkrunner.PluginConfig
@@ -50,7 +52,7 @@ type Service struct {
 }
 
 // NewService builds the agent registry from proto configs.
-func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, sessionSvc session.Service, memorySvc memory.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
+func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
 	logger := log.FromContext(ctx)
 	basePluginConfig := pluginConfig
 	registry := make(map[string]agent.Agent, len(agents))
@@ -71,7 +73,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 			"description", agents[i].GetDescription(),
 		)
 
-		a, err := internalagent.NewFromProto(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry)
+		a, err := internalagent.NewFromProto(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry)
 		if err != nil {
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}
@@ -94,6 +96,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 		providers:        providers,
 		mcpRegistry:      mcpRegistry,
 		remoteAgents:     remoteAgentRegistry,
+		daemonRegistry:   daemonRegistry,
 		sessionSvc:       sessionSvc,
 		memorySvc:        memorySvc,
 		basePluginConfig: basePluginConfig,
@@ -215,7 +218,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 
 	for i := range agents {
 		name := agents[i].GetName()
-		a, err := internalagent.NewFromProto(ctx, &agents[i], s.providers, mcpRegistry, remoteAgentRegistry)
+		a, err := internalagent.NewFromProto(ctx, &agents[i], s.providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry)
 		if err != nil {
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
 		}
@@ -374,7 +377,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 		// Proto-based agent: clone proto and override model.
 		clone := proto.Clone(pb).(*agentsv1.Agent)
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProto(ctx, clone, s.providers, mcpRegistry, remoteAgents)
+		a, err = internalagent.NewFromProto(ctx, clone, s.providers, mcpRegistry, remoteAgents, s.daemonRegistry)
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)

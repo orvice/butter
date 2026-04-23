@@ -59,7 +59,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 		t.Fatalf("new memory service: %v", err)
 	}
 
-	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, sessionSvc, memorySvc, adkrunner.PluginConfig{})
+	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, nil, sessionSvc, memorySvc, adkrunner.PluginConfig{})
 	if err != nil {
 		t.Fatalf("new runner service: %v", err)
 	}

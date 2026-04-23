@@ -182,6 +182,7 @@ enum MCPServerTransport {
 enum RemoteAgentProtocol {
   REMOTE_AGENT_PROTOCOL_UNSPECIFIED = 0;
   REMOTE_AGENT_PROTOCOL_A2A = 1;
+  REMOTE_AGENT_PROTOCOL_DAEMON = 2;
 }
 
 // ContextGuardStrategy selects the compaction strategy for context management.
@@ -217,12 +218,18 @@ message RemoteAgent {
   string name = 2 [(validate.rules).string.min_len = 1];
 
   // Endpoint URL for communicating with the remote agent.
+  // Required for A2A protocol; unused for DAEMON protocol.
   // @gotags: json:"url,omitempty" yaml:"url,omitempty"
-  string url = 3 [(validate.rules).string.min_len = 1];
+  string url = 3;
 
   // Communication protocol for this remote agent.
   // @gotags: json:"protocol,omitempty" yaml:"protocol,omitempty"
   RemoteAgentProtocol protocol = 4;
+
+  // Capability identifier for daemon protocol routing.
+  // Required when protocol is DAEMON; matches DaemonInfo.capabilities.
+  // @gotags: json:"daemon_capability,omitempty" yaml:"daemon_capability,omitempty"
+  string daemon_capability = 5;
 }
 
 // ModelConfig describes a single model within a provider.

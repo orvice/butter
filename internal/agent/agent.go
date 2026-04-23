@@ -16,6 +16,7 @@ import (
 	"google.golang.org/adk/tool"
 	"google.golang.org/adk/tool/mcptoolset"
 
+	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -23,7 +24,7 @@ import (
 // providers is the list of model provider mappings used to resolve LLM backends.
 // mcpRegistry is the shared MCP server config pool; agents reference entries by ID.
 // remoteAgentRegistry is the shared remote agent config pool; agents reference entries by ID.
-func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) (agent.Agent, error) {
+func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
 	}
@@ -36,7 +37,7 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 	// Recursively build sub-agents.
 	subAgents := make([]agent.Agent, 0, len(pb.GetSubAgents()))
 	for _, sub := range pb.GetSubAgents() {
-		sa, err := NewFromProto(ctx, sub, providers, mcpRegistry, remoteAgentRegistry)
+		sa, err := NewFromProto(ctx, sub, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry)
 		if err != nil {
 			return nil, fmt.Errorf("building sub-agent %q: %w", sub.GetName(), err)
 		}
@@ -44,7 +45,7 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 	}
 
 	// Resolve remote agents and add as sub-agents.
-	remoteSubAgents, err := resolveRemoteAgents(pb, remoteAgentRegistry)
+	remoteSubAgents, err := resolveRemoteAgents(pb, remoteAgentRegistry, daemonRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
 	}
@@ -266,8 +267,8 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // resolveRemoteAgents looks up remote_agent_ids in the registry and creates
-// ADK remote agents via the A2A protocol.
-func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent) ([]agent.Agent, error) {
+// ADK agents for each. Supports A2A and DAEMON protocols.
+func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry) ([]agent.Agent, error) {
 	cfg := pb.GetConfig()
 	if cfg == nil || len(cfg.GetRemoteAgentIds()) == 0 {
 		return nil, nil
@@ -290,6 +291,9 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent) ([
 
 		switch ra.GetProtocol() {
 		case agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_A2A:
+			if ra.GetUrl() == "" {
+				return nil, fmt.Errorf("remote agent %q: A2A protocol requires non-empty url", ra.GetName())
+			}
 			a, err := remoteagent.NewA2A(remoteagent.A2AConfig{
 				Name:            ra.GetName(),
 				Description:     fmt.Sprintf("Remote A2A agent: %s", ra.GetName()),
@@ -299,6 +303,21 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent) ([
 				return nil, fmt.Errorf("creating remote agent %q: %w", ra.GetName(), err)
 			}
 			agents = append(agents, a)
+
+		case agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON:
+			if ra.GetDaemonCapability() == "" {
+				return nil, fmt.Errorf("remote agent %q: DAEMON protocol requires non-empty daemon_capability", ra.GetName())
+			}
+			if daemonRegistry == nil {
+				return nil, fmt.Errorf("remote agent %q: daemon registry not available", ra.GetName())
+			}
+			bridge := daemon.NewBridge(daemonRegistry, ra.GetDaemonCapability())
+			a, err := bridge.BuildAgent(ra.GetName(), fmt.Sprintf("Daemon agent: %s", ra.GetName()))
+			if err != nil {
+				return nil, fmt.Errorf("creating daemon agent %q: %w", ra.GetName(), err)
+			}
+			agents = append(agents, a)
+
 		default:
 			return nil, fmt.Errorf("remote agent %q: unsupported protocol %v", ra.GetName(), ra.GetProtocol())
 		}

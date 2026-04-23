@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// DaemonInfo is sent by the daemon client as the first message on the
+// Connect stream to register itself with the server.
+message DaemonInfo {
+  // Unique identifier for this daemon instance.
+  // @gotags: json:"daemon_id,omitempty" yaml:"daemon_id,omitempty"
+  string daemon_id = 1;
+
+  // Human-readable name for this daemon.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 2;
+
+  // Execution capabilities this daemon supports (e.g. "opencode", "shell").
+  // @gotags: json:"capabilities,omitempty" yaml:"capabilities,omitempty"
+  repeated string capabilities = 3;
+
+  // Routing labels (reserved for future use; not used for selection in Phase 1).
+  // @gotags: json:"labels,omitempty" yaml:"labels,omitempty"
+  map<string, string> labels = 4;
+}
+
+// DaemonTask is a task assignment sent from server to daemon.
+message DaemonTask {
+  // @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
+  string task_id = 1;
+
+  // The agent name on the server side that triggered this task.
+  // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty"
+  string agent_name = 2;
+
+  // User input text to execute.
+  // @gotags: json:"input,omitempty" yaml:"input,omitempty"
+  string input = 3;
+
+  // @gotags: json:"session_id,omitempty" yaml:"session_id,omitempty"
+  string session_id = 4;
+
+  // @gotags: json:"user_id,omitempty" yaml:"user_id,omitempty"
+  string user_id = 5;
+
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+  map<string, string> metadata = 6;
+
+  // Capability routing key. The daemon uses this to select the executor.
+  // Populated by the server from RemoteAgent.daemon_capability.
+  // @gotags: json:"capability,omitempty" yaml:"capability,omitempty"
+  string capability = 7;
+}
+
+// DaemonTaskUpdate is sent from daemon to server to report task progress or results.
+message DaemonTaskUpdate {
+  // @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
+  string task_id = 1;
+
+  // @gotags: json:"status,omitempty" yaml:"status,omitempty"
+  DaemonTaskStatus status = 2;
+
+  // Partial or final output text.
+  // @gotags: json:"output,omitempty" yaml:"output,omitempty"
+  string output = 3;
+
+  // Error message (populated when status is FAILED).
+  // @gotags: json:"error,omitempty" yaml:"error,omitempty"
+  string error = 4;
+
+  // @gotags: json:"timestamp,omitempty" yaml:"timestamp,omitempty"
+  google.protobuf.Timestamp timestamp = 5;
+}
+
+// DaemonTaskStatus tracks the lifecycle of a daemon task.
+enum DaemonTaskStatus {
+  DAEMON_TASK_STATUS_UNSPECIFIED = 0;
+  DAEMON_TASK_STATUS_ACCEPTED = 1;
+  DAEMON_TASK_STATUS_RUNNING = 2;
+  DAEMON_TASK_STATUS_COMPLETED = 3;
+  DAEMON_TASK_STATUS_FAILED = 4;
+  DAEMON_TASK_STATUS_CANCELLED = 5;
+}
+
+// DaemonMessage is the client-to-server stream message type.
+message DaemonMessage {
+  oneof message {
+    // First message must be a register.
+    DaemonInfo register = 1;
+    // Subsequent messages are task updates.
+    DaemonTaskUpdate task_update = 2;
+  }
+}
+
+// ServerMessage is the server-to-client stream message type.
+message ServerMessage {
+  oneof message {
+    // Task assignment.
+    DaemonTask task = 1;
+    // Cancel a running task.
+    CancelTask cancel = 2;
+  }
+}
+
+// CancelTask requests cancellation of a running task.
+message CancelTask {
+  // @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
+  string task_id = 1;
+}
+
+// DaemonConnector is the gRPC service for daemon long-lived connections.
+service DaemonConnector {
+  // Connect establishes a bidirectional stream. The daemon sends a register
+  // message first, then task updates. The server sends task assignments and
+  // cancellation requests.
+  rpc Connect(stream DaemonMessage) returns (stream ServerMessage);
+}
