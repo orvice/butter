@@ -15,7 +15,7 @@ import (
 
 const defaultGRPCPort = 9090
 
-// SetupGRPCServer creates a gRPC server with the DaemonConnector service
+// SetupGRPCServer creates a gRPC server with the DaemonConnectorService service
 // registered. It returns the server and a listener. The caller is responsible
 // for calling srv.Serve(lis).
 func SetupGRPCServer(cfg *config.AppConfig, registry *daemon.Registry) (*grpc.Server, net.Listener, error) {
@@ -32,7 +32,7 @@ func SetupGRPCServer(cfg *config.AppConfig, registry *daemon.Registry) (*grpc.Se
 
 	srv := grpc.NewServer()
 	handler := daemon.NewGRPCHandler(registry, cfg.APIToken)
-	agentsv1.RegisterDaemonConnectorServer(srv, handler)
+	agentsv1.RegisterDaemonConnectorServiceServer(srv, handler)
 
 	slog.Info("gRPC server configured", "addr", addr)
 	return srv, lis, nil

@@ -19,104 +19,105 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DaemonConnector_Connect_FullMethodName = "/agents.v1.DaemonConnector/Connect"
+	DaemonConnectorService_Connect_FullMethodName = "/agents.v1.DaemonConnectorService/Connect"
 )
 
-// DaemonConnectorClient is the client API for DaemonConnector service.
+// DaemonConnectorServiceClient is the client API for DaemonConnectorService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// DaemonConnector is the gRPC service for daemon long-lived connections.
-type DaemonConnectorClient interface {
+// DaemonConnectorService is the gRPC service for daemon long-lived connections.
+type DaemonConnectorServiceClient interface {
 	// Connect establishes a bidirectional stream. The daemon sends a register
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
-	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[DaemonMessage, ServerMessage], error)
+	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectRequest, ConnectResponse], error)
 }
 
-type daemonConnectorClient struct {
+type daemonConnectorServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewDaemonConnectorClient(cc grpc.ClientConnInterface) DaemonConnectorClient {
-	return &daemonConnectorClient{cc}
+func NewDaemonConnectorServiceClient(cc grpc.ClientConnInterface) DaemonConnectorServiceClient {
+	return &daemonConnectorServiceClient{cc}
 }
 
-func (c *daemonConnectorClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[DaemonMessage, ServerMessage], error) {
+func (c *daemonConnectorServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectRequest, ConnectResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &DaemonConnector_ServiceDesc.Streams[0], DaemonConnector_Connect_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &DaemonConnectorService_ServiceDesc.Streams[0], DaemonConnectorService_Connect_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[DaemonMessage, ServerMessage]{ClientStream: stream}
+	x := &grpc.GenericClientStream[ConnectRequest, ConnectResponse]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type DaemonConnector_ConnectClient = grpc.BidiStreamingClient[DaemonMessage, ServerMessage]
+type DaemonConnectorService_ConnectClient = grpc.BidiStreamingClient[ConnectRequest, ConnectResponse]
 
-// DaemonConnectorServer is the server API for DaemonConnector service.
-// All implementations must embed UnimplementedDaemonConnectorServer
+// DaemonConnectorServiceServer is the server API for DaemonConnectorService service.
+// All implementations must embed UnimplementedDaemonConnectorServiceServer
 // for forward compatibility.
 //
-// DaemonConnector is the gRPC service for daemon long-lived connections.
-type DaemonConnectorServer interface {
+// DaemonConnectorService is the gRPC service for daemon long-lived connections.
+type DaemonConnectorServiceServer interface {
 	// Connect establishes a bidirectional stream. The daemon sends a register
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
-	Connect(grpc.BidiStreamingServer[DaemonMessage, ServerMessage]) error
-	mustEmbedUnimplementedDaemonConnectorServer()
+	Connect(grpc.BidiStreamingServer[ConnectRequest, ConnectResponse]) error
+	mustEmbedUnimplementedDaemonConnectorServiceServer()
 }
 
-// UnimplementedDaemonConnectorServer must be embedded to have
+// UnimplementedDaemonConnectorServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedDaemonConnectorServer struct{}
+type UnimplementedDaemonConnectorServiceServer struct{}
 
-func (UnimplementedDaemonConnectorServer) Connect(grpc.BidiStreamingServer[DaemonMessage, ServerMessage]) error {
+func (UnimplementedDaemonConnectorServiceServer) Connect(grpc.BidiStreamingServer[ConnectRequest, ConnectResponse]) error {
 	return status.Error(codes.Unimplemented, "method Connect not implemented")
 }
-func (UnimplementedDaemonConnectorServer) mustEmbedUnimplementedDaemonConnectorServer() {}
-func (UnimplementedDaemonConnectorServer) testEmbeddedByValue()                         {}
+func (UnimplementedDaemonConnectorServiceServer) mustEmbedUnimplementedDaemonConnectorServiceServer() {
+}
+func (UnimplementedDaemonConnectorServiceServer) testEmbeddedByValue() {}
 
-// UnsafeDaemonConnectorServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to DaemonConnectorServer will
+// UnsafeDaemonConnectorServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to DaemonConnectorServiceServer will
 // result in compilation errors.
-type UnsafeDaemonConnectorServer interface {
-	mustEmbedUnimplementedDaemonConnectorServer()
+type UnsafeDaemonConnectorServiceServer interface {
+	mustEmbedUnimplementedDaemonConnectorServiceServer()
 }
 
-func RegisterDaemonConnectorServer(s grpc.ServiceRegistrar, srv DaemonConnectorServer) {
-	// If the following call panics, it indicates UnimplementedDaemonConnectorServer was
+func RegisterDaemonConnectorServiceServer(s grpc.ServiceRegistrar, srv DaemonConnectorServiceServer) {
+	// If the following call panics, it indicates UnimplementedDaemonConnectorServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&DaemonConnector_ServiceDesc, srv)
+	s.RegisterService(&DaemonConnectorService_ServiceDesc, srv)
 }
 
-func _DaemonConnector_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(DaemonConnectorServer).Connect(&grpc.GenericServerStream[DaemonMessage, ServerMessage]{ServerStream: stream})
+func _DaemonConnectorService_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DaemonConnectorServiceServer).Connect(&grpc.GenericServerStream[ConnectRequest, ConnectResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type DaemonConnector_ConnectServer = grpc.BidiStreamingServer[DaemonMessage, ServerMessage]
+type DaemonConnectorService_ConnectServer = grpc.BidiStreamingServer[ConnectRequest, ConnectResponse]
 
-// DaemonConnector_ServiceDesc is the grpc.ServiceDesc for DaemonConnector service.
+// DaemonConnectorService_ServiceDesc is the grpc.ServiceDesc for DaemonConnectorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var DaemonConnector_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "agents.v1.DaemonConnector",
-	HandlerType: (*DaemonConnectorServer)(nil),
+var DaemonConnectorService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.DaemonConnectorService",
+	HandlerType: (*DaemonConnectorServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Connect",
-			Handler:       _DaemonConnector_Connect_Handler,
+			Handler:       _DaemonConnectorService_Connect_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

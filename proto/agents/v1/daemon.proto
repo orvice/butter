@@ -84,8 +84,22 @@ enum DaemonTaskStatus {
   DAEMON_TASK_STATUS_CANCELLED = 5;
 }
 
-// DaemonMessage is the client-to-server stream message type.
-message DaemonMessage {
+// CancelTask requests cancellation of a running task.
+message CancelTask {
+  // @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
+  string task_id = 1;
+}
+
+// DaemonConnectorService is the gRPC service for daemon long-lived connections.
+service DaemonConnectorService {
+  // Connect establishes a bidirectional stream. The daemon sends a register
+  // message first, then task updates. The server sends task assignments and
+  // cancellation requests.
+  rpc Connect(stream ConnectRequest) returns (stream ConnectResponse);
+}
+
+// ConnectRequest is the client-to-server stream message for DaemonConnectorService.Connect.
+message ConnectRequest {
   oneof message {
     // First message must be a register.
     DaemonInfo register = 1;
@@ -94,26 +108,12 @@ message DaemonMessage {
   }
 }
 
-// ServerMessage is the server-to-client stream message type.
-message ServerMessage {
+// ConnectResponse is the server-to-client stream message for DaemonConnectorService.Connect.
+message ConnectResponse {
   oneof message {
     // Task assignment.
     DaemonTask task = 1;
     // Cancel a running task.
     CancelTask cancel = 2;
   }
-}
-
-// CancelTask requests cancellation of a running task.
-message CancelTask {
-  // @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
-  string task_id = 1;
-}
-
-// DaemonConnector is the gRPC service for daemon long-lived connections.
-service DaemonConnector {
-  // Connect establishes a bidirectional stream. The daemon sends a register
-  // message first, then task updates. The server sends task assignments and
-  // cancellation requests.
-  rpc Connect(stream DaemonMessage) returns (stream ServerMessage);
 }

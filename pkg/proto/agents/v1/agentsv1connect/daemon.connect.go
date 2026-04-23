@@ -21,8 +21,8 @@ import (
 const _ = connect.IsAtLeastVersion1_13_0
 
 const (
-	// DaemonConnectorName is the fully-qualified name of the DaemonConnector service.
-	DaemonConnectorName = "agents.v1.DaemonConnector"
+	// DaemonConnectorServiceName is the fully-qualified name of the DaemonConnectorService service.
+	DaemonConnectorServiceName = "agents.v1.DaemonConnectorService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -33,82 +33,84 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// DaemonConnectorConnectProcedure is the fully-qualified name of the DaemonConnector's Connect RPC.
-	DaemonConnectorConnectProcedure = "/agents.v1.DaemonConnector/Connect"
+	// DaemonConnectorServiceConnectProcedure is the fully-qualified name of the
+	// DaemonConnectorService's Connect RPC.
+	DaemonConnectorServiceConnectProcedure = "/agents.v1.DaemonConnectorService/Connect"
 )
 
-// DaemonConnectorClient is a client for the agents.v1.DaemonConnector service.
-type DaemonConnectorClient interface {
+// DaemonConnectorServiceClient is a client for the agents.v1.DaemonConnectorService service.
+type DaemonConnectorServiceClient interface {
 	// Connect establishes a bidirectional stream. The daemon sends a register
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
-	Connect(context.Context) *connect.BidiStreamForClient[v1.DaemonMessage, v1.ServerMessage]
+	Connect(context.Context) *connect.BidiStreamForClient[v1.ConnectRequest, v1.ConnectResponse]
 }
 
-// NewDaemonConnectorClient constructs a client for the agents.v1.DaemonConnector service. By
-// default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses,
-// and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
-// connect.WithGRPC() or connect.WithGRPCWeb() options.
+// NewDaemonConnectorServiceClient constructs a client for the agents.v1.DaemonConnectorService
+// service. By default, it uses the Connect protocol with the binary Protobuf Codec, asks for
+// gzipped responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply
+// the connect.WithGRPC() or connect.WithGRPCWeb() options.
 //
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
-func NewDaemonConnectorClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) DaemonConnectorClient {
+func NewDaemonConnectorServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) DaemonConnectorServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	daemonConnectorMethods := v1.File_agents_v1_daemon_proto.Services().ByName("DaemonConnector").Methods()
-	return &daemonConnectorClient{
-		connect: connect.NewClient[v1.DaemonMessage, v1.ServerMessage](
+	daemonConnectorServiceMethods := v1.File_agents_v1_daemon_proto.Services().ByName("DaemonConnectorService").Methods()
+	return &daemonConnectorServiceClient{
+		connect: connect.NewClient[v1.ConnectRequest, v1.ConnectResponse](
 			httpClient,
-			baseURL+DaemonConnectorConnectProcedure,
-			connect.WithSchema(daemonConnectorMethods.ByName("Connect")),
+			baseURL+DaemonConnectorServiceConnectProcedure,
+			connect.WithSchema(daemonConnectorServiceMethods.ByName("Connect")),
 			connect.WithClientOptions(opts...),
 		),
 	}
 }
 
-// daemonConnectorClient implements DaemonConnectorClient.
-type daemonConnectorClient struct {
-	connect *connect.Client[v1.DaemonMessage, v1.ServerMessage]
+// daemonConnectorServiceClient implements DaemonConnectorServiceClient.
+type daemonConnectorServiceClient struct {
+	connect *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
 }
 
-// Connect calls agents.v1.DaemonConnector.Connect.
-func (c *daemonConnectorClient) Connect(ctx context.Context) *connect.BidiStreamForClient[v1.DaemonMessage, v1.ServerMessage] {
+// Connect calls agents.v1.DaemonConnectorService.Connect.
+func (c *daemonConnectorServiceClient) Connect(ctx context.Context) *connect.BidiStreamForClient[v1.ConnectRequest, v1.ConnectResponse] {
 	return c.connect.CallBidiStream(ctx)
 }
 
-// DaemonConnectorHandler is an implementation of the agents.v1.DaemonConnector service.
-type DaemonConnectorHandler interface {
+// DaemonConnectorServiceHandler is an implementation of the agents.v1.DaemonConnectorService
+// service.
+type DaemonConnectorServiceHandler interface {
 	// Connect establishes a bidirectional stream. The daemon sends a register
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
-	Connect(context.Context, *connect.BidiStream[v1.DaemonMessage, v1.ServerMessage]) error
+	Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error
 }
 
-// NewDaemonConnectorHandler builds an HTTP handler from the service implementation. It returns the
-// path on which to mount the handler and the handler itself.
+// NewDaemonConnectorServiceHandler builds an HTTP handler from the service implementation. It
+// returns the path on which to mount the handler and the handler itself.
 //
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
-func NewDaemonConnectorHandler(svc DaemonConnectorHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	daemonConnectorMethods := v1.File_agents_v1_daemon_proto.Services().ByName("DaemonConnector").Methods()
-	daemonConnectorConnectHandler := connect.NewBidiStreamHandler(
-		DaemonConnectorConnectProcedure,
+func NewDaemonConnectorServiceHandler(svc DaemonConnectorServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	daemonConnectorServiceMethods := v1.File_agents_v1_daemon_proto.Services().ByName("DaemonConnectorService").Methods()
+	daemonConnectorServiceConnectHandler := connect.NewBidiStreamHandler(
+		DaemonConnectorServiceConnectProcedure,
 		svc.Connect,
-		connect.WithSchema(daemonConnectorMethods.ByName("Connect")),
+		connect.WithSchema(daemonConnectorServiceMethods.ByName("Connect")),
 		connect.WithHandlerOptions(opts...),
 	)
-	return "/agents.v1.DaemonConnector/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return "/agents.v1.DaemonConnectorService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case DaemonConnectorConnectProcedure:
-			daemonConnectorConnectHandler.ServeHTTP(w, r)
+		case DaemonConnectorServiceConnectProcedure:
+			daemonConnectorServiceConnectHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
 	})
 }
 
-// UnimplementedDaemonConnectorHandler returns CodeUnimplemented from all methods.
-type UnimplementedDaemonConnectorHandler struct{}
+// UnimplementedDaemonConnectorServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedDaemonConnectorServiceHandler struct{}
 
-func (UnimplementedDaemonConnectorHandler) Connect(context.Context, *connect.BidiStream[v1.DaemonMessage, v1.ServerMessage]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonConnector.Connect is not implemented"))
+func (UnimplementedDaemonConnectorServiceHandler) Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonConnectorService.Connect is not implemented"))
 }

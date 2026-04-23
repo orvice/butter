@@ -78,7 +78,7 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 		streamCtx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+c.cfg.Token)
 	}
 
-	client := agentsv1.NewDaemonConnectorClient(conn)
+	client := agentsv1.NewDaemonConnectorServiceClient(conn)
 	stream, err := client.Connect(streamCtx)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
@@ -90,8 +90,8 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 		capabilities = append(capabilities, cap)
 	}
 
-	err = stream.Send(&agentsv1.DaemonMessage{
-		Message: &agentsv1.DaemonMessage_Register{
+	err = stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{
 				DaemonId:     c.cfg.DaemonID,
 				Name:         c.cfg.Name,
@@ -120,15 +120,15 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 		}
 
 		switch m := msg.Message.(type) {
-		case *agentsv1.ServerMessage_Task:
+		case *agentsv1.ConnectResponse_Task:
 			go c.handleTask(ctx, stream, m.Task)
-		case *agentsv1.ServerMessage_Cancel:
+		case *agentsv1.ConnectResponse_Cancel:
 			c.handleCancel(m.Cancel.TaskId)
 		}
 	}
 }
 
-func (c *Connector) handleTask(ctx context.Context, stream agentsv1.DaemonConnector_ConnectClient, task *agentsv1.DaemonTask) {
+func (c *Connector) handleTask(ctx context.Context, stream agentsv1.DaemonConnectorService_ConnectClient, task *agentsv1.DaemonTask) {
 	slog.Info("task received", "task_id", task.TaskId, "capability", task.Capability, "input_len", len(task.Input))
 
 	exec, ok := c.executors[task.Capability]
@@ -173,9 +173,9 @@ func (c *Connector) handleCancel(taskID string) {
 	}
 }
 
-func (c *Connector) sendUpdate(stream agentsv1.DaemonConnector_ConnectClient, update *agentsv1.DaemonTaskUpdate) {
-	if err := stream.Send(&agentsv1.DaemonMessage{
-		Message: &agentsv1.DaemonMessage_TaskUpdate{TaskUpdate: update},
+func (c *Connector) sendUpdate(stream agentsv1.DaemonConnectorService_ConnectClient, update *agentsv1.DaemonTaskUpdate) {
+	if err := stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_TaskUpdate{TaskUpdate: update},
 	}); err != nil {
 		slog.Error("failed to send update", "task_id", update.TaskId, "err", err)
 	}

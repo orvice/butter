@@ -390,380 +390,6 @@ var _ interface {
 	ErrorName() string
 } = DaemonTaskUpdateValidationError{}
 
-// Validate checks the field values on DaemonMessage with the rules defined in
-// the proto definition for this message. If any rules are violated, the first
-// error encountered is returned, or nil if there are no violations.
-func (m *DaemonMessage) Validate() error {
-	return m.validate(false)
-}
-
-// ValidateAll checks the field values on DaemonMessage with the rules defined
-// in the proto definition for this message. If any rules are violated, the
-// result is a list of violation errors wrapped in DaemonMessageMultiError, or
-// nil if none found.
-func (m *DaemonMessage) ValidateAll() error {
-	return m.validate(true)
-}
-
-func (m *DaemonMessage) validate(all bool) error {
-	if m == nil {
-		return nil
-	}
-
-	var errors []error
-
-	switch v := m.Message.(type) {
-	case *DaemonMessage_Register:
-		if v == nil {
-			err := DaemonMessageValidationError{
-				field:  "Message",
-				reason: "oneof value cannot be a typed-nil",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
-		if all {
-			switch v := interface{}(m.GetRegister()).(type) {
-			case interface{ ValidateAll() error }:
-				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, DaemonMessageValidationError{
-						field:  "Register",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			case interface{ Validate() error }:
-				if err := v.Validate(); err != nil {
-					errors = append(errors, DaemonMessageValidationError{
-						field:  "Register",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			}
-		} else if v, ok := interface{}(m.GetRegister()).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return DaemonMessageValidationError{
-					field:  "Register",
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	case *DaemonMessage_TaskUpdate:
-		if v == nil {
-			err := DaemonMessageValidationError{
-				field:  "Message",
-				reason: "oneof value cannot be a typed-nil",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
-		if all {
-			switch v := interface{}(m.GetTaskUpdate()).(type) {
-			case interface{ ValidateAll() error }:
-				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, DaemonMessageValidationError{
-						field:  "TaskUpdate",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			case interface{ Validate() error }:
-				if err := v.Validate(); err != nil {
-					errors = append(errors, DaemonMessageValidationError{
-						field:  "TaskUpdate",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			}
-		} else if v, ok := interface{}(m.GetTaskUpdate()).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return DaemonMessageValidationError{
-					field:  "TaskUpdate",
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	default:
-		_ = v // ensures v is used
-	}
-
-	if len(errors) > 0 {
-		return DaemonMessageMultiError(errors)
-	}
-
-	return nil
-}
-
-// DaemonMessageMultiError is an error wrapping multiple validation errors
-// returned by DaemonMessage.ValidateAll() if the designated constraints
-// aren't met.
-type DaemonMessageMultiError []error
-
-// Error returns a concatenation of all the error messages it wraps.
-func (m DaemonMessageMultiError) Error() string {
-	msgs := make([]string, 0, len(m))
-	for _, err := range m {
-		msgs = append(msgs, err.Error())
-	}
-	return strings.Join(msgs, "; ")
-}
-
-// AllErrors returns a list of validation violation errors.
-func (m DaemonMessageMultiError) AllErrors() []error { return m }
-
-// DaemonMessageValidationError is the validation error returned by
-// DaemonMessage.Validate if the designated constraints aren't met.
-type DaemonMessageValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e DaemonMessageValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e DaemonMessageValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e DaemonMessageValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e DaemonMessageValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e DaemonMessageValidationError) ErrorName() string { return "DaemonMessageValidationError" }
-
-// Error satisfies the builtin error interface
-func (e DaemonMessageValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sDaemonMessage.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = DaemonMessageValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = DaemonMessageValidationError{}
-
-// Validate checks the field values on ServerMessage with the rules defined in
-// the proto definition for this message. If any rules are violated, the first
-// error encountered is returned, or nil if there are no violations.
-func (m *ServerMessage) Validate() error {
-	return m.validate(false)
-}
-
-// ValidateAll checks the field values on ServerMessage with the rules defined
-// in the proto definition for this message. If any rules are violated, the
-// result is a list of violation errors wrapped in ServerMessageMultiError, or
-// nil if none found.
-func (m *ServerMessage) ValidateAll() error {
-	return m.validate(true)
-}
-
-func (m *ServerMessage) validate(all bool) error {
-	if m == nil {
-		return nil
-	}
-
-	var errors []error
-
-	switch v := m.Message.(type) {
-	case *ServerMessage_Task:
-		if v == nil {
-			err := ServerMessageValidationError{
-				field:  "Message",
-				reason: "oneof value cannot be a typed-nil",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
-		if all {
-			switch v := interface{}(m.GetTask()).(type) {
-			case interface{ ValidateAll() error }:
-				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, ServerMessageValidationError{
-						field:  "Task",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			case interface{ Validate() error }:
-				if err := v.Validate(); err != nil {
-					errors = append(errors, ServerMessageValidationError{
-						field:  "Task",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			}
-		} else if v, ok := interface{}(m.GetTask()).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return ServerMessageValidationError{
-					field:  "Task",
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	case *ServerMessage_Cancel:
-		if v == nil {
-			err := ServerMessageValidationError{
-				field:  "Message",
-				reason: "oneof value cannot be a typed-nil",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
-		if all {
-			switch v := interface{}(m.GetCancel()).(type) {
-			case interface{ ValidateAll() error }:
-				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, ServerMessageValidationError{
-						field:  "Cancel",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			case interface{ Validate() error }:
-				if err := v.Validate(); err != nil {
-					errors = append(errors, ServerMessageValidationError{
-						field:  "Cancel",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			}
-		} else if v, ok := interface{}(m.GetCancel()).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return ServerMessageValidationError{
-					field:  "Cancel",
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	default:
-		_ = v // ensures v is used
-	}
-
-	if len(errors) > 0 {
-		return ServerMessageMultiError(errors)
-	}
-
-	return nil
-}
-
-// ServerMessageMultiError is an error wrapping multiple validation errors
-// returned by ServerMessage.ValidateAll() if the designated constraints
-// aren't met.
-type ServerMessageMultiError []error
-
-// Error returns a concatenation of all the error messages it wraps.
-func (m ServerMessageMultiError) Error() string {
-	msgs := make([]string, 0, len(m))
-	for _, err := range m {
-		msgs = append(msgs, err.Error())
-	}
-	return strings.Join(msgs, "; ")
-}
-
-// AllErrors returns a list of validation violation errors.
-func (m ServerMessageMultiError) AllErrors() []error { return m }
-
-// ServerMessageValidationError is the validation error returned by
-// ServerMessage.Validate if the designated constraints aren't met.
-type ServerMessageValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e ServerMessageValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e ServerMessageValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e ServerMessageValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e ServerMessageValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e ServerMessageValidationError) ErrorName() string { return "ServerMessageValidationError" }
-
-// Error satisfies the builtin error interface
-func (e ServerMessageValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sServerMessage.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = ServerMessageValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = ServerMessageValidationError{}
-
 // Validate checks the field values on CancelTask with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
@@ -864,3 +490,377 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = CancelTaskValidationError{}
+
+// Validate checks the field values on ConnectRequest with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *ConnectRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ConnectRequest with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in ConnectRequestMultiError,
+// or nil if none found.
+func (m *ConnectRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ConnectRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch v := m.Message.(type) {
+	case *ConnectRequest_Register:
+		if v == nil {
+			err := ConnectRequestValidationError{
+				field:  "Message",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetRegister()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConnectRequestValidationError{
+						field:  "Register",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConnectRequestValidationError{
+						field:  "Register",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetRegister()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConnectRequestValidationError{
+					field:  "Register",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *ConnectRequest_TaskUpdate:
+		if v == nil {
+			err := ConnectRequestValidationError{
+				field:  "Message",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetTaskUpdate()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConnectRequestValidationError{
+						field:  "TaskUpdate",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConnectRequestValidationError{
+						field:  "TaskUpdate",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetTaskUpdate()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConnectRequestValidationError{
+					field:  "TaskUpdate",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
+	}
+
+	if len(errors) > 0 {
+		return ConnectRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ConnectRequestMultiError is an error wrapping multiple validation errors
+// returned by ConnectRequest.ValidateAll() if the designated constraints
+// aren't met.
+type ConnectRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ConnectRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ConnectRequestMultiError) AllErrors() []error { return m }
+
+// ConnectRequestValidationError is the validation error returned by
+// ConnectRequest.Validate if the designated constraints aren't met.
+type ConnectRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ConnectRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ConnectRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ConnectRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ConnectRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ConnectRequestValidationError) ErrorName() string { return "ConnectRequestValidationError" }
+
+// Error satisfies the builtin error interface
+func (e ConnectRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sConnectRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ConnectRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ConnectRequestValidationError{}
+
+// Validate checks the field values on ConnectResponse with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *ConnectResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ConnectResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ConnectResponseMultiError, or nil if none found.
+func (m *ConnectResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ConnectResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch v := m.Message.(type) {
+	case *ConnectResponse_Task:
+		if v == nil {
+			err := ConnectResponseValidationError{
+				field:  "Message",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetTask()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConnectResponseValidationError{
+						field:  "Task",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConnectResponseValidationError{
+						field:  "Task",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetTask()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConnectResponseValidationError{
+					field:  "Task",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *ConnectResponse_Cancel:
+		if v == nil {
+			err := ConnectResponseValidationError{
+				field:  "Message",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetCancel()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConnectResponseValidationError{
+						field:  "Cancel",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConnectResponseValidationError{
+						field:  "Cancel",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetCancel()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConnectResponseValidationError{
+					field:  "Cancel",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
+	}
+
+	if len(errors) > 0 {
+		return ConnectResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ConnectResponseMultiError is an error wrapping multiple validation errors
+// returned by ConnectResponse.ValidateAll() if the designated constraints
+// aren't met.
+type ConnectResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ConnectResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ConnectResponseMultiError) AllErrors() []error { return m }
+
+// ConnectResponseValidationError is the validation error returned by
+// ConnectResponse.Validate if the designated constraints aren't met.
+type ConnectResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ConnectResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ConnectResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ConnectResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ConnectResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ConnectResponseValidationError) ErrorName() string { return "ConnectResponseValidationError" }
+
+// Error satisfies the builtin error interface
+func (e ConnectResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sConnectResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ConnectResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ConnectResponseValidationError{}

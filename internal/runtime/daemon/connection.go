@@ -16,7 +16,7 @@ var ErrDaemonDisconnected = errors.New("daemon disconnected")
 // communication channels.
 type Connection struct {
 	Info        *agentsv1.DaemonInfo
-	SendCh      chan *agentsv1.ServerMessage // server → daemon
+	SendCh      chan *agentsv1.ConnectResponse // server → daemon
 	ConnectedAt time.Time
 
 	mu          sync.Mutex
@@ -28,7 +28,7 @@ type Connection struct {
 func NewConnection(info *agentsv1.DaemonInfo) *Connection {
 	return &Connection{
 		Info:        info,
-		SendCh:      make(chan *agentsv1.ServerMessage, 16),
+		SendCh:      make(chan *agentsv1.ConnectResponse, 16),
 		ConnectedAt: time.Now(),
 		activeTasks: make(map[string]chan *agentsv1.DaemonTaskUpdate),
 	}
@@ -46,8 +46,8 @@ func (c *Connection) SendTask(task *agentsv1.DaemonTask) (<-chan *agentsv1.Daemo
 	c.activeTasks[task.TaskId] = resultCh
 	c.mu.Unlock()
 
-	c.SendCh <- &agentsv1.ServerMessage{
-		Message: &agentsv1.ServerMessage_Task{Task: task},
+	c.SendCh <- &agentsv1.ConnectResponse{
+		Message: &agentsv1.ConnectResponse_Task{Task: task},
 	}
 	return resultCh, nil
 }
@@ -61,8 +61,8 @@ func (c *Connection) CancelTask(taskID string) error {
 	}
 	c.mu.Unlock()
 
-	c.SendCh <- &agentsv1.ServerMessage{
-		Message: &agentsv1.ServerMessage_Cancel{Cancel: &agentsv1.CancelTask{TaskId: taskID}},
+	c.SendCh <- &agentsv1.ConnectResponse{
+		Message: &agentsv1.ConnectResponse_Cancel{Cancel: &agentsv1.CancelTask{TaskId: taskID}},
 	}
 	return nil
 }

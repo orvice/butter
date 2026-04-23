@@ -14,9 +14,9 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-// GRPCHandler implements the DaemonConnector gRPC service.
+// GRPCHandler implements the DaemonConnectorService gRPC service.
 type GRPCHandler struct {
-	agentsv1.UnimplementedDaemonConnectorServer
+	agentsv1.UnimplementedDaemonConnectorServiceServer
 
 	registry *Registry
 	apiToken string
@@ -31,7 +31,7 @@ func NewGRPCHandler(registry *Registry, apiToken string) *GRPCHandler {
 }
 
 // Connect implements the bidirectional streaming RPC.
-func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnector_ConnectServer) error {
+func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServer) error {
 	ctx := stream.Context()
 	logger := log.FromContext(ctx)
 
@@ -116,7 +116,7 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnector_ConnectServer) err
 	return nil
 }
 
-func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnector_ConnectServer) error {
+func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnectorService_ConnectServer) error {
 	if h.apiToken == "" {
 		return nil
 	}

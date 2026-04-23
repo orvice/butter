@@ -22,32 +22,32 @@ import ctxsetters "github.com/twitchtv/twirp/ctxsetters"
 // See https://twitchtv.github.io/twirp/docs/version_matrix.html
 const _ = twirp.TwirpPackageMinVersion_8_1_0
 
-// =========================
-// DaemonConnector Interface
-// =========================
+// ================================
+// DaemonConnectorService Interface
+// ================================
 
-// DaemonConnector is the gRPC service for daemon long-lived connections.
-type DaemonConnector interface {
+// DaemonConnectorService is the gRPC service for daemon long-lived connections.
+type DaemonConnectorService interface {
 	// Connect establishes a bidirectional stream. The daemon sends a register
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
-	Connect(context.Context, *DaemonMessage) (*ServerMessage, error)
+	Connect(context.Context, *ConnectRequest) (*ConnectResponse, error)
 }
 
-// ===============================
-// DaemonConnector Protobuf Client
-// ===============================
+// ======================================
+// DaemonConnectorService Protobuf Client
+// ======================================
 
-type daemonConnectorProtobufClient struct {
+type daemonConnectorServiceProtobufClient struct {
 	client      HTTPClient
 	urls        [1]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
 
-// NewDaemonConnectorProtobufClient creates a Protobuf client that implements the DaemonConnector interface.
+// NewDaemonConnectorServiceProtobufClient creates a Protobuf client that implements the DaemonConnectorService interface.
 // It communicates using Protobuf and can be configured with a custom HTTPClient.
-func NewDaemonConnectorProtobufClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) DaemonConnector {
+func NewDaemonConnectorServiceProtobufClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) DaemonConnectorService {
 	if c, ok := client.(*http.Client); ok {
 		client = withoutRedirects(c)
 	}
@@ -67,12 +67,12 @@ func NewDaemonConnectorProtobufClient(baseURL string, client HTTPClient, opts ..
 
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
-	serviceURL += baseServicePath(pathPrefix, "agents.v1", "DaemonConnector")
+	serviceURL += baseServicePath(pathPrefix, "agents.v1", "DaemonConnectorService")
 	urls := [1]string{
 		serviceURL + "Connect",
 	}
 
-	return &daemonConnectorProtobufClient{
+	return &daemonConnectorServiceProtobufClient{
 		client:      client,
 		urls:        urls,
 		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
@@ -80,26 +80,26 @@ func NewDaemonConnectorProtobufClient(baseURL string, client HTTPClient, opts ..
 	}
 }
 
-func (c *daemonConnectorProtobufClient) Connect(ctx context.Context, in *DaemonMessage) (*ServerMessage, error) {
+func (c *daemonConnectorServiceProtobufClient) Connect(ctx context.Context, in *ConnectRequest) (*ConnectResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
-	ctx = ctxsetters.WithServiceName(ctx, "DaemonConnector")
+	ctx = ctxsetters.WithServiceName(ctx, "DaemonConnectorService")
 	ctx = ctxsetters.WithMethodName(ctx, "Connect")
 	caller := c.callConnect
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DaemonMessage) (*ServerMessage, error) {
+		caller = func(ctx context.Context, req *ConnectRequest) (*ConnectResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DaemonMessage)
+					typedReq, ok := req.(*ConnectRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DaemonMessage) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ConnectRequest) when calling interceptor")
 					}
 					return c.callConnect(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*ServerMessage)
+				typedResp, ok := resp.(*ConnectResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ServerMessage) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ConnectResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -109,8 +109,8 @@ func (c *daemonConnectorProtobufClient) Connect(ctx context.Context, in *DaemonM
 	return caller(ctx, in)
 }
 
-func (c *daemonConnectorProtobufClient) callConnect(ctx context.Context, in *DaemonMessage) (*ServerMessage, error) {
-	out := new(ServerMessage)
+func (c *daemonConnectorServiceProtobufClient) callConnect(ctx context.Context, in *ConnectRequest) (*ConnectResponse, error) {
+	out := new(ConnectResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -126,20 +126,20 @@ func (c *daemonConnectorProtobufClient) callConnect(ctx context.Context, in *Dae
 	return out, nil
 }
 
-// ===========================
-// DaemonConnector JSON Client
-// ===========================
+// ==================================
+// DaemonConnectorService JSON Client
+// ==================================
 
-type daemonConnectorJSONClient struct {
+type daemonConnectorServiceJSONClient struct {
 	client      HTTPClient
 	urls        [1]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
 
-// NewDaemonConnectorJSONClient creates a JSON client that implements the DaemonConnector interface.
+// NewDaemonConnectorServiceJSONClient creates a JSON client that implements the DaemonConnectorService interface.
 // It communicates using JSON and can be configured with a custom HTTPClient.
-func NewDaemonConnectorJSONClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) DaemonConnector {
+func NewDaemonConnectorServiceJSONClient(baseURL string, client HTTPClient, opts ...twirp.ClientOption) DaemonConnectorService {
 	if c, ok := client.(*http.Client); ok {
 		client = withoutRedirects(c)
 	}
@@ -159,12 +159,12 @@ func NewDaemonConnectorJSONClient(baseURL string, client HTTPClient, opts ...twi
 
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
-	serviceURL += baseServicePath(pathPrefix, "agents.v1", "DaemonConnector")
+	serviceURL += baseServicePath(pathPrefix, "agents.v1", "DaemonConnectorService")
 	urls := [1]string{
 		serviceURL + "Connect",
 	}
 
-	return &daemonConnectorJSONClient{
+	return &daemonConnectorServiceJSONClient{
 		client:      client,
 		urls:        urls,
 		interceptor: twirp.ChainInterceptors(clientOpts.Interceptors...),
@@ -172,26 +172,26 @@ func NewDaemonConnectorJSONClient(baseURL string, client HTTPClient, opts ...twi
 	}
 }
 
-func (c *daemonConnectorJSONClient) Connect(ctx context.Context, in *DaemonMessage) (*ServerMessage, error) {
+func (c *daemonConnectorServiceJSONClient) Connect(ctx context.Context, in *ConnectRequest) (*ConnectResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
-	ctx = ctxsetters.WithServiceName(ctx, "DaemonConnector")
+	ctx = ctxsetters.WithServiceName(ctx, "DaemonConnectorService")
 	ctx = ctxsetters.WithMethodName(ctx, "Connect")
 	caller := c.callConnect
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DaemonMessage) (*ServerMessage, error) {
+		caller = func(ctx context.Context, req *ConnectRequest) (*ConnectResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DaemonMessage)
+					typedReq, ok := req.(*ConnectRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DaemonMessage) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ConnectRequest) when calling interceptor")
 					}
 					return c.callConnect(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*ServerMessage)
+				typedResp, ok := resp.(*ConnectResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ServerMessage) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ConnectResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -201,8 +201,8 @@ func (c *daemonConnectorJSONClient) Connect(ctx context.Context, in *DaemonMessa
 	return caller(ctx, in)
 }
 
-func (c *daemonConnectorJSONClient) callConnect(ctx context.Context, in *DaemonMessage) (*ServerMessage, error) {
-	out := new(ServerMessage)
+func (c *daemonConnectorServiceJSONClient) callConnect(ctx context.Context, in *ConnectRequest) (*ConnectResponse, error) {
+	out := new(ConnectResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -218,12 +218,12 @@ func (c *daemonConnectorJSONClient) callConnect(ctx context.Context, in *DaemonM
 	return out, nil
 }
 
-// ==============================
-// DaemonConnector Server Handler
-// ==============================
+// =====================================
+// DaemonConnectorService Server Handler
+// =====================================
 
-type daemonConnectorServer struct {
-	DaemonConnector
+type daemonConnectorServiceServer struct {
+	DaemonConnectorService
 	interceptor      twirp.Interceptor
 	hooks            *twirp.ServerHooks
 	pathPrefix       string // prefix for routing
@@ -231,10 +231,10 @@ type daemonConnectorServer struct {
 	jsonCamelCase    bool   // JSON fields are serialized as lowerCamelCase rather than keeping the original proto names
 }
 
-// NewDaemonConnectorServer builds a TwirpServer that can be used as an http.Handler to handle
+// NewDaemonConnectorServiceServer builds a TwirpServer that can be used as an http.Handler to handle
 // HTTP requests that are routed to the right method in the provided svc implementation.
 // The opts are twirp.ServerOption modifiers, for example twirp.WithServerHooks(hooks).
-func NewDaemonConnectorServer(svc DaemonConnector, opts ...interface{}) TwirpServer {
+func NewDaemonConnectorServiceServer(svc DaemonConnectorService, opts ...interface{}) TwirpServer {
 	serverOpts := newServerOpts(opts)
 
 	// Using ReadOpt allows backwards and forwards compatibility with new options in the future
@@ -247,24 +247,24 @@ func NewDaemonConnectorServer(svc DaemonConnector, opts ...interface{}) TwirpSer
 		pathPrefix = "/twirp" // default prefix
 	}
 
-	return &daemonConnectorServer{
-		DaemonConnector:  svc,
-		hooks:            serverOpts.Hooks,
-		interceptor:      twirp.ChainInterceptors(serverOpts.Interceptors...),
-		pathPrefix:       pathPrefix,
-		jsonSkipDefaults: jsonSkipDefaults,
-		jsonCamelCase:    jsonCamelCase,
+	return &daemonConnectorServiceServer{
+		DaemonConnectorService: svc,
+		hooks:                  serverOpts.Hooks,
+		interceptor:            twirp.ChainInterceptors(serverOpts.Interceptors...),
+		pathPrefix:             pathPrefix,
+		jsonSkipDefaults:       jsonSkipDefaults,
+		jsonCamelCase:          jsonCamelCase,
 	}
 }
 
 // writeError writes an HTTP response with a valid Twirp error format, and triggers hooks.
 // If err is not a twirp.Error, it will get wrapped with twirp.InternalErrorWith(err)
-func (s *daemonConnectorServer) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
+func (s *daemonConnectorServiceServer) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
 	writeError(ctx, resp, err, s.hooks)
 }
 
 // handleRequestBodyError is used to handle error when the twirp server cannot read request
-func (s *daemonConnectorServer) handleRequestBodyError(ctx context.Context, resp http.ResponseWriter, msg string, err error) {
+func (s *daemonConnectorServiceServer) handleRequestBodyError(ctx context.Context, resp http.ResponseWriter, msg string, err error) {
 	if context.Canceled == ctx.Err() {
 		s.writeError(ctx, resp, twirp.NewError(twirp.Canceled, "failed to read request: context canceled"))
 		return
@@ -276,16 +276,16 @@ func (s *daemonConnectorServer) handleRequestBodyError(ctx context.Context, resp
 	s.writeError(ctx, resp, twirp.WrapError(malformedRequestError(msg), err))
 }
 
-// DaemonConnectorPathPrefix is a convenience constant that may identify URL paths.
+// DaemonConnectorServicePathPrefix is a convenience constant that may identify URL paths.
 // Should be used with caution, it only matches routes generated by Twirp Go clients,
 // with the default "/twirp" prefix and default CamelCase service and method names.
 // More info: https://twitchtv.github.io/twirp/docs/routing.html
-const DaemonConnectorPathPrefix = "/twirp/agents.v1.DaemonConnector/"
+const DaemonConnectorServicePathPrefix = "/twirp/agents.v1.DaemonConnectorService/"
 
-func (s *daemonConnectorServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+func (s *daemonConnectorServiceServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
-	ctx = ctxsetters.WithServiceName(ctx, "DaemonConnector")
+	ctx = ctxsetters.WithServiceName(ctx, "DaemonConnectorService")
 	ctx = ctxsetters.WithResponseWriter(ctx, resp)
 
 	var err error
@@ -303,7 +303,7 @@ func (s *daemonConnectorServer) ServeHTTP(resp http.ResponseWriter, req *http.Re
 
 	// Verify path format: [<prefix>]/<package>.<Service>/<Method>
 	prefix, pkgService, method := parseTwirpPath(req.URL.Path)
-	if pkgService != "agents.v1.DaemonConnector" {
+	if pkgService != "agents.v1.DaemonConnectorService" {
 		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
 		s.writeError(ctx, resp, badRouteError(msg, req.Method, req.URL.Path))
 		return
@@ -325,7 +325,7 @@ func (s *daemonConnectorServer) ServeHTTP(resp http.ResponseWriter, req *http.Re
 	}
 }
 
-func (s *daemonConnectorServer) serveConnect(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *daemonConnectorServiceServer) serveConnect(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -343,7 +343,7 @@ func (s *daemonConnectorServer) serveConnect(ctx context.Context, resp http.Resp
 	}
 }
 
-func (s *daemonConnectorServer) serveConnectJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *daemonConnectorServiceServer) serveConnectJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Connect")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -358,29 +358,29 @@ func (s *daemonConnectorServer) serveConnectJSON(ctx context.Context, resp http.
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(DaemonMessage)
+	reqContent := new(ConnectRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
 
-	handler := s.DaemonConnector.Connect
+	handler := s.DaemonConnectorService.Connect
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DaemonMessage) (*ServerMessage, error) {
+		handler = func(ctx context.Context, req *ConnectRequest) (*ConnectResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DaemonMessage)
+					typedReq, ok := req.(*ConnectRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DaemonMessage) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ConnectRequest) when calling interceptor")
 					}
-					return s.DaemonConnector.Connect(ctx, typedReq)
+					return s.DaemonConnectorService.Connect(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*ServerMessage)
+				typedResp, ok := resp.(*ConnectResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ServerMessage) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ConnectResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -389,7 +389,7 @@ func (s *daemonConnectorServer) serveConnectJSON(ctx context.Context, resp http.
 	}
 
 	// Call service method
-	var respContent *ServerMessage
+	var respContent *ConnectResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -400,7 +400,7 @@ func (s *daemonConnectorServer) serveConnectJSON(ctx context.Context, resp http.
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *ServerMessage and nil error while calling Connect. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ConnectResponse and nil error while calling Connect. nil responses are not supported"))
 		return
 	}
 
@@ -426,7 +426,7 @@ func (s *daemonConnectorServer) serveConnectJSON(ctx context.Context, resp http.
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *daemonConnectorServer) serveConnectProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *daemonConnectorServiceServer) serveConnectProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Connect")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -440,28 +440,28 @@ func (s *daemonConnectorServer) serveConnectProtobuf(ctx context.Context, resp h
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(DaemonMessage)
+	reqContent := new(ConnectRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
 	}
 
-	handler := s.DaemonConnector.Connect
+	handler := s.DaemonConnectorService.Connect
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DaemonMessage) (*ServerMessage, error) {
+		handler = func(ctx context.Context, req *ConnectRequest) (*ConnectResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DaemonMessage)
+					typedReq, ok := req.(*ConnectRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DaemonMessage) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ConnectRequest) when calling interceptor")
 					}
-					return s.DaemonConnector.Connect(ctx, typedReq)
+					return s.DaemonConnectorService.Connect(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*ServerMessage)
+				typedResp, ok := resp.(*ConnectResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ServerMessage) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ConnectResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -470,7 +470,7 @@ func (s *daemonConnectorServer) serveConnectProtobuf(ctx context.Context, resp h
 	}
 
 	// Call service method
-	var respContent *ServerMessage
+	var respContent *ConnectResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -481,7 +481,7 @@ func (s *daemonConnectorServer) serveConnectProtobuf(ctx context.Context, resp h
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *ServerMessage and nil error while calling Connect. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ConnectResponse and nil error while calling Connect. nil responses are not supported"))
 		return
 	}
 
@@ -505,66 +505,66 @@ func (s *daemonConnectorServer) serveConnectProtobuf(ctx context.Context, resp h
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *daemonConnectorServer) ServiceDescriptor() ([]byte, int) {
+func (s *daemonConnectorServiceServer) ServiceDescriptor() ([]byte, int) {
 	return twirpFileDescriptor2, 0
 }
 
-func (s *daemonConnectorServer) ProtocGenTwirpVersion() string {
+func (s *daemonConnectorServiceServer) ProtocGenTwirpVersion() string {
 	return "v8.1.3"
 }
 
 // PathPrefix returns the base service path, in the form: "/<prefix>/<package>.<Service>/"
 // that is everything in a Twirp route except for the <Method>. This can be used for routing,
 // for example to identify the requests that are targeted to this service in a mux.
-func (s *daemonConnectorServer) PathPrefix() string {
-	return baseServicePath(s.pathPrefix, "agents.v1", "DaemonConnector")
+func (s *daemonConnectorServiceServer) PathPrefix() string {
+	return baseServicePath(s.pathPrefix, "agents.v1", "DaemonConnectorService")
 }
 
 var twirpFileDescriptor2 = []byte{
-	// 705 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0xdd, 0x6e, 0xda, 0x4a,
-	0x10, 0xc6, 0xfc, 0x86, 0xe1, 0xe4, 0x1c, 0xb4, 0xca, 0xc9, 0xf1, 0x21, 0x4d, 0x42, 0xa9, 0x2a,
-	0xa1, 0x56, 0xb2, 0x1b, 0xd2, 0x8b, 0xa4, 0x91, 0x5a, 0x11, 0x70, 0x1a, 0xab, 0x40, 0x22, 0x63,
-	0x6e, 0x7a, 0x83, 0x16, 0xbc, 0xb1, 0x2c, 0xf0, 0x8f, 0xbc, 0x6b, 0x94, 0x3c, 0x45, 0x5f, 0xa5,
-	0x8f, 0xd1, 0x37, 0xa8, 0xd4, 0xa7, 0xa9, 0xbc, 0x6b, 0x0c, 0x28, 0x70, 0xd1, 0x3b, 0xcf, 0xcc,
-	0x37, 0x33, 0xdf, 0xf7, 0xcd, 0xca, 0x70, 0x88, 0x6d, 0xe2, 0x31, 0xaa, 0x2e, 0xce, 0x54, 0x0b,
-	0x13, 0xd7, 0xf7, 0x94, 0x20, 0xf4, 0x99, 0x8f, 0xca, 0x22, 0xaf, 0x2c, 0xce, 0x6a, 0xa7, 0xb6,
-	0xef, 0xdb, 0x73, 0xa2, 0xf2, 0xc2, 0x24, 0x7a, 0x50, 0x99, 0xe3, 0x12, 0xca, 0xb0, 0x1b, 0x08,
-	0x6c, 0xe3, 0xa7, 0x04, 0xd0, 0xe5, 0xcd, 0xba, 0xf7, 0xe0, 0xa3, 0x23, 0x28, 0x8b, 0x51, 0x63,
-	0xc7, 0x92, 0xa5, 0xba, 0xd4, 0x2c, 0x1b, 0x7b, 0x22, 0xa1, 0x5b, 0x08, 0x41, 0xde, 0xc3, 0x2e,
-	0x91, 0xb3, 0x3c, 0xcf, 0xbf, 0x51, 0x03, 0xfe, 0x9a, 0xe2, 0x00, 0x4f, 0x9c, 0xb9, 0xc3, 0x1c,
-	0x42, 0xe5, 0x5c, 0x3d, 0xd7, 0x2c, 0x1b, 0x1b, 0x39, 0x74, 0x09, 0xc5, 0x39, 0x9e, 0x90, 0x39,
-	0x95, 0xf3, 0xf5, 0x5c, 0xb3, 0xd2, 0x7a, 0xa9, 0xa4, 0x04, 0x95, 0xd5, 0x6e, 0xa5, 0xc7, 0x31,
-	0x9a, 0xc7, 0xc2, 0x27, 0x23, 0x69, 0xa8, 0x5d, 0x42, 0x65, 0x2d, 0x8d, 0xaa, 0x90, 0x9b, 0x91,
-	0xa7, 0x84, 0x58, 0xfc, 0x89, 0x0e, 0xa0, 0xb0, 0xc0, 0xf3, 0x68, 0x49, 0x4a, 0x04, 0x1f, 0xb2,
-	0x17, 0x52, 0xe3, 0x7b, 0x76, 0xa9, 0xcc, 0xc4, 0x74, 0x86, 0xfe, 0x83, 0x12, 0xc3, 0x74, 0xb6,
-	0xd2, 0x55, 0x8c, 0x43, 0xdd, 0x42, 0xc7, 0x00, 0x9c, 0xce, 0x78, 0x4d, 0x9b, 0x70, 0x70, 0x10,
-	0x0b, 0x3c, 0x80, 0x82, 0xe3, 0x05, 0x11, 0x93, 0x73, 0x62, 0x01, 0x0f, 0xe2, 0x26, 0x4a, 0x28,
-	0x75, 0x84, 0x51, 0x79, 0xd1, 0x94, 0x64, 0x74, 0x2b, 0x5e, 0x16, 0x51, 0x12, 0xc6, 0xb5, 0x82,
-	0x58, 0x16, 0x87, 0xba, 0x85, 0x3e, 0xc1, 0x9e, 0x4b, 0x18, 0xb6, 0x30, 0xc3, 0x72, 0x91, 0x9b,
-	0xf1, 0xea, 0x99, 0x19, 0x31, 0x5d, 0xa5, 0x9f, 0xa0, 0x84, 0x1d, 0x69, 0x13, 0x3a, 0x01, 0x48,
-	0xbd, 0x7d, 0x92, 0x4b, 0x7c, 0xf8, 0x5a, 0xa6, 0x76, 0x05, 0xfb, 0x1b, 0xad, 0x7f, 0x64, 0xd9,
-	0x0f, 0x09, 0xaa, 0x2b, 0x0e, 0xa3, 0xc0, 0xc2, 0x8c, 0xec, 0x36, 0xee, 0x1c, 0x8a, 0x94, 0x61,
-	0x16, 0x51, 0x3e, 0xe8, 0xef, 0xd6, 0xd1, 0x56, 0x25, 0x43, 0x0e, 0x31, 0x12, 0x28, 0x3a, 0x84,
-	0xa2, 0x1f, 0xb1, 0x95, 0x9f, 0x49, 0x14, 0x93, 0x22, 0x61, 0xe8, 0x87, 0x89, 0x97, 0x22, 0x40,
-	0x17, 0x50, 0x4e, 0x1f, 0x2c, 0x77, 0xb2, 0xd2, 0xaa, 0x29, 0xe2, 0x49, 0x2b, 0xcb, 0x27, 0xad,
-	0x98, 0x4b, 0x84, 0xb1, 0x02, 0x37, 0xbe, 0x49, 0xb0, 0x2f, 0x48, 0xf4, 0x09, 0xa5, 0xd8, 0x26,
-	0xe8, 0x1c, 0xf6, 0x42, 0x62, 0x3b, 0x94, 0x91, 0x90, 0x0b, 0xa9, 0xb4, 0xfe, 0xdd, 0xfa, 0x0e,
-	0x6f, 0x33, 0x46, 0x0a, 0x44, 0x1f, 0xa1, 0xc2, 0xc5, 0x47, 0xdc, 0x0b, 0x2e, 0xb4, 0xb2, 0x43,
-	0xa8, 0xb0, 0xeb, 0x36, 0x63, 0x00, 0x4b, 0xa3, 0xeb, 0x32, 0x94, 0x5c, 0xb1, 0xbf, 0xf1, 0x08,
-	0xfb, 0x43, 0x12, 0x2e, 0x48, 0xb8, 0x24, 0xf4, 0x16, 0xf2, 0x31, 0x72, 0x27, 0x99, 0x78, 0xe8,
-	0x6d, 0xc6, 0xe0, 0x20, 0xa4, 0x42, 0x71, 0x8a, 0xbd, 0x29, 0x99, 0x27, 0x1c, 0xd6, 0xe1, 0x1d,
-	0x5e, 0x48, 0xe0, 0x09, 0x6c, 0x7d, 0xf3, 0x6b, 0x80, 0x15, 0x64, 0xe7, 0x3d, 0xdf, 0xfc, 0xda,
-	0xb8, 0xbe, 0xb8, 0x1b, 0x6a, 0xc0, 0x49, 0xb7, 0xad, 0xf5, 0xef, 0x06, 0x63, 0xb3, 0x3d, 0xfc,
-	0x32, 0x1e, 0x9a, 0x6d, 0x73, 0x34, 0x1c, 0x8f, 0x06, 0xc3, 0x7b, 0xad, 0xa3, 0xdf, 0xe8, 0x5a,
-	0xb7, 0x9a, 0x41, 0xa7, 0x70, 0xb4, 0x05, 0xd3, 0xee, 0x74, 0xb4, 0x7b, 0x53, 0xeb, 0x56, 0x25,
-	0x74, 0x02, 0xb5, 0x2d, 0x00, 0x63, 0x34, 0x18, 0xe8, 0x83, 0xcf, 0xd5, 0x2c, 0xaa, 0xc3, 0x8b,
-	0x2d, 0xf5, 0xce, 0x5d, 0xff, 0xbe, 0xa7, 0xc5, 0x13, 0x72, 0xe8, 0x18, 0xfe, 0xdf, 0x82, 0xb8,
-	0x69, 0xeb, 0x3d, 0xad, 0x5b, 0xcd, 0xef, 0x1a, 0xd0, 0x1e, 0x74, 0xb4, 0x5e, 0x8c, 0x28, 0xb4,
-	0x4c, 0xf8, 0x47, 0x68, 0xeb, 0xf8, 0x9e, 0x47, 0xa6, 0xcc, 0x0f, 0x51, 0x1b, 0x4a, 0x49, 0x80,
-	0xe4, 0x67, 0xe6, 0x27, 0x47, 0xaa, 0xad, 0x57, 0x36, 0xce, 0xd7, 0x94, 0xde, 0x49, 0xd7, 0xef,
-	0xbf, 0xb6, 0x6c, 0x5f, 0xf1, 0xc3, 0x47, 0xc5, 0x25, 0x2a, 0x0e, 0x02, 0xaa, 0x4e, 0x22, 0xc6,
-	0x48, 0xa8, 0x06, 0x33, 0x5b, 0xfc, 0x73, 0xd5, 0xf4, 0x1f, 0x7d, 0x25, 0xbe, 0x16, 0x67, 0x93,
-	0x22, 0xaf, 0x9c, 0xff, 0x0e, 0x00, 0x00, 0xff, 0xff, 0xca, 0x5e, 0x11, 0xc5, 0xc0, 0x05, 0x00,
-	0x00,
+	// 718 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x94, 0xdd, 0x6e, 0xda, 0x4a,
+	0x10, 0xc7, 0x31, 0x9f, 0x61, 0x38, 0x27, 0x07, 0xad, 0x72, 0x52, 0x42, 0x9a, 0x84, 0x52, 0x55,
+	0x42, 0xad, 0x64, 0x37, 0xa4, 0x17, 0x49, 0x23, 0xb5, 0x22, 0xe0, 0x14, 0xab, 0x84, 0x44, 0x06,
+	0x6e, 0x7a, 0x51, 0xb4, 0xe0, 0x8d, 0x65, 0x81, 0x3f, 0xea, 0x5d, 0xa3, 0xa6, 0x4f, 0xd1, 0x47,
+	0xe9, 0x63, 0xf4, 0x0d, 0x2a, 0xf5, 0x69, 0x2a, 0xef, 0x1a, 0x03, 0xaa, 0xa9, 0xd4, 0x3b, 0xcf,
+	0xcc, 0x7f, 0xbe, 0x7e, 0x3b, 0x32, 0xec, 0x63, 0x93, 0x38, 0x8c, 0x2a, 0x8b, 0x53, 0xc5, 0xc0,
+	0xc4, 0x76, 0x1d, 0xd9, 0xf3, 0x5d, 0xe6, 0xa2, 0xa2, 0xf0, 0xcb, 0x8b, 0xd3, 0xea, 0x89, 0xe9,
+	0xba, 0xe6, 0x9c, 0x28, 0x3c, 0x30, 0x09, 0xee, 0x15, 0x66, 0xd9, 0x84, 0x32, 0x6c, 0x7b, 0x42,
+	0x5b, 0xff, 0x21, 0x01, 0x74, 0x78, 0xb2, 0xe6, 0xdc, 0xbb, 0xe8, 0x10, 0x8a, 0xa2, 0xd4, 0xd8,
+	0x32, 0x2a, 0x52, 0x4d, 0x6a, 0x14, 0xf5, 0x1d, 0xe1, 0xd0, 0x0c, 0x84, 0x20, 0xeb, 0x60, 0x9b,
+	0x54, 0xd2, 0xdc, 0xcf, 0xbf, 0x51, 0x1d, 0xfe, 0x99, 0x62, 0x0f, 0x4f, 0xac, 0xb9, 0xc5, 0x2c,
+	0x42, 0x2b, 0x99, 0x5a, 0xa6, 0x51, 0xd4, 0x37, 0x7c, 0xe8, 0x02, 0xf2, 0x73, 0x3c, 0x21, 0x73,
+	0x5a, 0xc9, 0xd6, 0x32, 0x8d, 0x52, 0xf3, 0x89, 0x1c, 0x0f, 0x28, 0xaf, 0x7a, 0xcb, 0x3d, 0xae,
+	0x51, 0x1d, 0xe6, 0x3f, 0xe8, 0x51, 0x42, 0xf5, 0x02, 0x4a, 0x6b, 0x6e, 0x54, 0x86, 0xcc, 0x8c,
+	0x3c, 0x44, 0x83, 0x85, 0x9f, 0x68, 0x0f, 0x72, 0x0b, 0x3c, 0x0f, 0x96, 0x43, 0x09, 0xe3, 0x75,
+	0xfa, 0x5c, 0xaa, 0x7f, 0x4b, 0x2f, 0x37, 0x1b, 0x62, 0x3a, 0x43, 0x8f, 0xa0, 0xc0, 0x30, 0x9d,
+	0xad, 0xf6, 0xca, 0x87, 0xa6, 0x66, 0xa0, 0x23, 0x00, 0x3e, 0xce, 0x78, 0x6d, 0x37, 0x41, 0xb0,
+	0x1f, 0x2e, 0xb8, 0x07, 0x39, 0xcb, 0xf1, 0x02, 0x56, 0xc9, 0x88, 0x06, 0xdc, 0x08, 0x93, 0x28,
+	0xa1, 0xd4, 0x12, 0xa0, 0xb2, 0x22, 0x29, 0xf2, 0x68, 0x46, 0xd8, 0x2c, 0xa0, 0xc4, 0x0f, 0x63,
+	0x39, 0xd1, 0x2c, 0x34, 0x35, 0x03, 0xbd, 0x85, 0x1d, 0x9b, 0x30, 0x6c, 0x60, 0x86, 0x2b, 0x79,
+	0x0e, 0xe3, 0xe9, 0x6f, 0x30, 0xc2, 0x71, 0xe5, 0x9b, 0x48, 0x25, 0x70, 0xc4, 0x49, 0xe8, 0x18,
+	0x20, 0x66, 0xfb, 0x50, 0x29, 0xf0, 0xe2, 0x6b, 0x9e, 0xea, 0x25, 0xfc, 0xbb, 0x91, 0xfa, 0x57,
+	0xc8, 0xbe, 0x4b, 0x50, 0x5e, 0xcd, 0x30, 0xf2, 0x0c, 0xcc, 0xc8, 0x76, 0x70, 0x67, 0x90, 0xa7,
+	0x0c, 0xb3, 0x80, 0xf2, 0x42, 0xbb, 0xcd, 0xc3, 0xc4, 0x4d, 0x06, 0x5c, 0xa2, 0x47, 0x52, 0xb4,
+	0x0f, 0x79, 0x37, 0x60, 0x2b, 0x9e, 0x91, 0x15, 0x0e, 0x45, 0x7c, 0xdf, 0xf5, 0x23, 0x96, 0xc2,
+	0x40, 0xe7, 0x50, 0x8c, 0x0f, 0x96, 0x93, 0x2c, 0x35, 0xab, 0xb2, 0x38, 0x69, 0x79, 0x79, 0xd2,
+	0xf2, 0x70, 0xa9, 0xd0, 0x57, 0xe2, 0xfa, 0x33, 0x80, 0x36, 0x76, 0xa6, 0x64, 0xfe, 0xc7, 0xc7,
+	0xaf, 0x7f, 0x95, 0x60, 0xb7, 0xed, 0x3a, 0x0e, 0x99, 0x32, 0x9d, 0x7c, 0x0a, 0x08, 0x65, 0xe8,
+	0x0c, 0x76, 0x7c, 0x62, 0x5a, 0x94, 0x11, 0x9f, 0x8b, 0x4b, 0xcd, 0xff, 0x13, 0xef, 0xb5, 0x9b,
+	0xd2, 0x63, 0x21, 0x7a, 0x03, 0x25, 0xde, 0x20, 0xe0, 0xcc, 0x38, 0x90, 0xd2, 0x16, 0x20, 0x02,
+	0x6b, 0x37, 0xa5, 0x03, 0x8b, 0xad, 0xab, 0x22, 0x14, 0x6c, 0x42, 0x29, 0x36, 0x49, 0xfd, 0x0b,
+	0xfc, 0x17, 0x4f, 0x44, 0x3d, 0xd7, 0xa1, 0x04, 0xbd, 0x80, 0x6c, 0xa8, 0xdd, 0x3a, 0x4e, 0x58,
+	0xb6, 0x9b, 0xd2, 0xb9, 0x08, 0x29, 0x90, 0x9f, 0xf2, 0xcd, 0xa3, 0x29, 0xd6, 0xe5, 0x2b, 0x24,
+	0xdd, 0x94, 0x1e, 0xc9, 0xd6, 0x7a, 0x3f, 0xff, 0xb9, 0x71, 0x00, 0xe2, 0xe9, 0x50, 0x1d, 0x8e,
+	0x3b, 0x2d, 0xf5, 0xe6, 0xb6, 0x3f, 0x1e, 0xb6, 0x06, 0xef, 0xc7, 0x83, 0x61, 0x6b, 0x38, 0x1a,
+	0x8c, 0x47, 0xfd, 0xc1, 0x9d, 0xda, 0xd6, 0xae, 0x35, 0xb5, 0x53, 0x4e, 0xa1, 0x13, 0x38, 0x4c,
+	0xd0, 0xb4, 0xda, 0x6d, 0xf5, 0x6e, 0xa8, 0x76, 0xca, 0x12, 0x3a, 0x86, 0x6a, 0x82, 0x40, 0x1f,
+	0xf5, 0xfb, 0x5a, 0xff, 0x5d, 0x39, 0x8d, 0x6a, 0xf0, 0x38, 0x21, 0xde, 0xbe, 0xbd, 0xb9, 0xeb,
+	0xa9, 0x61, 0x85, 0x0c, 0x3a, 0x82, 0x83, 0x04, 0xc5, 0x75, 0x4b, 0xeb, 0xa9, 0x9d, 0x72, 0x76,
+	0x5b, 0x81, 0x56, 0xbf, 0xad, 0xf6, 0x42, 0x45, 0xae, 0xf9, 0x11, 0xf6, 0xc5, 0x6e, 0x11, 0x5e,
+	0xd7, 0x1f, 0x10, 0x7f, 0x61, 0x4d, 0x09, 0xea, 0x40, 0x21, 0xf2, 0xa1, 0x83, 0x75, 0x5a, 0x1b,
+	0x87, 0x51, 0xad, 0x26, 0x85, 0xc4, 0x0b, 0x35, 0xa4, 0x97, 0xd2, 0xd5, 0xab, 0x0f, 0x4d, 0xd3,
+	0x95, 0x5d, 0xff, 0xb3, 0x6c, 0x13, 0x05, 0x7b, 0x1e, 0x55, 0x26, 0x01, 0x63, 0xc4, 0x57, 0xbc,
+	0x99, 0x29, 0x7e, 0xc0, 0x4a, 0xfc, 0xc3, 0xbe, 0x14, 0x5f, 0x8b, 0xd3, 0x49, 0x9e, 0x47, 0xce,
+	0x7e, 0x05, 0x00, 0x00, 0xff, 0xff, 0xe1, 0xeb, 0xa4, 0x87, 0xcd, 0x05, 0x00, 0x00,
 }

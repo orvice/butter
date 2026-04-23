@@ -13,7 +13,7 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-func startTestServer(t *testing.T, registry *Registry, apiToken string) (agentsv1.DaemonConnectorClient, func()) {
+func startTestServer(t *testing.T, registry *Registry, apiToken string) (agentsv1.DaemonConnectorServiceClient, func()) {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -21,7 +21,7 @@ func startTestServer(t *testing.T, registry *Registry, apiToken string) (agentsv
 	}
 
 	srv := grpc.NewServer()
-	agentsv1.RegisterDaemonConnectorServer(srv, NewGRPCHandler(registry, apiToken))
+	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, apiToken))
 	go srv.Serve(lis)
 
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -30,7 +30,7 @@ func startTestServer(t *testing.T, registry *Registry, apiToken string) (agentsv
 		t.Fatalf("dial: %v", err)
 	}
 
-	client := agentsv1.NewDaemonConnectorClient(conn)
+	client := agentsv1.NewDaemonConnectorServiceClient(conn)
 	cleanup := func() {
 		conn.Close()
 		srv.Stop()
@@ -52,8 +52,8 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 	}
 
 	// Register.
-	err = stream.Send(&agentsv1.DaemonMessage{
-		Message: &agentsv1.DaemonMessage_Register{
+	err = stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{
 				DaemonId:     "test-daemon",
 				Name:         "Test",
@@ -90,8 +90,8 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 	}
 
 	// Daemon sends back a completed update.
-	err = stream.Send(&agentsv1.DaemonMessage{
-		Message: &agentsv1.DaemonMessage_TaskUpdate{
+	err = stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_TaskUpdate{
 			TaskUpdate: &agentsv1.DaemonTaskUpdate{
 				TaskId: "t1",
 				Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_COMPLETED,
@@ -130,8 +130,8 @@ func TestGRPCHandlerAuthRejectsInvalidToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Connect: %v", err)
 	}
-	err = stream.Send(&agentsv1.DaemonMessage{
-		Message: &agentsv1.DaemonMessage_Register{
+	err = stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{DaemonId: "d1"},
 		},
 	})
@@ -161,8 +161,8 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 		t.Fatalf("Connect: %v", err)
 	}
 
-	err = stream.Send(&agentsv1.DaemonMessage{
-		Message: &agentsv1.DaemonMessage_Register{
+	err = stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{DaemonId: "d1", Capabilities: []string{"test"}},
 		},
 	})
