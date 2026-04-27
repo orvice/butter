@@ -450,6 +450,16 @@ func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part
 		return "", fmt.Errorf("empty input: at least one part is required")
 	}
 
+	inputSummary := summarizeInputParts(parts)
+	logger.Info("starting agent run",
+		"parts_count", len(parts),
+		"text_parts", inputSummary.textParts,
+		"inline_data_parts", inputSummary.inlineDataParts,
+		"file_data_parts", inputSummary.fileDataParts,
+		"function_response_parts", inputSummary.functionResponseParts,
+		"model_override", modelOverride,
+	)
+
 	s.mu.Lock()
 	ag, ok := s.agents[agentName]
 	s.mu.Unlock()
@@ -511,6 +521,25 @@ func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part
 			return result.String(), fmt.Errorf("runner error: %w", err)
 		}
 		eventCount++
+		summary := summarizeEvent(evt)
+		logger.Info("agent run event",
+			"event_count", eventCount,
+			"event_id", evt.ID,
+			"invocation_id", evt.InvocationID,
+			"author", evt.Author,
+			"branch", evt.Branch,
+			"partial", evt.Partial,
+			"final_response", evt.IsFinalResponse(),
+			"text_parts", summary.textParts,
+			"function_calls", summary.functionCalls,
+			"function_responses", summary.functionResponses,
+			"code_execution_results", summary.codeExecutionResults,
+			"long_running_tools", len(evt.LongRunningToolIDs),
+			"transfer_to_agent", evt.Actions.TransferToAgent,
+			"escalate", evt.Actions.Escalate,
+			"state_delta_keys", summary.stateDeltaKeys,
+			"artifact_delta_keys", summary.artifactDeltaKeys,
+		)
 		if onEvent != nil && !evt.IsFinalResponse() {
 			onEvent(evt)
 		}
@@ -529,6 +558,71 @@ func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part
 	)
 
 	return result.String(), nil
+}
+
+type inputPartSummary struct {
+	textParts             int
+	inlineDataParts       int
+	fileDataParts         int
+	functionResponseParts int
+}
+
+func summarizeInputParts(parts []*genai.Part) inputPartSummary {
+	var summary inputPartSummary
+	for _, part := range parts {
+		if part == nil {
+			continue
+		}
+		switch {
+		case part.Text != "":
+			summary.textParts++
+		case part.InlineData != nil:
+			summary.inlineDataParts++
+		case part.FileData != nil:
+			summary.fileDataParts++
+		case part.FunctionResponse != nil:
+			summary.functionResponseParts++
+		}
+	}
+	return summary
+}
+
+type eventSummary struct {
+	textParts            int
+	functionCalls        int
+	functionResponses    int
+	codeExecutionResults int
+	stateDeltaKeys       int
+	artifactDeltaKeys    int
+}
+
+func summarizeEvent(evt *session.Event) eventSummary {
+	if evt == nil {
+		return eventSummary{}
+	}
+
+	summary := eventSummary{
+		stateDeltaKeys:    len(evt.Actions.StateDelta),
+		artifactDeltaKeys: len(evt.Actions.ArtifactDelta),
+	}
+	if evt.Content == nil {
+		return summary
+	}
+
+	for _, part := range evt.Content.Parts {
+		switch {
+		case part.Text != "":
+			summary.textParts++
+		case part.FunctionCall != nil:
+			summary.functionCalls++
+		case part.FunctionResponse != nil:
+			summary.functionResponses++
+		case part.CodeExecutionResult != nil:
+			summary.codeExecutionResults++
+		}
+	}
+
+	return summary
 }
 
 // DeriveSessionID builds a session ID from Telegram update fields based on the session scope.
