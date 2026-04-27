@@ -11,6 +11,7 @@ import (
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	configmongo "go.orx.me/apps/butter/internal/repo/config/mongo"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type configBackend interface {
@@ -120,7 +121,8 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 		return err
 	}
 	for _, agent := range agents {
-		cfg.Agents = append(cfg.Agents, *agent)
+		cfg.Agents = append(cfg.Agents, agentsv1.Agent{})
+		proto.Merge(&cfg.Agents[len(cfg.Agents)-1], agent)
 	}
 
 	mcpServers, err := s.ListMCPServers(ctx)
@@ -128,7 +130,8 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 		return err
 	}
 	for _, server := range mcpServers {
-		cfg.MCPServerConfigs = append(cfg.MCPServerConfigs, *server)
+		cfg.MCPServerConfigs = append(cfg.MCPServerConfigs, agentsv1.MCPServer{})
+		proto.Merge(&cfg.MCPServerConfigs[len(cfg.MCPServerConfigs)-1], server)
 	}
 
 	remoteAgents, err := s.ListRemoteAgents(ctx)
@@ -136,7 +139,8 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 		return err
 	}
 	for _, agent := range remoteAgents {
-		cfg.RemoteAgents = append(cfg.RemoteAgents, *agent)
+		cfg.RemoteAgents = append(cfg.RemoteAgents, agentsv1.RemoteAgent{})
+		proto.Merge(&cfg.RemoteAgents[len(cfg.RemoteAgents)-1], agent)
 	}
 
 	channels, err := s.ListChannels(ctx)
@@ -144,7 +148,8 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 		return err
 	}
 	for _, channel := range channels {
-		cfg.Channels = append(cfg.Channels, *channel)
+		cfg.Channels = append(cfg.Channels, agentsv1.AgentChannel{})
+		proto.Merge(&cfg.Channels[len(cfg.Channels)-1], channel)
 	}
 
 	return nil
