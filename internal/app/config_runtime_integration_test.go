@@ -151,7 +151,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 			Name:      "telegram-main",
 			AgentName: "workflow-agent",
 			Platform:  agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
-			Enabled:   true,
+			Enabled:   false,
 			Telegram:  &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
 		},
 	})
