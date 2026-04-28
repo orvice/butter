@@ -36,18 +36,18 @@ func TestFormatStatusMessage(t *testing.T) {
 		"**Status**",
 		"🤖 **Agent**",
 		"- Name: `planner`",
-		"- Description: Main coordinator",
-		"- MCP servers: `mcp-alpha`, `mcp-beta`",
-		"- Sub-agents:",
-		"  - `worker`",
-		"  - MCP servers: `mcp-gamma`",
+		"- 📄 Description: Main coordinator",
+		"- 🔌 MCP servers: `mcp-alpha`, `mcp-beta`",
+		"- 👥 Sub-agents:",
+		"  - 🔹 `worker`",
+		"  - 🔌 MCP servers: `mcp-gamma`",
 		"🧠 **Model**",
-		"- Active: `fast` -> `gemini-2.5-pro`",
+		"- 🧠 Active: `fast` -> `gemini-2.5-pro`",
 		"💬 **Session**",
-		"- ID: `telegram-chat-1`",
-		"- Events: `42`",
-		"- Last update: `2026-04-28T11:55:00Z`",
-		"- Age: `5m0s`",
+		"- 🆔 ID: `telegram-chat-1`",
+		"- 📝 Events: `42`",
+		"- 🕐 Last update: `2026-04-28T11:55:00Z`",
+		"- ⏳ Age: `5m0s`",
 	}
 	for _, want := range wants {
 		if !strings.Contains(msg, want) {
@@ -61,10 +61,10 @@ func TestFormatStatusMessageSessionError(t *testing.T) {
 
 	wants := []string{
 		"- Name: `fallback-agent`",
-		"- Detail: unavailable",
-		"- Active: unavailable",
-		"- ID: `session-2`",
-		"- Warning: session not found",
+		"- ℹ️ Detail: unavailable",
+		"- ⚪ Active: unavailable",
+		"- 🆔 ID: `session-2`",
+		"- ⚠️ Warning: session not found",
 	}
 	for _, want := range wants {
 		if !strings.Contains(msg, want) {
