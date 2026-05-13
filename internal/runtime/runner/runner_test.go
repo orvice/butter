@@ -3,6 +3,9 @@ package runner
 import (
 	"testing"
 
+	"google.golang.org/adk/session"
+	"google.golang.org/genai"
+
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -41,5 +44,38 @@ func TestDeriveSessionID(t *testing.T) {
 				t.Errorf("DeriveSessionID() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSummarizeEvent(t *testing.T) {
+	evt := session.NewEvent("inv-1")
+	evt.Content = &genai.Content{Parts: []*genai.Part{
+		{Text: "hello"},
+		{FunctionCall: &genai.FunctionCall{Name: "tool_a"}},
+		{FunctionResponse: &genai.FunctionResponse{Name: "tool_a"}},
+		{CodeExecutionResult: &genai.CodeExecutionResult{Outcome: genai.OutcomeOK}},
+	}}
+	evt.Actions.StateDelta["foo"] = "bar"
+	evt.Actions.ArtifactDelta["report.txt"] = 1
+
+	summary := summarizeEvent(evt)
+
+	if summary.textParts != 1 {
+		t.Fatalf("textParts = %d, want 1", summary.textParts)
+	}
+	if summary.functionCalls != 1 {
+		t.Fatalf("functionCalls = %d, want 1", summary.functionCalls)
+	}
+	if summary.functionResponses != 1 {
+		t.Fatalf("functionResponses = %d, want 1", summary.functionResponses)
+	}
+	if summary.codeExecutionResults != 1 {
+		t.Fatalf("codeExecutionResults = %d, want 1", summary.codeExecutionResults)
+	}
+	if summary.stateDeltaKeys != 1 {
+		t.Fatalf("stateDeltaKeys = %d, want 1", summary.stateDeltaKeys)
+	}
+	if summary.artifactDeltaKeys != 1 {
+		t.Fatalf("artifactDeltaKeys = %d, want 1", summary.artifactDeltaKeys)
 	}
 }

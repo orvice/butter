@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"go.orx.me/apps/butter/internal/config"
+	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/service"
 )
 
@@ -15,7 +16,7 @@ func setupAuthRouter(cfg *config.AppConfig) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(APITokenAuthMiddleware(cfg))
-	NewHealthHandler(service.NewHealthService(nil, cfg)).Register(r)
+	NewHealthHandler(service.NewHealthService(repo.NewHealthRepository(), cfg)).Register(r)
 	r.GET("/protected", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
