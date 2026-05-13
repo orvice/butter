@@ -23,6 +23,7 @@ type AppConfig struct {
 
 	HTTP           HTTPConfig `yaml:"http"`
 	StorageBackend string     `yaml:"storage_backend"` // "memory" (default) or "mongo"
+	GRPCPort       int        `yaml:"grpc_port"`       // daemon gRPC server port (default 9090)
 }
 
 type HTTPConfig struct {

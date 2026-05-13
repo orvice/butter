@@ -9,6 +9,7 @@ import (
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
+	"go.orx.me/apps/butter/internal/runtime/daemon"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
@@ -28,7 +29,7 @@ type BootstrapResult struct {
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
 // and cron scheduler. It returns the bootstrap result.
 // agentRepo is the shared agent repository used by the system agent for agent queries.
-func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configrepo.AgentRepository, channelRepo configrepo.ChannelRepository) (*BootstrapResult, error) {
+func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configrepo.AgentRepository, channelRepo configrepo.ChannelRepository, daemonRegistry *daemon.Registry) (*BootstrapResult, error) {
 	logger := log.FromContext(ctx)
 
 	// Connect to MongoDB.
@@ -60,7 +61,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, sessionSvc, memorySvc, pluginConfig)
+	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, pluginConfig)
 	if err != nil {
 		logger.Error("failed to build runner service", "err", err)
 		return nil, err
