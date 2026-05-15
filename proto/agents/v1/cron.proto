@@ -123,6 +123,9 @@ service CronJobService {
   rpc DeleteCronJob(DeleteCronJobRequest) returns (DeleteCronJobResponse);
   // ListCronExecutions returns execution records, optionally filtered by job name.
   rpc ListCronExecutions(ListCronExecutionsRequest) returns (ListCronExecutionsResponse);
+  // RunCronJobNow triggers an immediate execution of the cron job, bypassing
+  // the schedule. The execution is recorded the same way scheduled runs are.
+  rpc RunCronJobNow(RunCronJobNowRequest) returns (RunCronJobNowResponse);
 }
 
 // --- CronJobService messages ---
@@ -179,6 +182,15 @@ message ListCronExecutionsRequest {
   // Pagination token from a previous response.
   // @gotags: json:"page_token,omitempty" yaml:"page_token,omitempty"
   string page_token = 3;
+}
+
+message RunCronJobNowRequest {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1 [(validate.rules).string.min_len = 1];
+}
+
+message RunCronJobNowResponse {
+  CronExecution execution = 1;
 }
 
 message ListCronExecutionsResponse {

@@ -1,0 +1,185 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "agents/v1/agentchannel.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// DashboardService — aggregated read-only metrics for the operator dashboard.
+// =============================================================================
+
+service DashboardService {
+  // GetOverview returns aggregate counts, component health and the latest
+  // daemon handshake for the dashboard Overview screen.
+  rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse);
+}
+
+message GetOverviewRequest {
+  // Optional environment label echoed back to the client. The server does not
+  // currently filter on this field.
+  string environment = 1;
+}
+
+message GetOverviewResponse {
+  OverviewCounts counts = 1;
+  HealthSummary health = 2;
+  DaemonHandshake latest_daemon_handshake = 3;
+}
+
+message OverviewCounts {
+  int32 active_agents = 1;
+  int32 mcp_servers = 2;
+  int32 connected_daemons = 3;
+  int32 remote_agents = 4;
+  int32 channels = 5;
+  int32 cron_jobs = 6;
+}
+
+message HealthSummary {
+  ComponentHealth mongodb = 1;
+  ComponentHealth redis = 2;
+  ComponentHealth runner = 3;
+}
+
+message ComponentHealth {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_HEALTHY = 1;
+    STATUS_DEGRADED = 2;
+    STATUS_DOWN = 3;
+  }
+  Status status = 1;
+  string detail = 2;
+  google.protobuf.Timestamp checked_at = 3;
+  int64 latency_ms = 4;
+}
+
+message DaemonHandshake {
+  string daemon_id = 1;
+  string name = 2;
+  repeated string capabilities = 3;
+  google.protobuf.Timestamp connected_at = 4;
+}
+
+// =============================================================================
+// DaemonService — read-only views over the daemon registry for the
+// Execution & Daemon Monitoring screen.
+// =============================================================================
+
+service DaemonService {
+  rpc ListDaemons(ListDaemonsRequest) returns (ListDaemonsResponse);
+  rpc GetDaemon(GetDaemonRequest) returns (GetDaemonResponse);
+  // CancelDaemonTask requests cancellation of a running task on any connected
+  // daemon. Returns NotFound if no online daemon is tracking the task.
+  rpc CancelDaemonTask(CancelDaemonTaskRequest) returns (CancelDaemonTaskResponse);
+}
+
+message ListDaemonsRequest {}
+
+message ListDaemonsResponse {
+  repeated DaemonStatus daemons = 1;
+}
+
+message GetDaemonRequest {
+  string daemon_id = 1;
+}
+
+message GetDaemonResponse {
+  DaemonStatus daemon = 1;
+}
+
+message CancelDaemonTaskRequest {
+  // Task id to cancel.
+  string task_id = 1;
+  // Optional daemon id hint; if empty the registry is scanned.
+  string daemon_id = 2;
+}
+
+message CancelDaemonTaskResponse {
+  // Daemon id that received the cancel signal.
+  string daemon_id = 1;
+}
+
+message DaemonStatus {
+  string daemon_id = 1;
+  string name = 2;
+  repeated string capabilities = 3;
+  map<string, string> labels = 4;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_ONLINE = 1;
+    STATE_IDLE = 2;
+    STATE_OFFLINE = 3;
+  }
+  State state = 5;
+
+  google.protobuf.Timestamp connected_at = 6;
+  google.protobuf.Duration uptime = 7;
+  int32 active_tasks = 8;
+}
+
+// =============================================================================
+// MCPServerService status extension (registered in agent_service.proto).
+// =============================================================================
+
+message GetMCPServerStatusRequest {
+  string id = 1;
+}
+
+message GetMCPServerStatusResponse {
+  MCPServerStatus status = 1;
+}
+
+message MCPServerStatus {
+  string id = 1;
+  string name = 2;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_CONFIGURED = 1;
+    STATE_CONNECTED = 2;
+    STATE_DISCONNECTED = 3;
+    STATE_ERROR = 4;
+  }
+  State state = 3;
+
+  // tool_count is taken from the configured tool_filter when present;
+  // a live probe count will be added when MCP probing is implemented.
+  int32 tool_count = 4;
+  string detail = 5;
+  google.protobuf.Timestamp checked_at = 6;
+}
+
+// =============================================================================
+// ChannelService status extension (registered in agent_service.proto).
+// =============================================================================
+
+message GetChannelStatusRequest {
+  string name = 1;
+}
+
+message GetChannelStatusResponse {
+  ChannelStatus status = 1;
+}
+
+message ChannelStatus {
+  string name = 1;
+  AgentChannelPlatform platform = 2;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_LIVE = 1;
+    STATE_PAUSED = 2;
+    STATE_DISABLED = 3;
+    STATE_ERROR = 4;
+  }
+  State state = 3;
+
+  google.protobuf.Timestamp last_poll_at = 4;
+  string detail = 5;
+}

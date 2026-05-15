@@ -2,10 +2,12 @@ package application
 
 import (
 	"context"
+	"time"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type MCPServerServiceServer struct {
@@ -108,6 +110,24 @@ func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agent
 		return nil, toTwirpError(err)
 	}
 	return &agentsv1.DeleteMCPServerResponse{}, nil
+}
+
+func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *agentsv1.GetMCPServerStatusRequest) (*agentsv1.GetMCPServerStatusResponse, error) {
+	m, err := s.repo.GetMCPServer(ctx, req.GetId())
+	if err != nil {
+		return nil, toTwirpError(err)
+	}
+
+	// Live connectivity probing is not yet implemented; report CONFIGURED with
+	// the static tool whitelist size as the tool_count hint.
+	status := &agentsv1.MCPServerStatus{
+		Id:        m.GetId(),
+		Name:      m.GetName(),
+		State:     agentsv1.MCPServerStatus_STATE_CONFIGURED,
+		ToolCount: int32(len(m.GetToolFilter())),
+		CheckedAt: timestamppb.New(time.Now().UTC()),
+	}
+	return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
 }
 
 func (s *MCPServerServiceServer) reloadRuntime(ctx context.Context) error {

@@ -174,7 +174,21 @@ func (s *Scheduler) unregisterJob(name string) {
 	}
 }
 
-func (s *Scheduler) executeJob(job *agentsv1.CronJob) {
+// RunJobNow loads the named job and executes it immediately, bypassing the
+// schedule. The returned execution record is the same shape that scheduled
+// runs produce and is persisted to the execution repo.
+func (s *Scheduler) RunJobNow(ctx context.Context, name string) (*agentsv1.CronExecution, error) {
+	job, err := s.jobRepo.Get(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if !s.runner.HasAgent(job.GetAgentName()) {
+		return nil, fmt.Errorf("cron job %q references unknown agent %q", name, job.GetAgentName())
+	}
+	return s.executeJob(job), nil
+}
+
+func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 	logger := log.FromContext(s.ctx)
 	startTime := time.Now()
 
@@ -248,6 +262,7 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) {
 
 	// Deliver result.
 	s.deliver(job, exec)
+	return exec
 }
 
 func (s *Scheduler) deliver(job *agentsv1.CronJob, exec *agentsv1.CronExecution) {

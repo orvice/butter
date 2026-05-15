@@ -88,6 +88,17 @@ func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.
 	return &agentsv1.DeleteCronJobResponse{CronJob: job}, nil
 }
 
+func (s *CronJobServiceServer) RunCronJobNow(ctx context.Context, req *agentsv1.RunCronJobNowRequest) (*agentsv1.RunCronJobNowResponse, error) {
+	if s.scheduler == nil {
+		return nil, twirp.InternalError("cron scheduler not initialized")
+	}
+	exec, err := s.scheduler.RunJobNow(ctx, req.GetName())
+	if err != nil {
+		return nil, toTwirpError(err)
+	}
+	return &agentsv1.RunCronJobNowResponse{Execution: exec}, nil
+}
+
 func (s *CronJobServiceServer) ListCronExecutions(ctx context.Context, req *agentsv1.ListCronExecutionsRequest) (*agentsv1.ListCronExecutionsResponse, error) {
 	if s.execRepo == nil {
 		return &agentsv1.ListCronExecutionsResponse{}, nil

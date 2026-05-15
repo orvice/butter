@@ -20,7 +20,7 @@ func newTestConfig(agents ...agentsv1.Agent) *config.AppConfig {
 func setupTestRouter(cfg *config.AppConfig) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.Use(APITokenAuthMiddleware(cfg))
+	r.Use(APITokenAuthMiddleware(cfg, nil))
 	h := NewA2AHandler(cfg)
 	h.Register(r)
 	return r

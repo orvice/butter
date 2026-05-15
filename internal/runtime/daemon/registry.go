@@ -58,3 +58,23 @@ func (r *Registry) ListConnected() []*agentsv1.DaemonInfo {
 	}
 	return result
 }
+
+// ListConnections returns all currently connected daemon connections. The
+// returned slice is a snapshot; the underlying connections are still managed
+// by the registry.
+func (r *Registry) ListConnections() []*Connection {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make([]*Connection, 0, len(r.conns))
+	for _, conn := range r.conns {
+		result = append(result, conn)
+	}
+	return result
+}
+
+// Get returns the connection for the given daemon id, or nil if not found.
+func (r *Registry) Get(daemonID string) *Connection {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.conns[daemonID]
+}

@@ -87,6 +87,22 @@ func (c *Connection) DispatchUpdate(update *agentsv1.DaemonTaskUpdate) {
 	}
 }
 
+// ActiveTaskCount returns the number of tasks currently in flight on this
+// connection. Safe to call concurrently.
+func (c *Connection) ActiveTaskCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.activeTasks)
+}
+
+// HasTask reports whether this connection is currently tracking the given task.
+func (c *Connection) HasTask(taskID string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.activeTasks[taskID]
+	return ok
+}
+
 // Close marks the connection as closed and notifies all active task waiters
 // that the daemon has disconnected.
 func (c *Connection) Close() {

@@ -20,6 +20,34 @@ GET /ping
 
 Returns server health status. No authentication required.
 
+### Service Status
+
+```
+GET /status
+```
+
+Returns runtime status for the config storage backend. Requires Bearer token authentication when `apiToken` is configured.
+
+**Response:**
+
+```json
+{
+  "service": "butter",
+  "storage": {
+    "configured_backend": "mongo",
+    "active_backend": "mongo",
+    "persistent": true,
+    "mongo_database": "butter",
+    "collections": {
+      "agents": 3,
+      "mcp_servers": 2,
+      "remote_agents": 1,
+      "channels": 2
+    }
+  }
+}
+```
+
 ### A2A Protocol
 
 #### Get Agent Card

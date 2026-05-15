@@ -1820,6 +1820,250 @@ var _ interface {
 	ErrorName() string
 } = ListCronExecutionsRequestValidationError{}
 
+// Validate checks the field values on RunCronJobNowRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RunCronJobNowRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RunCronJobNowRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RunCronJobNowRequestMultiError, or nil if none found.
+func (m *RunCronJobNowRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RunCronJobNowRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := RunCronJobNowRequestValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return RunCronJobNowRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// RunCronJobNowRequestMultiError is an error wrapping multiple validation
+// errors returned by RunCronJobNowRequest.ValidateAll() if the designated
+// constraints aren't met.
+type RunCronJobNowRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RunCronJobNowRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RunCronJobNowRequestMultiError) AllErrors() []error { return m }
+
+// RunCronJobNowRequestValidationError is the validation error returned by
+// RunCronJobNowRequest.Validate if the designated constraints aren't met.
+type RunCronJobNowRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RunCronJobNowRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RunCronJobNowRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RunCronJobNowRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RunCronJobNowRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RunCronJobNowRequestValidationError) ErrorName() string {
+	return "RunCronJobNowRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RunCronJobNowRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRunCronJobNowRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RunCronJobNowRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RunCronJobNowRequestValidationError{}
+
+// Validate checks the field values on RunCronJobNowResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RunCronJobNowResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RunCronJobNowResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RunCronJobNowResponseMultiError, or nil if none found.
+func (m *RunCronJobNowResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RunCronJobNowResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetExecution()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RunCronJobNowResponseValidationError{
+					field:  "Execution",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RunCronJobNowResponseValidationError{
+					field:  "Execution",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExecution()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RunCronJobNowResponseValidationError{
+				field:  "Execution",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return RunCronJobNowResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// RunCronJobNowResponseMultiError is an error wrapping multiple validation
+// errors returned by RunCronJobNowResponse.ValidateAll() if the designated
+// constraints aren't met.
+type RunCronJobNowResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RunCronJobNowResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RunCronJobNowResponseMultiError) AllErrors() []error { return m }
+
+// RunCronJobNowResponseValidationError is the validation error returned by
+// RunCronJobNowResponse.Validate if the designated constraints aren't met.
+type RunCronJobNowResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RunCronJobNowResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RunCronJobNowResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RunCronJobNowResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RunCronJobNowResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RunCronJobNowResponseValidationError) ErrorName() string {
+	return "RunCronJobNowResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RunCronJobNowResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRunCronJobNowResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RunCronJobNowResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RunCronJobNowResponseValidationError{}
+
 // Validate checks the field values on ListCronExecutionsResponse with the
 // rules defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.

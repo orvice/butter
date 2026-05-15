@@ -506,7 +506,7 @@ func (s *daemonConnectorServiceServer) serveConnectProtobuf(ctx context.Context,
 }
 
 func (s *daemonConnectorServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor2, 0
+	return twirpFileDescriptor4, 0
 }
 
 func (s *daemonConnectorServiceServer) ProtocGenTwirpVersion() string {
@@ -520,7 +520,7 @@ func (s *daemonConnectorServiceServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "agents.v1", "DaemonConnectorService")
 }
 
-var twirpFileDescriptor2 = []byte{
+var twirpFileDescriptor4 = []byte{
 	// 718 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x94, 0xdd, 0x6e, 0xda, 0x4a,
 	0x10, 0xc7, 0x31, 0x9f, 0x61, 0x38, 0x27, 0x07, 0xad, 0x72, 0x52, 0x42, 0x9a, 0x84, 0x52, 0x55,

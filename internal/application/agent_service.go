@@ -4,16 +4,20 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/twitchtv/twirp"
+	"google.golang.org/genai"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 )
 
 type AgentServiceServer struct {
-	repo    configrepo.AgentRepository
-	runtime ConfigRuntime
+	repo      configrepo.AgentRepository
+	runtime   ConfigRuntime
+	runnerSvc *runner.Service
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
@@ -22,6 +26,11 @@ func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer 
 
 func (s *AgentServiceServer) SetRuntime(runtime ConfigRuntime) {
 	s.runtime = runtime
+}
+
+// SetRunnerService wires the runner so InvokeAgent can execute agents.
+func (s *AgentServiceServer) SetRunnerService(svc *runner.Service) {
+	s.runnerSvc = svc
 }
 
 func (s *AgentServiceServer) ListAgents(ctx context.Context, _ *agentsv1.ListAgentsRequest) (*agentsv1.ListAgentsResponse, error) {
@@ -111,6 +120,46 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.Dele
 		return nil, toTwirpError(err)
 	}
 	return &agentsv1.DeleteAgentResponse{}, nil
+}
+
+func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.InvokeAgentRequest) (*agentsv1.InvokeAgentResponse, error) {
+	if s.runnerSvc == nil {
+		return nil, twirp.NewError(twirp.FailedPrecondition, "runner service not available")
+	}
+	if req.GetAgentName() == "" {
+		return nil, twirp.RequiredArgumentError("agent_name")
+	}
+	if req.GetInput() == "" {
+		return nil, twirp.RequiredArgumentError("input")
+	}
+
+	appName := req.GetAppName()
+	if appName == "" {
+		appName = "api"
+	}
+	userID := req.GetUserId()
+	if userID == "" {
+		userID = "api"
+	}
+	sessionID := req.GetSessionId()
+	if sessionID == "" {
+		sessionID = "invoke-" + uuid.NewString()
+	}
+
+	ctxInfo := &agentsv1.ContextInfo{
+		Uuid:        uuid.NewString(),
+		SessionId:   sessionID,
+		UserId:      userID,
+		ChannelName: appName,
+		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
+	}
+
+	parts := []*genai.Part{{Text: req.GetInput()}}
+	response, err := s.runnerSvc.Run(ctx, req.GetAgentName(), parts, req.GetModelOverride(), ctxInfo, nil, nil)
+	if err != nil {
+		return nil, twirp.InternalErrorWith(err)
+	}
+	return &agentsv1.InvokeAgentResponse{SessionId: sessionID, Response: response}, nil
 }
 
 func (s *AgentServiceServer) reloadRuntime(ctx context.Context) error {

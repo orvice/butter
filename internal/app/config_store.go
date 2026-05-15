@@ -31,6 +31,17 @@ func NewConfigStore() *ConfigStore {
 	return &ConfigStore{backend: configmemory.New()}
 }
 
+func (s *ConfigStore) ActiveBackendName() string {
+	switch s.current().(type) {
+	case *configmemory.Store:
+		return "memory"
+	case *configmongo.Store:
+		return "mongo"
+	default:
+		return "unknown"
+	}
+}
+
 func (s *ConfigStore) InitFromConfig(ctx context.Context, cfg *config.AppConfig) error {
 	backend, err := s.newBackend(ctx, cfg)
 	if err != nil {

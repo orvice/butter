@@ -4,6 +4,7 @@ package agents.v1;
 
 import "agents/v1/agent.proto";
 import "agents/v1/agentchannel.proto";
+import "agents/v1/dashboard.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -16,6 +17,9 @@ service AgentService {
   rpc CreateAgent(CreateAgentRequest) returns (CreateAgentResponse);
   rpc UpdateAgent(UpdateAgentRequest) returns (UpdateAgentResponse);
   rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
+  // InvokeAgent runs an agent once with the given input. If session_id is empty
+  // an ephemeral session id is generated; otherwise the existing session is used.
+  rpc InvokeAgent(InvokeAgentRequest) returns (InvokeAgentResponse);
 }
 
 // MCPServerService manages MCP Server configurations.
@@ -25,6 +29,9 @@ service MCPServerService {
   rpc CreateMCPServer(CreateMCPServerRequest) returns (CreateMCPServerResponse);
   rpc UpdateMCPServer(UpdateMCPServerRequest) returns (UpdateMCPServerResponse);
   rpc DeleteMCPServer(DeleteMCPServerRequest) returns (DeleteMCPServerResponse);
+  // GetMCPServerStatus returns the current runtime status of a configured
+  // MCP server. Implemented in dashboard.proto.
+  rpc GetMCPServerStatus(GetMCPServerStatusRequest) returns (GetMCPServerStatusResponse);
 }
 
 // RemoteAgentService manages Remote Agent configurations.
@@ -73,6 +80,28 @@ message DeleteAgentRequest {
 }
 
 message DeleteAgentResponse {}
+
+message InvokeAgentRequest {
+  // Name of the agent to invoke (required).
+  string agent_name = 1;
+  // Input message text (required).
+  string input = 2;
+  // App / channel name for the invocation context. Defaults to "api" if empty.
+  string app_name = 3;
+  // User id for the invocation context. Defaults to "api" if empty.
+  string user_id = 4;
+  // Existing session id. Empty triggers a new ephemeral session id.
+  string session_id = 5;
+  // Optional model override alias or full name.
+  string model_override = 6;
+}
+
+message InvokeAgentResponse {
+  // Session id used (echoed back, may have been auto-generated).
+  string session_id = 1;
+  // Final agent response text.
+  string response = 2;
+}
 
 // --- MCPServer messages ---
 
@@ -188,6 +217,31 @@ message DeleteChannelRequest {
 
 message DeleteChannelResponse {}
 
+message RestartChannelRequest {
+  // Optional channel name; if empty, restarts the whole channel manager.
+  string name = 1;
+}
+
+message RestartChannelResponse {
+  AgentChannel channel = 1;
+}
+
+message PauseChannelRequest {
+  string name = 1;
+}
+
+message PauseChannelResponse {
+  AgentChannel channel = 1;
+}
+
+message ResumeChannelRequest {
+  string name = 1;
+}
+
+message ResumeChannelResponse {
+  AgentChannel channel = 1;
+}
+
 // ChannelService manages AgentChannel configurations.
 service ChannelService {
   rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
@@ -195,6 +249,16 @@ service ChannelService {
   rpc CreateChannel(CreateChannelRequest) returns (CreateChannelResponse);
   rpc UpdateChannel(UpdateChannelRequest) returns (UpdateChannelResponse);
   rpc DeleteChannel(DeleteChannelRequest) returns (DeleteChannelResponse);
+  // GetChannelStatus returns the current runtime status of a channel poller.
+  // Implemented in dashboard.proto.
+  rpc GetChannelStatus(GetChannelStatusRequest) returns (GetChannelStatusResponse);
+  // RestartChannel reloads the channel manager. Effectively bounces all pollers.
+  rpc RestartChannel(RestartChannelRequest) returns (RestartChannelResponse);
+  // PauseChannel disables the named channel and reloads the channel manager so
+  // its poller stops. The configuration `enabled` flag is set to false.
+  rpc PauseChannel(PauseChannelRequest) returns (PauseChannelResponse);
+  // ResumeChannel re-enables the named channel and reloads the channel manager.
+  rpc ResumeChannel(ResumeChannelRequest) returns (ResumeChannelResponse);
 }
 
 // =============================================================================
