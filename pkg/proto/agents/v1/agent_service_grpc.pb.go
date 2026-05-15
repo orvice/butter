@@ -19,12 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AgentService_ListAgents_FullMethodName  = "/agents.v1.AgentService/ListAgents"
-	AgentService_GetAgent_FullMethodName    = "/agents.v1.AgentService/GetAgent"
-	AgentService_CreateAgent_FullMethodName = "/agents.v1.AgentService/CreateAgent"
-	AgentService_UpdateAgent_FullMethodName = "/agents.v1.AgentService/UpdateAgent"
-	AgentService_DeleteAgent_FullMethodName = "/agents.v1.AgentService/DeleteAgent"
-	AgentService_InvokeAgent_FullMethodName = "/agents.v1.AgentService/InvokeAgent"
+	AgentService_ListAgents_FullMethodName           = "/agents.v1.AgentService/ListAgents"
+	AgentService_GetAgent_FullMethodName             = "/agents.v1.AgentService/GetAgent"
+	AgentService_CreateAgent_FullMethodName          = "/agents.v1.AgentService/CreateAgent"
+	AgentService_UpdateAgent_FullMethodName          = "/agents.v1.AgentService/UpdateAgent"
+	AgentService_DeleteAgent_FullMethodName          = "/agents.v1.AgentService/DeleteAgent"
+	AgentService_InvokeAgent_FullMethodName          = "/agents.v1.AgentService/InvokeAgent"
+	AgentService_ListAgentInvocations_FullMethodName = "/agents.v1.AgentService/ListAgentInvocations"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -41,6 +42,9 @@ type AgentServiceClient interface {
 	// InvokeAgent runs an agent once with the given input. If session_id is empty
 	// an ephemeral session id is generated; otherwise the existing session is used.
 	InvokeAgent(ctx context.Context, in *InvokeAgentRequest, opts ...grpc.CallOption) (*InvokeAgentResponse, error)
+	// ListAgentInvocations returns recorded invocations, optionally filtered by
+	// agent name, with simple opaque-token pagination.
+	ListAgentInvocations(ctx context.Context, in *ListAgentInvocationsRequest, opts ...grpc.CallOption) (*ListAgentInvocationsResponse, error)
 }
 
 type agentServiceClient struct {
@@ -111,6 +115,16 @@ func (c *agentServiceClient) InvokeAgent(ctx context.Context, in *InvokeAgentReq
 	return out, nil
 }
 
+func (c *agentServiceClient) ListAgentInvocations(ctx context.Context, in *ListAgentInvocationsRequest, opts ...grpc.CallOption) (*ListAgentInvocationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAgentInvocationsResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListAgentInvocations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -125,6 +139,9 @@ type AgentServiceServer interface {
 	// InvokeAgent runs an agent once with the given input. If session_id is empty
 	// an ephemeral session id is generated; otherwise the existing session is used.
 	InvokeAgent(context.Context, *InvokeAgentRequest) (*InvokeAgentResponse, error)
+	// ListAgentInvocations returns recorded invocations, optionally filtered by
+	// agent name, with simple opaque-token pagination.
+	ListAgentInvocations(context.Context, *ListAgentInvocationsRequest) (*ListAgentInvocationsResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -152,6 +169,9 @@ func (UnimplementedAgentServiceServer) DeleteAgent(context.Context, *DeleteAgent
 }
 func (UnimplementedAgentServiceServer) InvokeAgent(context.Context, *InvokeAgentRequest) (*InvokeAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InvokeAgent not implemented")
+}
+func (UnimplementedAgentServiceServer) ListAgentInvocations(context.Context, *ListAgentInvocationsRequest) (*ListAgentInvocationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAgentInvocations not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -282,6 +302,24 @@ func _AgentService_InvokeAgent_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ListAgentInvocations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAgentInvocationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListAgentInvocations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListAgentInvocations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListAgentInvocations(ctx, req.(*ListAgentInvocationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -312,6 +350,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InvokeAgent",
 			Handler:    _AgentService_InvokeAgent_Handler,
+		},
+		{
+			MethodName: "ListAgentInvocations",
+			Handler:    _AgentService_ListAgentInvocations_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

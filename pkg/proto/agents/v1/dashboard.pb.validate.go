@@ -35,6 +35,387 @@ var (
 	_ = sort.Sort
 )
 
+// Validate checks the field values on GetActivityFeedRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetActivityFeedRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetActivityFeedRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetActivityFeedRequestMultiError, or nil if none found.
+func (m *GetActivityFeedRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetActivityFeedRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Limit
+
+	// no validation rules for PageToken
+
+	if len(errors) > 0 {
+		return GetActivityFeedRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetActivityFeedRequestMultiError is an error wrapping multiple validation
+// errors returned by GetActivityFeedRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetActivityFeedRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetActivityFeedRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetActivityFeedRequestMultiError) AllErrors() []error { return m }
+
+// GetActivityFeedRequestValidationError is the validation error returned by
+// GetActivityFeedRequest.Validate if the designated constraints aren't met.
+type GetActivityFeedRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetActivityFeedRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetActivityFeedRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetActivityFeedRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetActivityFeedRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetActivityFeedRequestValidationError) ErrorName() string {
+	return "GetActivityFeedRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetActivityFeedRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetActivityFeedRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetActivityFeedRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetActivityFeedRequestValidationError{}
+
+// Validate checks the field values on GetActivityFeedResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetActivityFeedResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetActivityFeedResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetActivityFeedResponseMultiError, or nil if none found.
+func (m *GetActivityFeedResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetActivityFeedResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetEvents() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetActivityFeedResponseValidationError{
+						field:  fmt.Sprintf("Events[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetActivityFeedResponseValidationError{
+						field:  fmt.Sprintf("Events[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return GetActivityFeedResponseValidationError{
+					field:  fmt.Sprintf("Events[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for NextPageToken
+
+	if len(errors) > 0 {
+		return GetActivityFeedResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetActivityFeedResponseMultiError is an error wrapping multiple validation
+// errors returned by GetActivityFeedResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetActivityFeedResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetActivityFeedResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetActivityFeedResponseMultiError) AllErrors() []error { return m }
+
+// GetActivityFeedResponseValidationError is the validation error returned by
+// GetActivityFeedResponse.Validate if the designated constraints aren't met.
+type GetActivityFeedResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetActivityFeedResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetActivityFeedResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetActivityFeedResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetActivityFeedResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetActivityFeedResponseValidationError) ErrorName() string {
+	return "GetActivityFeedResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetActivityFeedResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetActivityFeedResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetActivityFeedResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetActivityFeedResponseValidationError{}
+
+// Validate checks the field values on ActivityEvent with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *ActivityEvent) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ActivityEvent with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in ActivityEventMultiError, or
+// nil if none found.
+func (m *ActivityEvent) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ActivityEvent) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for Kind
+
+	// no validation rules for Actor
+
+	// no validation rules for Message
+
+	if all {
+		switch v := interface{}(m.GetTimestamp()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ActivityEventValidationError{
+					field:  "Timestamp",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ActivityEventValidationError{
+					field:  "Timestamp",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTimestamp()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ActivityEventValidationError{
+				field:  "Timestamp",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return ActivityEventMultiError(errors)
+	}
+
+	return nil
+}
+
+// ActivityEventMultiError is an error wrapping multiple validation errors
+// returned by ActivityEvent.ValidateAll() if the designated constraints
+// aren't met.
+type ActivityEventMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ActivityEventMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ActivityEventMultiError) AllErrors() []error { return m }
+
+// ActivityEventValidationError is the validation error returned by
+// ActivityEvent.Validate if the designated constraints aren't met.
+type ActivityEventValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ActivityEventValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ActivityEventValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ActivityEventValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ActivityEventValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ActivityEventValidationError) ErrorName() string { return "ActivityEventValidationError" }
+
+// Error satisfies the builtin error interface
+func (e ActivityEventValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sActivityEvent.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ActivityEventValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ActivityEventValidationError{}
+
 // Validate checks the field values on GetOverviewRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.

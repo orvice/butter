@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DashboardService_GetOverview_FullMethodName = "/agents.v1.DashboardService/GetOverview"
+	DashboardService_GetOverview_FullMethodName     = "/agents.v1.DashboardService/GetOverview"
+	DashboardService_GetActivityFeed_FullMethodName = "/agents.v1.DashboardService/GetActivityFeed"
 )
 
 // DashboardServiceClient is the client API for DashboardService service.
@@ -29,6 +30,9 @@ type DashboardServiceClient interface {
 	// GetOverview returns aggregate counts, component health and the latest
 	// daemon handshake for the dashboard Overview screen.
 	GetOverview(ctx context.Context, in *GetOverviewRequest, opts ...grpc.CallOption) (*GetOverviewResponse, error)
+	// GetActivityFeed returns the most recent invocation activity, oldest event
+	// first stripped, suitable for the dashboard Activity Feed widget.
+	GetActivityFeed(ctx context.Context, in *GetActivityFeedRequest, opts ...grpc.CallOption) (*GetActivityFeedResponse, error)
 }
 
 type dashboardServiceClient struct {
@@ -49,6 +53,16 @@ func (c *dashboardServiceClient) GetOverview(ctx context.Context, in *GetOvervie
 	return out, nil
 }
 
+func (c *dashboardServiceClient) GetActivityFeed(ctx context.Context, in *GetActivityFeedRequest, opts ...grpc.CallOption) (*GetActivityFeedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetActivityFeedResponse)
+	err := c.cc.Invoke(ctx, DashboardService_GetActivityFeed_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DashboardServiceServer is the server API for DashboardService service.
 // All implementations must embed UnimplementedDashboardServiceServer
 // for forward compatibility.
@@ -56,6 +70,9 @@ type DashboardServiceServer interface {
 	// GetOverview returns aggregate counts, component health and the latest
 	// daemon handshake for the dashboard Overview screen.
 	GetOverview(context.Context, *GetOverviewRequest) (*GetOverviewResponse, error)
+	// GetActivityFeed returns the most recent invocation activity, oldest event
+	// first stripped, suitable for the dashboard Activity Feed widget.
+	GetActivityFeed(context.Context, *GetActivityFeedRequest) (*GetActivityFeedResponse, error)
 	mustEmbedUnimplementedDashboardServiceServer()
 }
 
@@ -68,6 +85,9 @@ type UnimplementedDashboardServiceServer struct{}
 
 func (UnimplementedDashboardServiceServer) GetOverview(context.Context, *GetOverviewRequest) (*GetOverviewResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetOverview not implemented")
+}
+func (UnimplementedDashboardServiceServer) GetActivityFeed(context.Context, *GetActivityFeedRequest) (*GetActivityFeedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetActivityFeed not implemented")
 }
 func (UnimplementedDashboardServiceServer) mustEmbedUnimplementedDashboardServiceServer() {}
 func (UnimplementedDashboardServiceServer) testEmbeddedByValue()                          {}
@@ -108,6 +128,24 @@ func _DashboardService_GetOverview_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DashboardService_GetActivityFeed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetActivityFeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DashboardServiceServer).GetActivityFeed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DashboardService_GetActivityFeed_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DashboardServiceServer).GetActivityFeed(ctx, req.(*GetActivityFeedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DashboardService_ServiceDesc is the grpc.ServiceDesc for DashboardService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +156,10 @@ var DashboardService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetOverview",
 			Handler:    _DashboardService_GetOverview_Handler,
+		},
+		{
+			MethodName: "GetActivityFeed",
+			Handler:    _DashboardService_GetActivityFeed_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

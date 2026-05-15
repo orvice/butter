@@ -38,6 +38,9 @@ const (
 	// DashboardServiceGetOverviewProcedure is the fully-qualified name of the DashboardService's
 	// GetOverview RPC.
 	DashboardServiceGetOverviewProcedure = "/agents.v1.DashboardService/GetOverview"
+	// DashboardServiceGetActivityFeedProcedure is the fully-qualified name of the DashboardService's
+	// GetActivityFeed RPC.
+	DashboardServiceGetActivityFeedProcedure = "/agents.v1.DashboardService/GetActivityFeed"
 	// DaemonServiceListDaemonsProcedure is the fully-qualified name of the DaemonService's ListDaemons
 	// RPC.
 	DaemonServiceListDaemonsProcedure = "/agents.v1.DaemonService/ListDaemons"
@@ -53,6 +56,9 @@ type DashboardServiceClient interface {
 	// GetOverview returns aggregate counts, component health and the latest
 	// daemon handshake for the dashboard Overview screen.
 	GetOverview(context.Context, *connect.Request[v1.GetOverviewRequest]) (*connect.Response[v1.GetOverviewResponse], error)
+	// GetActivityFeed returns the most recent invocation activity, oldest event
+	// first stripped, suitable for the dashboard Activity Feed widget.
+	GetActivityFeed(context.Context, *connect.Request[v1.GetActivityFeedRequest]) (*connect.Response[v1.GetActivityFeedResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the agents.v1.DashboardService service. By
@@ -72,12 +78,19 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("GetOverview")),
 			connect.WithClientOptions(opts...),
 		),
+		getActivityFeed: connect.NewClient[v1.GetActivityFeedRequest, v1.GetActivityFeedResponse](
+			httpClient,
+			baseURL+DashboardServiceGetActivityFeedProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("GetActivityFeed")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // dashboardServiceClient implements DashboardServiceClient.
 type dashboardServiceClient struct {
-	getOverview *connect.Client[v1.GetOverviewRequest, v1.GetOverviewResponse]
+	getOverview     *connect.Client[v1.GetOverviewRequest, v1.GetOverviewResponse]
+	getActivityFeed *connect.Client[v1.GetActivityFeedRequest, v1.GetActivityFeedResponse]
 }
 
 // GetOverview calls agents.v1.DashboardService.GetOverview.
@@ -85,11 +98,19 @@ func (c *dashboardServiceClient) GetOverview(ctx context.Context, req *connect.R
 	return c.getOverview.CallUnary(ctx, req)
 }
 
+// GetActivityFeed calls agents.v1.DashboardService.GetActivityFeed.
+func (c *dashboardServiceClient) GetActivityFeed(ctx context.Context, req *connect.Request[v1.GetActivityFeedRequest]) (*connect.Response[v1.GetActivityFeedResponse], error) {
+	return c.getActivityFeed.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the agents.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// GetOverview returns aggregate counts, component health and the latest
 	// daemon handshake for the dashboard Overview screen.
 	GetOverview(context.Context, *connect.Request[v1.GetOverviewRequest]) (*connect.Response[v1.GetOverviewResponse], error)
+	// GetActivityFeed returns the most recent invocation activity, oldest event
+	// first stripped, suitable for the dashboard Activity Feed widget.
+	GetActivityFeed(context.Context, *connect.Request[v1.GetActivityFeedRequest]) (*connect.Response[v1.GetActivityFeedResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -105,10 +126,18 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("GetOverview")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceGetActivityFeedHandler := connect.NewUnaryHandler(
+		DashboardServiceGetActivityFeedProcedure,
+		svc.GetActivityFeed,
+		connect.WithSchema(dashboardServiceMethods.ByName("GetActivityFeed")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceGetOverviewProcedure:
 			dashboardServiceGetOverviewHandler.ServeHTTP(w, r)
+		case DashboardServiceGetActivityFeedProcedure:
+			dashboardServiceGetActivityFeedHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -120,6 +149,10 @@ type UnimplementedDashboardServiceHandler struct{}
 
 func (UnimplementedDashboardServiceHandler) GetOverview(context.Context, *connect.Request[v1.GetOverviewRequest]) (*connect.Response[v1.GetOverviewResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DashboardService.GetOverview is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) GetActivityFeed(context.Context, *connect.Request[v1.GetActivityFeedRequest]) (*connect.Response[v1.GetActivityFeedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DashboardService.GetActivityFeed is not implemented"))
 }
 
 // DaemonServiceClient is a client for the agents.v1.DaemonService service.

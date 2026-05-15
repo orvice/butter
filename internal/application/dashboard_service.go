@@ -8,10 +8,13 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/twitchtv/twirp"
 )
 
 // DashboardServiceServer aggregates read-only metrics for the dashboard
@@ -26,6 +29,7 @@ type DashboardServiceServer struct {
 	mongoDB      *mongo.Database
 	rdb          *redis.Client
 	runnerReady  func() bool
+	invRepo      invocation.Repository
 }
 
 // DashboardConfigStore is the union of config repository interfaces required
@@ -59,6 +63,56 @@ func (s *DashboardServiceServer) SetRunnerReady(ready func() bool) { s.runnerRea
 
 // SetCronJobRepo wires the cron job repository for cron_jobs counts.
 func (s *DashboardServiceServer) SetCronJobRepo(repo cron.JobRepo) { s.cronJobRepo = repo }
+
+// SetInvocationRepo wires the invocation repository used by GetActivityFeed.
+func (s *DashboardServiceServer) SetInvocationRepo(repo invocation.Repository) { s.invRepo = repo }
+
+func (s *DashboardServiceServer) GetActivityFeed(ctx context.Context, req *agentsv1.GetActivityFeedRequest) (*agentsv1.GetActivityFeedResponse, error) {
+	if s.invRepo == nil {
+		return &agentsv1.GetActivityFeedResponse{}, nil
+	}
+	limit := req.GetLimit()
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	invs, next, err := s.invRepo.ListRecent(ctx, limit, req.GetPageToken())
+	if err != nil {
+		return nil, twirp.InternalErrorWith(err)
+	}
+	events := make([]*agentsv1.ActivityEvent, 0, len(invs))
+	for _, inv := range invs {
+		events = append(events, invocationToActivity(inv))
+	}
+	return &agentsv1.GetActivityFeedResponse{Events: events, NextPageToken: next}, nil
+}
+
+func invocationToActivity(inv *agentsv1.Invocation) *agentsv1.ActivityEvent {
+	ts := inv.GetFinishedAt()
+	if ts == nil {
+		ts = inv.GetStartedAt()
+	}
+	kind := "invocation"
+	msg := inv.GetInput()
+	switch inv.GetStatus() {
+	case agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED:
+		kind = "execution_completed"
+	case agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED:
+		kind = "error"
+		if inv.GetError() != "" {
+			msg = inv.GetError()
+		}
+	}
+	return &agentsv1.ActivityEvent{
+		Id:        inv.GetId(),
+		Kind:      kind,
+		Actor:     inv.GetAgentName(),
+		Message:   msg,
+		Timestamp: ts,
+	}
+}
 
 func (s *DashboardServiceServer) GetOverview(ctx context.Context, _ *agentsv1.GetOverviewRequest) (*agentsv1.GetOverviewResponse, error) {
 	counts, err := s.counts(ctx)

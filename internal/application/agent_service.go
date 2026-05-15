@@ -9,6 +9,7 @@ import (
 	"google.golang.org/genai"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
@@ -18,6 +19,7 @@ type AgentServiceServer struct {
 	repo      configrepo.AgentRepository
 	runtime   ConfigRuntime
 	runnerSvc *runner.Service
+	invRepo   invocation.Repository
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
@@ -31,6 +33,12 @@ func (s *AgentServiceServer) SetRuntime(runtime ConfigRuntime) {
 // SetRunnerService wires the runner so InvokeAgent can execute agents.
 func (s *AgentServiceServer) SetRunnerService(svc *runner.Service) {
 	s.runnerSvc = svc
+}
+
+// SetInvocationRepo wires the invocation repository used by
+// ListAgentInvocations.
+func (s *AgentServiceServer) SetInvocationRepo(repo invocation.Repository) {
+	s.invRepo = repo
 }
 
 func (s *AgentServiceServer) ListAgents(ctx context.Context, _ *agentsv1.ListAgentsRequest) (*agentsv1.ListAgentsResponse, error) {
@@ -160,6 +168,24 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.Invo
 		return nil, twirp.InternalErrorWith(err)
 	}
 	return &agentsv1.InvokeAgentResponse{SessionId: sessionID, Response: response}, nil
+}
+
+func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *agentsv1.ListAgentInvocationsRequest) (*agentsv1.ListAgentInvocationsResponse, error) {
+	if s.invRepo == nil {
+		return &agentsv1.ListAgentInvocationsResponse{}, nil
+	}
+	invs, next, total, err := s.invRepo.List(ctx, invocation.ListFilter{
+		AgentName: req.GetAgentName(),
+		SessionID: req.GetSessionId(),
+	}, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, twirp.InternalErrorWith(err)
+	}
+	return &agentsv1.ListAgentInvocationsResponse{
+		Invocations:   invs,
+		NextPageToken: next,
+		Total:         total,
+	}, nil
 }
 
 func (s *AgentServiceServer) reloadRuntime(ctx context.Context) error {

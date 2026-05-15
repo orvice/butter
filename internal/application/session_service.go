@@ -2,8 +2,11 @@ package application
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -19,9 +22,10 @@ import (
 
 // SessionServiceServer implements the generated SessionService Twirp interface.
 type SessionServiceServer struct {
-	mu         sync.RWMutex
-	sessionSvc session.Service
-	runnerSvc  *runner.Service
+	mu           sync.RWMutex
+	sessionSvc   session.Service
+	runnerSvc    *runner.Service
+	langfuseHost string
 }
 
 func NewSessionServiceServer() *SessionServiceServer {
@@ -40,6 +44,20 @@ func (s *SessionServiceServer) SetRunnerService(svc *runner.Service) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runnerSvc = svc
+}
+
+// SetLangfuseHost wires the Langfuse base URL used to render trace_url on
+// SessionEvent. Empty disables trace_url emission (trace_id is still set).
+func (s *SessionServiceServer) SetLangfuseHost(host string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.langfuseHost = strings.TrimRight(strings.TrimSpace(host), "/")
+}
+
+func (s *SessionServiceServer) getLangfuseHost() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.langfuseHost
 }
 
 func (s *SessionServiceServer) getSessionSvc() session.Service {
@@ -107,8 +125,9 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.Get
 		Session: sessionToInfo(resp.Session),
 	}
 
+	host := s.getLangfuseHost()
 	for evt := range resp.Session.Events().All() {
-		detail.Events = append(detail.Events, eventToProto(evt))
+		detail.Events = append(detail.Events, eventToProtoWithTrace(evt, host))
 	}
 
 	return &agentsv1.GetSessionResponse{SessionDetail: detail}, nil
@@ -128,12 +147,61 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *agentsv1.L
 		return nil, twirp.InternalErrorWith(err)
 	}
 
+	// Apply date-range filter at the service layer since ADK session.ListRequest
+	// only supports AppName+UserID.
+	startTs := req.GetStartTime()
+	endTs := req.GetEndTime()
 	infos := make([]*agentsv1.SessionInfo, 0, len(resp.Sessions))
 	for _, sess := range resp.Sessions {
+		last := sess.LastUpdateTime()
+		if startTs != nil && last.Before(startTs.AsTime()) {
+			continue
+		}
+		if endTs != nil && last.After(endTs.AsTime()) {
+			continue
+		}
 		infos = append(infos, sessionToInfo(sess))
 	}
 
-	return &agentsv1.ListSessionsResponse{Sessions: infos}, nil
+	// Newest first.
+	sort.SliceStable(infos, func(i, j int) bool {
+		return infos[i].GetLastUpdateTime().AsTime().After(infos[j].GetLastUpdateTime().AsTime())
+	})
+
+	total := int32(len(infos))
+	page, next := paginateSessions(infos, req.GetPageSize(), req.GetPageToken())
+
+	return &agentsv1.ListSessionsResponse{
+		Sessions:      page,
+		NextPageToken: next,
+		Total:         total,
+	}, nil
+}
+
+func paginateSessions(items []*agentsv1.SessionInfo, pageSize int32, pageToken string) ([]*agentsv1.SessionInfo, string) {
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := 0
+	if pageToken != "" {
+		if raw, err := base64.StdEncoding.DecodeString(pageToken); err == nil {
+			if n, err := strconv.Atoi(string(raw)); err == nil && n >= 0 {
+				offset = n
+			}
+		}
+	}
+	if offset >= len(items) {
+		return nil, ""
+	}
+	end := offset + int(pageSize)
+	if end > len(items) {
+		end = len(items)
+	}
+	next := ""
+	if end < len(items) {
+		next = base64.StdEncoding.EncodeToString([]byte(strconv.Itoa(end)))
+	}
+	return items[offset:end], next
 }
 
 func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.DeleteSessionRequest) (*agentsv1.DeleteSessionResponse, error) {
@@ -197,19 +265,24 @@ func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {
 	return info
 }
 
-func eventToProto(evt *session.Event) *agentsv1.SessionEvent {
+func eventToProtoWithTrace(evt *session.Event, langfuseHost string) *agentsv1.SessionEvent {
 	pe := &agentsv1.SessionEvent{
 		EventId:      evt.ID,
 		InvocationId: evt.InvocationID,
 		Author:       evt.Author,
 		Branch:       evt.Branch,
 		Timestamp:    timestamppb.New(evt.Timestamp),
+		TraceId:      evt.InvocationID,
 	}
 
 	if evt.Content != nil {
 		if data, err := json.Marshal(evt.Content); err == nil {
 			pe.ContentJson = string(data)
 		}
+	}
+
+	if langfuseHost != "" && evt.InvocationID != "" {
+		pe.TraceUrl = langfuseHost + "/trace/" + evt.InvocationID
 	}
 
 	return pe

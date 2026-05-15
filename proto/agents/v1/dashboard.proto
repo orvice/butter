@@ -16,6 +16,32 @@ service DashboardService {
   // GetOverview returns aggregate counts, component health and the latest
   // daemon handshake for the dashboard Overview screen.
   rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse);
+  // GetActivityFeed returns the most recent invocation activity, oldest event
+  // first stripped, suitable for the dashboard Activity Feed widget.
+  rpc GetActivityFeed(GetActivityFeedRequest) returns (GetActivityFeedResponse);
+}
+
+message GetActivityFeedRequest {
+  // Maximum records to return. Defaults to 20, capped at 200.
+  int32 limit = 1;
+  // Pagination token from a previous response.
+  string page_token = 2;
+}
+
+message GetActivityFeedResponse {
+  repeated ActivityEvent events = 1;
+  string next_page_token = 2;
+}
+
+message ActivityEvent {
+  string id = 1;
+  // Kind of event: invocation | execution_completed | error.
+  string kind = 2;
+  // Agent / cron job / webhook id that produced the event.
+  string actor = 3;
+  // Short human-readable message.
+  string message = 4;
+  google.protobuf.Timestamp timestamp = 5;
 }
 
 message GetOverviewRequest {

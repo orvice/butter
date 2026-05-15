@@ -62,6 +62,15 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
 	}
+	if result.InvocationRepo != nil {
+		h.agentSvcServer.SetInvocationRepo(result.InvocationRepo)
+		if h.dashboardSvcServer != nil {
+			h.dashboardSvcServer.SetInvocationRepo(result.InvocationRepo)
+		}
+	}
+	if result.LangfuseHost != "" {
+		h.sessionSvcServer.SetLangfuseHost(result.LangfuseHost)
+	}
 	if result.SessionSvc != nil {
 		h.sessionSvcServer.SetSessionService(result.SessionSvc)
 	}

@@ -57,6 +57,9 @@ const (
 	// AgentServiceInvokeAgentProcedure is the fully-qualified name of the AgentService's InvokeAgent
 	// RPC.
 	AgentServiceInvokeAgentProcedure = "/agents.v1.AgentService/InvokeAgent"
+	// AgentServiceListAgentInvocationsProcedure is the fully-qualified name of the AgentService's
+	// ListAgentInvocations RPC.
+	AgentServiceListAgentInvocationsProcedure = "/agents.v1.AgentService/ListAgentInvocations"
 	// MCPServerServiceListMCPServersProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPServers RPC.
 	MCPServerServiceListMCPServersProcedure = "/agents.v1.MCPServerService/ListMCPServers"
@@ -144,6 +147,9 @@ type AgentServiceClient interface {
 	// InvokeAgent runs an agent once with the given input. If session_id is empty
 	// an ephemeral session id is generated; otherwise the existing session is used.
 	InvokeAgent(context.Context, *connect.Request[v1.InvokeAgentRequest]) (*connect.Response[v1.InvokeAgentResponse], error)
+	// ListAgentInvocations returns recorded invocations, optionally filtered by
+	// agent name, with simple opaque-token pagination.
+	ListAgentInvocations(context.Context, *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error)
 }
 
 // NewAgentServiceClient constructs a client for the agents.v1.AgentService service. By default, it
@@ -193,17 +199,24 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("InvokeAgent")),
 			connect.WithClientOptions(opts...),
 		),
+		listAgentInvocations: connect.NewClient[v1.ListAgentInvocationsRequest, v1.ListAgentInvocationsResponse](
+			httpClient,
+			baseURL+AgentServiceListAgentInvocationsProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("ListAgentInvocations")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // agentServiceClient implements AgentServiceClient.
 type agentServiceClient struct {
-	listAgents  *connect.Client[v1.ListAgentsRequest, v1.ListAgentsResponse]
-	getAgent    *connect.Client[v1.GetAgentRequest, v1.GetAgentResponse]
-	createAgent *connect.Client[v1.CreateAgentRequest, v1.CreateAgentResponse]
-	updateAgent *connect.Client[v1.UpdateAgentRequest, v1.UpdateAgentResponse]
-	deleteAgent *connect.Client[v1.DeleteAgentRequest, v1.DeleteAgentResponse]
-	invokeAgent *connect.Client[v1.InvokeAgentRequest, v1.InvokeAgentResponse]
+	listAgents           *connect.Client[v1.ListAgentsRequest, v1.ListAgentsResponse]
+	getAgent             *connect.Client[v1.GetAgentRequest, v1.GetAgentResponse]
+	createAgent          *connect.Client[v1.CreateAgentRequest, v1.CreateAgentResponse]
+	updateAgent          *connect.Client[v1.UpdateAgentRequest, v1.UpdateAgentResponse]
+	deleteAgent          *connect.Client[v1.DeleteAgentRequest, v1.DeleteAgentResponse]
+	invokeAgent          *connect.Client[v1.InvokeAgentRequest, v1.InvokeAgentResponse]
+	listAgentInvocations *connect.Client[v1.ListAgentInvocationsRequest, v1.ListAgentInvocationsResponse]
 }
 
 // ListAgents calls agents.v1.AgentService.ListAgents.
@@ -236,6 +249,11 @@ func (c *agentServiceClient) InvokeAgent(ctx context.Context, req *connect.Reque
 	return c.invokeAgent.CallUnary(ctx, req)
 }
 
+// ListAgentInvocations calls agents.v1.AgentService.ListAgentInvocations.
+func (c *agentServiceClient) ListAgentInvocations(ctx context.Context, req *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error) {
+	return c.listAgentInvocations.CallUnary(ctx, req)
+}
+
 // AgentServiceHandler is an implementation of the agents.v1.AgentService service.
 type AgentServiceHandler interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
@@ -246,6 +264,9 @@ type AgentServiceHandler interface {
 	// InvokeAgent runs an agent once with the given input. If session_id is empty
 	// an ephemeral session id is generated; otherwise the existing session is used.
 	InvokeAgent(context.Context, *connect.Request[v1.InvokeAgentRequest]) (*connect.Response[v1.InvokeAgentResponse], error)
+	// ListAgentInvocations returns recorded invocations, optionally filtered by
+	// agent name, with simple opaque-token pagination.
+	ListAgentInvocations(context.Context, *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -291,6 +312,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("InvokeAgent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceListAgentInvocationsHandler := connect.NewUnaryHandler(
+		AgentServiceListAgentInvocationsProcedure,
+		svc.ListAgentInvocations,
+		connect.WithSchema(agentServiceMethods.ByName("ListAgentInvocations")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceListAgentsProcedure:
@@ -305,6 +332,8 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceDeleteAgentHandler.ServeHTTP(w, r)
 		case AgentServiceInvokeAgentProcedure:
 			agentServiceInvokeAgentHandler.ServeHTTP(w, r)
+		case AgentServiceListAgentInvocationsProcedure:
+			agentServiceListAgentInvocationsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -336,6 +365,10 @@ func (UnimplementedAgentServiceHandler) DeleteAgent(context.Context, *connect.Re
 
 func (UnimplementedAgentServiceHandler) InvokeAgent(context.Context, *connect.Request[v1.InvokeAgentRequest]) (*connect.Response[v1.InvokeAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.InvokeAgent is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) ListAgentInvocations(context.Context, *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ListAgentInvocations is not implemented"))
 }
 
 // MCPServerServiceClient is a client for the agents.v1.MCPServerService service.

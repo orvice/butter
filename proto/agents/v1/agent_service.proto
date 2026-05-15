@@ -20,6 +20,9 @@ service AgentService {
   // InvokeAgent runs an agent once with the given input. If session_id is empty
   // an ephemeral session id is generated; otherwise the existing session is used.
   rpc InvokeAgent(InvokeAgentRequest) returns (InvokeAgentResponse);
+  // ListAgentInvocations returns recorded invocations, optionally filtered by
+  // agent name, with simple opaque-token pagination.
+  rpc ListAgentInvocations(ListAgentInvocationsRequest) returns (ListAgentInvocationsResponse);
 }
 
 // MCPServerService manages MCP Server configurations.
@@ -101,6 +104,63 @@ message InvokeAgentResponse {
   string session_id = 1;
   // Final agent response text.
   string response = 2;
+}
+
+// InvocationStatus tracks the lifecycle of an agent invocation.
+enum InvocationStatus {
+  INVOCATION_STATUS_UNSPECIFIED = 0;
+  INVOCATION_STATUS_RUNNING = 1;
+  INVOCATION_STATUS_SUCCEEDED = 2;
+  INVOCATION_STATUS_FAILED = 3;
+}
+
+// Invocation is a persisted record of a single Runner.Run call.
+message Invocation {
+  // @gotags: bson:"_id,omitempty"
+  string id = 1;
+  // @gotags: bson:"agent_name,omitempty"
+  string agent_name = 2;
+  // @gotags: bson:"app_name,omitempty"
+  string app_name = 3;
+  // @gotags: bson:"user_id,omitempty"
+  string user_id = 4;
+  // @gotags: bson:"session_id,omitempty"
+  string session_id = 5;
+  // @gotags: bson:"status,omitempty"
+  InvocationStatus status = 6;
+  // @gotags: bson:"input,omitempty"
+  string input = 7;
+  // @gotags: bson:"output,omitempty"
+  string output = 8;
+  // @gotags: bson:"error,omitempty"
+  string error = 9;
+  // @gotags: bson:"started_at,omitempty"
+  google.protobuf.Timestamp started_at = 10;
+  // @gotags: bson:"finished_at,omitempty"
+  google.protobuf.Timestamp finished_at = 11;
+  // @gotags: bson:"latency_ms,omitempty"
+  int64 latency_ms = 12;
+  // @gotags: bson:"model_override,omitempty"
+  string model_override = 13;
+  // @gotags: bson:"source,omitempty"
+  string source = 14;
+}
+
+message ListAgentInvocationsRequest {
+  // Optional: filter by agent name. Empty returns all agents.
+  string agent_name = 1;
+  // Optional: filter by session id.
+  string session_id = 2;
+  // Maximum records per page. Defaults to 20.
+  int32 page_size = 3;
+  // Pagination token from a previous response.
+  string page_token = 4;
+}
+
+message ListAgentInvocationsResponse {
+  repeated Invocation invocations = 1;
+  string next_page_token = 2;
+  int32 total = 3;
 }
 
 // --- MCPServer messages ---
@@ -310,10 +370,20 @@ message GetSessionResponse {
 message ListSessionsRequest {
   string app_name = 1;
   string user_id = 2;
+  // Optional: only return sessions whose last_update_time is at or after this.
+  google.protobuf.Timestamp start_time = 3;
+  // Optional: only return sessions whose last_update_time is at or before this.
+  google.protobuf.Timestamp end_time = 4;
+  // Maximum records per page. Defaults to 20.
+  int32 page_size = 5;
+  // Pagination token from a previous response.
+  string page_token = 6;
 }
 
 message ListSessionsResponse {
   repeated SessionInfo sessions = 1;
+  string next_page_token = 2;
+  int32 total = 3;
 }
 
 message DeleteSessionRequest {
@@ -366,4 +436,10 @@ message SessionEvent {
   // Content serialized as JSON string (genai.Content).
   string content_json = 5;
   google.protobuf.Timestamp timestamp = 6;
+  // Trace id propagated to observability backends (e.g. Langfuse). Currently
+  // mirrors invocation_id; consumers should treat it as opaque.
+  string trace_id = 7;
+  // Fully-qualified URL to the trace view in the configured observability
+  // backend, if one is wired. Empty otherwise.
+  string trace_url = 8;
 }
