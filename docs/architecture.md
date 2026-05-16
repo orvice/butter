@@ -1,18 +1,19 @@
 # Butter 系统架构
 
-更新时间：2026-05-15
+更新时间：2026-05-16
 
 ## 概览
 
-Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/Twirp/gRPC/channel 输入统一转为 ADK agent 执行，并通过 MongoDB、Redis、运行时配置仓库和 daemon 长连接支撑会话、记忆、渠道状态、定时任务和远程执行。
+Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/Twirp/gRPC/channel 输入统一转为 ADK agent 执行，并通过 MongoDB、Redis、运行时配置仓库和 daemon 长连接支撑会话、记忆、渠道状态、定时任务、远程执行、invocation 历史与运维面板。
 
 核心能力：
 
 - Agent 配置化：从 YAML 或配置仓库加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel agent。
 - 多入口接入：Gin HTTP、Twirp RPC、Telegram、Discord、Cron、A2A 和 daemon gRPC。
-- 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload。
-- 多执行面：本地 ADK agent、A2A 远程 agent、daemon 反向连接 agent。
-- 持久化运行时：MongoDB 保存 ADK session/memory、配置、cron 执行记录；Redis 保存渠道内活跃 agent/model 选择。
+- 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload；`AgentService.ReloadAgents` 公开触发。
+- 多执行面：本地 ADK agent、A2A 远程 agent、daemon 反向连接 agent；A2A 与 MCP 提供 live probing。
+- 持久化运行时：MongoDB 保存 ADK session/memory、配置、cron 执行记录、invocation 历史、API tokens；Redis 保存渠道内活跃 agent/model 选择。
+- 运维面板：`DashboardService` / `DaemonService` / `APITokenService` 暴露 counts / health / activity feed / 桥诊断 / daemon 任务 / 多 token 管理。
 
 ## 进程入口
 
@@ -47,14 +48,15 @@ Application / Transport Services
 └── internal/app routes/grpc/bootstrap wiring
 
 Runtime Layer
-├── runner.Service
-├── cron.Scheduler
-├── daemon.Registry / Connection / Bridge / GRPCHandler
-├── session/mongo
+├── runner.Service (+ InvocationRecorder, CancelInvocation)
+├── cron.Scheduler (+ RunJobNow, ListByTimeRange)
+├── daemon.Registry / Connection / Bridge / GRPCHandler / Metrics
+├── session/mongo (+ CountSessions)
 └── memory/mongo
 
 Agent Layer
 ├── internal/agent.NewFromProto()
+├── internal/agent.ProbeMCPServer()        # live MCP handshake
 ├── model provider resolution
 ├── MCP toolset construction
 ├── A2A remote agent resolution
@@ -65,11 +67,12 @@ Config Layer
 ├── AppConfig loaded by Butterfly
 ├── ConfigStore runtime backend wrapper
 ├── repo/config interfaces
-├── repo/config/memory
-└── repo/config/mongo
+├── repo/config/{memory,mongo}
+├── repo/apitoken/{memory,mongo}          # api_tokens collection
+└── repo/invocation/{memory,mongo}        # invocations collection
 
 Persistence
-├── MongoDB: session, memory, config, cron
+├── MongoDB: session, memory, config, cron, invocations, api_tokens
 └── Redis: channel active agent/model selection
 ```
 
@@ -161,14 +164,28 @@ HTTP handler 位于 `internal/handler/http`：
 
 Twirp server 位于 `internal/application`，挂载在 `/api`：
 
-- `AgentService`：Agent 配置 CRUD。
-- `MCPServerService`：共享 MCP server 配置 CRUD。
-- `RemoteAgentService`：远程 agent 配置 CRUD。
-- `ChannelService`：渠道配置 CRUD。
-- `SessionService`：会话查询、回复和清理。
-- `CronJobService`：定时任务配置和执行记录。
+配置 / 执行：
 
-除 `/ping` 外，HTTP/Twirp 请求经过 `APITokenAuthMiddleware`，使用 `Authorization: Bearer <apiToken>` 鉴权。
+- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`。
+- `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools`。
+- `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
+- `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
+- `SessionService`：`Create` / `Get`（含 duration + trace_url）/ `List`（filter + page）/ `Delete` / `Reply`。
+- `CronJobService`：定时任务 CRUD + `ListCronExecutions` + `RunCronJobNow`。
+
+运维：
+
+- `DashboardService`：`GetOverview` / `GetActivityFeed` / `GetCronExecutionTimeseries`。
+- `DaemonService`：`ListDaemons` / `GetDaemon` / `ListDaemonTasks` / `CancelDaemonTask` / `GetBridgeDiagnostics`。
+- `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
+
+除 `/ping` 外，HTTP/Twirp 请求经过 `APITokenAuthMiddleware`：
+
+1. 先用 `subtle.ConstantTimeCompare` 比对配置的 root token (`cfg.apiToken`)。
+2. 不匹配则查 `apitoken.Repository.Lookup(sha256(token))`；命中后异步 `TouchLastUsed`，放行。
+3. 否则返回 `401 Unauthorized`。
+
+Daemon gRPC `Connect` 走同一份 root `apiToken`（`Authorization` metadata 头）。
 
 ## Daemon 执行面
 
@@ -213,12 +230,32 @@ RPC 修改配置后，service server 会调用 `ConfigRuntime`：
 
 默认数据库名为 `butter`，可通过 `mongo_db` 配置。MongoDB 负责：
 
-- ADK sessions/events。
+- ADK sessions（`adk_sessions` / `adk_events`）。`session/mongo.Service.CountSessions` 给 dashboard overview 用。
 - ADK memories。
-- 配置仓库：agents、mcp servers、remote agents、channels。
-- Cron jobs 和 executions。
+- 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_channels`。
+- Cron jobs / executions（`cron_jobs` / `cron_executions`，含 `ListByTimeRange` 支撑时序聚合）。
+- `invocations`：runner 持久化的每次 ADK 调用（runner → `InvocationRecorder.Save`，RUNNING 起记，defer 写终态）。驱动 ActivityFeed + AgentRuntimeStatus + ListAgentInvocations。
+- `api_tokens`：DB-stored API tokens（仅 `secret_hash` + `prefix` + `last_used_at` + `revoked`）。
+
+后端选择：`storage_backend = "mongo"` 时全部走 mongo；否则用内存仓库（`api_tokens` / `invocations` 也支持 memory 实现，方便测试）。
 
 Redis 地址默认 `localhost:6379`。Redis 连接失败不会阻止服务启动，但渠道内 active agent/model 选择可能无法持久化。
+
+## 运维面板与可观测性
+
+- `DashboardService.GetOverview` 实时探活 MongoDB / Redis / Runner（带 latency），聚合所有 counts。
+- `GetActivityFeed` 从 `invocations` 集合派生最近活动。
+- `GetCronExecutionTimeseries` 用 `cron_executions.ListByTimeRange` + bucket 聚合（1D=1h / 7D=1d / 30D=1d）。
+- `DaemonService.GetBridgeDiagnostics` 使用 `internal/runtime/daemon/metrics.go` 的 `Metrics` collector，记录每次 bridge 调用 latency 到 60 条 ring buffer，并按需读取 `runtime/metrics` 的 `/cpu/classes/total:cpu-seconds` 与 `runtime.MemStats.Sys` / `runtime.NumGoroutine()`。
+- `SessionEvent.trace_url` 当 `cfg.Langfuse.Host` 设置时拼接 `<host>/trace/<invocation_id>`，前端 Session detail 一键跳 Langfuse。
+
+## 前端 Dashboard 与镜像
+
+- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。9 个一级页对齐 Stitch 设计稿。
+- Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）生成到 `front/src/gen/`，运行时类型走 `@bufbuild/protobuf`。
+- 后端镜像：`ghcr.io/<owner>/<repo>`（根 `Dockerfile`，distroless static + cosign 签名）。
+- 前端镜像：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行 + SPA fallback + `/healthz`）。
+- CI workflows：`.github/workflows/docker-publish.yml`（后端，cron + push + PR）与 `front-publish.yml`（前端，`paths: front/**` 过滤），均带 cosign keyless 签名。
 
 ## 关键约束
 
