@@ -22,3 +22,8 @@ plugins:
     out: pkg/proto
     opt:
       - paths=source_relative
+  - remote: buf.build/bufbuild/es:v2.4.0
+    out: front/src/gen
+    opt:
+      - target=ts
+      - import_extension=none
