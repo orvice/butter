@@ -13,15 +13,21 @@ import {
   Sun,
   Moon,
   LogOut,
+  Cpu,
+  Cable,
+  KeyRound,
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/", icon: LayoutDashboard, label: "Overview" },
   { to: "/agents", icon: Bot, label: "Agents" },
   { to: "/mcp-servers", icon: Server, label: "MCP Servers" },
   { to: "/remote-agents", icon: Globe, label: "Remote Agents" },
+  { to: "/daemons", icon: Cpu, label: "Daemons" },
+  { to: "/channels", icon: Cable, label: "Channels" },
   { to: "/sessions", icon: MessageSquare, label: "Sessions" },
   { to: "/cron", icon: Clock, label: "Cron Jobs" },
+  { to: "/api-tokens", icon: KeyRound, label: "API Tokens" },
 ];
 
 export default function DashboardLayout() {

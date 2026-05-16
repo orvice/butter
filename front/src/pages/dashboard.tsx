@@ -1,94 +1,118 @@
-import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { useCronJobs, useDashboardExecutions } from "@/api/cron";
+import { useState } from "react";
+import { useOverview, useActivityFeed, useCronTimeseries } from "@/api/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
-import type { CronExecution } from "@/types/api";
+import {
+  Activity,
+  Bot,
+  Check,
+  Database,
+  HardDrive,
+  Server,
+  Cpu,
+  AlertTriangle,
+  Heart,
+  Terminal,
+} from "lucide-react";
+import type {
+  ActivityEvent,
+  ComponentHealth,
+  CronTimeseriesRange,
+} from "@/types/api";
 
-function formatDuration(start?: string, end?: string): string {
-  if (!start || !end) return "-";
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  return `${(ms / 1000).toFixed(1)}s`;
+const STATUS_COLORS: Record<string, string> = {
+  STATUS_HEALTHY: "bg-green-500/10 text-green-600",
+  STATUS_DEGRADED: "bg-amber-500/10 text-amber-600",
+  STATUS_DOWN: "bg-red-500/10 text-red-600",
+  STATUS_UNSPECIFIED: "bg-muted text-muted-foreground",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  STATUS_HEALTHY: "Healthy",
+  STATUS_DEGRADED: "Degraded",
+  STATUS_DOWN: "Down",
+  STATUS_UNSPECIFIED: "Unknown",
+};
+
+function HealthRow({ label, icon: Icon, health }: { label: string; icon: typeof Database; health?: ComponentHealth }) {
+  const status = health?.status ?? "STATUS_UNSPECIFIED";
+  return (
+    <div className="flex items-center justify-between gap-2 py-2">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <div>
+          <div className="text-sm font-medium">{label}</div>
+          <div className="text-xs text-muted-foreground">{health?.detail ?? ""}</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {health?.latency_ms !== undefined && health.latency_ms > 0 && (
+          <span className="text-xs text-muted-foreground">{health.latency_ms}ms</span>
+        )}
+        <Badge className={STATUS_COLORS[status] ?? STATUS_COLORS.STATUS_UNSPECIFIED}>{STATUS_LABEL[status]}</Badge>
+      </div>
+    </div>
+  );
 }
 
-function computeStats(executions: CronExecution[], activeJobs: number) {
-  const total = executions.length;
-  const success = executions.filter((e) => e.status === "CRON_EXECUTION_STATUS_SUCCESS").length;
-  const errors = total - success;
-  const rate = total > 0 ? ((success / total) * 100).toFixed(1) : "0";
-  const durations = executions
-    .map((e) => {
-      if (!e.started_at || !e.finished_at) return 0;
-      return (new Date(e.finished_at).getTime() - new Date(e.started_at).getTime()) / 1000;
-    })
-    .filter((d) => d > 0);
-  const avgDuration = durations.length > 0 ? (durations.reduce((a, b) => a + b, 0) / durations.length).toFixed(1) : "0";
-
-  return { total, success, errors, rate, activeJobs, avgDuration };
+function ActivityRow({ event }: { event: ActivityEvent }) {
+  const Icon = event.kind === "error"
+    ? AlertTriangle
+    : event.kind === "execution_completed"
+      ? Check
+      : Terminal;
+  const color = event.kind === "error"
+    ? "text-red-500"
+    : event.kind === "execution_completed"
+      ? "text-green-500"
+      : "text-muted-foreground";
+  return (
+    <div className="flex items-start gap-3 py-2">
+      <Icon className={`mt-0.5 h-4 w-4 ${color}`} />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm">
+          <span className="font-medium">{event.actor ?? "unknown"}</span>
+          <span className="text-muted-foreground"> — {event.message ?? ""}</span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {event.timestamp ? new Date(event.timestamp).toLocaleString() : ""}
+        </div>
+      </div>
+    </div>
+  );
 }
-
-function buildTimelineData(executions: CronExecution[]) {
-  const now = new Date();
-  const buckets: Record<string, { hour: string; success: number; error: number }> = {};
-
-  for (let i = 23; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 3600_000);
-    const key = `${d.getHours().toString().padStart(2, "0")}:00`;
-    buckets[key] = { hour: key, success: 0, error: 0 };
-  }
-
-  for (const e of executions) {
-    if (!e.started_at) continue;
-    const d = new Date(e.started_at);
-    const key = `${d.getHours().toString().padStart(2, "0")}:00`;
-    if (buckets[key]) {
-      if (e.status === "CRON_EXECUTION_STATUS_SUCCESS") buckets[key].success++;
-      else buckets[key].error++;
-    }
-  }
-
-  return Object.values(buckets);
-}
-
-const COLORS = { success: "#4ade80", error: "#ef4444" };
 
 export default function DashboardPage() {
-  const { data: jobsData, isLoading: jobsLoading } = useCronJobs();
-  const { data: execData, isLoading: execLoading } = useDashboardExecutions();
-  const navigate = useNavigate();
+  const [range, setRange] = useState<CronTimeseriesRange>("RANGE_1D");
+  const { data: overviewData, isLoading: loadingOverview } = useOverview();
+  const { data: activity } = useActivityFeed(20);
+  const { data: timeseries } = useCronTimeseries(range);
 
-  const executions = execData?.executions ?? [];
-  const activeJobs = (jobsData?.cron_jobs ?? []).filter((j) => j.enabled).length;
+  const counts = overviewData?.counts;
+  const health = overviewData?.health;
+  const handshake = overviewData?.latest_daemon_handshake;
+  const events = activity?.events ?? [];
 
-  const stats = useMemo(() => computeStats(executions, activeJobs), [executions, activeJobs]);
-  const timelineData = useMemo(() => buildTimelineData(executions), [executions]);
-  const pieData = useMemo(
-    () => [
-      { name: "Success", value: stats.success },
-      { name: "Error", value: stats.errors },
-    ],
-    [stats],
-  );
+  const chartData = (timeseries?.buckets ?? []).map((b) => ({
+    label: b.start ? new Date(b.start).toLocaleString(undefined, range === "RANGE_1D" ? { hour: "2-digit" } : { month: "short", day: "numeric" }) : "",
+    success: b.success ?? 0,
+    error: b.error ?? 0,
+  }));
 
-  const isLoading = jobsLoading || execLoading;
-
-  if (isLoading) {
+  if (loadingOverview) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold">Dashboard</h2>
+        <h2 className="text-2xl font-bold">Overview</h2>
         <div className="grid grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
         <Skeleton className="h-72" />
       </div>
@@ -97,88 +121,114 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Dashboard</h2>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Executions</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{stats.total}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Success Rate</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold text-green-500">{stats.rate}%</div><p className="text-xs text-muted-foreground">{stats.success} passed / {stats.errors} failed</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Active Cron Jobs</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{stats.activeJobs}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Avg Duration</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{stats.avgDuration}s</div></CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Overview</h2>
+          <p className="text-sm text-muted-foreground">Platform metrics and system health at a glance.</p>
+        </div>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* Timeline */}
-        <Card className="col-span-2">
-          <CardHeader><CardTitle>Execution Timeline</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={timelineData}>
-                <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="success" stackId="a" fill={COLORS.success} name="Success" />
-                <Bar dataKey="error" stackId="a" fill={COLORS.error} name="Error" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Donut */}
-        <Card>
-          <CardHeader><CardTitle>Status Breakdown</CardTitle></CardHeader>
-          <CardContent className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" label={({ name, value }: { name: string; value: number }) => `${name}: ${value}`}>
-                  <Cell fill={COLORS.success} />
-                  <Cell fill={COLORS.error} />
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <StatCard label="Active Agents" value={counts?.active_agents ?? 0} icon={Bot} />
+        <StatCard label="MCP Servers" value={counts?.mcp_servers ?? 0} icon={Server} />
+        <StatCard label="Connected Daemons" value={counts?.connected_daemons ?? 0} icon={Cpu} />
+        <StatCard label="ADK Sessions" value={counts?.active_sessions ?? 0} icon={HardDrive} />
       </div>
 
-      {/* Recent Executions */}
+      {/* Cron timeseries */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent Executions</CardTitle>
-          <button className="text-sm text-primary hover:underline" onClick={() => navigate("/cron")}>View all &rarr;</button>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle>Cron Executions</CardTitle>
+          <div className="flex gap-1">
+            {(["RANGE_1D", "RANGE_7D", "RANGE_30D"] as const).map((r) => (
+              <Button
+                key={r}
+                size="sm"
+                variant={range === r ? "default" : "outline"}
+                onClick={() => setRange(r)}
+              >
+                {r.replace("RANGE_", "")}
+              </Button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {executions.slice(0, 10).map((e) => (
-              <div key={e.id} className="flex items-center gap-4 rounded-md border px-4 py-2 text-sm">
-                <span className="w-36 font-medium truncate">{e.job_name}</span>
-                <span className="w-24 text-muted-foreground">{e.agent_name}</span>
-                {e.status === "CRON_EXECUTION_STATUS_SUCCESS"
-                  ? <Badge className="bg-green-500/10 text-green-500">Success</Badge>
-                  : <Badge variant="destructive">Error</Badge>}
-                <span className="w-16 text-muted-foreground">{formatDuration(e.started_at, e.finished_at)}</span>
-                <span className="w-40 text-xs text-muted-foreground">{e.started_at ? new Date(e.started_at).toLocaleString() : "-"}</span>
-                <span className="flex-1 truncate text-xs text-muted-foreground">{e.output ?? ""}</span>
-              </div>
-            ))}
-            {executions.length === 0 && <p className="text-center text-muted-foreground py-8">No executions yet.</p>}
-          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData}>
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Bar dataKey="success" stackId="a" fill="#4ade80" name="Success" />
+              <Bar dataKey="error" stackId="a" fill="#ef4444" name="Error" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Health */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2"><Heart className="h-4 w-4" /> System Health</CardTitle></CardHeader>
+          <CardContent>
+            <HealthRow label="MongoDB" icon={Database} health={health?.mongodb} />
+            <HealthRow label="Redis" icon={HardDrive} health={health?.redis} />
+            <HealthRow label="Runner" icon={Cpu} health={health?.runner} />
+          </CardContent>
+        </Card>
+
+        {/* Latest daemon handshake */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2"><Terminal className="h-4 w-4" /> Latest Daemon Handshake</CardTitle></CardHeader>
+          <CardContent>
+            {handshake?.daemon_id ? (
+              <pre className="rounded bg-muted p-3 text-xs overflow-x-auto">
+                {JSON.stringify(
+                  {
+                    daemon_id: handshake.daemon_id,
+                    name: handshake.name,
+                    os: handshake.os,
+                    capabilities: handshake.capabilities,
+                    connected_at: handshake.connected_at,
+                  },
+                  null,
+                  2,
+                )}
+              </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground">No daemons have connected yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Activity feed */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2"><Activity className="h-4 w-4" /> Activity Feed</CardTitle></CardHeader>
+        <CardContent>
+          {events.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No recent activity.</p>
+          ) : (
+            <div className="divide-y">
+              {events.map((e) => <ActivityRow key={e.id} event={e} />)}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function StatCard({ label, value, icon: Icon }: { label: string; value: number; icon: typeof Bot }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-sm text-muted-foreground">{label}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-bold">{value.toLocaleString()}</div>
+      </CardContent>
+    </Card>
   );
 }

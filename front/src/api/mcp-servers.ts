@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { twirpFetch } from "./client";
-import type { MCPServer } from "@/types/api";
+import type { MCPServer, MCPServerStatus, MCPTool } from "@/types/api";
 
 const SVC = "agents.v1.MCPServerService";
 
@@ -58,3 +58,36 @@ export function useDeleteMCPServer() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["mcp-servers"] }),
   });
 }
+
+function getMCPServerStatus(id: string) {
+  return twirpFetch<{ id: string }, { status: MCPServerStatus }>(
+    SVC,
+    "GetMCPServerStatus",
+    { id },
+  );
+}
+
+function listMCPTools(serverId?: string) {
+  return twirpFetch<
+    { server_id?: string },
+    { tools?: MCPTool[]; errors?: Record<string, string> }
+  >(SVC, "ListMCPTools", { server_id: serverId });
+}
+
+export function useMCPServerStatus(id: string) {
+  return useQuery({
+    queryKey: ["mcp-servers", id, "status"],
+    queryFn: () => getMCPServerStatus(id),
+    enabled: !!id,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useMCPTools(serverId?: string) {
+  return useQuery({
+    queryKey: ["mcp-tools", serverId ?? "all"],
+    queryFn: () => listMCPTools(serverId),
+    refetchInterval: 60_000,
+  });
+}
+

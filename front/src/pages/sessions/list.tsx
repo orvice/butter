@@ -14,7 +14,7 @@ import type { SessionInfo } from "@/types/api";
 export default function SessionListPage() {
   const [appName, setAppName] = useState("");
   const [userId, setUserId] = useState("");
-  const { data, isLoading } = useSessions(appName, userId);
+  const { data, isLoading } = useSessions({ app_name: appName, user_id: userId });
   const deleteMutation = useDeleteSession();
   const navigate = useNavigate();
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null);
