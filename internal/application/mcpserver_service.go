@@ -148,6 +148,48 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 	return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
 }
 
+func (s *MCPServerServiceServer) ListMCPTools(ctx context.Context, req *agentsv1.ListMCPToolsRequest) (*agentsv1.ListMCPToolsResponse, error) {
+	var servers []*agentsv1.MCPServer
+	if id := req.GetServerId(); id != "" {
+		srv, err := s.repo.GetMCPServer(ctx, id)
+		if err != nil {
+			return nil, toTwirpError(err)
+		}
+		servers = []*agentsv1.MCPServer{srv}
+	} else {
+		all, err := s.repo.ListMCPServers(ctx)
+		if err != nil {
+			return nil, toTwirpError(err)
+		}
+		servers = all
+	}
+
+	resp := &agentsv1.ListMCPToolsResponse{Errors: map[string]string{}}
+	for _, srv := range servers {
+		if srv.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
+			resp.Errors[srv.GetId()] = "stdio probing not supported"
+			continue
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		result, err := internalagent.ProbeMCPServer(probeCtx, srv)
+		cancel()
+		if err != nil {
+			resp.Errors[srv.GetId()] = err.Error()
+			continue
+		}
+		for _, t := range result.Tools {
+			resp.Tools = append(resp.Tools, &agentsv1.MCPTool{
+				Name:        t.Name,
+				Description: t.Description,
+				ServerId:    srv.GetId(),
+				ServerName:  srv.GetName(),
+				Allowed:     t.Allowed,
+			})
+		}
+	}
+	return resp, nil
+}
+
 func (s *MCPServerServiceServer) reloadRuntime(ctx context.Context) error {
 	if s.runtime == nil {
 		return nil

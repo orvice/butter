@@ -61,6 +61,9 @@ type Service struct {
 	overriddenCache map[string]agent.Agent       // keyed by "agentName:modelOverride"
 
 	invRecorder InvocationRecorder
+
+	cancelMu  sync.Mutex
+	cancelers map[string]context.CancelFunc
 }
 
 // SetInvocationRecorder attaches a recorder that observes every Run call.
@@ -75,6 +78,34 @@ func (s *Service) recorder() InvocationRecorder {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.invRecorder
+}
+
+// CancelInvocation signals the in-flight invocation with the given id to stop.
+// Returns true if the invocation was found and the cancel signal was delivered.
+func (s *Service) CancelInvocation(id string) bool {
+	s.cancelMu.Lock()
+	cancel, ok := s.cancelers[id]
+	s.cancelMu.Unlock()
+	if !ok {
+		return false
+	}
+	cancel()
+	return true
+}
+
+func (s *Service) registerCancel(id string, cancel context.CancelFunc) {
+	s.cancelMu.Lock()
+	if s.cancelers == nil {
+		s.cancelers = make(map[string]context.CancelFunc)
+	}
+	s.cancelers[id] = cancel
+	s.cancelMu.Unlock()
+}
+
+func (s *Service) deregisterCancel(id string) {
+	s.cancelMu.Lock()
+	delete(s.cancelers, id)
+	s.cancelMu.Unlock()
 }
 
 // NewService builds the agent registry from proto configs.
@@ -467,6 +498,15 @@ func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part
 
 	inv := s.startInvocation(ctx, agentName, parts, modelOverride, ctxInfo)
 	defer s.finishInvocation(ctx, inv, &output, &runErr)
+	if inv != nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		s.registerCancel(inv.GetId(), cancel)
+		defer func() {
+			s.deregisterCancel(inv.GetId())
+			cancel()
+		}()
+	}
 
 	logger := log.FromContext(ctx).With(
 		"uuid", ctxInfo.GetUuid(),

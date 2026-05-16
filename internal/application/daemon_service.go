@@ -90,20 +90,30 @@ func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *agentsv1
 	} else {
 		conns = s.registry.ListConnections()
 	}
+	now := time.Now()
 	var out []*agentsv1.DaemonTaskInFlight
 	for _, c := range conns {
-		// Use the first registered capability as the dispatched capability.
-		var cap string
-		if caps := c.Info.GetCapabilities(); len(caps) > 0 {
-			cap = caps[0]
-		}
-		for _, id := range c.ActiveTaskIDs() {
-			out = append(out, &agentsv1.DaemonTaskInFlight{
-				TaskId:     id,
-				DaemonId:   c.Info.GetDaemonId(),
-				DaemonName: c.Info.GetName(),
-				Capability: cap,
-			})
+		for _, snap := range c.ActiveTaskSnapshots() {
+			cap := snap.Capability
+			if cap == "" {
+				if caps := c.Info.GetCapabilities(); len(caps) > 0 {
+					cap = caps[0]
+				}
+			}
+			task := &agentsv1.DaemonTaskInFlight{
+				TaskId:      snap.TaskID,
+				DaemonId:    c.Info.GetDaemonId(),
+				DaemonName:  c.Info.GetName(),
+				Capability:  cap,
+				AgentName:   snap.AgentName,
+				CurrentStep: snap.CurrentStep,
+				Progress:    snap.Progress,
+			}
+			if !snap.StartedAt.IsZero() {
+				task.StartedAt = timestamppb.New(snap.StartedAt)
+				task.Elapsed = durationpb.New(now.Sub(snap.StartedAt))
+			}
+			out = append(out, task)
 		}
 	}
 	return &agentsv1.ListDaemonTasksResponse{Tasks: out}, nil

@@ -90,6 +90,9 @@ message OverviewCounts {
   int32 remote_agents = 4;
   int32 channels = 5;
   int32 cron_jobs = 6;
+  // Total ADK sessions persisted in MongoDB. 0 if the session backend does
+  // not implement counting.
+  int32 active_sessions = 7;
 }
 
 message HealthSummary {
@@ -116,6 +119,8 @@ message DaemonHandshake {
   string name = 2;
   repeated string capabilities = 3;
   google.protobuf.Timestamp connected_at = 4;
+  // OS identifier reported by the daemon at handshake (e.g. "linux-amd64").
+  string os = 5;
 }
 
 // =============================================================================
@@ -203,9 +208,16 @@ message DaemonTaskInFlight {
   string daemon_name = 3;
   // Capability used to dispatch this task.
   string capability = 4;
-  // When the task was dispatched to the daemon. Best-effort; may be zero if
-  // the registry does not track per-task timestamps yet.
+  // When the task was dispatched to the daemon.
   google.protobuf.Timestamp started_at = 5;
+  // Wallclock elapsed since started_at.
+  google.protobuf.Duration elapsed = 6;
+  // Latest progress label reported by the daemon, if any.
+  string current_step = 7;
+  // Latest progress percentage in [0, 100]; 0 when unknown.
+  int32 progress = 8;
+  // Agent name that triggered the dispatch.
+  string agent_name = 9;
 }
 
 message DaemonStatus {
@@ -274,6 +286,26 @@ message RemoteAgentStatus {
   string serving_daemon_id = 5;
   google.protobuf.Timestamp checked_at = 6;
   int64 latency_ms = 7;
+}
+
+message ListMCPToolsRequest {
+  // Optional: when set, list tools for this server only.
+  string server_id = 1;
+}
+
+message ListMCPToolsResponse {
+  repeated MCPTool tools = 1;
+  // Servers that failed probing, keyed by id → error.
+  map<string, string> errors = 2;
+}
+
+message MCPTool {
+  string name = 1;
+  string description = 2;
+  string server_id = 3;
+  string server_name = 4;
+  // True if not filtered out by the server's tool_filter whitelist.
+  bool allowed = 5;
 }
 
 message MCPServerStatus {

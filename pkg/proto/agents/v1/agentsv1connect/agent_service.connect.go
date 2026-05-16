@@ -60,6 +60,18 @@ const (
 	// AgentServiceListAgentInvocationsProcedure is the fully-qualified name of the AgentService's
 	// ListAgentInvocations RPC.
 	AgentServiceListAgentInvocationsProcedure = "/agents.v1.AgentService/ListAgentInvocations"
+	// AgentServiceReloadAgentsProcedure is the fully-qualified name of the AgentService's ReloadAgents
+	// RPC.
+	AgentServiceReloadAgentsProcedure = "/agents.v1.AgentService/ReloadAgents"
+	// AgentServiceGetAgentRuntimeStatusProcedure is the fully-qualified name of the AgentService's
+	// GetAgentRuntimeStatus RPC.
+	AgentServiceGetAgentRuntimeStatusProcedure = "/agents.v1.AgentService/GetAgentRuntimeStatus"
+	// AgentServiceListAgentRuntimeStatusesProcedure is the fully-qualified name of the AgentService's
+	// ListAgentRuntimeStatuses RPC.
+	AgentServiceListAgentRuntimeStatusesProcedure = "/agents.v1.AgentService/ListAgentRuntimeStatuses"
+	// AgentServiceCancelAgentInvocationProcedure is the fully-qualified name of the AgentService's
+	// CancelAgentInvocation RPC.
+	AgentServiceCancelAgentInvocationProcedure = "/agents.v1.AgentService/CancelAgentInvocation"
 	// MCPServerServiceListMCPServersProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPServers RPC.
 	MCPServerServiceListMCPServersProcedure = "/agents.v1.MCPServerService/ListMCPServers"
@@ -78,6 +90,9 @@ const (
 	// MCPServerServiceGetMCPServerStatusProcedure is the fully-qualified name of the MCPServerService's
 	// GetMCPServerStatus RPC.
 	MCPServerServiceGetMCPServerStatusProcedure = "/agents.v1.MCPServerService/GetMCPServerStatus"
+	// MCPServerServiceListMCPToolsProcedure is the fully-qualified name of the MCPServerService's
+	// ListMCPTools RPC.
+	MCPServerServiceListMCPToolsProcedure = "/agents.v1.MCPServerService/ListMCPTools"
 	// RemoteAgentServiceListRemoteAgentsProcedure is the fully-qualified name of the
 	// RemoteAgentService's ListRemoteAgents RPC.
 	RemoteAgentServiceListRemoteAgentsProcedure = "/agents.v1.RemoteAgentService/ListRemoteAgents"
@@ -153,6 +168,20 @@ type AgentServiceClient interface {
 	// ListAgentInvocations returns recorded invocations, optionally filtered by
 	// agent name, with simple opaque-token pagination.
 	ListAgentInvocations(context.Context, *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error)
+	// ReloadAgents drops cached runners and re-resolves agents/MCP/remote-agents
+	// from the current configuration. Exposes the runtime hot-reload trigger
+	// used internally by config mutations to the dashboard "Hot-reload" button.
+	ReloadAgents(context.Context, *connect.Request[v1.ReloadAgentsRequest]) (*connect.Response[v1.ReloadAgentsResponse], error)
+	// GetAgentRuntimeStatus returns the latest invocation state for an agent,
+	// suitable for the Agents table Status / Last Run columns.
+	GetAgentRuntimeStatus(context.Context, *connect.Request[v1.GetAgentRuntimeStatusRequest]) (*connect.Response[v1.GetAgentRuntimeStatusResponse], error)
+	// ListAgentRuntimeStatuses returns runtime statuses for the given agent
+	// names in a single round trip. When `names` is empty, statuses for all
+	// configured agents are returned.
+	ListAgentRuntimeStatuses(context.Context, *connect.Request[v1.ListAgentRuntimeStatusesRequest]) (*connect.Response[v1.ListAgentRuntimeStatusesResponse], error)
+	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
+	// invocation transitions to FAILED with a cancellation error.
+	CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error)
 }
 
 // NewAgentServiceClient constructs a client for the agents.v1.AgentService service. By default, it
@@ -208,18 +237,46 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("ListAgentInvocations")),
 			connect.WithClientOptions(opts...),
 		),
+		reloadAgents: connect.NewClient[v1.ReloadAgentsRequest, v1.ReloadAgentsResponse](
+			httpClient,
+			baseURL+AgentServiceReloadAgentsProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("ReloadAgents")),
+			connect.WithClientOptions(opts...),
+		),
+		getAgentRuntimeStatus: connect.NewClient[v1.GetAgentRuntimeStatusRequest, v1.GetAgentRuntimeStatusResponse](
+			httpClient,
+			baseURL+AgentServiceGetAgentRuntimeStatusProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("GetAgentRuntimeStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		listAgentRuntimeStatuses: connect.NewClient[v1.ListAgentRuntimeStatusesRequest, v1.ListAgentRuntimeStatusesResponse](
+			httpClient,
+			baseURL+AgentServiceListAgentRuntimeStatusesProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("ListAgentRuntimeStatuses")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelAgentInvocation: connect.NewClient[v1.CancelAgentInvocationRequest, v1.CancelAgentInvocationResponse](
+			httpClient,
+			baseURL+AgentServiceCancelAgentInvocationProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("CancelAgentInvocation")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // agentServiceClient implements AgentServiceClient.
 type agentServiceClient struct {
-	listAgents           *connect.Client[v1.ListAgentsRequest, v1.ListAgentsResponse]
-	getAgent             *connect.Client[v1.GetAgentRequest, v1.GetAgentResponse]
-	createAgent          *connect.Client[v1.CreateAgentRequest, v1.CreateAgentResponse]
-	updateAgent          *connect.Client[v1.UpdateAgentRequest, v1.UpdateAgentResponse]
-	deleteAgent          *connect.Client[v1.DeleteAgentRequest, v1.DeleteAgentResponse]
-	invokeAgent          *connect.Client[v1.InvokeAgentRequest, v1.InvokeAgentResponse]
-	listAgentInvocations *connect.Client[v1.ListAgentInvocationsRequest, v1.ListAgentInvocationsResponse]
+	listAgents               *connect.Client[v1.ListAgentsRequest, v1.ListAgentsResponse]
+	getAgent                 *connect.Client[v1.GetAgentRequest, v1.GetAgentResponse]
+	createAgent              *connect.Client[v1.CreateAgentRequest, v1.CreateAgentResponse]
+	updateAgent              *connect.Client[v1.UpdateAgentRequest, v1.UpdateAgentResponse]
+	deleteAgent              *connect.Client[v1.DeleteAgentRequest, v1.DeleteAgentResponse]
+	invokeAgent              *connect.Client[v1.InvokeAgentRequest, v1.InvokeAgentResponse]
+	listAgentInvocations     *connect.Client[v1.ListAgentInvocationsRequest, v1.ListAgentInvocationsResponse]
+	reloadAgents             *connect.Client[v1.ReloadAgentsRequest, v1.ReloadAgentsResponse]
+	getAgentRuntimeStatus    *connect.Client[v1.GetAgentRuntimeStatusRequest, v1.GetAgentRuntimeStatusResponse]
+	listAgentRuntimeStatuses *connect.Client[v1.ListAgentRuntimeStatusesRequest, v1.ListAgentRuntimeStatusesResponse]
+	cancelAgentInvocation    *connect.Client[v1.CancelAgentInvocationRequest, v1.CancelAgentInvocationResponse]
 }
 
 // ListAgents calls agents.v1.AgentService.ListAgents.
@@ -257,6 +314,26 @@ func (c *agentServiceClient) ListAgentInvocations(ctx context.Context, req *conn
 	return c.listAgentInvocations.CallUnary(ctx, req)
 }
 
+// ReloadAgents calls agents.v1.AgentService.ReloadAgents.
+func (c *agentServiceClient) ReloadAgents(ctx context.Context, req *connect.Request[v1.ReloadAgentsRequest]) (*connect.Response[v1.ReloadAgentsResponse], error) {
+	return c.reloadAgents.CallUnary(ctx, req)
+}
+
+// GetAgentRuntimeStatus calls agents.v1.AgentService.GetAgentRuntimeStatus.
+func (c *agentServiceClient) GetAgentRuntimeStatus(ctx context.Context, req *connect.Request[v1.GetAgentRuntimeStatusRequest]) (*connect.Response[v1.GetAgentRuntimeStatusResponse], error) {
+	return c.getAgentRuntimeStatus.CallUnary(ctx, req)
+}
+
+// ListAgentRuntimeStatuses calls agents.v1.AgentService.ListAgentRuntimeStatuses.
+func (c *agentServiceClient) ListAgentRuntimeStatuses(ctx context.Context, req *connect.Request[v1.ListAgentRuntimeStatusesRequest]) (*connect.Response[v1.ListAgentRuntimeStatusesResponse], error) {
+	return c.listAgentRuntimeStatuses.CallUnary(ctx, req)
+}
+
+// CancelAgentInvocation calls agents.v1.AgentService.CancelAgentInvocation.
+func (c *agentServiceClient) CancelAgentInvocation(ctx context.Context, req *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error) {
+	return c.cancelAgentInvocation.CallUnary(ctx, req)
+}
+
 // AgentServiceHandler is an implementation of the agents.v1.AgentService service.
 type AgentServiceHandler interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
@@ -270,6 +347,20 @@ type AgentServiceHandler interface {
 	// ListAgentInvocations returns recorded invocations, optionally filtered by
 	// agent name, with simple opaque-token pagination.
 	ListAgentInvocations(context.Context, *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error)
+	// ReloadAgents drops cached runners and re-resolves agents/MCP/remote-agents
+	// from the current configuration. Exposes the runtime hot-reload trigger
+	// used internally by config mutations to the dashboard "Hot-reload" button.
+	ReloadAgents(context.Context, *connect.Request[v1.ReloadAgentsRequest]) (*connect.Response[v1.ReloadAgentsResponse], error)
+	// GetAgentRuntimeStatus returns the latest invocation state for an agent,
+	// suitable for the Agents table Status / Last Run columns.
+	GetAgentRuntimeStatus(context.Context, *connect.Request[v1.GetAgentRuntimeStatusRequest]) (*connect.Response[v1.GetAgentRuntimeStatusResponse], error)
+	// ListAgentRuntimeStatuses returns runtime statuses for the given agent
+	// names in a single round trip. When `names` is empty, statuses for all
+	// configured agents are returned.
+	ListAgentRuntimeStatuses(context.Context, *connect.Request[v1.ListAgentRuntimeStatusesRequest]) (*connect.Response[v1.ListAgentRuntimeStatusesResponse], error)
+	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
+	// invocation transitions to FAILED with a cancellation error.
+	CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -321,6 +412,30 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("ListAgentInvocations")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceReloadAgentsHandler := connect.NewUnaryHandler(
+		AgentServiceReloadAgentsProcedure,
+		svc.ReloadAgents,
+		connect.WithSchema(agentServiceMethods.ByName("ReloadAgents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceGetAgentRuntimeStatusHandler := connect.NewUnaryHandler(
+		AgentServiceGetAgentRuntimeStatusProcedure,
+		svc.GetAgentRuntimeStatus,
+		connect.WithSchema(agentServiceMethods.ByName("GetAgentRuntimeStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceListAgentRuntimeStatusesHandler := connect.NewUnaryHandler(
+		AgentServiceListAgentRuntimeStatusesProcedure,
+		svc.ListAgentRuntimeStatuses,
+		connect.WithSchema(agentServiceMethods.ByName("ListAgentRuntimeStatuses")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceCancelAgentInvocationHandler := connect.NewUnaryHandler(
+		AgentServiceCancelAgentInvocationProcedure,
+		svc.CancelAgentInvocation,
+		connect.WithSchema(agentServiceMethods.ByName("CancelAgentInvocation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceListAgentsProcedure:
@@ -337,6 +452,14 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceInvokeAgentHandler.ServeHTTP(w, r)
 		case AgentServiceListAgentInvocationsProcedure:
 			agentServiceListAgentInvocationsHandler.ServeHTTP(w, r)
+		case AgentServiceReloadAgentsProcedure:
+			agentServiceReloadAgentsHandler.ServeHTTP(w, r)
+		case AgentServiceGetAgentRuntimeStatusProcedure:
+			agentServiceGetAgentRuntimeStatusHandler.ServeHTTP(w, r)
+		case AgentServiceListAgentRuntimeStatusesProcedure:
+			agentServiceListAgentRuntimeStatusesHandler.ServeHTTP(w, r)
+		case AgentServiceCancelAgentInvocationProcedure:
+			agentServiceCancelAgentInvocationHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -374,6 +497,22 @@ func (UnimplementedAgentServiceHandler) ListAgentInvocations(context.Context, *c
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ListAgentInvocations is not implemented"))
 }
 
+func (UnimplementedAgentServiceHandler) ReloadAgents(context.Context, *connect.Request[v1.ReloadAgentsRequest]) (*connect.Response[v1.ReloadAgentsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ReloadAgents is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) GetAgentRuntimeStatus(context.Context, *connect.Request[v1.GetAgentRuntimeStatusRequest]) (*connect.Response[v1.GetAgentRuntimeStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.GetAgentRuntimeStatus is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) ListAgentRuntimeStatuses(context.Context, *connect.Request[v1.ListAgentRuntimeStatusesRequest]) (*connect.Response[v1.ListAgentRuntimeStatusesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ListAgentRuntimeStatuses is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.CancelAgentInvocation is not implemented"))
+}
+
 // MCPServerServiceClient is a client for the agents.v1.MCPServerService service.
 type MCPServerServiceClient interface {
 	ListMCPServers(context.Context, *connect.Request[v1.ListMCPServersRequest]) (*connect.Response[v1.ListMCPServersResponse], error)
@@ -384,6 +523,9 @@ type MCPServerServiceClient interface {
 	// GetMCPServerStatus returns the current runtime status of a configured
 	// MCP server. Implemented in dashboard.proto.
 	GetMCPServerStatus(context.Context, *connect.Request[v1.GetMCPServerStatusRequest]) (*connect.Response[v1.GetMCPServerStatusResponse], error)
+	// ListMCPTools enumerates tools exposed by the configured MCP servers.
+	// When server_id is empty, all servers are probed (skipping STDIO).
+	ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error)
 }
 
 // NewMCPServerServiceClient constructs a client for the agents.v1.MCPServerService service. By
@@ -433,6 +575,12 @@ func NewMCPServerServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(mCPServerServiceMethods.ByName("GetMCPServerStatus")),
 			connect.WithClientOptions(opts...),
 		),
+		listMCPTools: connect.NewClient[v1.ListMCPToolsRequest, v1.ListMCPToolsResponse](
+			httpClient,
+			baseURL+MCPServerServiceListMCPToolsProcedure,
+			connect.WithSchema(mCPServerServiceMethods.ByName("ListMCPTools")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -444,6 +592,7 @@ type mCPServerServiceClient struct {
 	updateMCPServer    *connect.Client[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse]
 	deleteMCPServer    *connect.Client[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse]
 	getMCPServerStatus *connect.Client[v1.GetMCPServerStatusRequest, v1.GetMCPServerStatusResponse]
+	listMCPTools       *connect.Client[v1.ListMCPToolsRequest, v1.ListMCPToolsResponse]
 }
 
 // ListMCPServers calls agents.v1.MCPServerService.ListMCPServers.
@@ -476,6 +625,11 @@ func (c *mCPServerServiceClient) GetMCPServerStatus(ctx context.Context, req *co
 	return c.getMCPServerStatus.CallUnary(ctx, req)
 }
 
+// ListMCPTools calls agents.v1.MCPServerService.ListMCPTools.
+func (c *mCPServerServiceClient) ListMCPTools(ctx context.Context, req *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error) {
+	return c.listMCPTools.CallUnary(ctx, req)
+}
+
 // MCPServerServiceHandler is an implementation of the agents.v1.MCPServerService service.
 type MCPServerServiceHandler interface {
 	ListMCPServers(context.Context, *connect.Request[v1.ListMCPServersRequest]) (*connect.Response[v1.ListMCPServersResponse], error)
@@ -486,6 +640,9 @@ type MCPServerServiceHandler interface {
 	// GetMCPServerStatus returns the current runtime status of a configured
 	// MCP server. Implemented in dashboard.proto.
 	GetMCPServerStatus(context.Context, *connect.Request[v1.GetMCPServerStatusRequest]) (*connect.Response[v1.GetMCPServerStatusResponse], error)
+	// ListMCPTools enumerates tools exposed by the configured MCP servers.
+	// When server_id is empty, all servers are probed (skipping STDIO).
+	ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error)
 }
 
 // NewMCPServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -531,6 +688,12 @@ func NewMCPServerServiceHandler(svc MCPServerServiceHandler, opts ...connect.Han
 		connect.WithSchema(mCPServerServiceMethods.ByName("GetMCPServerStatus")),
 		connect.WithHandlerOptions(opts...),
 	)
+	mCPServerServiceListMCPToolsHandler := connect.NewUnaryHandler(
+		MCPServerServiceListMCPToolsProcedure,
+		svc.ListMCPTools,
+		connect.WithSchema(mCPServerServiceMethods.ByName("ListMCPTools")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.MCPServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MCPServerServiceListMCPServersProcedure:
@@ -545,6 +708,8 @@ func NewMCPServerServiceHandler(svc MCPServerServiceHandler, opts ...connect.Han
 			mCPServerServiceDeleteMCPServerHandler.ServeHTTP(w, r)
 		case MCPServerServiceGetMCPServerStatusProcedure:
 			mCPServerServiceGetMCPServerStatusHandler.ServeHTTP(w, r)
+		case MCPServerServiceListMCPToolsProcedure:
+			mCPServerServiceListMCPToolsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -576,6 +741,10 @@ func (UnimplementedMCPServerServiceHandler) DeleteMCPServer(context.Context, *co
 
 func (UnimplementedMCPServerServiceHandler) GetMCPServerStatus(context.Context, *connect.Request[v1.GetMCPServerStatusRequest]) (*connect.Response[v1.GetMCPServerStatusResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.GetMCPServerStatus is not implemented"))
+}
+
+func (UnimplementedMCPServerServiceHandler) ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.ListMCPTools is not implemented"))
 }
 
 // RemoteAgentServiceClient is a client for the agents.v1.RemoteAgentService service.

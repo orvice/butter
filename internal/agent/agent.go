@@ -225,10 +225,20 @@ func buildMCPToolsets(servers []*agentsv1.MCPServer) ([]tool.Toolset, error) {
 	return toolsets, nil
 }
 
+// MCPProbeTool is a single tool exposed by an MCP server, surfaced alongside
+// the server's configured allow-list verdict.
+type MCPProbeTool struct {
+	Name        string
+	Description string
+	Allowed     bool
+}
+
 // MCPProbeResult summarizes a live connectivity probe of an MCP server.
 type MCPProbeResult struct {
-	// ToolCount is the number of tools exposed by the server after applying
-	// the configured tool_filter. -1 when probing was skipped.
+	// Tools is the full list of tools the server advertised. The Allowed
+	// field reflects the configured tool_filter (true when there is no filter).
+	Tools []MCPProbeTool
+	// ToolCount is the number of tools that pass the configured tool_filter.
 	ToolCount int
 }
 
@@ -253,26 +263,37 @@ func ProbeMCPServer(ctx context.Context, srv *agentsv1.MCPServer) (*MCPProbeResu
 	}
 	defer session.Close()
 
-	result, err := session.ListTools(ctx, &mcp.ListToolsParams{})
+	listResult, err := session.ListTools(ctx, &mcp.ListToolsParams{})
 	if err != nil {
 		return nil, fmt.Errorf("list tools: %w", err)
 	}
 
-	count := len(result.Tools)
+	filterSet := map[string]struct{}{}
+	hasFilter := false
 	if filter := srv.GetToolFilter(); len(filter) > 0 {
-		allow := make(map[string]struct{}, len(filter))
+		hasFilter = true
 		for _, name := range filter {
-			allow[name] = struct{}{}
+			filterSet[name] = struct{}{}
 		}
-		filtered := 0
-		for _, t := range result.Tools {
-			if _, ok := allow[t.Name]; ok {
-				filtered++
-			}
-		}
-		count = filtered
 	}
-	return &MCPProbeResult{ToolCount: count}, nil
+
+	tools := make([]MCPProbeTool, 0, len(listResult.Tools))
+	allowed := 0
+	for _, t := range listResult.Tools {
+		allow := true
+		if hasFilter {
+			_, allow = filterSet[t.Name]
+		}
+		if allow {
+			allowed++
+		}
+		tools = append(tools, MCPProbeTool{
+			Name:        t.Name,
+			Description: t.Description,
+			Allowed:     allow,
+		})
+	}
+	return &MCPProbeResult{Tools: tools, ToolCount: allowed}, nil
 }
 
 // mcpTransport builds an MCP transport from the proto config.

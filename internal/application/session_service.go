@@ -9,9 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/twitchtv/twirp"
 	"google.golang.org/genai"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -126,8 +128,21 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.Get
 	}
 
 	host := s.getLangfuseHost()
+	var firstTS, lastTS time.Time
 	for evt := range resp.Session.Events().All() {
 		detail.Events = append(detail.Events, eventToProtoWithTrace(evt, host))
+		if firstTS.IsZero() || evt.Timestamp.Before(firstTS) {
+			firstTS = evt.Timestamp
+		}
+		if evt.Timestamp.After(lastTS) {
+			lastTS = evt.Timestamp
+		}
+	}
+	if n := len(detail.GetEvents()); n > 0 {
+		detail.Session.TurnCount = int32(n)
+	}
+	if !firstTS.IsZero() && !lastTS.IsZero() && lastTS.After(firstTS) {
+		detail.Duration = durationpb.New(lastTS.Sub(firstTS))
 	}
 
 	return &agentsv1.GetSessionResponse{SessionDetail: detail}, nil

@@ -316,6 +316,10 @@ func (m *DaemonTaskUpdate) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for CurrentStep
+
+	// no validation rules for Progress
+
 	if len(errors) > 0 {
 		return DaemonTaskUpdateMultiError(errors)
 	}

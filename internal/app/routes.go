@@ -114,6 +114,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if result.CronRepo != nil {
 			h.dashboardSvcServer.SetCronExecutionRepo(result.CronRepo)
 		}
+		if result.SessionCounter != nil {
+			h.dashboardSvcServer.SetSessionCounter(result.SessionCounter)
+		}
 		if result.RunnerSvc != nil {
 			runner := result.RunnerSvc
 			h.dashboardSvcServer.SetRunnerReady(func() bool { return runner != nil })

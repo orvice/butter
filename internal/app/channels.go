@@ -39,6 +39,7 @@ type BootstrapResult struct {
 	APITokenRepo    apitoken.Repository
 	InvocationRepo  invocation.Repository
 	LangfuseHost    string
+	SessionCounter  func(ctx context.Context) (int64, error)
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -135,5 +136,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		APITokenRepo:   tokenRepo,
 		InvocationRepo: invRepo,
 		LangfuseHost:   cfg.Langfuse.Host,
+		SessionCounter: sessionSvc.CountSessions,
 	}, nil
 }

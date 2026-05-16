@@ -5,6 +5,7 @@ package agents.v1;
 import "agents/v1/agent.proto";
 import "agents/v1/agentchannel.proto";
 import "agents/v1/dashboard.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -23,6 +24,20 @@ service AgentService {
   // ListAgentInvocations returns recorded invocations, optionally filtered by
   // agent name, with simple opaque-token pagination.
   rpc ListAgentInvocations(ListAgentInvocationsRequest) returns (ListAgentInvocationsResponse);
+  // ReloadAgents drops cached runners and re-resolves agents/MCP/remote-agents
+  // from the current configuration. Exposes the runtime hot-reload trigger
+  // used internally by config mutations to the dashboard "Hot-reload" button.
+  rpc ReloadAgents(ReloadAgentsRequest) returns (ReloadAgentsResponse);
+  // GetAgentRuntimeStatus returns the latest invocation state for an agent,
+  // suitable for the Agents table Status / Last Run columns.
+  rpc GetAgentRuntimeStatus(GetAgentRuntimeStatusRequest) returns (GetAgentRuntimeStatusResponse);
+  // ListAgentRuntimeStatuses returns runtime statuses for the given agent
+  // names in a single round trip. When `names` is empty, statuses for all
+  // configured agents are returned.
+  rpc ListAgentRuntimeStatuses(ListAgentRuntimeStatusesRequest) returns (ListAgentRuntimeStatusesResponse);
+  // CancelAgentInvocation cancels an in-flight invocation by its ID. The
+  // invocation transitions to FAILED with a cancellation error.
+  rpc CancelAgentInvocation(CancelAgentInvocationRequest) returns (CancelAgentInvocationResponse);
 }
 
 // MCPServerService manages MCP Server configurations.
@@ -35,6 +50,9 @@ service MCPServerService {
   // GetMCPServerStatus returns the current runtime status of a configured
   // MCP server. Implemented in dashboard.proto.
   rpc GetMCPServerStatus(GetMCPServerStatusRequest) returns (GetMCPServerStatusResponse);
+  // ListMCPTools enumerates tools exposed by the configured MCP servers.
+  // When server_id is empty, all servers are probed (skipping STDIO).
+  rpc ListMCPTools(ListMCPToolsRequest) returns (ListMCPToolsResponse);
 }
 
 // RemoteAgentService manages Remote Agent configurations.
@@ -51,10 +69,69 @@ service RemoteAgentService {
 
 // --- Agent messages ---
 
-message ListAgentsRequest {}
+message ListAgentsRequest {
+  // Maximum records per page. Defaults to 50.
+  int32 page_size = 1;
+  // Pagination token from a previous response.
+  string page_token = 2;
+}
 
 message ListAgentsResponse {
   repeated Agent agents = 1;
+  // Token for the next page; empty if there are no more results.
+  string next_page_token = 2;
+  // Total agents across all pages.
+  int32 total = 3;
+}
+
+message ReloadAgentsRequest {}
+
+message ReloadAgentsResponse {
+  google.protobuf.Timestamp reloaded_at = 1;
+}
+
+// AgentRuntimeState classifies the agent's most recent runtime state, derived
+// from the latest invocation.
+enum AgentRuntimeState {
+  AGENT_RUNTIME_STATE_UNSPECIFIED = 0;
+  AGENT_RUNTIME_STATE_IDLE = 1;
+  AGENT_RUNTIME_STATE_RUNNING = 2;
+  AGENT_RUNTIME_STATE_FAILED = 3;
+}
+
+message AgentRuntimeStatus {
+  string name = 1;
+  AgentRuntimeState state = 2;
+  google.protobuf.Timestamp last_run_at = 3;
+  // ID of the latest invocation, if any.
+  string last_invocation_id = 4;
+  // Number of in-flight (RUNNING) invocations for this agent.
+  int32 in_flight = 5;
+}
+
+message GetAgentRuntimeStatusRequest {
+  string name = 1;
+}
+
+message GetAgentRuntimeStatusResponse {
+  AgentRuntimeStatus status = 1;
+}
+
+message ListAgentRuntimeStatusesRequest {
+  repeated string names = 1;
+}
+
+message ListAgentRuntimeStatusesResponse {
+  repeated AgentRuntimeStatus statuses = 1;
+}
+
+message CancelAgentInvocationRequest {
+  string invocation_id = 1;
+}
+
+message CancelAgentInvocationResponse {
+  // True if the invocation was found and the cancel signal was delivered.
+  bool cancelled = 1;
 }
 
 message GetAgentRequest {
@@ -422,12 +499,16 @@ message SessionInfo {
   string user_id = 3;
   google.protobuf.Struct state = 4;
   google.protobuf.Timestamp last_update_time = 5;
+  // Number of recorded events (rough "turn" count).
+  int32 turn_count = 6;
 }
 
 // SessionDetail includes the session info plus recent events.
 message SessionDetail {
   SessionInfo session = 1;
   repeated SessionEvent events = 2;
+  // Wallclock duration between the first and last recorded events.
+  google.protobuf.Duration duration = 3;
 }
 
 // SessionEvent is a serializable representation of a session event.

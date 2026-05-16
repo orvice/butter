@@ -1126,6 +1126,8 @@ func (m *OverviewCounts) validate(all bool) error {
 
 	// no validation rules for CronJobs
 
+	// no validation rules for ActiveSessions
+
 	if len(errors) > 0 {
 		return OverviewCountsMultiError(errors)
 	}
@@ -1580,6 +1582,8 @@ func (m *DaemonHandshake) validate(all bool) error {
 			}
 		}
 	}
+
+	// no validation rules for Os
 
 	if len(errors) > 0 {
 		return DaemonHandshakeMultiError(errors)
@@ -3206,6 +3210,41 @@ func (m *DaemonTaskInFlight) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetElapsed()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DaemonTaskInFlightValidationError{
+					field:  "Elapsed",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DaemonTaskInFlightValidationError{
+					field:  "Elapsed",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetElapsed()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DaemonTaskInFlightValidationError{
+				field:  "Elapsed",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for CurrentStep
+
+	// no validation rules for Progress
+
+	// no validation rules for AgentName
+
 	if len(errors) > 0 {
 		return DaemonTaskInFlightMultiError(errors)
 	}
@@ -4073,6 +4112,356 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = RemoteAgentStatusValidationError{}
+
+// Validate checks the field values on ListMCPToolsRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListMCPToolsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListMCPToolsRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListMCPToolsRequestMultiError, or nil if none found.
+func (m *ListMCPToolsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListMCPToolsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ServerId
+
+	if len(errors) > 0 {
+		return ListMCPToolsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListMCPToolsRequestMultiError is an error wrapping multiple validation
+// errors returned by ListMCPToolsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type ListMCPToolsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListMCPToolsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListMCPToolsRequestMultiError) AllErrors() []error { return m }
+
+// ListMCPToolsRequestValidationError is the validation error returned by
+// ListMCPToolsRequest.Validate if the designated constraints aren't met.
+type ListMCPToolsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListMCPToolsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListMCPToolsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListMCPToolsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListMCPToolsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListMCPToolsRequestValidationError) ErrorName() string {
+	return "ListMCPToolsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListMCPToolsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListMCPToolsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListMCPToolsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListMCPToolsRequestValidationError{}
+
+// Validate checks the field values on ListMCPToolsResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListMCPToolsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListMCPToolsResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListMCPToolsResponseMultiError, or nil if none found.
+func (m *ListMCPToolsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListMCPToolsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetTools() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListMCPToolsResponseValidationError{
+						field:  fmt.Sprintf("Tools[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListMCPToolsResponseValidationError{
+						field:  fmt.Sprintf("Tools[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListMCPToolsResponseValidationError{
+					field:  fmt.Sprintf("Tools[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Errors
+
+	if len(errors) > 0 {
+		return ListMCPToolsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListMCPToolsResponseMultiError is an error wrapping multiple validation
+// errors returned by ListMCPToolsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type ListMCPToolsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListMCPToolsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListMCPToolsResponseMultiError) AllErrors() []error { return m }
+
+// ListMCPToolsResponseValidationError is the validation error returned by
+// ListMCPToolsResponse.Validate if the designated constraints aren't met.
+type ListMCPToolsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListMCPToolsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListMCPToolsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListMCPToolsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListMCPToolsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListMCPToolsResponseValidationError) ErrorName() string {
+	return "ListMCPToolsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListMCPToolsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListMCPToolsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListMCPToolsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListMCPToolsResponseValidationError{}
+
+// Validate checks the field values on MCPTool with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *MCPTool) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MCPTool with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in MCPToolMultiError, or nil if none found.
+func (m *MCPTool) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MCPTool) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	// no validation rules for Description
+
+	// no validation rules for ServerId
+
+	// no validation rules for ServerName
+
+	// no validation rules for Allowed
+
+	if len(errors) > 0 {
+		return MCPToolMultiError(errors)
+	}
+
+	return nil
+}
+
+// MCPToolMultiError is an error wrapping multiple validation errors returned
+// by MCPTool.ValidateAll() if the designated constraints aren't met.
+type MCPToolMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MCPToolMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MCPToolMultiError) AllErrors() []error { return m }
+
+// MCPToolValidationError is the validation error returned by MCPTool.Validate
+// if the designated constraints aren't met.
+type MCPToolValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MCPToolValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MCPToolValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MCPToolValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MCPToolValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MCPToolValidationError) ErrorName() string { return "MCPToolValidationError" }
+
+// Error satisfies the builtin error interface
+func (e MCPToolValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMCPTool.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MCPToolValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MCPToolValidationError{}
 
 // Validate checks the field values on MCPServerStatus with the rules defined
 // in the proto definition for this message. If any rules are violated, the

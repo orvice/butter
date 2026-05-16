@@ -31,6 +31,7 @@ type DashboardServiceServer struct {
 	runnerReady  func() bool
 	invRepo      invocation.Repository
 	cronExecRepo cron.ExecutionRepo
+	sessionCount func(ctx context.Context) (int64, error)
 }
 
 // DashboardConfigStore is the union of config repository interfaces required
@@ -64,6 +65,12 @@ func (s *DashboardServiceServer) SetRunnerReady(ready func() bool) { s.runnerRea
 
 // SetCronJobRepo wires the cron job repository for cron_jobs counts.
 func (s *DashboardServiceServer) SetCronJobRepo(repo cron.JobRepo) { s.cronJobRepo = repo }
+
+// SetSessionCounter wires a callable that returns the total number of ADK
+// sessions for the overview counts.
+func (s *DashboardServiceServer) SetSessionCounter(fn func(ctx context.Context) (int64, error)) {
+	s.sessionCount = fn
+}
 
 // SetInvocationRepo wires the invocation repository used by GetActivityFeed.
 func (s *DashboardServiceServer) SetInvocationRepo(repo invocation.Repository) { s.invRepo = repo }
@@ -219,6 +226,11 @@ func (s *DashboardServiceServer) counts(ctx context.Context) (*agentsv1.Overview
 			out.CronJobs = int32(len(jobs))
 		}
 	}
+	if s.sessionCount != nil {
+		if n, err := s.sessionCount(ctx); err == nil {
+			out.ActiveSessions = int32(n)
+		}
+	}
 	return out, nil
 }
 
@@ -325,5 +337,6 @@ func (s *DashboardServiceServer) latestHandshake() *agentsv1.DaemonHandshake {
 		Name:         latest.Info.GetName(),
 		Capabilities: latest.Info.GetCapabilities(),
 		ConnectedAt:  timestamppb.New(latest.ConnectedAt),
+		Os:           latest.Info.GetOs(),
 	}
 }

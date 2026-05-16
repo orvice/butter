@@ -19,13 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AgentService_ListAgents_FullMethodName           = "/agents.v1.AgentService/ListAgents"
-	AgentService_GetAgent_FullMethodName             = "/agents.v1.AgentService/GetAgent"
-	AgentService_CreateAgent_FullMethodName          = "/agents.v1.AgentService/CreateAgent"
-	AgentService_UpdateAgent_FullMethodName          = "/agents.v1.AgentService/UpdateAgent"
-	AgentService_DeleteAgent_FullMethodName          = "/agents.v1.AgentService/DeleteAgent"
-	AgentService_InvokeAgent_FullMethodName          = "/agents.v1.AgentService/InvokeAgent"
-	AgentService_ListAgentInvocations_FullMethodName = "/agents.v1.AgentService/ListAgentInvocations"
+	AgentService_ListAgents_FullMethodName               = "/agents.v1.AgentService/ListAgents"
+	AgentService_GetAgent_FullMethodName                 = "/agents.v1.AgentService/GetAgent"
+	AgentService_CreateAgent_FullMethodName              = "/agents.v1.AgentService/CreateAgent"
+	AgentService_UpdateAgent_FullMethodName              = "/agents.v1.AgentService/UpdateAgent"
+	AgentService_DeleteAgent_FullMethodName              = "/agents.v1.AgentService/DeleteAgent"
+	AgentService_InvokeAgent_FullMethodName              = "/agents.v1.AgentService/InvokeAgent"
+	AgentService_ListAgentInvocations_FullMethodName     = "/agents.v1.AgentService/ListAgentInvocations"
+	AgentService_ReloadAgents_FullMethodName             = "/agents.v1.AgentService/ReloadAgents"
+	AgentService_GetAgentRuntimeStatus_FullMethodName    = "/agents.v1.AgentService/GetAgentRuntimeStatus"
+	AgentService_ListAgentRuntimeStatuses_FullMethodName = "/agents.v1.AgentService/ListAgentRuntimeStatuses"
+	AgentService_CancelAgentInvocation_FullMethodName    = "/agents.v1.AgentService/CancelAgentInvocation"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -45,6 +49,20 @@ type AgentServiceClient interface {
 	// ListAgentInvocations returns recorded invocations, optionally filtered by
 	// agent name, with simple opaque-token pagination.
 	ListAgentInvocations(ctx context.Context, in *ListAgentInvocationsRequest, opts ...grpc.CallOption) (*ListAgentInvocationsResponse, error)
+	// ReloadAgents drops cached runners and re-resolves agents/MCP/remote-agents
+	// from the current configuration. Exposes the runtime hot-reload trigger
+	// used internally by config mutations to the dashboard "Hot-reload" button.
+	ReloadAgents(ctx context.Context, in *ReloadAgentsRequest, opts ...grpc.CallOption) (*ReloadAgentsResponse, error)
+	// GetAgentRuntimeStatus returns the latest invocation state for an agent,
+	// suitable for the Agents table Status / Last Run columns.
+	GetAgentRuntimeStatus(ctx context.Context, in *GetAgentRuntimeStatusRequest, opts ...grpc.CallOption) (*GetAgentRuntimeStatusResponse, error)
+	// ListAgentRuntimeStatuses returns runtime statuses for the given agent
+	// names in a single round trip. When `names` is empty, statuses for all
+	// configured agents are returned.
+	ListAgentRuntimeStatuses(ctx context.Context, in *ListAgentRuntimeStatusesRequest, opts ...grpc.CallOption) (*ListAgentRuntimeStatusesResponse, error)
+	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
+	// invocation transitions to FAILED with a cancellation error.
+	CancelAgentInvocation(ctx context.Context, in *CancelAgentInvocationRequest, opts ...grpc.CallOption) (*CancelAgentInvocationResponse, error)
 }
 
 type agentServiceClient struct {
@@ -125,6 +143,46 @@ func (c *agentServiceClient) ListAgentInvocations(ctx context.Context, in *ListA
 	return out, nil
 }
 
+func (c *agentServiceClient) ReloadAgents(ctx context.Context, in *ReloadAgentsRequest, opts ...grpc.CallOption) (*ReloadAgentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReloadAgentsResponse)
+	err := c.cc.Invoke(ctx, AgentService_ReloadAgents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetAgentRuntimeStatus(ctx context.Context, in *GetAgentRuntimeStatusRequest, opts ...grpc.CallOption) (*GetAgentRuntimeStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAgentRuntimeStatusResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetAgentRuntimeStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListAgentRuntimeStatuses(ctx context.Context, in *ListAgentRuntimeStatusesRequest, opts ...grpc.CallOption) (*ListAgentRuntimeStatusesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAgentRuntimeStatusesResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListAgentRuntimeStatuses_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CancelAgentInvocation(ctx context.Context, in *CancelAgentInvocationRequest, opts ...grpc.CallOption) (*CancelAgentInvocationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelAgentInvocationResponse)
+	err := c.cc.Invoke(ctx, AgentService_CancelAgentInvocation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -142,6 +200,20 @@ type AgentServiceServer interface {
 	// ListAgentInvocations returns recorded invocations, optionally filtered by
 	// agent name, with simple opaque-token pagination.
 	ListAgentInvocations(context.Context, *ListAgentInvocationsRequest) (*ListAgentInvocationsResponse, error)
+	// ReloadAgents drops cached runners and re-resolves agents/MCP/remote-agents
+	// from the current configuration. Exposes the runtime hot-reload trigger
+	// used internally by config mutations to the dashboard "Hot-reload" button.
+	ReloadAgents(context.Context, *ReloadAgentsRequest) (*ReloadAgentsResponse, error)
+	// GetAgentRuntimeStatus returns the latest invocation state for an agent,
+	// suitable for the Agents table Status / Last Run columns.
+	GetAgentRuntimeStatus(context.Context, *GetAgentRuntimeStatusRequest) (*GetAgentRuntimeStatusResponse, error)
+	// ListAgentRuntimeStatuses returns runtime statuses for the given agent
+	// names in a single round trip. When `names` is empty, statuses for all
+	// configured agents are returned.
+	ListAgentRuntimeStatuses(context.Context, *ListAgentRuntimeStatusesRequest) (*ListAgentRuntimeStatusesResponse, error)
+	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
+	// invocation transitions to FAILED with a cancellation error.
+	CancelAgentInvocation(context.Context, *CancelAgentInvocationRequest) (*CancelAgentInvocationResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -172,6 +244,18 @@ func (UnimplementedAgentServiceServer) InvokeAgent(context.Context, *InvokeAgent
 }
 func (UnimplementedAgentServiceServer) ListAgentInvocations(context.Context, *ListAgentInvocationsRequest) (*ListAgentInvocationsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAgentInvocations not implemented")
+}
+func (UnimplementedAgentServiceServer) ReloadAgents(context.Context, *ReloadAgentsRequest) (*ReloadAgentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReloadAgents not implemented")
+}
+func (UnimplementedAgentServiceServer) GetAgentRuntimeStatus(context.Context, *GetAgentRuntimeStatusRequest) (*GetAgentRuntimeStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAgentRuntimeStatus not implemented")
+}
+func (UnimplementedAgentServiceServer) ListAgentRuntimeStatuses(context.Context, *ListAgentRuntimeStatusesRequest) (*ListAgentRuntimeStatusesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAgentRuntimeStatuses not implemented")
+}
+func (UnimplementedAgentServiceServer) CancelAgentInvocation(context.Context, *CancelAgentInvocationRequest) (*CancelAgentInvocationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelAgentInvocation not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -320,6 +404,78 @@ func _AgentService_ListAgentInvocations_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ReloadAgents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReloadAgentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ReloadAgents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ReloadAgents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ReloadAgents(ctx, req.(*ReloadAgentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetAgentRuntimeStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAgentRuntimeStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetAgentRuntimeStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetAgentRuntimeStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetAgentRuntimeStatus(ctx, req.(*GetAgentRuntimeStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListAgentRuntimeStatuses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAgentRuntimeStatusesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListAgentRuntimeStatuses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListAgentRuntimeStatuses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListAgentRuntimeStatuses(ctx, req.(*ListAgentRuntimeStatusesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CancelAgentInvocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelAgentInvocationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CancelAgentInvocation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CancelAgentInvocation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CancelAgentInvocation(ctx, req.(*CancelAgentInvocationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -355,6 +511,22 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListAgentInvocations",
 			Handler:    _AgentService_ListAgentInvocations_Handler,
 		},
+		{
+			MethodName: "ReloadAgents",
+			Handler:    _AgentService_ReloadAgents_Handler,
+		},
+		{
+			MethodName: "GetAgentRuntimeStatus",
+			Handler:    _AgentService_GetAgentRuntimeStatus_Handler,
+		},
+		{
+			MethodName: "ListAgentRuntimeStatuses",
+			Handler:    _AgentService_ListAgentRuntimeStatuses_Handler,
+		},
+		{
+			MethodName: "CancelAgentInvocation",
+			Handler:    _AgentService_CancelAgentInvocation_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "agents/v1/agent_service.proto",
@@ -367,6 +539,7 @@ const (
 	MCPServerService_UpdateMCPServer_FullMethodName    = "/agents.v1.MCPServerService/UpdateMCPServer"
 	MCPServerService_DeleteMCPServer_FullMethodName    = "/agents.v1.MCPServerService/DeleteMCPServer"
 	MCPServerService_GetMCPServerStatus_FullMethodName = "/agents.v1.MCPServerService/GetMCPServerStatus"
+	MCPServerService_ListMCPTools_FullMethodName       = "/agents.v1.MCPServerService/ListMCPTools"
 )
 
 // MCPServerServiceClient is the client API for MCPServerService service.
@@ -383,6 +556,9 @@ type MCPServerServiceClient interface {
 	// GetMCPServerStatus returns the current runtime status of a configured
 	// MCP server. Implemented in dashboard.proto.
 	GetMCPServerStatus(ctx context.Context, in *GetMCPServerStatusRequest, opts ...grpc.CallOption) (*GetMCPServerStatusResponse, error)
+	// ListMCPTools enumerates tools exposed by the configured MCP servers.
+	// When server_id is empty, all servers are probed (skipping STDIO).
+	ListMCPTools(ctx context.Context, in *ListMCPToolsRequest, opts ...grpc.CallOption) (*ListMCPToolsResponse, error)
 }
 
 type mCPServerServiceClient struct {
@@ -453,6 +629,16 @@ func (c *mCPServerServiceClient) GetMCPServerStatus(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *mCPServerServiceClient) ListMCPTools(ctx context.Context, in *ListMCPToolsRequest, opts ...grpc.CallOption) (*ListMCPToolsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMCPToolsResponse)
+	err := c.cc.Invoke(ctx, MCPServerService_ListMCPTools_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MCPServerServiceServer is the server API for MCPServerService service.
 // All implementations must embed UnimplementedMCPServerServiceServer
 // for forward compatibility.
@@ -467,6 +653,9 @@ type MCPServerServiceServer interface {
 	// GetMCPServerStatus returns the current runtime status of a configured
 	// MCP server. Implemented in dashboard.proto.
 	GetMCPServerStatus(context.Context, *GetMCPServerStatusRequest) (*GetMCPServerStatusResponse, error)
+	// ListMCPTools enumerates tools exposed by the configured MCP servers.
+	// When server_id is empty, all servers are probed (skipping STDIO).
+	ListMCPTools(context.Context, *ListMCPToolsRequest) (*ListMCPToolsResponse, error)
 	mustEmbedUnimplementedMCPServerServiceServer()
 }
 
@@ -494,6 +683,9 @@ func (UnimplementedMCPServerServiceServer) DeleteMCPServer(context.Context, *Del
 }
 func (UnimplementedMCPServerServiceServer) GetMCPServerStatus(context.Context, *GetMCPServerStatusRequest) (*GetMCPServerStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMCPServerStatus not implemented")
+}
+func (UnimplementedMCPServerServiceServer) ListMCPTools(context.Context, *ListMCPToolsRequest) (*ListMCPToolsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMCPTools not implemented")
 }
 func (UnimplementedMCPServerServiceServer) mustEmbedUnimplementedMCPServerServiceServer() {}
 func (UnimplementedMCPServerServiceServer) testEmbeddedByValue()                          {}
@@ -624,6 +816,24 @@ func _MCPServerService_GetMCPServerStatus_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MCPServerService_ListMCPTools_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMCPToolsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MCPServerServiceServer).ListMCPTools(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MCPServerService_ListMCPTools_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MCPServerServiceServer).ListMCPTools(ctx, req.(*ListMCPToolsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MCPServerService_ServiceDesc is the grpc.ServiceDesc for MCPServerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -654,6 +864,10 @@ var MCPServerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetMCPServerStatus",
 			Handler:    _MCPServerService_GetMCPServerStatus_Handler,
+		},
+		{
+			MethodName: "ListMCPTools",
+			Handler:    _MCPServerService_ListMCPTools_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

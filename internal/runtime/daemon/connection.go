@@ -12,6 +12,27 @@ import (
 // task is in progress.
 var ErrDaemonDisconnected = errors.New("daemon disconnected")
 
+// taskState tracks a single in-flight task on a daemon connection.
+type taskState struct {
+	resultCh    chan *agentsv1.DaemonTaskUpdate
+	startedAt   time.Time
+	agentName   string
+	capability  string
+	currentStep string
+	progress    int32
+}
+
+// TaskSnapshot is a point-in-time view of a single in-flight task suitable
+// for the dashboard.
+type TaskSnapshot struct {
+	TaskID      string
+	AgentName   string
+	Capability  string
+	StartedAt   time.Time
+	CurrentStep string
+	Progress    int32
+}
+
 // Connection represents a single connected daemon and its bidirectional
 // communication channels.
 type Connection struct {
@@ -23,7 +44,7 @@ type Connection struct {
 	RemoteAddr string
 
 	mu          sync.Mutex
-	activeTasks map[string]chan *agentsv1.DaemonTaskUpdate // task_id → result channel
+	activeTasks map[string]*taskState
 	closed      bool
 }
 
@@ -33,7 +54,7 @@ func NewConnection(info *agentsv1.DaemonInfo) *Connection {
 		Info:        info,
 		SendCh:      make(chan *agentsv1.ConnectResponse, 16),
 		ConnectedAt: time.Now(),
-		activeTasks: make(map[string]chan *agentsv1.DaemonTaskUpdate),
+		activeTasks: make(map[string]*taskState),
 	}
 }
 
@@ -46,7 +67,12 @@ func (c *Connection) SendTask(task *agentsv1.DaemonTask) (<-chan *agentsv1.Daemo
 		return nil, ErrDaemonDisconnected
 	}
 	resultCh := make(chan *agentsv1.DaemonTaskUpdate, 16)
-	c.activeTasks[task.TaskId] = resultCh
+	c.activeTasks[task.TaskId] = &taskState{
+		resultCh:   resultCh,
+		startedAt:  time.Now(),
+		agentName:  task.GetAgentName(),
+		capability: task.GetCapability(),
+	}
 	c.mu.Unlock()
 
 	c.SendCh <- &agentsv1.ConnectResponse{
@@ -75,17 +101,24 @@ func (c *Connection) CancelTask(taskID string) error {
 // the update is silently dropped.
 func (c *Connection) DispatchUpdate(update *agentsv1.DaemonTaskUpdate) {
 	c.mu.Lock()
-	ch, ok := c.activeTasks[update.TaskId]
-	// Remove the task on terminal status.
-	if ok && isTerminal(update.Status) {
-		delete(c.activeTasks, update.TaskId)
+	t, ok := c.activeTasks[update.TaskId]
+	if ok {
+		if step := update.GetCurrentStep(); step != "" {
+			t.currentStep = step
+		}
+		if p := update.GetProgress(); p > 0 {
+			t.progress = p
+		}
+		if isTerminal(update.Status) {
+			delete(c.activeTasks, update.TaskId)
+		}
 	}
 	c.mu.Unlock()
 
 	if ok {
-		ch <- update
+		t.resultCh <- update
 		if isTerminal(update.Status) {
-			close(ch)
+			close(t.resultCh)
 		}
 	}
 }
@@ -118,6 +151,25 @@ func (c *Connection) ActiveTaskIDs() []string {
 	return out
 }
 
+// ActiveTaskSnapshots returns a copy of all in-flight tasks with their
+// latest progress fields for the dashboard.
+func (c *Connection) ActiveTaskSnapshots() []TaskSnapshot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]TaskSnapshot, 0, len(c.activeTasks))
+	for id, t := range c.activeTasks {
+		out = append(out, TaskSnapshot{
+			TaskID:      id,
+			AgentName:   t.agentName,
+			Capability:  t.capability,
+			StartedAt:   t.startedAt,
+			CurrentStep: t.currentStep,
+			Progress:    t.progress,
+		})
+	}
+	return out
+}
+
 // Close marks the connection as closed and notifies all active task waiters
 // that the daemon has disconnected.
 func (c *Connection) Close() {
@@ -128,13 +180,13 @@ func (c *Connection) Close() {
 	}
 	c.closed = true
 
-	for id, ch := range c.activeTasks {
-		ch <- &agentsv1.DaemonTaskUpdate{
+	for id, t := range c.activeTasks {
+		t.resultCh <- &agentsv1.DaemonTaskUpdate{
 			TaskId: id,
 			Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED,
 			Error:  "daemon disconnected",
 		}
-		close(ch)
+		close(t.resultCh)
 		delete(c.activeTasks, id)
 	}
 }

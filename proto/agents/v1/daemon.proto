@@ -86,6 +86,14 @@ message DaemonTaskUpdate {
 
   // @gotags: json:"timestamp,omitempty" yaml:"timestamp,omitempty"
   google.protobuf.Timestamp timestamp = 5;
+
+  // Optional short label for the current step (e.g. "Compiling dependencies").
+  // @gotags: json:"current_step,omitempty" yaml:"current_step,omitempty"
+  string current_step = 6;
+
+  // Optional progress percentage in [0, 100]. 0 when unknown.
+  // @gotags: json:"progress,omitempty" yaml:"progress,omitempty"
+  int32 progress = 7;
 }
 
 // DaemonTaskStatus tracks the lifecycle of a daemon task.
