@@ -111,6 +111,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if result.CronJobRepo != nil {
 			h.dashboardSvcServer.SetCronJobRepo(result.CronJobRepo)
 		}
+		if result.CronRepo != nil {
+			h.dashboardSvcServer.SetCronExecutionRepo(result.CronRepo)
+		}
 		if result.RunnerSvc != nil {
 			runner := result.RunnerSvc
 			h.dashboardSvcServer.SetRunnerReady(func() bool { return runner != nil })
@@ -153,6 +156,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	agentSvcServer := application.NewAgentServiceServer(configStore)
 	mcpSvcServer := application.NewMCPServerServiceServer(configStore)
 	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
+	remoteSvcServer.SetDaemonRegistry(daemonRegistry)
 	agentTwirp := agentsv1.NewAgentServiceServer(agentSvcServer, pathPrefix)
 	mcpTwirp := agentsv1.NewMCPServerServiceServer(mcpSvcServer, pathPrefix)
 	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(remoteSvcServer, pathPrefix)

@@ -44,6 +44,9 @@ service RemoteAgentService {
   rpc CreateRemoteAgent(CreateRemoteAgentRequest) returns (CreateRemoteAgentResponse);
   rpc UpdateRemoteAgent(UpdateRemoteAgentRequest) returns (UpdateRemoteAgentResponse);
   rpc DeleteRemoteAgent(DeleteRemoteAgentRequest) returns (DeleteRemoteAgentResponse);
+  // GetRemoteAgentStatus probes the configured remote agent endpoint and
+  // returns its liveness state (A2A: HTTP agent.json; daemon: registry).
+  rpc GetRemoteAgentStatus(GetRemoteAgentStatusRequest) returns (GetRemoteAgentStatusResponse);
 }
 
 // --- Agent messages ---

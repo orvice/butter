@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DashboardService_GetOverview_FullMethodName     = "/agents.v1.DashboardService/GetOverview"
-	DashboardService_GetActivityFeed_FullMethodName = "/agents.v1.DashboardService/GetActivityFeed"
+	DashboardService_GetOverview_FullMethodName                = "/agents.v1.DashboardService/GetOverview"
+	DashboardService_GetActivityFeed_FullMethodName            = "/agents.v1.DashboardService/GetActivityFeed"
+	DashboardService_GetCronExecutionTimeseries_FullMethodName = "/agents.v1.DashboardService/GetCronExecutionTimeseries"
 )
 
 // DashboardServiceClient is the client API for DashboardService service.
@@ -33,6 +34,9 @@ type DashboardServiceClient interface {
 	// GetActivityFeed returns the most recent invocation activity, oldest event
 	// first stripped, suitable for the dashboard Activity Feed widget.
 	GetActivityFeed(ctx context.Context, in *GetActivityFeedRequest, opts ...grpc.CallOption) (*GetActivityFeedResponse, error)
+	// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
+	// suitable for the Overview screen "Cron Executions" chart.
+	GetCronExecutionTimeseries(ctx context.Context, in *GetCronExecutionTimeseriesRequest, opts ...grpc.CallOption) (*GetCronExecutionTimeseriesResponse, error)
 }
 
 type dashboardServiceClient struct {
@@ -63,6 +67,16 @@ func (c *dashboardServiceClient) GetActivityFeed(ctx context.Context, in *GetAct
 	return out, nil
 }
 
+func (c *dashboardServiceClient) GetCronExecutionTimeseries(ctx context.Context, in *GetCronExecutionTimeseriesRequest, opts ...grpc.CallOption) (*GetCronExecutionTimeseriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCronExecutionTimeseriesResponse)
+	err := c.cc.Invoke(ctx, DashboardService_GetCronExecutionTimeseries_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DashboardServiceServer is the server API for DashboardService service.
 // All implementations must embed UnimplementedDashboardServiceServer
 // for forward compatibility.
@@ -73,6 +87,9 @@ type DashboardServiceServer interface {
 	// GetActivityFeed returns the most recent invocation activity, oldest event
 	// first stripped, suitable for the dashboard Activity Feed widget.
 	GetActivityFeed(context.Context, *GetActivityFeedRequest) (*GetActivityFeedResponse, error)
+	// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
+	// suitable for the Overview screen "Cron Executions" chart.
+	GetCronExecutionTimeseries(context.Context, *GetCronExecutionTimeseriesRequest) (*GetCronExecutionTimeseriesResponse, error)
 	mustEmbedUnimplementedDashboardServiceServer()
 }
 
@@ -88,6 +105,9 @@ func (UnimplementedDashboardServiceServer) GetOverview(context.Context, *GetOver
 }
 func (UnimplementedDashboardServiceServer) GetActivityFeed(context.Context, *GetActivityFeedRequest) (*GetActivityFeedResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetActivityFeed not implemented")
+}
+func (UnimplementedDashboardServiceServer) GetCronExecutionTimeseries(context.Context, *GetCronExecutionTimeseriesRequest) (*GetCronExecutionTimeseriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCronExecutionTimeseries not implemented")
 }
 func (UnimplementedDashboardServiceServer) mustEmbedUnimplementedDashboardServiceServer() {}
 func (UnimplementedDashboardServiceServer) testEmbeddedByValue()                          {}
@@ -146,6 +166,24 @@ func _DashboardService_GetActivityFeed_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DashboardService_GetCronExecutionTimeseries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCronExecutionTimeseriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DashboardServiceServer).GetCronExecutionTimeseries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DashboardService_GetCronExecutionTimeseries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DashboardServiceServer).GetCronExecutionTimeseries(ctx, req.(*GetCronExecutionTimeseriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DashboardService_ServiceDesc is the grpc.ServiceDesc for DashboardService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -161,15 +199,21 @@ var DashboardService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetActivityFeed",
 			Handler:    _DashboardService_GetActivityFeed_Handler,
 		},
+		{
+			MethodName: "GetCronExecutionTimeseries",
+			Handler:    _DashboardService_GetCronExecutionTimeseries_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "agents/v1/dashboard.proto",
 }
 
 const (
-	DaemonService_ListDaemons_FullMethodName      = "/agents.v1.DaemonService/ListDaemons"
-	DaemonService_GetDaemon_FullMethodName        = "/agents.v1.DaemonService/GetDaemon"
-	DaemonService_CancelDaemonTask_FullMethodName = "/agents.v1.DaemonService/CancelDaemonTask"
+	DaemonService_ListDaemons_FullMethodName          = "/agents.v1.DaemonService/ListDaemons"
+	DaemonService_GetDaemon_FullMethodName            = "/agents.v1.DaemonService/GetDaemon"
+	DaemonService_CancelDaemonTask_FullMethodName     = "/agents.v1.DaemonService/CancelDaemonTask"
+	DaemonService_ListDaemonTasks_FullMethodName      = "/agents.v1.DaemonService/ListDaemonTasks"
+	DaemonService_GetBridgeDiagnostics_FullMethodName = "/agents.v1.DaemonService/GetBridgeDiagnostics"
 )
 
 // DaemonServiceClient is the client API for DaemonService service.
@@ -181,6 +225,11 @@ type DaemonServiceClient interface {
 	// CancelDaemonTask requests cancellation of a running task on any connected
 	// daemon. Returns NotFound if no online daemon is tracking the task.
 	CancelDaemonTask(ctx context.Context, in *CancelDaemonTaskRequest, opts ...grpc.CallOption) (*CancelDaemonTaskResponse, error)
+	// ListDaemonTasks returns all tasks currently in flight on connected daemons.
+	ListDaemonTasks(ctx context.Context, in *ListDaemonTasksRequest, opts ...grpc.CallOption) (*ListDaemonTasksResponse, error)
+	// GetBridgeDiagnostics returns router-side resource usage and a recent
+	// bridge-latency sample series, suitable for the Bridge Diagnostics panel.
+	GetBridgeDiagnostics(ctx context.Context, in *GetBridgeDiagnosticsRequest, opts ...grpc.CallOption) (*GetBridgeDiagnosticsResponse, error)
 }
 
 type daemonServiceClient struct {
@@ -221,6 +270,26 @@ func (c *daemonServiceClient) CancelDaemonTask(ctx context.Context, in *CancelDa
 	return out, nil
 }
 
+func (c *daemonServiceClient) ListDaemonTasks(ctx context.Context, in *ListDaemonTasksRequest, opts ...grpc.CallOption) (*ListDaemonTasksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDaemonTasksResponse)
+	err := c.cc.Invoke(ctx, DaemonService_ListDaemonTasks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonServiceClient) GetBridgeDiagnostics(ctx context.Context, in *GetBridgeDiagnosticsRequest, opts ...grpc.CallOption) (*GetBridgeDiagnosticsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBridgeDiagnosticsResponse)
+	err := c.cc.Invoke(ctx, DaemonService_GetBridgeDiagnostics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DaemonServiceServer is the server API for DaemonService service.
 // All implementations must embed UnimplementedDaemonServiceServer
 // for forward compatibility.
@@ -230,6 +299,11 @@ type DaemonServiceServer interface {
 	// CancelDaemonTask requests cancellation of a running task on any connected
 	// daemon. Returns NotFound if no online daemon is tracking the task.
 	CancelDaemonTask(context.Context, *CancelDaemonTaskRequest) (*CancelDaemonTaskResponse, error)
+	// ListDaemonTasks returns all tasks currently in flight on connected daemons.
+	ListDaemonTasks(context.Context, *ListDaemonTasksRequest) (*ListDaemonTasksResponse, error)
+	// GetBridgeDiagnostics returns router-side resource usage and a recent
+	// bridge-latency sample series, suitable for the Bridge Diagnostics panel.
+	GetBridgeDiagnostics(context.Context, *GetBridgeDiagnosticsRequest) (*GetBridgeDiagnosticsResponse, error)
 	mustEmbedUnimplementedDaemonServiceServer()
 }
 
@@ -248,6 +322,12 @@ func (UnimplementedDaemonServiceServer) GetDaemon(context.Context, *GetDaemonReq
 }
 func (UnimplementedDaemonServiceServer) CancelDaemonTask(context.Context, *CancelDaemonTaskRequest) (*CancelDaemonTaskResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelDaemonTask not implemented")
+}
+func (UnimplementedDaemonServiceServer) ListDaemonTasks(context.Context, *ListDaemonTasksRequest) (*ListDaemonTasksResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDaemonTasks not implemented")
+}
+func (UnimplementedDaemonServiceServer) GetBridgeDiagnostics(context.Context, *GetBridgeDiagnosticsRequest) (*GetBridgeDiagnosticsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBridgeDiagnostics not implemented")
 }
 func (UnimplementedDaemonServiceServer) mustEmbedUnimplementedDaemonServiceServer() {}
 func (UnimplementedDaemonServiceServer) testEmbeddedByValue()                       {}
@@ -324,6 +404,42 @@ func _DaemonService_CancelDaemonTask_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DaemonService_ListDaemonTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDaemonTasksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServiceServer).ListDaemonTasks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonService_ListDaemonTasks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServiceServer).ListDaemonTasks(ctx, req.(*ListDaemonTasksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DaemonService_GetBridgeDiagnostics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBridgeDiagnosticsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServiceServer).GetBridgeDiagnostics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonService_GetBridgeDiagnostics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServiceServer).GetBridgeDiagnostics(ctx, req.(*GetBridgeDiagnosticsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DaemonService_ServiceDesc is the grpc.ServiceDesc for DaemonService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -342,6 +458,14 @@ var DaemonService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelDaemonTask",
 			Handler:    _DaemonService_CancelDaemonTask_Handler,
+		},
+		{
+			MethodName: "ListDaemonTasks",
+			Handler:    _DaemonService_ListDaemonTasks_Handler,
+		},
+		{
+			MethodName: "GetBridgeDiagnostics",
+			Handler:    _DaemonService_GetBridgeDiagnostics_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

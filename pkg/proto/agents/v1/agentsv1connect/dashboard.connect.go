@@ -41,6 +41,9 @@ const (
 	// DashboardServiceGetActivityFeedProcedure is the fully-qualified name of the DashboardService's
 	// GetActivityFeed RPC.
 	DashboardServiceGetActivityFeedProcedure = "/agents.v1.DashboardService/GetActivityFeed"
+	// DashboardServiceGetCronExecutionTimeseriesProcedure is the fully-qualified name of the
+	// DashboardService's GetCronExecutionTimeseries RPC.
+	DashboardServiceGetCronExecutionTimeseriesProcedure = "/agents.v1.DashboardService/GetCronExecutionTimeseries"
 	// DaemonServiceListDaemonsProcedure is the fully-qualified name of the DaemonService's ListDaemons
 	// RPC.
 	DaemonServiceListDaemonsProcedure = "/agents.v1.DaemonService/ListDaemons"
@@ -49,6 +52,12 @@ const (
 	// DaemonServiceCancelDaemonTaskProcedure is the fully-qualified name of the DaemonService's
 	// CancelDaemonTask RPC.
 	DaemonServiceCancelDaemonTaskProcedure = "/agents.v1.DaemonService/CancelDaemonTask"
+	// DaemonServiceListDaemonTasksProcedure is the fully-qualified name of the DaemonService's
+	// ListDaemonTasks RPC.
+	DaemonServiceListDaemonTasksProcedure = "/agents.v1.DaemonService/ListDaemonTasks"
+	// DaemonServiceGetBridgeDiagnosticsProcedure is the fully-qualified name of the DaemonService's
+	// GetBridgeDiagnostics RPC.
+	DaemonServiceGetBridgeDiagnosticsProcedure = "/agents.v1.DaemonService/GetBridgeDiagnostics"
 )
 
 // DashboardServiceClient is a client for the agents.v1.DashboardService service.
@@ -59,6 +68,9 @@ type DashboardServiceClient interface {
 	// GetActivityFeed returns the most recent invocation activity, oldest event
 	// first stripped, suitable for the dashboard Activity Feed widget.
 	GetActivityFeed(context.Context, *connect.Request[v1.GetActivityFeedRequest]) (*connect.Response[v1.GetActivityFeedResponse], error)
+	// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
+	// suitable for the Overview screen "Cron Executions" chart.
+	GetCronExecutionTimeseries(context.Context, *connect.Request[v1.GetCronExecutionTimeseriesRequest]) (*connect.Response[v1.GetCronExecutionTimeseriesResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the agents.v1.DashboardService service. By
@@ -84,13 +96,20 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("GetActivityFeed")),
 			connect.WithClientOptions(opts...),
 		),
+		getCronExecutionTimeseries: connect.NewClient[v1.GetCronExecutionTimeseriesRequest, v1.GetCronExecutionTimeseriesResponse](
+			httpClient,
+			baseURL+DashboardServiceGetCronExecutionTimeseriesProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("GetCronExecutionTimeseries")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // dashboardServiceClient implements DashboardServiceClient.
 type dashboardServiceClient struct {
-	getOverview     *connect.Client[v1.GetOverviewRequest, v1.GetOverviewResponse]
-	getActivityFeed *connect.Client[v1.GetActivityFeedRequest, v1.GetActivityFeedResponse]
+	getOverview                *connect.Client[v1.GetOverviewRequest, v1.GetOverviewResponse]
+	getActivityFeed            *connect.Client[v1.GetActivityFeedRequest, v1.GetActivityFeedResponse]
+	getCronExecutionTimeseries *connect.Client[v1.GetCronExecutionTimeseriesRequest, v1.GetCronExecutionTimeseriesResponse]
 }
 
 // GetOverview calls agents.v1.DashboardService.GetOverview.
@@ -103,6 +122,11 @@ func (c *dashboardServiceClient) GetActivityFeed(ctx context.Context, req *conne
 	return c.getActivityFeed.CallUnary(ctx, req)
 }
 
+// GetCronExecutionTimeseries calls agents.v1.DashboardService.GetCronExecutionTimeseries.
+func (c *dashboardServiceClient) GetCronExecutionTimeseries(ctx context.Context, req *connect.Request[v1.GetCronExecutionTimeseriesRequest]) (*connect.Response[v1.GetCronExecutionTimeseriesResponse], error) {
+	return c.getCronExecutionTimeseries.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the agents.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// GetOverview returns aggregate counts, component health and the latest
@@ -111,6 +135,9 @@ type DashboardServiceHandler interface {
 	// GetActivityFeed returns the most recent invocation activity, oldest event
 	// first stripped, suitable for the dashboard Activity Feed widget.
 	GetActivityFeed(context.Context, *connect.Request[v1.GetActivityFeedRequest]) (*connect.Response[v1.GetActivityFeedResponse], error)
+	// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
+	// suitable for the Overview screen "Cron Executions" chart.
+	GetCronExecutionTimeseries(context.Context, *connect.Request[v1.GetCronExecutionTimeseriesRequest]) (*connect.Response[v1.GetCronExecutionTimeseriesResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -132,12 +159,20 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("GetActivityFeed")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceGetCronExecutionTimeseriesHandler := connect.NewUnaryHandler(
+		DashboardServiceGetCronExecutionTimeseriesProcedure,
+		svc.GetCronExecutionTimeseries,
+		connect.WithSchema(dashboardServiceMethods.ByName("GetCronExecutionTimeseries")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceGetOverviewProcedure:
 			dashboardServiceGetOverviewHandler.ServeHTTP(w, r)
 		case DashboardServiceGetActivityFeedProcedure:
 			dashboardServiceGetActivityFeedHandler.ServeHTTP(w, r)
+		case DashboardServiceGetCronExecutionTimeseriesProcedure:
+			dashboardServiceGetCronExecutionTimeseriesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -155,6 +190,10 @@ func (UnimplementedDashboardServiceHandler) GetActivityFeed(context.Context, *co
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DashboardService.GetActivityFeed is not implemented"))
 }
 
+func (UnimplementedDashboardServiceHandler) GetCronExecutionTimeseries(context.Context, *connect.Request[v1.GetCronExecutionTimeseriesRequest]) (*connect.Response[v1.GetCronExecutionTimeseriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DashboardService.GetCronExecutionTimeseries is not implemented"))
+}
+
 // DaemonServiceClient is a client for the agents.v1.DaemonService service.
 type DaemonServiceClient interface {
 	ListDaemons(context.Context, *connect.Request[v1.ListDaemonsRequest]) (*connect.Response[v1.ListDaemonsResponse], error)
@@ -162,6 +201,11 @@ type DaemonServiceClient interface {
 	// CancelDaemonTask requests cancellation of a running task on any connected
 	// daemon. Returns NotFound if no online daemon is tracking the task.
 	CancelDaemonTask(context.Context, *connect.Request[v1.CancelDaemonTaskRequest]) (*connect.Response[v1.CancelDaemonTaskResponse], error)
+	// ListDaemonTasks returns all tasks currently in flight on connected daemons.
+	ListDaemonTasks(context.Context, *connect.Request[v1.ListDaemonTasksRequest]) (*connect.Response[v1.ListDaemonTasksResponse], error)
+	// GetBridgeDiagnostics returns router-side resource usage and a recent
+	// bridge-latency sample series, suitable for the Bridge Diagnostics panel.
+	GetBridgeDiagnostics(context.Context, *connect.Request[v1.GetBridgeDiagnosticsRequest]) (*connect.Response[v1.GetBridgeDiagnosticsResponse], error)
 }
 
 // NewDaemonServiceClient constructs a client for the agents.v1.DaemonService service. By default,
@@ -193,14 +237,28 @@ func NewDaemonServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(daemonServiceMethods.ByName("CancelDaemonTask")),
 			connect.WithClientOptions(opts...),
 		),
+		listDaemonTasks: connect.NewClient[v1.ListDaemonTasksRequest, v1.ListDaemonTasksResponse](
+			httpClient,
+			baseURL+DaemonServiceListDaemonTasksProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("ListDaemonTasks")),
+			connect.WithClientOptions(opts...),
+		),
+		getBridgeDiagnostics: connect.NewClient[v1.GetBridgeDiagnosticsRequest, v1.GetBridgeDiagnosticsResponse](
+			httpClient,
+			baseURL+DaemonServiceGetBridgeDiagnosticsProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("GetBridgeDiagnostics")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // daemonServiceClient implements DaemonServiceClient.
 type daemonServiceClient struct {
-	listDaemons      *connect.Client[v1.ListDaemonsRequest, v1.ListDaemonsResponse]
-	getDaemon        *connect.Client[v1.GetDaemonRequest, v1.GetDaemonResponse]
-	cancelDaemonTask *connect.Client[v1.CancelDaemonTaskRequest, v1.CancelDaemonTaskResponse]
+	listDaemons          *connect.Client[v1.ListDaemonsRequest, v1.ListDaemonsResponse]
+	getDaemon            *connect.Client[v1.GetDaemonRequest, v1.GetDaemonResponse]
+	cancelDaemonTask     *connect.Client[v1.CancelDaemonTaskRequest, v1.CancelDaemonTaskResponse]
+	listDaemonTasks      *connect.Client[v1.ListDaemonTasksRequest, v1.ListDaemonTasksResponse]
+	getBridgeDiagnostics *connect.Client[v1.GetBridgeDiagnosticsRequest, v1.GetBridgeDiagnosticsResponse]
 }
 
 // ListDaemons calls agents.v1.DaemonService.ListDaemons.
@@ -218,6 +276,16 @@ func (c *daemonServiceClient) CancelDaemonTask(ctx context.Context, req *connect
 	return c.cancelDaemonTask.CallUnary(ctx, req)
 }
 
+// ListDaemonTasks calls agents.v1.DaemonService.ListDaemonTasks.
+func (c *daemonServiceClient) ListDaemonTasks(ctx context.Context, req *connect.Request[v1.ListDaemonTasksRequest]) (*connect.Response[v1.ListDaemonTasksResponse], error) {
+	return c.listDaemonTasks.CallUnary(ctx, req)
+}
+
+// GetBridgeDiagnostics calls agents.v1.DaemonService.GetBridgeDiagnostics.
+func (c *daemonServiceClient) GetBridgeDiagnostics(ctx context.Context, req *connect.Request[v1.GetBridgeDiagnosticsRequest]) (*connect.Response[v1.GetBridgeDiagnosticsResponse], error) {
+	return c.getBridgeDiagnostics.CallUnary(ctx, req)
+}
+
 // DaemonServiceHandler is an implementation of the agents.v1.DaemonService service.
 type DaemonServiceHandler interface {
 	ListDaemons(context.Context, *connect.Request[v1.ListDaemonsRequest]) (*connect.Response[v1.ListDaemonsResponse], error)
@@ -225,6 +293,11 @@ type DaemonServiceHandler interface {
 	// CancelDaemonTask requests cancellation of a running task on any connected
 	// daemon. Returns NotFound if no online daemon is tracking the task.
 	CancelDaemonTask(context.Context, *connect.Request[v1.CancelDaemonTaskRequest]) (*connect.Response[v1.CancelDaemonTaskResponse], error)
+	// ListDaemonTasks returns all tasks currently in flight on connected daemons.
+	ListDaemonTasks(context.Context, *connect.Request[v1.ListDaemonTasksRequest]) (*connect.Response[v1.ListDaemonTasksResponse], error)
+	// GetBridgeDiagnostics returns router-side resource usage and a recent
+	// bridge-latency sample series, suitable for the Bridge Diagnostics panel.
+	GetBridgeDiagnostics(context.Context, *connect.Request[v1.GetBridgeDiagnosticsRequest]) (*connect.Response[v1.GetBridgeDiagnosticsResponse], error)
 }
 
 // NewDaemonServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -252,6 +325,18 @@ func NewDaemonServiceHandler(svc DaemonServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(daemonServiceMethods.ByName("CancelDaemonTask")),
 		connect.WithHandlerOptions(opts...),
 	)
+	daemonServiceListDaemonTasksHandler := connect.NewUnaryHandler(
+		DaemonServiceListDaemonTasksProcedure,
+		svc.ListDaemonTasks,
+		connect.WithSchema(daemonServiceMethods.ByName("ListDaemonTasks")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonServiceGetBridgeDiagnosticsHandler := connect.NewUnaryHandler(
+		DaemonServiceGetBridgeDiagnosticsProcedure,
+		svc.GetBridgeDiagnostics,
+		connect.WithSchema(daemonServiceMethods.ByName("GetBridgeDiagnostics")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.DaemonService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DaemonServiceListDaemonsProcedure:
@@ -260,6 +345,10 @@ func NewDaemonServiceHandler(svc DaemonServiceHandler, opts ...connect.HandlerOp
 			daemonServiceGetDaemonHandler.ServeHTTP(w, r)
 		case DaemonServiceCancelDaemonTaskProcedure:
 			daemonServiceCancelDaemonTaskHandler.ServeHTTP(w, r)
+		case DaemonServiceListDaemonTasksProcedure:
+			daemonServiceListDaemonTasksHandler.ServeHTTP(w, r)
+		case DaemonServiceGetBridgeDiagnosticsProcedure:
+			daemonServiceGetBridgeDiagnosticsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -279,4 +368,12 @@ func (UnimplementedDaemonServiceHandler) GetDaemon(context.Context, *connect.Req
 
 func (UnimplementedDaemonServiceHandler) CancelDaemonTask(context.Context, *connect.Request[v1.CancelDaemonTaskRequest]) (*connect.Response[v1.CancelDaemonTaskResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.CancelDaemonTask is not implemented"))
+}
+
+func (UnimplementedDaemonServiceHandler) ListDaemonTasks(context.Context, *connect.Request[v1.ListDaemonTasksRequest]) (*connect.Response[v1.ListDaemonTasksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.ListDaemonTasks is not implemented"))
+}
+
+func (UnimplementedDaemonServiceHandler) GetBridgeDiagnostics(context.Context, *connect.Request[v1.GetBridgeDiagnosticsRequest]) (*connect.Response[v1.GetBridgeDiagnosticsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.GetBridgeDiagnostics is not implemented"))
 }

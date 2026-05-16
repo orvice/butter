@@ -93,6 +93,9 @@ const (
 	// RemoteAgentServiceDeleteRemoteAgentProcedure is the fully-qualified name of the
 	// RemoteAgentService's DeleteRemoteAgent RPC.
 	RemoteAgentServiceDeleteRemoteAgentProcedure = "/agents.v1.RemoteAgentService/DeleteRemoteAgent"
+	// RemoteAgentServiceGetRemoteAgentStatusProcedure is the fully-qualified name of the
+	// RemoteAgentService's GetRemoteAgentStatus RPC.
+	RemoteAgentServiceGetRemoteAgentStatusProcedure = "/agents.v1.RemoteAgentService/GetRemoteAgentStatus"
 	// ChannelServiceListChannelsProcedure is the fully-qualified name of the ChannelService's
 	// ListChannels RPC.
 	ChannelServiceListChannelsProcedure = "/agents.v1.ChannelService/ListChannels"
@@ -582,6 +585,9 @@ type RemoteAgentServiceClient interface {
 	CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.CreateRemoteAgentResponse], error)
 	UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.UpdateRemoteAgentResponse], error)
 	DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error)
+	// GetRemoteAgentStatus probes the configured remote agent endpoint and
+	// returns its liveness state (A2A: HTTP agent.json; daemon: registry).
+	GetRemoteAgentStatus(context.Context, *connect.Request[v1.GetRemoteAgentStatusRequest]) (*connect.Response[v1.GetRemoteAgentStatusResponse], error)
 }
 
 // NewRemoteAgentServiceClient constructs a client for the agents.v1.RemoteAgentService service. By
@@ -625,16 +631,23 @@ func NewRemoteAgentServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(remoteAgentServiceMethods.ByName("DeleteRemoteAgent")),
 			connect.WithClientOptions(opts...),
 		),
+		getRemoteAgentStatus: connect.NewClient[v1.GetRemoteAgentStatusRequest, v1.GetRemoteAgentStatusResponse](
+			httpClient,
+			baseURL+RemoteAgentServiceGetRemoteAgentStatusProcedure,
+			connect.WithSchema(remoteAgentServiceMethods.ByName("GetRemoteAgentStatus")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // remoteAgentServiceClient implements RemoteAgentServiceClient.
 type remoteAgentServiceClient struct {
-	listRemoteAgents  *connect.Client[v1.ListRemoteAgentsRequest, v1.ListRemoteAgentsResponse]
-	getRemoteAgent    *connect.Client[v1.GetRemoteAgentRequest, v1.GetRemoteAgentResponse]
-	createRemoteAgent *connect.Client[v1.CreateRemoteAgentRequest, v1.CreateRemoteAgentResponse]
-	updateRemoteAgent *connect.Client[v1.UpdateRemoteAgentRequest, v1.UpdateRemoteAgentResponse]
-	deleteRemoteAgent *connect.Client[v1.DeleteRemoteAgentRequest, v1.DeleteRemoteAgentResponse]
+	listRemoteAgents     *connect.Client[v1.ListRemoteAgentsRequest, v1.ListRemoteAgentsResponse]
+	getRemoteAgent       *connect.Client[v1.GetRemoteAgentRequest, v1.GetRemoteAgentResponse]
+	createRemoteAgent    *connect.Client[v1.CreateRemoteAgentRequest, v1.CreateRemoteAgentResponse]
+	updateRemoteAgent    *connect.Client[v1.UpdateRemoteAgentRequest, v1.UpdateRemoteAgentResponse]
+	deleteRemoteAgent    *connect.Client[v1.DeleteRemoteAgentRequest, v1.DeleteRemoteAgentResponse]
+	getRemoteAgentStatus *connect.Client[v1.GetRemoteAgentStatusRequest, v1.GetRemoteAgentStatusResponse]
 }
 
 // ListRemoteAgents calls agents.v1.RemoteAgentService.ListRemoteAgents.
@@ -662,6 +675,11 @@ func (c *remoteAgentServiceClient) DeleteRemoteAgent(ctx context.Context, req *c
 	return c.deleteRemoteAgent.CallUnary(ctx, req)
 }
 
+// GetRemoteAgentStatus calls agents.v1.RemoteAgentService.GetRemoteAgentStatus.
+func (c *remoteAgentServiceClient) GetRemoteAgentStatus(ctx context.Context, req *connect.Request[v1.GetRemoteAgentStatusRequest]) (*connect.Response[v1.GetRemoteAgentStatusResponse], error) {
+	return c.getRemoteAgentStatus.CallUnary(ctx, req)
+}
+
 // RemoteAgentServiceHandler is an implementation of the agents.v1.RemoteAgentService service.
 type RemoteAgentServiceHandler interface {
 	ListRemoteAgents(context.Context, *connect.Request[v1.ListRemoteAgentsRequest]) (*connect.Response[v1.ListRemoteAgentsResponse], error)
@@ -669,6 +687,9 @@ type RemoteAgentServiceHandler interface {
 	CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.CreateRemoteAgentResponse], error)
 	UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.UpdateRemoteAgentResponse], error)
 	DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error)
+	// GetRemoteAgentStatus probes the configured remote agent endpoint and
+	// returns its liveness state (A2A: HTTP agent.json; daemon: registry).
+	GetRemoteAgentStatus(context.Context, *connect.Request[v1.GetRemoteAgentStatusRequest]) (*connect.Response[v1.GetRemoteAgentStatusResponse], error)
 }
 
 // NewRemoteAgentServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -708,6 +729,12 @@ func NewRemoteAgentServiceHandler(svc RemoteAgentServiceHandler, opts ...connect
 		connect.WithSchema(remoteAgentServiceMethods.ByName("DeleteRemoteAgent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	remoteAgentServiceGetRemoteAgentStatusHandler := connect.NewUnaryHandler(
+		RemoteAgentServiceGetRemoteAgentStatusProcedure,
+		svc.GetRemoteAgentStatus,
+		connect.WithSchema(remoteAgentServiceMethods.ByName("GetRemoteAgentStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.RemoteAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RemoteAgentServiceListRemoteAgentsProcedure:
@@ -720,6 +747,8 @@ func NewRemoteAgentServiceHandler(svc RemoteAgentServiceHandler, opts ...connect
 			remoteAgentServiceUpdateRemoteAgentHandler.ServeHTTP(w, r)
 		case RemoteAgentServiceDeleteRemoteAgentProcedure:
 			remoteAgentServiceDeleteRemoteAgentHandler.ServeHTTP(w, r)
+		case RemoteAgentServiceGetRemoteAgentStatusProcedure:
+			remoteAgentServiceGetRemoteAgentStatusHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -747,6 +776,10 @@ func (UnimplementedRemoteAgentServiceHandler) UpdateRemoteAgent(context.Context,
 
 func (UnimplementedRemoteAgentServiceHandler) DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.DeleteRemoteAgent is not implemented"))
+}
+
+func (UnimplementedRemoteAgentServiceHandler) GetRemoteAgentStatus(context.Context, *connect.Request[v1.GetRemoteAgentStatusRequest]) (*connect.Response[v1.GetRemoteAgentStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.GetRemoteAgentStatus is not implemented"))
 }
 
 // ChannelServiceClient is a client for the agents.v1.ChannelService service.

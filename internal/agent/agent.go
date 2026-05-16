@@ -225,6 +225,56 @@ func buildMCPToolsets(servers []*agentsv1.MCPServer) ([]tool.Toolset, error) {
 	return toolsets, nil
 }
 
+// MCPProbeResult summarizes a live connectivity probe of an MCP server.
+type MCPProbeResult struct {
+	// ToolCount is the number of tools exposed by the server after applying
+	// the configured tool_filter. -1 when probing was skipped.
+	ToolCount int
+}
+
+// ProbeMCPServer connects to the configured MCP server transport, runs the
+// MCP handshake and lists the exposed tools. STDIO transports are not yet
+// probed (would require spawning a subprocess) and return an error.
+func ProbeMCPServer(ctx context.Context, srv *agentsv1.MCPServer) (*MCPProbeResult, error) {
+	if srv == nil {
+		return nil, fmt.Errorf("nil mcp server")
+	}
+	if srv.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
+		return nil, fmt.Errorf("stdio probing not supported")
+	}
+	transport, err := mcpTransport(srv)
+	if err != nil {
+		return nil, err
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "butter-probe", Version: "0.1.0"}, nil)
+	session, err := client.Connect(ctx, transport, nil)
+	if err != nil {
+		return nil, fmt.Errorf("connect: %w", err)
+	}
+	defer session.Close()
+
+	result, err := session.ListTools(ctx, &mcp.ListToolsParams{})
+	if err != nil {
+		return nil, fmt.Errorf("list tools: %w", err)
+	}
+
+	count := len(result.Tools)
+	if filter := srv.GetToolFilter(); len(filter) > 0 {
+		allow := make(map[string]struct{}, len(filter))
+		for _, name := range filter {
+			allow[name] = struct{}{}
+		}
+		filtered := 0
+		for _, t := range result.Tools {
+			if _, ok := allow[t.Name]; ok {
+				filtered++
+			}
+		}
+		count = filtered
+	}
+	return &MCPProbeResult{ToolCount: count}, nil
+}
+
 // mcpTransport builds an MCP transport from the proto config.
 func mcpTransport(srv *agentsv1.MCPServer) (mcp.Transport, error) {
 	var httpClient *http.Client

@@ -4,6 +4,7 @@ package agents.v1;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
+import "agents/v1/agent.proto";
 import "agents/v1/agentchannel.proto";
 
 option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
@@ -19,6 +20,32 @@ service DashboardService {
   // GetActivityFeed returns the most recent invocation activity, oldest event
   // first stripped, suitable for the dashboard Activity Feed widget.
   rpc GetActivityFeed(GetActivityFeedRequest) returns (GetActivityFeedResponse);
+  // GetCronExecutionTimeseries aggregates cron_executions into time buckets,
+  // suitable for the Overview screen "Cron Executions" chart.
+  rpc GetCronExecutionTimeseries(GetCronExecutionTimeseriesRequest) returns (GetCronExecutionTimeseriesResponse);
+}
+
+message GetCronExecutionTimeseriesRequest {
+  enum Range {
+    RANGE_UNSPECIFIED = 0;
+    RANGE_1D = 1;
+    RANGE_7D = 2;
+    RANGE_30D = 3;
+  }
+  Range range = 1;
+  // Optional: filter by job name.
+  string job_name = 2;
+}
+
+message GetCronExecutionTimeseriesResponse {
+  // Oldest bucket first.
+  repeated CronExecutionBucket buckets = 1;
+}
+
+message CronExecutionBucket {
+  google.protobuf.Timestamp start = 1;
+  int32 success = 2;
+  int32 error = 3;
 }
 
 message GetActivityFeedRequest {
@@ -102,6 +129,37 @@ service DaemonService {
   // CancelDaemonTask requests cancellation of a running task on any connected
   // daemon. Returns NotFound if no online daemon is tracking the task.
   rpc CancelDaemonTask(CancelDaemonTaskRequest) returns (CancelDaemonTaskResponse);
+  // ListDaemonTasks returns all tasks currently in flight on connected daemons.
+  rpc ListDaemonTasks(ListDaemonTasksRequest) returns (ListDaemonTasksResponse);
+  // GetBridgeDiagnostics returns router-side resource usage and a recent
+  // bridge-latency sample series, suitable for the Bridge Diagnostics panel.
+  rpc GetBridgeDiagnostics(GetBridgeDiagnosticsRequest) returns (GetBridgeDiagnosticsResponse);
+}
+
+message GetBridgeDiagnosticsRequest {
+  // Reserved for future windowing (e.g. last 1h / 24h). Currently ignored —
+  // the server returns a rolling in-memory sample window.
+  google.protobuf.Duration window = 1;
+}
+
+message GetBridgeDiagnosticsResponse {
+  BridgeDiagnostics diagnostics = 1;
+}
+
+message BridgeDiagnostics {
+  // Process-level metrics for the butter server (the "router").
+  double cpu_percent = 1;
+  int64 memory_used_bytes = 2;
+  int64 memory_limit_bytes = 3;
+  int32 goroutines = 4;
+  google.protobuf.Timestamp checked_at = 5;
+  // Rolling samples of bridge invocation latency (oldest first).
+  repeated LatencyPoint latency = 6;
+}
+
+message LatencyPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  int64 latency_ms = 2;
 }
 
 message ListDaemonsRequest {}
@@ -130,6 +188,26 @@ message CancelDaemonTaskResponse {
   string daemon_id = 1;
 }
 
+message ListDaemonTasksRequest {
+  // Optional: only return tasks served by this daemon id.
+  string daemon_id = 1;
+}
+
+message ListDaemonTasksResponse {
+  repeated DaemonTaskInFlight tasks = 1;
+}
+
+message DaemonTaskInFlight {
+  string task_id = 1;
+  string daemon_id = 2;
+  string daemon_name = 3;
+  // Capability used to dispatch this task.
+  string capability = 4;
+  // When the task was dispatched to the daemon. Best-effort; may be zero if
+  // the registry does not track per-task timestamps yet.
+  google.protobuf.Timestamp started_at = 5;
+}
+
 message DaemonStatus {
   string daemon_id = 1;
   string name = 2;
@@ -147,6 +225,13 @@ message DaemonStatus {
   google.protobuf.Timestamp connected_at = 6;
   google.protobuf.Duration uptime = 7;
   int32 active_tasks = 8;
+
+  // Reported by the daemon at handshake.
+  string version = 9;
+  string os = 10;
+  repeated string executors = 11;
+  // Captured by the server from the gRPC peer (best-effort, may be empty).
+  string remote_addr = 12;
 }
 
 // =============================================================================
@@ -159,6 +244,36 @@ message GetMCPServerStatusRequest {
 
 message GetMCPServerStatusResponse {
   MCPServerStatus status = 1;
+}
+
+message GetRemoteAgentStatusRequest {
+  string id = 1;
+}
+
+message GetRemoteAgentStatusResponse {
+  RemoteAgentStatus status = 1;
+}
+
+message RemoteAgentStatus {
+  string id = 1;
+  RemoteAgentProtocol protocol = 2;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_CONFIGURED = 1;
+    STATE_ACTIVE = 2;
+    STATE_IDLE = 3;
+    STATE_UNREACHABLE = 4;
+    STATE_ERROR = 5;
+  }
+  State state = 3;
+
+  string detail = 4;
+  // For DAEMON protocol only: id of the daemon currently serving the
+  // configured daemon_capability, if one is online.
+  string serving_daemon_id = 5;
+  google.protobuf.Timestamp checked_at = 6;
+  int64 latency_ms = 7;
 }
 
 message MCPServerStatus {

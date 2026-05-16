@@ -30,6 +30,7 @@ type DashboardServiceServer struct {
 	rdb          *redis.Client
 	runnerReady  func() bool
 	invRepo      invocation.Repository
+	cronExecRepo cron.ExecutionRepo
 }
 
 // DashboardConfigStore is the union of config repository interfaces required
@@ -66,6 +67,63 @@ func (s *DashboardServiceServer) SetCronJobRepo(repo cron.JobRepo) { s.cronJobRe
 
 // SetInvocationRepo wires the invocation repository used by GetActivityFeed.
 func (s *DashboardServiceServer) SetInvocationRepo(repo invocation.Repository) { s.invRepo = repo }
+
+// SetCronExecutionRepo wires the cron execution repository used for
+// GetCronExecutionTimeseries.
+func (s *DashboardServiceServer) SetCronExecutionRepo(repo cron.ExecutionRepo) {
+	s.cronExecRepo = repo
+}
+
+func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context, req *agentsv1.GetCronExecutionTimeseriesRequest) (*agentsv1.GetCronExecutionTimeseriesResponse, error) {
+	if s.cronExecRepo == nil {
+		return &agentsv1.GetCronExecutionTimeseriesResponse{}, nil
+	}
+
+	end := time.Now().UTC()
+	var bucketSize time.Duration
+	var span time.Duration
+	switch req.GetRange() {
+	case agentsv1.GetCronExecutionTimeseriesRequest_RANGE_7D:
+		span = 7 * 24 * time.Hour
+		bucketSize = 24 * time.Hour
+	case agentsv1.GetCronExecutionTimeseriesRequest_RANGE_30D:
+		span = 30 * 24 * time.Hour
+		bucketSize = 24 * time.Hour
+	default: // RANGE_1D and unspecified
+		span = 24 * time.Hour
+		bucketSize = time.Hour
+	}
+	start := end.Add(-span).Truncate(bucketSize)
+	end = end.Truncate(bucketSize).Add(bucketSize)
+
+	execs, err := s.cronExecRepo.ListByTimeRange(ctx, req.GetJobName(), start, end)
+	if err != nil {
+		return nil, twirp.InternalErrorWith(err)
+	}
+
+	bucketCount := int(end.Sub(start) / bucketSize)
+	buckets := make([]*agentsv1.CronExecutionBucket, bucketCount)
+	for i := 0; i < bucketCount; i++ {
+		buckets[i] = &agentsv1.CronExecutionBucket{
+			Start: timestamppb.New(start.Add(time.Duration(i) * bucketSize)),
+		}
+	}
+
+	for _, exec := range execs {
+		t := exec.GetStartedAt().AsTime()
+		idx := int(t.Sub(start) / bucketSize)
+		if idx < 0 || idx >= bucketCount {
+			continue
+		}
+		if exec.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR {
+			buckets[idx].Error++
+		} else {
+			buckets[idx].Success++
+		}
+	}
+
+	return &agentsv1.GetCronExecutionTimeseriesResponse{Buckets: buckets}, nil
+}
 
 func (s *DashboardServiceServer) GetActivityFeed(ctx context.Context, req *agentsv1.GetActivityFeedRequest) (*agentsv1.GetActivityFeedResponse, error) {
 	if s.invRepo == nil {

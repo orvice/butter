@@ -78,6 +78,61 @@ func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *agentsv
 	return &agentsv1.CancelDaemonTaskResponse{DaemonId: target.Info.GetDaemonId()}, nil
 }
 
+func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *agentsv1.ListDaemonTasksRequest) (*agentsv1.ListDaemonTasksResponse, error) {
+	if s.registry == nil {
+		return &agentsv1.ListDaemonTasksResponse{}, nil
+	}
+	var conns []*daemon.Connection
+	if hint := req.GetDaemonId(); hint != "" {
+		if c := s.registry.Get(hint); c != nil {
+			conns = []*daemon.Connection{c}
+		}
+	} else {
+		conns = s.registry.ListConnections()
+	}
+	var out []*agentsv1.DaemonTaskInFlight
+	for _, c := range conns {
+		// Use the first registered capability as the dispatched capability.
+		var cap string
+		if caps := c.Info.GetCapabilities(); len(caps) > 0 {
+			cap = caps[0]
+		}
+		for _, id := range c.ActiveTaskIDs() {
+			out = append(out, &agentsv1.DaemonTaskInFlight{
+				TaskId:     id,
+				DaemonId:   c.Info.GetDaemonId(),
+				DaemonName: c.Info.GetName(),
+				Capability: cap,
+			})
+		}
+	}
+	return &agentsv1.ListDaemonTasksResponse{Tasks: out}, nil
+}
+
+func (s *DaemonServiceServer) GetBridgeDiagnostics(ctx context.Context, _ *agentsv1.GetBridgeDiagnosticsRequest) (*agentsv1.GetBridgeDiagnosticsResponse, error) {
+	if s.registry == nil || s.registry.Metrics() == nil {
+		return &agentsv1.GetBridgeDiagnosticsResponse{Diagnostics: &agentsv1.BridgeDiagnostics{
+			CheckedAt: timestamppb.New(time.Now().UTC()),
+		}}, nil
+	}
+	snap := s.registry.Metrics().Snapshot()
+	points := make([]*agentsv1.LatencyPoint, 0, len(snap.Latency))
+	for _, sample := range snap.Latency {
+		points = append(points, &agentsv1.LatencyPoint{
+			Timestamp: timestamppb.New(sample.Timestamp),
+			LatencyMs: sample.Latency.Milliseconds(),
+		})
+	}
+	diag := &agentsv1.BridgeDiagnostics{
+		CpuPercent:      snap.CPUPercent,
+		MemoryUsedBytes: int64(snap.MemoryUsedBytes),
+		Goroutines:      int32(snap.Goroutines),
+		CheckedAt:       timestamppb.New(time.Now().UTC()),
+		Latency:         points,
+	}
+	return &agentsv1.GetBridgeDiagnosticsResponse{Diagnostics: diag}, nil
+}
+
 func connectionToStatus(c *daemon.Connection, now time.Time) *agentsv1.DaemonStatus {
 	active := c.ActiveTaskCount()
 	state := agentsv1.DaemonStatus_STATE_ONLINE
@@ -93,5 +148,9 @@ func connectionToStatus(c *daemon.Connection, now time.Time) *agentsv1.DaemonSta
 		ConnectedAt:  timestamppb.New(c.ConnectedAt),
 		Uptime:       durationpb.New(now.Sub(c.ConnectedAt)),
 		ActiveTasks:  int32(active),
+		Version:      c.Info.GetVersion(),
+		Os:           c.Info.GetOs(),
+		Executors:    c.Info.GetExecutors(),
+		RemoteAddr:   c.RemoteAddr,
 	}
 }

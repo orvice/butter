@@ -8,15 +8,25 @@ import (
 
 // Registry tracks connected daemon instances.
 type Registry struct {
-	mu    sync.RWMutex
-	conns map[string]*Connection // daemon_id → connection
+	mu      sync.RWMutex
+	conns   map[string]*Connection // daemon_id → connection
+	metrics *Metrics
 }
 
-// NewRegistry creates an empty daemon registry.
+// NewRegistry creates an empty daemon registry with a fresh bridge metrics
+// collector.
 func NewRegistry() *Registry {
 	return &Registry{
-		conns: make(map[string]*Connection),
+		conns:   make(map[string]*Connection),
+		metrics: NewMetrics(60),
 	}
+}
+
+// Metrics returns the bridge metrics collector backing this registry. Bridges
+// read this to record per-invocation latency; the dashboard reads it for the
+// diagnostics view.
+func (r *Registry) Metrics() *Metrics {
+	return r.metrics
 }
 
 // Register adds a connected daemon to the registry.

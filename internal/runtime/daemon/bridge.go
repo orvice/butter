@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+	"time"
 
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/session"
@@ -18,14 +19,26 @@ import (
 type Bridge struct {
 	registry   *Registry
 	capability string
+	metrics    *Metrics
 }
 
-// NewBridge creates a new bridge for the given capability.
+// NewBridge creates a new bridge for the given capability. It pulls the
+// metrics collector off the registry so bridge invocations are recorded.
 func NewBridge(registry *Registry, capability string) *Bridge {
-	return &Bridge{
+	b := &Bridge{
 		registry:   registry,
 		capability: capability,
 	}
+	if registry != nil {
+		b.metrics = registry.Metrics()
+	}
+	return b
+}
+
+// SetMetrics wires a metrics collector that will receive per-invocation
+// latency observations.
+func (b *Bridge) SetMetrics(m *Metrics) {
+	b.metrics = m
 }
 
 // BuildAgent produces an agent.Agent via agent.New(). This is required because
@@ -41,6 +54,13 @@ func (b *Bridge) BuildAgent(name, description string) (agent.Agent, error) {
 // run implements the ADK agent Run function signature.
 func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, error] {
 	return func(yield func(*session.Event, error) bool) {
+		started := time.Now()
+		defer func() {
+			if b.metrics != nil {
+				b.metrics.RecordLatency(time.Since(started))
+			}
+		}()
+
 		input := extractText(ctx.UserContent())
 
 		conn := b.registry.FindByCapability(b.capability)

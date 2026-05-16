@@ -661,11 +661,12 @@ var MCPServerService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	RemoteAgentService_ListRemoteAgents_FullMethodName  = "/agents.v1.RemoteAgentService/ListRemoteAgents"
-	RemoteAgentService_GetRemoteAgent_FullMethodName    = "/agents.v1.RemoteAgentService/GetRemoteAgent"
-	RemoteAgentService_CreateRemoteAgent_FullMethodName = "/agents.v1.RemoteAgentService/CreateRemoteAgent"
-	RemoteAgentService_UpdateRemoteAgent_FullMethodName = "/agents.v1.RemoteAgentService/UpdateRemoteAgent"
-	RemoteAgentService_DeleteRemoteAgent_FullMethodName = "/agents.v1.RemoteAgentService/DeleteRemoteAgent"
+	RemoteAgentService_ListRemoteAgents_FullMethodName     = "/agents.v1.RemoteAgentService/ListRemoteAgents"
+	RemoteAgentService_GetRemoteAgent_FullMethodName       = "/agents.v1.RemoteAgentService/GetRemoteAgent"
+	RemoteAgentService_CreateRemoteAgent_FullMethodName    = "/agents.v1.RemoteAgentService/CreateRemoteAgent"
+	RemoteAgentService_UpdateRemoteAgent_FullMethodName    = "/agents.v1.RemoteAgentService/UpdateRemoteAgent"
+	RemoteAgentService_DeleteRemoteAgent_FullMethodName    = "/agents.v1.RemoteAgentService/DeleteRemoteAgent"
+	RemoteAgentService_GetRemoteAgentStatus_FullMethodName = "/agents.v1.RemoteAgentService/GetRemoteAgentStatus"
 )
 
 // RemoteAgentServiceClient is the client API for RemoteAgentService service.
@@ -679,6 +680,9 @@ type RemoteAgentServiceClient interface {
 	CreateRemoteAgent(ctx context.Context, in *CreateRemoteAgentRequest, opts ...grpc.CallOption) (*CreateRemoteAgentResponse, error)
 	UpdateRemoteAgent(ctx context.Context, in *UpdateRemoteAgentRequest, opts ...grpc.CallOption) (*UpdateRemoteAgentResponse, error)
 	DeleteRemoteAgent(ctx context.Context, in *DeleteRemoteAgentRequest, opts ...grpc.CallOption) (*DeleteRemoteAgentResponse, error)
+	// GetRemoteAgentStatus probes the configured remote agent endpoint and
+	// returns its liveness state (A2A: HTTP agent.json; daemon: registry).
+	GetRemoteAgentStatus(ctx context.Context, in *GetRemoteAgentStatusRequest, opts ...grpc.CallOption) (*GetRemoteAgentStatusResponse, error)
 }
 
 type remoteAgentServiceClient struct {
@@ -739,6 +743,16 @@ func (c *remoteAgentServiceClient) DeleteRemoteAgent(ctx context.Context, in *De
 	return out, nil
 }
 
+func (c *remoteAgentServiceClient) GetRemoteAgentStatus(ctx context.Context, in *GetRemoteAgentStatusRequest, opts ...grpc.CallOption) (*GetRemoteAgentStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRemoteAgentStatusResponse)
+	err := c.cc.Invoke(ctx, RemoteAgentService_GetRemoteAgentStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RemoteAgentServiceServer is the server API for RemoteAgentService service.
 // All implementations must embed UnimplementedRemoteAgentServiceServer
 // for forward compatibility.
@@ -750,6 +764,9 @@ type RemoteAgentServiceServer interface {
 	CreateRemoteAgent(context.Context, *CreateRemoteAgentRequest) (*CreateRemoteAgentResponse, error)
 	UpdateRemoteAgent(context.Context, *UpdateRemoteAgentRequest) (*UpdateRemoteAgentResponse, error)
 	DeleteRemoteAgent(context.Context, *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error)
+	// GetRemoteAgentStatus probes the configured remote agent endpoint and
+	// returns its liveness state (A2A: HTTP agent.json; daemon: registry).
+	GetRemoteAgentStatus(context.Context, *GetRemoteAgentStatusRequest) (*GetRemoteAgentStatusResponse, error)
 	mustEmbedUnimplementedRemoteAgentServiceServer()
 }
 
@@ -774,6 +791,9 @@ func (UnimplementedRemoteAgentServiceServer) UpdateRemoteAgent(context.Context, 
 }
 func (UnimplementedRemoteAgentServiceServer) DeleteRemoteAgent(context.Context, *DeleteRemoteAgentRequest) (*DeleteRemoteAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteRemoteAgent not implemented")
+}
+func (UnimplementedRemoteAgentServiceServer) GetRemoteAgentStatus(context.Context, *GetRemoteAgentStatusRequest) (*GetRemoteAgentStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRemoteAgentStatus not implemented")
 }
 func (UnimplementedRemoteAgentServiceServer) mustEmbedUnimplementedRemoteAgentServiceServer() {}
 func (UnimplementedRemoteAgentServiceServer) testEmbeddedByValue()                            {}
@@ -886,6 +906,24 @@ func _RemoteAgentService_DeleteRemoteAgent_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RemoteAgentService_GetRemoteAgentStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRemoteAgentStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RemoteAgentServiceServer).GetRemoteAgentStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RemoteAgentService_GetRemoteAgentStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RemoteAgentServiceServer).GetRemoteAgentStatus(ctx, req.(*GetRemoteAgentStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RemoteAgentService_ServiceDesc is the grpc.ServiceDesc for RemoteAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -912,6 +950,10 @@ var RemoteAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteRemoteAgent",
 			Handler:    _RemoteAgentService_DeleteRemoteAgent_Handler,
+		},
+		{
+			MethodName: "GetRemoteAgentStatus",
+			Handler:    _RemoteAgentService_GetRemoteAgentStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

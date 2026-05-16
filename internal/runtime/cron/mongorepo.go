@@ -3,6 +3,7 @@ package cron
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -114,6 +115,29 @@ func (r *MongoExecutionRepo) List(ctx context.Context, jobName string, pageSize 
 	}
 
 	return results, nextPageToken, nil
+}
+
+func (r *MongoExecutionRepo) ListByTimeRange(ctx context.Context, jobName string, start, end time.Time) ([]*agentsv1.CronExecution, error) {
+	filter := bson.M{"started_at": bson.M{"$gte": start, "$lt": end}}
+	if jobName != "" {
+		filter["job_name"] = jobName
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "started_at", Value: 1}})
+	cursor, err := r.coll.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("find cron executions by range: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var docs []executionDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("decode cron executions: %w", err)
+	}
+	results := make([]*agentsv1.CronExecution, len(docs))
+	for i := range docs {
+		results[i] = docToProto(&docs[i])
+	}
+	return results, nil
 }
 
 func (r *MongoExecutionRepo) GetByID(ctx context.Context, id string) (*agentsv1.CronExecution, error) {

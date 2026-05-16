@@ -9,6 +9,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -54,6 +55,9 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 	}
 
 	conn := NewConnection(regInfo)
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		conn.RemoteAddr = p.Addr.String()
+	}
 	h.registry.Register(conn)
 	defer func() {
 		conn.Close()

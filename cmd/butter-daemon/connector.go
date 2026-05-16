@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"runtime"
 	"sync"
 	"time"
 
@@ -15,6 +16,10 @@ import (
 	"go.orx.me/apps/butter/cmd/butter-daemon/executor"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+// daemonVersion is the semantic version of the daemon client binary. It is
+// surfaced at registration so the server-side dashboard can display it.
+const daemonVersion = "v0.1.0"
 
 // Connector manages the gRPC connection to the butter server.
 type Connector struct {
@@ -97,6 +102,9 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 				Name:         c.cfg.Name,
 				Capabilities: capabilities,
 				Labels:       c.cfg.Labels,
+				Version:      daemonVersion,
+				Os:           runtime.GOOS + "-" + runtime.GOARCH,
+				Executors:    capabilities,
 			},
 		},
 	})

@@ -18,6 +18,9 @@ type Connection struct {
 	Info        *agentsv1.DaemonInfo
 	SendCh      chan *agentsv1.ConnectResponse // server → daemon
 	ConnectedAt time.Time
+	// RemoteAddr is the peer address captured at handshake; empty if the gRPC
+	// transport did not surface peer info.
+	RemoteAddr string
 
 	mu          sync.Mutex
 	activeTasks map[string]chan *agentsv1.DaemonTaskUpdate // task_id → result channel
@@ -101,6 +104,18 @@ func (c *Connection) HasTask(taskID string) bool {
 	defer c.mu.Unlock()
 	_, ok := c.activeTasks[taskID]
 	return ok
+}
+
+// ActiveTaskIDs returns the ids of all in-flight tasks on this connection.
+// Used by the dashboard to surface active work.
+func (c *Connection) ActiveTaskIDs() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]string, 0, len(c.activeTasks))
+	for id := range c.activeTasks {
+		out = append(out, id)
+	}
+	return out
 }
 
 // Close marks the connection as closed and notifies all active task waiters

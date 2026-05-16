@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	internalagent "go.orx.me/apps/butter/internal/agent"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
@@ -118,15 +119,32 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 		return nil, toTwirpError(err)
 	}
 
-	// Live connectivity probing is not yet implemented; report CONFIGURED with
-	// the static tool whitelist size as the tool_count hint.
 	status := &agentsv1.MCPServerStatus{
 		Id:        m.GetId(),
 		Name:      m.GetName(),
-		State:     agentsv1.MCPServerStatus_STATE_CONFIGURED,
-		ToolCount: int32(len(m.GetToolFilter())),
 		CheckedAt: timestamppb.New(time.Now().UTC()),
 	}
+
+	if m.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
+		// Probing STDIO requires spawning a subprocess; report CONFIGURED with
+		// the static tool whitelist size as the hint.
+		status.State = agentsv1.MCPServerStatus_STATE_CONFIGURED
+		status.ToolCount = int32(len(m.GetToolFilter()))
+		status.Detail = "stdio probing not supported"
+		return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
+	}
+
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	result, err := internalagent.ProbeMCPServer(probeCtx, m)
+	if err != nil {
+		status.State = agentsv1.MCPServerStatus_STATE_DISCONNECTED
+		status.Detail = err.Error()
+		status.ToolCount = int32(len(m.GetToolFilter()))
+		return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
+	}
+	status.State = agentsv1.MCPServerStatus_STATE_CONNECTED
+	status.ToolCount = int32(result.ToolCount)
 	return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
 }
 

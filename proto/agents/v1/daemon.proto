@@ -24,6 +24,20 @@ message DaemonInfo {
   // Routing labels (reserved for future use; not used for selection in Phase 1).
   // @gotags: json:"labels,omitempty" yaml:"labels,omitempty"
   map<string, string> labels = 4;
+
+  // Semantic version of the daemon client binary (e.g. "v1.4.2").
+  // @gotags: json:"version,omitempty" yaml:"version,omitempty"
+  string version = 5;
+
+  // Operating system identifier (e.g. "linux-amd64", "darwin-arm64").
+  // @gotags: json:"os,omitempty" yaml:"os,omitempty"
+  string os = 6;
+
+  // Optional executor names the daemon will use (e.g. "shell", "open-code",
+  // "claude-code"). Surfaced to the dashboard for diagnostics. Capabilities
+  // remain the routing primitive; this is purely informational.
+  // @gotags: json:"executors,omitempty" yaml:"executors,omitempty"
+  repeated string executors = 7;
 }
 
 // DaemonTask is a task assignment sent from server to daemon.
