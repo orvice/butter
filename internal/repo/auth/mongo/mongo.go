@@ -89,6 +89,27 @@ func (s *Store) CountUsers(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
+func (s *Store) ListUsers(ctx context.Context) ([]*agentsv1.User, error) {
+	cursor, err := s.users.Find(ctx, bson.M{}, options.Find().SetSort(bson.D{{Key: "created_at", Value: 1}}))
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var users []*agentsv1.User
+	for cursor.Next(ctx) {
+		var doc userDoc
+		if err := cursor.Decode(&doc); err != nil {
+			return nil, fmt.Errorf("decode user: %w", err)
+		}
+		users = append(users, userToProto(&doc))
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("iterate users: %w", err)
+	}
+	return users, nil
+}
+
 func (s *Store) CreateUser(ctx context.Context, user *agentsv1.User, passwordHash string) error {
 	doc := userDoc{
 		ID:           user.GetId(),
@@ -101,9 +122,46 @@ func (s *Store) CreateUser(ctx context.Context, user *agentsv1.User, passwordHas
 		UpdatedAt:    user.GetUpdatedAt().AsTime(),
 	}
 	if _, err := s.users.InsertOne(ctx, doc); err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return auth.ErrUserAlreadyExists
+		}
 		return fmt.Errorf("insert user: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) UpdateUserPassword(ctx context.Context, id string, passwordHash string, updatedAt time.Time) (*agentsv1.User, error) {
+	res := s.users.FindOneAndUpdate(
+		ctx,
+		bson.M{"_id": id},
+		bson.M{"$set": bson.M{"password_hash": passwordHash, "updated_at": updatedAt}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+	var doc userDoc
+	if err := res.Decode(&doc); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, auth.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("update user password: %w", err)
+	}
+	return userToProto(&doc), nil
+}
+
+func (s *Store) SetUserDisabled(ctx context.Context, id string, disabled bool, updatedAt time.Time) (*agentsv1.User, error) {
+	res := s.users.FindOneAndUpdate(
+		ctx,
+		bson.M{"_id": id},
+		bson.M{"$set": bson.M{"disabled": disabled, "updated_at": updatedAt}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+	var doc userDoc
+	if err := res.Decode(&doc); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, auth.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("set user disabled: %w", err)
+	}
+	return userToProto(&doc), nil
 }
 
 func (s *Store) FindUserByUsername(ctx context.Context, username string) (*agentsv1.User, string, error) {

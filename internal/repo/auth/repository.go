@@ -9,9 +9,10 @@ import (
 )
 
 var (
-	ErrUserNotFound    = errors.New("user not found")
-	ErrSessionNotFound = errors.New("auth session not found")
-	ErrUserDisabled    = errors.New("user disabled")
+	ErrUserNotFound      = errors.New("user not found")
+	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrSessionNotFound   = errors.New("auth session not found")
+	ErrUserDisabled      = errors.New("user disabled")
 )
 
 type Session struct {
@@ -27,7 +28,10 @@ type Session struct {
 type Repository interface {
 	EnsureIndexes(ctx context.Context) error
 	CountUsers(ctx context.Context) (int64, error)
+	ListUsers(ctx context.Context) ([]*agentsv1.User, error)
 	CreateUser(ctx context.Context, user *agentsv1.User, passwordHash string) error
+	UpdateUserPassword(ctx context.Context, id string, passwordHash string, updatedAt time.Time) (*agentsv1.User, error)
+	SetUserDisabled(ctx context.Context, id string, disabled bool, updatedAt time.Time) (*agentsv1.User, error)
 	FindUserByUsername(ctx context.Context, username string) (*agentsv1.User, string, error)
 	GetUser(ctx context.Context, id string) (*agentsv1.User, error)
 	CreateSession(ctx context.Context, session *Session) error

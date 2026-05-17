@@ -39,6 +39,16 @@ const (
 	AuthServiceMeProcedure = "/agents.v1.AuthService/Me"
 	// AuthServiceLogoutProcedure is the fully-qualified name of the AuthService's Logout RPC.
 	AuthServiceLogoutProcedure = "/agents.v1.AuthService/Logout"
+	// AuthServiceListUsersProcedure is the fully-qualified name of the AuthService's ListUsers RPC.
+	AuthServiceListUsersProcedure = "/agents.v1.AuthService/ListUsers"
+	// AuthServiceCreateUserProcedure is the fully-qualified name of the AuthService's CreateUser RPC.
+	AuthServiceCreateUserProcedure = "/agents.v1.AuthService/CreateUser"
+	// AuthServiceUpdateUserPasswordProcedure is the fully-qualified name of the AuthService's
+	// UpdateUserPassword RPC.
+	AuthServiceUpdateUserPasswordProcedure = "/agents.v1.AuthService/UpdateUserPassword"
+	// AuthServiceSetUserDisabledProcedure is the fully-qualified name of the AuthService's
+	// SetUserDisabled RPC.
+	AuthServiceSetUserDisabledProcedure = "/agents.v1.AuthService/SetUserDisabled"
 )
 
 // AuthServiceClient is a client for the agents.v1.AuthService service.
@@ -49,6 +59,14 @@ type AuthServiceClient interface {
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
 	// Logout revokes the current session token.
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	// ListUsers lists dashboard users. Admin only.
+	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
+	// CreateUser creates a dashboard user. Admin only.
+	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
+	// UpdateUserPassword changes a user's password. Admin only.
+	UpdateUserPassword(context.Context, *connect.Request[v1.UpdateUserPasswordRequest]) (*connect.Response[v1.UpdateUserPasswordResponse], error)
+	// SetUserDisabled enables or disables a user. Admin only.
+	SetUserDisabled(context.Context, *connect.Request[v1.SetUserDisabledRequest]) (*connect.Response[v1.SetUserDisabledResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the agents.v1.AuthService service. By default, it
@@ -80,14 +98,42 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("Logout")),
 			connect.WithClientOptions(opts...),
 		),
+		listUsers: connect.NewClient[v1.ListUsersRequest, v1.ListUsersResponse](
+			httpClient,
+			baseURL+AuthServiceListUsersProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ListUsers")),
+			connect.WithClientOptions(opts...),
+		),
+		createUser: connect.NewClient[v1.CreateUserRequest, v1.CreateUserResponse](
+			httpClient,
+			baseURL+AuthServiceCreateUserProcedure,
+			connect.WithSchema(authServiceMethods.ByName("CreateUser")),
+			connect.WithClientOptions(opts...),
+		),
+		updateUserPassword: connect.NewClient[v1.UpdateUserPasswordRequest, v1.UpdateUserPasswordResponse](
+			httpClient,
+			baseURL+AuthServiceUpdateUserPasswordProcedure,
+			connect.WithSchema(authServiceMethods.ByName("UpdateUserPassword")),
+			connect.WithClientOptions(opts...),
+		),
+		setUserDisabled: connect.NewClient[v1.SetUserDisabledRequest, v1.SetUserDisabledResponse](
+			httpClient,
+			baseURL+AuthServiceSetUserDisabledProcedure,
+			connect.WithSchema(authServiceMethods.ByName("SetUserDisabled")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
-	login  *connect.Client[v1.LoginRequest, v1.LoginResponse]
-	me     *connect.Client[v1.MeRequest, v1.MeResponse]
-	logout *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
+	login              *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	me                 *connect.Client[v1.MeRequest, v1.MeResponse]
+	logout             *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
+	listUsers          *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
+	createUser         *connect.Client[v1.CreateUserRequest, v1.CreateUserResponse]
+	updateUserPassword *connect.Client[v1.UpdateUserPasswordRequest, v1.UpdateUserPasswordResponse]
+	setUserDisabled    *connect.Client[v1.SetUserDisabledRequest, v1.SetUserDisabledResponse]
 }
 
 // Login calls agents.v1.AuthService.Login.
@@ -105,6 +151,26 @@ func (c *authServiceClient) Logout(ctx context.Context, req *connect.Request[v1.
 	return c.logout.CallUnary(ctx, req)
 }
 
+// ListUsers calls agents.v1.AuthService.ListUsers.
+func (c *authServiceClient) ListUsers(ctx context.Context, req *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error) {
+	return c.listUsers.CallUnary(ctx, req)
+}
+
+// CreateUser calls agents.v1.AuthService.CreateUser.
+func (c *authServiceClient) CreateUser(ctx context.Context, req *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error) {
+	return c.createUser.CallUnary(ctx, req)
+}
+
+// UpdateUserPassword calls agents.v1.AuthService.UpdateUserPassword.
+func (c *authServiceClient) UpdateUserPassword(ctx context.Context, req *connect.Request[v1.UpdateUserPasswordRequest]) (*connect.Response[v1.UpdateUserPasswordResponse], error) {
+	return c.updateUserPassword.CallUnary(ctx, req)
+}
+
+// SetUserDisabled calls agents.v1.AuthService.SetUserDisabled.
+func (c *authServiceClient) SetUserDisabled(ctx context.Context, req *connect.Request[v1.SetUserDisabledRequest]) (*connect.Response[v1.SetUserDisabledResponse], error) {
+	return c.setUserDisabled.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the agents.v1.AuthService service.
 type AuthServiceHandler interface {
 	// Login is public and exchanges username/password for a session token.
@@ -113,6 +179,14 @@ type AuthServiceHandler interface {
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
 	// Logout revokes the current session token.
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	// ListUsers lists dashboard users. Admin only.
+	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
+	// CreateUser creates a dashboard user. Admin only.
+	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
+	// UpdateUserPassword changes a user's password. Admin only.
+	UpdateUserPassword(context.Context, *connect.Request[v1.UpdateUserPasswordRequest]) (*connect.Response[v1.UpdateUserPasswordResponse], error)
+	// SetUserDisabled enables or disables a user. Admin only.
+	SetUserDisabled(context.Context, *connect.Request[v1.SetUserDisabledRequest]) (*connect.Response[v1.SetUserDisabledResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -140,6 +214,30 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("Logout")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceListUsersHandler := connect.NewUnaryHandler(
+		AuthServiceListUsersProcedure,
+		svc.ListUsers,
+		connect.WithSchema(authServiceMethods.ByName("ListUsers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceCreateUserHandler := connect.NewUnaryHandler(
+		AuthServiceCreateUserProcedure,
+		svc.CreateUser,
+		connect.WithSchema(authServiceMethods.ByName("CreateUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceUpdateUserPasswordHandler := connect.NewUnaryHandler(
+		AuthServiceUpdateUserPasswordProcedure,
+		svc.UpdateUserPassword,
+		connect.WithSchema(authServiceMethods.ByName("UpdateUserPassword")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceSetUserDisabledHandler := connect.NewUnaryHandler(
+		AuthServiceSetUserDisabledProcedure,
+		svc.SetUserDisabled,
+		connect.WithSchema(authServiceMethods.ByName("SetUserDisabled")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceLoginProcedure:
@@ -148,6 +246,14 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceMeHandler.ServeHTTP(w, r)
 		case AuthServiceLogoutProcedure:
 			authServiceLogoutHandler.ServeHTTP(w, r)
+		case AuthServiceListUsersProcedure:
+			authServiceListUsersHandler.ServeHTTP(w, r)
+		case AuthServiceCreateUserProcedure:
+			authServiceCreateUserHandler.ServeHTTP(w, r)
+		case AuthServiceUpdateUserPasswordProcedure:
+			authServiceUpdateUserPasswordHandler.ServeHTTP(w, r)
+		case AuthServiceSetUserDisabledProcedure:
+			authServiceSetUserDisabledHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -167,4 +273,20 @@ func (UnimplementedAuthServiceHandler) Me(context.Context, *connect.Request[v1.M
 
 func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.Logout is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.ListUsers is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.CreateUser is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) UpdateUserPassword(context.Context, *connect.Request[v1.UpdateUserPasswordRequest]) (*connect.Response[v1.UpdateUserPasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.UpdateUserPassword is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) SetUserDisabled(context.Context, *connect.Request[v1.SetUserDisabledRequest]) (*connect.Response[v1.SetUserDisabledResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.SetUserDisabled is not implemented"))
 }

@@ -24,6 +24,7 @@ import CronExecutionsPage from "@/pages/cron/executions";
 import DaemonListPage from "@/pages/daemons/list";
 import ChannelListPage from "@/pages/channels/list";
 import APITokenListPage from "@/pages/api-tokens/list";
+import UserListPage from "@/pages/users/list";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,6 +63,7 @@ export default function App() {
                 <Route path="daemons" element={<DaemonListPage />} />
                 <Route path="channels" element={<ChannelListPage />} />
                 <Route path="api-tokens" element={<APITokenListPage />} />
+                <Route path="users" element={<UserListPage />} />
               </Route>
             </Routes>
             <Toaster />

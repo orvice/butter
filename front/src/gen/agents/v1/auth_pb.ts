@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/auth.proto.
  */
 export const file_agents_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChRhZ2VudHMvdjEvYXV0aC5wcm90bxIJYWdlbnRzLnYxIroBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkQKDExvZ2luUmVxdWVzdBIZCgh1c2VybmFtZRgBIAEoCUIH+kIEcgIQARIZCghwYXNzd29yZBgCIAEoCUIH+kIEcgIQASJtCg1Mb2dpblJlc3BvbnNlEg0KBXRva2VuGAEgASgJEh0KBHVzZXIYAiABKAsyDy5hZ2VudHMudjEuVXNlchIuCgpleHBpcmVzX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCILCglNZVJlcXVlc3QiKwoKTWVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZTK7AQoLQXV0aFNlcnZpY2USOgoFTG9naW4SFy5hZ2VudHMudjEuTG9naW5SZXF1ZXN0GhguYWdlbnRzLnYxLkxvZ2luUmVzcG9uc2USMQoCTWUSFC5hZ2VudHMudjEuTWVSZXF1ZXN0GhUuYWdlbnRzLnYxLk1lUmVzcG9uc2USPQoGTG9nb3V0EhguYWdlbnRzLnYxLkxvZ291dFJlcXVlc3QaGS5hZ2VudHMudjEuTG9nb3V0UmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChRhZ2VudHMvdjEvYXV0aC5wcm90bxIJYWdlbnRzLnYxIroBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkQKDExvZ2luUmVxdWVzdBIZCgh1c2VybmFtZRgBIAEoCUIH+kIEcgIQARIZCghwYXNzd29yZBgCIAEoCUIH+kIEcgIQASJtCg1Mb2dpblJlc3BvbnNlEg0KBXRva2VuGAEgASgJEh0KBHVzZXIYAiABKAsyDy5hZ2VudHMudjEuVXNlchIuCgpleHBpcmVzX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCILCglNZVJlcXVlc3QiKwoKTWVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSISChBMaXN0VXNlcnNSZXF1ZXN0IjMKEUxpc3RVc2Vyc1Jlc3BvbnNlEh4KBXVzZXJzGAEgAygLMg8uYWdlbnRzLnYxLlVzZXIifwoRQ3JlYXRlVXNlclJlcXVlc3QSGQoIdXNlcm5hbWUYASABKAlCB/pCBHICEAESGQoIcGFzc3dvcmQYAiABKAlCB/pCBHICEAESFAoMZGlzcGxheV9uYW1lGAMgASgJEgwKBHJvbGUYBCABKAkSEAoIZGlzYWJsZWQYBSABKAgiMwoSQ3JlYXRlVXNlclJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJLChlVcGRhdGVVc2VyUGFzc3dvcmRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIjsKGlVwZGF0ZVVzZXJQYXNzd29yZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciI/ChZTZXRVc2VyRGlzYWJsZWRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhAKCGRpc2FibGVkGAIgASgIIjgKF1NldFVzZXJEaXNhYmxlZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlcjKLBAoLQXV0aFNlcnZpY2USOgoFTG9naW4SFy5hZ2VudHMudjEuTG9naW5SZXF1ZXN0GhguYWdlbnRzLnYxLkxvZ2luUmVzcG9uc2USMQoCTWUSFC5hZ2VudHMudjEuTWVSZXF1ZXN0GhUuYWdlbnRzLnYxLk1lUmVzcG9uc2USPQoGTG9nb3V0EhguYWdlbnRzLnYxLkxvZ291dFJlcXVlc3QaGS5hZ2VudHMudjEuTG9nb3V0UmVzcG9uc2USRgoJTGlzdFVzZXJzEhsuYWdlbnRzLnYxLkxpc3RVc2Vyc1JlcXVlc3QaHC5hZ2VudHMudjEuTGlzdFVzZXJzUmVzcG9uc2USSQoKQ3JlYXRlVXNlchIcLmFnZW50cy52MS5DcmVhdGVVc2VyUmVxdWVzdBodLmFnZW50cy52MS5DcmVhdGVVc2VyUmVzcG9uc2USYQoSVXBkYXRlVXNlclBhc3N3b3JkEiQuYWdlbnRzLnYxLlVwZGF0ZVVzZXJQYXNzd29yZFJlcXVlc3QaJS5hZ2VudHMudjEuVXBkYXRlVXNlclBhc3N3b3JkUmVzcG9uc2USWAoPU2V0VXNlckRpc2FibGVkEiEuYWdlbnRzLnYxLlNldFVzZXJEaXNhYmxlZFJlcXVlc3QaIi5hZ2VudHMudjEuU2V0VXNlckRpc2FibGVkUmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * @generated from message agents.v1.User
@@ -182,6 +182,168 @@ export const LogoutResponseSchema: GenMessage<LogoutResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_auth, 6);
 
 /**
+ * @generated from message agents.v1.ListUsersRequest
+ */
+export type ListUsersRequest = Message<"agents.v1.ListUsersRequest"> & {
+};
+
+/**
+ * Describes the message agents.v1.ListUsersRequest.
+ * Use `create(ListUsersRequestSchema)` to create a new message.
+ */
+export const ListUsersRequestSchema: GenMessage<ListUsersRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 7);
+
+/**
+ * @generated from message agents.v1.ListUsersResponse
+ */
+export type ListUsersResponse = Message<"agents.v1.ListUsersResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.User users = 1;
+   */
+  users: User[];
+};
+
+/**
+ * Describes the message agents.v1.ListUsersResponse.
+ * Use `create(ListUsersResponseSchema)` to create a new message.
+ */
+export const ListUsersResponseSchema: GenMessage<ListUsersResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 8);
+
+/**
+ * @generated from message agents.v1.CreateUserRequest
+ */
+export type CreateUserRequest = Message<"agents.v1.CreateUserRequest"> & {
+  /**
+   * @generated from field: string username = 1;
+   */
+  username: string;
+
+  /**
+   * @generated from field: string password = 2;
+   */
+  password: string;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: string role = 4;
+   */
+  role: string;
+
+  /**
+   * @generated from field: bool disabled = 5;
+   */
+  disabled: boolean;
+};
+
+/**
+ * Describes the message agents.v1.CreateUserRequest.
+ * Use `create(CreateUserRequestSchema)` to create a new message.
+ */
+export const CreateUserRequestSchema: GenMessage<CreateUserRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 9);
+
+/**
+ * @generated from message agents.v1.CreateUserResponse
+ */
+export type CreateUserResponse = Message<"agents.v1.CreateUserResponse"> & {
+  /**
+   * @generated from field: agents.v1.User user = 1;
+   */
+  user?: User;
+};
+
+/**
+ * Describes the message agents.v1.CreateUserResponse.
+ * Use `create(CreateUserResponseSchema)` to create a new message.
+ */
+export const CreateUserResponseSchema: GenMessage<CreateUserResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 10);
+
+/**
+ * @generated from message agents.v1.UpdateUserPasswordRequest
+ */
+export type UpdateUserPasswordRequest = Message<"agents.v1.UpdateUserPasswordRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string password = 2;
+   */
+  password: string;
+};
+
+/**
+ * Describes the message agents.v1.UpdateUserPasswordRequest.
+ * Use `create(UpdateUserPasswordRequestSchema)` to create a new message.
+ */
+export const UpdateUserPasswordRequestSchema: GenMessage<UpdateUserPasswordRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 11);
+
+/**
+ * @generated from message agents.v1.UpdateUserPasswordResponse
+ */
+export type UpdateUserPasswordResponse = Message<"agents.v1.UpdateUserPasswordResponse"> & {
+  /**
+   * @generated from field: agents.v1.User user = 1;
+   */
+  user?: User;
+};
+
+/**
+ * Describes the message agents.v1.UpdateUserPasswordResponse.
+ * Use `create(UpdateUserPasswordResponseSchema)` to create a new message.
+ */
+export const UpdateUserPasswordResponseSchema: GenMessage<UpdateUserPasswordResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 12);
+
+/**
+ * @generated from message agents.v1.SetUserDisabledRequest
+ */
+export type SetUserDisabledRequest = Message<"agents.v1.SetUserDisabledRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: bool disabled = 2;
+   */
+  disabled: boolean;
+};
+
+/**
+ * Describes the message agents.v1.SetUserDisabledRequest.
+ * Use `create(SetUserDisabledRequestSchema)` to create a new message.
+ */
+export const SetUserDisabledRequestSchema: GenMessage<SetUserDisabledRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 13);
+
+/**
+ * @generated from message agents.v1.SetUserDisabledResponse
+ */
+export type SetUserDisabledResponse = Message<"agents.v1.SetUserDisabledResponse"> & {
+  /**
+   * @generated from field: agents.v1.User user = 1;
+   */
+  user?: User;
+};
+
+/**
+ * Describes the message agents.v1.SetUserDisabledResponse.
+ * Use `create(SetUserDisabledResponseSchema)` to create a new message.
+ */
+export const SetUserDisabledResponseSchema: GenMessage<SetUserDisabledResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 14);
+
+/**
  * AuthService manages dashboard user authentication.
  *
  * @generated from service agents.v1.AuthService
@@ -216,6 +378,46 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof LogoutRequestSchema;
     output: typeof LogoutResponseSchema;
+  },
+  /**
+   * ListUsers lists dashboard users. Admin only.
+   *
+   * @generated from rpc agents.v1.AuthService.ListUsers
+   */
+  listUsers: {
+    methodKind: "unary";
+    input: typeof ListUsersRequestSchema;
+    output: typeof ListUsersResponseSchema;
+  },
+  /**
+   * CreateUser creates a dashboard user. Admin only.
+   *
+   * @generated from rpc agents.v1.AuthService.CreateUser
+   */
+  createUser: {
+    methodKind: "unary";
+    input: typeof CreateUserRequestSchema;
+    output: typeof CreateUserResponseSchema;
+  },
+  /**
+   * UpdateUserPassword changes a user's password. Admin only.
+   *
+   * @generated from rpc agents.v1.AuthService.UpdateUserPassword
+   */
+  updateUserPassword: {
+    methodKind: "unary";
+    input: typeof UpdateUserPasswordRequestSchema;
+    output: typeof UpdateUserPasswordResponseSchema;
+  },
+  /**
+   * SetUserDisabled enables or disables a user. Admin only.
+   *
+   * @generated from rpc agents.v1.AuthService.SetUserDisabled
+   */
+  setUserDisabled: {
+    methodKind: "unary";
+    input: typeof SetUserDisabledRequestSchema;
+    output: typeof SetUserDisabledResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_auth, 0);

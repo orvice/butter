@@ -18,6 +18,7 @@ import {
   Cpu,
   Cable,
   KeyRound,
+  Users,
   CircleCheck,
   CircleAlert,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashb
     items: [
       { to: "/channels", icon: Cable, label: "Channels" },
       { to: "/api-tokens", icon: KeyRound, label: "API Tokens" },
+      { to: "/users", icon: Users, label: "Users" },
     ],
   },
 ];

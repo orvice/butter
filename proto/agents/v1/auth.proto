@@ -15,6 +15,14 @@ service AuthService {
   rpc Me(MeRequest) returns (MeResponse);
   // Logout revokes the current session token.
   rpc Logout(LogoutRequest) returns (LogoutResponse);
+  // ListUsers lists dashboard users. Admin only.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  // CreateUser creates a dashboard user. Admin only.
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  // UpdateUserPassword changes a user's password. Admin only.
+  rpc UpdateUserPassword(UpdateUserPasswordRequest) returns (UpdateUserPasswordResponse);
+  // SetUserDisabled enables or disables a user. Admin only.
+  rpc SetUserDisabled(SetUserDisabledRequest) returns (SetUserDisabledResponse);
 }
 
 message User {
@@ -54,3 +62,39 @@ message MeResponse {
 message LogoutRequest {}
 
 message LogoutResponse {}
+
+message ListUsersRequest {}
+
+message ListUsersResponse {
+  repeated User users = 1;
+}
+
+message CreateUserRequest {
+  string username = 1 [(validate.rules).string.min_len = 1];
+  string password = 2 [(validate.rules).string.min_len = 1];
+  string display_name = 3;
+  string role = 4;
+  bool disabled = 5;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+
+message UpdateUserPasswordRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  string password = 2 [(validate.rules).string.min_len = 1];
+}
+
+message UpdateUserPasswordResponse {
+  User user = 1;
+}
+
+message SetUserDisabledRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  bool disabled = 2;
+}
+
+message SetUserDisabledResponse {
+  User user = 1;
+}
