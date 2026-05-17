@@ -1,17 +1,11 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "@/api/client";
 import { WORKSPACE_KEY } from "@/lib/constants";
 import { useAuth } from "@/hooks/use-auth";
+import { createWorkspaceRequest, listWorkspaces, type CreateWorkspaceInput } from "@/api/workspaces";
 import type { Workspace } from "@/gen/agents/v1/workspace_pb";
-
-const SVC = "agents.v1.WorkspaceService";
-
-export interface CreateWorkspaceInput {
-  name: string;
-  slug: string;
-  description?: string;
-}
 
 interface WorkspaceContextValue {
   workspaces: Workspace[];
@@ -21,27 +15,16 @@ interface WorkspaceContextValue {
   isCreating: boolean;
   error: unknown;
   setSelectedWorkspaceId: (id: string) => void;
+  clearSelectedWorkspace: () => void;
   createWorkspace: (input: CreateWorkspaceInput) => Promise<Workspace>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
-function listWorkspaces() {
-  return twirpFetch<object, { workspaces?: Workspace[] }>(SVC, "ListWorkspaces", {});
-}
-
-function createWorkspaceRequest(input: CreateWorkspaceInput) {
-  return twirpFetch<{ workspace: CreateWorkspaceInput }, { workspace?: Workspace }>(SVC, "CreateWorkspace", {
-    workspace: input,
-  });
-}
-
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loginWorkspaces } = useAuth();
   const queryClient = useQueryClient();
-  const [selectedWorkspaceId, setSelectedWorkspaceIdState] = useState<string>(() =>
-    localStorage.getItem(WORKSPACE_KEY) ?? "",
-  );
+  const [selectedWorkspaceId, setSelectedWorkspaceIdState] = useState<string>(() => localStorage.getItem(WORKSPACE_KEY) ?? "");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["workspaces"],
@@ -57,18 +40,39 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (!workspace?.id) return;
       localStorage.setItem(WORKSPACE_KEY, workspace.id);
       setSelectedWorkspaceIdState(workspace.id);
-      void queryClient.invalidateQueries();
+      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     },
   });
-
-  const workspaces = useMemo(() => data?.workspaces ?? [], [data?.workspaces]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       localStorage.removeItem(WORKSPACE_KEY);
+      queueMicrotask(() => setSelectedWorkspaceIdState(""));
       return;
     }
-    if (workspaces.length === 0) return;
+
+    if (loginWorkspaces.length > 0) {
+      queryClient.setQueryData(["workspaces"], { workspaces: loginWorkspaces });
+    }
+  }, [isAuthenticated, loginWorkspaces, queryClient]);
+
+  const workspaces = useMemo(() => {
+    if (data?.workspaces !== undefined) {
+      return data.workspaces;
+    }
+    return loginWorkspaces;
+  }, [data?.workspaces, loginWorkspaces]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    if (workspaces.length === 0) {
+      localStorage.removeItem(WORKSPACE_KEY);
+      queueMicrotask(() => setSelectedWorkspaceIdState(""));
+      return;
+    }
 
     const persisted = localStorage.getItem(WORKSPACE_KEY) ?? "";
     const persistedIsValid = persisted && workspaces.some((ws) => ws.id === persisted);
@@ -77,14 +81,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (selectedIsValid) return;
 
     const next = persistedIsValid ? persisted : workspaces[0]?.id ?? "";
+    if (!next) return;
 
-    if (next) {
-      localStorage.setItem(WORKSPACE_KEY, next);
-      queueMicrotask(() => {
-        setSelectedWorkspaceIdState(next);
-        void queryClient.invalidateQueries();
-      });
-    }
+    localStorage.setItem(WORKSPACE_KEY, next);
+    queueMicrotask(() => {
+      setSelectedWorkspaceIdState(next);
+      void queryClient.invalidateQueries();
+    });
   }, [isAuthenticated, queryClient, selectedWorkspaceId, workspaces]);
 
   const setSelectedWorkspaceId = useCallback(
@@ -96,6 +99,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     },
     [queryClient, selectedWorkspaceId],
   );
+
+  const clearSelectedWorkspace = useCallback(() => {
+    localStorage.removeItem(WORKSPACE_KEY);
+    setSelectedWorkspaceIdState("");
+    void queryClient.invalidateQueries();
+  }, [queryClient]);
 
   const createWorkspace = useCallback(
     async (input: CreateWorkspaceInput) => {
@@ -123,6 +132,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         isCreating: createMutation.isPending,
         error,
         setSelectedWorkspaceId,
+        clearSelectedWorkspace,
         createWorkspace,
       }}
     >
@@ -131,7 +141,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useWorkspace(): WorkspaceContextValue {
   const ctx = useContext(WorkspaceContext);
   if (!ctx) throw new Error("useWorkspace must be inside WorkspaceProvider");

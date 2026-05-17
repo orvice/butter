@@ -20,7 +20,7 @@ export default function LoginPage() {
     try {
       const ok = await login(username.trim(), password);
       if (ok) {
-        navigate("/");
+        navigate("/", { replace: true });
       } else {
         setError("Invalid username or password. Please check and try again.");
       }

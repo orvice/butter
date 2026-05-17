@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Workspace } from "@/gen/agents/v1/workspace_pb";
 import { twirpFetch } from "./client";
 
 export interface AuthUser {
@@ -19,6 +20,7 @@ export interface LoginResponse {
   user?: AuthUser;
   expires_at?: string;
   expiresAt?: string;
+  workspaces?: Workspace[];
 }
 
 export interface CreateUserInput {
