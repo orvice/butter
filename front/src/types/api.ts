@@ -170,6 +170,19 @@ export interface RemoteAgent {
   daemon_capability?: string;
 }
 
+export interface ModelConfig {
+  name: string;
+  alias?: string;
+}
+
+export interface ModelProvider {
+  name: string;
+  type: string;
+  api_key?: string;
+  base_url?: string;
+  models?: ModelConfig[];
+}
+
 export interface SessionInfo {
   session_id: string;
   app_name: string;
