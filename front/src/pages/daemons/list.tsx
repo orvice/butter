@@ -7,7 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import type { DaemonStatus, DaemonTaskInFlight } from "@/types/api";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
-import { Cpu, MemoryStick, Activity, X } from "lucide-react";
+import { AlertCircle, Cpu, MemoryStick, Activity, X } from "lucide-react";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
 
 function fmtBytes(n: number | undefined): string {
   if (!n) return "0 B";
@@ -51,9 +55,9 @@ function DaemonStateBadge({ state }: { state?: DaemonStatus["state"] }) {
 }
 
 export default function DaemonListPage() {
-  const { data: daemonData, isLoading: loadingDaemons } = useDaemons();
-  const { data: taskData } = useDaemonTasks();
-  const { data: bridgeData } = useBridgeDiagnostics();
+  const { data: daemonData, isLoading: loadingDaemons, error: daemonError } = useDaemons();
+  const { data: taskData, error: taskError } = useDaemonTasks();
+  const { data: bridgeData, error: bridgeError } = useBridgeDiagnostics();
   const cancelTask = useCancelDaemonTask();
 
   const daemons = daemonData?.daemons ?? [];
@@ -108,7 +112,9 @@ export default function DaemonListPage() {
         <Button
           size="icon"
           variant="ghost"
+          disabled={!r.task_id}
           onClick={() => {
+            if (!r.task_id) return;
             cancelTask.mutate(
               { taskId: r.task_id, daemonId: r.daemon_id },
               {
@@ -133,8 +139,24 @@ export default function DaemonListPage() {
     <div className="space-y-6">
       <PageHeader title="Daemon Monitor" />
 
+      {[daemonError, taskError, bridgeError].filter(Boolean).length > 0 ? (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 pt-6 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-medium">Some daemon data could not be loaded.</p>
+              <ul className="list-disc pl-4 text-xs">
+                {daemonError ? <li>Daemons: {errorMessage(daemonError)}</li> : null}
+                {taskError ? <li>Tasks: {errorMessage(taskError)}</li> : null}
+                {bridgeError ? <li>Diagnostics: {errorMessage(bridgeError)}</li> : null}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Top stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Active Daemons</CardTitle></CardHeader>
           <CardContent>
