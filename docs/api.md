@@ -2,18 +2,37 @@
 
 ## Authentication
 
-All endpoints except `GET /ping` require Bearer token authentication:
+All endpoints except `GET /ping` and `AuthService.Login` require Bearer token authentication:
 
 ```
 Authorization: Bearer <token>
 ```
 
-Two token sources are accepted by `APITokenAuthMiddleware`:
+Three token sources are accepted by `AuthMiddleware` (tried in order):
 
-1. **Root token** — the single value of `apiToken` in `config.yaml`. Compared with constant-time. Intended for ops / CLI.
-2. **DB-stored tokens** — managed at runtime via `APITokenService` (see below). Stored as `sha256` hashes; only the prefix is visible. Successful auth updates `last_used_at` asynchronously.
+1. **Dashboard user session** — issued by `AuthService.Login`. The middleware looks up the hashed token in `auth_sessions` and asynchronously updates `last_used_at`.
+2. **Root token** — the single value of `apiToken` in `config.yaml`. Compared with constant-time. Intended for ops / CLI.
+3. **DB-stored API tokens** — managed at runtime via `APITokenService` (see below). Stored as `sha256` hashes; only the prefix is visible. Each token is bound to one workspace. Successful auth updates `last_used_at` asynchronously.
 
 `401 Unauthorized` on failure.
+
+## Workspace selection
+
+All configuration / runtime CRUD endpoints (`AgentService` / `MCPServerService` / `ModelProviderService` / `RemoteAgentService` / `ChannelService` / `CronJobService` / `APITokenService`) are scoped to a workspace. Clients select the active workspace via:
+
+```
+X-Workspace-ID: <workspace-id>
+```
+
+Resolution rules:
+
+- A **user session** must be a member of the workspace identified by `X-Workspace-ID`; global `admin` users bypass the membership check.
+- An **API token** ignores any caller-supplied header and uses the workspace bound to the token at creation time.
+- The **root token** accepts the `X-Workspace-ID` header verbatim.
+
+If the header is missing on a workspace-scoped RPC the server returns `failed_precondition` with message `workspace required (set X-Workspace-ID header)`. `AuthService`, `WorkspaceService`, `DashboardService`, `DaemonService`, and `SessionService` do not require the header (they operate globally or self-resolve workspace).
+
+On login, `AuthService.Login` returns the user's accessible workspaces in `LoginResponse.workspaces`; the dashboard uses that list to render the workspace picker before storing the chosen id in `X-Workspace-ID`.
 
 ## REST Endpoints
 
@@ -349,7 +368,7 @@ Returns persisted invocation records, optionally filtered.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Unique name (required, cannot be "user") |
+| `name` | string | Unique name (required, cannot be "user"; must be globally unique across workspaces while the runtime keeps a flat view) |
 | `description` | string | Description for LLM delegation |
 | `sub_agents` | Agent[] | Nested sub-agents |
 | `labels` | map\<string,string\> | Routing/indexing labels |
@@ -357,6 +376,7 @@ Returns persisted invocation records, optionally filtered.
 | `config` | AgentConfig | Execution settings (see below) |
 | `type` | enum | `AGENT_TYPE_LLM`, `AGENT_TYPE_LOOP`, `AGENT_TYPE_SEQUENTIAL`, `AGENT_TYPE_PARALLEL` |
 | `enable_a2a` | bool | Expose via A2A protocol |
+| `workspace_id` | string | Owning workspace (server-enforced from `X-Workspace-ID` on writes; returned on reads) |
 
 #### AgentConfig Object
 
@@ -403,6 +423,7 @@ Returns persisted invocation records, optionally filtered.
 | `latency_ms` | int64 |  |
 | `model_override` | string |  |
 | `source` | string | `ContextSource` enum string |
+| `workspace_id` | string | Workspace the invocation ran under |
 
 ---
 
@@ -546,7 +567,7 @@ Enumerates tools across configured MCP servers. STDIO transports are skipped and
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | string | Unique identifier |
+| `id` | string | Unique identifier within a workspace |
 | `name` | string | Server name (required) |
 | `transport` | enum | `MCP_SERVER_TRANSPORT_STDIO`, `MCP_SERVER_TRANSPORT_STREAMABLE_HTTP`, `MCP_SERVER_TRANSPORT_SSE` |
 | `command` | string | Command for stdio transport |
@@ -556,6 +577,7 @@ Enumerates tools across configured MCP servers. STDIO transports are skipped and
 | `headers` | map\<string,string\> | HTTP headers |
 | `tool_filter` | string[] | Allowlist of exposed tools |
 | `metadata` | map\<string,string\> | Custom metadata |
+| `workspace_id` | string | Owning workspace |
 
 ---
 
@@ -674,11 +696,12 @@ Probes the endpoint and reports liveness.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | string | Unique identifier (required) |
+| `id` | string | Unique identifier within a workspace (required) |
 | `name` | string | Human-readable name (required) |
 | `url` | string | Endpoint URL (required for A2A) |
 | `protocol` | enum | `REMOTE_AGENT_PROTOCOL_A2A`, `REMOTE_AGENT_PROTOCOL_DAEMON` |
 | `daemon_capability` | string | Required for DAEMON protocol |
+| `workspace_id` | string | Owning workspace |
 
 ---
 
@@ -1041,14 +1064,15 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Unique name (required) |
+| `name` | string | Unique name within a workspace (required) |
 | `schedule` | string | Cron expression or predefined schedule (required) |
-| `agent_name` | string | Agent to execute (required) |
+| `agent_name` | string | Agent to execute (required; resolved by name globally) |
 | `input` | string | Message to send to agent |
 | `timezone` | string | IANA timezone (default UTC) |
 | `enabled` | bool | Whether the job is active |
 | `delivery` | CronDelivery | Result delivery config |
 | `metadata` | map\<string,string\> | Custom metadata |
+| `workspace_id` | string | Owning workspace |
 
 **Schedule formats:**
 - Standard 5-field: `*/5 * * * *` (every 5 min), `0 9 * * *` (daily at 9:00)
@@ -1075,6 +1099,7 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `output` | string | Agent output or error message |
 | `started_at` | timestamp | Execution start time |
 | `finished_at` | timestamp | Execution end time |
+| `workspace_id` | string | Workspace that owns the parent cron job |
 
 ---
 
@@ -1274,9 +1299,109 @@ Process-level diagnostics for the daemon bridge.
 
 ---
 
+### WorkspaceService
+
+Manages workspaces and their memberships. No `X-Workspace-ID` header required — the service is the workspace selector itself.
+
+#### ListWorkspaces
+
+```
+POST /api/agents.v1.WorkspaceService/ListWorkspaces
+```
+
+Returns the workspaces the caller can access. Global `admin` users get every workspace; other users only see their memberships.
+
+**Request:** `{}`
+
+**Response:** `{ "workspaces": Workspace[] }`
+
+#### GetWorkspace
+
+```
+POST /api/agents.v1.WorkspaceService/GetWorkspace
+```
+
+**Request:** `{ "id": "<workspace-id>" }`
+
+**Response:** `{ "workspace": Workspace }`
+
+#### CreateWorkspace
+
+```
+POST /api/agents.v1.WorkspaceService/CreateWorkspace
+```
+
+Creates a new workspace; the caller is added as the initial `owner`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workspace.name` | string | Required display name |
+| `workspace.slug` | string | Required URL-safe slug (must be unique) |
+| `workspace.description` | string | Optional |
+
+**Response:** `{ "workspace": Workspace }` — `id`, `created_at`, `updated_at` filled by server.
+
+#### UpdateWorkspace / DeleteWorkspace
+
+Standard CRUD: `UpdateWorkspace` takes a full `Workspace` (matched by `id`); `DeleteWorkspace` takes `{ "id": "<workspace-id>" }`. `DeleteWorkspace` also removes every `workspace_members` row for that workspace.
+
+#### ListWorkspaceMembers
+
+```
+POST /api/agents.v1.WorkspaceService/ListWorkspaceMembers
+```
+
+**Request:** `{ "workspace_id": "<workspace-id>" }`
+
+**Response:** `{ "members": WorkspaceMember[] }`
+
+#### AddWorkspaceMember / UpdateWorkspaceMember / RemoveWorkspaceMember
+
+```
+POST /api/agents.v1.WorkspaceService/AddWorkspaceMember
+POST /api/agents.v1.WorkspaceService/UpdateWorkspaceMember
+POST /api/agents.v1.WorkspaceService/RemoveWorkspaceMember
+```
+
+**Add / Update request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workspace_id` | string | Required |
+| `user_id` | string | Required |
+| `role` | string | `owner` / `admin` / `member`; Add defaults to `member`, Update requires non-empty |
+
+**Remove request:** `{ "workspace_id": "...", "user_id": "..." }`
+
+**Response:** `{ "member": WorkspaceMember }` for Add/Update; `{}` for Remove.
+
+#### Workspace Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Server-assigned UUID |
+| `name` | string | Display name |
+| `slug` | string | URL-safe unique identifier |
+| `description` | string | Free-form |
+| `created_at` | timestamp |  |
+| `updated_at` | timestamp |  |
+
+#### WorkspaceMember Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workspace_id` | string |  |
+| `user_id` | string |  |
+| `role` | string | `owner` / `admin` / `member` |
+| `created_at` | timestamp |  |
+
+---
+
 ### APITokenService
 
-Manages API bearer tokens. The plaintext secret is only returned at create time; subsequent reads expose the prefix only.
+Manages API bearer tokens. The plaintext secret is only returned at create time; subsequent reads expose the prefix only. Each token is scoped to one workspace (taken from `X-Workspace-ID` at create time); authentication automatically scopes the request to that workspace.
 
 #### ListAPITokens
 
@@ -1320,6 +1445,7 @@ POST /api/agents.v1.APITokenService/RevokeAPIToken
 | `id` | string | Server-assigned identifier |
 | `name` | string | Label |
 | `prefix` | string | First 12 chars of the secret, for display only |
+| `workspace_id` | string | Workspace the token authenticates into |
 | `created_at` | timestamp |  |
 | `last_used_at` | timestamp | Updated async after successful auth |
 | `revoked` | bool | Revoked tokens cannot authenticate |

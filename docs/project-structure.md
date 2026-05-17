@@ -1,6 +1,6 @@
 # 项目目录结构文档
 
-更新时间：2026-05-16
+更新时间：2026-05-17
 
 ```text
 butter/
@@ -64,14 +64,17 @@ butter/
 │   ├── application/             # Twirp service implementations
 │   │   ├── agent_service.go
 │   │   ├── apitoken_service.go
+│   │   ├── auth_service.go
 │   │   ├── channel_service.go
 │   │   ├── cron_service.go
 │   │   ├── daemon_service.go
 │   │   ├── dashboard_service.go
 │   │   ├── mcpserver_service.go
+│   │   ├── modelprovider_service.go
 │   │   ├── remoteagent_service.go
 │   │   ├── runtime_mutation.go
-│   │   └── session_service.go
+│   │   ├── session_service.go
+│   │   └── workspace_service.go
 │   ├── channel/
 │   │   ├── manager.go           # ChannelStatus + RuntimeState
 │   │   ├── discord/
@@ -81,28 +84,37 @@ butter/
 │   ├── handler/
 │   │   └── http/                # /ping, /a2a, /status, APITokenAuthMiddleware
 │   ├── repo/
-│   │   ├── apitoken/            # interface + memory + mongo
+│   │   ├── apitoken/            # interface + memory + mongo (workspace-scoped)
 │   │   │   ├── memory/
 │   │   │   ├── mongo/
 │   │   │   └── repository.go
-│   │   ├── config/
+│   │   ├── auth/                # users + auth_sessions
+│   │   │   ├── mongo/
+│   │   │   └── repository.go
+│   │   ├── config/              # workspace-scoped CRUD + AcrossWorkspaces listings
 │   │   │   ├── memory/
-│   │   │   └── mongo/
+│   │   │   ├── mongo/
+│   │   │   └── repository.go
 │   │   ├── invocation/          # interface + memory + mongo
+│   │   │   ├── memory/
+│   │   │   ├── mongo/
+│   │   │   └── repository.go
+│   │   ├── workspace/           # workspaces + workspace_members
 │   │   │   ├── memory/
 │   │   │   ├── mongo/
 │   │   │   └── repository.go
 │   │   └── health.go
 │   ├── runtime/
-│   │   ├── cron/                # scheduler + repo (job + execution) + ListByTimeRange
+│   │   ├── cron/                # scheduler + repo (job + execution, workspace-scoped) + ListByTimeRange
 │   │   ├── daemon/              # registry, connection (snapshots/cancel),
 │   │   │                        # bridge, grpc_handler, metrics
 │   │   ├── memory/mongo/
 │   │   ├── runner/              # Service.Run, InvocationRecorder, CancelInvocation
 │   │   └── session/mongo/       # CountSessions
-│   └── service/
-│       ├── health.go
-│       └── status.go
+│   ├── service/
+│   │   ├── health.go
+│   │   └── status.go
+│   └── workspace/               # ctx propagation: WithID / FromContext / HeaderName
 ├── openspec/
 │   ├── changes/
 │   └── specs/
@@ -116,10 +128,12 @@ butter/
 │       ├── agent_service.proto
 │       ├── agentchannel.proto
 │       ├── api_token.proto
+│       ├── auth.proto
 │       ├── context.proto
 │       ├── cron.proto
 │       ├── daemon.proto
-│       └── dashboard.proto
+│       ├── dashboard.proto
+│       └── workspace.proto
 ├── .github/
 │   └── workflows/
 │       ├── buf.yml
@@ -147,8 +161,10 @@ butter/
 ## 目录说明
 
 - `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 gRPC 反连服务端的 daemon client（自报 version / os / executors）。
-- `internal/app/`：应用装配与初始化（路由、gRPC、运行时、配置仓库、渠道、Cron、系统 Agent、token 仓库选择、Langfuse host 透传）。
-- `internal/application/`：Twirp 服务实现（Agent / MCPServer / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken）。
+- `internal/app/`：应用装配与初始化（路由、gRPC、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
+- `internal/application/`：Twirp 服务实现（Agent / MCPServer / ModelProvider / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken / Auth / Workspace）。
+- `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
+- `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
 - `internal/channel/`：渠道适配与渠道管理（Telegram、Discord），含 `RuntimeState` 探活。
 - `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`memory`。
 - `internal/repo/`：仓库层。`config/` 是配置仓库（memory + mongo）；新增 `apitoken/` 与 `invocation/`，同样 memory + mongo 双实现。
