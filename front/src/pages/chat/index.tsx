@@ -17,14 +17,17 @@ function agentNameOf(state: SessionInfo["state"]): string | null {
 }
 
 export default function ChatPage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const userId = user?.id ?? "";
 
-  const sessionsQuery = useSessions({
-    app_name: APP_NAME,
-    user_id: userId || undefined,
-    page_size: 100,
-  });
+  const sessionsQuery = useSessions(
+    {
+      app_name: APP_NAME,
+      user_id: userId || undefined,
+      page_size: 100,
+    },
+    { enabled: !!userId },
+  );
   const createMutation = useCreateSession();
   const deleteMutation = useDeleteSession();
 
@@ -84,6 +87,14 @@ export default function ChatPage() {
   }
 
   if (!userId) {
+    if (isAuthenticated || isAuthLoading) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Loading chat...
+        </p>
+      );
+    }
+
     return (
       <p className="text-sm text-muted-foreground">
         Sign-in required to use chat.
