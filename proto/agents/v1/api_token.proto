@@ -44,6 +44,11 @@ message APIToken {
   // True once the token is revoked. Revoked tokens cannot authenticate.
   // @gotags: json:"revoked,omitempty" yaml:"revoked,omitempty" bson:"revoked,omitempty"
   bool revoked = 6;
+
+  // ID of the workspace this token belongs to. Tokens authenticate within
+  // a single workspace.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
 }
 
 message ListAPITokensRequest {}

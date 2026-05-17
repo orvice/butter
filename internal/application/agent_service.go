@@ -15,6 +15,7 @@ import (
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -47,7 +48,11 @@ func (s *AgentServiceServer) SetInvocationRepo(repo invocation.Repository) {
 }
 
 func (s *AgentServiceServer) ListAgents(ctx context.Context, req *agentsv1.ListAgentsRequest) (*agentsv1.ListAgentsResponse, error) {
-	agents, err := s.repo.ListAgents(ctx)
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	agents, err := s.repo.ListAgents(ctx, wsID)
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -98,7 +103,11 @@ func (s *AgentServiceServer) ReloadAgents(ctx context.Context, _ *agentsv1.Reloa
 }
 
 func (s *AgentServiceServer) GetAgent(ctx context.Context, req *agentsv1.GetAgentRequest) (*agentsv1.GetAgentResponse, error) {
-	a, err := s.repo.GetAgent(ctx, req.GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	a, err := s.repo.GetAgent(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -106,15 +115,19 @@ func (s *AgentServiceServer) GetAgent(ctx context.Context, req *agentsv1.GetAgen
 }
 
 func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *agentsv1.CreateAgentRequest) (*agentsv1.CreateAgentResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.CreateAgent(ctx, req.GetAgent())
+			return s.repo.CreateAgent(ctx, wsID, req.GetAgent())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if err := s.repo.DeleteAgent(ctx, req.GetAgent().GetName()); err != nil {
+			if err := s.repo.DeleteAgent(ctx, wsID, req.GetAgent().GetName()); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -127,20 +140,24 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *agentsv1.Crea
 }
 
 func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.UpdateAgentRequest) (*agentsv1.UpdateAgentResponse, error) {
-	prev, err := s.repo.GetAgent(ctx, req.GetAgent().GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.repo.GetAgent(ctx, wsID, req.GetAgent().GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
 
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.UpdateAgent(ctx, req.GetAgent())
+			return s.repo.UpdateAgent(ctx, wsID, req.GetAgent())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.UpdateAgent(ctx, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
+			if _, err := s.repo.UpdateAgent(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -153,20 +170,24 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.Upda
 }
 
 func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.DeleteAgentRequest) (*agentsv1.DeleteAgentResponse, error) {
-	prev, err := s.repo.GetAgent(ctx, req.GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.repo.GetAgent(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteAgent(ctx, req.GetName())
+			return s.repo.DeleteAgent(ctx, wsID, req.GetName())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.CreateAgent(ctx, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
+			if _, err := s.repo.CreateAgent(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -202,12 +223,14 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.Invo
 		sessionID = "invoke-" + uuid.NewString()
 	}
 
+	wsID, _ := workspace.FromContext(ctx)
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        uuid.NewString(),
 		SessionId:   sessionID,
 		UserId:      userID,
 		ChannelName: appName,
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
+		WorkspaceId: wsID,
 	}
 
 	parts := []*genai.Part{{Text: req.GetInput()}}
@@ -258,7 +281,11 @@ func (s *AgentServiceServer) GetAgentRuntimeStatus(ctx context.Context, req *age
 func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *agentsv1.ListAgentRuntimeStatusesRequest) (*agentsv1.ListAgentRuntimeStatusesResponse, error) {
 	names := req.GetNames()
 	if len(names) == 0 {
-		agents, err := s.repo.ListAgents(ctx)
+		wsID, err := requireWorkspace(ctx)
+		if err != nil {
+			return nil, err
+		}
+		agents, err := s.repo.ListAgents(ctx, wsID)
 		if err != nil {
 			return nil, toTwirpError(err)
 		}

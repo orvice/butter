@@ -18,13 +18,14 @@ const collectionName = "api_tokens"
 
 // tokenDoc is the MongoDB row for an API token.
 type tokenDoc struct {
-	ID         string    `bson:"_id"`
-	Name       string    `bson:"name"`
-	Prefix     string    `bson:"prefix"`
-	SecretHash string    `bson:"secret_hash"`
-	CreatedAt  time.Time `bson:"created_at"`
-	LastUsedAt time.Time `bson:"last_used_at,omitempty"`
-	Revoked    bool      `bson:"revoked,omitempty"`
+	ID          string    `bson:"_id"`
+	WorkspaceID string    `bson:"workspace_id,omitempty"`
+	Name        string    `bson:"name"`
+	Prefix      string    `bson:"prefix"`
+	SecretHash  string    `bson:"secret_hash"`
+	CreatedAt   time.Time `bson:"created_at"`
+	LastUsedAt  time.Time `bson:"last_used_at,omitempty"`
+	Revoked     bool      `bson:"revoked,omitempty"`
 }
 
 // Store is a MongoDB-backed implementation of apitoken.Repository.
@@ -36,8 +37,12 @@ func New(db *mongo.Database) *Store {
 	return &Store{coll: db.Collection(collectionName)}
 }
 
-func (s *Store) List(ctx context.Context) ([]*agentsv1.APIToken, error) {
-	cursor, err := s.coll.Find(ctx, bson.M{})
+func (s *Store) List(ctx context.Context, workspaceID string) ([]*agentsv1.APIToken, error) {
+	filter := bson.M{}
+	if workspaceID != "" {
+		filter["workspace_id"] = workspaceID
+	}
+	cursor, err := s.coll.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("list api_tokens: %w", err)
 	}
@@ -68,11 +73,12 @@ func (s *Store) Get(ctx context.Context, id string) (*agentsv1.APIToken, error) 
 
 func (s *Store) Create(ctx context.Context, token *agentsv1.APIToken, secretHash string) error {
 	doc := tokenDoc{
-		ID:         token.GetId(),
-		Name:       token.GetName(),
-		Prefix:     token.GetPrefix(),
-		SecretHash: secretHash,
-		CreatedAt:  token.GetCreatedAt().AsTime(),
+		ID:          token.GetId(),
+		WorkspaceID: token.GetWorkspaceId(),
+		Name:        token.GetName(),
+		Prefix:      token.GetPrefix(),
+		SecretHash:  secretHash,
+		CreatedAt:   token.GetCreatedAt().AsTime(),
 	}
 	if _, err := s.coll.InsertOne(ctx, doc); err != nil {
 		return fmt.Errorf("insert api_token: %w", err)
@@ -112,11 +118,12 @@ func (s *Store) TouchLastUsed(ctx context.Context, id string) error {
 
 func docToProto(doc *tokenDoc) *agentsv1.APIToken {
 	t := &agentsv1.APIToken{
-		Id:        doc.ID,
-		Name:      doc.Name,
-		Prefix:    doc.Prefix,
-		CreatedAt: timestamppb.New(doc.CreatedAt),
-		Revoked:   doc.Revoked,
+		Id:          doc.ID,
+		WorkspaceId: doc.WorkspaceID,
+		Name:        doc.Name,
+		Prefix:      doc.Prefix,
+		CreatedAt:   timestamppb.New(doc.CreatedAt),
+		Revoked:     doc.Revoked,
 	}
 	if !doc.LastUsedAt.IsZero() {
 		t.LastUsedAt = timestamppb.New(doc.LastUsedAt)

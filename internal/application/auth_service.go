@@ -16,6 +16,8 @@ import (
 
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
+	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -23,6 +25,7 @@ const sessionSecretLen = 32
 
 type AuthServiceServer struct {
 	repo       auth.Repository
+	wsRepo     workspacerepo.Repository
 	sessionTTL time.Duration
 }
 
@@ -35,6 +38,12 @@ func NewAuthServiceServer(repo auth.Repository, sessionTTL time.Duration) *AuthS
 
 func (s *AuthServiceServer) SetRepo(repo auth.Repository) {
 	s.repo = repo
+}
+
+// SetWorkspaceRepo wires the workspace repository so Login responses can
+// carry the user's workspace memberships.
+func (s *AuthServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
+	s.wsRepo = repo
 }
 
 func (s *AuthServiceServer) Login(ctx context.Context, req *agentsv1.LoginRequest) (*agentsv1.LoginResponse, error) {
@@ -80,11 +89,87 @@ func (s *AuthServiceServer) Login(ctx context.Context, req *agentsv1.LoginReques
 		return nil, twirp.InternalErrorWith(err)
 	}
 
+	workspaces := s.userWorkspaces(ctx, user)
 	return &agentsv1.LoginResponse{
-		Token:     secret,
-		User:      user,
-		ExpiresAt: timestamppb.New(expiresAt),
+		Token:      secret,
+		User:       user,
+		ExpiresAt:  timestamppb.New(expiresAt),
+		Workspaces: workspaces,
 	}, nil
+}
+
+// userWorkspaces returns the workspaces the user can access. Global admins
+// (role == "admin") receive every workspace; other users receive only their
+// memberships. Returns nil on any error so login is not blocked by lookup
+// failures.
+func (s *AuthServiceServer) userWorkspaces(ctx context.Context, user *agentsv1.User) []*agentsv1.Workspace {
+	if s.wsRepo == nil || user == nil {
+		return nil
+	}
+	if user.GetRole() == "admin" {
+		all, err := s.wsRepo.ListWorkspaces(ctx)
+		if err != nil {
+			return nil
+		}
+		return all
+	}
+	members, err := s.wsRepo.ListMembershipsForUser(ctx, user.GetId())
+	if err != nil {
+		return nil
+	}
+	out := make([]*agentsv1.Workspace, 0, len(members))
+	for _, m := range members {
+		ws, err := s.wsRepo.GetWorkspace(ctx, m.GetWorkspaceId())
+		if err != nil {
+			continue
+		}
+		out = append(out, ws)
+	}
+	return out
+}
+
+// BootstrapDefaultWorkspace ensures a "default" workspace exists when the
+// workspace store is empty. The initial admin (if present) is added as the
+// initial owner so the dashboard always has at least one workspace to enter.
+func BootstrapDefaultWorkspace(ctx context.Context, wsRepo workspacerepo.Repository, authRepo auth.Repository) error {
+	if wsRepo == nil {
+		return nil
+	}
+	count, err := wsRepo.CountWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	now := time.Now().UTC()
+	ws := &agentsv1.Workspace{
+		Id:        uuid.NewString(),
+		Name:      "Default",
+		Slug:      wsctx.DefaultSlug,
+		CreatedAt: timestamppb.New(now),
+		UpdatedAt: timestamppb.New(now),
+	}
+	created, err := wsRepo.CreateWorkspace(ctx, ws)
+	if err != nil {
+		return err
+	}
+	if authRepo == nil {
+		return nil
+	}
+	users, err := authRepo.ListUsers(ctx)
+	if err != nil || len(users) == 0 {
+		return nil
+	}
+	for _, u := range users {
+		_, _ = wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{
+			WorkspaceId: created.GetId(),
+			UserId:      u.GetId(),
+			Role:        "owner",
+			CreatedAt:   timestamppb.New(now),
+		})
+	}
+	return nil
 }
 
 func (s *AuthServiceServer) Me(ctx context.Context, _ *agentsv1.MeRequest) (*agentsv1.MeResponse, error) {

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,8 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+const wsTest = "ws-test"
+
 type statusStore struct {
 	*configmemory.Store
 }
@@ -22,18 +25,28 @@ func (s *statusStore) ActiveBackendName() string {
 	return "memory"
 }
 
+func seedStatusStore(t *testing.T, store *statusStore) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "assistant"}); err != nil {
+		t.Fatalf("seed agent: %v", err)
+	}
+	if _, err := store.CreateMCPServer(ctx, wsTest, &agentsv1.MCPServer{Id: "mcp-primary"}); err != nil {
+		t.Fatalf("seed mcp: %v", err)
+	}
+	if _, err := store.CreateRemoteAgent(ctx, wsTest, &agentsv1.RemoteAgent{Id: "remote-primary"}); err != nil {
+		t.Fatalf("seed remote agent: %v", err)
+	}
+	if _, err := store.CreateChannel(ctx, wsTest, &agentsv1.AgentChannel{Name: "telegram-main"}); err != nil {
+		t.Fatalf("seed channel: %v", err)
+	}
+}
+
 func TestStatusHandler_Status(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	ctx := t.Context()
 	cfg := &config.AppConfig{APIToken: "secret-token"}
 	store := &statusStore{Store: configmemory.New()}
-	store.Seed(ctx,
-		[]agentsv1.Agent{{Name: "assistant"}},
-		[]agentsv1.MCPServer{{Id: "mcp-primary"}},
-		[]agentsv1.RemoteAgent{{Id: "remote-primary"}},
-		[]agentsv1.AgentChannel{{Name: "telegram-main"}},
-		nil,
-	)
+	seedStatusStore(t, store)
 
 	r := gin.New()
 	r.Use(APITokenAuthMiddleware(cfg, nil))

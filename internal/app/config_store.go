@@ -22,7 +22,11 @@ type configBackend interface {
 	configrepo.ModelProviderRepository
 }
 
-// ConfigStore is a runtime-selectable config repository wrapper.
+// ConfigStore is a runtime-selectable config repository wrapper. All CRUD
+// calls require a workspace id; the convenience snapshot helpers
+// (SyncToConfig, ListAgents/Channels/... AcrossWorkspaces) flatten every
+// workspace's configs for the runtime layers that still consume the global
+// AppConfig view.
 type ConfigStore struct {
 	mu      sync.RWMutex
 	backend configBackend
@@ -53,7 +57,7 @@ func (s *ConfigStore) InitFromConfig(ctx context.Context, cfg *config.AppConfig)
 	s.backend = backend
 	s.mu.Unlock()
 
-	if err := s.seedIfNeeded(ctx, cfg, backend); err != nil {
+	if err := s.ensureIndexes(ctx, backend); err != nil {
 		return err
 	}
 	return s.SyncToConfig(ctx, cfg)
@@ -74,13 +78,17 @@ func (s *ConfigStore) newBackend(ctx context.Context, cfg *config.AppConfig) (co
 	}
 }
 
-func (s *ConfigStore) seedIfNeeded(ctx context.Context, cfg *config.AppConfig, backend configBackend) error {
-	// Runtime configuration is DB/config-store backed. YAML values for agents,
-	// MCP servers, remote agents, channels, and model providers are ignored as
-	// a source of truth; use the config APIs or persisted backend instead.
+func (s *ConfigStore) ensureIndexes(ctx context.Context, backend configBackend) error {
+	if mongoBackend, ok := backend.(*configmongo.Store); ok {
+		return mongoBackend.EnsureIndexes(ctx)
+	}
 	return nil
 }
 
+// loadIntoConfig flattens the persisted configs from all workspaces into
+// the legacy AppConfig view. Runtime services (runner, channel manager,
+// cron) build their internal indexes from this snapshot and resolve
+// workspace ownership via each entity's WorkspaceId field.
 func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig) error {
 	cfg.Agents = nil
 	cfg.MCPServerConfigs = nil
@@ -88,7 +96,7 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 	cfg.Channels = nil
 	cfg.ModelProviders = nil
 
-	agents, err := s.ListAgents(ctx)
+	agents, err := s.current().ListAgentsAcrossWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -97,7 +105,7 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 		proto.Merge(&cfg.Agents[len(cfg.Agents)-1], agent)
 	}
 
-	mcpServers, err := s.ListMCPServers(ctx)
+	mcpServers, err := s.current().ListMCPServersAcrossWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -106,7 +114,7 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 		proto.Merge(&cfg.MCPServerConfigs[len(cfg.MCPServerConfigs)-1], server)
 	}
 
-	remoteAgents, err := s.ListRemoteAgents(ctx)
+	remoteAgents, err := s.current().ListRemoteAgentsAcrossWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -115,7 +123,7 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 		proto.Merge(&cfg.RemoteAgents[len(cfg.RemoteAgents)-1], agent)
 	}
 
-	channels, err := s.ListChannels(ctx)
+	channels, err := s.current().ListChannelsAcrossWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -124,7 +132,7 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 		proto.Merge(&cfg.Channels[len(cfg.Channels)-1], channel)
 	}
 
-	modelProviders, err := s.ListModelProviders(ctx)
+	modelProviders, err := s.current().ListModelProvidersAcrossWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
@@ -146,102 +154,132 @@ func (s *ConfigStore) current() configBackend {
 	return s.backend
 }
 
-func (s *ConfigStore) ListAgents(ctx context.Context) ([]*agentsv1.Agent, error) {
-	return s.current().ListAgents(ctx)
+// --- Agents ---
+
+func (s *ConfigStore) ListAgents(ctx context.Context, workspaceID string) ([]*agentsv1.Agent, error) {
+	return s.current().ListAgents(ctx, workspaceID)
 }
 
-func (s *ConfigStore) GetAgent(ctx context.Context, name string) (*agentsv1.Agent, error) {
-	return s.current().GetAgent(ctx, name)
+func (s *ConfigStore) ListAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.Agent, error) {
+	return s.current().ListAgentsAcrossWorkspaces(ctx)
 }
 
-func (s *ConfigStore) CreateAgent(ctx context.Context, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
-	return s.current().CreateAgent(ctx, agent)
+func (s *ConfigStore) GetAgent(ctx context.Context, workspaceID, name string) (*agentsv1.Agent, error) {
+	return s.current().GetAgent(ctx, workspaceID, name)
 }
 
-func (s *ConfigStore) UpdateAgent(ctx context.Context, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
-	return s.current().UpdateAgent(ctx, agent)
+func (s *ConfigStore) CreateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+	return s.current().CreateAgent(ctx, workspaceID, agent)
 }
 
-func (s *ConfigStore) DeleteAgent(ctx context.Context, name string) error {
-	return s.current().DeleteAgent(ctx, name)
+func (s *ConfigStore) UpdateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+	return s.current().UpdateAgent(ctx, workspaceID, agent)
 }
 
-func (s *ConfigStore) ListMCPServers(ctx context.Context) ([]*agentsv1.MCPServer, error) {
-	return s.current().ListMCPServers(ctx)
+func (s *ConfigStore) DeleteAgent(ctx context.Context, workspaceID, name string) error {
+	return s.current().DeleteAgent(ctx, workspaceID, name)
 }
 
-func (s *ConfigStore) GetMCPServer(ctx context.Context, id string) (*agentsv1.MCPServer, error) {
-	return s.current().GetMCPServer(ctx, id)
+// --- MCP Servers ---
+
+func (s *ConfigStore) ListMCPServers(ctx context.Context, workspaceID string) ([]*agentsv1.MCPServer, error) {
+	return s.current().ListMCPServers(ctx, workspaceID)
 }
 
-func (s *ConfigStore) CreateMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
-	return s.current().CreateMCPServer(ctx, server)
+func (s *ConfigStore) ListMCPServersAcrossWorkspaces(ctx context.Context) ([]*agentsv1.MCPServer, error) {
+	return s.current().ListMCPServersAcrossWorkspaces(ctx)
 }
 
-func (s *ConfigStore) UpdateMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
-	return s.current().UpdateMCPServer(ctx, server)
+func (s *ConfigStore) GetMCPServer(ctx context.Context, workspaceID, id string) (*agentsv1.MCPServer, error) {
+	return s.current().GetMCPServer(ctx, workspaceID, id)
 }
 
-func (s *ConfigStore) DeleteMCPServer(ctx context.Context, id string) error {
-	return s.current().DeleteMCPServer(ctx, id)
+func (s *ConfigStore) CreateMCPServer(ctx context.Context, workspaceID string, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	return s.current().CreateMCPServer(ctx, workspaceID, server)
 }
 
-func (s *ConfigStore) ListRemoteAgents(ctx context.Context) ([]*agentsv1.RemoteAgent, error) {
-	return s.current().ListRemoteAgents(ctx)
+func (s *ConfigStore) UpdateMCPServer(ctx context.Context, workspaceID string, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	return s.current().UpdateMCPServer(ctx, workspaceID, server)
 }
 
-func (s *ConfigStore) GetRemoteAgent(ctx context.Context, id string) (*agentsv1.RemoteAgent, error) {
-	return s.current().GetRemoteAgent(ctx, id)
+func (s *ConfigStore) DeleteMCPServer(ctx context.Context, workspaceID, id string) error {
+	return s.current().DeleteMCPServer(ctx, workspaceID, id)
 }
 
-func (s *ConfigStore) CreateRemoteAgent(ctx context.Context, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
-	return s.current().CreateRemoteAgent(ctx, agent)
+// --- Remote Agents ---
+
+func (s *ConfigStore) ListRemoteAgents(ctx context.Context, workspaceID string) ([]*agentsv1.RemoteAgent, error) {
+	return s.current().ListRemoteAgents(ctx, workspaceID)
 }
 
-func (s *ConfigStore) UpdateRemoteAgent(ctx context.Context, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
-	return s.current().UpdateRemoteAgent(ctx, agent)
+func (s *ConfigStore) ListRemoteAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.RemoteAgent, error) {
+	return s.current().ListRemoteAgentsAcrossWorkspaces(ctx)
 }
 
-func (s *ConfigStore) DeleteRemoteAgent(ctx context.Context, id string) error {
-	return s.current().DeleteRemoteAgent(ctx, id)
+func (s *ConfigStore) GetRemoteAgent(ctx context.Context, workspaceID, id string) (*agentsv1.RemoteAgent, error) {
+	return s.current().GetRemoteAgent(ctx, workspaceID, id)
 }
 
-func (s *ConfigStore) ListChannels(ctx context.Context) ([]*agentsv1.AgentChannel, error) {
-	return s.current().ListChannels(ctx)
+func (s *ConfigStore) CreateRemoteAgent(ctx context.Context, workspaceID string, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
+	return s.current().CreateRemoteAgent(ctx, workspaceID, agent)
 }
 
-func (s *ConfigStore) GetChannel(ctx context.Context, name string) (*agentsv1.AgentChannel, error) {
-	return s.current().GetChannel(ctx, name)
+func (s *ConfigStore) UpdateRemoteAgent(ctx context.Context, workspaceID string, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
+	return s.current().UpdateRemoteAgent(ctx, workspaceID, agent)
 }
 
-func (s *ConfigStore) CreateChannel(ctx context.Context, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
-	return s.current().CreateChannel(ctx, channel)
+func (s *ConfigStore) DeleteRemoteAgent(ctx context.Context, workspaceID, id string) error {
+	return s.current().DeleteRemoteAgent(ctx, workspaceID, id)
 }
 
-func (s *ConfigStore) UpdateChannel(ctx context.Context, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
-	return s.current().UpdateChannel(ctx, channel)
+// --- Channels ---
+
+func (s *ConfigStore) ListChannels(ctx context.Context, workspaceID string) ([]*agentsv1.AgentChannel, error) {
+	return s.current().ListChannels(ctx, workspaceID)
 }
 
-func (s *ConfigStore) DeleteChannel(ctx context.Context, name string) error {
-	return s.current().DeleteChannel(ctx, name)
+func (s *ConfigStore) ListChannelsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.AgentChannel, error) {
+	return s.current().ListChannelsAcrossWorkspaces(ctx)
 }
 
-func (s *ConfigStore) ListModelProviders(ctx context.Context) ([]*agentsv1.ModelProvider, error) {
-	return s.current().ListModelProviders(ctx)
+func (s *ConfigStore) GetChannel(ctx context.Context, workspaceID, name string) (*agentsv1.AgentChannel, error) {
+	return s.current().GetChannel(ctx, workspaceID, name)
 }
 
-func (s *ConfigStore) GetModelProvider(ctx context.Context, name string) (*agentsv1.ModelProvider, error) {
-	return s.current().GetModelProvider(ctx, name)
+func (s *ConfigStore) CreateChannel(ctx context.Context, workspaceID string, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+	return s.current().CreateChannel(ctx, workspaceID, channel)
 }
 
-func (s *ConfigStore) CreateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
-	return s.current().CreateModelProvider(ctx, provider)
+func (s *ConfigStore) UpdateChannel(ctx context.Context, workspaceID string, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+	return s.current().UpdateChannel(ctx, workspaceID, channel)
 }
 
-func (s *ConfigStore) UpdateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
-	return s.current().UpdateModelProvider(ctx, provider)
+func (s *ConfigStore) DeleteChannel(ctx context.Context, workspaceID, name string) error {
+	return s.current().DeleteChannel(ctx, workspaceID, name)
 }
 
-func (s *ConfigStore) DeleteModelProvider(ctx context.Context, name string) error {
-	return s.current().DeleteModelProvider(ctx, name)
+// --- Model Providers ---
+
+func (s *ConfigStore) ListModelProviders(ctx context.Context, workspaceID string) ([]*agentsv1.ModelProvider, error) {
+	return s.current().ListModelProviders(ctx, workspaceID)
+}
+
+func (s *ConfigStore) ListModelProvidersAcrossWorkspaces(ctx context.Context) ([]*agentsv1.ModelProvider, error) {
+	return s.current().ListModelProvidersAcrossWorkspaces(ctx)
+}
+
+func (s *ConfigStore) GetModelProvider(ctx context.Context, workspaceID, name string) (*agentsv1.ModelProvider, error) {
+	return s.current().GetModelProvider(ctx, workspaceID, name)
+}
+
+func (s *ConfigStore) CreateModelProvider(ctx context.Context, workspaceID string, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	return s.current().CreateModelProvider(ctx, workspaceID, provider)
+}
+
+func (s *ConfigStore) UpdateModelProvider(ctx context.Context, workspaceID string, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	return s.current().UpdateModelProvider(ctx, workspaceID, provider)
+}
+
+func (s *ConfigStore) DeleteModelProvider(ctx context.Context, workspaceID, name string) error {
+	return s.current().DeleteModelProvider(ctx, workspaceID, name)
 }

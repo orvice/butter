@@ -16,7 +16,12 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/repo/workspace"
+	wsctx "go.orx.me/apps/butter/internal/workspace"
 )
+
+// WorkspaceRepoProvider returns the active workspace repository, if wired.
+type WorkspaceRepoProvider func() workspace.Repository
 
 const (
 	bearerPrefix        = "Bearer "
@@ -30,7 +35,13 @@ type AuthRepoProvider func() auth.Repository
 // AuthMiddleware validates incoming requests against MongoDB-backed user
 // sessions. The legacy root API token and API-token repo are still accepted for
 // integrations/migration, but dashboard login should use AuthService.Login.
-func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTokenProvider APITokenRepoProvider) gin.HandlerFunc {
+//
+// On success the middleware also resolves the workspace requested via
+// X-Workspace-ID (or falls back to the API token's own workspace) and
+// validates that the caller is a member. The resolved workspace id is then
+// attached to the request context so Twirp services can scope their reads
+// and writes.
+func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTokenProvider APITokenRepoProvider, workspaceProvider WorkspaceRepoProvider) gin.HandlerFunc {
 	rootToken := strings.TrimSpace(cfg.APIToken)
 
 	return func(c *gin.Context) {
@@ -47,9 +58,14 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 		if apiTokenProvider != nil {
 			apiTokenRepo = apiTokenProvider()
 		}
+		var workspaceRepo workspace.Repository
+		if workspaceProvider != nil {
+			workspaceRepo = workspaceProvider()
+		}
 
 		// Legacy/dev behavior before bootstrap wires repositories.
 		if rootToken == "" && authRepo == nil && apiTokenRepo == nil {
+			c.Request = c.Request.WithContext(applyWorkspaceHeader(c.Request.Context(), c, workspaceRepo, "", true))
 			c.Next()
 			return
 		}
@@ -65,6 +81,7 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 			if err == nil {
 				go touchSession(authRepo, session.ID)
 				ctx := auth.WithAuthenticated(c.Request.Context(), user, session)
+				ctx = applyWorkspaceHeader(ctx, c, workspaceRepo, user.GetId(), user.GetRole() == "admin")
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 				return
@@ -76,6 +93,7 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 
 		// Try root token (constant-time compare) for ops/daemon/API compatibility.
 		if rootToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(rootToken)) == 1 {
+			c.Request = c.Request.WithContext(applyWorkspaceHeader(c.Request.Context(), c, workspaceRepo, "", true))
 			c.Next()
 			return
 		}
@@ -84,6 +102,15 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 			stored, err := apiTokenRepo.Lookup(c.Request.Context(), hashSecret(token))
 			if err == nil {
 				go touchAPIToken(apiTokenRepo, stored.GetId())
+				ctx := c.Request.Context()
+				// API tokens are workspace-scoped: bind the request to the
+				// token's workspace and ignore any caller-supplied header.
+				if ws := stored.GetWorkspaceId(); ws != "" {
+					ctx = wsctx.WithID(ctx, ws)
+				} else {
+					ctx = applyWorkspaceHeader(ctx, c, workspaceRepo, "", true)
+				}
+				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 				return
 			}
@@ -96,9 +123,43 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 	}
 }
 
+// applyWorkspaceHeader resolves the X-Workspace-ID header (if set) and
+// validates that the authenticated user is a member of that workspace.
+// Returns a context with the workspace id attached, or the original context
+// when no header is present (the workspace remains implicit until a
+// downstream service requires it).
+func applyWorkspaceHeader(ctx context.Context, c *gin.Context, repo workspace.Repository, userID string, isAdmin bool) context.Context {
+	header := strings.TrimSpace(c.GetHeader(wsctx.HeaderName))
+	if header == "" {
+		return ctx
+	}
+	if repo == nil {
+		// No repo wired yet: accept the header verbatim. This keeps
+		// development/test setups working before bootstrap completes.
+		return wsctx.WithID(ctx, header)
+	}
+	ws, err := repo.GetWorkspace(ctx, header)
+	if err != nil {
+		log.FromContext(ctx).Warn("workspace header rejected", "workspace_id", header, "err", err)
+		return ctx
+	}
+	if !isAdmin && userID != "" {
+		member, err := repo.IsMember(ctx, ws.GetId(), userID)
+		if err != nil {
+			log.FromContext(ctx).Warn("workspace membership check failed", "workspace_id", ws.GetId(), "user_id", userID, "err", err)
+			return ctx
+		}
+		if !member {
+			log.FromContext(ctx).Warn("workspace access denied", "workspace_id", ws.GetId(), "user_id", userID)
+			return ctx
+		}
+	}
+	return wsctx.WithID(ctx, ws.GetId())
+}
+
 // APITokenAuthMiddleware is kept for tests/backward compatibility.
 func APITokenAuthMiddleware(cfg *config.AppConfig, provider APITokenRepoProvider) gin.HandlerFunc {
-	return AuthMiddleware(cfg, nil, provider)
+	return AuthMiddleware(cfg, nil, provider, nil)
 }
 
 func isPublicPath(path string) bool {

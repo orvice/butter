@@ -75,6 +75,8 @@ func (m *ContextInfo) validate(all bool) error {
 
 	// no validation rules for Metadata
 
+	// no validation rules for WorkspaceId
+
 	if len(errors) > 0 {
 		return ContextInfoMultiError(errors)
 	}

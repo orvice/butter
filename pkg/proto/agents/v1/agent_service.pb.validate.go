@@ -2627,6 +2627,8 @@ func (m *Invocation) validate(all bool) error {
 
 	// no validation rules for Source
 
+	// no validation rules for WorkspaceId
+
 	if len(errors) > 0 {
 		return InvocationMultiError(errors)
 	}

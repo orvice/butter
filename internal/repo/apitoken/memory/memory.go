@@ -31,11 +31,14 @@ func New() *Store {
 	}
 }
 
-func (s *Store) List(_ context.Context) ([]*agentsv1.APIToken, error) {
+func (s *Store) List(_ context.Context, workspaceID string) ([]*agentsv1.APIToken, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]*agentsv1.APIToken, 0, len(s.byID))
 	for _, r := range s.byID {
+		if workspaceID != "" && r.token.GetWorkspaceId() != workspaceID {
+			continue
+		}
 		out = append(out, proto.Clone(r.token).(*agentsv1.APIToken))
 	}
 	return out, nil

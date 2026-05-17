@@ -41,19 +41,19 @@ func TestConfigStoreRuntimeConfigComesFromStoreNotYAML(t *testing.T) {
 			len(cfg.Agents), len(cfg.MCPServerConfigs), len(cfg.RemoteAgents), len(cfg.Channels), len(cfg.ModelProviders))
 	}
 
-	if _, err := store.CreateAgent(ctx, &agentsv1.Agent{Name: "db-agent"}); err != nil {
+	if _, err := store.CreateAgent(ctx, "ws-test", &agentsv1.Agent{Name: "db-agent"}); err != nil {
 		t.Fatalf("create agent: %v", err)
 	}
-	if _, err := store.CreateMCPServer(ctx, &agentsv1.MCPServer{Id: "db-mcp", Name: "db-mcp"}); err != nil {
+	if _, err := store.CreateMCPServer(ctx, "ws-test", &agentsv1.MCPServer{Id: "db-mcp", Name: "db-mcp"}); err != nil {
 		t.Fatalf("create mcp server: %v", err)
 	}
-	if _, err := store.CreateRemoteAgent(ctx, &agentsv1.RemoteAgent{Id: "db-remote", Name: "db-remote"}); err != nil {
+	if _, err := store.CreateRemoteAgent(ctx, "ws-test", &agentsv1.RemoteAgent{Id: "db-remote", Name: "db-remote"}); err != nil {
 		t.Fatalf("create remote agent: %v", err)
 	}
-	if _, err := store.CreateChannel(ctx, &agentsv1.AgentChannel{Name: "db-channel"}); err != nil {
+	if _, err := store.CreateChannel(ctx, "ws-test", &agentsv1.AgentChannel{Name: "db-channel"}); err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
-	if _, err := store.CreateModelProvider(ctx, &agentsv1.ModelProvider{
+	if _, err := store.CreateModelProvider(ctx, "ws-test", &agentsv1.ModelProvider{
 		Name:   "db-provider",
 		Type:   "openai",
 		Models: []*agentsv1.ModelConfig{{Name: "gpt-4o", Alias: "4o"}},

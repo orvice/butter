@@ -6,6 +6,7 @@ import (
 
 	appconfig "go.orx.me/apps/butter/internal/config"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 type ConfigStatusProvider interface {
@@ -14,6 +15,14 @@ type ConfigStatusProvider interface {
 	configrepo.RemoteAgentRepository
 	configrepo.ChannelRepository
 	ActiveBackendName() string
+}
+
+// CountListers aggregates totals across all workspaces, used by /status.
+type CountListers interface {
+	ListAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.Agent, error)
+	ListMCPServersAcrossWorkspaces(ctx context.Context) ([]*agentsv1.MCPServer, error)
+	ListRemoteAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.RemoteAgent, error)
+	ListChannelsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.AgentChannel, error)
 }
 
 type StatusService struct {
@@ -49,19 +58,19 @@ func NewStatusService(cfg *appconfig.AppConfig, store ConfigStatusProvider) *Sta
 }
 
 func (s *StatusService) Status(ctx context.Context) (StatusResponse, error) {
-	agents, err := s.store.ListAgents(ctx)
+	agents, err := s.store.ListAgentsAcrossWorkspaces(ctx)
 	if err != nil {
 		return StatusResponse{}, err
 	}
-	mcpServers, err := s.store.ListMCPServers(ctx)
+	mcpServers, err := s.store.ListMCPServersAcrossWorkspaces(ctx)
 	if err != nil {
 		return StatusResponse{}, err
 	}
-	remoteAgents, err := s.store.ListRemoteAgents(ctx)
+	remoteAgents, err := s.store.ListRemoteAgentsAcrossWorkspaces(ctx)
 	if err != nil {
 		return StatusResponse{}, err
 	}
-	channels, err := s.store.ListChannels(ctx)
+	channels, err := s.store.ListChannelsAcrossWorkspaces(ctx)
 	if err != nil {
 		return StatusResponse{}, err
 	}

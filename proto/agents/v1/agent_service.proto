@@ -233,6 +233,8 @@ message Invocation {
   string model_override = 13;
   // @gotags: bson:"source,omitempty"
   string source = 14;
+  // @gotags: bson:"workspace_id,omitempty"
+  string workspace_id = 100;
 }
 
 message ListAgentInvocationsRequest {

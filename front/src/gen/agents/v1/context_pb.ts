@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/context.proto.
  */
 export const file_agents_v1_context: GenFile = /*@__PURE__*/
-  fileDesc("ChdhZ2VudHMvdjEvY29udGV4dC5wcm90bxIJYWdlbnRzLnYxIrgCCgtDb250ZXh0SW5mbxIMCgR1dWlkGAEgASgJEhIKCnNlc3Npb25faWQYAiABKAkSDwoHdXNlcl9pZBgDIAEoCRIUCgxjaGFubmVsX25hbWUYBCABKAkSKAoGc291cmNlGAUgASgOMhguYWdlbnRzLnYxLkNvbnRleHRTb3VyY2USDwoHY2hhdF9pZBgGIAEoCRIUCgxjaGFubmVsX3R5cGUYByABKAkSJgoJY2hhdF90eXBlGAggASgOMhMuYWdlbnRzLnYxLkNoYXRUeXBlEjYKCG1ldGFkYXRhGAogAygLMiQuYWdlbnRzLnYxLkNvbnRleHRJbmZvLk1ldGFkYXRhRW50cnkaLwoNTWV0YWRhdGFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBKpMBCg1Db250ZXh0U291cmNlEh4KGkNPTlRFWFRfU09VUkNFX1VOU1BFQ0lGSUVEEAASGgoWQ09OVEVYVF9TT1VSQ0VfQ0hBTk5FTBABEhYKEkNPTlRFWFRfU09VUkNFX0EyQRACEhYKEkNPTlRFWFRfU09VUkNFX0FQSRADEhYKEkNPTlRFWFRfU09VUkNFX01DUBAEKlEKCENoYXRUeXBlEhkKFUNIQVRfVFlQRV9VTlNQRUNJRklFRBAAEhUKEUNIQVRfVFlQRV9QUklWQVRFEAESEwoPQ0hBVF9UWVBFX0dST1VQEAJCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw");
+  fileDesc("ChdhZ2VudHMvdjEvY29udGV4dC5wcm90bxIJYWdlbnRzLnYxIs4CCgtDb250ZXh0SW5mbxIMCgR1dWlkGAEgASgJEhIKCnNlc3Npb25faWQYAiABKAkSDwoHdXNlcl9pZBgDIAEoCRIUCgxjaGFubmVsX25hbWUYBCABKAkSKAoGc291cmNlGAUgASgOMhguYWdlbnRzLnYxLkNvbnRleHRTb3VyY2USDwoHY2hhdF9pZBgGIAEoCRIUCgxjaGFubmVsX3R5cGUYByABKAkSJgoJY2hhdF90eXBlGAggASgOMhMuYWdlbnRzLnYxLkNoYXRUeXBlEjYKCG1ldGFkYXRhGAogAygLMiQuYWdlbnRzLnYxLkNvbnRleHRJbmZvLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGAsgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASqTAQoNQ29udGV4dFNvdXJjZRIeChpDT05URVhUX1NPVVJDRV9VTlNQRUNJRklFRBAAEhoKFkNPTlRFWFRfU09VUkNFX0NIQU5ORUwQARIWChJDT05URVhUX1NPVVJDRV9BMkEQAhIWChJDT05URVhUX1NPVVJDRV9BUEkQAxIWChJDT05URVhUX1NPVVJDRV9NQ1AQBCpRCghDaGF0VHlwZRIZChVDSEFUX1RZUEVfVU5TUEVDSUZJRUQQABIVChFDSEFUX1RZUEVfUFJJVkFURRABEhMKD0NIQVRfVFlQRV9HUk9VUBACQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM");
 
 /**
  * ContextInfo carries per-conversation metadata through the agent execution pipeline.
@@ -89,6 +89,16 @@ export type ContextInfo = Message<"agents.v1.ContextInfo"> & {
    * @generated from field: map<string, string> metadata = 10;
    */
   metadata: { [key: string]: string };
+
+  /**
+   * Workspace id for this request. Channels and cron jobs propagate their
+   * owning workspace; API callers may leave this empty and rely on the HTTP
+   * middleware to derive it from X-Workspace-ID.
+   * @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
+   *
+   * @generated from field: string workspace_id = 11;
+   */
+  workspaceId: string;
 };
 
 /**

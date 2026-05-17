@@ -42,6 +42,11 @@ message Agent {
   // Whether this agent should be exposed via A2A protocol over HTTP.
   // @gotags: json:"enable_a2a,omitempty" yaml:"enable_a2a,omitempty"
   bool enable_a2a = 21;
+
+  // ID of the workspace this agent belongs to. Server-enforced from request
+  // context on writes; included in responses so clients know the scope.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
 }
 
 // AgentConfig groups agent-level runtime and integration settings.
@@ -147,6 +152,10 @@ message MCPServer {
 
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 9;
+
+  // ID of the workspace this server config belongs to.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
 }
 
 enum StreamingMode {
@@ -230,6 +239,10 @@ message RemoteAgent {
   // Required when protocol is DAEMON; matches DaemonInfo.capabilities.
   // @gotags: json:"daemon_capability,omitempty" yaml:"daemon_capability,omitempty"
   string daemon_capability = 5;
+
+  // ID of the workspace this remote agent belongs to.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
 }
 
 // ModelConfig describes a single model within a provider.
@@ -265,4 +278,8 @@ message ModelProvider {
   // Models this provider serves.
   // @gotags: json:"models,omitempty" yaml:"models,omitempty"
   repeated ModelConfig models = 5;
+
+  // ID of the workspace this provider belongs to.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
 }

@@ -29,8 +29,10 @@ type Scheduler struct {
 	cancelFn context.CancelFunc
 
 	mu       sync.Mutex
-	entryIDs map[string]robfigcron.EntryID // job name -> cron entry ID
+	entryIDs map[string]robfigcron.EntryID // composite "workspace_id:name" -> cron entry ID
 }
+
+func jobKey(workspaceID, name string) string { return workspaceID + ":" + name }
 
 // NewScheduler creates a scheduler, loads jobs from the repo, and registers them.
 func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRepo, execRepo ExecutionRepo) (*Scheduler, error) {
@@ -49,8 +51,8 @@ func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRep
 		entryIDs: make(map[string]robfigcron.EntryID),
 	}
 
-	// Load existing jobs from MongoDB.
-	jobs, err := jobRepo.List(ctx)
+	// Load existing jobs from MongoDB across every workspace.
+	jobs, err := jobRepo.ListAll(ctx)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("loading cron jobs: %w", err)
@@ -77,7 +79,7 @@ func (s *Scheduler) Stop() context.Context {
 	return s.cron.Stop()
 }
 
-// AddJob persists and schedules a new cron job.
+// AddJob persists and schedules a new cron job. Job.WorkspaceId must be set.
 func (s *Scheduler) AddJob(ctx context.Context, job *agentsv1.CronJob) error {
 	if err := s.jobRepo.Create(ctx, job); err != nil {
 		return err
@@ -90,27 +92,32 @@ func (s *Scheduler) UpdateJob(ctx context.Context, job *agentsv1.CronJob) error 
 	if err := s.jobRepo.Update(ctx, job); err != nil {
 		return err
 	}
-	s.unregisterJob(job.GetName())
+	s.unregisterJob(job.GetWorkspaceId(), job.GetName())
 	return s.registerJob(job)
 }
 
 // RemoveJob removes a cron job from persistence and unschedules it.
-func (s *Scheduler) RemoveJob(ctx context.Context, name string) error {
-	if err := s.jobRepo.Delete(ctx, name); err != nil {
+func (s *Scheduler) RemoveJob(ctx context.Context, workspaceID, name string) error {
+	if err := s.jobRepo.Delete(ctx, workspaceID, name); err != nil {
 		return err
 	}
-	s.unregisterJob(name)
+	s.unregisterJob(workspaceID, name)
 	return nil
 }
 
-// GetJob returns a cron job by name.
-func (s *Scheduler) GetJob(ctx context.Context, name string) (*agentsv1.CronJob, error) {
-	return s.jobRepo.Get(ctx, name)
+// GetJob returns a cron job by workspace and name.
+func (s *Scheduler) GetJob(ctx context.Context, workspaceID, name string) (*agentsv1.CronJob, error) {
+	return s.jobRepo.Get(ctx, workspaceID, name)
 }
 
-// ListJobs returns all cron jobs.
-func (s *Scheduler) ListJobs(ctx context.Context) ([]*agentsv1.CronJob, error) {
-	return s.jobRepo.List(ctx)
+// ListJobs returns all cron jobs in the given workspace.
+func (s *Scheduler) ListJobs(ctx context.Context, workspaceID string) ([]*agentsv1.CronJob, error) {
+	return s.jobRepo.List(ctx, workspaceID)
+}
+
+// ListAllJobs returns every cron job across workspaces.
+func (s *Scheduler) ListAllJobs(ctx context.Context) ([]*agentsv1.CronJob, error) {
+	return s.jobRepo.ListAll(ctx)
 }
 
 // registerJob adds a job to the cron scheduler (in-memory).
@@ -139,20 +146,21 @@ func (s *Scheduler) registerJob(job *agentsv1.CronJob) error {
 		return fmt.Errorf("invalid cron expression %q: %w", job.GetSchedule(), err)
 	}
 
-	// Capture job name for the closure — the proto pointer is safe since we store it in MongoDB.
+	// Capture job name + workspace for the closure — the proto pointer is safe since we store it in MongoDB.
 	jobName := job.GetName()
+	workspaceID := job.GetWorkspaceId()
 	entryID := s.cron.Schedule(sched, robfigcron.FuncJob(func() {
 		// Re-read the job from repo to get the latest config.
-		current, err := s.jobRepo.Get(s.ctx, jobName)
+		current, err := s.jobRepo.Get(s.ctx, workspaceID, jobName)
 		if err != nil {
-			logger.Error("failed to load cron job for execution", "job", jobName, "err", err)
+			logger.Error("failed to load cron job for execution", "job", jobName, "workspace_id", workspaceID, "err", err)
 			return
 		}
 		s.executeJob(current)
 	}))
 
 	s.mu.Lock()
-	s.entryIDs[job.GetName()] = entryID
+	s.entryIDs[jobKey(workspaceID, jobName)] = entryID
 	s.mu.Unlock()
 
 	logger.Info("registered cron job",
@@ -165,20 +173,21 @@ func (s *Scheduler) registerJob(job *agentsv1.CronJob) error {
 }
 
 // unregisterJob removes a job from the cron scheduler (in-memory).
-func (s *Scheduler) unregisterJob(name string) {
+func (s *Scheduler) unregisterJob(workspaceID, name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if entryID, ok := s.entryIDs[name]; ok {
+	key := jobKey(workspaceID, name)
+	if entryID, ok := s.entryIDs[key]; ok {
 		s.cron.Remove(entryID)
-		delete(s.entryIDs, name)
+		delete(s.entryIDs, key)
 	}
 }
 
 // RunJobNow loads the named job and executes it immediately, bypassing the
 // schedule. The returned execution record is the same shape that scheduled
 // runs produce and is persisted to the execution repo.
-func (s *Scheduler) RunJobNow(ctx context.Context, name string) (*agentsv1.CronExecution, error) {
-	job, err := s.jobRepo.Get(ctx, name)
+func (s *Scheduler) RunJobNow(ctx context.Context, workspaceID, name string) (*agentsv1.CronExecution, error) {
+	job, err := s.jobRepo.Get(ctx, workspaceID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -204,6 +213,7 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 		ChannelName: channelName,
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
 		ChannelType: "cron",
+		WorkspaceId: job.GetWorkspaceId(),
 	}
 
 	input := job.GetInput()

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package agents.v1;
 
+import "agents/v1/workspace.proto";
 import "google/protobuf/timestamp.proto";
 import "validate/validate.proto";
 
@@ -51,6 +52,10 @@ message LoginResponse {
   string token = 1;
   User user = 2;
   google.protobuf.Timestamp expires_at = 3;
+  // Workspaces this user can access. Empty for global admins with no
+  // explicit memberships — they may still pick any workspace via
+  // WorkspaceService.ListWorkspaces.
+  repeated Workspace workspaces = 4;
 }
 
 message MeRequest {}

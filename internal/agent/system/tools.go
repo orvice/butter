@@ -29,9 +29,9 @@ type listAgentsResult struct {
 func newListAgentsTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "list_agents",
-		Description: "List all registered agents with their names, types, and descriptions.",
+		Description: "List all registered agents across every workspace with their names, types, and descriptions.",
 	}, func(_ tool.Context, _ listAgentsArgs) (listAgentsResult, error) {
-		agents, err := agentRepo.ListAgents(context.Background())
+		agents, err := agentRepo.ListAgentsAcrossWorkspaces(context.Background())
 		if err != nil {
 			return listAgentsResult{}, err
 		}
@@ -48,7 +48,8 @@ func newListAgentsTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) 
 }
 
 type getAgentArgs struct {
-	Name string `json:"name" jsonschema:"the name of the agent to retrieve"`
+	Name        string `json:"name" jsonschema:"the name of the agent to retrieve"`
+	WorkspaceID string `json:"workspace_id,omitempty" jsonschema:"optional workspace id; if empty, scans every workspace and returns the first match"`
 }
 
 type getAgentResult struct {
@@ -63,9 +64,28 @@ type getAgentResult struct {
 func newGetAgentTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "get_agent",
-		Description: "Get detailed configuration of a specific agent by name.",
+		Description: "Get detailed configuration of a specific agent by name. Provide workspace_id to disambiguate; otherwise the first match across workspaces is returned.",
 	}, func(_ tool.Context, args getAgentArgs) (getAgentResult, error) {
-		a, err := agentRepo.GetAgent(context.Background(), args.Name)
+		var a *agentsv1.Agent
+		var err error
+		ctx := context.Background()
+		if args.WorkspaceID != "" {
+			a, err = agentRepo.GetAgent(ctx, args.WorkspaceID, args.Name)
+		} else {
+			all, listErr := agentRepo.ListAgentsAcrossWorkspaces(ctx)
+			if listErr != nil {
+				return getAgentResult{}, listErr
+			}
+			for _, candidate := range all {
+				if candidate.GetName() == args.Name {
+					a = candidate
+					break
+				}
+			}
+			if a == nil {
+				err = fmt.Errorf("not found")
+			}
+		}
 		if err != nil {
 			return getAgentResult{}, fmt.Errorf("agent %q not found", args.Name)
 		}
@@ -104,9 +124,9 @@ type listCronJobsResult struct {
 func newListCronJobsTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "list_cron_jobs",
-		Description: "List all configured cron jobs with their schedule, agent, and enabled status.",
+		Description: "List configured cron jobs across all workspaces with their schedule, agent, and enabled status.",
 	}, func(tc tool.Context, _ listCronJobsArgs) (listCronJobsResult, error) {
-		jobs, err := scheduler.ListJobs(context.Background())
+		jobs, err := scheduler.ListAllJobs(context.Background())
 		if err != nil {
 			return listCronJobsResult{}, err
 		}
@@ -126,12 +146,13 @@ func newListCronJobsTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 }
 
 type createCronJobArgs struct {
-	Name      string `json:"name" jsonschema:"unique name for the cron job"`
-	Schedule  string `json:"schedule" jsonschema:"cron expression in 5-field format, e.g. 0 9 * * *"`
-	AgentName string `json:"agent_name" jsonschema:"name of the agent to execute"`
-	Input     string `json:"input,omitempty" jsonschema:"input text to send to the agent"`
-	Timezone  string `json:"timezone,omitempty" jsonschema:"IANA timezone e.g. Asia/Shanghai, defaults to UTC"`
-	Enabled   bool   `json:"enabled" jsonschema:"whether the job is enabled"`
+	WorkspaceID string `json:"workspace_id" jsonschema:"workspace id that owns this cron job"`
+	Name        string `json:"name" jsonschema:"unique name for the cron job"`
+	Schedule    string `json:"schedule" jsonschema:"cron expression in 5-field format, e.g. 0 9 * * *"`
+	AgentName   string `json:"agent_name" jsonschema:"name of the agent to execute"`
+	Input       string `json:"input,omitempty" jsonschema:"input text to send to the agent"`
+	Timezone    string `json:"timezone,omitempty" jsonschema:"IANA timezone e.g. Asia/Shanghai, defaults to UTC"`
+	Enabled     bool   `json:"enabled" jsonschema:"whether the job is enabled"`
 }
 
 type createCronJobResult struct {
@@ -145,12 +166,13 @@ func newCreateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		Description: "Create a new cron job that runs an agent on a schedule.",
 	}, func(tc tool.Context, args createCronJobArgs) (createCronJobResult, error) {
 		job := &agentsv1.CronJob{
-			Name:      args.Name,
-			Schedule:  args.Schedule,
-			AgentName: args.AgentName,
-			Input:     args.Input,
-			Timezone:  args.Timezone,
-			Enabled:   args.Enabled,
+			Name:        args.Name,
+			Schedule:    args.Schedule,
+			AgentName:   args.AgentName,
+			Input:       args.Input,
+			Timezone:    args.Timezone,
+			Enabled:     args.Enabled,
+			WorkspaceId: args.WorkspaceID,
 		}
 		if err := scheduler.AddJob(context.Background(), job); err != nil {
 			return createCronJobResult{Success: false, Message: err.Error()}, nil
@@ -160,12 +182,13 @@ func newCreateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 }
 
 type updateCronJobArgs struct {
-	Name      string `json:"name" jsonschema:"name of the cron job to update"`
-	Schedule  string `json:"schedule,omitempty" jsonschema:"new cron expression"`
-	AgentName string `json:"agent_name,omitempty" jsonschema:"new agent name"`
-	Input     string `json:"input,omitempty" jsonschema:"new input text"`
-	Timezone  string `json:"timezone,omitempty" jsonschema:"new IANA timezone"`
-	Enabled   bool   `json:"enabled" jsonschema:"whether the job is enabled"`
+	WorkspaceID string `json:"workspace_id" jsonschema:"workspace id that owns this cron job"`
+	Name        string `json:"name" jsonschema:"name of the cron job to update"`
+	Schedule    string `json:"schedule,omitempty" jsonschema:"new cron expression"`
+	AgentName   string `json:"agent_name,omitempty" jsonschema:"new agent name"`
+	Input       string `json:"input,omitempty" jsonschema:"new input text"`
+	Timezone    string `json:"timezone,omitempty" jsonschema:"new IANA timezone"`
+	Enabled     bool   `json:"enabled" jsonschema:"whether the job is enabled"`
 }
 
 type updateCronJobResult struct {
@@ -178,7 +201,7 @@ func newUpdateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		Name:        "update_cron_job",
 		Description: "Update an existing cron job's schedule, agent, input, or enabled status.",
 	}, func(tc tool.Context, args updateCronJobArgs) (updateCronJobResult, error) {
-		existing, err := scheduler.GetJob(context.Background(), args.Name)
+		existing, err := scheduler.GetJob(context.Background(), args.WorkspaceID, args.Name)
 		if err != nil {
 			return updateCronJobResult{Success: false, Message: fmt.Sprintf("cron job %q not found", args.Name)}, nil
 		}
@@ -204,7 +227,8 @@ func newUpdateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 }
 
 type deleteCronJobArgs struct {
-	Name string `json:"name" jsonschema:"name of the cron job to delete"`
+	WorkspaceID string `json:"workspace_id" jsonschema:"workspace id that owns this cron job"`
+	Name        string `json:"name" jsonschema:"name of the cron job to delete"`
 }
 
 type deleteCronJobResult struct {
@@ -217,7 +241,7 @@ func newDeleteCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		Name:        "delete_cron_job",
 		Description: "Delete an existing cron job by name.",
 	}, func(tc tool.Context, args deleteCronJobArgs) (deleteCronJobResult, error) {
-		if err := scheduler.RemoveJob(context.Background(), args.Name); err != nil {
+		if err := scheduler.RemoveJob(context.Background(), args.WorkspaceID, args.Name); err != nil {
 			return deleteCronJobResult{Success: false, Message: fmt.Sprintf("cron job %q not found", args.Name)}, nil
 		}
 		return deleteCronJobResult{Success: true, Message: fmt.Sprintf("Cron job %q deleted successfully", args.Name)}, nil
@@ -225,8 +249,9 @@ func newDeleteCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 }
 
 type listCronExecutionsArgs struct {
-	JobName  string `json:"job_name,omitempty" jsonschema:"filter by job name"`
-	PageSize int32  `json:"page_size,omitempty" jsonschema:"number of results to return, default 10"`
+	WorkspaceID string `json:"workspace_id,omitempty" jsonschema:"filter by workspace id; empty means across all workspaces"`
+	JobName     string `json:"job_name,omitempty" jsonschema:"filter by job name"`
+	PageSize    int32  `json:"page_size,omitempty" jsonschema:"number of results to return, default 10"`
 }
 
 type cronExecutionInfo struct {
@@ -252,7 +277,7 @@ func newListCronExecutionsTool(execRepo cron.ExecutionRepo) (tool.Tool, error) {
 		if pageSize <= 0 {
 			pageSize = 10
 		}
-		execs, _, err := execRepo.List(context.Background(), args.JobName, pageSize, "")
+		execs, _, err := execRepo.List(context.Background(), args.WorkspaceID, args.JobName, pageSize, "")
 		if err != nil {
 			return listCronExecutionsResult{}, err
 		}
