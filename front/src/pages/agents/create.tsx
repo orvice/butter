@@ -30,8 +30,8 @@ import type { AgentType } from "@/types/api";
 const agentSchema = z.object({
   name: z.string().min(1, "Name is required").refine((v) => v !== "user", "Name cannot be 'user'"),
   description: z.string().optional(),
-  type: z.string().default("AGENT_TYPE_LLM"),
-  enable_a2a: z.boolean().default(false),
+  type: z.string(),
+  enable_a2a: z.boolean(),
   model: z.string().optional(),
   instruction: z.string().optional(),
 });

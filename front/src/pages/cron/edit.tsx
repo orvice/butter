@@ -23,8 +23,8 @@ const schema = z.object({
   agent_name: z.string().min(1),
   input: z.string().optional(),
   timezone: z.string().optional(),
-  enabled: z.boolean().default(true),
-  delivery_type: z.string().default("CRON_DELIVERY_TYPE_LOG"),
+  enabled: z.boolean(),
+  delivery_type: z.string(),
   webhook_url: z.string().optional(),
   channel_name: z.string().optional(),
   chat_id: z.string().optional(),
@@ -38,7 +38,21 @@ export default function CronJobEditPage() {
   const { data, isLoading } = useCronJob(name ?? "");
   const { data: agentsData } = useAgents();
   const updateMutation = useUpdateCronJob();
-  const form = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: "",
+      schedule: "",
+      agent_name: "",
+      input: "",
+      timezone: "UTC",
+      enabled: true,
+      delivery_type: "CRON_DELIVERY_TYPE_LOG",
+      webhook_url: "",
+      channel_name: "",
+      chat_id: "",
+    },
+  });
   const deliveryType = form.watch("delivery_type");
 
   useEffect(() => {

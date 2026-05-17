@@ -15,7 +15,7 @@ import type { MCPServerTransport } from "@/types/api";
 const schema = z.object({
   id: z.string().min(1, "ID is required"),
   name: z.string().min(1, "Name is required"),
-  transport: z.string().default("MCP_SERVER_TRANSPORT_STDIO"),
+  transport: z.string(),
   command: z.string().optional(),
   url: z.string().optional(),
 });
