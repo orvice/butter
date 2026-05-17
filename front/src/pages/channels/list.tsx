@@ -73,7 +73,7 @@ function ChannelCard({ channel }: { channel: AgentChannel }) {
             <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate(`/channels/${channel.name}/edit`)}>
+            <DropdownMenuItem onClick={() => navigate(`/channels/${encodeURIComponent(channel.name)}/edit`)}>
               <Pencil className="mr-2 h-4 w-4" /> Edit settings
             </DropdownMenuItem>
             <DropdownMenuItem
