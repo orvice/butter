@@ -27,3 +27,4 @@ export const CRON_STATUS_LABELS: Record<string, string> = {
 };
 
 export const TOKEN_KEY = "butter_token";
+export const WORKSPACE_KEY = "butter_workspace_id";
