@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -133,6 +135,92 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   );
 }
 
+function MarkdownMessage({ text, isUser }: { text: string; isUser: boolean }) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg px-3 py-2 text-sm leading-relaxed",
+        isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+      )}
+    >
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: MarkdownLink,
+          code: MarkdownCode,
+          pre: MarkdownPre,
+          table: MarkdownTable,
+          th: MarkdownTableHeader,
+          td: MarkdownTableCell,
+          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+          ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+          li: ({ children }) => <li className="pl-1">{children}</li>,
+          blockquote: ({ children }) => (
+            <blockquote className="mb-2 border-l-2 border-current/30 pl-3 italic opacity-90 last:mb-0">
+              {children}
+            </blockquote>
+          ),
+          hr: () => <hr className="my-3 border-current/20" />,
+          h1: ({ children }) => <h1 className="mb-2 text-lg font-semibold last:mb-0">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-2 text-base font-semibold last:mb-0">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 text-sm font-semibold last:mb-0">{children}</h3>,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+function MarkdownLink(props: ComponentProps<"a">) {
+  return (
+    <a
+      {...props}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium underline underline-offset-2 hover:opacity-80"
+    />
+  );
+}
+
+function MarkdownCode({ children, className }: ComponentProps<"code">) {
+  const isInline = !className;
+  if (isInline) {
+    return (
+      <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[0.85em] text-foreground">
+        {children}
+      </code>
+    );
+  }
+
+  return <code className={cn("font-mono text-xs", className)}>{children}</code>;
+}
+
+function MarkdownPre({ children }: ComponentProps<"pre">) {
+  return (
+    <pre className="mb-2 overflow-x-auto rounded-md bg-background/80 p-3 text-foreground last:mb-0">
+      {children}
+    </pre>
+  );
+}
+
+function MarkdownTable({ children }: ComponentProps<"table">) {
+  return (
+    <div className="mb-2 overflow-x-auto last:mb-0">
+      <table className="w-full border-collapse text-left text-xs">{children}</table>
+    </div>
+  );
+}
+
+function MarkdownTableHeader({ children }: ComponentProps<"th">) {
+  return <th className="border border-current/20 px-2 py-1 font-semibold">{children}</th>;
+}
+
+function MarkdownTableCell({ children }: ComponentProps<"td">) {
+  return <td className="border border-current/20 px-2 py-1 align-top">{children}</td>;
+}
+
 function MessageBubble({ event }: { event: ParsedEvent }) {
   const isUser = event.role === "user";
   const hasText = event.text.trim().length > 0;
@@ -148,16 +236,7 @@ function MessageBubble({ event }: { event: ParsedEvent }) {
       ) : null}
       <div className={cn("max-w-[75%] space-y-1.5", isUser && "items-end")}>
         {hasText ? (
-          <div
-            className={cn(
-              "whitespace-pre-wrap rounded-lg px-3 py-2 text-sm",
-              isUser
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground",
-            )}
-          >
-            {event.text}
-          </div>
+          <MarkdownMessage text={event.text} isUser={isUser} />
         ) : null}
         {event.toolCalls.map((tc, i) => (
           <Card key={`call-${i}`} className="border-dashed">
