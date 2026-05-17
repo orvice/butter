@@ -72,10 +72,11 @@ function replySession(params: ReplySessionParams) {
   return twirpFetch<ReplySessionParams, { response: string }>(SVC, "ReplySession", params);
 }
 
-export function useSessions(params: ListSessionsParams = {}) {
+export function useSessions(params: ListSessionsParams = {}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["sessions", params],
     queryFn: () => listSessions(params),
+    enabled: options?.enabled ?? true,
   });
 }
 
