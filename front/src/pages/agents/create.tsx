@@ -4,11 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { useCreateAgent } from "@/api/agents";
+import { useMCPServers } from "@/api/mcp-servers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AgentModelSelect } from "./model-select";
 import {
@@ -35,6 +37,7 @@ const agentSchema = z.object({
   enable_a2a: z.boolean(),
   model: z.string().optional(),
   instruction: z.string().optional(),
+  mcp_server_ids: z.array(z.string()).optional(),
 });
 
 type AgentFormValues = z.infer<typeof agentSchema>;
@@ -42,10 +45,11 @@ type AgentFormValues = z.infer<typeof agentSchema>;
 export default function AgentCreatePage() {
   const navigate = useNavigate();
   const createMutation = useCreateAgent();
+  const { data: mcpData, isLoading: isLoadingMCPServers } = useMCPServers();
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
-    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "" },
+    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "", mcp_server_ids: [] },
   });
 
   function onSubmit(values: AgentFormValues) {
@@ -58,6 +62,7 @@ export default function AgentCreatePage() {
         config: {
           model: values.model,
           instruction: values.instruction,
+          mcp_server_ids: values.mcp_server_ids ?? [],
         },
       },
       {
@@ -141,6 +146,64 @@ export default function AgentCreatePage() {
                   <FormMessage />
                 </FormItem>
               )} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>MCP Servers</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Select shared MCP servers this agent can use. Leave empty to disable shared MCP tools.
+              </p>
+              <FormField control={form.control} name="mcp_server_ids" render={({ field }) => {
+                const selected = field.value ?? [];
+                const servers = mcpData?.mcp_servers ?? [];
+                const toggle = (id: string) => {
+                  field.onChange(
+                    selected.includes(id)
+                      ? selected.filter((selectedId) => selectedId !== id)
+                      : [...selected, id],
+                  );
+                };
+
+                if (isLoadingMCPServers) {
+                  return <p className="text-sm text-muted-foreground">Loading MCP servers...</p>;
+                }
+
+                if (servers.length === 0) {
+                  return <p className="text-sm text-muted-foreground">No shared MCP servers configured yet.</p>;
+                }
+
+                return (
+                  <FormItem>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {servers.map((server) => {
+                        const id = server.id ?? "";
+                        const isSelected = selected.includes(id);
+                        return (
+                          <button
+                            key={id || server.name}
+                            type="button"
+                            disabled={!id}
+                            onClick={() => id && toggle(id)}
+                            className={`rounded-md border p-3 text-left transition-colors ${
+                              isSelected ? "border-primary bg-primary/10" : "hover:bg-muted"
+                            } ${!id ? "cursor-not-allowed opacity-60" : ""}`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium">{server.name}</span>
+                              {isSelected && <Badge>Selected</Badge>}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {server.transport ?? "transport unspecified"}{server.url ? ` · ${server.url}` : ""}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FormItem>
+                );
+              }} />
             </CardContent>
           </Card>
 

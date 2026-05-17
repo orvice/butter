@@ -43,6 +43,7 @@ const agentSchema = z.object({
   enable_a2a: z.boolean(),
   model: z.string().optional(),
   instruction: z.string().optional(),
+  mcp_server_ids: z.array(z.string()).optional(),
 });
 
 type AgentFormValues = z.infer<typeof agentSchema>;
@@ -61,7 +62,7 @@ export default function AgentEditPage() {
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
-    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "" },
+    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "", mcp_server_ids: [] },
   });
 
   useEffect(() => {
@@ -74,6 +75,7 @@ export default function AgentEditPage() {
         enable_a2a: a.enable_a2a ?? false,
         model: a.config?.model ?? "",
         instruction: a.config?.instruction ?? "",
+        mcp_server_ids: a.config?.mcp_server_ids ?? [],
       });
     }
   }, [data, form]);
@@ -89,6 +91,7 @@ export default function AgentEditPage() {
         ...data?.agent?.config,
         model: values.model,
         instruction: values.instruction,
+        mcp_server_ids: values.mcp_server_ids ?? [],
       },
     };
     submitUpdate(agent);
@@ -119,7 +122,7 @@ export default function AgentEditPage() {
         description: values.description,
         type: values.type as AgentType,
         enable_a2a: values.enable_a2a,
-        config: { ...data?.agent?.config, model: values.model, instruction: values.instruction },
+        config: { ...data?.agent?.config, model: values.model, instruction: values.instruction, mcp_server_ids: values.mcp_server_ids ?? [] },
       };
       setJsonValue(JSON.stringify(agent, null, 2));
     } else if (tab === "form") {
@@ -132,6 +135,7 @@ export default function AgentEditPage() {
           enable_a2a: agent.enable_a2a ?? false,
           model: agent.config?.model ?? "",
           instruction: agent.config?.instruction ?? "",
+          mcp_server_ids: agent.config?.mcp_server_ids ?? [],
         });
       } catch { /* keep current form values if JSON is invalid */ }
     }
@@ -219,18 +223,59 @@ export default function AgentEditPage() {
                 </CardContent>
               </Card>
 
-              {/* MCP Server IDs - read-only display */}
-              {data?.agent?.config?.mcp_server_ids && data.agent.config.mcp_server_ids.length > 0 && (
-                <Card>
-                  <CardHeader><CardTitle>MCP Servers</CardTitle></CardHeader>
-                  <CardContent className="flex flex-wrap gap-2">
-                    {data.agent.config.mcp_server_ids.map((id) => {
-                      const server = mcpData?.mcp_servers?.find((s) => s.id === id);
-                      return <Badge key={id} variant="secondary">{server?.name ?? id}</Badge>;
-                    })}
-                  </CardContent>
-                </Card>
-              )}
+              <Card>
+                <CardHeader><CardTitle>MCP Servers</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Select shared MCP servers this agent can use. Inline MCP servers can still be managed in JSON mode.
+                  </p>
+                  <FormField control={form.control} name="mcp_server_ids" render={({ field }) => {
+                    const selected = field.value ?? [];
+                    const servers = mcpData?.mcp_servers ?? [];
+                    const toggle = (id: string) => {
+                      field.onChange(
+                        selected.includes(id)
+                          ? selected.filter((selectedId) => selectedId !== id)
+                          : [...selected, id],
+                      );
+                    };
+
+                    if (servers.length === 0) {
+                      return <p className="text-sm text-muted-foreground">No shared MCP servers configured yet.</p>;
+                    }
+
+                    return (
+                      <FormItem>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          {servers.map((server) => {
+                            const id = server.id ?? "";
+                            const isSelected = selected.includes(id);
+                            return (
+                              <button
+                                key={id || server.name}
+                                type="button"
+                                disabled={!id}
+                                onClick={() => id && toggle(id)}
+                                className={`rounded-md border p-3 text-left transition-colors ${
+                                  isSelected ? "border-primary bg-primary/10" : "hover:bg-muted"
+                                } ${!id ? "cursor-not-allowed opacity-60" : ""}`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-medium">{server.name}</span>
+                                  {isSelected && <Badge>Selected</Badge>}
+                                </div>
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  {server.transport ?? "transport unspecified"}{server.url ? ` · ${server.url}` : ""}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </FormItem>
+                    );
+                  }} />
+                </CardContent>
+              </Card>
 
               {/* Remote Agent IDs - read-only display */}
               {data?.agent?.config?.remote_agent_ids && data.agent.config.remote_agent_ids.length > 0 && (
