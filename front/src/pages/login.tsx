@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
-  const [tokenInput, setTokenInput] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -17,11 +18,11 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const ok = await login(tokenInput.trim());
+      const ok = await login(username.trim(), password);
       if (ok) {
         navigate("/");
       } else {
-        setError("Invalid token. Please check and try again.");
+        setError("Invalid username or password. Please check and try again.");
       }
     } catch {
       setError("Connection failed. Is the server running?");
@@ -35,20 +36,29 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Butter</CardTitle>
-          <CardDescription>Enter your API token to connect</CardDescription>
+          <CardDescription>Sign in with your Butter account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
+              type="text"
+              autoComplete="username"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+            />
+            <Input
               type="password"
-              placeholder="Paste your API token"
-              value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value)}
+              autoComplete="current-password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading || !tokenInput.trim()}>
-              {loading ? "Connecting..." : "Connect"}
+            <Button type="submit" className="w-full" disabled={loading || !username.trim() || !password}>
+              {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         </CardContent>

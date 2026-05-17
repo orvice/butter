@@ -2185,7 +2185,7 @@ func (s *cronJobServiceServer) serveRunCronJobNowProtobuf(ctx context.Context, r
 }
 
 func (s *cronJobServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor3, 0
+	return twirpFileDescriptor4, 0
 }
 
 func (s *cronJobServiceServer) ProtocGenTwirpVersion() string {
@@ -2199,7 +2199,7 @@ func (s *cronJobServiceServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "agents.v1", "CronJobService")
 }
 
-var twirpFileDescriptor3 = []byte{
+var twirpFileDescriptor4 = []byte{
 	// 1058 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xdd, 0x72, 0xdb, 0x44,
 	0x14, 0x46, 0x4e, 0xe2, 0x9f, 0x93, 0x1f, 0xcc, 0xd6, 0x69, 0x5c, 0x85, 0x24, 0x8e, 0xa0, 0x25,

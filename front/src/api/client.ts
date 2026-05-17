@@ -46,7 +46,7 @@ export async function twirpFetch<TReq, TRes>(
 }
 
 export async function validateToken(token: string): Promise<boolean> {
-  const url = `${BASE_URL}/api/agents.v1.AgentService/ListAgents`;
+  const url = `${BASE_URL}/api/agents.v1.AuthService/Me`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
