@@ -1,6 +1,6 @@
 # Butter 系统架构
 
-更新时间：2026-05-16
+更新时间：2026-05-17
 
 ## 概览
 
@@ -8,12 +8,29 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/Twirp/gRPC/ch
 
 核心能力：
 
+- 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Cron / API Token / Invocation / Cron Execution 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
 - Agent 配置化：从 YAML 或配置仓库加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel agent。
 - 多入口接入：Gin HTTP、Twirp RPC、Telegram、Discord、Cron、A2A 和 daemon gRPC。
 - 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload；`AgentService.ReloadAgents` 公开触发。
 - 多执行面：本地 ADK agent、A2A 远程 agent、daemon 反向连接 agent；A2A 与 MCP 提供 live probing。
-- 持久化运行时：MongoDB 保存 ADK session/memory、配置、cron 执行记录、invocation 历史、API tokens；Redis 保存渠道内活跃 agent/model 选择。
-- 运维面板：`DashboardService` / `DaemonService` / `APITokenService` 暴露 counts / health / activity feed / 桥诊断 / daemon 任务 / 多 token 管理。
+- 持久化运行时：MongoDB 保存 ADK session/memory、配置、cron 执行记录、invocation 历史、API tokens、workspaces 与 workspace_members；Redis 保存渠道内活跃 agent/model 选择。
+- 运维面板：`WorkspaceService` / `DashboardService` / `DaemonService` / `APITokenService` 暴露 workspace + 成员管理 / counts / health / activity feed / 桥诊断 / daemon 任务 / 多 token 管理。
+
+## Workspace 多租户模型
+
+所有配置实体（`Agent` / `AgentChannel` / `MCPServer` / `RemoteAgent` / `ModelProvider` / `CronJob` / `APIToken`）以及运行时记录（`Invocation` / `CronExecution`）都归属于一个 workspace。`Workspace` 自身和 `WorkspaceMember` 由 `WorkspaceService` 管理，持久化为 MongoDB 的 `workspaces` 和 `workspace_members` 集合（`(workspace_id, user_id)` 唯一索引）。
+
+请求流：
+
+1. 客户端登录后，`AuthService.Login` 返回该用户可访问的 workspace 列表（全局 `admin` 角色得到所有 workspace）。
+2. 客户端选择一个 workspace，后续请求带 `X-Workspace-ID` 头。
+3. `AuthMiddleware` 校验调用方是该 workspace 的成员（admin 旁路），把 workspace id 注入 `context.Context`。
+4. Twirp 服务通过 `internal/workspace.FromContext(ctx)` 取出 workspace id，下传到 repo CRUD 调用；写入实体时自动写回 `workspace_id` 字段。
+5. API token 自身绑定到一个 workspace，认证成功后直接覆盖请求 workspace（忽略 header）。
+
+启动时 `application.BootstrapDefaultWorkspace` 检查 `workspaces` 集合是否为空，若为空则自动创建 slug 为 `default` 的 workspace，并把现有所有用户加为 `owner`。
+
+运行时（runner / channel manager / cron scheduler）通过新增的 `*AcrossWorkspaces` repo 接口拉平所有 workspace 的配置，构建一个全局视图。**在当前阶段 agent 名字仍要求跨 workspace 全局唯一**，channel 与 cron job 通过 `ContextInfo.workspace_id` 把所属 workspace 透传到执行链。
 
 ## 进程入口
 
@@ -66,13 +83,19 @@ Agent Layer
 Config Layer
 ├── AppConfig loaded by Butterfly
 ├── ConfigStore runtime backend wrapper
-├── repo/config interfaces
+├── repo/config interfaces                # workspace-scoped CRUD + AcrossWorkspaces listings
 ├── repo/config/{memory,mongo}
-├── repo/apitoken/{memory,mongo}          # api_tokens collection
-└── repo/invocation/{memory,mongo}        # invocations collection
+├── repo/apitoken/{memory,mongo}          # api_tokens collection (workspace-scoped)
+├── repo/invocation/{memory,mongo}        # invocations collection
+└── repo/workspace/{memory,mongo}         # workspaces + workspace_members
+
+Workspace Layer
+├── internal/workspace                    # ctx propagation (FromContext / WithID / HeaderName)
+├── handler/http.AuthMiddleware           # resolves X-Workspace-ID, validates membership
+└── application.WorkspaceServiceServer    # CRUD + memberships
 
 Persistence
-├── MongoDB: session, memory, config, cron, invocations, api_tokens
+├── MongoDB: session, memory, config, cron, invocations, api_tokens, workspaces, workspace_members
 └── Redis: channel active agent/model selection
 ```
 
@@ -179,11 +202,15 @@ Twirp server 位于 `internal/application`，挂载在 `/api`：
 - `DaemonService`：`ListDaemons` / `GetDaemon` / `ListDaemonTasks` / `CancelDaemonTask` / `GetBridgeDiagnostics`。
 - `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
 
-除 `/ping` 外，HTTP/Twirp 请求经过 `APITokenAuthMiddleware`：
+除 `/ping` 与 `AuthService.Login` 外，HTTP/Twirp 请求经过 `AuthMiddleware`：
 
-1. 先用 `subtle.ConstantTimeCompare` 比对配置的 root token (`cfg.apiToken`)。
-2. 不匹配则查 `apitoken.Repository.Lookup(sha256(token))`；命中后异步 `TouchLastUsed`，放行。
-3. 否则返回 `401 Unauthorized`。
+1. 优先解析 `Authorization: Bearer <token>` 中的 user session（`auth_sessions` 集合，命中后异步 `TouchSession`）。
+2. 不匹配则用 `subtle.ConstantTimeCompare` 比对配置的 root token (`cfg.apiToken`)。
+3. 再不匹配则查 `apitoken.Repository.Lookup(sha256(token))`；命中后异步 `TouchLastUsed`，放行。
+4. 通过后解析 `X-Workspace-ID` 头：用户 session 走成员关系校验（admin 旁路）；API token 直接绑定到其存储的 workspace，覆盖 header；root token 与未配置 repo 时接受 header 原值。
+5. 全部失败返回 `401 Unauthorized`。
+
+`AuthService.Login` 返回该用户可见的 workspace 列表（admin 看全部），前端在登录后弹出 workspace 选择器，把选中的 workspace id 写入后续请求头。
 
 Daemon gRPC `Connect` 走同一份 root `apiToken`（`Authorization` metadata 头）。
 
@@ -218,12 +245,12 @@ cmd/butter server
 
 启动时 `ConfigStore.InitFromConfig` 会根据 `storage_backend` 选择后端：
 
-- `memory` 或空：直接用启动配置 seed 内存仓库。
-- `mongo`：如果对应 collection 为空，则从启动配置 seed；否则以 MongoDB 中的配置为准。
+- `memory` 或空：使用内存仓库；初始为空。
+- `mongo`：直接读取 MongoDB 中的配置。YAML 中的 `agents` / `mcp_servers` / `remote_agents` / `channels` / `model_providers` 已不再作为 seed 源，应通过 RPC（带 `X-Workspace-ID`）写入。
 
-RPC 修改配置后，service server 会调用 `ConfigRuntime`：
+RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 workspace；写完成调用 `ConfigRuntime`：
 
-- Agent/MCP/RemoteAgent 变更触发 `ReloadRunner`，重新构建 agent registry 并 reload channels。
+- Agent/MCP/RemoteAgent/ModelProvider 变更触发 `ReloadRunner`，跨 workspace 拉平所有配置后重新构建 agent registry 并 reload channels。
 - Channel 变更触发 `ReloadChannels`。
 
 ## 持久化
@@ -232,10 +259,12 @@ RPC 修改配置后，service server 会调用 `ConfigRuntime`：
 
 - ADK sessions（`adk_sessions` / `adk_events`）。`session/mongo.Service.CountSessions` 给 dashboard overview 用。
 - ADK memories。
-- 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_channels`。
-- Cron jobs / executions（`cron_jobs` / `cron_executions`，含 `ListByTimeRange` 支撑时序聚合）。
-- `invocations`：runner 持久化的每次 ADK 调用（runner → `InvocationRecorder.Save`，RUNNING 起记，defer 写终态）。驱动 ActivityFeed + AgentRuntimeStatus + ListAgentInvocations。
-- `api_tokens`：DB-stored API tokens（仅 `secret_hash` + `prefix` + `last_used_at` + `revoked`）。
+- 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_channels` / `config_modelproviders`，`_id` 为 `"{workspace_id}:{name}"` 复合键，并对 `(workspace_id, name)` 建索引。
+- `workspaces`：workspace 元数据，`slug` 唯一索引。
+- `workspace_members`：用户与 workspace 的多对多关系，`(workspace_id, user_id)` 复合唯一索引、`user_id` 普通索引。
+- Cron jobs / executions（`cron_jobs` / `cron_executions`，`_id = "{workspace_id}:{name}"`；含 `ListByTimeRange` 支撑时序聚合，`workspace_id` 字段可作过滤）。
+- `invocations`：runner 持久化的每次 ADK 调用（runner → `InvocationRecorder.Save`，RUNNING 起记，defer 写终态，附带 `workspace_id`）。驱动 ActivityFeed + AgentRuntimeStatus + ListAgentInvocations。
+- `api_tokens`：DB-stored API tokens（带 `workspace_id` + `secret_hash` + `prefix` + `last_used_at` + `revoked`）。
 
 后端选择：`storage_backend = "mongo"` 时全部走 mongo；否则用内存仓库（`api_tokens` / `invocations` 也支持 memory 实现，方便测试）。
 
@@ -263,3 +292,5 @@ Redis 地址默认 `localhost:6379`。Redis 连接失败不会阻止服务启动
 - `runner.Service.Run` 当前仍以同步返回最终文本为主，长时间 daemon 任务会占用调用链。
 - MCP toolset 当前支持 streamable HTTP 和 SSE transport。
 - A2A remote agent 需要 `url`；daemon remote agent 需要 `daemon_capability` 和在线 daemon 连接。
+- 跨 workspace 共享同一个 runner / channel manager / cron scheduler，**agent 名字需在所有 workspace 内全局唯一**；引用 agent 的 channel 与 cron job 仅按 name 解析。
+- 内置 system agent 仍为全局注册，其管理类工具读跨 workspace、写则要求显式传入 `workspace_id`。

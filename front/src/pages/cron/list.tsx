@@ -157,10 +157,10 @@ export default function CronJobListPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/cron/${row.name}/edit`)}>
+              <DropdownMenuItem onClick={() => navigate(`/cron/${encodeURIComponent(row.name)}/edit`)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate(`/cron/${row.name}/executions`)}>
+              <DropdownMenuItem onClick={() => navigate(`/cron/${encodeURIComponent(row.name)}/executions`)}>
                 <History className="mr-2 h-4 w-4" /> Executions
               </DropdownMenuItem>
               <DropdownMenuItem

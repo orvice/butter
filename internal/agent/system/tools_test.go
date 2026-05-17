@@ -12,12 +12,24 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+const wsTest = "ws-test"
+
+func seedAgents(t *testing.T, store *memory.Store, agents ...*agentsv1.Agent) {
+	t.Helper()
+	ctx := context.Background()
+	for _, a := range agents {
+		if _, err := store.CreateAgent(ctx, wsTest, a); err != nil {
+			t.Fatalf("seed agent %q: %v", a.GetName(), err)
+		}
+	}
+}
+
 func TestNewListAgentsTool(t *testing.T) {
 	store := memory.New()
-	store.Seed(context.Background(), []agentsv1.Agent{
-		{Name: "agent-a", Description: "First agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM},
-		{Name: "agent-b", Description: "Second agent", Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL},
-	}, nil, nil, nil, nil)
+	seedAgents(t, store,
+		&agentsv1.Agent{Name: "agent-a", Description: "First agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM},
+		&agentsv1.Agent{Name: "agent-b", Description: "Second agent", Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL},
+	)
 
 	tool, err := newListAgentsTool(store)
 	if err != nil {
@@ -30,9 +42,9 @@ func TestNewListAgentsTool(t *testing.T) {
 
 func TestNewGetAgentTool(t *testing.T) {
 	store := memory.New()
-	store.Seed(context.Background(), []agentsv1.Agent{
-		{Name: "test-agent", Description: "A test agent"},
-	}, nil, nil, nil, nil)
+	seedAgents(t, store,
+		&agentsv1.Agent{Name: "test-agent", Description: "A test agent"},
+	)
 
 	tool, err := newGetAgentTool(store)
 	if err != nil {
@@ -160,11 +172,15 @@ type mockJobRepo struct {
 	jobs []*agentsv1.CronJob
 }
 
-func (r *mockJobRepo) List(_ context.Context) ([]*agentsv1.CronJob, error) {
+func (r *mockJobRepo) List(_ context.Context, _ string) ([]*agentsv1.CronJob, error) {
 	return r.jobs, nil
 }
 
-func (r *mockJobRepo) Get(_ context.Context, name string) (*agentsv1.CronJob, error) {
+func (r *mockJobRepo) ListAll(_ context.Context) ([]*agentsv1.CronJob, error) {
+	return r.jobs, nil
+}
+
+func (r *mockJobRepo) Get(_ context.Context, _, name string) (*agentsv1.CronJob, error) {
 	for _, j := range r.jobs {
 		if j.GetName() == name {
 			return j, nil
@@ -188,7 +204,7 @@ func (r *mockJobRepo) Update(_ context.Context, job *agentsv1.CronJob) error {
 	return context.DeadlineExceeded
 }
 
-func (r *mockJobRepo) Delete(_ context.Context, name string) error {
+func (r *mockJobRepo) Delete(_ context.Context, _, name string) error {
 	for i, j := range r.jobs {
 		if j.GetName() == name {
 			r.jobs = append(r.jobs[:i], r.jobs[i+1:]...)
@@ -207,7 +223,7 @@ func (r *mockExecRepo) Save(_ context.Context, exec *agentsv1.CronExecution) err
 	return nil
 }
 
-func (r *mockExecRepo) List(_ context.Context, jobName string, pageSize int32, pageToken string) ([]*agentsv1.CronExecution, string, error) {
+func (r *mockExecRepo) List(_ context.Context, _, jobName string, pageSize int32, pageToken string) ([]*agentsv1.CronExecution, string, error) {
 	if jobName == "" {
 		return r.execs, "", nil
 	}
@@ -229,6 +245,6 @@ func (r *mockExecRepo) GetByID(_ context.Context, id string) (*agentsv1.CronExec
 	return nil, context.DeadlineExceeded
 }
 
-func (r *mockExecRepo) ListByTimeRange(_ context.Context, _ string, _, _ time.Time) ([]*agentsv1.CronExecution, error) {
+func (r *mockExecRepo) ListByTimeRange(_ context.Context, _, _ string, _, _ time.Time) ([]*agentsv1.CronExecution, error) {
 	return nil, nil
 }

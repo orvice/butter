@@ -14,6 +14,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/service"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -33,8 +34,10 @@ type Handlers struct {
 	daemonSvcServer        *application.DaemonServiceServer
 	apiTokenSvcServer      *application.APITokenServiceServer
 	authSvcServer          *application.AuthServiceServer
+	workspaceSvcServer     *application.WorkspaceServiceServer
 	authRepo               atomic.Value // auth.Repository
 	apiTokenRepo           atomic.Value // apitoken.Repository
+	workspaceRepo          atomic.Value // workspace.Repository
 	configStore            *ConfigStore
 	configRuntime          *ConfigRuntime
 	agentRepo              configrepo.AgentRepository
@@ -66,6 +69,18 @@ func (h *Handlers) authRepoFromHolder() auth.Repository {
 		return nil
 	}
 	repo, _ := v.(auth.Repository)
+	return repo
+}
+
+func (h *Handlers) workspaceRepoFromHolder() workspace.Repository {
+	if h == nil {
+		return nil
+	}
+	v := h.workspaceRepo.Load()
+	if v == nil {
+		return nil
+	}
+	repo, _ := v.(workspace.Repository)
 	return repo
 }
 
@@ -123,6 +138,15 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.authRepo.Store(result.AuthRepo)
 		if h.authSvcServer != nil {
 			h.authSvcServer.SetRepo(result.AuthRepo)
+		}
+	}
+	if result.WorkspaceRepo != nil {
+		h.workspaceRepo.Store(result.WorkspaceRepo)
+		if h.workspaceSvcServer != nil {
+			h.workspaceSvcServer.SetRepo(result.WorkspaceRepo)
+		}
+		if h.authSvcServer != nil {
+			h.authSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 		}
 	}
 	if h.dashboardSvcServer != nil {
@@ -203,6 +227,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	apiTokenTwirp := agentsv1.NewAPITokenServiceServer(apiTokenSvcServer, pathPrefix)
 	authSvcServer := application.NewAuthServiceServer(nil, cfg.Auth.EffectiveSessionTTL())
 	authTwirp := agentsv1.NewAuthServiceServer(authSvcServer, pathPrefix)
+	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
+	workspaceTwirp := agentsv1.NewWorkspaceServiceServer(workspaceSvcServer, pathPrefix)
 
 	handlers := &Handlers{
 		a2aHandler:             a2aHandler,
@@ -217,6 +243,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		daemonSvcServer:        daemonSvcServer,
 		apiTokenSvcServer:      apiTokenSvcServer,
 		authSvcServer:          authSvcServer,
+		workspaceSvcServer:     workspaceSvcServer,
 		configStore:            configStore,
 		configRuntime:          configRuntime,
 		agentRepo:              configStore,
@@ -227,7 +254,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	}
 
 	router := func(r *gin.Engine) {
-		r.Use(httpHandler.AuthMiddleware(cfg, handlers.authRepoFromHolder, handlers.apiTokenRepoFromHolder))
+		r.Use(httpHandler.AuthMiddleware(cfg, handlers.authRepoFromHolder, handlers.apiTokenRepoFromHolder, handlers.workspaceRepoFromHolder))
 		healthHandler.Register(r)
 		statusHandler.Register(r)
 		a2aHandler.Register(r)
@@ -244,6 +271,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any(daemonTwirp.PathPrefix()+"*path", gin.WrapH(daemonTwirp))
 		r.Any(apiTokenTwirp.PathPrefix()+"*path", gin.WrapH(apiTokenTwirp))
 		r.Any(authTwirp.PathPrefix()+"*path", gin.WrapH(authTwirp))
+		r.Any(workspaceTwirp.PathPrefix()+"*path", gin.WrapH(workspaceTwirp))
 	}
 
 	return router, handlers

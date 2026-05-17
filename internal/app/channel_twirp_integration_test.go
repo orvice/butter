@@ -15,6 +15,7 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	configmongo "go.orx.me/apps/butter/internal/repo/config/mongo"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -51,6 +52,7 @@ func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
+	ctx = workspace.WithID(ctx, "ws-test")
 
 	cfg := &config.AppConfig{
 		StorageBackend: "mongo",
@@ -144,7 +146,7 @@ func TestChannelServiceTwirpIntegration(t *testing.T) {
 	}
 
 	repo := configmongo.New(fx.db)
-	channels, err := repo.ListChannels(fx.ctx)
+	channels, err := repo.ListChannels(fx.ctx, "ws-test")
 	if err != nil {
 		t.Fatalf("list persisted channels: %v", err)
 	}
@@ -164,7 +166,7 @@ func TestChannelServiceTwirpIntegration(t *testing.T) {
 		t.Fatalf("expected NotFound after delete, got %v", err)
 	}
 
-	channels, err = repo.ListChannels(fx.ctx)
+	channels, err = repo.ListChannels(fx.ctx, "ws-test")
 	if err != nil {
 		t.Fatalf("list channels after delete: %v", err)
 	}
@@ -237,7 +239,7 @@ func TestConfigServicesTwirpIntegration(t *testing.T) {
 	}
 
 	repo := configmongo.New(fx.db)
-	agents, err := repo.ListAgents(fx.ctx)
+	agents, err := repo.ListAgents(fx.ctx, "ws-test")
 	if err != nil {
 		t.Fatalf("list persisted agents: %v", err)
 	}

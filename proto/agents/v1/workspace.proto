@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// Workspace is the top-level tenant container for all agent configurations.
+// Every Agent, AgentChannel, MCPServer, RemoteAgent, ModelProvider, CronJob,
+// APIToken and runtime record (Invocation, CronExecution) belongs to exactly
+// one workspace.
+// =============================================================================
+
+message Workspace {
+  // Stable server-assigned identifier (UUID).
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+
+  // Human-readable name.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 2 [(validate.rules).string.min_len = 1];
+
+  // URL-safe short identifier, unique across workspaces.
+  // @gotags: json:"slug,omitempty" yaml:"slug,omitempty" bson:"slug,omitempty"
+  string slug = 3 [(validate.rules).string.min_len = 1];
+
+  // Free-form description.
+  // @gotags: json:"description,omitempty" yaml:"description,omitempty" bson:"description,omitempty"
+  string description = 4;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 5;
+
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// WorkspaceMember is a (workspace, user) binding with a role inside that
+// workspace. Global "admin" users still see every workspace.
+message WorkspaceMember {
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 1;
+
+  // @gotags: json:"user_id,omitempty" yaml:"user_id,omitempty" bson:"user_id,omitempty"
+  string user_id = 2;
+
+  // Role inside the workspace: "owner", "admin", "member".
+  // @gotags: json:"role,omitempty" yaml:"role,omitempty" bson:"role,omitempty"
+  string role = 3;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// WorkspaceService manages workspaces and memberships.
+service WorkspaceService {
+  // ListWorkspaces returns all workspaces the caller can access. Global
+  // admins receive every workspace; other users receive only the ones they
+  // are members of.
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+
+  // GetWorkspace returns a single workspace by id.
+  rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse);
+
+  // CreateWorkspace creates a new workspace. The caller is added as the
+  // initial owner.
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
+
+  // UpdateWorkspace updates workspace metadata.
+  rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
+
+  // DeleteWorkspace permanently removes a workspace and all of its scoped
+  // configs. Caller must be an owner.
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
+
+  // ListWorkspaceMembers returns the membership list of a workspace.
+  rpc ListWorkspaceMembers(ListWorkspaceMembersRequest) returns (ListWorkspaceMembersResponse);
+
+  // AddWorkspaceMember adds a user to a workspace with a given role.
+  rpc AddWorkspaceMember(AddWorkspaceMemberRequest) returns (AddWorkspaceMemberResponse);
+
+  // UpdateWorkspaceMember changes a member's role.
+  rpc UpdateWorkspaceMember(UpdateWorkspaceMemberRequest) returns (UpdateWorkspaceMemberResponse);
+
+  // RemoveWorkspaceMember removes a user from a workspace.
+  rpc RemoveWorkspaceMember(RemoveWorkspaceMemberRequest) returns (RemoveWorkspaceMemberResponse);
+}
+
+message ListWorkspacesRequest {}
+
+message ListWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+}
+
+message GetWorkspaceRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message CreateWorkspaceRequest {
+  Workspace workspace = 1;
+}
+
+message CreateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message UpdateWorkspaceRequest {
+  Workspace workspace = 1;
+}
+
+message UpdateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message DeleteWorkspaceRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteWorkspaceResponse {}
+
+message ListWorkspaceMembersRequest {
+  string workspace_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ListWorkspaceMembersResponse {
+  repeated WorkspaceMember members = 1;
+}
+
+message AddWorkspaceMemberRequest {
+  string workspace_id = 1 [(validate.rules).string.min_len = 1];
+  string user_id = 2 [(validate.rules).string.min_len = 1];
+  string role = 3;
+}
+
+message AddWorkspaceMemberResponse {
+  WorkspaceMember member = 1;
+}
+
+message UpdateWorkspaceMemberRequest {
+  string workspace_id = 1 [(validate.rules).string.min_len = 1];
+  string user_id = 2 [(validate.rules).string.min_len = 1];
+  string role = 3 [(validate.rules).string.min_len = 1];
+}
+
+message UpdateWorkspaceMemberResponse {
+  WorkspaceMember member = 1;
+}
+
+message RemoveWorkspaceMemberRequest {
+  string workspace_id = 1 [(validate.rules).string.min_len = 1];
+  string user_id = 2 [(validate.rules).string.min_len = 1];
+}
+
+message RemoveWorkspaceMemberResponse {}

@@ -9,8 +9,15 @@ import (
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/config/memory"
+	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+const wsTest = "ws-test"
+
+func testCtx() context.Context {
+	return workspace.WithID(context.Background(), wsTest)
+}
 
 type reloadTracker struct {
 	calls int
@@ -30,7 +37,7 @@ func (r *reloadTracker) ReloadChannels(context.Context) error {
 func TestAgentServiceServer_CRUD(t *testing.T) {
 	store := memory.New()
 	svc := NewAgentServiceServer(store)
-	ctx := context.Background()
+	ctx := testCtx()
 
 	// List empty
 	resp, err := svc.ListAgents(ctx, &agentsv1.ListAgentsRequest{})
@@ -105,7 +112,7 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	store := memory.New()
 	svc := NewMCPServerServiceServer(store)
-	ctx := context.Background()
+	ctx := testCtx()
 
 	created, err := svc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{
 		McpServer: &agentsv1.MCPServer{Id: "m1", Name: "mcp1"},
@@ -146,7 +153,7 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
 	store := memory.New()
 	svc := NewRemoteAgentServiceServer(store)
-	ctx := context.Background()
+	ctx := testCtx()
 
 	created, err := svc.CreateRemoteAgent(ctx, &agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1", Name: "ra1", Url: "http://example.com"},
@@ -189,7 +196,7 @@ func TestChannelServiceServer_ReloadsRuntime(t *testing.T) {
 	svc := NewChannelServiceServer(store)
 	runtime := &reloadTracker{}
 	svc.SetRuntime(runtime)
-	ctx := context.Background()
+	ctx := testCtx()
 
 	_, err := svc.CreateChannel(ctx, &agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
@@ -225,13 +232,13 @@ func TestChannelServiceServer_ReloadError(t *testing.T) {
 	svc := NewChannelServiceServer(store)
 	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-	_, err := svc.CreateChannel(context.Background(), &agentsv1.CreateChannelRequest{
+	_, err := svc.CreateChannel(testCtx(), &agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
 	})
 	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
-	if _, err := store.GetChannel(context.Background(), "ch1"); !errors.Is(err, configrepo.ErrNotFound) {
+	if _, err := store.GetChannel(context.Background(), wsTest, "ch1"); !errors.Is(err, configrepo.ErrNotFound) {
 		t.Fatalf("expected rollback to remove channel, got %v", err)
 	}
 }
@@ -242,7 +249,7 @@ func TestAgentServiceServer_ReloadsRuntime(t *testing.T) {
 	runtime := &reloadTracker{}
 	svc.SetRuntime(runtime)
 
-	_, err := svc.CreateAgent(context.Background(), &agentsv1.CreateAgentRequest{
+	_, err := svc.CreateAgent(testCtx(), &agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{Name: "a1"},
 	})
 	if err != nil {
@@ -254,7 +261,7 @@ func TestAgentServiceServer_ReloadsRuntime(t *testing.T) {
 }
 
 func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T) {
-	ctx := context.Background()
+	ctx := testCtx()
 
 	t.Run("create", func(t *testing.T) {
 		store := memory.New()
@@ -267,14 +274,14 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
 			t.Fatalf("expected Internal, got %v", err)
 		}
-		if _, err := store.GetAgent(ctx, "a1"); !errors.Is(err, configrepo.ErrNotFound) {
+		if _, err := store.GetAgent(ctx, wsTest, "a1"); !errors.Is(err, configrepo.ErrNotFound) {
 			t.Fatalf("expected rollback to remove agent, got %v", err)
 		}
 	})
 
 	t.Run("update", func(t *testing.T) {
 		store := memory.New()
-		if _, err := store.CreateAgent(ctx, &agentsv1.Agent{Name: "a1", Description: "before"}); err != nil {
+		if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "a1", Description: "before"}); err != nil {
 			t.Fatalf("seed agent: %v", err)
 		}
 
@@ -288,7 +295,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 			t.Fatalf("expected Internal, got %v", err)
 		}
 
-		agent, err := store.GetAgent(ctx, "a1")
+		agent, err := store.GetAgent(ctx, wsTest, "a1")
 		if err != nil {
 			t.Fatalf("get rolled back agent: %v", err)
 		}
@@ -299,7 +306,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 
 	t.Run("delete", func(t *testing.T) {
 		store := memory.New()
-		if _, err := store.CreateAgent(ctx, &agentsv1.Agent{Name: "a1", Description: "before"}); err != nil {
+		if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "a1", Description: "before"}); err != nil {
 			t.Fatalf("seed agent: %v", err)
 		}
 
@@ -311,7 +318,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 			t.Fatalf("expected Internal, got %v", err)
 		}
 
-		agent, err := store.GetAgent(ctx, "a1")
+		agent, err := store.GetAgent(ctx, wsTest, "a1")
 		if err != nil {
 			t.Fatalf("get rolled back agent: %v", err)
 		}
@@ -327,7 +334,7 @@ func TestMCPServerServiceServer_ReloadsRuntime(t *testing.T) {
 	runtime := &reloadTracker{}
 	svc.SetRuntime(runtime)
 
-	_, err := svc.CreateMCPServer(context.Background(), &agentsv1.CreateMCPServerRequest{
+	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
 		McpServer: &agentsv1.MCPServer{Id: "m1", Name: "mcp1"},
 	})
 	if err != nil {
@@ -343,13 +350,13 @@ func TestMCPServerServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 	svc := NewMCPServerServiceServer(store)
 	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-	_, err := svc.CreateMCPServer(context.Background(), &agentsv1.CreateMCPServerRequest{
+	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
 		McpServer: &agentsv1.MCPServer{Id: "m1", Name: "mcp1"},
 	})
 	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
-	if _, err := store.GetMCPServer(context.Background(), "m1"); !errors.Is(err, configrepo.ErrNotFound) {
+	if _, err := store.GetMCPServer(context.Background(), wsTest, "m1"); !errors.Is(err, configrepo.ErrNotFound) {
 		t.Fatalf("expected rollback to remove mcp server, got %v", err)
 	}
 }
@@ -360,7 +367,7 @@ func TestRemoteAgentServiceServer_ReloadsRuntime(t *testing.T) {
 	runtime := &reloadTracker{}
 	svc.SetRuntime(runtime)
 
-	_, err := svc.CreateRemoteAgent(context.Background(), &agentsv1.CreateRemoteAgentRequest{
+	_, err := svc.CreateRemoteAgent(testCtx(), &agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1", Name: "ra1", Url: "http://example.com"},
 	})
 	if err != nil {
@@ -376,13 +383,13 @@ func TestRemoteAgentServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 	svc := NewRemoteAgentServiceServer(store)
 	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-	_, err := svc.CreateRemoteAgent(context.Background(), &agentsv1.CreateRemoteAgentRequest{
+	_, err := svc.CreateRemoteAgent(testCtx(), &agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1", Name: "ra1", Url: "http://example.com"},
 	})
 	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
-	if _, err := store.GetRemoteAgent(context.Background(), "r1"); !errors.Is(err, configrepo.ErrNotFound) {
+	if _, err := store.GetRemoteAgent(context.Background(), wsTest, "r1"); !errors.Is(err, configrepo.ErrNotFound) {
 		t.Fatalf("expected rollback to remove remote agent, got %v", err)
 	}
 }

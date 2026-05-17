@@ -20,10 +20,7 @@ import (
 // DashboardServiceServer aggregates read-only metrics for the dashboard
 // Overview screen.
 type DashboardServiceServer struct {
-	agentRepo    configrepo.AgentRepository
-	mcpRepo      configrepo.MCPServerRepository
-	remoteRepo   configrepo.RemoteAgentRepository
-	channelRepo  configrepo.ChannelRepository
+	store        DashboardConfigStore
 	cronJobRepo  cron.JobRepo
 	daemonReg    *daemon.Registry
 	mongoDB      *mongo.Database
@@ -35,21 +32,22 @@ type DashboardServiceServer struct {
 }
 
 // DashboardConfigStore is the union of config repository interfaces required
-// for dashboard counts.
+// for dashboard counts. The dashboard tallies entities across every workspace.
 type DashboardConfigStore interface {
 	configrepo.AgentRepository
 	configrepo.MCPServerRepository
 	configrepo.RemoteAgentRepository
 	configrepo.ChannelRepository
+	ListAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.Agent, error)
+	ListMCPServersAcrossWorkspaces(ctx context.Context) ([]*agentsv1.MCPServer, error)
+	ListRemoteAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.RemoteAgent, error)
+	ListChannelsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.AgentChannel, error)
 }
 
 func NewDashboardServiceServer(store DashboardConfigStore, daemonReg *daemon.Registry) *DashboardServiceServer {
 	return &DashboardServiceServer{
-		agentRepo:   store,
-		mcpRepo:     store,
-		remoteRepo:  store,
-		channelRepo: store,
-		daemonReg:   daemonReg,
+		store:     store,
+		daemonReg: daemonReg,
 	}
 }
 
@@ -103,7 +101,7 @@ func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context,
 	start := end.Add(-span).Truncate(bucketSize)
 	end = end.Truncate(bucketSize).Add(bucketSize)
 
-	execs, err := s.cronExecRepo.ListByTimeRange(ctx, req.GetJobName(), start, end)
+	execs, err := s.cronExecRepo.ListByTimeRange(ctx, "", req.GetJobName(), start, end)
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
@@ -194,19 +192,19 @@ func (s *DashboardServiceServer) GetOverview(ctx context.Context, _ *agentsv1.Ge
 }
 
 func (s *DashboardServiceServer) counts(ctx context.Context) (*agentsv1.OverviewCounts, error) {
-	agents, err := s.agentRepo.ListAgents(ctx)
+	agents, err := s.store.ListAgentsAcrossWorkspaces(ctx)
 	if err != nil {
 		return nil, err
 	}
-	mcp, err := s.mcpRepo.ListMCPServers(ctx)
+	mcp, err := s.store.ListMCPServersAcrossWorkspaces(ctx)
 	if err != nil {
 		return nil, err
 	}
-	remote, err := s.remoteRepo.ListRemoteAgents(ctx)
+	remote, err := s.store.ListRemoteAgentsAcrossWorkspaces(ctx)
 	if err != nil {
 		return nil, err
 	}
-	channels, err := s.channelRepo.ListChannels(ctx)
+	channels, err := s.store.ListChannelsAcrossWorkspaces(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +219,7 @@ func (s *DashboardServiceServer) counts(ctx context.Context) (*agentsv1.Overview
 		out.ConnectedDaemons = int32(len(s.daemonReg.ListConnected()))
 	}
 	if s.cronJobRepo != nil {
-		jobs, err := s.cronJobRepo.List(ctx)
+		jobs, err := s.cronJobRepo.ListAll(ctx)
 		if err == nil {
 			out.CronJobs = int32(len(jobs))
 		}

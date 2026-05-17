@@ -6,6 +6,7 @@ import (
 	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/runtime/cron"
+	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -30,11 +31,23 @@ func (s *CronJobServiceServer) SetExecutionRepo(repo cron.ExecutionRepo) {
 	s.execRepo = repo
 }
 
+func requireWorkspace(ctx context.Context) (string, error) {
+	id, ok := workspace.FromContext(ctx)
+	if !ok {
+		return "", twirp.NewError(twirp.FailedPrecondition, "workspace required (set X-Workspace-ID header)")
+	}
+	return id, nil
+}
+
 func (s *CronJobServiceServer) ListCronJobs(ctx context.Context, _ *agentsv1.ListCronJobsRequest) (*agentsv1.ListCronJobsResponse, error) {
 	if s.scheduler == nil {
 		return &agentsv1.ListCronJobsResponse{}, nil
 	}
-	jobs, err := s.scheduler.ListJobs(ctx)
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jobs, err := s.scheduler.ListJobs(ctx, wsID)
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
@@ -45,7 +58,11 @@ func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *agentsv1.Get
 	if s.scheduler == nil {
 		return nil, twirp.NotFoundError("cron scheduler not initialized")
 	}
-	job, err := s.scheduler.GetJob(ctx, req.GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	job, err := s.scheduler.GetJob(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -56,7 +73,12 @@ func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.
 	if s.scheduler == nil {
 		return nil, twirp.InternalError("cron scheduler not initialized")
 	}
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	job := req.GetCronJob()
+	job.WorkspaceId = wsID
 	if err := s.scheduler.AddJob(ctx, job); err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -67,7 +89,12 @@ func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.
 	if s.scheduler == nil {
 		return nil, twirp.InternalError("cron scheduler not initialized")
 	}
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	job := req.GetCronJob()
+	job.WorkspaceId = wsID
 	if err := s.scheduler.UpdateJob(ctx, job); err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -78,11 +105,15 @@ func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.
 	if s.scheduler == nil {
 		return nil, twirp.InternalError("cron scheduler not initialized")
 	}
-	job, err := s.scheduler.GetJob(ctx, req.GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	job, err := s.scheduler.GetJob(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := s.scheduler.RemoveJob(ctx, req.GetName()); err != nil {
+	if err := s.scheduler.RemoveJob(ctx, wsID, req.GetName()); err != nil {
 		return nil, toTwirpError(err)
 	}
 	return &agentsv1.DeleteCronJobResponse{CronJob: job}, nil
@@ -92,7 +123,11 @@ func (s *CronJobServiceServer) RunCronJobNow(ctx context.Context, req *agentsv1.
 	if s.scheduler == nil {
 		return nil, twirp.InternalError("cron scheduler not initialized")
 	}
-	exec, err := s.scheduler.RunJobNow(ctx, req.GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	exec, err := s.scheduler.RunJobNow(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -103,7 +138,11 @@ func (s *CronJobServiceServer) ListCronExecutions(ctx context.Context, req *agen
 	if s.execRepo == nil {
 		return &agentsv1.ListCronExecutionsResponse{}, nil
 	}
-	executions, nextToken, err := s.execRepo.List(ctx, req.GetJobName(), req.GetPageSize(), req.GetPageToken())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	executions, nextToken, err := s.execRepo.List(ctx, wsID, req.GetJobName(), req.GetPageSize(), req.GetPageToken())
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}

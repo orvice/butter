@@ -36,6 +36,10 @@ message AgentChannel {
 
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 20;
+
+  // ID of the workspace this channel belongs to.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
 }
 
 // AgentTrigger defines when a channel should invoke the agent.

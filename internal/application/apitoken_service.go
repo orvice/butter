@@ -42,7 +42,11 @@ func (s *APITokenServiceServer) ListAPITokens(ctx context.Context, _ *agentsv1.L
 	if s.repo == nil {
 		return &agentsv1.ListAPITokensResponse{}, nil
 	}
-	tokens, err := s.repo.List(ctx)
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tokens, err := s.repo.List(ctx, wsID)
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
@@ -52,6 +56,10 @@ func (s *APITokenServiceServer) ListAPITokens(ctx context.Context, _ *agentsv1.L
 func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *agentsv1.CreateAPITokenRequest) (*agentsv1.CreateAPITokenResponse, error) {
 	if s.repo == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "api token store not available")
+	}
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
 	}
 	name := req.GetName()
 	if name == "" {
@@ -65,10 +73,11 @@ func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *agentsv
 	hash := HashAPITokenSecret(secret)
 
 	token := &agentsv1.APIToken{
-		Id:        uuid.NewString(),
-		Name:      name,
-		Prefix:    tokenPrefix(secret),
-		CreatedAt: timestamppb.New(time.Now().UTC()),
+		Id:          uuid.NewString(),
+		Name:        name,
+		Prefix:      tokenPrefix(secret),
+		CreatedAt:   timestamppb.New(time.Now().UTC()),
+		WorkspaceId: wsID,
 	}
 	if err := s.repo.Create(ctx, token, hash); err != nil {
 		return nil, twirp.InternalErrorWith(err)

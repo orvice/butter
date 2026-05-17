@@ -73,7 +73,7 @@ func NewManager(
 
 func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 	logger := log.FromContext(ctx)
-	channels, err := m.repo.ListChannels(ctx)
+	channels, err := m.repo.ListChannelsAcrossWorkspaces(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list channels: %w", err)
 	}
@@ -219,7 +219,7 @@ const (
 // channel with the given name. Phase 1 only distinguishes live vs disabled vs
 // not-configured; per-poller heartbeats arrive in a later phase.
 func (m *Manager) ChannelStatus(ctx context.Context, name string) (RuntimeState, string, error) {
-	channels, err := m.repo.ListChannels(ctx)
+	channels, err := m.repo.ListChannelsAcrossWorkspaces(ctx)
 	if err != nil {
 		return RuntimeStateUnknown, "", err
 	}

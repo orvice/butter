@@ -123,6 +123,8 @@ func (m *APIToken) validate(all bool) error {
 
 	// no validation rules for Revoked
 
+	// no validation rules for WorkspaceId
+
 	if len(errors) > 0 {
 		return APITokenMultiError(errors)
 	}

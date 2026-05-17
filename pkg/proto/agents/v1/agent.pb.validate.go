@@ -151,6 +151,8 @@ func (m *Agent) validate(all bool) error {
 
 	// no validation rules for EnableA2A
 
+	// no validation rules for WorkspaceId
+
 	if len(errors) > 0 {
 		return AgentMultiError(errors)
 	}
@@ -593,6 +595,8 @@ func (m *MCPServer) validate(all bool) error {
 
 	// no validation rules for Metadata
 
+	// no validation rules for WorkspaceId
+
 	if len(errors) > 0 {
 		return MCPServerMultiError(errors)
 	}
@@ -827,6 +831,8 @@ func (m *RemoteAgent) validate(all bool) error {
 	// no validation rules for Protocol
 
 	// no validation rules for DaemonCapability
+
+	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
 		return RemoteAgentMultiError(errors)
@@ -1071,6 +1077,8 @@ func (m *ModelProvider) validate(all bool) error {
 		}
 
 	}
+
+	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
 		return ModelProviderMultiError(errors)

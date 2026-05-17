@@ -2,6 +2,7 @@ package cron
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,39 +21,42 @@ const (
 
 // executionDoc is the MongoDB document for a cron execution record.
 type executionDoc struct {
-	ID         string `bson:"_id"`
-	JobName    string `bson:"job_name"`
-	AgentName  string `bson:"agent_name"`
-	Status     int32  `bson:"status"`
-	Input      string `bson:"input"`
-	Output     string `bson:"output"`
-	StartedAt  int64  `bson:"started_at"`  // unix seconds
-	FinishedAt int64  `bson:"finished_at"` // unix seconds
+	ID          string `bson:"_id"`
+	WorkspaceID string `bson:"workspace_id"`
+	JobName     string `bson:"job_name"`
+	AgentName   string `bson:"agent_name"`
+	Status      int32  `bson:"status"`
+	Input       string `bson:"input"`
+	Output      string `bson:"output"`
+	StartedAt   int64  `bson:"started_at"`  // unix seconds
+	FinishedAt  int64  `bson:"finished_at"` // unix seconds
 }
 
 func docFromProto(e *agentsv1.CronExecution) *executionDoc {
 	return &executionDoc{
-		ID:         e.GetId(),
-		JobName:    e.GetJobName(),
-		AgentName:  e.GetAgentName(),
-		Status:     int32(e.GetStatus()),
-		Input:      e.GetInput(),
-		Output:     e.GetOutput(),
-		StartedAt:  e.GetStartedAt().GetSeconds(),
-		FinishedAt: e.GetFinishedAt().GetSeconds(),
+		ID:          e.GetId(),
+		WorkspaceID: e.GetWorkspaceId(),
+		JobName:     e.GetJobName(),
+		AgentName:   e.GetAgentName(),
+		Status:      int32(e.GetStatus()),
+		Input:       e.GetInput(),
+		Output:      e.GetOutput(),
+		StartedAt:   e.GetStartedAt().GetSeconds(),
+		FinishedAt:  e.GetFinishedAt().GetSeconds(),
 	}
 }
 
 func docToProto(d *executionDoc) *agentsv1.CronExecution {
 	return &agentsv1.CronExecution{
-		Id:         d.ID,
-		JobName:    d.JobName,
-		AgentName:  d.AgentName,
-		Status:     agentsv1.CronExecutionStatus(d.Status),
-		Input:      d.Input,
-		Output:     d.Output,
-		StartedAt:  &timestamppb.Timestamp{Seconds: d.StartedAt},
-		FinishedAt: &timestamppb.Timestamp{Seconds: d.FinishedAt},
+		Id:          d.ID,
+		WorkspaceId: d.WorkspaceID,
+		JobName:     d.JobName,
+		AgentName:   d.AgentName,
+		Status:      agentsv1.CronExecutionStatus(d.Status),
+		Input:       d.Input,
+		Output:      d.Output,
+		StartedAt:   &timestamppb.Timestamp{Seconds: d.StartedAt},
+		FinishedAt:  &timestamppb.Timestamp{Seconds: d.FinishedAt},
 	}
 }
 
@@ -75,12 +79,15 @@ func (r *MongoExecutionRepo) Save(ctx context.Context, exec *agentsv1.CronExecut
 	return nil
 }
 
-func (r *MongoExecutionRepo) List(ctx context.Context, jobName string, pageSize int32, pageToken string) ([]*agentsv1.CronExecution, string, error) {
+func (r *MongoExecutionRepo) List(ctx context.Context, workspaceID, jobName string, pageSize int32, pageToken string) ([]*agentsv1.CronExecution, string, error) {
 	if pageSize <= 0 {
 		pageSize = 20
 	}
 
 	filter := bson.M{}
+	if workspaceID != "" {
+		filter["workspace_id"] = workspaceID
+	}
 	if jobName != "" {
 		filter["job_name"] = jobName
 	}
@@ -117,8 +124,11 @@ func (r *MongoExecutionRepo) List(ctx context.Context, jobName string, pageSize 
 	return results, nextPageToken, nil
 }
 
-func (r *MongoExecutionRepo) ListByTimeRange(ctx context.Context, jobName string, start, end time.Time) ([]*agentsv1.CronExecution, error) {
+func (r *MongoExecutionRepo) ListByTimeRange(ctx context.Context, workspaceID, jobName string, start, end time.Time) ([]*agentsv1.CronExecution, error) {
 	filter := bson.M{"started_at": bson.M{"$gte": start, "$lt": end}}
+	if workspaceID != "" {
+		filter["workspace_id"] = workspaceID
+	}
 	if jobName != "" {
 		filter["job_name"] = jobName
 	}
@@ -151,9 +161,12 @@ func (r *MongoExecutionRepo) GetByID(ctx context.Context, id string) (*agentsv1.
 
 // --- CronJob persistence ---
 
-// cronJobDoc is the MongoDB document for a cron job config.
+// cronJobDoc is the MongoDB document for a cron job config. _id is the
+// composite "workspace_id:name".
 type cronJobDoc struct {
-	Name         string            `bson:"_id"`
+	ID           string            `bson:"_id"`
+	WorkspaceID  string            `bson:"workspace_id"`
+	Name         string            `bson:"name"`
 	Schedule     string            `bson:"schedule"`
 	AgentName    string            `bson:"agent_name"`
 	Input        string            `bson:"input"`
@@ -166,15 +179,19 @@ type cronJobDoc struct {
 	Metadata     map[string]string `bson:"metadata,omitempty"`
 }
 
+func jobCompositeID(workspaceID, name string) string { return workspaceID + ":" + name }
+
 func jobDocFromProto(j *agentsv1.CronJob) *cronJobDoc {
 	doc := &cronJobDoc{
-		Name:      j.GetName(),
-		Schedule:  j.GetSchedule(),
-		AgentName: j.GetAgentName(),
-		Input:     j.GetInput(),
-		Timezone:  j.GetTimezone(),
-		Enabled:   j.GetEnabled(),
-		Metadata:  j.GetMetadata(),
+		ID:          jobCompositeID(j.GetWorkspaceId(), j.GetName()),
+		WorkspaceID: j.GetWorkspaceId(),
+		Name:        j.GetName(),
+		Schedule:    j.GetSchedule(),
+		AgentName:   j.GetAgentName(),
+		Input:       j.GetInput(),
+		Timezone:    j.GetTimezone(),
+		Enabled:     j.GetEnabled(),
+		Metadata:    j.GetMetadata(),
 	}
 	if d := j.GetDelivery(); d != nil {
 		doc.DeliveryType = int32(d.GetType())
@@ -187,13 +204,14 @@ func jobDocFromProto(j *agentsv1.CronJob) *cronJobDoc {
 
 func jobDocToProto(d *cronJobDoc) *agentsv1.CronJob {
 	job := &agentsv1.CronJob{
-		Name:      d.Name,
-		Schedule:  d.Schedule,
-		AgentName: d.AgentName,
-		Input:     d.Input,
-		Timezone:  d.Timezone,
-		Enabled:   d.Enabled,
-		Metadata:  d.Metadata,
+		Name:        d.Name,
+		Schedule:    d.Schedule,
+		AgentName:   d.AgentName,
+		Input:       d.Input,
+		Timezone:    d.Timezone,
+		Enabled:     d.Enabled,
+		Metadata:    d.Metadata,
+		WorkspaceId: d.WorkspaceID,
 	}
 	if d.DeliveryType != 0 || d.WebhookURL != "" || d.ChannelName != "" {
 		job.Delivery = &agentsv1.CronDelivery{
@@ -216,7 +234,26 @@ func NewMongoJobRepo(db *mongo.Database) *MongoJobRepo {
 	return &MongoJobRepo{coll: db.Collection(jobsCollectionName)}
 }
 
-func (r *MongoJobRepo) List(ctx context.Context) ([]*agentsv1.CronJob, error) {
+func (r *MongoJobRepo) List(ctx context.Context, workspaceID string) ([]*agentsv1.CronJob, error) {
+	cursor, err := r.coll.Find(ctx, bson.M{"workspace_id": workspaceID})
+	if err != nil {
+		return nil, fmt.Errorf("list cron jobs: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var docs []cronJobDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("decode cron jobs: %w", err)
+	}
+
+	jobs := make([]*agentsv1.CronJob, len(docs))
+	for i := range docs {
+		jobs[i] = jobDocToProto(&docs[i])
+	}
+	return jobs, nil
+}
+
+func (r *MongoJobRepo) ListAll(ctx context.Context) ([]*agentsv1.CronJob, error) {
 	cursor, err := r.coll.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, fmt.Errorf("list cron jobs: %w", err)
@@ -235,12 +272,12 @@ func (r *MongoJobRepo) List(ctx context.Context) ([]*agentsv1.CronJob, error) {
 	return jobs, nil
 }
 
-func (r *MongoJobRepo) Get(ctx context.Context, name string) (*agentsv1.CronJob, error) {
+func (r *MongoJobRepo) Get(ctx context.Context, workspaceID, name string) (*agentsv1.CronJob, error) {
 	var doc cronJobDoc
-	err := r.coll.FindOne(ctx, bson.M{"_id": name}).Decode(&doc)
+	err := r.coll.FindOne(ctx, bson.M{"_id": jobCompositeID(workspaceID, name)}).Decode(&doc)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("cron job %q not found", name)
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, fmt.Errorf("cron job %q (workspace %q) not found", name, workspaceID)
 		}
 		return nil, fmt.Errorf("get cron job %q: %w", name, err)
 	}
@@ -252,7 +289,7 @@ func (r *MongoJobRepo) Create(ctx context.Context, job *agentsv1.CronJob) error 
 	_, err := r.coll.InsertOne(ctx, doc)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			return fmt.Errorf("cron job %q already exists", job.GetName())
+			return fmt.Errorf("cron job %q (workspace %q) already exists", job.GetName(), job.GetWorkspaceId())
 		}
 		return fmt.Errorf("create cron job: %w", err)
 	}
@@ -261,23 +298,23 @@ func (r *MongoJobRepo) Create(ctx context.Context, job *agentsv1.CronJob) error 
 
 func (r *MongoJobRepo) Update(ctx context.Context, job *agentsv1.CronJob) error {
 	doc := jobDocFromProto(job)
-	result, err := r.coll.ReplaceOne(ctx, bson.M{"_id": job.GetName()}, doc)
+	result, err := r.coll.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
 	if err != nil {
 		return fmt.Errorf("update cron job: %w", err)
 	}
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("cron job %q not found", job.GetName())
+		return fmt.Errorf("cron job %q (workspace %q) not found", job.GetName(), job.GetWorkspaceId())
 	}
 	return nil
 }
 
-func (r *MongoJobRepo) Delete(ctx context.Context, name string) error {
-	result, err := r.coll.DeleteOne(ctx, bson.M{"_id": name})
+func (r *MongoJobRepo) Delete(ctx context.Context, workspaceID, name string) error {
+	result, err := r.coll.DeleteOne(ctx, bson.M{"_id": jobCompositeID(workspaceID, name)})
 	if err != nil {
 		return fmt.Errorf("delete cron job: %w", err)
 	}
 	if result.DeletedCount == 0 {
-		return fmt.Errorf("cron job %q not found", name)
+		return fmt.Errorf("cron job %q (workspace %q) not found", name, workspaceID)
 	}
 	return nil
 }

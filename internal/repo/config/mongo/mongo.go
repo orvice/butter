@@ -2,11 +2,11 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -22,10 +22,14 @@ const (
 	modelProvidersCollection = "config_modelproviders"
 )
 
-// configDoc is the generic MongoDB document for a config entity.
+// configDoc is the generic MongoDB document for a config entity. The _id is
+// a composite of "workspace_id:name" (or "workspace_id:entity_id" depending
+// on the entity); workspace_id and name are duplicated as queryable fields.
 type configDoc struct {
-	ID   string `bson:"_id"`
-	Spec string `bson:"spec"` // protojson-encoded
+	ID          string `bson:"_id"`
+	WorkspaceID string `bson:"workspace_id"`
+	Name        string `bson:"name"`
+	Spec        string `bson:"spec"`
 }
 
 // Store implements all config repository interfaces backed by MongoDB.
@@ -47,17 +51,32 @@ func New(db *mongo.Database) *Store {
 	}
 }
 
-func mapError(entity, key string, err error) error {
+// EnsureIndexes creates the (workspace_id, name) compound indexes for fast
+// per-workspace listings.
+func (s *Store) EnsureIndexes(ctx context.Context) error {
+	collections := []*mongo.Collection{s.agents, s.mcpServers, s.remoteAgents, s.channels, s.modelProviders}
+	for _, c := range collections {
+		_, err := c.Indexes().CreateOne(ctx, mongo.IndexModel{
+			Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "name", Value: 1}},
+		})
+		if err != nil {
+			return fmt.Errorf("create %s index: %w", c.Name(), err)
+		}
+	}
+	return nil
+}
+
+func mapError(entity, ws, key string, err error) error {
 	if err == nil {
 		return nil
 	}
 	if mongo.IsDuplicateKeyError(err) {
-		return fmt.Errorf("%s %q: %w", entity, key, configrepo.ErrAlreadyExists)
+		return fmt.Errorf("%s %q (workspace %q): %w", entity, key, ws, configrepo.ErrAlreadyExists)
 	}
-	if err == mongo.ErrNoDocuments {
-		return fmt.Errorf("%s %q: %w", entity, key, configrepo.ErrNotFound)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return fmt.Errorf("%s %q (workspace %q): %w", entity, key, ws, configrepo.ErrNotFound)
 	}
-	return fmt.Errorf("%s %q: %w", entity, key, err)
+	return fmt.Errorf("%s %q (workspace %q): %w", entity, key, ws, err)
 }
 
 func marshal(m proto.Message) (string, error) {
@@ -72,36 +91,75 @@ func unmarshal(data string, m proto.Message) error {
 	return protojson.Unmarshal([]byte(data), m)
 }
 
-// --- Agents ---
+func compositeID(workspaceID, name string) string {
+	return workspaceID + ":" + name
+}
 
-func (s *Store) ListAgents(ctx context.Context) ([]*agentsv1.Agent, error) {
-	cursor, err := s.agents.Find(ctx, bson.M{})
+func listInWorkspace(ctx context.Context, c *mongo.Collection, workspaceID string) ([]configDoc, error) {
+	cursor, err := c.Find(ctx, bson.M{"workspace_id": workspaceID})
 	if err != nil {
-		return nil, fmt.Errorf("list agents: %w", err)
+		return nil, fmt.Errorf("list %s: %w", c.Name(), err)
 	}
 	defer cursor.Close(ctx)
-
 	var docs []configDoc
 	if err := cursor.All(ctx, &docs); err != nil {
-		return nil, fmt.Errorf("decode agents: %w", err)
+		return nil, fmt.Errorf("decode %s: %w", c.Name(), err)
 	}
+	return docs, nil
+}
 
-	result := make([]*agentsv1.Agent, 0, len(docs))
+func listAll(ctx context.Context, c *mongo.Collection) ([]configDoc, error) {
+	cursor, err := c.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, fmt.Errorf("list %s: %w", c.Name(), err)
+	}
+	defer cursor.Close(ctx)
+	var docs []configDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("decode %s: %w", c.Name(), err)
+	}
+	return docs, nil
+}
+
+// --- Agents ---
+
+func (s *Store) ListAgents(ctx context.Context, workspaceID string) ([]*agentsv1.Agent, error) {
+	docs, err := listInWorkspace(ctx, s.agents, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentsv1.Agent, 0, len(docs))
 	for _, d := range docs {
 		a := &agentsv1.Agent{}
 		if err := unmarshal(d.Spec, a); err != nil {
 			return nil, fmt.Errorf("unmarshal agent %q: %w", d.ID, err)
 		}
-		result = append(result, a)
+		out = append(out, a)
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetAgent(ctx context.Context, name string) (*agentsv1.Agent, error) {
-	var doc configDoc
-	err := s.agents.FindOne(ctx, bson.M{"_id": name}).Decode(&doc)
+func (s *Store) ListAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.Agent, error) {
+	docs, err := listAll(ctx, s.agents)
 	if err != nil {
-		return nil, mapError("agent", name, err)
+		return nil, err
+	}
+	out := make([]*agentsv1.Agent, 0, len(docs))
+	for _, d := range docs {
+		a := &agentsv1.Agent{}
+		if err := unmarshal(d.Spec, a); err != nil {
+			return nil, fmt.Errorf("unmarshal agent %q: %w", d.ID, err)
+		}
+		out = append(out, a)
+	}
+	return out, nil
+}
+
+func (s *Store) GetAgent(ctx context.Context, workspaceID, name string) (*agentsv1.Agent, error) {
+	var doc configDoc
+	err := s.agents.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, name)}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("agent", workspaceID, name, err)
 	}
 	a := &agentsv1.Agent{}
 	if err := unmarshal(doc.Spec, a); err != nil {
@@ -110,74 +168,88 @@ func (s *Store) GetAgent(ctx context.Context, name string) (*agentsv1.Agent, err
 	return a, nil
 }
 
-func (s *Store) CreateAgent(ctx context.Context, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
-	spec, err := marshal(agent)
+func (s *Store) CreateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+	clone := proto.Clone(agent).(*agentsv1.Agent)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.agents.InsertOne(ctx, configDoc{ID: agent.GetName(), Spec: spec})
-	if err != nil {
-		return nil, mapError("agent", agent.GetName(), err)
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	if _, err := s.agents.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("agent", workspaceID, clone.GetName(), err)
 	}
-	return proto.Clone(agent).(*agentsv1.Agent), nil
+	return clone, nil
 }
 
-func (s *Store) UpdateAgent(ctx context.Context, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
-	spec, err := marshal(agent)
+func (s *Store) UpdateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+	clone := proto.Clone(agent).(*agentsv1.Agent)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.agents.ReplaceOne(ctx, bson.M{"_id": agent.GetName()}, configDoc{ID: agent.GetName(), Spec: spec})
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	res, err := s.agents.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
 	if err != nil {
-		return nil, mapError("agent", agent.GetName(), err)
+		return nil, mapError("agent", workspaceID, clone.GetName(), err)
 	}
-	if result.MatchedCount == 0 {
-		return nil, fmt.Errorf("agent %q: %w", agent.GetName(), configrepo.ErrNotFound)
+	if res.MatchedCount == 0 {
+		return nil, mapError("agent", workspaceID, clone.GetName(), mongo.ErrNoDocuments)
 	}
-	return proto.Clone(agent).(*agentsv1.Agent), nil
+	return clone, nil
 }
 
-func (s *Store) DeleteAgent(ctx context.Context, name string) error {
-	result, err := s.agents.DeleteOne(ctx, bson.M{"_id": name})
+func (s *Store) DeleteAgent(ctx context.Context, workspaceID, name string) error {
+	res, err := s.agents.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, name)})
 	if err != nil {
-		return mapError("agent", name, err)
+		return mapError("agent", workspaceID, name, err)
 	}
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("agent %q: %w", name, configrepo.ErrNotFound)
+	if res.DeletedCount == 0 {
+		return mapError("agent", workspaceID, name, mongo.ErrNoDocuments)
 	}
 	return nil
 }
 
 // --- MCP Servers ---
 
-func (s *Store) ListMCPServers(ctx context.Context) ([]*agentsv1.MCPServer, error) {
-	cursor, err := s.mcpServers.Find(ctx, bson.M{})
+func (s *Store) ListMCPServers(ctx context.Context, workspaceID string) ([]*agentsv1.MCPServer, error) {
+	docs, err := listInWorkspace(ctx, s.mcpServers, workspaceID)
 	if err != nil {
-		return nil, fmt.Errorf("list mcp servers: %w", err)
+		return nil, err
 	}
-	defer cursor.Close(ctx)
-
-	var docs []configDoc
-	if err := cursor.All(ctx, &docs); err != nil {
-		return nil, fmt.Errorf("decode mcp servers: %w", err)
-	}
-
-	result := make([]*agentsv1.MCPServer, 0, len(docs))
+	out := make([]*agentsv1.MCPServer, 0, len(docs))
 	for _, d := range docs {
 		m := &agentsv1.MCPServer{}
 		if err := unmarshal(d.Spec, m); err != nil {
 			return nil, fmt.Errorf("unmarshal mcp server %q: %w", d.ID, err)
 		}
-		result = append(result, m)
+		out = append(out, m)
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetMCPServer(ctx context.Context, id string) (*agentsv1.MCPServer, error) {
-	var doc configDoc
-	err := s.mcpServers.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
+func (s *Store) ListMCPServersAcrossWorkspaces(ctx context.Context) ([]*agentsv1.MCPServer, error) {
+	docs, err := listAll(ctx, s.mcpServers)
 	if err != nil {
-		return nil, mapError("mcp server", id, err)
+		return nil, err
+	}
+	out := make([]*agentsv1.MCPServer, 0, len(docs))
+	for _, d := range docs {
+		m := &agentsv1.MCPServer{}
+		if err := unmarshal(d.Spec, m); err != nil {
+			return nil, fmt.Errorf("unmarshal mcp server %q: %w", d.ID, err)
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
+func (s *Store) GetMCPServer(ctx context.Context, workspaceID, id string) (*agentsv1.MCPServer, error) {
+	var doc configDoc
+	err := s.mcpServers.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, id)}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("mcp server", workspaceID, id, err)
 	}
 	m := &agentsv1.MCPServer{}
 	if err := unmarshal(doc.Spec, m); err != nil {
@@ -186,74 +258,88 @@ func (s *Store) GetMCPServer(ctx context.Context, id string) (*agentsv1.MCPServe
 	return m, nil
 }
 
-func (s *Store) CreateMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
-	spec, err := marshal(server)
+func (s *Store) CreateMCPServer(ctx context.Context, workspaceID string, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	clone := proto.Clone(server).(*agentsv1.MCPServer)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.mcpServers.InsertOne(ctx, configDoc{ID: server.GetId(), Spec: spec})
-	if err != nil {
-		return nil, mapError("mcp server", server.GetId(), err)
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetId()), WorkspaceID: workspaceID, Name: clone.GetId(), Spec: spec}
+	if _, err := s.mcpServers.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("mcp server", workspaceID, clone.GetId(), err)
 	}
-	return proto.Clone(server).(*agentsv1.MCPServer), nil
+	return clone, nil
 }
 
-func (s *Store) UpdateMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
-	spec, err := marshal(server)
+func (s *Store) UpdateMCPServer(ctx context.Context, workspaceID string, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	clone := proto.Clone(server).(*agentsv1.MCPServer)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.mcpServers.ReplaceOne(ctx, bson.M{"_id": server.GetId()}, configDoc{ID: server.GetId(), Spec: spec})
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetId()), WorkspaceID: workspaceID, Name: clone.GetId(), Spec: spec}
+	res, err := s.mcpServers.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
 	if err != nil {
-		return nil, mapError("mcp server", server.GetId(), err)
+		return nil, mapError("mcp server", workspaceID, clone.GetId(), err)
 	}
-	if result.MatchedCount == 0 {
-		return nil, fmt.Errorf("mcp server %q: %w", server.GetId(), configrepo.ErrNotFound)
+	if res.MatchedCount == 0 {
+		return nil, mapError("mcp server", workspaceID, clone.GetId(), mongo.ErrNoDocuments)
 	}
-	return proto.Clone(server).(*agentsv1.MCPServer), nil
+	return clone, nil
 }
 
-func (s *Store) DeleteMCPServer(ctx context.Context, id string) error {
-	result, err := s.mcpServers.DeleteOne(ctx, bson.M{"_id": id})
+func (s *Store) DeleteMCPServer(ctx context.Context, workspaceID, id string) error {
+	res, err := s.mcpServers.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, id)})
 	if err != nil {
-		return mapError("mcp server", id, err)
+		return mapError("mcp server", workspaceID, id, err)
 	}
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("mcp server %q: %w", id, configrepo.ErrNotFound)
+	if res.DeletedCount == 0 {
+		return mapError("mcp server", workspaceID, id, mongo.ErrNoDocuments)
 	}
 	return nil
 }
 
 // --- Remote Agents ---
 
-func (s *Store) ListRemoteAgents(ctx context.Context) ([]*agentsv1.RemoteAgent, error) {
-	cursor, err := s.remoteAgents.Find(ctx, bson.M{})
+func (s *Store) ListRemoteAgents(ctx context.Context, workspaceID string) ([]*agentsv1.RemoteAgent, error) {
+	docs, err := listInWorkspace(ctx, s.remoteAgents, workspaceID)
 	if err != nil {
-		return nil, fmt.Errorf("list remote agents: %w", err)
+		return nil, err
 	}
-	defer cursor.Close(ctx)
-
-	var docs []configDoc
-	if err := cursor.All(ctx, &docs); err != nil {
-		return nil, fmt.Errorf("decode remote agents: %w", err)
-	}
-
-	result := make([]*agentsv1.RemoteAgent, 0, len(docs))
+	out := make([]*agentsv1.RemoteAgent, 0, len(docs))
 	for _, d := range docs {
 		r := &agentsv1.RemoteAgent{}
 		if err := unmarshal(d.Spec, r); err != nil {
 			return nil, fmt.Errorf("unmarshal remote agent %q: %w", d.ID, err)
 		}
-		result = append(result, r)
+		out = append(out, r)
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetRemoteAgent(ctx context.Context, id string) (*agentsv1.RemoteAgent, error) {
-	var doc configDoc
-	err := s.remoteAgents.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
+func (s *Store) ListRemoteAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.RemoteAgent, error) {
+	docs, err := listAll(ctx, s.remoteAgents)
 	if err != nil {
-		return nil, mapError("remote agent", id, err)
+		return nil, err
+	}
+	out := make([]*agentsv1.RemoteAgent, 0, len(docs))
+	for _, d := range docs {
+		r := &agentsv1.RemoteAgent{}
+		if err := unmarshal(d.Spec, r); err != nil {
+			return nil, fmt.Errorf("unmarshal remote agent %q: %w", d.ID, err)
+		}
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+func (s *Store) GetRemoteAgent(ctx context.Context, workspaceID, id string) (*agentsv1.RemoteAgent, error) {
+	var doc configDoc
+	err := s.remoteAgents.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, id)}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("remote agent", workspaceID, id, err)
 	}
 	r := &agentsv1.RemoteAgent{}
 	if err := unmarshal(doc.Spec, r); err != nil {
@@ -262,74 +348,88 @@ func (s *Store) GetRemoteAgent(ctx context.Context, id string) (*agentsv1.Remote
 	return r, nil
 }
 
-func (s *Store) CreateRemoteAgent(ctx context.Context, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
-	spec, err := marshal(agent)
+func (s *Store) CreateRemoteAgent(ctx context.Context, workspaceID string, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
+	clone := proto.Clone(agent).(*agentsv1.RemoteAgent)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.remoteAgents.InsertOne(ctx, configDoc{ID: agent.GetId(), Spec: spec})
-	if err != nil {
-		return nil, mapError("remote agent", agent.GetId(), err)
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetId()), WorkspaceID: workspaceID, Name: clone.GetId(), Spec: spec}
+	if _, err := s.remoteAgents.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("remote agent", workspaceID, clone.GetId(), err)
 	}
-	return proto.Clone(agent).(*agentsv1.RemoteAgent), nil
+	return clone, nil
 }
 
-func (s *Store) UpdateRemoteAgent(ctx context.Context, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
-	spec, err := marshal(agent)
+func (s *Store) UpdateRemoteAgent(ctx context.Context, workspaceID string, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
+	clone := proto.Clone(agent).(*agentsv1.RemoteAgent)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.remoteAgents.ReplaceOne(ctx, bson.M{"_id": agent.GetId()}, configDoc{ID: agent.GetId(), Spec: spec})
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetId()), WorkspaceID: workspaceID, Name: clone.GetId(), Spec: spec}
+	res, err := s.remoteAgents.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
 	if err != nil {
-		return nil, mapError("remote agent", agent.GetId(), err)
+		return nil, mapError("remote agent", workspaceID, clone.GetId(), err)
 	}
-	if result.MatchedCount == 0 {
-		return nil, fmt.Errorf("remote agent %q: %w", agent.GetId(), configrepo.ErrNotFound)
+	if res.MatchedCount == 0 {
+		return nil, mapError("remote agent", workspaceID, clone.GetId(), mongo.ErrNoDocuments)
 	}
-	return proto.Clone(agent).(*agentsv1.RemoteAgent), nil
+	return clone, nil
 }
 
-func (s *Store) DeleteRemoteAgent(ctx context.Context, id string) error {
-	result, err := s.remoteAgents.DeleteOne(ctx, bson.M{"_id": id})
+func (s *Store) DeleteRemoteAgent(ctx context.Context, workspaceID, id string) error {
+	res, err := s.remoteAgents.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, id)})
 	if err != nil {
-		return mapError("remote agent", id, err)
+		return mapError("remote agent", workspaceID, id, err)
 	}
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("remote agent %q: %w", id, configrepo.ErrNotFound)
+	if res.DeletedCount == 0 {
+		return mapError("remote agent", workspaceID, id, mongo.ErrNoDocuments)
 	}
 	return nil
 }
 
 // --- Channels ---
 
-func (s *Store) ListChannels(ctx context.Context) ([]*agentsv1.AgentChannel, error) {
-	cursor, err := s.channels.Find(ctx, bson.M{})
+func (s *Store) ListChannels(ctx context.Context, workspaceID string) ([]*agentsv1.AgentChannel, error) {
+	docs, err := listInWorkspace(ctx, s.channels, workspaceID)
 	if err != nil {
-		return nil, fmt.Errorf("list channels: %w", err)
+		return nil, err
 	}
-	defer cursor.Close(ctx)
-
-	var docs []configDoc
-	if err := cursor.All(ctx, &docs); err != nil {
-		return nil, fmt.Errorf("decode channels: %w", err)
-	}
-
-	result := make([]*agentsv1.AgentChannel, 0, len(docs))
+	out := make([]*agentsv1.AgentChannel, 0, len(docs))
 	for _, d := range docs {
 		c := &agentsv1.AgentChannel{}
 		if err := unmarshal(d.Spec, c); err != nil {
 			return nil, fmt.Errorf("unmarshal channel %q: %w", d.ID, err)
 		}
-		result = append(result, c)
+		out = append(out, c)
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetChannel(ctx context.Context, name string) (*agentsv1.AgentChannel, error) {
-	var doc configDoc
-	err := s.channels.FindOne(ctx, bson.M{"_id": name}).Decode(&doc)
+func (s *Store) ListChannelsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.AgentChannel, error) {
+	docs, err := listAll(ctx, s.channels)
 	if err != nil {
-		return nil, mapError("channel", name, err)
+		return nil, err
+	}
+	out := make([]*agentsv1.AgentChannel, 0, len(docs))
+	for _, d := range docs {
+		c := &agentsv1.AgentChannel{}
+		if err := unmarshal(d.Spec, c); err != nil {
+			return nil, fmt.Errorf("unmarshal channel %q: %w", d.ID, err)
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+func (s *Store) GetChannel(ctx context.Context, workspaceID, name string) (*agentsv1.AgentChannel, error) {
+	var doc configDoc
+	err := s.channels.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, name)}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("channel", workspaceID, name, err)
 	}
 	c := &agentsv1.AgentChannel{}
 	if err := unmarshal(doc.Spec, c); err != nil {
@@ -338,74 +438,88 @@ func (s *Store) GetChannel(ctx context.Context, name string) (*agentsv1.AgentCha
 	return c, nil
 }
 
-func (s *Store) CreateChannel(ctx context.Context, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
-	spec, err := marshal(channel)
+func (s *Store) CreateChannel(ctx context.Context, workspaceID string, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+	clone := proto.Clone(channel).(*agentsv1.AgentChannel)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.channels.InsertOne(ctx, configDoc{ID: channel.GetName(), Spec: spec})
-	if err != nil {
-		return nil, mapError("channel", channel.GetName(), err)
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	if _, err := s.channels.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("channel", workspaceID, clone.GetName(), err)
 	}
-	return proto.Clone(channel).(*agentsv1.AgentChannel), nil
+	return clone, nil
 }
 
-func (s *Store) UpdateChannel(ctx context.Context, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
-	spec, err := marshal(channel)
+func (s *Store) UpdateChannel(ctx context.Context, workspaceID string, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+	clone := proto.Clone(channel).(*agentsv1.AgentChannel)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.channels.ReplaceOne(ctx, bson.M{"_id": channel.GetName()}, configDoc{ID: channel.GetName(), Spec: spec})
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	res, err := s.channels.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
 	if err != nil {
-		return nil, mapError("channel", channel.GetName(), err)
+		return nil, mapError("channel", workspaceID, clone.GetName(), err)
 	}
-	if result.MatchedCount == 0 {
-		return nil, fmt.Errorf("channel %q: %w", channel.GetName(), configrepo.ErrNotFound)
+	if res.MatchedCount == 0 {
+		return nil, mapError("channel", workspaceID, clone.GetName(), mongo.ErrNoDocuments)
 	}
-	return proto.Clone(channel).(*agentsv1.AgentChannel), nil
+	return clone, nil
 }
 
-func (s *Store) DeleteChannel(ctx context.Context, name string) error {
-	result, err := s.channels.DeleteOne(ctx, bson.M{"_id": name})
+func (s *Store) DeleteChannel(ctx context.Context, workspaceID, name string) error {
+	res, err := s.channels.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, name)})
 	if err != nil {
-		return mapError("channel", name, err)
+		return mapError("channel", workspaceID, name, err)
 	}
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("channel %q: %w", name, configrepo.ErrNotFound)
+	if res.DeletedCount == 0 {
+		return mapError("channel", workspaceID, name, mongo.ErrNoDocuments)
 	}
 	return nil
 }
 
 // --- Model Providers ---
 
-func (s *Store) ListModelProviders(ctx context.Context) ([]*agentsv1.ModelProvider, error) {
-	cursor, err := s.modelProviders.Find(ctx, bson.M{})
+func (s *Store) ListModelProviders(ctx context.Context, workspaceID string) ([]*agentsv1.ModelProvider, error) {
+	docs, err := listInWorkspace(ctx, s.modelProviders, workspaceID)
 	if err != nil {
-		return nil, fmt.Errorf("list model providers: %w", err)
+		return nil, err
 	}
-	defer cursor.Close(ctx)
-
-	var docs []configDoc
-	if err := cursor.All(ctx, &docs); err != nil {
-		return nil, fmt.Errorf("decode model providers: %w", err)
-	}
-
-	result := make([]*agentsv1.ModelProvider, 0, len(docs))
+	out := make([]*agentsv1.ModelProvider, 0, len(docs))
 	for _, d := range docs {
 		p := &agentsv1.ModelProvider{}
 		if err := unmarshal(d.Spec, p); err != nil {
 			return nil, fmt.Errorf("unmarshal model provider %q: %w", d.ID, err)
 		}
-		result = append(result, p)
+		out = append(out, p)
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetModelProvider(ctx context.Context, name string) (*agentsv1.ModelProvider, error) {
-	var doc configDoc
-	err := s.modelProviders.FindOne(ctx, bson.M{"_id": name}).Decode(&doc)
+func (s *Store) ListModelProvidersAcrossWorkspaces(ctx context.Context) ([]*agentsv1.ModelProvider, error) {
+	docs, err := listAll(ctx, s.modelProviders)
 	if err != nil {
-		return nil, mapError("model provider", name, err)
+		return nil, err
+	}
+	out := make([]*agentsv1.ModelProvider, 0, len(docs))
+	for _, d := range docs {
+		p := &agentsv1.ModelProvider{}
+		if err := unmarshal(d.Spec, p); err != nil {
+			return nil, fmt.Errorf("unmarshal model provider %q: %w", d.ID, err)
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+func (s *Store) GetModelProvider(ctx context.Context, workspaceID, name string) (*agentsv1.ModelProvider, error) {
+	var doc configDoc
+	err := s.modelProviders.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, name)}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("model provider", workspaceID, name, err)
 	}
 	p := &agentsv1.ModelProvider{}
 	if err := unmarshal(doc.Spec, p); err != nil {
@@ -414,104 +528,45 @@ func (s *Store) GetModelProvider(ctx context.Context, name string) (*agentsv1.Mo
 	return p, nil
 }
 
-func (s *Store) CreateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
-	spec, err := marshal(provider)
+func (s *Store) CreateModelProvider(ctx context.Context, workspaceID string, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	clone := proto.Clone(provider).(*agentsv1.ModelProvider)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.modelProviders.InsertOne(ctx, configDoc{ID: provider.GetName(), Spec: spec})
-	if err != nil {
-		return nil, mapError("model provider", provider.GetName(), err)
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	if _, err := s.modelProviders.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("model provider", workspaceID, clone.GetName(), err)
 	}
-	return proto.Clone(provider).(*agentsv1.ModelProvider), nil
+	return clone, nil
 }
 
-func (s *Store) UpdateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
-	spec, err := marshal(provider)
+func (s *Store) UpdateModelProvider(ctx context.Context, workspaceID string, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	clone := proto.Clone(provider).(*agentsv1.ModelProvider)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.modelProviders.ReplaceOne(ctx, bson.M{"_id": provider.GetName()}, configDoc{ID: provider.GetName(), Spec: spec})
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	res, err := s.modelProviders.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
 	if err != nil {
-		return nil, mapError("model provider", provider.GetName(), err)
+		return nil, mapError("model provider", workspaceID, clone.GetName(), err)
 	}
-	if result.MatchedCount == 0 {
-		return nil, fmt.Errorf("model provider %q: %w", provider.GetName(), configrepo.ErrNotFound)
+	if res.MatchedCount == 0 {
+		return nil, mapError("model provider", workspaceID, clone.GetName(), mongo.ErrNoDocuments)
 	}
-	return proto.Clone(provider).(*agentsv1.ModelProvider), nil
+	return clone, nil
 }
 
-func (s *Store) DeleteModelProvider(ctx context.Context, name string) error {
-	result, err := s.modelProviders.DeleteOne(ctx, bson.M{"_id": name})
+func (s *Store) DeleteModelProvider(ctx context.Context, workspaceID, name string) error {
+	res, err := s.modelProviders.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, name)})
 	if err != nil {
-		return mapError("model provider", name, err)
+		return mapError("model provider", workspaceID, name, err)
 	}
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("model provider %q: %w", name, configrepo.ErrNotFound)
+	if res.DeletedCount == 0 {
+		return mapError("model provider", workspaceID, name, mongo.ErrNoDocuments)
 	}
 	return nil
-}
-
-// Seed upserts config entries into MongoDB. Existing entries with matching keys are overwritten.
-func (s *Store) Seed(ctx context.Context, agents []agentsv1.Agent, mcpServers []agentsv1.MCPServer, remoteAgents []agentsv1.RemoteAgent, channels []agentsv1.AgentChannel, modelProviders []agentsv1.ModelProvider) error {
-	for i := range agents {
-		spec, err := marshal(&agents[i])
-		if err != nil {
-			return err
-		}
-		doc := configDoc{ID: agents[i].GetName(), Spec: spec}
-		_, err = s.agents.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, replaceUpsert())
-		if err != nil {
-			return fmt.Errorf("seed agent %q: %w", doc.ID, err)
-		}
-	}
-	for i := range mcpServers {
-		spec, err := marshal(&mcpServers[i])
-		if err != nil {
-			return err
-		}
-		doc := configDoc{ID: mcpServers[i].GetId(), Spec: spec}
-		_, err = s.mcpServers.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, replaceUpsert())
-		if err != nil {
-			return fmt.Errorf("seed mcp server %q: %w", doc.ID, err)
-		}
-	}
-	for i := range remoteAgents {
-		spec, err := marshal(&remoteAgents[i])
-		if err != nil {
-			return err
-		}
-		doc := configDoc{ID: remoteAgents[i].GetId(), Spec: spec}
-		_, err = s.remoteAgents.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, replaceUpsert())
-		if err != nil {
-			return fmt.Errorf("seed remote agent %q: %w", doc.ID, err)
-		}
-	}
-	for i := range channels {
-		spec, err := marshal(&channels[i])
-		if err != nil {
-			return err
-		}
-		doc := configDoc{ID: channels[i].GetName(), Spec: spec}
-		_, err = s.channels.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, replaceUpsert())
-		if err != nil {
-			return fmt.Errorf("seed channel %q: %w", doc.ID, err)
-		}
-	}
-	for i := range modelProviders {
-		spec, err := marshal(&modelProviders[i])
-		if err != nil {
-			return err
-		}
-		doc := configDoc{ID: modelProviders[i].GetName(), Spec: spec}
-		_, err = s.modelProviders.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, replaceUpsert())
-		if err != nil {
-			return fmt.Errorf("seed model provider %q: %w", doc.ID, err)
-		}
-	}
-	return nil
-}
-
-func replaceUpsert() *options.ReplaceOptionsBuilder {
-	return options.Replace().SetUpsert(true)
 }

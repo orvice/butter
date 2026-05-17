@@ -57,4 +57,10 @@ message ContextInfo {
   // Generic key-value map for source-specific context data.
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 10;
+
+  // Workspace id for this request. Channels and cron jobs propagate their
+  // owning workspace; API callers may leave this empty and rely on the HTTP
+  // middleware to derive it from X-Workspace-ID.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
+  string workspace_id = 11;
 }

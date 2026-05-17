@@ -126,6 +126,8 @@ func (m *CronJob) validate(all bool) error {
 
 	// no validation rules for Metadata
 
+	// no validation rules for WorkspaceId
+
 	if len(errors) > 0 {
 		return CronJobMultiError(errors)
 	}
@@ -401,6 +403,8 @@ func (m *CronExecution) validate(all bool) error {
 			}
 		}
 	}
+
+	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
 		return CronExecutionMultiError(errors)

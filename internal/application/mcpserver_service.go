@@ -25,7 +25,11 @@ func (s *MCPServerServiceServer) SetRuntime(runtime ConfigRuntime) {
 }
 
 func (s *MCPServerServiceServer) ListMCPServers(ctx context.Context, _ *agentsv1.ListMCPServersRequest) (*agentsv1.ListMCPServersResponse, error) {
-	servers, err := s.repo.ListMCPServers(ctx)
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	servers, err := s.repo.ListMCPServers(ctx, wsID)
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -33,7 +37,11 @@ func (s *MCPServerServiceServer) ListMCPServers(ctx context.Context, _ *agentsv1
 }
 
 func (s *MCPServerServiceServer) GetMCPServer(ctx context.Context, req *agentsv1.GetMCPServerRequest) (*agentsv1.GetMCPServerResponse, error) {
-	m, err := s.repo.GetMCPServer(ctx, req.GetId())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m, err := s.repo.GetMCPServer(ctx, wsID, req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -41,15 +49,19 @@ func (s *MCPServerServiceServer) GetMCPServer(ctx context.Context, req *agentsv1
 }
 
 func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agentsv1.CreateMCPServerRequest) (*agentsv1.CreateMCPServerResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	m, err := mutateWithRuntime(
 		func() (*agentsv1.MCPServer, error) {
-			return s.repo.CreateMCPServer(ctx, req.GetMcpServer())
+			return s.repo.CreateMCPServer(ctx, wsID, req.GetMcpServer())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if err := s.repo.DeleteMCPServer(ctx, req.GetMcpServer().GetId()); err != nil {
+			if err := s.repo.DeleteMCPServer(ctx, wsID, req.GetMcpServer().GetId()); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -62,20 +74,24 @@ func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agent
 }
 
 func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agentsv1.UpdateMCPServerRequest) (*agentsv1.UpdateMCPServerResponse, error) {
-	prev, err := s.repo.GetMCPServer(ctx, req.GetMcpServer().GetId())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.repo.GetMCPServer(ctx, wsID, req.GetMcpServer().GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
 
 	m, err := mutateWithRuntime(
 		func() (*agentsv1.MCPServer, error) {
-			return s.repo.UpdateMCPServer(ctx, req.GetMcpServer())
+			return s.repo.UpdateMCPServer(ctx, wsID, req.GetMcpServer())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.UpdateMCPServer(ctx, proto.Clone(prev).(*agentsv1.MCPServer)); err != nil {
+			if _, err := s.repo.UpdateMCPServer(ctx, wsID, proto.Clone(prev).(*agentsv1.MCPServer)); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -88,20 +104,24 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agent
 }
 
 func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agentsv1.DeleteMCPServerRequest) (*agentsv1.DeleteMCPServerResponse, error) {
-	prev, err := s.repo.GetMCPServer(ctx, req.GetId())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.repo.GetMCPServer(ctx, wsID, req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteMCPServer(ctx, req.GetId())
+			return s.repo.DeleteMCPServer(ctx, wsID, req.GetId())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.CreateMCPServer(ctx, proto.Clone(prev).(*agentsv1.MCPServer)); err != nil {
+			if _, err := s.repo.CreateMCPServer(ctx, wsID, proto.Clone(prev).(*agentsv1.MCPServer)); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -114,7 +134,11 @@ func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agent
 }
 
 func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *agentsv1.GetMCPServerStatusRequest) (*agentsv1.GetMCPServerStatusResponse, error) {
-	m, err := s.repo.GetMCPServer(ctx, req.GetId())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m, err := s.repo.GetMCPServer(ctx, wsID, req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -126,8 +150,6 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 	}
 
 	if m.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
-		// Probing STDIO requires spawning a subprocess; report CONFIGURED with
-		// the static tool whitelist size as the hint.
 		status.State = agentsv1.MCPServerStatus_STATE_CONFIGURED
 		status.ToolCount = int32(len(m.GetToolFilter()))
 		status.Detail = "stdio probing not supported"
@@ -149,15 +171,19 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 }
 
 func (s *MCPServerServiceServer) ListMCPTools(ctx context.Context, req *agentsv1.ListMCPToolsRequest) (*agentsv1.ListMCPToolsResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var servers []*agentsv1.MCPServer
 	if id := req.GetServerId(); id != "" {
-		srv, err := s.repo.GetMCPServer(ctx, id)
+		srv, err := s.repo.GetMCPServer(ctx, wsID, id)
 		if err != nil {
 			return nil, toTwirpError(err)
 		}
 		servers = []*agentsv1.MCPServer{srv}
 	} else {
-		all, err := s.repo.ListMCPServers(ctx)
+		all, err := s.repo.ListMCPServers(ctx, wsID)
 		if err != nil {
 			return nil, toTwirpError(err)
 		}

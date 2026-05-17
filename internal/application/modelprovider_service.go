@@ -23,7 +23,11 @@ func (s *ModelProviderServiceServer) SetRuntime(runtime ConfigRuntime) {
 }
 
 func (s *ModelProviderServiceServer) ListModelProviders(ctx context.Context, _ *agentsv1.ListModelProvidersRequest) (*agentsv1.ListModelProvidersResponse, error) {
-	providers, err := s.repo.ListModelProviders(ctx)
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	providers, err := s.repo.ListModelProviders(ctx, wsID)
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -31,7 +35,11 @@ func (s *ModelProviderServiceServer) ListModelProviders(ctx context.Context, _ *
 }
 
 func (s *ModelProviderServiceServer) GetModelProvider(ctx context.Context, req *agentsv1.GetModelProviderRequest) (*agentsv1.GetModelProviderResponse, error) {
-	provider, err := s.repo.GetModelProvider(ctx, req.GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	provider, err := s.repo.GetModelProvider(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -39,15 +47,19 @@ func (s *ModelProviderServiceServer) GetModelProvider(ctx context.Context, req *
 }
 
 func (s *ModelProviderServiceServer) CreateModelProvider(ctx context.Context, req *agentsv1.CreateModelProviderRequest) (*agentsv1.CreateModelProviderResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	provider, err := mutateWithRuntime(
 		func() (*agentsv1.ModelProvider, error) {
-			return s.repo.CreateModelProvider(ctx, req.GetModelProvider())
+			return s.repo.CreateModelProvider(ctx, wsID, req.GetModelProvider())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if err := s.repo.DeleteModelProvider(ctx, req.GetModelProvider().GetName()); err != nil {
+			if err := s.repo.DeleteModelProvider(ctx, wsID, req.GetModelProvider().GetName()); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -60,20 +72,24 @@ func (s *ModelProviderServiceServer) CreateModelProvider(ctx context.Context, re
 }
 
 func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, req *agentsv1.UpdateModelProviderRequest) (*agentsv1.UpdateModelProviderResponse, error) {
-	prev, err := s.repo.GetModelProvider(ctx, req.GetModelProvider().GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.repo.GetModelProvider(ctx, wsID, req.GetModelProvider().GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
 
 	provider, err := mutateWithRuntime(
 		func() (*agentsv1.ModelProvider, error) {
-			return s.repo.UpdateModelProvider(ctx, req.GetModelProvider())
+			return s.repo.UpdateModelProvider(ctx, wsID, req.GetModelProvider())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.UpdateModelProvider(ctx, proto.Clone(prev).(*agentsv1.ModelProvider)); err != nil {
+			if _, err := s.repo.UpdateModelProvider(ctx, wsID, proto.Clone(prev).(*agentsv1.ModelProvider)); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -86,20 +102,24 @@ func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, re
 }
 
 func (s *ModelProviderServiceServer) DeleteModelProvider(ctx context.Context, req *agentsv1.DeleteModelProviderRequest) (*agentsv1.DeleteModelProviderResponse, error) {
-	prev, err := s.repo.GetModelProvider(ctx, req.GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.repo.GetModelProvider(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteModelProvider(ctx, req.GetName())
+			return s.repo.DeleteModelProvider(ctx, wsID, req.GetName())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.CreateModelProvider(ctx, proto.Clone(prev).(*agentsv1.ModelProvider)); err != nil {
+			if _, err := s.repo.CreateModelProvider(ctx, wsID, proto.Clone(prev).(*agentsv1.ModelProvider)); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)

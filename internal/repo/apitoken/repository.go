@@ -16,12 +16,16 @@ var ErrNotFound = errors.New("api token not found")
 // at create time. Authentication is performed via Lookup using the SHA-256
 // hash of the bearer secret.
 type Repository interface {
-	List(ctx context.Context) ([]*agentsv1.APIToken, error)
+	// List returns tokens scoped to the given workspace. Pass an empty string
+	// to list every token across all workspaces (admin/internal use).
+	List(ctx context.Context, workspaceID string) ([]*agentsv1.APIToken, error)
 	Get(ctx context.Context, id string) (*agentsv1.APIToken, error)
 	Create(ctx context.Context, token *agentsv1.APIToken, secretHash string) error
 	Revoke(ctx context.Context, id string) (*agentsv1.APIToken, error)
 	// Lookup returns the token whose secret hash matches the argument or
-	// ErrNotFound. Revoked tokens are filtered out by the implementation.
+	// ErrNotFound. Revoked tokens are filtered out by the implementation. The
+	// returned token carries its WorkspaceId so the auth middleware can scope
+	// the request to the right workspace.
 	Lookup(ctx context.Context, secretHash string) (*agentsv1.APIToken, error)
 	// TouchLastUsed updates the last_used_at timestamp for the given token.
 	// Failures should be logged but not propagated to the caller of auth.

@@ -24,7 +24,7 @@ func (r *fakeChannelRepo) set(channels ...*agentsv1.AgentChannel) {
 	r.channels = channels
 }
 
-func (r *fakeChannelRepo) ListChannels(context.Context) ([]*agentsv1.AgentChannel, error) {
+func (r *fakeChannelRepo) ListChannels(context.Context, string) ([]*agentsv1.AgentChannel, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]*agentsv1.AgentChannel, len(r.channels))
@@ -32,19 +32,27 @@ func (r *fakeChannelRepo) ListChannels(context.Context) ([]*agentsv1.AgentChanne
 	return out, nil
 }
 
-func (r *fakeChannelRepo) GetChannel(context.Context, string) (*agentsv1.AgentChannel, error) {
+func (r *fakeChannelRepo) ListChannelsAcrossWorkspaces(context.Context) ([]*agentsv1.AgentChannel, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*agentsv1.AgentChannel, len(r.channels))
+	copy(out, r.channels)
+	return out, nil
+}
+
+func (r *fakeChannelRepo) GetChannel(context.Context, string, string) (*agentsv1.AgentChannel, error) {
 	return nil, configrepo.ErrNotFound
 }
 
-func (r *fakeChannelRepo) CreateChannel(context.Context, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+func (r *fakeChannelRepo) CreateChannel(context.Context, string, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
 	return nil, nil
 }
 
-func (r *fakeChannelRepo) UpdateChannel(context.Context, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+func (r *fakeChannelRepo) UpdateChannel(context.Context, string, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
 	return nil, nil
 }
 
-func (r *fakeChannelRepo) DeleteChannel(context.Context, string) error {
+func (r *fakeChannelRepo) DeleteChannel(context.Context, string, string) error {
 	return nil
 }
 

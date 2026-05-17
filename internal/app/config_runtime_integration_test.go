@@ -17,6 +17,7 @@ import (
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
+	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -29,6 +30,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	ctx = workspace.WithID(ctx, "ws-test")
 
 	cfg := &config.AppConfig{
 		StorageBackend: "mongo",
@@ -163,7 +165,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 	}
 
 	channelStore := configmongo.New(db)
-	channels, err := channelStore.ListChannels(ctx)
+	channels, err := channelStore.ListChannels(ctx, "ws-test")
 	if err != nil {
 		t.Fatalf("list persisted channels: %v", err)
 	}

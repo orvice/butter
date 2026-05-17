@@ -10,314 +10,475 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Store provides thread-safe in-memory CRUD for all config entities.
-// It implements AgentRepository, MCPServerRepository, RemoteAgentRepository, ChannelRepository, and ModelProviderRepository.
+// Store provides thread-safe in-memory CRUD for all config entities,
+// scoped per-workspace.
 type Store struct {
 	mu             sync.RWMutex
-	agents         map[string]*agentsv1.Agent
-	mcpServers     map[string]*agentsv1.MCPServer
-	remoteAgents   map[string]*agentsv1.RemoteAgent
-	channels       map[string]*agentsv1.AgentChannel
-	modelProviders map[string]*agentsv1.ModelProvider
+	agents         map[string]map[string]*agentsv1.Agent
+	mcpServers     map[string]map[string]*agentsv1.MCPServer
+	remoteAgents   map[string]map[string]*agentsv1.RemoteAgent
+	channels       map[string]map[string]*agentsv1.AgentChannel
+	modelProviders map[string]map[string]*agentsv1.ModelProvider
 }
 
 func New() *Store {
 	return &Store{
-		agents:         make(map[string]*agentsv1.Agent),
-		mcpServers:     make(map[string]*agentsv1.MCPServer),
-		remoteAgents:   make(map[string]*agentsv1.RemoteAgent),
-		channels:       make(map[string]*agentsv1.AgentChannel),
-		modelProviders: make(map[string]*agentsv1.ModelProvider),
+		agents:         make(map[string]map[string]*agentsv1.Agent),
+		mcpServers:     make(map[string]map[string]*agentsv1.MCPServer),
+		remoteAgents:   make(map[string]map[string]*agentsv1.RemoteAgent),
+		channels:       make(map[string]map[string]*agentsv1.AgentChannel),
+		modelProviders: make(map[string]map[string]*agentsv1.ModelProvider),
 	}
+}
+
+func cloneAgent(a *agentsv1.Agent) *agentsv1.Agent { return proto.Clone(a).(*agentsv1.Agent) }
+func cloneMCP(m *agentsv1.MCPServer) *agentsv1.MCPServer {
+	return proto.Clone(m).(*agentsv1.MCPServer)
+}
+func cloneRemote(r *agentsv1.RemoteAgent) *agentsv1.RemoteAgent {
+	return proto.Clone(r).(*agentsv1.RemoteAgent)
+}
+func cloneChannel(c *agentsv1.AgentChannel) *agentsv1.AgentChannel {
+	return proto.Clone(c).(*agentsv1.AgentChannel)
+}
+func cloneProvider(p *agentsv1.ModelProvider) *agentsv1.ModelProvider {
+	return proto.Clone(p).(*agentsv1.ModelProvider)
+}
+
+func notFound(entity, ws, key string) error {
+	return fmt.Errorf("%s %q (workspace %q): %w", entity, key, ws, configrepo.ErrNotFound)
+}
+
+func alreadyExists(entity, ws, key string) error {
+	return fmt.Errorf("%s %q (workspace %q): %w", entity, key, ws, configrepo.ErrAlreadyExists)
 }
 
 // --- Agents ---
 
-func (s *Store) ListAgents(_ context.Context) ([]*agentsv1.Agent, error) {
+func (s *Store) ListAgents(_ context.Context, workspaceID string) ([]*agentsv1.Agent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]*agentsv1.Agent, 0, len(s.agents))
-	for _, a := range s.agents {
-		result = append(result, proto.Clone(a).(*agentsv1.Agent))
+	bucket := s.agents[workspaceID]
+	out := make([]*agentsv1.Agent, 0, len(bucket))
+	for _, a := range bucket {
+		out = append(out, cloneAgent(a))
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetAgent(_ context.Context, name string) (*agentsv1.Agent, error) {
+func (s *Store) ListAgentsAcrossWorkspaces(_ context.Context) ([]*agentsv1.Agent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	a, ok := s.agents[name]
+	var out []*agentsv1.Agent
+	for _, bucket := range s.agents {
+		for _, a := range bucket {
+			out = append(out, cloneAgent(a))
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) GetAgent(_ context.Context, workspaceID, name string) (*agentsv1.Agent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bucket, ok := s.agents[workspaceID]
 	if !ok {
-		return nil, fmt.Errorf("agent %q: %w", name, configrepo.ErrNotFound)
+		return nil, notFound("agent", workspaceID, name)
 	}
-	return proto.Clone(a).(*agentsv1.Agent), nil
+	a, ok := bucket[name]
+	if !ok {
+		return nil, notFound("agent", workspaceID, name)
+	}
+	return cloneAgent(a), nil
 }
 
-func (s *Store) CreateAgent(_ context.Context, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+func (s *Store) CreateAgent(_ context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.agents[agent.GetName()]; ok {
-		return nil, fmt.Errorf("agent %q: %w", agent.GetName(), configrepo.ErrAlreadyExists)
+	bucket := s.agents[workspaceID]
+	if bucket == nil {
+		bucket = make(map[string]*agentsv1.Agent)
+		s.agents[workspaceID] = bucket
 	}
-	stored := proto.Clone(agent).(*agentsv1.Agent)
-	s.agents[agent.GetName()] = stored
-	return proto.Clone(stored).(*agentsv1.Agent), nil
+	if _, ok := bucket[agent.GetName()]; ok {
+		return nil, alreadyExists("agent", workspaceID, agent.GetName())
+	}
+	stored := cloneAgent(agent)
+	stored.WorkspaceId = workspaceID
+	bucket[agent.GetName()] = stored
+	return cloneAgent(stored), nil
 }
 
-func (s *Store) UpdateAgent(_ context.Context, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+func (s *Store) UpdateAgent(_ context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.agents[agent.GetName()]; !ok {
-		return nil, fmt.Errorf("agent %q: %w", agent.GetName(), configrepo.ErrNotFound)
+	bucket, ok := s.agents[workspaceID]
+	if !ok {
+		return nil, notFound("agent", workspaceID, agent.GetName())
 	}
-	stored := proto.Clone(agent).(*agentsv1.Agent)
-	s.agents[agent.GetName()] = stored
-	return proto.Clone(stored).(*agentsv1.Agent), nil
+	if _, ok := bucket[agent.GetName()]; !ok {
+		return nil, notFound("agent", workspaceID, agent.GetName())
+	}
+	stored := cloneAgent(agent)
+	stored.WorkspaceId = workspaceID
+	bucket[agent.GetName()] = stored
+	return cloneAgent(stored), nil
 }
 
-func (s *Store) DeleteAgent(_ context.Context, name string) error {
+func (s *Store) DeleteAgent(_ context.Context, workspaceID, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.agents[name]; !ok {
-		return fmt.Errorf("agent %q: %w", name, configrepo.ErrNotFound)
+	bucket, ok := s.agents[workspaceID]
+	if !ok {
+		return notFound("agent", workspaceID, name)
 	}
-	delete(s.agents, name)
+	if _, ok := bucket[name]; !ok {
+		return notFound("agent", workspaceID, name)
+	}
+	delete(bucket, name)
 	return nil
 }
 
 // --- MCP Servers ---
 
-func (s *Store) ListMCPServers(_ context.Context) ([]*agentsv1.MCPServer, error) {
+func (s *Store) ListMCPServers(_ context.Context, workspaceID string) ([]*agentsv1.MCPServer, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]*agentsv1.MCPServer, 0, len(s.mcpServers))
-	for _, m := range s.mcpServers {
-		result = append(result, proto.Clone(m).(*agentsv1.MCPServer))
+	bucket := s.mcpServers[workspaceID]
+	out := make([]*agentsv1.MCPServer, 0, len(bucket))
+	for _, m := range bucket {
+		out = append(out, cloneMCP(m))
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetMCPServer(_ context.Context, id string) (*agentsv1.MCPServer, error) {
+func (s *Store) ListMCPServersAcrossWorkspaces(_ context.Context) ([]*agentsv1.MCPServer, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	m, ok := s.mcpServers[id]
+	var out []*agentsv1.MCPServer
+	for _, bucket := range s.mcpServers {
+		for _, m := range bucket {
+			out = append(out, cloneMCP(m))
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) GetMCPServer(_ context.Context, workspaceID, id string) (*agentsv1.MCPServer, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bucket, ok := s.mcpServers[workspaceID]
 	if !ok {
-		return nil, fmt.Errorf("mcp server %q: %w", id, configrepo.ErrNotFound)
+		return nil, notFound("mcp server", workspaceID, id)
 	}
-	return proto.Clone(m).(*agentsv1.MCPServer), nil
+	m, ok := bucket[id]
+	if !ok {
+		return nil, notFound("mcp server", workspaceID, id)
+	}
+	return cloneMCP(m), nil
 }
 
-func (s *Store) CreateMCPServer(_ context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+func (s *Store) CreateMCPServer(_ context.Context, workspaceID string, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.mcpServers[server.GetId()]; ok {
-		return nil, fmt.Errorf("mcp server %q: %w", server.GetId(), configrepo.ErrAlreadyExists)
+	bucket := s.mcpServers[workspaceID]
+	if bucket == nil {
+		bucket = make(map[string]*agentsv1.MCPServer)
+		s.mcpServers[workspaceID] = bucket
 	}
-	stored := proto.Clone(server).(*agentsv1.MCPServer)
-	s.mcpServers[server.GetId()] = stored
-	return proto.Clone(stored).(*agentsv1.MCPServer), nil
+	if _, ok := bucket[server.GetId()]; ok {
+		return nil, alreadyExists("mcp server", workspaceID, server.GetId())
+	}
+	stored := cloneMCP(server)
+	stored.WorkspaceId = workspaceID
+	bucket[server.GetId()] = stored
+	return cloneMCP(stored), nil
 }
 
-func (s *Store) UpdateMCPServer(_ context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+func (s *Store) UpdateMCPServer(_ context.Context, workspaceID string, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.mcpServers[server.GetId()]; !ok {
-		return nil, fmt.Errorf("mcp server %q: %w", server.GetId(), configrepo.ErrNotFound)
+	bucket, ok := s.mcpServers[workspaceID]
+	if !ok {
+		return nil, notFound("mcp server", workspaceID, server.GetId())
 	}
-	stored := proto.Clone(server).(*agentsv1.MCPServer)
-	s.mcpServers[server.GetId()] = stored
-	return proto.Clone(stored).(*agentsv1.MCPServer), nil
+	if _, ok := bucket[server.GetId()]; !ok {
+		return nil, notFound("mcp server", workspaceID, server.GetId())
+	}
+	stored := cloneMCP(server)
+	stored.WorkspaceId = workspaceID
+	bucket[server.GetId()] = stored
+	return cloneMCP(stored), nil
 }
 
-func (s *Store) DeleteMCPServer(_ context.Context, id string) error {
+func (s *Store) DeleteMCPServer(_ context.Context, workspaceID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.mcpServers[id]; !ok {
-		return fmt.Errorf("mcp server %q: %w", id, configrepo.ErrNotFound)
+	bucket, ok := s.mcpServers[workspaceID]
+	if !ok {
+		return notFound("mcp server", workspaceID, id)
 	}
-	delete(s.mcpServers, id)
+	if _, ok := bucket[id]; !ok {
+		return notFound("mcp server", workspaceID, id)
+	}
+	delete(bucket, id)
 	return nil
 }
 
 // --- Remote Agents ---
 
-func (s *Store) ListRemoteAgents(_ context.Context) ([]*agentsv1.RemoteAgent, error) {
+func (s *Store) ListRemoteAgents(_ context.Context, workspaceID string) ([]*agentsv1.RemoteAgent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]*agentsv1.RemoteAgent, 0, len(s.remoteAgents))
-	for _, r := range s.remoteAgents {
-		result = append(result, proto.Clone(r).(*agentsv1.RemoteAgent))
+	bucket := s.remoteAgents[workspaceID]
+	out := make([]*agentsv1.RemoteAgent, 0, len(bucket))
+	for _, r := range bucket {
+		out = append(out, cloneRemote(r))
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetRemoteAgent(_ context.Context, id string) (*agentsv1.RemoteAgent, error) {
+func (s *Store) ListRemoteAgentsAcrossWorkspaces(_ context.Context) ([]*agentsv1.RemoteAgent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	r, ok := s.remoteAgents[id]
+	var out []*agentsv1.RemoteAgent
+	for _, bucket := range s.remoteAgents {
+		for _, r := range bucket {
+			out = append(out, cloneRemote(r))
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) GetRemoteAgent(_ context.Context, workspaceID, id string) (*agentsv1.RemoteAgent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bucket, ok := s.remoteAgents[workspaceID]
 	if !ok {
-		return nil, fmt.Errorf("remote agent %q: %w", id, configrepo.ErrNotFound)
+		return nil, notFound("remote agent", workspaceID, id)
 	}
-	return proto.Clone(r).(*agentsv1.RemoteAgent), nil
+	r, ok := bucket[id]
+	if !ok {
+		return nil, notFound("remote agent", workspaceID, id)
+	}
+	return cloneRemote(r), nil
 }
 
-func (s *Store) CreateRemoteAgent(_ context.Context, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
+func (s *Store) CreateRemoteAgent(_ context.Context, workspaceID string, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.remoteAgents[agent.GetId()]; ok {
-		return nil, fmt.Errorf("remote agent %q: %w", agent.GetId(), configrepo.ErrAlreadyExists)
+	bucket := s.remoteAgents[workspaceID]
+	if bucket == nil {
+		bucket = make(map[string]*agentsv1.RemoteAgent)
+		s.remoteAgents[workspaceID] = bucket
 	}
-	stored := proto.Clone(agent).(*agentsv1.RemoteAgent)
-	s.remoteAgents[agent.GetId()] = stored
-	return proto.Clone(stored).(*agentsv1.RemoteAgent), nil
+	if _, ok := bucket[agent.GetId()]; ok {
+		return nil, alreadyExists("remote agent", workspaceID, agent.GetId())
+	}
+	stored := cloneRemote(agent)
+	stored.WorkspaceId = workspaceID
+	bucket[agent.GetId()] = stored
+	return cloneRemote(stored), nil
 }
 
-func (s *Store) UpdateRemoteAgent(_ context.Context, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
+func (s *Store) UpdateRemoteAgent(_ context.Context, workspaceID string, agent *agentsv1.RemoteAgent) (*agentsv1.RemoteAgent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.remoteAgents[agent.GetId()]; !ok {
-		return nil, fmt.Errorf("remote agent %q: %w", agent.GetId(), configrepo.ErrNotFound)
+	bucket, ok := s.remoteAgents[workspaceID]
+	if !ok {
+		return nil, notFound("remote agent", workspaceID, agent.GetId())
 	}
-	stored := proto.Clone(agent).(*agentsv1.RemoteAgent)
-	s.remoteAgents[agent.GetId()] = stored
-	return proto.Clone(stored).(*agentsv1.RemoteAgent), nil
+	if _, ok := bucket[agent.GetId()]; !ok {
+		return nil, notFound("remote agent", workspaceID, agent.GetId())
+	}
+	stored := cloneRemote(agent)
+	stored.WorkspaceId = workspaceID
+	bucket[agent.GetId()] = stored
+	return cloneRemote(stored), nil
 }
 
-func (s *Store) DeleteRemoteAgent(_ context.Context, id string) error {
+func (s *Store) DeleteRemoteAgent(_ context.Context, workspaceID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.remoteAgents[id]; !ok {
-		return fmt.Errorf("remote agent %q: %w", id, configrepo.ErrNotFound)
+	bucket, ok := s.remoteAgents[workspaceID]
+	if !ok {
+		return notFound("remote agent", workspaceID, id)
 	}
-	delete(s.remoteAgents, id)
+	if _, ok := bucket[id]; !ok {
+		return notFound("remote agent", workspaceID, id)
+	}
+	delete(bucket, id)
 	return nil
 }
 
 // --- Channels ---
 
-func (s *Store) ListChannels(_ context.Context) ([]*agentsv1.AgentChannel, error) {
+func (s *Store) ListChannels(_ context.Context, workspaceID string) ([]*agentsv1.AgentChannel, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]*agentsv1.AgentChannel, 0, len(s.channels))
-	for _, c := range s.channels {
-		result = append(result, proto.Clone(c).(*agentsv1.AgentChannel))
+	bucket := s.channels[workspaceID]
+	out := make([]*agentsv1.AgentChannel, 0, len(bucket))
+	for _, c := range bucket {
+		out = append(out, cloneChannel(c))
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetChannel(_ context.Context, name string) (*agentsv1.AgentChannel, error) {
+func (s *Store) ListChannelsAcrossWorkspaces(_ context.Context) ([]*agentsv1.AgentChannel, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	c, ok := s.channels[name]
+	var out []*agentsv1.AgentChannel
+	for _, bucket := range s.channels {
+		for _, c := range bucket {
+			out = append(out, cloneChannel(c))
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) GetChannel(_ context.Context, workspaceID, name string) (*agentsv1.AgentChannel, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bucket, ok := s.channels[workspaceID]
 	if !ok {
-		return nil, fmt.Errorf("channel %q: %w", name, configrepo.ErrNotFound)
+		return nil, notFound("channel", workspaceID, name)
 	}
-	return proto.Clone(c).(*agentsv1.AgentChannel), nil
+	c, ok := bucket[name]
+	if !ok {
+		return nil, notFound("channel", workspaceID, name)
+	}
+	return cloneChannel(c), nil
 }
 
-func (s *Store) CreateChannel(_ context.Context, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+func (s *Store) CreateChannel(_ context.Context, workspaceID string, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.channels[channel.GetName()]; ok {
-		return nil, fmt.Errorf("channel %q: %w", channel.GetName(), configrepo.ErrAlreadyExists)
+	bucket := s.channels[workspaceID]
+	if bucket == nil {
+		bucket = make(map[string]*agentsv1.AgentChannel)
+		s.channels[workspaceID] = bucket
 	}
-	stored := proto.Clone(channel).(*agentsv1.AgentChannel)
-	s.channels[channel.GetName()] = stored
-	return proto.Clone(stored).(*agentsv1.AgentChannel), nil
+	if _, ok := bucket[channel.GetName()]; ok {
+		return nil, alreadyExists("channel", workspaceID, channel.GetName())
+	}
+	stored := cloneChannel(channel)
+	stored.WorkspaceId = workspaceID
+	bucket[channel.GetName()] = stored
+	return cloneChannel(stored), nil
 }
 
-func (s *Store) UpdateChannel(_ context.Context, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+func (s *Store) UpdateChannel(_ context.Context, workspaceID string, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.channels[channel.GetName()]; !ok {
-		return nil, fmt.Errorf("channel %q: %w", channel.GetName(), configrepo.ErrNotFound)
+	bucket, ok := s.channels[workspaceID]
+	if !ok {
+		return nil, notFound("channel", workspaceID, channel.GetName())
 	}
-	stored := proto.Clone(channel).(*agentsv1.AgentChannel)
-	s.channels[channel.GetName()] = stored
-	return proto.Clone(stored).(*agentsv1.AgentChannel), nil
+	if _, ok := bucket[channel.GetName()]; !ok {
+		return nil, notFound("channel", workspaceID, channel.GetName())
+	}
+	stored := cloneChannel(channel)
+	stored.WorkspaceId = workspaceID
+	bucket[channel.GetName()] = stored
+	return cloneChannel(stored), nil
 }
 
-func (s *Store) DeleteChannel(_ context.Context, name string) error {
+func (s *Store) DeleteChannel(_ context.Context, workspaceID, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.channels[name]; !ok {
-		return fmt.Errorf("channel %q: %w", name, configrepo.ErrNotFound)
+	bucket, ok := s.channels[workspaceID]
+	if !ok {
+		return notFound("channel", workspaceID, name)
 	}
-	delete(s.channels, name)
+	if _, ok := bucket[name]; !ok {
+		return notFound("channel", workspaceID, name)
+	}
+	delete(bucket, name)
 	return nil
 }
 
 // --- Model Providers ---
 
-func (s *Store) ListModelProviders(_ context.Context) ([]*agentsv1.ModelProvider, error) {
+func (s *Store) ListModelProviders(_ context.Context, workspaceID string) ([]*agentsv1.ModelProvider, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]*agentsv1.ModelProvider, 0, len(s.modelProviders))
-	for _, p := range s.modelProviders {
-		result = append(result, proto.Clone(p).(*agentsv1.ModelProvider))
+	bucket := s.modelProviders[workspaceID]
+	out := make([]*agentsv1.ModelProvider, 0, len(bucket))
+	for _, p := range bucket {
+		out = append(out, cloneProvider(p))
 	}
-	return result, nil
+	return out, nil
 }
 
-func (s *Store) GetModelProvider(_ context.Context, name string) (*agentsv1.ModelProvider, error) {
+func (s *Store) ListModelProvidersAcrossWorkspaces(_ context.Context) ([]*agentsv1.ModelProvider, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	p, ok := s.modelProviders[name]
+	var out []*agentsv1.ModelProvider
+	for _, bucket := range s.modelProviders {
+		for _, p := range bucket {
+			out = append(out, cloneProvider(p))
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) GetModelProvider(_ context.Context, workspaceID, name string) (*agentsv1.ModelProvider, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bucket, ok := s.modelProviders[workspaceID]
 	if !ok {
-		return nil, fmt.Errorf("model provider %q: %w", name, configrepo.ErrNotFound)
+		return nil, notFound("model provider", workspaceID, name)
 	}
-	return proto.Clone(p).(*agentsv1.ModelProvider), nil
+	p, ok := bucket[name]
+	if !ok {
+		return nil, notFound("model provider", workspaceID, name)
+	}
+	return cloneProvider(p), nil
 }
 
-func (s *Store) CreateModelProvider(_ context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+func (s *Store) CreateModelProvider(_ context.Context, workspaceID string, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.modelProviders[provider.GetName()]; ok {
-		return nil, fmt.Errorf("model provider %q: %w", provider.GetName(), configrepo.ErrAlreadyExists)
+	bucket := s.modelProviders[workspaceID]
+	if bucket == nil {
+		bucket = make(map[string]*agentsv1.ModelProvider)
+		s.modelProviders[workspaceID] = bucket
 	}
-	stored := proto.Clone(provider).(*agentsv1.ModelProvider)
-	s.modelProviders[provider.GetName()] = stored
-	return proto.Clone(stored).(*agentsv1.ModelProvider), nil
+	if _, ok := bucket[provider.GetName()]; ok {
+		return nil, alreadyExists("model provider", workspaceID, provider.GetName())
+	}
+	stored := cloneProvider(provider)
+	stored.WorkspaceId = workspaceID
+	bucket[provider.GetName()] = stored
+	return cloneProvider(stored), nil
 }
 
-func (s *Store) UpdateModelProvider(_ context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+func (s *Store) UpdateModelProvider(_ context.Context, workspaceID string, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.modelProviders[provider.GetName()]; !ok {
-		return nil, fmt.Errorf("model provider %q: %w", provider.GetName(), configrepo.ErrNotFound)
+	bucket, ok := s.modelProviders[workspaceID]
+	if !ok {
+		return nil, notFound("model provider", workspaceID, provider.GetName())
 	}
-	stored := proto.Clone(provider).(*agentsv1.ModelProvider)
-	s.modelProviders[provider.GetName()] = stored
-	return proto.Clone(stored).(*agentsv1.ModelProvider), nil
+	if _, ok := bucket[provider.GetName()]; !ok {
+		return nil, notFound("model provider", workspaceID, provider.GetName())
+	}
+	stored := cloneProvider(provider)
+	stored.WorkspaceId = workspaceID
+	bucket[provider.GetName()] = stored
+	return cloneProvider(stored), nil
 }
 
-func (s *Store) DeleteModelProvider(_ context.Context, name string) error {
+func (s *Store) DeleteModelProvider(_ context.Context, workspaceID, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.modelProviders[name]; !ok {
-		return fmt.Errorf("model provider %q: %w", name, configrepo.ErrNotFound)
+	bucket, ok := s.modelProviders[workspaceID]
+	if !ok {
+		return notFound("model provider", workspaceID, name)
 	}
-	delete(s.modelProviders, name)
+	if _, ok := bucket[name]; !ok {
+		return notFound("model provider", workspaceID, name)
+	}
+	delete(bucket, name)
 	return nil
-}
-
-// Seed populates the store from config data. Existing entries with matching keys are overwritten.
-func (s *Store) Seed(ctx context.Context, agents []agentsv1.Agent, mcpServers []agentsv1.MCPServer, remoteAgents []agentsv1.RemoteAgent, channels []agentsv1.AgentChannel, modelProviders []agentsv1.ModelProvider) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i := range agents {
-		s.agents[agents[i].GetName()] = proto.Clone(&agents[i]).(*agentsv1.Agent)
-	}
-	for i := range mcpServers {
-		s.mcpServers[mcpServers[i].GetId()] = proto.Clone(&mcpServers[i]).(*agentsv1.MCPServer)
-	}
-	for i := range remoteAgents {
-		s.remoteAgents[remoteAgents[i].GetId()] = proto.Clone(&remoteAgents[i]).(*agentsv1.RemoteAgent)
-	}
-	for i := range channels {
-		s.channels[channels[i].GetName()] = proto.Clone(&channels[i]).(*agentsv1.AgentChannel)
-	}
-	for i := range modelProviders {
-		s.modelProviders[modelProviders[i].GetName()] = proto.Clone(&modelProviders[i]).(*agentsv1.ModelProvider)
-	}
 }

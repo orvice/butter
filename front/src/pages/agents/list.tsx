@@ -165,7 +165,7 @@ export default function AgentListPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/agents/${row.name}/edit`)}>
+              <DropdownMenuItem onClick={() => navigate(`/agents/${encodeURIComponent(row.name)}/edit`)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </DropdownMenuItem>
               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(row.name)}>

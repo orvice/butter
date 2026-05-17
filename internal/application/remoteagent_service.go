@@ -28,14 +28,16 @@ func (s *RemoteAgentServiceServer) SetRuntime(runtime ConfigRuntime) {
 	s.runtime = runtime
 }
 
-// SetDaemonRegistry wires the daemon registry used by GetRemoteAgentStatus
-// for DAEMON-protocol remote agents.
 func (s *RemoteAgentServiceServer) SetDaemonRegistry(reg *daemon.Registry) {
 	s.daemonReg = reg
 }
 
 func (s *RemoteAgentServiceServer) ListRemoteAgents(ctx context.Context, _ *agentsv1.ListRemoteAgentsRequest) (*agentsv1.ListRemoteAgentsResponse, error) {
-	agents, err := s.repo.ListRemoteAgents(ctx)
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	agents, err := s.repo.ListRemoteAgents(ctx, wsID)
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -43,7 +45,11 @@ func (s *RemoteAgentServiceServer) ListRemoteAgents(ctx context.Context, _ *agen
 }
 
 func (s *RemoteAgentServiceServer) GetRemoteAgent(ctx context.Context, req *agentsv1.GetRemoteAgentRequest) (*agentsv1.GetRemoteAgentResponse, error) {
-	r, err := s.repo.GetRemoteAgent(ctx, req.GetId())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -51,15 +57,19 @@ func (s *RemoteAgentServiceServer) GetRemoteAgent(ctx context.Context, req *agen
 }
 
 func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *agentsv1.CreateRemoteAgentRequest) (*agentsv1.CreateRemoteAgentResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	r, err := mutateWithRuntime(
 		func() (*agentsv1.RemoteAgent, error) {
-			return s.repo.CreateRemoteAgent(ctx, req.GetRemoteAgent())
+			return s.repo.CreateRemoteAgent(ctx, wsID, req.GetRemoteAgent())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if err := s.repo.DeleteRemoteAgent(ctx, req.GetRemoteAgent().GetId()); err != nil {
+			if err := s.repo.DeleteRemoteAgent(ctx, wsID, req.GetRemoteAgent().GetId()); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -72,20 +82,24 @@ func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *a
 }
 
 func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *agentsv1.UpdateRemoteAgentRequest) (*agentsv1.UpdateRemoteAgentResponse, error) {
-	prev, err := s.repo.GetRemoteAgent(ctx, req.GetRemoteAgent().GetId())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetRemoteAgent().GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
 
 	r, err := mutateWithRuntime(
 		func() (*agentsv1.RemoteAgent, error) {
-			return s.repo.UpdateRemoteAgent(ctx, req.GetRemoteAgent())
+			return s.repo.UpdateRemoteAgent(ctx, wsID, req.GetRemoteAgent())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.UpdateRemoteAgent(ctx, proto.Clone(prev).(*agentsv1.RemoteAgent)); err != nil {
+			if _, err := s.repo.UpdateRemoteAgent(ctx, wsID, proto.Clone(prev).(*agentsv1.RemoteAgent)); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -98,20 +112,24 @@ func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *a
 }
 
 func (s *RemoteAgentServiceServer) DeleteRemoteAgent(ctx context.Context, req *agentsv1.DeleteRemoteAgentRequest) (*agentsv1.DeleteRemoteAgentResponse, error) {
-	prev, err := s.repo.GetRemoteAgent(ctx, req.GetId())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteRemoteAgent(ctx, req.GetId())
+			return s.repo.DeleteRemoteAgent(ctx, wsID, req.GetId())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.CreateRemoteAgent(ctx, proto.Clone(prev).(*agentsv1.RemoteAgent)); err != nil {
+			if _, err := s.repo.CreateRemoteAgent(ctx, wsID, proto.Clone(prev).(*agentsv1.RemoteAgent)); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -124,7 +142,11 @@ func (s *RemoteAgentServiceServer) DeleteRemoteAgent(ctx context.Context, req *a
 }
 
 func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req *agentsv1.GetRemoteAgentStatusRequest) (*agentsv1.GetRemoteAgentStatusResponse, error) {
-	ra, err := s.repo.GetRemoteAgent(ctx, req.GetId())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ra, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
@@ -184,8 +206,6 @@ func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req
 	}
 }
 
-// probeA2AAgent issues an HTTP GET to the A2A agent card endpoint and reports
-// the resulting state.
 func probeA2AAgent(ctx context.Context, baseURL string) (agentsv1.RemoteAgentStatus_State, string) {
 	url := strings.TrimRight(baseURL, "/") + "/.well-known/agent.json"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

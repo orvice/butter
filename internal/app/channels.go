@@ -22,6 +22,9 @@ import (
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	invocationmongo "go.orx.me/apps/butter/internal/repo/invocation/mongo"
+	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
+	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
+	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
@@ -42,6 +45,7 @@ type BootstrapResult struct {
 	AuthRepo       auth.Repository
 	APITokenRepo   apitoken.Repository
 	InvocationRepo invocation.Repository
+	WorkspaceRepo  workspacerepo.Repository
 	LangfuseHost   string
 	SessionCounter func(ctx context.Context) (int64, error)
 }
@@ -78,6 +82,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		authRepo  auth.Repository
 		tokenRepo apitoken.Repository
 		invRepo   invocation.Repository
+		wsRepo    workspacerepo.Repository
 	)
 	authRepo = authmongo.New(db)
 	if err := application.BootstrapInitialAdmin(ctx, authRepo, cfg.Auth); err != nil {
@@ -87,9 +92,19 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	if strings.ToLower(strings.TrimSpace(cfg.StorageBackend)) == "mongo" {
 		tokenRepo = apitokenmongo.New(db)
 		invRepo = invocationmongo.New(db)
+		wsRepo = workspacemongo.New(db)
 	} else {
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
+		wsRepo = workspacememory.New()
+	}
+	if err := wsRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create workspace indexes", "err", err)
+		return nil, err
+	}
+	if err := application.BootstrapDefaultWorkspace(ctx, wsRepo, authRepo); err != nil {
+		logger.Error("failed to bootstrap default workspace", "err", err)
+		return nil, err
 	}
 
 	// Setup Langfuse plugin if configured.
@@ -146,6 +161,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		AuthRepo:       authRepo,
 		APITokenRepo:   tokenRepo,
 		InvocationRepo: invRepo,
+		WorkspaceRepo:  wsRepo,
 		LangfuseHost:   cfg.Langfuse.Host,
 		SessionCounter: sessionSvc.CountSessions,
 	}, nil

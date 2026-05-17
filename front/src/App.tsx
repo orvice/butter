@@ -26,6 +26,8 @@ import CronJobEditPage from "@/pages/cron/edit";
 import CronExecutionsPage from "@/pages/cron/executions";
 import DaemonListPage from "@/pages/daemons/list";
 import ChannelListPage from "@/pages/channels/list";
+import ChannelCreatePage from "@/pages/channels/create";
+import ChannelEditPage from "@/pages/channels/edit";
 import APITokenListPage from "@/pages/api-tokens/list";
 import UserListPage from "@/pages/users/list";
 
@@ -68,6 +70,8 @@ export default function App() {
                 <Route path="cron/:name/executions" element={<CronExecutionsPage />} />
                 <Route path="daemons" element={<DaemonListPage />} />
                 <Route path="channels" element={<ChannelListPage />} />
+                <Route path="channels/create" element={<ChannelCreatePage />} />
+                <Route path="channels/:name/edit" element={<ChannelEditPage />} />
                 <Route path="api-tokens" element={<APITokenListPage />} />
                 <Route path="users" element={<UserListPage />} />
               </Route>

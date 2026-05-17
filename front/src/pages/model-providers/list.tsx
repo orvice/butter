@@ -71,7 +71,7 @@ export default function ModelProviderListPage() {
               <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/model-providers/${row.name}/edit`)}>
+              <DropdownMenuItem onClick={() => navigate(`/model-providers/${encodeURIComponent(row.name)}/edit`)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </DropdownMenuItem>
               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(row.name)}>
