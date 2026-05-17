@@ -875,6 +875,264 @@ var MCPServerService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	ModelProviderService_ListModelProviders_FullMethodName  = "/agents.v1.ModelProviderService/ListModelProviders"
+	ModelProviderService_GetModelProvider_FullMethodName    = "/agents.v1.ModelProviderService/GetModelProvider"
+	ModelProviderService_CreateModelProvider_FullMethodName = "/agents.v1.ModelProviderService/CreateModelProvider"
+	ModelProviderService_UpdateModelProvider_FullMethodName = "/agents.v1.ModelProviderService/UpdateModelProvider"
+	ModelProviderService_DeleteModelProvider_FullMethodName = "/agents.v1.ModelProviderService/DeleteModelProvider"
+)
+
+// ModelProviderServiceClient is the client API for ModelProviderService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ModelProviderService manages LLM provider configurations.
+type ModelProviderServiceClient interface {
+	ListModelProviders(ctx context.Context, in *ListModelProvidersRequest, opts ...grpc.CallOption) (*ListModelProvidersResponse, error)
+	GetModelProvider(ctx context.Context, in *GetModelProviderRequest, opts ...grpc.CallOption) (*GetModelProviderResponse, error)
+	CreateModelProvider(ctx context.Context, in *CreateModelProviderRequest, opts ...grpc.CallOption) (*CreateModelProviderResponse, error)
+	UpdateModelProvider(ctx context.Context, in *UpdateModelProviderRequest, opts ...grpc.CallOption) (*UpdateModelProviderResponse, error)
+	DeleteModelProvider(ctx context.Context, in *DeleteModelProviderRequest, opts ...grpc.CallOption) (*DeleteModelProviderResponse, error)
+}
+
+type modelProviderServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewModelProviderServiceClient(cc grpc.ClientConnInterface) ModelProviderServiceClient {
+	return &modelProviderServiceClient{cc}
+}
+
+func (c *modelProviderServiceClient) ListModelProviders(ctx context.Context, in *ListModelProvidersRequest, opts ...grpc.CallOption) (*ListModelProvidersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListModelProvidersResponse)
+	err := c.cc.Invoke(ctx, ModelProviderService_ListModelProviders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *modelProviderServiceClient) GetModelProvider(ctx context.Context, in *GetModelProviderRequest, opts ...grpc.CallOption) (*GetModelProviderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetModelProviderResponse)
+	err := c.cc.Invoke(ctx, ModelProviderService_GetModelProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *modelProviderServiceClient) CreateModelProvider(ctx context.Context, in *CreateModelProviderRequest, opts ...grpc.CallOption) (*CreateModelProviderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateModelProviderResponse)
+	err := c.cc.Invoke(ctx, ModelProviderService_CreateModelProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *modelProviderServiceClient) UpdateModelProvider(ctx context.Context, in *UpdateModelProviderRequest, opts ...grpc.CallOption) (*UpdateModelProviderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateModelProviderResponse)
+	err := c.cc.Invoke(ctx, ModelProviderService_UpdateModelProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *modelProviderServiceClient) DeleteModelProvider(ctx context.Context, in *DeleteModelProviderRequest, opts ...grpc.CallOption) (*DeleteModelProviderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteModelProviderResponse)
+	err := c.cc.Invoke(ctx, ModelProviderService_DeleteModelProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ModelProviderServiceServer is the server API for ModelProviderService service.
+// All implementations must embed UnimplementedModelProviderServiceServer
+// for forward compatibility.
+//
+// ModelProviderService manages LLM provider configurations.
+type ModelProviderServiceServer interface {
+	ListModelProviders(context.Context, *ListModelProvidersRequest) (*ListModelProvidersResponse, error)
+	GetModelProvider(context.Context, *GetModelProviderRequest) (*GetModelProviderResponse, error)
+	CreateModelProvider(context.Context, *CreateModelProviderRequest) (*CreateModelProviderResponse, error)
+	UpdateModelProvider(context.Context, *UpdateModelProviderRequest) (*UpdateModelProviderResponse, error)
+	DeleteModelProvider(context.Context, *DeleteModelProviderRequest) (*DeleteModelProviderResponse, error)
+	mustEmbedUnimplementedModelProviderServiceServer()
+}
+
+// UnimplementedModelProviderServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedModelProviderServiceServer struct{}
+
+func (UnimplementedModelProviderServiceServer) ListModelProviders(context.Context, *ListModelProvidersRequest) (*ListModelProvidersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListModelProviders not implemented")
+}
+func (UnimplementedModelProviderServiceServer) GetModelProvider(context.Context, *GetModelProviderRequest) (*GetModelProviderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetModelProvider not implemented")
+}
+func (UnimplementedModelProviderServiceServer) CreateModelProvider(context.Context, *CreateModelProviderRequest) (*CreateModelProviderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateModelProvider not implemented")
+}
+func (UnimplementedModelProviderServiceServer) UpdateModelProvider(context.Context, *UpdateModelProviderRequest) (*UpdateModelProviderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateModelProvider not implemented")
+}
+func (UnimplementedModelProviderServiceServer) DeleteModelProvider(context.Context, *DeleteModelProviderRequest) (*DeleteModelProviderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteModelProvider not implemented")
+}
+func (UnimplementedModelProviderServiceServer) mustEmbedUnimplementedModelProviderServiceServer() {}
+func (UnimplementedModelProviderServiceServer) testEmbeddedByValue()                              {}
+
+// UnsafeModelProviderServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ModelProviderServiceServer will
+// result in compilation errors.
+type UnsafeModelProviderServiceServer interface {
+	mustEmbedUnimplementedModelProviderServiceServer()
+}
+
+func RegisterModelProviderServiceServer(s grpc.ServiceRegistrar, srv ModelProviderServiceServer) {
+	// If the following call panics, it indicates UnimplementedModelProviderServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ModelProviderService_ServiceDesc, srv)
+}
+
+func _ModelProviderService_ListModelProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListModelProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelProviderServiceServer).ListModelProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelProviderService_ListModelProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelProviderServiceServer).ListModelProviders(ctx, req.(*ListModelProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ModelProviderService_GetModelProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetModelProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelProviderServiceServer).GetModelProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelProviderService_GetModelProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelProviderServiceServer).GetModelProvider(ctx, req.(*GetModelProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ModelProviderService_CreateModelProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateModelProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelProviderServiceServer).CreateModelProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelProviderService_CreateModelProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelProviderServiceServer).CreateModelProvider(ctx, req.(*CreateModelProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ModelProviderService_UpdateModelProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateModelProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelProviderServiceServer).UpdateModelProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelProviderService_UpdateModelProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelProviderServiceServer).UpdateModelProvider(ctx, req.(*UpdateModelProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ModelProviderService_DeleteModelProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteModelProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelProviderServiceServer).DeleteModelProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelProviderService_DeleteModelProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelProviderServiceServer).DeleteModelProvider(ctx, req.(*DeleteModelProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ModelProviderService_ServiceDesc is the grpc.ServiceDesc for ModelProviderService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ModelProviderService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.ModelProviderService",
+	HandlerType: (*ModelProviderServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListModelProviders",
+			Handler:    _ModelProviderService_ListModelProviders_Handler,
+		},
+		{
+			MethodName: "GetModelProvider",
+			Handler:    _ModelProviderService_GetModelProvider_Handler,
+		},
+		{
+			MethodName: "CreateModelProvider",
+			Handler:    _ModelProviderService_CreateModelProvider_Handler,
+		},
+		{
+			MethodName: "UpdateModelProvider",
+			Handler:    _ModelProviderService_UpdateModelProvider_Handler,
+		},
+		{
+			MethodName: "DeleteModelProvider",
+			Handler:    _ModelProviderService_DeleteModelProvider_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agents/v1/agent_service.proto",
+}
+
+const (
 	RemoteAgentService_ListRemoteAgents_FullMethodName     = "/agents.v1.RemoteAgentService/ListRemoteAgents"
 	RemoteAgentService_GetRemoteAgent_FullMethodName       = "/agents.v1.RemoteAgentService/GetRemoteAgent"
 	RemoteAgentService_CreateRemoteAgent_FullMethodName    = "/agents.v1.RemoteAgentService/CreateRemoteAgent"

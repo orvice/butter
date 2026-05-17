@@ -28,7 +28,7 @@ type configSyncer interface {
 }
 
 type protoAgentReloader interface {
-	ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) error
+	ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) error
 }
 
 type channelReloader interface {
@@ -57,7 +57,7 @@ func (r *ConfigRuntime) ReloadRunner(ctx context.Context) error {
 	if r.runnerSvc == nil {
 		return nil
 	}
-	if err := r.runnerSvc.ReloadProtoAgents(ctx, r.cfg.Agents, r.cfg.MCPServerConfigs, r.cfg.RemoteAgents); err != nil {
+	if err := r.runnerSvc.ReloadProtoAgents(ctx, r.cfg.Agents, r.cfg.ModelProviders, r.cfg.MCPServerConfigs, r.cfg.RemoteAgents); err != nil {
 		return err
 	}
 	if r.channelMgr == nil {

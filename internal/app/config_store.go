@@ -19,6 +19,7 @@ type configBackend interface {
 	configrepo.MCPServerRepository
 	configrepo.RemoteAgentRepository
 	configrepo.ChannelRepository
+	configrepo.ModelProviderRepository
 }
 
 // ConfigStore is a runtime-selectable config repository wrapper.
@@ -74,51 +75,10 @@ func (s *ConfigStore) newBackend(ctx context.Context, cfg *config.AppConfig) (co
 }
 
 func (s *ConfigStore) seedIfNeeded(ctx context.Context, cfg *config.AppConfig, backend configBackend) error {
-	switch store := backend.(type) {
-	case *configmemory.Store:
-		store.Seed(ctx, cfg.Agents, cfg.MCPServerConfigs, cfg.RemoteAgents, cfg.Channels)
-		return nil
-	case *configmongo.Store:
-		if err := seedMongoCollectionIfEmpty(ctx, cfg.Agents, store.ListAgents, func(items []agentsv1.Agent) error {
-			return store.Seed(ctx, items, nil, nil, nil)
-		}); err != nil {
-			return err
-		}
-		if err := seedMongoCollectionIfEmpty(ctx, cfg.MCPServerConfigs, store.ListMCPServers, func(items []agentsv1.MCPServer) error {
-			return store.Seed(ctx, nil, items, nil, nil)
-		}); err != nil {
-			return err
-		}
-		if err := seedMongoCollectionIfEmpty(ctx, cfg.RemoteAgents, store.ListRemoteAgents, func(items []agentsv1.RemoteAgent) error {
-			return store.Seed(ctx, nil, nil, items, nil)
-		}); err != nil {
-			return err
-		}
-		if err := seedMongoCollectionIfEmpty(ctx, cfg.Channels, store.ListChannels, func(items []agentsv1.AgentChannel) error {
-			return store.Seed(ctx, nil, nil, nil, items)
-		}); err != nil {
-			return err
-		}
-		return nil
-	default:
-		return fmt.Errorf("unsupported config backend %T", backend)
-	}
-}
-
-func seedMongoCollectionIfEmpty[T any](
-	ctx context.Context,
-	cfgItems []T,
-	list func(context.Context) ([]*T, error),
-	seed func([]T) error,
-) error {
-	existing, err := list(ctx)
-	if err != nil {
-		return err
-	}
-	if len(existing) > 0 || len(cfgItems) == 0 {
-		return nil
-	}
-	return seed(cfgItems)
+	// Runtime configuration is DB/config-store backed. YAML values for agents,
+	// MCP servers, remote agents, channels, and model providers are ignored as
+	// a source of truth; use the config APIs or persisted backend instead.
+	return nil
 }
 
 func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig) error {
@@ -126,6 +86,7 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 	cfg.MCPServerConfigs = nil
 	cfg.RemoteAgents = nil
 	cfg.Channels = nil
+	cfg.ModelProviders = nil
 
 	agents, err := s.ListAgents(ctx)
 	if err != nil {
@@ -161,6 +122,15 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 	for _, channel := range channels {
 		cfg.Channels = append(cfg.Channels, agentsv1.AgentChannel{})
 		proto.Merge(&cfg.Channels[len(cfg.Channels)-1], channel)
+	}
+
+	modelProviders, err := s.ListModelProviders(ctx)
+	if err != nil {
+		return err
+	}
+	for _, provider := range modelProviders {
+		cfg.ModelProviders = append(cfg.ModelProviders, agentsv1.ModelProvider{})
+		proto.Merge(&cfg.ModelProviders[len(cfg.ModelProviders)-1], provider)
 	}
 
 	return nil
@@ -254,4 +224,24 @@ func (s *ConfigStore) UpdateChannel(ctx context.Context, channel *agentsv1.Agent
 
 func (s *ConfigStore) DeleteChannel(ctx context.Context, name string) error {
 	return s.current().DeleteChannel(ctx, name)
+}
+
+func (s *ConfigStore) ListModelProviders(ctx context.Context) ([]*agentsv1.ModelProvider, error) {
+	return s.current().ListModelProviders(ctx)
+}
+
+func (s *ConfigStore) GetModelProvider(ctx context.Context, name string) (*agentsv1.ModelProvider, error) {
+	return s.current().GetModelProvider(ctx, name)
+}
+
+func (s *ConfigStore) CreateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	return s.current().CreateModelProvider(ctx, provider)
+}
+
+func (s *ConfigStore) UpdateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	return s.current().UpdateModelProvider(ctx, provider)
+}
+
+func (s *ConfigStore) DeleteModelProvider(ctx context.Context, name string) error {
+	return s.current().DeleteModelProvider(ctx, name)
 }

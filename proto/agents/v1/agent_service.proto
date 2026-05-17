@@ -55,6 +55,15 @@ service MCPServerService {
   rpc ListMCPTools(ListMCPToolsRequest) returns (ListMCPToolsResponse);
 }
 
+// ModelProviderService manages LLM provider configurations.
+service ModelProviderService {
+  rpc ListModelProviders(ListModelProvidersRequest) returns (ListModelProvidersResponse);
+  rpc GetModelProvider(GetModelProviderRequest) returns (GetModelProviderResponse);
+  rpc CreateModelProvider(CreateModelProviderRequest) returns (CreateModelProviderResponse);
+  rpc UpdateModelProvider(UpdateModelProviderRequest) returns (UpdateModelProviderResponse);
+  rpc DeleteModelProvider(DeleteModelProviderRequest) returns (DeleteModelProviderResponse);
+}
+
 // RemoteAgentService manages Remote Agent configurations.
 service RemoteAgentService {
   rpc ListRemoteAgents(ListRemoteAgentsRequest) returns (ListRemoteAgentsResponse);
@@ -280,6 +289,44 @@ message DeleteMCPServerRequest {
 }
 
 message DeleteMCPServerResponse {}
+
+// --- ModelProvider messages ---
+
+message ListModelProvidersRequest {}
+
+message ListModelProvidersResponse {
+  repeated ModelProvider model_providers = 1;
+}
+
+message GetModelProviderRequest {
+  string name = 1;
+}
+
+message GetModelProviderResponse {
+  ModelProvider model_provider = 1;
+}
+
+message CreateModelProviderRequest {
+  ModelProvider model_provider = 1;
+}
+
+message CreateModelProviderResponse {
+  ModelProvider model_provider = 1;
+}
+
+message UpdateModelProviderRequest {
+  ModelProvider model_provider = 1;
+}
+
+message UpdateModelProviderResponse {
+  ModelProvider model_provider = 1;
+}
+
+message DeleteModelProviderRequest {
+  string name = 1;
+}
+
+message DeleteModelProviderResponse {}
 
 // --- RemoteAgent messages ---
 

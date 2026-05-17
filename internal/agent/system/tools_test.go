@@ -17,7 +17,7 @@ func TestNewListAgentsTool(t *testing.T) {
 	store.Seed(context.Background(), []agentsv1.Agent{
 		{Name: "agent-a", Description: "First agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM},
 		{Name: "agent-b", Description: "Second agent", Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 
 	tool, err := newListAgentsTool(store)
 	if err != nil {
@@ -32,7 +32,7 @@ func TestNewGetAgentTool(t *testing.T) {
 	store := memory.New()
 	store.Seed(context.Background(), []agentsv1.Agent{
 		{Name: "test-agent", Description: "A test agent"},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 
 	tool, err := newGetAgentTool(store)
 	if err != nil {
@@ -139,13 +139,13 @@ func TestBuildTools(t *testing.T) {
 	}
 
 	expectedNames := map[string]bool{
-		"list_agents":           true,
-		"get_agent":             true,
-		"list_cron_jobs":        true,
-		"create_cron_job":       true,
-		"update_cron_job":       true,
-		"delete_cron_job":       true,
-		"list_cron_executions":  true,
+		"list_agents":          true,
+		"get_agent":            true,
+		"list_cron_jobs":       true,
+		"create_cron_job":      true,
+		"update_cron_job":      true,
+		"delete_cron_job":      true,
+		"list_cron_executions": true,
 	}
 	for _, tool := range tools {
 		if !expectedNames[tool.Name()] {

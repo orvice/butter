@@ -268,14 +268,18 @@ func (s *Service) RegisterAgentWithBuilder(name string, ag agent.Agent, builder 
 }
 
 // ReloadProtoAgents rebuilds all proto-configured agents and refreshes runtime registries.
-func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) error {
+func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) error {
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
 
+	if err := internalagent.ValidateModelAliases(providers); err != nil {
+		return fmt.Errorf("model config validation: %w", err)
+	}
+
 	for i := range agents {
 		name := agents[i].GetName()
-		a, err := internalagent.NewFromProto(ctx, &agents[i], s.providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry)
+		a, err := internalagent.NewFromProto(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry)
 		if err != nil {
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
 		}
@@ -283,7 +287,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 		protoRegistry[name] = &agents[i]
 	}
 
-	guardPC, err := buildContextGuardPlugin(ctx, agents, s.providers)
+	guardPC, err := buildContextGuardPlugin(ctx, agents, providers)
 	if err != nil {
 		return fmt.Errorf("building context guard plugin: %w", err)
 	}
@@ -306,6 +310,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 
 	s.agents = registry
 	s.agentsProto = protoRegistry
+	s.providers = providers
 	s.mcpRegistry = mcpRegistry
 	s.remoteAgents = remoteAgentRegistry
 	s.pluginConfig = pluginConfig

@@ -249,6 +249,76 @@ func TestChannelCRUD(t *testing.T) {
 	}
 }
 
+func TestModelProviderCRUD(t *testing.T) {
+	s := New()
+	ctx := context.Background()
+
+	provider := &agentsv1.ModelProvider{
+		Name:   "openai",
+		Type:   "openai",
+		Models: []*agentsv1.ModelConfig{{Name: "gpt-4o", Alias: "4o"}},
+	}
+	created, err := s.CreateModelProvider(ctx, provider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.GetName() != "openai" {
+		t.Fatalf("expected name openai, got %s", created.GetName())
+	}
+
+	_, err = s.CreateModelProvider(ctx, provider)
+	if !errors.Is(err, configrepo.ErrAlreadyExists) {
+		t.Fatalf("expected ErrAlreadyExists, got %v", err)
+	}
+
+	got, err := s.GetModelProvider(ctx, "openai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.GetType() != "openai" {
+		t.Fatalf("expected openai type, got %s", got.GetType())
+	}
+
+	_, err = s.GetModelProvider(ctx, "nope")
+	if !errors.Is(err, configrepo.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	provider.Type = "gemini"
+	updated, err := s.UpdateModelProvider(ctx, provider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetType() != "gemini" {
+		t.Fatalf("expected gemini type, got %s", updated.GetType())
+	}
+
+	_, err = s.UpdateModelProvider(ctx, &agentsv1.ModelProvider{Name: "nope"})
+	if !errors.Is(err, configrepo.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	providers, err := s.ListModelProviders(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(providers) != 1 {
+		t.Fatalf("expected 1 provider, got %d", len(providers))
+	}
+
+	if err := s.DeleteModelProvider(ctx, "openai"); err != nil {
+		t.Fatal(err)
+	}
+	providers, _ = s.ListModelProviders(ctx)
+	if len(providers) != 0 {
+		t.Fatalf("expected 0 providers after delete, got %d", len(providers))
+	}
+
+	if err := s.DeleteModelProvider(ctx, "nope"); !errors.Is(err, configrepo.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
 func TestSeed(t *testing.T) {
 	s := New()
 	ctx := context.Background()
@@ -257,6 +327,7 @@ func TestSeed(t *testing.T) {
 		[]agentsv1.MCPServer{{Id: "m1", Name: "mcp1"}},
 		[]agentsv1.RemoteAgent{{Id: "r1", Name: "ra1", Url: "http://example.com"}},
 		[]agentsv1.AgentChannel{{Name: "ch1", AgentName: "a1"}},
+		[]agentsv1.ModelProvider{{Name: "openai", Type: "openai"}},
 	)
 
 	agents, _ := s.ListAgents(ctx)
@@ -274,5 +345,9 @@ func TestSeed(t *testing.T) {
 	chs, _ := s.ListChannels(ctx)
 	if len(chs) != 1 {
 		t.Fatalf("expected 1 channel, got %d", len(chs))
+	}
+	providers, _ := s.ListModelProviders(ctx)
+	if len(providers) != 1 {
+		t.Fatalf("expected 1 model provider, got %d", len(providers))
 	}
 }

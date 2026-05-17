@@ -25,6 +25,8 @@ const (
 	AgentServiceName = "agents.v1.AgentService"
 	// MCPServerServiceName is the fully-qualified name of the MCPServerService service.
 	MCPServerServiceName = "agents.v1.MCPServerService"
+	// ModelProviderServiceName is the fully-qualified name of the ModelProviderService service.
+	ModelProviderServiceName = "agents.v1.ModelProviderService"
 	// RemoteAgentServiceName is the fully-qualified name of the RemoteAgentService service.
 	RemoteAgentServiceName = "agents.v1.RemoteAgentService"
 	// ChannelServiceName is the fully-qualified name of the ChannelService service.
@@ -93,6 +95,21 @@ const (
 	// MCPServerServiceListMCPToolsProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPTools RPC.
 	MCPServerServiceListMCPToolsProcedure = "/agents.v1.MCPServerService/ListMCPTools"
+	// ModelProviderServiceListModelProvidersProcedure is the fully-qualified name of the
+	// ModelProviderService's ListModelProviders RPC.
+	ModelProviderServiceListModelProvidersProcedure = "/agents.v1.ModelProviderService/ListModelProviders"
+	// ModelProviderServiceGetModelProviderProcedure is the fully-qualified name of the
+	// ModelProviderService's GetModelProvider RPC.
+	ModelProviderServiceGetModelProviderProcedure = "/agents.v1.ModelProviderService/GetModelProvider"
+	// ModelProviderServiceCreateModelProviderProcedure is the fully-qualified name of the
+	// ModelProviderService's CreateModelProvider RPC.
+	ModelProviderServiceCreateModelProviderProcedure = "/agents.v1.ModelProviderService/CreateModelProvider"
+	// ModelProviderServiceUpdateModelProviderProcedure is the fully-qualified name of the
+	// ModelProviderService's UpdateModelProvider RPC.
+	ModelProviderServiceUpdateModelProviderProcedure = "/agents.v1.ModelProviderService/UpdateModelProvider"
+	// ModelProviderServiceDeleteModelProviderProcedure is the fully-qualified name of the
+	// ModelProviderService's DeleteModelProvider RPC.
+	ModelProviderServiceDeleteModelProviderProcedure = "/agents.v1.ModelProviderService/DeleteModelProvider"
 	// RemoteAgentServiceListRemoteAgentsProcedure is the fully-qualified name of the
 	// RemoteAgentService's ListRemoteAgents RPC.
 	RemoteAgentServiceListRemoteAgentsProcedure = "/agents.v1.RemoteAgentService/ListRemoteAgents"
@@ -745,6 +762,180 @@ func (UnimplementedMCPServerServiceHandler) GetMCPServerStatus(context.Context, 
 
 func (UnimplementedMCPServerServiceHandler) ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.ListMCPTools is not implemented"))
+}
+
+// ModelProviderServiceClient is a client for the agents.v1.ModelProviderService service.
+type ModelProviderServiceClient interface {
+	ListModelProviders(context.Context, *connect.Request[v1.ListModelProvidersRequest]) (*connect.Response[v1.ListModelProvidersResponse], error)
+	GetModelProvider(context.Context, *connect.Request[v1.GetModelProviderRequest]) (*connect.Response[v1.GetModelProviderResponse], error)
+	CreateModelProvider(context.Context, *connect.Request[v1.CreateModelProviderRequest]) (*connect.Response[v1.CreateModelProviderResponse], error)
+	UpdateModelProvider(context.Context, *connect.Request[v1.UpdateModelProviderRequest]) (*connect.Response[v1.UpdateModelProviderResponse], error)
+	DeleteModelProvider(context.Context, *connect.Request[v1.DeleteModelProviderRequest]) (*connect.Response[v1.DeleteModelProviderResponse], error)
+}
+
+// NewModelProviderServiceClient constructs a client for the agents.v1.ModelProviderService service.
+// By default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped
+// responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
+// connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewModelProviderServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) ModelProviderServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	modelProviderServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("ModelProviderService").Methods()
+	return &modelProviderServiceClient{
+		listModelProviders: connect.NewClient[v1.ListModelProvidersRequest, v1.ListModelProvidersResponse](
+			httpClient,
+			baseURL+ModelProviderServiceListModelProvidersProcedure,
+			connect.WithSchema(modelProviderServiceMethods.ByName("ListModelProviders")),
+			connect.WithClientOptions(opts...),
+		),
+		getModelProvider: connect.NewClient[v1.GetModelProviderRequest, v1.GetModelProviderResponse](
+			httpClient,
+			baseURL+ModelProviderServiceGetModelProviderProcedure,
+			connect.WithSchema(modelProviderServiceMethods.ByName("GetModelProvider")),
+			connect.WithClientOptions(opts...),
+		),
+		createModelProvider: connect.NewClient[v1.CreateModelProviderRequest, v1.CreateModelProviderResponse](
+			httpClient,
+			baseURL+ModelProviderServiceCreateModelProviderProcedure,
+			connect.WithSchema(modelProviderServiceMethods.ByName("CreateModelProvider")),
+			connect.WithClientOptions(opts...),
+		),
+		updateModelProvider: connect.NewClient[v1.UpdateModelProviderRequest, v1.UpdateModelProviderResponse](
+			httpClient,
+			baseURL+ModelProviderServiceUpdateModelProviderProcedure,
+			connect.WithSchema(modelProviderServiceMethods.ByName("UpdateModelProvider")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteModelProvider: connect.NewClient[v1.DeleteModelProviderRequest, v1.DeleteModelProviderResponse](
+			httpClient,
+			baseURL+ModelProviderServiceDeleteModelProviderProcedure,
+			connect.WithSchema(modelProviderServiceMethods.ByName("DeleteModelProvider")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// modelProviderServiceClient implements ModelProviderServiceClient.
+type modelProviderServiceClient struct {
+	listModelProviders  *connect.Client[v1.ListModelProvidersRequest, v1.ListModelProvidersResponse]
+	getModelProvider    *connect.Client[v1.GetModelProviderRequest, v1.GetModelProviderResponse]
+	createModelProvider *connect.Client[v1.CreateModelProviderRequest, v1.CreateModelProviderResponse]
+	updateModelProvider *connect.Client[v1.UpdateModelProviderRequest, v1.UpdateModelProviderResponse]
+	deleteModelProvider *connect.Client[v1.DeleteModelProviderRequest, v1.DeleteModelProviderResponse]
+}
+
+// ListModelProviders calls agents.v1.ModelProviderService.ListModelProviders.
+func (c *modelProviderServiceClient) ListModelProviders(ctx context.Context, req *connect.Request[v1.ListModelProvidersRequest]) (*connect.Response[v1.ListModelProvidersResponse], error) {
+	return c.listModelProviders.CallUnary(ctx, req)
+}
+
+// GetModelProvider calls agents.v1.ModelProviderService.GetModelProvider.
+func (c *modelProviderServiceClient) GetModelProvider(ctx context.Context, req *connect.Request[v1.GetModelProviderRequest]) (*connect.Response[v1.GetModelProviderResponse], error) {
+	return c.getModelProvider.CallUnary(ctx, req)
+}
+
+// CreateModelProvider calls agents.v1.ModelProviderService.CreateModelProvider.
+func (c *modelProviderServiceClient) CreateModelProvider(ctx context.Context, req *connect.Request[v1.CreateModelProviderRequest]) (*connect.Response[v1.CreateModelProviderResponse], error) {
+	return c.createModelProvider.CallUnary(ctx, req)
+}
+
+// UpdateModelProvider calls agents.v1.ModelProviderService.UpdateModelProvider.
+func (c *modelProviderServiceClient) UpdateModelProvider(ctx context.Context, req *connect.Request[v1.UpdateModelProviderRequest]) (*connect.Response[v1.UpdateModelProviderResponse], error) {
+	return c.updateModelProvider.CallUnary(ctx, req)
+}
+
+// DeleteModelProvider calls agents.v1.ModelProviderService.DeleteModelProvider.
+func (c *modelProviderServiceClient) DeleteModelProvider(ctx context.Context, req *connect.Request[v1.DeleteModelProviderRequest]) (*connect.Response[v1.DeleteModelProviderResponse], error) {
+	return c.deleteModelProvider.CallUnary(ctx, req)
+}
+
+// ModelProviderServiceHandler is an implementation of the agents.v1.ModelProviderService service.
+type ModelProviderServiceHandler interface {
+	ListModelProviders(context.Context, *connect.Request[v1.ListModelProvidersRequest]) (*connect.Response[v1.ListModelProvidersResponse], error)
+	GetModelProvider(context.Context, *connect.Request[v1.GetModelProviderRequest]) (*connect.Response[v1.GetModelProviderResponse], error)
+	CreateModelProvider(context.Context, *connect.Request[v1.CreateModelProviderRequest]) (*connect.Response[v1.CreateModelProviderResponse], error)
+	UpdateModelProvider(context.Context, *connect.Request[v1.UpdateModelProviderRequest]) (*connect.Response[v1.UpdateModelProviderResponse], error)
+	DeleteModelProvider(context.Context, *connect.Request[v1.DeleteModelProviderRequest]) (*connect.Response[v1.DeleteModelProviderResponse], error)
+}
+
+// NewModelProviderServiceHandler builds an HTTP handler from the service implementation. It returns
+// the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewModelProviderServiceHandler(svc ModelProviderServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	modelProviderServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("ModelProviderService").Methods()
+	modelProviderServiceListModelProvidersHandler := connect.NewUnaryHandler(
+		ModelProviderServiceListModelProvidersProcedure,
+		svc.ListModelProviders,
+		connect.WithSchema(modelProviderServiceMethods.ByName("ListModelProviders")),
+		connect.WithHandlerOptions(opts...),
+	)
+	modelProviderServiceGetModelProviderHandler := connect.NewUnaryHandler(
+		ModelProviderServiceGetModelProviderProcedure,
+		svc.GetModelProvider,
+		connect.WithSchema(modelProviderServiceMethods.ByName("GetModelProvider")),
+		connect.WithHandlerOptions(opts...),
+	)
+	modelProviderServiceCreateModelProviderHandler := connect.NewUnaryHandler(
+		ModelProviderServiceCreateModelProviderProcedure,
+		svc.CreateModelProvider,
+		connect.WithSchema(modelProviderServiceMethods.ByName("CreateModelProvider")),
+		connect.WithHandlerOptions(opts...),
+	)
+	modelProviderServiceUpdateModelProviderHandler := connect.NewUnaryHandler(
+		ModelProviderServiceUpdateModelProviderProcedure,
+		svc.UpdateModelProvider,
+		connect.WithSchema(modelProviderServiceMethods.ByName("UpdateModelProvider")),
+		connect.WithHandlerOptions(opts...),
+	)
+	modelProviderServiceDeleteModelProviderHandler := connect.NewUnaryHandler(
+		ModelProviderServiceDeleteModelProviderProcedure,
+		svc.DeleteModelProvider,
+		connect.WithSchema(modelProviderServiceMethods.ByName("DeleteModelProvider")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.ModelProviderService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case ModelProviderServiceListModelProvidersProcedure:
+			modelProviderServiceListModelProvidersHandler.ServeHTTP(w, r)
+		case ModelProviderServiceGetModelProviderProcedure:
+			modelProviderServiceGetModelProviderHandler.ServeHTTP(w, r)
+		case ModelProviderServiceCreateModelProviderProcedure:
+			modelProviderServiceCreateModelProviderHandler.ServeHTTP(w, r)
+		case ModelProviderServiceUpdateModelProviderProcedure:
+			modelProviderServiceUpdateModelProviderHandler.ServeHTTP(w, r)
+		case ModelProviderServiceDeleteModelProviderProcedure:
+			modelProviderServiceDeleteModelProviderHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedModelProviderServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedModelProviderServiceHandler struct{}
+
+func (UnimplementedModelProviderServiceHandler) ListModelProviders(context.Context, *connect.Request[v1.ListModelProvidersRequest]) (*connect.Response[v1.ListModelProvidersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ModelProviderService.ListModelProviders is not implemented"))
+}
+
+func (UnimplementedModelProviderServiceHandler) GetModelProvider(context.Context, *connect.Request[v1.GetModelProviderRequest]) (*connect.Response[v1.GetModelProviderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ModelProviderService.GetModelProvider is not implemented"))
+}
+
+func (UnimplementedModelProviderServiceHandler) CreateModelProvider(context.Context, *connect.Request[v1.CreateModelProviderRequest]) (*connect.Response[v1.CreateModelProviderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ModelProviderService.CreateModelProvider is not implemented"))
+}
+
+func (UnimplementedModelProviderServiceHandler) UpdateModelProvider(context.Context, *connect.Request[v1.UpdateModelProviderRequest]) (*connect.Response[v1.UpdateModelProviderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ModelProviderService.UpdateModelProvider is not implemented"))
+}
+
+func (UnimplementedModelProviderServiceHandler) DeleteModelProvider(context.Context, *connect.Request[v1.DeleteModelProviderRequest]) (*connect.Response[v1.DeleteModelProviderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ModelProviderService.DeleteModelProvider is not implemented"))
 }
 
 // RemoteAgentServiceClient is a client for the agents.v1.RemoteAgentService service.
