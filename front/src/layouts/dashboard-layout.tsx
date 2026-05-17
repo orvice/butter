@@ -1,10 +1,13 @@
 import { NavLink, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
+import { useWorkspace } from "@/hooks/use-workspace";
 import { useTheme } from "next-themes";
 import { useOverview } from "@/api/dashboard";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   LayoutDashboard,
   Bot,
@@ -20,6 +23,7 @@ import {
   BrainCircuit,
   KeyRound,
   Users,
+  Building2,
   CircleCheck,
   CircleAlert,
 } from "lucide-react";
@@ -99,9 +103,47 @@ function StatusPill() {
   );
 }
 
+function WorkspaceSwitcher() {
+  const { workspaces, selectedWorkspaceId, selectedWorkspace, isLoading, setSelectedWorkspaceId } = useWorkspace();
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border bg-background px-2 py-1">
+      <Building2 className="h-4 w-4 text-muted-foreground" />
+      <div className="hidden leading-tight sm:block">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Workspace</div>
+        <div className="max-w-36 truncate text-xs font-medium">
+          {selectedWorkspace?.name || selectedWorkspace?.slug || (isLoading ? "Loading..." : "Not selected")}
+        </div>
+      </div>
+      <Select
+        value={selectedWorkspaceId || undefined}
+        onValueChange={(value) => {
+          if (value) setSelectedWorkspaceId(value);
+        }}
+        disabled={isLoading || workspaces.length === 0}
+      >
+        <SelectTrigger size="sm" className="w-44">
+          <SelectValue placeholder={isLoading ? "Loading workspaces" : "Select workspace"} />
+        </SelectTrigger>
+        <SelectContent align="end">
+          {workspaces.map((workspace) => (
+            <SelectItem key={workspace.id} value={workspace.id}>
+              <span className="flex flex-col items-start leading-tight">
+                <span>{workspace.name || workspace.slug || workspace.id}</span>
+                {workspace.slug ? <span className="text-[10px] text-muted-foreground">{workspace.slug}</span> : null}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export default function DashboardLayout() {
   const { isAuthenticated, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { selectedWorkspaceId, isLoading: isWorkspaceLoading } = useWorkspace();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -169,11 +211,25 @@ export default function DashboardLayout() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         <header className="flex h-14 items-center justify-end gap-3 border-b bg-card/40 px-6">
+          <WorkspaceSwitcher />
           <StatusPill />
           <Badge variant="outline" className="text-xs">Production</Badge>
         </header>
         <main className="flex-1 overflow-auto p-6">
-          <Outlet />
+          {selectedWorkspaceId ? (
+            <Outlet />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Choose a workspace</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                {isWorkspaceLoading
+                  ? "Loading available workspaces..."
+                  : "Select a workspace from the top bar to load workspace-scoped data."}
+              </CardContent>
+            </Card>
+          )}
         </main>
       </div>
     </div>
