@@ -4,11 +4,18 @@
 http:
   greeting: "Hello from Butter!"
 
-# Optional shared API token. When set, API requests must include:
+# Optional shared API token. Kept for daemon/API compatibility. Dashboard login uses auth below.
 # Authorization: Bearer <token>
 apiToken: ""
 
-# MongoDB for ADK session persistence
+# Dashboard user authentication. On first startup with an empty users collection,
+# Butter creates this initial admin user. Change the password before deploying.
+auth:
+  initial_admin_username: "admin"
+  initial_admin_password: "change-me"
+  session_ttl: 168h
+
+# MongoDB for ADK session persistence and auth storage
 mongo_uri: "mongodb://localhost:27017"
 mongo_db: "butter"
 

@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 import { TOKEN_KEY } from "@/lib/constants";
-import { validateToken } from "@/api/client";
+import { login as loginRequest, logout as logoutRequest, type AuthUser } from "@/api/auth";
 
 interface AuthContextValue {
   token: string | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (token: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -15,25 +16,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(
     () => localStorage.getItem(TOKEN_KEY),
   );
+  const [user, setUser] = useState<AuthUser | null>(null);
 
-  const login = useCallback(async (newToken: string): Promise<boolean> => {
-    localStorage.setItem(TOKEN_KEY, newToken);
-    const valid = await validateToken(newToken);
-    if (valid) {
-      setToken(newToken);
+  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+    try {
+      const res = await loginRequest(username, password);
+      if (!res.token) return false;
+      localStorage.setItem(TOKEN_KEY, res.token);
+      setToken(res.token);
+      setUser(res.user ?? null);
       return true;
+    } catch {
+      localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUser(null);
+      return false;
     }
-    localStorage.removeItem(TOKEN_KEY);
-    return false;
   }, []);
 
   const logout = useCallback(() => {
+    void logoutRequest().catch(() => undefined);
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
+    setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ token, isAuthenticated: !!token, login, logout }}>
+    <AuthContext.Provider value={{ token, user, isAuthenticated: !!token, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

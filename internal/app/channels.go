@@ -10,17 +10,20 @@ import (
 	"google.golang.org/adk/session"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
+	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	apitokenmemory "go.orx.me/apps/butter/internal/repo/apitoken/memory"
 	apitokenmongo "go.orx.me/apps/butter/internal/repo/apitoken/mongo"
+	"go.orx.me/apps/butter/internal/repo/auth"
+	authmongo "go.orx.me/apps/butter/internal/repo/auth/mongo"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	invocationmongo "go.orx.me/apps/butter/internal/repo/invocation/mongo"
-	"go.orx.me/apps/butter/internal/runtime/daemon"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
+	"go.orx.me/apps/butter/internal/runtime/daemon"
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
@@ -28,18 +31,19 @@ import (
 
 // BootstrapResult holds the services created during bootstrap.
 type BootstrapResult struct {
-	RunnerSvc     *runner.Service
-	SessionSvc    session.Service
-	CronScheduler *internalcron.Scheduler
-	CronRepo      internalcron.ExecutionRepo
-	CronJobRepo   internalcron.JobRepo
-	ChannelMgr      *channel.Manager
-	MongoDB         *mongo.Database
-	Redis           *redis.Client
-	APITokenRepo    apitoken.Repository
-	InvocationRepo  invocation.Repository
-	LangfuseHost    string
-	SessionCounter  func(ctx context.Context) (int64, error)
+	RunnerSvc      *runner.Service
+	SessionSvc     session.Service
+	CronScheduler  *internalcron.Scheduler
+	CronRepo       internalcron.ExecutionRepo
+	CronJobRepo    internalcron.JobRepo
+	ChannelMgr     *channel.Manager
+	MongoDB        *mongo.Database
+	Redis          *redis.Client
+	AuthRepo       auth.Repository
+	APITokenRepo   apitoken.Repository
+	InvocationRepo invocation.Repository
+	LangfuseHost   string
+	SessionCounter func(ctx context.Context) (int64, error)
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -69,11 +73,17 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// Connect to Redis.
 	rdb := connectRedis(ctx, cfg)
 
-	// Pick API token + invocation repository backends.
+	// Pick auth, API token + invocation repository backends.
 	var (
+		authRepo  auth.Repository
 		tokenRepo apitoken.Repository
 		invRepo   invocation.Repository
 	)
+	authRepo = authmongo.New(db)
+	if err := application.BootstrapInitialAdmin(ctx, authRepo, cfg.Auth); err != nil {
+		logger.Error("failed to initialize auth", "err", err)
+		return nil, err
+	}
 	if strings.ToLower(strings.TrimSpace(cfg.StorageBackend)) == "mongo" {
 		tokenRepo = apitokenmongo.New(db)
 		invRepo = invocationmongo.New(db)
@@ -125,14 +135,15 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	go mgr.Start(ctx)
 
 	return &BootstrapResult{
-		RunnerSvc:     runnerSvc,
-		SessionSvc:    sessionSvc,
-		CronScheduler: cronScheduler,
-		CronRepo:      cronExecRepo,
-		CronJobRepo:   cronJobRepo,
-		ChannelMgr:    mgr,
-		MongoDB:       db,
+		RunnerSvc:      runnerSvc,
+		SessionSvc:     sessionSvc,
+		CronScheduler:  cronScheduler,
+		CronRepo:       cronExecRepo,
+		CronJobRepo:    cronJobRepo,
+		ChannelMgr:     mgr,
+		MongoDB:        db,
 		Redis:          rdb,
+		AuthRepo:       authRepo,
 		APITokenRepo:   tokenRepo,
 		InvocationRepo: invRepo,
 		LangfuseHost:   cfg.Langfuse.Host,

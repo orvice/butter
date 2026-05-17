@@ -15,6 +15,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
+	"go.orx.me/apps/butter/internal/repo/auth"
 )
 
 const (
@@ -22,60 +23,67 @@ const (
 	defaultTouchTimeout = 2 * time.Second
 )
 
-// APITokenRepoProvider resolves the current apitoken repository. It is invoked
-// per-request so the repository can be wired in after route setup.
 type APITokenRepoProvider func() apitoken.Repository
 
-// APITokenAuthMiddleware validates incoming requests against either:
-//   - The single root token from AppConfig.APIToken (preserved for ops/CLI).
-//   - A token stored in the apitoken.Repository (added at runtime via
-//     APITokenService). When provider is nil or returns nil, only the root
-//     token is checked.
-//
-// The /ping endpoint is always public.
-func APITokenAuthMiddleware(cfg *config.AppConfig, provider APITokenRepoProvider) gin.HandlerFunc {
+type AuthRepoProvider func() auth.Repository
+
+// AuthMiddleware validates incoming requests against MongoDB-backed user
+// sessions. The legacy root API token and API-token repo are still accepted for
+// integrations/migration, but dashboard login should use AuthService.Login.
+func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTokenProvider APITokenRepoProvider) gin.HandlerFunc {
 	rootToken := strings.TrimSpace(cfg.APIToken)
 
 	return func(c *gin.Context) {
-		if c.Request.URL.Path == "/ping" {
+		if isPublicPath(c.Request.URL.Path) {
 			c.Next()
 			return
 		}
 
-		var repo apitoken.Repository
-		if provider != nil {
-			repo = provider()
+		var authRepo auth.Repository
+		if authProvider != nil {
+			authRepo = authProvider()
+		}
+		var apiTokenRepo apitoken.Repository
+		if apiTokenProvider != nil {
+			apiTokenRepo = apiTokenProvider()
 		}
 
-		// If no auth is configured at all, allow through (legacy behavior).
-		if rootToken == "" && repo == nil {
+		// Legacy/dev behavior before bootstrap wires repositories.
+		if rootToken == "" && authRepo == nil && apiTokenRepo == nil {
 			c.Next()
 			return
 		}
 
-		auth := c.GetHeader("Authorization")
-		if !strings.HasPrefix(auth, bearerPrefix) {
+		token, ok := bearerToken(c)
+		if !ok {
 			unauthorized(c)
 			return
 		}
 
-		token := strings.TrimSpace(strings.TrimPrefix(auth, bearerPrefix))
-		if token == "" {
-			unauthorized(c)
-			return
+		if authRepo != nil {
+			session, user, err := authRepo.LookupSession(c.Request.Context(), hashSecret(token), time.Now().UTC())
+			if err == nil {
+				go touchSession(authRepo, session.ID)
+				ctx := auth.WithAuthenticated(c.Request.Context(), user, session)
+				c.Request = c.Request.WithContext(ctx)
+				c.Next()
+				return
+			}
+			if !errors.Is(err, auth.ErrSessionNotFound) && !errors.Is(err, auth.ErrUserNotFound) && !errors.Is(err, auth.ErrUserDisabled) {
+				log.FromContext(c.Request.Context()).Warn("auth session lookup failed", "err", err)
+			}
 		}
 
-		// Try root token first (constant-time compare).
+		// Try root token (constant-time compare) for ops/daemon/API compatibility.
 		if rootToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(rootToken)) == 1 {
 			c.Next()
 			return
 		}
 
-		if repo != nil {
-			hash := hashSecret(token)
-			stored, err := repo.Lookup(c.Request.Context(), hash)
+		if apiTokenRepo != nil {
+			stored, err := apiTokenRepo.Lookup(c.Request.Context(), hashSecret(token))
 			if err == nil {
-				go touchToken(repo, stored.GetId())
+				go touchAPIToken(apiTokenRepo, stored.GetId())
 				c.Next()
 				return
 			}
@@ -88,15 +96,39 @@ func APITokenAuthMiddleware(cfg *config.AppConfig, provider APITokenRepoProvider
 	}
 }
 
+// APITokenAuthMiddleware is kept for tests/backward compatibility.
+func APITokenAuthMiddleware(cfg *config.AppConfig, provider APITokenRepoProvider) gin.HandlerFunc {
+	return AuthMiddleware(cfg, nil, provider)
+}
+
+func isPublicPath(path string) bool {
+	return path == "/ping" || path == "/api/agents.v1.AuthService/Login"
+}
+
+func bearerToken(c *gin.Context) (string, bool) {
+	authHeader := c.GetHeader("Authorization")
+	if !strings.HasPrefix(authHeader, bearerPrefix) {
+		return "", false
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(authHeader, bearerPrefix))
+	return token, token != ""
+}
+
 func hashSecret(secret string) string {
 	sum := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(sum[:])
 }
 
-func touchToken(repo apitoken.Repository, id string) {
+func touchAPIToken(repo apitoken.Repository, id string) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTouchTimeout)
 	defer cancel()
 	_ = repo.TouchLastUsed(ctx, id)
+}
+
+func touchSession(repo auth.Repository, id string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTouchTimeout)
+	defer cancel()
+	_ = repo.TouchSession(ctx, id, time.Now().UTC())
 }
 
 func unauthorized(c *gin.Context) {

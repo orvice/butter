@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// AuthService manages dashboard user authentication.
+service AuthService {
+  // Login is public and exchanges username/password for a session token.
+  rpc Login(LoginRequest) returns (LoginResponse);
+  // Me returns the authenticated user for the current session.
+  rpc Me(MeRequest) returns (MeResponse);
+  // Logout revokes the current session token.
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  // ListUsers lists dashboard users. Admin only.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  // CreateUser creates a dashboard user. Admin only.
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  // UpdateUserPassword changes a user's password. Admin only.
+  rpc UpdateUserPassword(UpdateUserPasswordRequest) returns (UpdateUserPasswordResponse);
+  // SetUserDisabled enables or disables a user. Admin only.
+  rpc SetUserDisabled(SetUserDisabledRequest) returns (SetUserDisabledResponse);
+}
+
+message User {
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+  // @gotags: json:"username,omitempty" yaml:"username,omitempty" bson:"username,omitempty"
+  string username = 2;
+  // @gotags: json:"display_name,omitempty" yaml:"display_name,omitempty" bson:"display_name,omitempty"
+  string display_name = 3;
+  // @gotags: json:"role,omitempty" yaml:"role,omitempty" bson:"role,omitempty"
+  string role = 4;
+  // @gotags: json:"disabled,omitempty" yaml:"disabled,omitempty" bson:"disabled,omitempty"
+  bool disabled = 5;
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 6;
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message LoginRequest {
+  string username = 1 [(validate.rules).string.min_len = 1];
+  string password = 2 [(validate.rules).string.min_len = 1];
+}
+
+message LoginResponse {
+  string token = 1;
+  User user = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message MeRequest {}
+
+message MeResponse {
+  User user = 1;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {}
+
+message ListUsersRequest {}
+
+message ListUsersResponse {
+  repeated User users = 1;
+}
+
+message CreateUserRequest {
+  string username = 1 [(validate.rules).string.min_len = 1];
+  string password = 2 [(validate.rules).string.min_len = 1];
+  string display_name = 3;
+  string role = 4;
+  bool disabled = 5;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+
+message UpdateUserPasswordRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  string password = 2 [(validate.rules).string.min_len = 1];
+}
+
+message UpdateUserPasswordResponse {
+  User user = 1;
+}
+
+message SetUserDisabledRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  bool disabled = 2;
+}
+
+message SetUserDisabledResponse {
+  User user = 1;
+}
