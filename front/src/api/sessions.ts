@@ -32,6 +32,22 @@ interface DeleteSessionParams {
   session_id: string;
 }
 
+interface CreateSessionParams {
+  app_name: string;
+  user_id: string;
+  session_id?: string;
+  state?: Record<string, unknown>;
+}
+
+interface ReplySessionParams {
+  agent_name: string;
+  app_name: string;
+  user_id: string;
+  session_id: string;
+  message: string;
+  model_override?: string;
+}
+
 function listSessions(params: ListSessionsParams) {
   return twirpFetch<ListSessionsParams, ListSessionsResponse>(SVC, "ListSessions", params);
 }
@@ -46,6 +62,14 @@ function getSession(params: GetSessionParams) {
 
 function deleteSession(params: DeleteSessionParams) {
   return twirpFetch<DeleteSessionParams, object>(SVC, "DeleteSession", params);
+}
+
+function createSession(params: CreateSessionParams) {
+  return twirpFetch<CreateSessionParams, { session: SessionInfo }>(SVC, "CreateSession", params);
+}
+
+function replySession(params: ReplySessionParams) {
+  return twirpFetch<ReplySessionParams, { response: string }>(SVC, "ReplySession", params);
 }
 
 export function useSessions(params: ListSessionsParams = {}) {
@@ -70,5 +94,46 @@ export function useDeleteSession() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sessions"] });
     },
+  });
+}
+
+export function useCreateSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createSession,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sessions"] });
+    },
+  });
+}
+
+export function useReplySession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: replySession,
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["sessions"] });
+      qc.invalidateQueries({
+        queryKey: [
+          "sessions",
+          { appName: vars.app_name, userId: vars.user_id, sessionId: vars.session_id },
+        ],
+      });
+    },
+  });
+}
+
+export function useLiveSession(
+  appName: string,
+  userId: string,
+  sessionId: string,
+  enabled: boolean,
+  pollIntervalMs = 1500,
+) {
+  return useQuery({
+    queryKey: ["sessions", { appName, userId, sessionId }],
+    queryFn: () => getSession({ app_name: appName, user_id: userId, session_id: sessionId }),
+    enabled: !!appName && !!userId && !!sessionId,
+    refetchInterval: enabled ? pollIntervalMs : false,
   });
 }

@@ -18,6 +18,7 @@ import {
   Server,
   Globe,
   MessageSquare,
+  MessageCircle,
   Clock,
   Sun,
   Moon,
@@ -55,6 +56,7 @@ const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashb
   {
     label: "Execution",
     items: [
+      { to: "/chat", icon: MessageCircle, label: "Chat" },
       { to: "/daemons", icon: Cpu, label: "Daemons" },
       { to: "/sessions", icon: MessageSquare, label: "Sessions" },
     ],
