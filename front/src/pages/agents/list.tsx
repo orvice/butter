@@ -67,7 +67,7 @@ function timeAgo(ts?: string): string {
 
 export default function AgentListPage() {
   const { data, isLoading } = useAgents();
-  const agents = data?.agents ?? [];
+  const agents = useMemo(() => data?.agents ?? [], [data?.agents]);
   const names = useMemo(() => agents.map((a) => a.name), [agents]);
   const { data: runtimeData } = useAgentRuntimeStatuses(names);
 

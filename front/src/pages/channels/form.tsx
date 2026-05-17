@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAgents } from "@/api/agents";
@@ -80,8 +80,8 @@ export default function ChannelForm({
     },
   });
 
-  const platform = form.watch("platform");
-  const triggerType = form.watch("trigger_type");
+  const platform = useWatch({ control: form.control, name: "platform" });
+  const triggerType = useWatch({ control: form.control, name: "trigger_type" });
 
   useEffect(() => {
     if (!initialValue) return;

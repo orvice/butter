@@ -159,7 +159,6 @@ function FormMessage({
 }
 
 export {
-  useFormField,
   Form,
   FormItem,
   FormLabel,
