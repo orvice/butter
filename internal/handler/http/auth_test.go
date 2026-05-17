@@ -15,7 +15,7 @@ import (
 func setupAuthRouter(cfg *config.AppConfig) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.Use(APITokenAuthMiddleware(cfg))
+	r.Use(APITokenAuthMiddleware(cfg, nil))
 	NewHealthHandler(service.NewHealthService(repo.NewHealthRepository(), cfg)).Register(r)
 	r.GET("/protected", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})

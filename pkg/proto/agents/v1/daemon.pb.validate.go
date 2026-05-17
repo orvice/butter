@@ -63,6 +63,10 @@ func (m *DaemonInfo) validate(all bool) error {
 
 	// no validation rules for Labels
 
+	// no validation rules for Version
+
+	// no validation rules for Os
+
 	if len(errors) > 0 {
 		return DaemonInfoMultiError(errors)
 	}
@@ -311,6 +315,10 @@ func (m *DaemonTaskUpdate) validate(all bool) error {
 			}
 		}
 	}
+
+	// no validation rules for CurrentStep
+
+	// no validation rules for Progress
 
 	if len(errors) > 0 {
 		return DaemonTaskUpdateMultiError(errors)

@@ -4,6 +4,8 @@ package agents.v1;
 
 import "agents/v1/agent.proto";
 import "agents/v1/agentchannel.proto";
+import "agents/v1/dashboard.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -16,6 +18,26 @@ service AgentService {
   rpc CreateAgent(CreateAgentRequest) returns (CreateAgentResponse);
   rpc UpdateAgent(UpdateAgentRequest) returns (UpdateAgentResponse);
   rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
+  // InvokeAgent runs an agent once with the given input. If session_id is empty
+  // an ephemeral session id is generated; otherwise the existing session is used.
+  rpc InvokeAgent(InvokeAgentRequest) returns (InvokeAgentResponse);
+  // ListAgentInvocations returns recorded invocations, optionally filtered by
+  // agent name, with simple opaque-token pagination.
+  rpc ListAgentInvocations(ListAgentInvocationsRequest) returns (ListAgentInvocationsResponse);
+  // ReloadAgents drops cached runners and re-resolves agents/MCP/remote-agents
+  // from the current configuration. Exposes the runtime hot-reload trigger
+  // used internally by config mutations to the dashboard "Hot-reload" button.
+  rpc ReloadAgents(ReloadAgentsRequest) returns (ReloadAgentsResponse);
+  // GetAgentRuntimeStatus returns the latest invocation state for an agent,
+  // suitable for the Agents table Status / Last Run columns.
+  rpc GetAgentRuntimeStatus(GetAgentRuntimeStatusRequest) returns (GetAgentRuntimeStatusResponse);
+  // ListAgentRuntimeStatuses returns runtime statuses for the given agent
+  // names in a single round trip. When `names` is empty, statuses for all
+  // configured agents are returned.
+  rpc ListAgentRuntimeStatuses(ListAgentRuntimeStatusesRequest) returns (ListAgentRuntimeStatusesResponse);
+  // CancelAgentInvocation cancels an in-flight invocation by its ID. The
+  // invocation transitions to FAILED with a cancellation error.
+  rpc CancelAgentInvocation(CancelAgentInvocationRequest) returns (CancelAgentInvocationResponse);
 }
 
 // MCPServerService manages MCP Server configurations.
@@ -25,6 +47,12 @@ service MCPServerService {
   rpc CreateMCPServer(CreateMCPServerRequest) returns (CreateMCPServerResponse);
   rpc UpdateMCPServer(UpdateMCPServerRequest) returns (UpdateMCPServerResponse);
   rpc DeleteMCPServer(DeleteMCPServerRequest) returns (DeleteMCPServerResponse);
+  // GetMCPServerStatus returns the current runtime status of a configured
+  // MCP server. Implemented in dashboard.proto.
+  rpc GetMCPServerStatus(GetMCPServerStatusRequest) returns (GetMCPServerStatusResponse);
+  // ListMCPTools enumerates tools exposed by the configured MCP servers.
+  // When server_id is empty, all servers are probed (skipping STDIO).
+  rpc ListMCPTools(ListMCPToolsRequest) returns (ListMCPToolsResponse);
 }
 
 // RemoteAgentService manages Remote Agent configurations.
@@ -34,14 +62,76 @@ service RemoteAgentService {
   rpc CreateRemoteAgent(CreateRemoteAgentRequest) returns (CreateRemoteAgentResponse);
   rpc UpdateRemoteAgent(UpdateRemoteAgentRequest) returns (UpdateRemoteAgentResponse);
   rpc DeleteRemoteAgent(DeleteRemoteAgentRequest) returns (DeleteRemoteAgentResponse);
+  // GetRemoteAgentStatus probes the configured remote agent endpoint and
+  // returns its liveness state (A2A: HTTP agent.json; daemon: registry).
+  rpc GetRemoteAgentStatus(GetRemoteAgentStatusRequest) returns (GetRemoteAgentStatusResponse);
 }
 
 // --- Agent messages ---
 
-message ListAgentsRequest {}
+message ListAgentsRequest {
+  // Maximum records per page. Defaults to 50.
+  int32 page_size = 1;
+  // Pagination token from a previous response.
+  string page_token = 2;
+}
 
 message ListAgentsResponse {
   repeated Agent agents = 1;
+  // Token for the next page; empty if there are no more results.
+  string next_page_token = 2;
+  // Total agents across all pages.
+  int32 total = 3;
+}
+
+message ReloadAgentsRequest {}
+
+message ReloadAgentsResponse {
+  google.protobuf.Timestamp reloaded_at = 1;
+}
+
+// AgentRuntimeState classifies the agent's most recent runtime state, derived
+// from the latest invocation.
+enum AgentRuntimeState {
+  AGENT_RUNTIME_STATE_UNSPECIFIED = 0;
+  AGENT_RUNTIME_STATE_IDLE = 1;
+  AGENT_RUNTIME_STATE_RUNNING = 2;
+  AGENT_RUNTIME_STATE_FAILED = 3;
+}
+
+message AgentRuntimeStatus {
+  string name = 1;
+  AgentRuntimeState state = 2;
+  google.protobuf.Timestamp last_run_at = 3;
+  // ID of the latest invocation, if any.
+  string last_invocation_id = 4;
+  // Number of in-flight (RUNNING) invocations for this agent.
+  int32 in_flight = 5;
+}
+
+message GetAgentRuntimeStatusRequest {
+  string name = 1;
+}
+
+message GetAgentRuntimeStatusResponse {
+  AgentRuntimeStatus status = 1;
+}
+
+message ListAgentRuntimeStatusesRequest {
+  repeated string names = 1;
+}
+
+message ListAgentRuntimeStatusesResponse {
+  repeated AgentRuntimeStatus statuses = 1;
+}
+
+message CancelAgentInvocationRequest {
+  string invocation_id = 1;
+}
+
+message CancelAgentInvocationResponse {
+  // True if the invocation was found and the cancel signal was delivered.
+  bool cancelled = 1;
 }
 
 message GetAgentRequest {
@@ -73,6 +163,85 @@ message DeleteAgentRequest {
 }
 
 message DeleteAgentResponse {}
+
+message InvokeAgentRequest {
+  // Name of the agent to invoke (required).
+  string agent_name = 1;
+  // Input message text (required).
+  string input = 2;
+  // App / channel name for the invocation context. Defaults to "api" if empty.
+  string app_name = 3;
+  // User id for the invocation context. Defaults to "api" if empty.
+  string user_id = 4;
+  // Existing session id. Empty triggers a new ephemeral session id.
+  string session_id = 5;
+  // Optional model override alias or full name.
+  string model_override = 6;
+}
+
+message InvokeAgentResponse {
+  // Session id used (echoed back, may have been auto-generated).
+  string session_id = 1;
+  // Final agent response text.
+  string response = 2;
+}
+
+// InvocationStatus tracks the lifecycle of an agent invocation.
+enum InvocationStatus {
+  INVOCATION_STATUS_UNSPECIFIED = 0;
+  INVOCATION_STATUS_RUNNING = 1;
+  INVOCATION_STATUS_SUCCEEDED = 2;
+  INVOCATION_STATUS_FAILED = 3;
+}
+
+// Invocation is a persisted record of a single Runner.Run call.
+message Invocation {
+  // @gotags: bson:"_id,omitempty"
+  string id = 1;
+  // @gotags: bson:"agent_name,omitempty"
+  string agent_name = 2;
+  // @gotags: bson:"app_name,omitempty"
+  string app_name = 3;
+  // @gotags: bson:"user_id,omitempty"
+  string user_id = 4;
+  // @gotags: bson:"session_id,omitempty"
+  string session_id = 5;
+  // @gotags: bson:"status,omitempty"
+  InvocationStatus status = 6;
+  // @gotags: bson:"input,omitempty"
+  string input = 7;
+  // @gotags: bson:"output,omitempty"
+  string output = 8;
+  // @gotags: bson:"error,omitempty"
+  string error = 9;
+  // @gotags: bson:"started_at,omitempty"
+  google.protobuf.Timestamp started_at = 10;
+  // @gotags: bson:"finished_at,omitempty"
+  google.protobuf.Timestamp finished_at = 11;
+  // @gotags: bson:"latency_ms,omitempty"
+  int64 latency_ms = 12;
+  // @gotags: bson:"model_override,omitempty"
+  string model_override = 13;
+  // @gotags: bson:"source,omitempty"
+  string source = 14;
+}
+
+message ListAgentInvocationsRequest {
+  // Optional: filter by agent name. Empty returns all agents.
+  string agent_name = 1;
+  // Optional: filter by session id.
+  string session_id = 2;
+  // Maximum records per page. Defaults to 20.
+  int32 page_size = 3;
+  // Pagination token from a previous response.
+  string page_token = 4;
+}
+
+message ListAgentInvocationsResponse {
+  repeated Invocation invocations = 1;
+  string next_page_token = 2;
+  int32 total = 3;
+}
 
 // --- MCPServer messages ---
 
@@ -188,6 +357,31 @@ message DeleteChannelRequest {
 
 message DeleteChannelResponse {}
 
+message RestartChannelRequest {
+  // Optional channel name; if empty, restarts the whole channel manager.
+  string name = 1;
+}
+
+message RestartChannelResponse {
+  AgentChannel channel = 1;
+}
+
+message PauseChannelRequest {
+  string name = 1;
+}
+
+message PauseChannelResponse {
+  AgentChannel channel = 1;
+}
+
+message ResumeChannelRequest {
+  string name = 1;
+}
+
+message ResumeChannelResponse {
+  AgentChannel channel = 1;
+}
+
 // ChannelService manages AgentChannel configurations.
 service ChannelService {
   rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
@@ -195,6 +389,16 @@ service ChannelService {
   rpc CreateChannel(CreateChannelRequest) returns (CreateChannelResponse);
   rpc UpdateChannel(UpdateChannelRequest) returns (UpdateChannelResponse);
   rpc DeleteChannel(DeleteChannelRequest) returns (DeleteChannelResponse);
+  // GetChannelStatus returns the current runtime status of a channel poller.
+  // Implemented in dashboard.proto.
+  rpc GetChannelStatus(GetChannelStatusRequest) returns (GetChannelStatusResponse);
+  // RestartChannel reloads the channel manager. Effectively bounces all pollers.
+  rpc RestartChannel(RestartChannelRequest) returns (RestartChannelResponse);
+  // PauseChannel disables the named channel and reloads the channel manager so
+  // its poller stops. The configuration `enabled` flag is set to false.
+  rpc PauseChannel(PauseChannelRequest) returns (PauseChannelResponse);
+  // ResumeChannel re-enables the named channel and reloads the channel manager.
+  rpc ResumeChannel(ResumeChannelRequest) returns (ResumeChannelResponse);
 }
 
 // =============================================================================
@@ -246,10 +450,20 @@ message GetSessionResponse {
 message ListSessionsRequest {
   string app_name = 1;
   string user_id = 2;
+  // Optional: only return sessions whose last_update_time is at or after this.
+  google.protobuf.Timestamp start_time = 3;
+  // Optional: only return sessions whose last_update_time is at or before this.
+  google.protobuf.Timestamp end_time = 4;
+  // Maximum records per page. Defaults to 20.
+  int32 page_size = 5;
+  // Pagination token from a previous response.
+  string page_token = 6;
 }
 
 message ListSessionsResponse {
   repeated SessionInfo sessions = 1;
+  string next_page_token = 2;
+  int32 total = 3;
 }
 
 message DeleteSessionRequest {
@@ -285,12 +499,16 @@ message SessionInfo {
   string user_id = 3;
   google.protobuf.Struct state = 4;
   google.protobuf.Timestamp last_update_time = 5;
+  // Number of recorded events (rough "turn" count).
+  int32 turn_count = 6;
 }
 
 // SessionDetail includes the session info plus recent events.
 message SessionDetail {
   SessionInfo session = 1;
   repeated SessionEvent events = 2;
+  // Wallclock duration between the first and last recorded events.
+  google.protobuf.Duration duration = 3;
 }
 
 // SessionEvent is a serializable representation of a session event.
@@ -302,4 +520,10 @@ message SessionEvent {
   // Content serialized as JSON string (genai.Content).
   string content_json = 5;
   google.protobuf.Timestamp timestamp = 6;
+  // Trace id propagated to observability backends (e.g. Langfuse). Currently
+  // mirrors invocation_id; consumers should treat it as opaque.
+  string trace_id = 7;
+  // Fully-qualified URL to the trace view in the configured observability
+  // backend, if one is wired. Empty otherwise.
+  string trace_url = 8;
 }

@@ -8,3 +8,4 @@ openspec/
 .superpowers/
 front/.vite/deps/
 .agents/
+bin/

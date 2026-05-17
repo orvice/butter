@@ -12,7 +12,7 @@ import (
 
 // startCron initializes the cron scheduler with MongoDB repos, starts it,
 // and sets up graceful shutdown.
-func startCron(ctx context.Context, db *mongo.Database, runnerSvc *runner.Service) (*internalcron.Scheduler, internalcron.ExecutionRepo, error) {
+func startCron(ctx context.Context, db *mongo.Database, runnerSvc *runner.Service) (*internalcron.Scheduler, internalcron.ExecutionRepo, internalcron.JobRepo, error) {
 	logger := log.FromContext(ctx)
 
 	cronExecRepo := internalcron.NewMongoExecutionRepo(db)
@@ -20,7 +20,7 @@ func startCron(ctx context.Context, db *mongo.Database, runnerSvc *runner.Servic
 	cronScheduler, err := internalcron.NewScheduler(ctx, runnerSvc, cronJobRepo, cronExecRepo)
 	if err != nil {
 		logger.Error("failed to create cron scheduler", "err", err)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	cronScheduler.Start()
 	logger.Info("cron scheduler started")
@@ -32,5 +32,5 @@ func startCron(ctx context.Context, db *mongo.Database, runnerSvc *runner.Servic
 		logger.Info("cron scheduler stopped")
 	}()
 
-	return cronScheduler, cronExecRepo, nil
+	return cronScheduler, cronExecRepo, cronJobRepo, nil
 }

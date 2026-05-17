@@ -5,20 +5,30 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"butterfly.orx.me/core/log"
 	"github.com/achetronic/adk-utils-go/plugin/contextguard"
+	"github.com/google/uuid"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/memory"
 	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+// InvocationRecorder receives a per-Run record at start (status=RUNNING) and
+// again at completion (status=SUCCEEDED/FAILED). Save must be idempotent /
+// upsert by Invocation.Id.
+type InvocationRecorder interface {
+	Save(ctx context.Context, inv *agentsv1.Invocation) error
+}
 
 // AgentStatus holds a snapshot of an agent's configuration for display.
 type AgentStatus struct {
@@ -49,6 +59,53 @@ type Service struct {
 	mu              sync.Mutex
 	runners         map[string]*adkrunner.Runner // keyed by channel name
 	overriddenCache map[string]agent.Agent       // keyed by "agentName:modelOverride"
+
+	invRecorder InvocationRecorder
+
+	cancelMu  sync.Mutex
+	cancelers map[string]context.CancelFunc
+}
+
+// SetInvocationRecorder attaches a recorder that observes every Run call.
+// Passing nil disables recording.
+func (s *Service) SetInvocationRecorder(rec InvocationRecorder) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.invRecorder = rec
+}
+
+func (s *Service) recorder() InvocationRecorder {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.invRecorder
+}
+
+// CancelInvocation signals the in-flight invocation with the given id to stop.
+// Returns true if the invocation was found and the cancel signal was delivered.
+func (s *Service) CancelInvocation(id string) bool {
+	s.cancelMu.Lock()
+	cancel, ok := s.cancelers[id]
+	s.cancelMu.Unlock()
+	if !ok {
+		return false
+	}
+	cancel()
+	return true
+}
+
+func (s *Service) registerCancel(id string, cancel context.CancelFunc) {
+	s.cancelMu.Lock()
+	if s.cancelers == nil {
+		s.cancelers = make(map[string]context.CancelFunc)
+	}
+	s.cancelers[id] = cancel
+	s.cancelMu.Unlock()
+}
+
+func (s *Service) deregisterCancel(id string) {
+	s.cancelMu.Lock()
+	delete(s.cancelers, id)
+	s.cancelMu.Unlock()
 }
 
 // NewService builds the agent registry from proto configs.
@@ -434,10 +491,22 @@ type EventCallback func(evt *session.Event)
 // modelOverride, if non-empty, overrides the agent's configured model (resolved by alias or name).
 // If onEvent is non-nil, it is called for each non-final event.
 // If onCompaction is non-nil, it is called when context compaction is detected.
-func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
+func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (output string, runErr error) {
 	channelName := ctxInfo.GetChannelName()
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
+
+	inv := s.startInvocation(ctx, agentName, parts, modelOverride, ctxInfo)
+	defer s.finishInvocation(ctx, inv, &output, &runErr)
+	if inv != nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		s.registerCancel(inv.GetId(), cancel)
+		defer func() {
+			s.deregisterCancel(inv.GetId())
+			cancel()
+		}()
+	}
 
 	logger := log.FromContext(ctx).With(
 		"uuid", ctxInfo.GetUuid(),
@@ -561,6 +630,80 @@ func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part
 	)
 
 	return result.String(), nil
+}
+
+func (s *Service) startInvocation(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo) *agentsv1.Invocation {
+	rec := s.recorder()
+	if rec == nil {
+		return nil
+	}
+	id := ctxInfo.GetUuid()
+	if id == "" {
+		id = uuid.NewString()
+	}
+	inv := &agentsv1.Invocation{
+		Id:            id,
+		AgentName:     agentName,
+		AppName:       ctxInfo.GetChannelName(),
+		UserId:        ctxInfo.GetUserId(),
+		SessionId:     ctxInfo.GetSessionId(),
+		Status:        agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
+		Input:         truncate(joinTextParts(parts), 4096),
+		StartedAt:     timestamppb.New(time.Now().UTC()),
+		ModelOverride: modelOverride,
+		Source:        ctxInfo.GetSource().String(),
+	}
+	// Best-effort: failures are logged but do not block the run.
+	if err := rec.Save(ctx, inv); err != nil {
+		log.FromContext(ctx).Warn("failed to record invocation start", "err", err)
+	}
+	return inv
+}
+
+func (s *Service) finishInvocation(ctx context.Context, inv *agentsv1.Invocation, output *string, runErr *error) {
+	if inv == nil {
+		return
+	}
+	rec := s.recorder()
+	if rec == nil {
+		return
+	}
+	now := time.Now().UTC()
+	inv.FinishedAt = timestamppb.New(now)
+	inv.LatencyMs = now.Sub(inv.GetStartedAt().AsTime()).Milliseconds()
+	if runErr != nil && *runErr != nil {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = truncate((*runErr).Error(), 4096)
+	} else {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED
+	}
+	if output != nil {
+		inv.Output = truncate(*output, 4096)
+	}
+	if err := rec.Save(ctx, inv); err != nil {
+		log.FromContext(ctx).Warn("failed to record invocation completion", "err", err)
+	}
+}
+
+func joinTextParts(parts []*genai.Part) string {
+	var b strings.Builder
+	for _, p := range parts {
+		if p == nil || p.Text == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString(p.Text)
+	}
+	return b.String()
+}
+
+func truncate(s string, max int) string {
+	if max <= 0 || len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
 }
 
 type inputPartSummary struct {

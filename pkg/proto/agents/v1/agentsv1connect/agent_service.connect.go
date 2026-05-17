@@ -54,6 +54,24 @@ const (
 	// AgentServiceDeleteAgentProcedure is the fully-qualified name of the AgentService's DeleteAgent
 	// RPC.
 	AgentServiceDeleteAgentProcedure = "/agents.v1.AgentService/DeleteAgent"
+	// AgentServiceInvokeAgentProcedure is the fully-qualified name of the AgentService's InvokeAgent
+	// RPC.
+	AgentServiceInvokeAgentProcedure = "/agents.v1.AgentService/InvokeAgent"
+	// AgentServiceListAgentInvocationsProcedure is the fully-qualified name of the AgentService's
+	// ListAgentInvocations RPC.
+	AgentServiceListAgentInvocationsProcedure = "/agents.v1.AgentService/ListAgentInvocations"
+	// AgentServiceReloadAgentsProcedure is the fully-qualified name of the AgentService's ReloadAgents
+	// RPC.
+	AgentServiceReloadAgentsProcedure = "/agents.v1.AgentService/ReloadAgents"
+	// AgentServiceGetAgentRuntimeStatusProcedure is the fully-qualified name of the AgentService's
+	// GetAgentRuntimeStatus RPC.
+	AgentServiceGetAgentRuntimeStatusProcedure = "/agents.v1.AgentService/GetAgentRuntimeStatus"
+	// AgentServiceListAgentRuntimeStatusesProcedure is the fully-qualified name of the AgentService's
+	// ListAgentRuntimeStatuses RPC.
+	AgentServiceListAgentRuntimeStatusesProcedure = "/agents.v1.AgentService/ListAgentRuntimeStatuses"
+	// AgentServiceCancelAgentInvocationProcedure is the fully-qualified name of the AgentService's
+	// CancelAgentInvocation RPC.
+	AgentServiceCancelAgentInvocationProcedure = "/agents.v1.AgentService/CancelAgentInvocation"
 	// MCPServerServiceListMCPServersProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPServers RPC.
 	MCPServerServiceListMCPServersProcedure = "/agents.v1.MCPServerService/ListMCPServers"
@@ -69,6 +87,12 @@ const (
 	// MCPServerServiceDeleteMCPServerProcedure is the fully-qualified name of the MCPServerService's
 	// DeleteMCPServer RPC.
 	MCPServerServiceDeleteMCPServerProcedure = "/agents.v1.MCPServerService/DeleteMCPServer"
+	// MCPServerServiceGetMCPServerStatusProcedure is the fully-qualified name of the MCPServerService's
+	// GetMCPServerStatus RPC.
+	MCPServerServiceGetMCPServerStatusProcedure = "/agents.v1.MCPServerService/GetMCPServerStatus"
+	// MCPServerServiceListMCPToolsProcedure is the fully-qualified name of the MCPServerService's
+	// ListMCPTools RPC.
+	MCPServerServiceListMCPToolsProcedure = "/agents.v1.MCPServerService/ListMCPTools"
 	// RemoteAgentServiceListRemoteAgentsProcedure is the fully-qualified name of the
 	// RemoteAgentService's ListRemoteAgents RPC.
 	RemoteAgentServiceListRemoteAgentsProcedure = "/agents.v1.RemoteAgentService/ListRemoteAgents"
@@ -84,6 +108,9 @@ const (
 	// RemoteAgentServiceDeleteRemoteAgentProcedure is the fully-qualified name of the
 	// RemoteAgentService's DeleteRemoteAgent RPC.
 	RemoteAgentServiceDeleteRemoteAgentProcedure = "/agents.v1.RemoteAgentService/DeleteRemoteAgent"
+	// RemoteAgentServiceGetRemoteAgentStatusProcedure is the fully-qualified name of the
+	// RemoteAgentService's GetRemoteAgentStatus RPC.
+	RemoteAgentServiceGetRemoteAgentStatusProcedure = "/agents.v1.RemoteAgentService/GetRemoteAgentStatus"
 	// ChannelServiceListChannelsProcedure is the fully-qualified name of the ChannelService's
 	// ListChannels RPC.
 	ChannelServiceListChannelsProcedure = "/agents.v1.ChannelService/ListChannels"
@@ -99,6 +126,18 @@ const (
 	// ChannelServiceDeleteChannelProcedure is the fully-qualified name of the ChannelService's
 	// DeleteChannel RPC.
 	ChannelServiceDeleteChannelProcedure = "/agents.v1.ChannelService/DeleteChannel"
+	// ChannelServiceGetChannelStatusProcedure is the fully-qualified name of the ChannelService's
+	// GetChannelStatus RPC.
+	ChannelServiceGetChannelStatusProcedure = "/agents.v1.ChannelService/GetChannelStatus"
+	// ChannelServiceRestartChannelProcedure is the fully-qualified name of the ChannelService's
+	// RestartChannel RPC.
+	ChannelServiceRestartChannelProcedure = "/agents.v1.ChannelService/RestartChannel"
+	// ChannelServicePauseChannelProcedure is the fully-qualified name of the ChannelService's
+	// PauseChannel RPC.
+	ChannelServicePauseChannelProcedure = "/agents.v1.ChannelService/PauseChannel"
+	// ChannelServiceResumeChannelProcedure is the fully-qualified name of the ChannelService's
+	// ResumeChannel RPC.
+	ChannelServiceResumeChannelProcedure = "/agents.v1.ChannelService/ResumeChannel"
 	// SessionServiceCreateSessionProcedure is the fully-qualified name of the SessionService's
 	// CreateSession RPC.
 	SessionServiceCreateSessionProcedure = "/agents.v1.SessionService/CreateSession"
@@ -123,6 +162,26 @@ type AgentServiceClient interface {
 	CreateAgent(context.Context, *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.CreateAgentResponse], error)
 	UpdateAgent(context.Context, *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.UpdateAgentResponse], error)
 	DeleteAgent(context.Context, *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[v1.DeleteAgentResponse], error)
+	// InvokeAgent runs an agent once with the given input. If session_id is empty
+	// an ephemeral session id is generated; otherwise the existing session is used.
+	InvokeAgent(context.Context, *connect.Request[v1.InvokeAgentRequest]) (*connect.Response[v1.InvokeAgentResponse], error)
+	// ListAgentInvocations returns recorded invocations, optionally filtered by
+	// agent name, with simple opaque-token pagination.
+	ListAgentInvocations(context.Context, *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error)
+	// ReloadAgents drops cached runners and re-resolves agents/MCP/remote-agents
+	// from the current configuration. Exposes the runtime hot-reload trigger
+	// used internally by config mutations to the dashboard "Hot-reload" button.
+	ReloadAgents(context.Context, *connect.Request[v1.ReloadAgentsRequest]) (*connect.Response[v1.ReloadAgentsResponse], error)
+	// GetAgentRuntimeStatus returns the latest invocation state for an agent,
+	// suitable for the Agents table Status / Last Run columns.
+	GetAgentRuntimeStatus(context.Context, *connect.Request[v1.GetAgentRuntimeStatusRequest]) (*connect.Response[v1.GetAgentRuntimeStatusResponse], error)
+	// ListAgentRuntimeStatuses returns runtime statuses for the given agent
+	// names in a single round trip. When `names` is empty, statuses for all
+	// configured agents are returned.
+	ListAgentRuntimeStatuses(context.Context, *connect.Request[v1.ListAgentRuntimeStatusesRequest]) (*connect.Response[v1.ListAgentRuntimeStatusesResponse], error)
+	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
+	// invocation transitions to FAILED with a cancellation error.
+	CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error)
 }
 
 // NewAgentServiceClient constructs a client for the agents.v1.AgentService service. By default, it
@@ -166,16 +225,58 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("DeleteAgent")),
 			connect.WithClientOptions(opts...),
 		),
+		invokeAgent: connect.NewClient[v1.InvokeAgentRequest, v1.InvokeAgentResponse](
+			httpClient,
+			baseURL+AgentServiceInvokeAgentProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("InvokeAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		listAgentInvocations: connect.NewClient[v1.ListAgentInvocationsRequest, v1.ListAgentInvocationsResponse](
+			httpClient,
+			baseURL+AgentServiceListAgentInvocationsProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("ListAgentInvocations")),
+			connect.WithClientOptions(opts...),
+		),
+		reloadAgents: connect.NewClient[v1.ReloadAgentsRequest, v1.ReloadAgentsResponse](
+			httpClient,
+			baseURL+AgentServiceReloadAgentsProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("ReloadAgents")),
+			connect.WithClientOptions(opts...),
+		),
+		getAgentRuntimeStatus: connect.NewClient[v1.GetAgentRuntimeStatusRequest, v1.GetAgentRuntimeStatusResponse](
+			httpClient,
+			baseURL+AgentServiceGetAgentRuntimeStatusProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("GetAgentRuntimeStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		listAgentRuntimeStatuses: connect.NewClient[v1.ListAgentRuntimeStatusesRequest, v1.ListAgentRuntimeStatusesResponse](
+			httpClient,
+			baseURL+AgentServiceListAgentRuntimeStatusesProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("ListAgentRuntimeStatuses")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelAgentInvocation: connect.NewClient[v1.CancelAgentInvocationRequest, v1.CancelAgentInvocationResponse](
+			httpClient,
+			baseURL+AgentServiceCancelAgentInvocationProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("CancelAgentInvocation")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // agentServiceClient implements AgentServiceClient.
 type agentServiceClient struct {
-	listAgents  *connect.Client[v1.ListAgentsRequest, v1.ListAgentsResponse]
-	getAgent    *connect.Client[v1.GetAgentRequest, v1.GetAgentResponse]
-	createAgent *connect.Client[v1.CreateAgentRequest, v1.CreateAgentResponse]
-	updateAgent *connect.Client[v1.UpdateAgentRequest, v1.UpdateAgentResponse]
-	deleteAgent *connect.Client[v1.DeleteAgentRequest, v1.DeleteAgentResponse]
+	listAgents               *connect.Client[v1.ListAgentsRequest, v1.ListAgentsResponse]
+	getAgent                 *connect.Client[v1.GetAgentRequest, v1.GetAgentResponse]
+	createAgent              *connect.Client[v1.CreateAgentRequest, v1.CreateAgentResponse]
+	updateAgent              *connect.Client[v1.UpdateAgentRequest, v1.UpdateAgentResponse]
+	deleteAgent              *connect.Client[v1.DeleteAgentRequest, v1.DeleteAgentResponse]
+	invokeAgent              *connect.Client[v1.InvokeAgentRequest, v1.InvokeAgentResponse]
+	listAgentInvocations     *connect.Client[v1.ListAgentInvocationsRequest, v1.ListAgentInvocationsResponse]
+	reloadAgents             *connect.Client[v1.ReloadAgentsRequest, v1.ReloadAgentsResponse]
+	getAgentRuntimeStatus    *connect.Client[v1.GetAgentRuntimeStatusRequest, v1.GetAgentRuntimeStatusResponse]
+	listAgentRuntimeStatuses *connect.Client[v1.ListAgentRuntimeStatusesRequest, v1.ListAgentRuntimeStatusesResponse]
+	cancelAgentInvocation    *connect.Client[v1.CancelAgentInvocationRequest, v1.CancelAgentInvocationResponse]
 }
 
 // ListAgents calls agents.v1.AgentService.ListAgents.
@@ -203,6 +304,36 @@ func (c *agentServiceClient) DeleteAgent(ctx context.Context, req *connect.Reque
 	return c.deleteAgent.CallUnary(ctx, req)
 }
 
+// InvokeAgent calls agents.v1.AgentService.InvokeAgent.
+func (c *agentServiceClient) InvokeAgent(ctx context.Context, req *connect.Request[v1.InvokeAgentRequest]) (*connect.Response[v1.InvokeAgentResponse], error) {
+	return c.invokeAgent.CallUnary(ctx, req)
+}
+
+// ListAgentInvocations calls agents.v1.AgentService.ListAgentInvocations.
+func (c *agentServiceClient) ListAgentInvocations(ctx context.Context, req *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error) {
+	return c.listAgentInvocations.CallUnary(ctx, req)
+}
+
+// ReloadAgents calls agents.v1.AgentService.ReloadAgents.
+func (c *agentServiceClient) ReloadAgents(ctx context.Context, req *connect.Request[v1.ReloadAgentsRequest]) (*connect.Response[v1.ReloadAgentsResponse], error) {
+	return c.reloadAgents.CallUnary(ctx, req)
+}
+
+// GetAgentRuntimeStatus calls agents.v1.AgentService.GetAgentRuntimeStatus.
+func (c *agentServiceClient) GetAgentRuntimeStatus(ctx context.Context, req *connect.Request[v1.GetAgentRuntimeStatusRequest]) (*connect.Response[v1.GetAgentRuntimeStatusResponse], error) {
+	return c.getAgentRuntimeStatus.CallUnary(ctx, req)
+}
+
+// ListAgentRuntimeStatuses calls agents.v1.AgentService.ListAgentRuntimeStatuses.
+func (c *agentServiceClient) ListAgentRuntimeStatuses(ctx context.Context, req *connect.Request[v1.ListAgentRuntimeStatusesRequest]) (*connect.Response[v1.ListAgentRuntimeStatusesResponse], error) {
+	return c.listAgentRuntimeStatuses.CallUnary(ctx, req)
+}
+
+// CancelAgentInvocation calls agents.v1.AgentService.CancelAgentInvocation.
+func (c *agentServiceClient) CancelAgentInvocation(ctx context.Context, req *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error) {
+	return c.cancelAgentInvocation.CallUnary(ctx, req)
+}
+
 // AgentServiceHandler is an implementation of the agents.v1.AgentService service.
 type AgentServiceHandler interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
@@ -210,6 +341,26 @@ type AgentServiceHandler interface {
 	CreateAgent(context.Context, *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.CreateAgentResponse], error)
 	UpdateAgent(context.Context, *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.UpdateAgentResponse], error)
 	DeleteAgent(context.Context, *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[v1.DeleteAgentResponse], error)
+	// InvokeAgent runs an agent once with the given input. If session_id is empty
+	// an ephemeral session id is generated; otherwise the existing session is used.
+	InvokeAgent(context.Context, *connect.Request[v1.InvokeAgentRequest]) (*connect.Response[v1.InvokeAgentResponse], error)
+	// ListAgentInvocations returns recorded invocations, optionally filtered by
+	// agent name, with simple opaque-token pagination.
+	ListAgentInvocations(context.Context, *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error)
+	// ReloadAgents drops cached runners and re-resolves agents/MCP/remote-agents
+	// from the current configuration. Exposes the runtime hot-reload trigger
+	// used internally by config mutations to the dashboard "Hot-reload" button.
+	ReloadAgents(context.Context, *connect.Request[v1.ReloadAgentsRequest]) (*connect.Response[v1.ReloadAgentsResponse], error)
+	// GetAgentRuntimeStatus returns the latest invocation state for an agent,
+	// suitable for the Agents table Status / Last Run columns.
+	GetAgentRuntimeStatus(context.Context, *connect.Request[v1.GetAgentRuntimeStatusRequest]) (*connect.Response[v1.GetAgentRuntimeStatusResponse], error)
+	// ListAgentRuntimeStatuses returns runtime statuses for the given agent
+	// names in a single round trip. When `names` is empty, statuses for all
+	// configured agents are returned.
+	ListAgentRuntimeStatuses(context.Context, *connect.Request[v1.ListAgentRuntimeStatusesRequest]) (*connect.Response[v1.ListAgentRuntimeStatusesResponse], error)
+	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
+	// invocation transitions to FAILED with a cancellation error.
+	CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -249,6 +400,42 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("DeleteAgent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceInvokeAgentHandler := connect.NewUnaryHandler(
+		AgentServiceInvokeAgentProcedure,
+		svc.InvokeAgent,
+		connect.WithSchema(agentServiceMethods.ByName("InvokeAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceListAgentInvocationsHandler := connect.NewUnaryHandler(
+		AgentServiceListAgentInvocationsProcedure,
+		svc.ListAgentInvocations,
+		connect.WithSchema(agentServiceMethods.ByName("ListAgentInvocations")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceReloadAgentsHandler := connect.NewUnaryHandler(
+		AgentServiceReloadAgentsProcedure,
+		svc.ReloadAgents,
+		connect.WithSchema(agentServiceMethods.ByName("ReloadAgents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceGetAgentRuntimeStatusHandler := connect.NewUnaryHandler(
+		AgentServiceGetAgentRuntimeStatusProcedure,
+		svc.GetAgentRuntimeStatus,
+		connect.WithSchema(agentServiceMethods.ByName("GetAgentRuntimeStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceListAgentRuntimeStatusesHandler := connect.NewUnaryHandler(
+		AgentServiceListAgentRuntimeStatusesProcedure,
+		svc.ListAgentRuntimeStatuses,
+		connect.WithSchema(agentServiceMethods.ByName("ListAgentRuntimeStatuses")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceCancelAgentInvocationHandler := connect.NewUnaryHandler(
+		AgentServiceCancelAgentInvocationProcedure,
+		svc.CancelAgentInvocation,
+		connect.WithSchema(agentServiceMethods.ByName("CancelAgentInvocation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceListAgentsProcedure:
@@ -261,6 +448,18 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceUpdateAgentHandler.ServeHTTP(w, r)
 		case AgentServiceDeleteAgentProcedure:
 			agentServiceDeleteAgentHandler.ServeHTTP(w, r)
+		case AgentServiceInvokeAgentProcedure:
+			agentServiceInvokeAgentHandler.ServeHTTP(w, r)
+		case AgentServiceListAgentInvocationsProcedure:
+			agentServiceListAgentInvocationsHandler.ServeHTTP(w, r)
+		case AgentServiceReloadAgentsProcedure:
+			agentServiceReloadAgentsHandler.ServeHTTP(w, r)
+		case AgentServiceGetAgentRuntimeStatusProcedure:
+			agentServiceGetAgentRuntimeStatusHandler.ServeHTTP(w, r)
+		case AgentServiceListAgentRuntimeStatusesProcedure:
+			agentServiceListAgentRuntimeStatusesHandler.ServeHTTP(w, r)
+		case AgentServiceCancelAgentInvocationProcedure:
+			agentServiceCancelAgentInvocationHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -290,6 +489,30 @@ func (UnimplementedAgentServiceHandler) DeleteAgent(context.Context, *connect.Re
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.DeleteAgent is not implemented"))
 }
 
+func (UnimplementedAgentServiceHandler) InvokeAgent(context.Context, *connect.Request[v1.InvokeAgentRequest]) (*connect.Response[v1.InvokeAgentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.InvokeAgent is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) ListAgentInvocations(context.Context, *connect.Request[v1.ListAgentInvocationsRequest]) (*connect.Response[v1.ListAgentInvocationsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ListAgentInvocations is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) ReloadAgents(context.Context, *connect.Request[v1.ReloadAgentsRequest]) (*connect.Response[v1.ReloadAgentsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ReloadAgents is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) GetAgentRuntimeStatus(context.Context, *connect.Request[v1.GetAgentRuntimeStatusRequest]) (*connect.Response[v1.GetAgentRuntimeStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.GetAgentRuntimeStatus is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) ListAgentRuntimeStatuses(context.Context, *connect.Request[v1.ListAgentRuntimeStatusesRequest]) (*connect.Response[v1.ListAgentRuntimeStatusesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ListAgentRuntimeStatuses is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.CancelAgentInvocation is not implemented"))
+}
+
 // MCPServerServiceClient is a client for the agents.v1.MCPServerService service.
 type MCPServerServiceClient interface {
 	ListMCPServers(context.Context, *connect.Request[v1.ListMCPServersRequest]) (*connect.Response[v1.ListMCPServersResponse], error)
@@ -297,6 +520,12 @@ type MCPServerServiceClient interface {
 	CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.CreateMCPServerResponse], error)
 	UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error)
 	DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error)
+	// GetMCPServerStatus returns the current runtime status of a configured
+	// MCP server. Implemented in dashboard.proto.
+	GetMCPServerStatus(context.Context, *connect.Request[v1.GetMCPServerStatusRequest]) (*connect.Response[v1.GetMCPServerStatusResponse], error)
+	// ListMCPTools enumerates tools exposed by the configured MCP servers.
+	// When server_id is empty, all servers are probed (skipping STDIO).
+	ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error)
 }
 
 // NewMCPServerServiceClient constructs a client for the agents.v1.MCPServerService service. By
@@ -340,16 +569,30 @@ func NewMCPServerServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(mCPServerServiceMethods.ByName("DeleteMCPServer")),
 			connect.WithClientOptions(opts...),
 		),
+		getMCPServerStatus: connect.NewClient[v1.GetMCPServerStatusRequest, v1.GetMCPServerStatusResponse](
+			httpClient,
+			baseURL+MCPServerServiceGetMCPServerStatusProcedure,
+			connect.WithSchema(mCPServerServiceMethods.ByName("GetMCPServerStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		listMCPTools: connect.NewClient[v1.ListMCPToolsRequest, v1.ListMCPToolsResponse](
+			httpClient,
+			baseURL+MCPServerServiceListMCPToolsProcedure,
+			connect.WithSchema(mCPServerServiceMethods.ByName("ListMCPTools")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // mCPServerServiceClient implements MCPServerServiceClient.
 type mCPServerServiceClient struct {
-	listMCPServers  *connect.Client[v1.ListMCPServersRequest, v1.ListMCPServersResponse]
-	getMCPServer    *connect.Client[v1.GetMCPServerRequest, v1.GetMCPServerResponse]
-	createMCPServer *connect.Client[v1.CreateMCPServerRequest, v1.CreateMCPServerResponse]
-	updateMCPServer *connect.Client[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse]
-	deleteMCPServer *connect.Client[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse]
+	listMCPServers     *connect.Client[v1.ListMCPServersRequest, v1.ListMCPServersResponse]
+	getMCPServer       *connect.Client[v1.GetMCPServerRequest, v1.GetMCPServerResponse]
+	createMCPServer    *connect.Client[v1.CreateMCPServerRequest, v1.CreateMCPServerResponse]
+	updateMCPServer    *connect.Client[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse]
+	deleteMCPServer    *connect.Client[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse]
+	getMCPServerStatus *connect.Client[v1.GetMCPServerStatusRequest, v1.GetMCPServerStatusResponse]
+	listMCPTools       *connect.Client[v1.ListMCPToolsRequest, v1.ListMCPToolsResponse]
 }
 
 // ListMCPServers calls agents.v1.MCPServerService.ListMCPServers.
@@ -377,6 +620,16 @@ func (c *mCPServerServiceClient) DeleteMCPServer(ctx context.Context, req *conne
 	return c.deleteMCPServer.CallUnary(ctx, req)
 }
 
+// GetMCPServerStatus calls agents.v1.MCPServerService.GetMCPServerStatus.
+func (c *mCPServerServiceClient) GetMCPServerStatus(ctx context.Context, req *connect.Request[v1.GetMCPServerStatusRequest]) (*connect.Response[v1.GetMCPServerStatusResponse], error) {
+	return c.getMCPServerStatus.CallUnary(ctx, req)
+}
+
+// ListMCPTools calls agents.v1.MCPServerService.ListMCPTools.
+func (c *mCPServerServiceClient) ListMCPTools(ctx context.Context, req *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error) {
+	return c.listMCPTools.CallUnary(ctx, req)
+}
+
 // MCPServerServiceHandler is an implementation of the agents.v1.MCPServerService service.
 type MCPServerServiceHandler interface {
 	ListMCPServers(context.Context, *connect.Request[v1.ListMCPServersRequest]) (*connect.Response[v1.ListMCPServersResponse], error)
@@ -384,6 +637,12 @@ type MCPServerServiceHandler interface {
 	CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.CreateMCPServerResponse], error)
 	UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error)
 	DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error)
+	// GetMCPServerStatus returns the current runtime status of a configured
+	// MCP server. Implemented in dashboard.proto.
+	GetMCPServerStatus(context.Context, *connect.Request[v1.GetMCPServerStatusRequest]) (*connect.Response[v1.GetMCPServerStatusResponse], error)
+	// ListMCPTools enumerates tools exposed by the configured MCP servers.
+	// When server_id is empty, all servers are probed (skipping STDIO).
+	ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error)
 }
 
 // NewMCPServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -423,6 +682,18 @@ func NewMCPServerServiceHandler(svc MCPServerServiceHandler, opts ...connect.Han
 		connect.WithSchema(mCPServerServiceMethods.ByName("DeleteMCPServer")),
 		connect.WithHandlerOptions(opts...),
 	)
+	mCPServerServiceGetMCPServerStatusHandler := connect.NewUnaryHandler(
+		MCPServerServiceGetMCPServerStatusProcedure,
+		svc.GetMCPServerStatus,
+		connect.WithSchema(mCPServerServiceMethods.ByName("GetMCPServerStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	mCPServerServiceListMCPToolsHandler := connect.NewUnaryHandler(
+		MCPServerServiceListMCPToolsProcedure,
+		svc.ListMCPTools,
+		connect.WithSchema(mCPServerServiceMethods.ByName("ListMCPTools")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.MCPServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MCPServerServiceListMCPServersProcedure:
@@ -435,6 +706,10 @@ func NewMCPServerServiceHandler(svc MCPServerServiceHandler, opts ...connect.Han
 			mCPServerServiceUpdateMCPServerHandler.ServeHTTP(w, r)
 		case MCPServerServiceDeleteMCPServerProcedure:
 			mCPServerServiceDeleteMCPServerHandler.ServeHTTP(w, r)
+		case MCPServerServiceGetMCPServerStatusProcedure:
+			mCPServerServiceGetMCPServerStatusHandler.ServeHTTP(w, r)
+		case MCPServerServiceListMCPToolsProcedure:
+			mCPServerServiceListMCPToolsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -464,6 +739,14 @@ func (UnimplementedMCPServerServiceHandler) DeleteMCPServer(context.Context, *co
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.DeleteMCPServer is not implemented"))
 }
 
+func (UnimplementedMCPServerServiceHandler) GetMCPServerStatus(context.Context, *connect.Request[v1.GetMCPServerStatusRequest]) (*connect.Response[v1.GetMCPServerStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.GetMCPServerStatus is not implemented"))
+}
+
+func (UnimplementedMCPServerServiceHandler) ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.ListMCPTools is not implemented"))
+}
+
 // RemoteAgentServiceClient is a client for the agents.v1.RemoteAgentService service.
 type RemoteAgentServiceClient interface {
 	ListRemoteAgents(context.Context, *connect.Request[v1.ListRemoteAgentsRequest]) (*connect.Response[v1.ListRemoteAgentsResponse], error)
@@ -471,6 +754,9 @@ type RemoteAgentServiceClient interface {
 	CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.CreateRemoteAgentResponse], error)
 	UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.UpdateRemoteAgentResponse], error)
 	DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error)
+	// GetRemoteAgentStatus probes the configured remote agent endpoint and
+	// returns its liveness state (A2A: HTTP agent.json; daemon: registry).
+	GetRemoteAgentStatus(context.Context, *connect.Request[v1.GetRemoteAgentStatusRequest]) (*connect.Response[v1.GetRemoteAgentStatusResponse], error)
 }
 
 // NewRemoteAgentServiceClient constructs a client for the agents.v1.RemoteAgentService service. By
@@ -514,16 +800,23 @@ func NewRemoteAgentServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(remoteAgentServiceMethods.ByName("DeleteRemoteAgent")),
 			connect.WithClientOptions(opts...),
 		),
+		getRemoteAgentStatus: connect.NewClient[v1.GetRemoteAgentStatusRequest, v1.GetRemoteAgentStatusResponse](
+			httpClient,
+			baseURL+RemoteAgentServiceGetRemoteAgentStatusProcedure,
+			connect.WithSchema(remoteAgentServiceMethods.ByName("GetRemoteAgentStatus")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // remoteAgentServiceClient implements RemoteAgentServiceClient.
 type remoteAgentServiceClient struct {
-	listRemoteAgents  *connect.Client[v1.ListRemoteAgentsRequest, v1.ListRemoteAgentsResponse]
-	getRemoteAgent    *connect.Client[v1.GetRemoteAgentRequest, v1.GetRemoteAgentResponse]
-	createRemoteAgent *connect.Client[v1.CreateRemoteAgentRequest, v1.CreateRemoteAgentResponse]
-	updateRemoteAgent *connect.Client[v1.UpdateRemoteAgentRequest, v1.UpdateRemoteAgentResponse]
-	deleteRemoteAgent *connect.Client[v1.DeleteRemoteAgentRequest, v1.DeleteRemoteAgentResponse]
+	listRemoteAgents     *connect.Client[v1.ListRemoteAgentsRequest, v1.ListRemoteAgentsResponse]
+	getRemoteAgent       *connect.Client[v1.GetRemoteAgentRequest, v1.GetRemoteAgentResponse]
+	createRemoteAgent    *connect.Client[v1.CreateRemoteAgentRequest, v1.CreateRemoteAgentResponse]
+	updateRemoteAgent    *connect.Client[v1.UpdateRemoteAgentRequest, v1.UpdateRemoteAgentResponse]
+	deleteRemoteAgent    *connect.Client[v1.DeleteRemoteAgentRequest, v1.DeleteRemoteAgentResponse]
+	getRemoteAgentStatus *connect.Client[v1.GetRemoteAgentStatusRequest, v1.GetRemoteAgentStatusResponse]
 }
 
 // ListRemoteAgents calls agents.v1.RemoteAgentService.ListRemoteAgents.
@@ -551,6 +844,11 @@ func (c *remoteAgentServiceClient) DeleteRemoteAgent(ctx context.Context, req *c
 	return c.deleteRemoteAgent.CallUnary(ctx, req)
 }
 
+// GetRemoteAgentStatus calls agents.v1.RemoteAgentService.GetRemoteAgentStatus.
+func (c *remoteAgentServiceClient) GetRemoteAgentStatus(ctx context.Context, req *connect.Request[v1.GetRemoteAgentStatusRequest]) (*connect.Response[v1.GetRemoteAgentStatusResponse], error) {
+	return c.getRemoteAgentStatus.CallUnary(ctx, req)
+}
+
 // RemoteAgentServiceHandler is an implementation of the agents.v1.RemoteAgentService service.
 type RemoteAgentServiceHandler interface {
 	ListRemoteAgents(context.Context, *connect.Request[v1.ListRemoteAgentsRequest]) (*connect.Response[v1.ListRemoteAgentsResponse], error)
@@ -558,6 +856,9 @@ type RemoteAgentServiceHandler interface {
 	CreateRemoteAgent(context.Context, *connect.Request[v1.CreateRemoteAgentRequest]) (*connect.Response[v1.CreateRemoteAgentResponse], error)
 	UpdateRemoteAgent(context.Context, *connect.Request[v1.UpdateRemoteAgentRequest]) (*connect.Response[v1.UpdateRemoteAgentResponse], error)
 	DeleteRemoteAgent(context.Context, *connect.Request[v1.DeleteRemoteAgentRequest]) (*connect.Response[v1.DeleteRemoteAgentResponse], error)
+	// GetRemoteAgentStatus probes the configured remote agent endpoint and
+	// returns its liveness state (A2A: HTTP agent.json; daemon: registry).
+	GetRemoteAgentStatus(context.Context, *connect.Request[v1.GetRemoteAgentStatusRequest]) (*connect.Response[v1.GetRemoteAgentStatusResponse], error)
 }
 
 // NewRemoteAgentServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -597,6 +898,12 @@ func NewRemoteAgentServiceHandler(svc RemoteAgentServiceHandler, opts ...connect
 		connect.WithSchema(remoteAgentServiceMethods.ByName("DeleteRemoteAgent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	remoteAgentServiceGetRemoteAgentStatusHandler := connect.NewUnaryHandler(
+		RemoteAgentServiceGetRemoteAgentStatusProcedure,
+		svc.GetRemoteAgentStatus,
+		connect.WithSchema(remoteAgentServiceMethods.ByName("GetRemoteAgentStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.RemoteAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RemoteAgentServiceListRemoteAgentsProcedure:
@@ -609,6 +916,8 @@ func NewRemoteAgentServiceHandler(svc RemoteAgentServiceHandler, opts ...connect
 			remoteAgentServiceUpdateRemoteAgentHandler.ServeHTTP(w, r)
 		case RemoteAgentServiceDeleteRemoteAgentProcedure:
 			remoteAgentServiceDeleteRemoteAgentHandler.ServeHTTP(w, r)
+		case RemoteAgentServiceGetRemoteAgentStatusProcedure:
+			remoteAgentServiceGetRemoteAgentStatusHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -638,6 +947,10 @@ func (UnimplementedRemoteAgentServiceHandler) DeleteRemoteAgent(context.Context,
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.DeleteRemoteAgent is not implemented"))
 }
 
+func (UnimplementedRemoteAgentServiceHandler) GetRemoteAgentStatus(context.Context, *connect.Request[v1.GetRemoteAgentStatusRequest]) (*connect.Response[v1.GetRemoteAgentStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.RemoteAgentService.GetRemoteAgentStatus is not implemented"))
+}
+
 // ChannelServiceClient is a client for the agents.v1.ChannelService service.
 type ChannelServiceClient interface {
 	ListChannels(context.Context, *connect.Request[v1.ListChannelsRequest]) (*connect.Response[v1.ListChannelsResponse], error)
@@ -645,6 +958,16 @@ type ChannelServiceClient interface {
 	CreateChannel(context.Context, *connect.Request[v1.CreateChannelRequest]) (*connect.Response[v1.CreateChannelResponse], error)
 	UpdateChannel(context.Context, *connect.Request[v1.UpdateChannelRequest]) (*connect.Response[v1.UpdateChannelResponse], error)
 	DeleteChannel(context.Context, *connect.Request[v1.DeleteChannelRequest]) (*connect.Response[v1.DeleteChannelResponse], error)
+	// GetChannelStatus returns the current runtime status of a channel poller.
+	// Implemented in dashboard.proto.
+	GetChannelStatus(context.Context, *connect.Request[v1.GetChannelStatusRequest]) (*connect.Response[v1.GetChannelStatusResponse], error)
+	// RestartChannel reloads the channel manager. Effectively bounces all pollers.
+	RestartChannel(context.Context, *connect.Request[v1.RestartChannelRequest]) (*connect.Response[v1.RestartChannelResponse], error)
+	// PauseChannel disables the named channel and reloads the channel manager so
+	// its poller stops. The configuration `enabled` flag is set to false.
+	PauseChannel(context.Context, *connect.Request[v1.PauseChannelRequest]) (*connect.Response[v1.PauseChannelResponse], error)
+	// ResumeChannel re-enables the named channel and reloads the channel manager.
+	ResumeChannel(context.Context, *connect.Request[v1.ResumeChannelRequest]) (*connect.Response[v1.ResumeChannelResponse], error)
 }
 
 // NewChannelServiceClient constructs a client for the agents.v1.ChannelService service. By default,
@@ -688,16 +1011,44 @@ func NewChannelServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(channelServiceMethods.ByName("DeleteChannel")),
 			connect.WithClientOptions(opts...),
 		),
+		getChannelStatus: connect.NewClient[v1.GetChannelStatusRequest, v1.GetChannelStatusResponse](
+			httpClient,
+			baseURL+ChannelServiceGetChannelStatusProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("GetChannelStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		restartChannel: connect.NewClient[v1.RestartChannelRequest, v1.RestartChannelResponse](
+			httpClient,
+			baseURL+ChannelServiceRestartChannelProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("RestartChannel")),
+			connect.WithClientOptions(opts...),
+		),
+		pauseChannel: connect.NewClient[v1.PauseChannelRequest, v1.PauseChannelResponse](
+			httpClient,
+			baseURL+ChannelServicePauseChannelProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("PauseChannel")),
+			connect.WithClientOptions(opts...),
+		),
+		resumeChannel: connect.NewClient[v1.ResumeChannelRequest, v1.ResumeChannelResponse](
+			httpClient,
+			baseURL+ChannelServiceResumeChannelProcedure,
+			connect.WithSchema(channelServiceMethods.ByName("ResumeChannel")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // channelServiceClient implements ChannelServiceClient.
 type channelServiceClient struct {
-	listChannels  *connect.Client[v1.ListChannelsRequest, v1.ListChannelsResponse]
-	getChannel    *connect.Client[v1.GetChannelRequest, v1.GetChannelResponse]
-	createChannel *connect.Client[v1.CreateChannelRequest, v1.CreateChannelResponse]
-	updateChannel *connect.Client[v1.UpdateChannelRequest, v1.UpdateChannelResponse]
-	deleteChannel *connect.Client[v1.DeleteChannelRequest, v1.DeleteChannelResponse]
+	listChannels     *connect.Client[v1.ListChannelsRequest, v1.ListChannelsResponse]
+	getChannel       *connect.Client[v1.GetChannelRequest, v1.GetChannelResponse]
+	createChannel    *connect.Client[v1.CreateChannelRequest, v1.CreateChannelResponse]
+	updateChannel    *connect.Client[v1.UpdateChannelRequest, v1.UpdateChannelResponse]
+	deleteChannel    *connect.Client[v1.DeleteChannelRequest, v1.DeleteChannelResponse]
+	getChannelStatus *connect.Client[v1.GetChannelStatusRequest, v1.GetChannelStatusResponse]
+	restartChannel   *connect.Client[v1.RestartChannelRequest, v1.RestartChannelResponse]
+	pauseChannel     *connect.Client[v1.PauseChannelRequest, v1.PauseChannelResponse]
+	resumeChannel    *connect.Client[v1.ResumeChannelRequest, v1.ResumeChannelResponse]
 }
 
 // ListChannels calls agents.v1.ChannelService.ListChannels.
@@ -725,6 +1076,26 @@ func (c *channelServiceClient) DeleteChannel(ctx context.Context, req *connect.R
 	return c.deleteChannel.CallUnary(ctx, req)
 }
 
+// GetChannelStatus calls agents.v1.ChannelService.GetChannelStatus.
+func (c *channelServiceClient) GetChannelStatus(ctx context.Context, req *connect.Request[v1.GetChannelStatusRequest]) (*connect.Response[v1.GetChannelStatusResponse], error) {
+	return c.getChannelStatus.CallUnary(ctx, req)
+}
+
+// RestartChannel calls agents.v1.ChannelService.RestartChannel.
+func (c *channelServiceClient) RestartChannel(ctx context.Context, req *connect.Request[v1.RestartChannelRequest]) (*connect.Response[v1.RestartChannelResponse], error) {
+	return c.restartChannel.CallUnary(ctx, req)
+}
+
+// PauseChannel calls agents.v1.ChannelService.PauseChannel.
+func (c *channelServiceClient) PauseChannel(ctx context.Context, req *connect.Request[v1.PauseChannelRequest]) (*connect.Response[v1.PauseChannelResponse], error) {
+	return c.pauseChannel.CallUnary(ctx, req)
+}
+
+// ResumeChannel calls agents.v1.ChannelService.ResumeChannel.
+func (c *channelServiceClient) ResumeChannel(ctx context.Context, req *connect.Request[v1.ResumeChannelRequest]) (*connect.Response[v1.ResumeChannelResponse], error) {
+	return c.resumeChannel.CallUnary(ctx, req)
+}
+
 // ChannelServiceHandler is an implementation of the agents.v1.ChannelService service.
 type ChannelServiceHandler interface {
 	ListChannels(context.Context, *connect.Request[v1.ListChannelsRequest]) (*connect.Response[v1.ListChannelsResponse], error)
@@ -732,6 +1103,16 @@ type ChannelServiceHandler interface {
 	CreateChannel(context.Context, *connect.Request[v1.CreateChannelRequest]) (*connect.Response[v1.CreateChannelResponse], error)
 	UpdateChannel(context.Context, *connect.Request[v1.UpdateChannelRequest]) (*connect.Response[v1.UpdateChannelResponse], error)
 	DeleteChannel(context.Context, *connect.Request[v1.DeleteChannelRequest]) (*connect.Response[v1.DeleteChannelResponse], error)
+	// GetChannelStatus returns the current runtime status of a channel poller.
+	// Implemented in dashboard.proto.
+	GetChannelStatus(context.Context, *connect.Request[v1.GetChannelStatusRequest]) (*connect.Response[v1.GetChannelStatusResponse], error)
+	// RestartChannel reloads the channel manager. Effectively bounces all pollers.
+	RestartChannel(context.Context, *connect.Request[v1.RestartChannelRequest]) (*connect.Response[v1.RestartChannelResponse], error)
+	// PauseChannel disables the named channel and reloads the channel manager so
+	// its poller stops. The configuration `enabled` flag is set to false.
+	PauseChannel(context.Context, *connect.Request[v1.PauseChannelRequest]) (*connect.Response[v1.PauseChannelResponse], error)
+	// ResumeChannel re-enables the named channel and reloads the channel manager.
+	ResumeChannel(context.Context, *connect.Request[v1.ResumeChannelRequest]) (*connect.Response[v1.ResumeChannelResponse], error)
 }
 
 // NewChannelServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -771,6 +1152,30 @@ func NewChannelServiceHandler(svc ChannelServiceHandler, opts ...connect.Handler
 		connect.WithSchema(channelServiceMethods.ByName("DeleteChannel")),
 		connect.WithHandlerOptions(opts...),
 	)
+	channelServiceGetChannelStatusHandler := connect.NewUnaryHandler(
+		ChannelServiceGetChannelStatusProcedure,
+		svc.GetChannelStatus,
+		connect.WithSchema(channelServiceMethods.ByName("GetChannelStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	channelServiceRestartChannelHandler := connect.NewUnaryHandler(
+		ChannelServiceRestartChannelProcedure,
+		svc.RestartChannel,
+		connect.WithSchema(channelServiceMethods.ByName("RestartChannel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	channelServicePauseChannelHandler := connect.NewUnaryHandler(
+		ChannelServicePauseChannelProcedure,
+		svc.PauseChannel,
+		connect.WithSchema(channelServiceMethods.ByName("PauseChannel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	channelServiceResumeChannelHandler := connect.NewUnaryHandler(
+		ChannelServiceResumeChannelProcedure,
+		svc.ResumeChannel,
+		connect.WithSchema(channelServiceMethods.ByName("ResumeChannel")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.ChannelService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ChannelServiceListChannelsProcedure:
@@ -783,6 +1188,14 @@ func NewChannelServiceHandler(svc ChannelServiceHandler, opts ...connect.Handler
 			channelServiceUpdateChannelHandler.ServeHTTP(w, r)
 		case ChannelServiceDeleteChannelProcedure:
 			channelServiceDeleteChannelHandler.ServeHTTP(w, r)
+		case ChannelServiceGetChannelStatusProcedure:
+			channelServiceGetChannelStatusHandler.ServeHTTP(w, r)
+		case ChannelServiceRestartChannelProcedure:
+			channelServiceRestartChannelHandler.ServeHTTP(w, r)
+		case ChannelServicePauseChannelProcedure:
+			channelServicePauseChannelHandler.ServeHTTP(w, r)
+		case ChannelServiceResumeChannelProcedure:
+			channelServiceResumeChannelHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -810,6 +1223,22 @@ func (UnimplementedChannelServiceHandler) UpdateChannel(context.Context, *connec
 
 func (UnimplementedChannelServiceHandler) DeleteChannel(context.Context, *connect.Request[v1.DeleteChannelRequest]) (*connect.Response[v1.DeleteChannelResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.DeleteChannel is not implemented"))
+}
+
+func (UnimplementedChannelServiceHandler) GetChannelStatus(context.Context, *connect.Request[v1.GetChannelStatusRequest]) (*connect.Response[v1.GetChannelStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.GetChannelStatus is not implemented"))
+}
+
+func (UnimplementedChannelServiceHandler) RestartChannel(context.Context, *connect.Request[v1.RestartChannelRequest]) (*connect.Response[v1.RestartChannelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.RestartChannel is not implemented"))
+}
+
+func (UnimplementedChannelServiceHandler) PauseChannel(context.Context, *connect.Request[v1.PauseChannelRequest]) (*connect.Response[v1.PauseChannelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.PauseChannel is not implemented"))
+}
+
+func (UnimplementedChannelServiceHandler) ResumeChannel(context.Context, *connect.Request[v1.ResumeChannelRequest]) (*connect.Response[v1.ResumeChannelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ChannelService.ResumeChannel is not implemented"))
 }
 
 // SessionServiceClient is a client for the agents.v1.SessionService service.

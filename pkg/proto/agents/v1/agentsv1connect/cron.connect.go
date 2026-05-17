@@ -51,6 +51,9 @@ const (
 	// CronJobServiceListCronExecutionsProcedure is the fully-qualified name of the CronJobService's
 	// ListCronExecutions RPC.
 	CronJobServiceListCronExecutionsProcedure = "/agents.v1.CronJobService/ListCronExecutions"
+	// CronJobServiceRunCronJobNowProcedure is the fully-qualified name of the CronJobService's
+	// RunCronJobNow RPC.
+	CronJobServiceRunCronJobNowProcedure = "/agents.v1.CronJobService/RunCronJobNow"
 )
 
 // CronJobServiceClient is a client for the agents.v1.CronJobService service.
@@ -67,6 +70,9 @@ type CronJobServiceClient interface {
 	DeleteCronJob(context.Context, *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.DeleteCronJobResponse], error)
 	// ListCronExecutions returns execution records, optionally filtered by job name.
 	ListCronExecutions(context.Context, *connect.Request[v1.ListCronExecutionsRequest]) (*connect.Response[v1.ListCronExecutionsResponse], error)
+	// RunCronJobNow triggers an immediate execution of the cron job, bypassing
+	// the schedule. The execution is recorded the same way scheduled runs are.
+	RunCronJobNow(context.Context, *connect.Request[v1.RunCronJobNowRequest]) (*connect.Response[v1.RunCronJobNowResponse], error)
 }
 
 // NewCronJobServiceClient constructs a client for the agents.v1.CronJobService service. By default,
@@ -116,6 +122,12 @@ func NewCronJobServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(cronJobServiceMethods.ByName("ListCronExecutions")),
 			connect.WithClientOptions(opts...),
 		),
+		runCronJobNow: connect.NewClient[v1.RunCronJobNowRequest, v1.RunCronJobNowResponse](
+			httpClient,
+			baseURL+CronJobServiceRunCronJobNowProcedure,
+			connect.WithSchema(cronJobServiceMethods.ByName("RunCronJobNow")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -127,6 +139,7 @@ type cronJobServiceClient struct {
 	updateCronJob      *connect.Client[v1.UpdateCronJobRequest, v1.UpdateCronJobResponse]
 	deleteCronJob      *connect.Client[v1.DeleteCronJobRequest, v1.DeleteCronJobResponse]
 	listCronExecutions *connect.Client[v1.ListCronExecutionsRequest, v1.ListCronExecutionsResponse]
+	runCronJobNow      *connect.Client[v1.RunCronJobNowRequest, v1.RunCronJobNowResponse]
 }
 
 // ListCronJobs calls agents.v1.CronJobService.ListCronJobs.
@@ -159,6 +172,11 @@ func (c *cronJobServiceClient) ListCronExecutions(ctx context.Context, req *conn
 	return c.listCronExecutions.CallUnary(ctx, req)
 }
 
+// RunCronJobNow calls agents.v1.CronJobService.RunCronJobNow.
+func (c *cronJobServiceClient) RunCronJobNow(ctx context.Context, req *connect.Request[v1.RunCronJobNowRequest]) (*connect.Response[v1.RunCronJobNowResponse], error) {
+	return c.runCronJobNow.CallUnary(ctx, req)
+}
+
 // CronJobServiceHandler is an implementation of the agents.v1.CronJobService service.
 type CronJobServiceHandler interface {
 	// ListCronJobs returns all cron jobs.
@@ -173,6 +191,9 @@ type CronJobServiceHandler interface {
 	DeleteCronJob(context.Context, *connect.Request[v1.DeleteCronJobRequest]) (*connect.Response[v1.DeleteCronJobResponse], error)
 	// ListCronExecutions returns execution records, optionally filtered by job name.
 	ListCronExecutions(context.Context, *connect.Request[v1.ListCronExecutionsRequest]) (*connect.Response[v1.ListCronExecutionsResponse], error)
+	// RunCronJobNow triggers an immediate execution of the cron job, bypassing
+	// the schedule. The execution is recorded the same way scheduled runs are.
+	RunCronJobNow(context.Context, *connect.Request[v1.RunCronJobNowRequest]) (*connect.Response[v1.RunCronJobNowResponse], error)
 }
 
 // NewCronJobServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -218,6 +239,12 @@ func NewCronJobServiceHandler(svc CronJobServiceHandler, opts ...connect.Handler
 		connect.WithSchema(cronJobServiceMethods.ByName("ListCronExecutions")),
 		connect.WithHandlerOptions(opts...),
 	)
+	cronJobServiceRunCronJobNowHandler := connect.NewUnaryHandler(
+		CronJobServiceRunCronJobNowProcedure,
+		svc.RunCronJobNow,
+		connect.WithSchema(cronJobServiceMethods.ByName("RunCronJobNow")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.CronJobService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CronJobServiceListCronJobsProcedure:
@@ -232,6 +259,8 @@ func NewCronJobServiceHandler(svc CronJobServiceHandler, opts ...connect.Handler
 			cronJobServiceDeleteCronJobHandler.ServeHTTP(w, r)
 		case CronJobServiceListCronExecutionsProcedure:
 			cronJobServiceListCronExecutionsHandler.ServeHTTP(w, r)
+		case CronJobServiceRunCronJobNowProcedure:
+			cronJobServiceRunCronJobNowHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -263,4 +292,8 @@ func (UnimplementedCronJobServiceHandler) DeleteCronJob(context.Context, *connec
 
 func (UnimplementedCronJobServiceHandler) ListCronExecutions(context.Context, *connect.Request[v1.ListCronExecutionsRequest]) (*connect.Response[v1.ListCronExecutionsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.CronJobService.ListCronExecutions is not implemented"))
+}
+
+func (UnimplementedCronJobServiceHandler) RunCronJobNow(context.Context, *connect.Request[v1.RunCronJobNowRequest]) (*connect.Response[v1.RunCronJobNowResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.CronJobService.RunCronJobNow is not implemented"))
 }

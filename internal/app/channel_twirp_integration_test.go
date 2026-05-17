@@ -14,6 +14,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/config"
 	configmongo "go.orx.me/apps/butter/internal/repo/config/mongo"
+	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -57,7 +58,7 @@ func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
 		MongoDB:        "butter_twirp_" + uuid.NewString(),
 	}
 
-	routerFn, handlers := SetupRoutes(cfg)
+	routerFn, handlers := SetupRoutes(cfg, daemon.NewRegistry())
 	if err := handlers.SeedConfig(ctx, cfg); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}

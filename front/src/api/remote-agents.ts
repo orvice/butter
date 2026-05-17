@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { twirpFetch } from "./client";
-import type { RemoteAgent } from "@/types/api";
+import type { RemoteAgent, RemoteAgentStatus } from "@/types/api";
 
 const SVC = "agents.v1.RemoteAgentService";
 
@@ -56,5 +56,22 @@ export function useDeleteRemoteAgent() {
   return useMutation({
     mutationFn: deleteRemoteAgent,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["remote-agents"] }),
+  });
+}
+
+function getRemoteAgentStatus(id: string) {
+  return twirpFetch<{ id: string }, { status: RemoteAgentStatus }>(
+    SVC,
+    "GetRemoteAgentStatus",
+    { id },
+  );
+}
+
+export function useRemoteAgentStatus(id: string) {
+  return useQuery({
+    queryKey: ["remote-agents", id, "status"],
+    queryFn: () => getRemoteAgentStatus(id),
+    enabled: !!id,
+    refetchInterval: 30_000,
   });
 }

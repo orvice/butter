@@ -18,7 +18,7 @@ const serviceName = "butter"
 func main() {
 	cfg := new(appconfig.AppConfig)
 	daemonRegistry := daemon.NewRegistry()
-	router, handlers := butterapp.SetupRoutes(cfg)
+	router, handlers := butterapp.SetupRoutes(cfg, daemonRegistry)
 
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 

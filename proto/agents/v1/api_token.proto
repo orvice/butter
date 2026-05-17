@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// APITokenService manages API bearer tokens used by the dashboard and external
+// integrations to call the HTTP/Twirp API.
+// =============================================================================
+
+service APITokenService {
+  rpc ListAPITokens(ListAPITokensRequest) returns (ListAPITokensResponse);
+  rpc CreateAPIToken(CreateAPITokenRequest) returns (CreateAPITokenResponse);
+  rpc RevokeAPIToken(RevokeAPITokenRequest) returns (RevokeAPITokenResponse);
+}
+
+// APIToken represents a stored API token. The plaintext secret is only
+// returned at create time; subsequent reads expose the prefix only.
+message APIToken {
+  // Server-assigned unique identifier.
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+
+  // Human-readable label.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 2;
+
+  // Display prefix (first chars of the token). Used by the dashboard to help
+  // operators identify tokens without storing the secret.
+  // @gotags: json:"prefix,omitempty" yaml:"prefix,omitempty" bson:"prefix,omitempty"
+  string prefix = 3;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 4;
+
+  // Time the token was last accepted by the auth middleware. May be zero.
+  // @gotags: json:"last_used_at,omitempty" yaml:"last_used_at,omitempty" bson:"last_used_at,omitempty"
+  google.protobuf.Timestamp last_used_at = 5;
+
+  // True once the token is revoked. Revoked tokens cannot authenticate.
+  // @gotags: json:"revoked,omitempty" yaml:"revoked,omitempty" bson:"revoked,omitempty"
+  bool revoked = 6;
+}
+
+message ListAPITokensRequest {}
+
+message ListAPITokensResponse {
+  repeated APIToken tokens = 1;
+}
+
+message CreateAPITokenRequest {
+  // Required label for the new token.
+  string name = 1 [(validate.rules).string.min_len = 1];
+}
+
+message CreateAPITokenResponse {
+  // The persisted token metadata (no secret).
+  APIToken token = 1;
+  // Plaintext secret returned only at create time. Treat as sensitive.
+  string secret = 2;
+}
+
+message RevokeAPITokenRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message RevokeAPITokenResponse {
+  APIToken token = 1;
+}

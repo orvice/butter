@@ -24,6 +24,14 @@ function deleteCronJob(name: string) {
   return twirpFetch<{ name: string }, { cron_job: CronJob }>(SVC, "DeleteCronJob", { name });
 }
 
+function runCronJobNow(name: string) {
+  return twirpFetch<{ name: string }, { execution: CronExecution }>(
+    SVC,
+    "RunCronJobNow",
+    { name },
+  );
+}
+
 interface ListExecutionsParams {
   job_name?: string;
   page_size?: number;
@@ -70,6 +78,16 @@ export function useDeleteCronJob() {
   return useMutation({
     mutationFn: deleteCronJob,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cron-jobs"] }),
+  });
+}
+
+export function useRunCronJobNow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: runCronJobNow,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cron-executions"] });
+    },
   });
 }
 

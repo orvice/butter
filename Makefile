@@ -1,7 +1,7 @@
 .PHONY: build buf
 
 build:
-	go build ./cmd/butter
+	go build -o bin/butter ./cmd/butter
 
 buf:
 	buf generate

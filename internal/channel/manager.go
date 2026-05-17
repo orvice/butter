@@ -204,6 +204,49 @@ func (m *Manager) startPollersLocked(pollers []ChannelPoller) {
 	}
 }
 
+// RuntimeState describes the running state of a configured channel.
+type RuntimeState int
+
+const (
+	RuntimeStateUnknown RuntimeState = iota
+	RuntimeStateLive
+	RuntimeStateDisabled
+	RuntimeStateUnsupported
+	RuntimeStateNotFound
+)
+
+// ChannelStatus returns the runtime state and a human-readable detail for the
+// channel with the given name. Phase 1 only distinguishes live vs disabled vs
+// not-configured; per-poller heartbeats arrive in a later phase.
+func (m *Manager) ChannelStatus(ctx context.Context, name string) (RuntimeState, string, error) {
+	channels, err := m.repo.ListChannels(ctx)
+	if err != nil {
+		return RuntimeStateUnknown, "", err
+	}
+	for _, ch := range channels {
+		if ch.GetName() != name {
+			continue
+		}
+		if !ch.GetEnabled() {
+			return RuntimeStateDisabled, "channel disabled in config", nil
+		}
+		switch ch.GetPlatform() {
+		case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
+			agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD:
+			m.mu.Lock()
+			started := m.started
+			m.mu.Unlock()
+			if !started {
+				return RuntimeStateDisabled, "channel manager not started", nil
+			}
+			return RuntimeStateLive, "", nil
+		default:
+			return RuntimeStateUnsupported, "platform not supported by manager", nil
+		}
+	}
+	return RuntimeStateNotFound, "channel not found", nil
+}
+
 func (m *Manager) stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

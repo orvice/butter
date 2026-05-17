@@ -228,3 +228,7 @@ func (r *mockExecRepo) GetByID(_ context.Context, id string) (*agentsv1.CronExec
 	}
 	return nil, context.DeadlineExceeded
 }
+
+func (r *mockExecRepo) ListByTimeRange(_ context.Context, _ string, _, _ time.Time) ([]*agentsv1.CronExecution, error) {
+	return nil, nil
+}

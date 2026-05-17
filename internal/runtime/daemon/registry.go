@@ -8,15 +8,25 @@ import (
 
 // Registry tracks connected daemon instances.
 type Registry struct {
-	mu    sync.RWMutex
-	conns map[string]*Connection // daemon_id → connection
+	mu      sync.RWMutex
+	conns   map[string]*Connection // daemon_id → connection
+	metrics *Metrics
 }
 
-// NewRegistry creates an empty daemon registry.
+// NewRegistry creates an empty daemon registry with a fresh bridge metrics
+// collector.
 func NewRegistry() *Registry {
 	return &Registry{
-		conns: make(map[string]*Connection),
+		conns:   make(map[string]*Connection),
+		metrics: NewMetrics(60),
 	}
+}
+
+// Metrics returns the bridge metrics collector backing this registry. Bridges
+// read this to record per-invocation latency; the dashboard reads it for the
+// diagnostics view.
+func (r *Registry) Metrics() *Metrics {
+	return r.metrics
 }
 
 // Register adds a connected daemon to the registry.
@@ -57,4 +67,24 @@ func (r *Registry) ListConnected() []*agentsv1.DaemonInfo {
 		result = append(result, conn.Info)
 	}
 	return result
+}
+
+// ListConnections returns all currently connected daemon connections. The
+// returned slice is a snapshot; the underlying connections are still managed
+// by the registry.
+func (r *Registry) ListConnections() []*Connection {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make([]*Connection, 0, len(r.conns))
+	for _, conn := range r.conns {
+		result = append(result, conn)
+	}
+	return result
+}
+
+// Get returns the connection for the given daemon id, or nil if not found.
+func (r *Registry) Get(daemonID string) *Connection {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.conns[daemonID]
 }

@@ -51,6 +51,12 @@ type Service struct {
 	events   *mongo.Collection
 }
 
+// CountSessions returns the total number of stored ADK sessions, used by the
+// dashboard overview. Returns 0 if the underlying collection cannot be read.
+func (s *Service) CountSessions(ctx context.Context) (int64, error) {
+	return s.sessions.CountDocuments(ctx, bson.M{})
+}
+
 // New creates a new MongoDB session service and ensures indexes.
 func New(ctx context.Context, db *mongo.Database) (*Service, error) {
 	logger := log.FromContext(ctx)

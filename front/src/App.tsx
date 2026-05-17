@@ -21,6 +21,9 @@ import CronJobListPage from "@/pages/cron/list";
 import CronJobCreatePage from "@/pages/cron/create";
 import CronJobEditPage from "@/pages/cron/edit";
 import CronExecutionsPage from "@/pages/cron/executions";
+import DaemonListPage from "@/pages/daemons/list";
+import ChannelListPage from "@/pages/channels/list";
+import APITokenListPage from "@/pages/api-tokens/list";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +59,9 @@ export default function App() {
                 <Route path="cron/create" element={<CronJobCreatePage />} />
                 <Route path="cron/:name/edit" element={<CronJobEditPage />} />
                 <Route path="cron/:name/executions" element={<CronExecutionsPage />} />
+                <Route path="daemons" element={<DaemonListPage />} />
+                <Route path="channels" element={<ChannelListPage />} />
+                <Route path="api-tokens" element={<APITokenListPage />} />
               </Route>
             </Routes>
             <Toaster />

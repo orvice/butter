@@ -1,0 +1,207 @@
+# Butter 功能总览
+
+更新时间：2026-05-16
+
+Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入口（HTTP / Twirp / gRPC / 即时消息 / 定时任务）统一编排为 Google ADK Agent 执行流，并提供配置化、热更新、多执行面与持久化运行时。
+
+## 1. Agent 编排
+
+- **多类型 Agent 构建**：通过 `agents.v1.Agent` 配置统一生成 ADK Agent，支持四种类型：
+  - `AGENT_TYPE_LLM`：LLM Agent，支持 instruction、global instruction、input/output JSON schema、`output_key`、`context_guard`、`include_contents` 等参数。
+  - `AGENT_TYPE_LOOP`：Loop workflow，支持 `max_iterations`。
+  - `AGENT_TYPE_SEQUENTIAL`：顺序 workflow。
+  - `AGENT_TYPE_PARALLEL`：并行 workflow。
+- **子 Agent 与委派**：支持嵌套 `sub_agents` 树，结合 `description` 用于 LLM 子 Agent 委派。
+- **Labels / Metadata**：每个 Agent 可携带 `labels`、`metadata`，用于路由与索引。
+- **内置系统 Agent**：进程启动时注册 built-in system agent，便于诊断和管理类操作。
+
+## 2. 模型管理
+
+- **模型别名与 Provider 解析**：通过 `model_providers` 配置把别名（如 `flash`）映射到具体模型。
+- **运行时 Model Override**：渠道/调用方可在调用时指定 `model_override`；Runner 会 clone 配置、替换模型并缓存 override 后的 Agent 实例。
+- **Langfuse Tracing**：运行时初始化 Langfuse plugin 支持模型调用追踪。
+
+## 3. MCP 工具集
+
+- **共享 MCP Server 配置**：通过 `MCPServerService` CRUD 管理共享 MCP Server。
+- **多种 Transport**：
+  - `MCP_SERVER_TRANSPORT_STDIO`（命令 + 参数 + 环境变量）
+  - `MCP_SERVER_TRANSPORT_STREAMABLE_HTTP`
+  - `MCP_SERVER_TRANSPORT_SSE`
+- **工具白名单**：`tool_filter` 控制对外暴露的 MCP 工具。
+- **Agent 关联方式**：Agent 可通过 `mcp_servers`（内联）或 `mcp_server_ids`（引用共享配置）挂载 MCP 工具集。
+
+## 4. 远程 Agent
+
+- **A2A 协议**：`REMOTE_AGENT_PROTOCOL_A2A`，通过 `url` 调用远程 ADK Agent。
+- **Daemon 协议**：`REMOTE_AGENT_PROTOCOL_DAEMON`，通过 `daemon_capability` 查找在线 daemon 连接，由 `daemon.Bridge` 把 ADK invocation 转成 `DaemonTask`，等 daemon 回传 terminal update 后生成 ADK final event。
+- **断连/取消**：连接断开时活跃任务会收到失败更新；context 取消时下发 `CancelTask`。
+
+## 5. Daemon 执行面
+
+- **反向连接架构**：daemon client（`cmd/butter-daemon`）主动连接服务端 gRPC `DaemonConnectorService.Connect`，注册 `DaemonInfo` 与能力。
+- **任务下发与执行**：服务端通过 `daemon.GRPCHandler` / `Registry` / `Connection` / `Bridge` 把任务下发到 daemon，daemon 通过本地 shell/opencode executor 执行后回传 `DaemonTaskUpdate`。
+- **默认端口**：daemon gRPC 服务默认监听 `:9090`。
+
+## 6. 多入口接入
+
+### HTTP（Gin）
+
+- `GET /ping`：健康检查，免鉴权。
+- `GET /a2a/:agent_name/.well-known/agent.json`：A2A agent card（仅 `enable_a2a: true` 的 Agent）。
+- `POST /a2a/:agent_name`：A2A JSON-RPC `tasks/send`。
+
+### Twirp RPC（`/api`）
+
+配置类：
+
+- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`。
+- `MCPServerService`：共享 MCP Server CRUD + `GetMCPServerStatus`（live 探活）+ `ListMCPTools`（聚合工具列表）。
+- `RemoteAgentService`：远程 Agent CRUD + `GetRemoteAgentStatus`（A2A `/.well-known/agent.json` 探测 / Daemon 注册表查找）。
+- `ChannelService`：渠道配置 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
+- `CronJobService`：定时任务 CRUD + `ListCronExecutions`（分页）+ `RunCronJobNow`。
+- `SessionService`：`Create` / `Get`（含 duration / event trace_url）/ `List`（channel/user/date 过滤 + 分页 + total）/ `Delete` / `Reply`。
+
+运维类：
+
+- `DashboardService`：`GetOverview`（counts + health + 最新 daemon 握手）/ `GetActivityFeed`（最近 invocation）/ `GetCronExecutionTimeseries`（1D/7D/30D 桶）。
+- `DaemonService`：`ListDaemons` / `GetDaemon` / `ListDaemonTasks`（含 step+progress+elapsed）/ `CancelDaemonTask` / `GetBridgeDiagnostics`（CPU / 内存 / 延迟样本）。
+- `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
+
+除 `/ping` 外，HTTP/Twirp 请求统一经过 `APITokenAuthMiddleware`：先匹配 config `apiToken`（root token，constant-time），再查 `api_tokens` 集合中的 sha256 哈希（DB-stored token，命中后异步更新 `last_used_at`）。
+
+### gRPC
+
+- `DaemonConnectorService.Connect`：daemon 双向流接入。
+
+### 即时消息渠道
+
+- **Telegram**：长轮询 poller，支持文本/图片，按 USER/CHAT scope 派生 session id。
+- **Discord**：长轮询 poller。
+- **触发与白名单**：Channel 配置中可定义 trigger 与 allowlist。
+- **回复能力**：reply、status、debug、clear 多种响应类型。
+- **活跃选择存 Redis**：渠道内用户/会话维度的活跃 agent 与 model 选择走 Redis。
+
+### Cron 调度
+
+- 后台 scheduler 按 cron 表达式触发 Agent 执行。
+- 支持标准 5 字段表达式和 `@every` / `@daily` / `@hourly` / `@weekly` / `@monthly` 等预定义 schedule。
+- 时区可配（默认 UTC）。
+
+## 7. 会话与记忆
+
+- **ADK Session**：MongoDB session service 持久化会话事件，支持按 channel/user/session 查询、列表、删除、回复。
+- **ADK Memory**：MongoDB memory service 保存长期记忆。
+- **ContextInfo**：runner 调用统一携带 channel、session、user、source、uuid，作为执行上下文。
+- **会话维度的 Agent Runner 缓存**：按 `channel:agent:model` 维度缓存 ADK runner 实例。
+
+## 8. Cron 自动执行
+
+- **CronJob 配置**：name、schedule、agent_name、input、timezone、enabled、delivery、metadata。
+- **结果投递（CronDelivery）**：
+  - `CRON_DELIVERY_TYPE_LOG`：写日志。
+  - `CRON_DELIVERY_TYPE_WEBHOOK`：HTTP webhook 推送。
+  - `CRON_DELIVERY_TYPE_CHANNEL`：转发到指定 `AgentChannel` 的 `chat_id`。
+- **执行记录（CronExecution）**：每次执行写入 MongoDB，包含输入、输出、状态、起止时间，支持分页查询。
+
+## 9. 配置与热更新
+
+- **两层配置**：
+  - `AppConfig`：Butterfly 从 `config/butter.yaml` 加载的启动配置。
+  - `ConfigStore`：运行时配置仓库，支持 `memory` 或 `mongo` 后端。
+- **Seed 行为**：mongo 后端首次启动时若集合为空则从启动配置 seed，否则以 Mongo 中的数据为准。
+- **运行时热更新**：
+  - Agent / MCP / RemoteAgent 变更触发 `ReloadRunner`，重建 agent registry，清空 runner 与 model override 缓存，并 reload channels。
+  - Channel 变更触发 `ReloadChannels`。
+- **持久化对象**：agents、mcp_servers、remote_agents、channels、cron_jobs、cron_executions。
+
+## 10. 持久化
+
+- **MongoDB**（默认数据库 `butter`，可通过 `mongo_db` 配置）：
+  - `adk_sessions` / `adk_events`：ADK session 与事件
+  - ADK memories
+  - 运行时配置：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_channels`
+  - `cron_jobs` / `cron_executions`
+  - `invocations`：runner 持久化的每次调用记录（agent / app / user / session / status / input / output / latency）
+  - `api_tokens`：DB-stored API tokens（仅哈希 + prefix）
+- **Redis**（默认 `localhost:6379`）：渠道内活跃 agent/model 选择；Redis 不可用不会阻塞服务启动。
+
+## 11. 鉴权与多 Token
+
+- **Root token**：`config.yaml` 中的 `apiToken`，单值，constant-time 比对，配合 CLI / 应急。
+- **DB-stored tokens**：通过 `APITokenService` 在运行时创建：
+  - 格式 `bt_<48 hex>`；plaintext 仅在 `CreateAPIToken` 返回一次。
+  - 存 `sha256(secret)` 哈希，列出时只返回前 12 字符 prefix。
+  - 命中后异步更新 `last_used_at`。`RevokeAPIToken` 直接失效。
+- **作用范围**：任何合法 token 均拥有全量 API 权限；未实现 user / scope。
+- Daemon gRPC 也走同一份 root `apiToken`（`metadata` 的 `authorization` 头）。
+
+## 12. Invocation 追踪与活动流
+
+- `runner.Service` 接口注入 `InvocationRecorder`：
+  - Run 开始时记 `INVOCATION_STATUS_RUNNING` + `started_at`。
+  - 命名返回 + defer 在结束时回写 `SUCCEEDED` / `FAILED` + `output` / `error` + `latency_ms`（input/output/error 截到 4096 字符）。
+  - 记录失败只 warn 日志，不阻塞 Run。
+- `runner.Service.CancelInvocation(id)` 调用注册的 `context.CancelFunc` 取消在飞 invocation；`AgentService.CancelAgentInvocation` 把信号送过去。
+- `AgentService.ListAgentInvocations`：按 agent / session 过滤 + 分页。
+- `DashboardService.GetActivityFeed`：把最近 invocation 映射成 `ActivityEvent`（kind 派生自 status）。
+- `AgentRuntimeStatus`（`GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses`）从最近 100 条 invocation 派生 state / last_run_at / in_flight，驱动前端 Agents 表的 Status 列。
+
+## 13. 在线探活与状态
+
+- `MCPServerService.GetMCPServerStatus`：实跑 MCP handshake（streamable HTTP / SSE）+ `ListTools`，应用 `tool_filter`，返回 `STATE_CONNECTED` + tool_count 或 `STATE_DISCONNECTED` + 错误 detail。STDIO 跳过（避免 server-side spawn）。
+- `MCPServerService.ListMCPTools`：聚合所有 MCP 工具到一个视图，per-tool `allowed` 反映白名单；server 探测失败放进 `errors` map。
+- `RemoteAgentService.GetRemoteAgentStatus`：A2A 拉 `/.well-known/agent.json`；DAEMON 协议查注册表，返回 ACTIVE / IDLE / UNREACHABLE + `serving_daemon_id`。
+- `ChannelService.GetChannelStatus`：返回 LIVE / PAUSED / ERROR；`channel.Manager.ChannelStatus()` 当前主要看 `enabled` + manager started。
+- `DaemonService.ListDaemons` / `GetDaemon`：暴露 daemon 注册表中 version / os / executors / remote_addr / uptime / active task 数。
+- `DaemonService.ListDaemonTasks`：每个在飞任务带 `current_step` / `progress` / `elapsed`（progress 从 daemon 的 `DaemonTaskUpdate` 上报）。
+
+## 14. Bridge 诊断
+
+- `internal/runtime/daemon/metrics.go` 维护一个共享 `Metrics` collector：
+  - 每次 bridge invocation 调 `RecordLatency(d)` 入 60 条 ring buffer。
+  - `Snapshot()` 返回 `MemStats.Sys` 内存、`runtime.NumGoroutine()`、以及自启动以来的平均 CPU%（`runtime/metrics` 的 `/cpu/classes/total:cpu-seconds`）。
+- `DaemonService.GetBridgeDiagnostics` 把 snapshot 转 proto，前端 Daemon 监控屏直接消费。
+
+## 15. 可观测性
+
+- **OpenTelemetry Tracing**：`BUTTERFLY_TRACING_PROVIDER`、`BUTTERFLY_TRACING_ENDPOINT` 控制。
+- **Langfuse Plugin**：模型调用层 LLM 追踪。当 `cfg.Langfuse.Host` 设置时，`SessionEvent.trace_url = <host>/trace/<invocation_id>` 自动填充。
+- **Cron Execution 历史 + Invocation 历史**：作为业务级运行记录，分别支撑 Cron 时序图与 Activity Feed。
+- **Bridge Metrics**：见第 14 节，给运维屏提供 CPU / 内存 / latency 折线。
+
+## 16. 前端 Dashboard
+
+- `front/` 是 Vite + React 19 + shadcn/ui 应用，TanStack Query 做数据层。
+- Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，运行时类型来自 `@bufbuild/protobuf`。手写 `front/src/types/api.ts` 仍维护 snake_case 形状供 `twirpFetch` 直接消费（Twirp Go 默认 `UseProtoNames=true`）。
+- 9 个一级页：Overview / Agents / MCP Servers / Remote Agents / Daemons / Channels / Sessions / Cron / API Tokens。
+- 全部页面消费上面 12-15 节描述的 RPC；细节见 `docs/api.md`。
+
+## 17. 部署形态
+
+- **后端镜像**：`ghcr.io/<owner>/<repo>`（根 `Dockerfile`，distroless static Go 二进制 + cosign 签名）。
+- **前端镜像**：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行；带 SPA fallback + `/healthz`）。
+- 两个工作流分别为 `.github/workflows/docker-publish.yml` 和 `front-publish.yml`，PR 阶段只 build，main / tag 阶段 push + sign。
+
+## 18. 进程拓扑
+
+```text
+cmd/butter (服务端)
+  ├── HTTP / Twirp / A2A          (:8080)
+  ├── Telegram / Discord poller
+  ├── Cron scheduler
+  ├── Runner + Invocation recorder
+  └── gRPC DaemonConnectorService (:9090)
+
+cmd/butter-daemon (客户端)
+  └── 反连服务端 -> 本地 executor (shell / opencode / claude-code)
+```
+
+## 19. 当前限制
+
+- `runner.Service.Run` 仍以同步返回最终文本为主，长耗时 daemon 任务会占用调用链。
+- MCP toolset 当前支持 streamable HTTP 与 SSE transport（stdio 通过 MCP server config 支持，转发由 ADK 处理，但 `GetMCPServerStatus` / `ListMCPTools` 不会探 STDIO）。
+- A2A remote agent 需要 `url`；daemon remote agent 需要 `daemon_capability` 与在线 daemon。
+- `BridgeDiagnostics.memory_limit_bytes` 当前总是 0（未读 cgroup）。
+- API tokens 没有 `expires_at` / `scopes` / 用户体系；任何合法 token 都拥有完整权限。
+- `pkg/proto/agents/v1` 为生成代码，改动需在 `proto/agents/v1` 中完成后重新生成。
