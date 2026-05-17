@@ -62,6 +62,7 @@ const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashb
   {
     label: "Settings",
     items: [
+      { to: "/workspaces", icon: Building2, label: "Workspaces" },
       { to: "/channels", icon: Cable, label: "Channels" },
       { to: "/model-providers", icon: BrainCircuit, label: "Model Providers" },
       { to: "/api-tokens", icon: KeyRound, label: "API Tokens" },
@@ -241,7 +242,6 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
       <aside className="flex w-60 flex-col border-r bg-card">
         <div className="flex items-center gap-2 p-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold">
@@ -297,9 +297,7 @@ export default function DashboardLayout() {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Topbar */}
         <header className="flex h-14 items-center justify-end gap-3 border-b bg-card/40 px-6">
           <WorkspaceSwitcher />
           <StatusPill />

@@ -27,7 +27,7 @@ export function DeleteDialog({ open, onOpenChange, title, description, onConfirm
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel variant="outline" size="default" disabled={loading}>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={loading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
             {loading ? "Deleting..." : "Delete"}
           </AlertDialogAction>

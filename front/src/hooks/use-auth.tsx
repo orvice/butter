@@ -1,10 +1,14 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import type { Workspace } from "@/gen/agents/v1/workspace_pb";
 import { TOKEN_KEY } from "@/lib/constants";
 import { login as loginRequest, logout as logoutRequest, type AuthUser } from "@/api/auth";
 
 interface AuthContextValue {
   token: string | null;
   user: AuthUser | null;
+  loginWorkspaces: Workspace[];
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
@@ -13,10 +17,9 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem(TOKEN_KEY),
-  );
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [loginWorkspaces, setLoginWorkspaces] = useState<Workspace[]>([]);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
@@ -25,11 +28,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(TOKEN_KEY, res.token);
       setToken(res.token);
       setUser(res.user ?? null);
+      setLoginWorkspaces(res.workspaces ?? []);
       return true;
     } catch {
       localStorage.removeItem(TOKEN_KEY);
       setToken(null);
       setUser(null);
+      setLoginWorkspaces([]);
       return false;
     }
   }, []);
@@ -39,10 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
+    setLoginWorkspaces([]);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ token, user, isAuthenticated: !!token, login, logout }}>
+    <AuthContext.Provider value={{ token, user, loginWorkspaces, isAuthenticated: !!token, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
