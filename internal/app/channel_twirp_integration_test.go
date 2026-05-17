@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -53,6 +54,13 @@ func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 	ctx = workspace.WithID(ctx, "ws-test")
+	var err error
+	ctx, err = twirp.WithHTTPRequestHeaders(ctx, http.Header{
+		workspace.HeaderName: []string{"ws-test"},
+	})
+	if err != nil {
+		t.Fatalf("set workspace header: %v", err)
+	}
 
 	cfg := &config.AppConfig{
 		StorageBackend: "mongo",
