@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import {
+  HeadersEditor,
+  entriesToRecord,
+  type HeaderEntry,
+} from "./headers-editor";
 import type { MCPServerTransport } from "@/types/api";
 
 const schema = z.object({
@@ -22,6 +28,13 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+function isRemoteTransport(t: string): boolean {
+  return (
+    t === "MCP_SERVER_TRANSPORT_STREAMABLE_HTTP" ||
+    t === "MCP_SERVER_TRANSPORT_SSE"
+  );
+}
+
 export default function MCPServerCreatePage() {
   const navigate = useNavigate();
   const createMutation = useCreateMCPServer();
@@ -31,8 +44,10 @@ export default function MCPServerCreatePage() {
   });
 
   const transport = useWatch({ control: form.control, name: "transport" });
+  const [headers, setHeaders] = useState<HeaderEntry[]>([]);
 
   function onSubmit(values: FormValues) {
+    const remote = isRemoteTransport(values.transport);
     createMutation.mutate(
       {
         id: values.id,
@@ -40,6 +55,7 @@ export default function MCPServerCreatePage() {
         transport: values.transport as MCPServerTransport,
         command: values.command,
         url: values.url,
+        headers: remote ? entriesToRecord(headers) : undefined,
       },
       {
         onSuccess: () => { toast.success("MCP server created"); navigate("/mcp-servers"); },
@@ -94,9 +110,15 @@ export default function MCPServerCreatePage() {
                   <FormItem><FormLabel>Command</FormLabel><FormControl><Input placeholder="npx @modelcontextprotocol/server" {...field} /></FormControl></FormItem>
                 )} />
               ) : (
-                <FormField control={form.control} name="url" render={({ field }) => (
-                  <FormItem><FormLabel>URL</FormLabel><FormControl><Input placeholder="https://..." {...field} /></FormControl></FormItem>
-                )} />
+                <>
+                  <FormField control={form.control} name="url" render={({ field }) => (
+                    <FormItem><FormLabel>URL</FormLabel><FormControl><Input placeholder="https://..." {...field} /></FormControl></FormItem>
+                  )} />
+                  <div className="space-y-2">
+                    <FormLabel>Headers</FormLabel>
+                    <HeadersEditor value={headers} onChange={setHeaders} />
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
