@@ -54,7 +54,7 @@ func connectRedis(ctx context.Context, cfg *config.AppConfig) *redis.Client {
 	})
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		logger.Warn("redis ping failed, agent selection may not persist", "err", err)
+		logger.Warn("redis ping failed, auth sessions and agent selection may fail", "err", err)
 	} else {
 		logger.Info("redis connected")
 	}
