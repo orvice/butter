@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  HeadersEditor,
+  entriesToRecord,
+  recordToEntries,
+  type HeaderEntry,
+} from "./headers-editor";
 import type { MCPServerTransport } from "@/types/api";
 
 const schema = z.object({
@@ -23,6 +29,13 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+
+function isRemoteTransport(t: string): boolean {
+  return (
+    t === "MCP_SERVER_TRANSPORT_STREAMABLE_HTTP" ||
+    t === "MCP_SERVER_TRANSPORT_SSE"
+  );
+}
 
 export default function MCPServerEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +49,12 @@ export default function MCPServerEditPage() {
   });
 
   const transport = useWatch({ control: form.control, name: "transport" });
+  const initialHeaders = useMemo(
+    () => recordToEntries(data?.mcp_server?.headers),
+    [data],
+  );
+  const [headersDraft, setHeadersDraft] = useState<HeaderEntry[] | null>(null);
+  const headers = headersDraft ?? initialHeaders;
 
   useEffect(() => {
     if (data?.mcp_server) {
@@ -45,8 +64,17 @@ export default function MCPServerEditPage() {
   }, [data, form]);
 
   function onSubmit(values: FormValues) {
+    const remote = isRemoteTransport(values.transport);
     updateMutation.mutate(
-      { ...data?.mcp_server, id: values.id, name: values.name, transport: values.transport as MCPServerTransport, command: values.command, url: values.url },
+      {
+        ...data?.mcp_server,
+        id: values.id,
+        name: values.name,
+        transport: values.transport as MCPServerTransport,
+        command: values.command,
+        url: values.url,
+        headers: remote ? entriesToRecord(headers) : undefined,
+      },
       {
         onSuccess: () => { toast.success("MCP server updated"); navigate("/mcp-servers"); },
         onError: (err) => toast.error(err.message),
@@ -101,9 +129,15 @@ export default function MCPServerEditPage() {
                   <FormItem><FormLabel>Command</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                 )} />
               ) : (
-                <FormField control={form.control} name="url" render={({ field }) => (
-                  <FormItem><FormLabel>URL</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-                )} />
+                <>
+                  <FormField control={form.control} name="url" render={({ field }) => (
+                    <FormItem><FormLabel>URL</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                  )} />
+                  <div className="space-y-2">
+                    <FormLabel>Headers</FormLabel>
+                    <HeadersEditor value={headers} onChange={setHeadersDraft} />
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
