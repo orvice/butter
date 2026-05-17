@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"butterfly.orx.me/core/log"
 	"github.com/google/uuid"
 	"github.com/twitchtv/twirp"
 	"golang.org/x/crypto/bcrypt"
@@ -313,28 +314,48 @@ func normalizeRole(role string) string {
 }
 
 func BootstrapInitialAdmin(ctx context.Context, repo auth.Repository, cfg config.AuthConfig) error {
+	logger := log.FromContext(ctx)
 	if repo == nil {
-		return nil
-	}
-	if err := repo.EnsureIndexes(ctx); err != nil {
-		return err
-	}
-	count, err := repo.CountUsers(ctx)
-	if err != nil {
-		return err
-	}
-	if count > 0 {
+		logger.Info("skipping initial admin bootstrap, auth repo is nil")
 		return nil
 	}
 
 	username := strings.TrimSpace(cfg.InitialAdminUsername)
 	password := cfg.InitialAdminPassword
+	logger.Info("initial admin bootstrap started",
+		"initial_admin_username_set", username != "",
+		"initial_admin_password_set", password != "",
+	)
+
+	if err := repo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to ensure auth indexes", "err", err)
+		return err
+	}
+	logger.Debug("auth indexes ensured")
+
+	count, err := repo.CountUsers(ctx)
+	if err != nil {
+		logger.Error("failed to count auth users", "err", err)
+		return err
+	}
+	logger.Info("auth user count loaded", "user_count", count)
+	if count > 0 {
+		logger.Info("skipping initial admin bootstrap, users already exist", "user_count", count)
+		return nil
+	}
+
 	if username == "" || password == "" {
+		logger.Error("initial admin config missing",
+			"initial_admin_username_set", username != "",
+			"initial_admin_password_set", password != "",
+		)
 		return errors.New("auth initial admin is required: set auth.initial_admin_username and auth.initial_admin_password")
 	}
 
+	logger.Info("creating initial admin user", "username", username, "role", "admin")
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
+		logger.Error("failed to hash initial admin password", "username", username, "err", err)
 		return err
 	}
 	now := time.Now().UTC()
@@ -346,7 +367,12 @@ func BootstrapInitialAdmin(ctx context.Context, repo auth.Repository, cfg config
 		CreatedAt:   timestamppb.New(now),
 		UpdatedAt:   timestamppb.New(now),
 	}
-	return repo.CreateUser(ctx, user, string(hash))
+	if err := repo.CreateUser(ctx, user, string(hash)); err != nil {
+		logger.Error("failed to create initial admin user", "username", username, "user_id", user.GetId(), "err", err)
+		return err
+	}
+	logger.Info("initial admin user created", "username", username, "user_id", user.GetId(), "role", user.GetRole())
+	return nil
 }
 
 func HashAuthSessionToken(secret string) string {
