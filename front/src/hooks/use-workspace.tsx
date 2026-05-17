@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { twirpFetch } from "@/api/client";
 import { WORKSPACE_KEY } from "@/lib/constants";
 import { useAuth } from "@/hooks/use-auth";
@@ -7,19 +7,33 @@ import type { Workspace } from "@/gen/agents/v1/workspace_pb";
 
 const SVC = "agents.v1.WorkspaceService";
 
+export interface CreateWorkspaceInput {
+  name: string;
+  slug: string;
+  description?: string;
+}
+
 interface WorkspaceContextValue {
   workspaces: Workspace[];
   selectedWorkspaceId: string;
   selectedWorkspace: Workspace | null;
   isLoading: boolean;
+  isCreating: boolean;
   error: unknown;
   setSelectedWorkspaceId: (id: string) => void;
+  createWorkspace: (input: CreateWorkspaceInput) => Promise<Workspace>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 function listWorkspaces() {
   return twirpFetch<object, { workspaces?: Workspace[] }>(SVC, "ListWorkspaces", {});
+}
+
+function createWorkspaceRequest(input: CreateWorkspaceInput) {
+  return twirpFetch<{ workspace: CreateWorkspaceInput }, { workspace?: Workspace }>(SVC, "CreateWorkspace", {
+    workspace: input,
+  });
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -34,6 +48,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     queryFn: listWorkspaces,
     enabled: isAuthenticated,
     staleTime: 60_000,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createWorkspaceRequest,
+    onSuccess: (res) => {
+      const workspace = res.workspace;
+      if (!workspace?.id) return;
+      localStorage.setItem(WORKSPACE_KEY, workspace.id);
+      setSelectedWorkspaceIdState(workspace.id);
+      void queryClient.invalidateQueries();
+    },
   });
 
   const workspaces = useMemo(() => data?.workspaces ?? [], [data?.workspaces]);
@@ -51,9 +76,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
     if (selectedIsValid) return;
 
-    const next = persistedIsValid
-      ? persisted
-      : workspaces.find((ws) => ws.slug === "default")?.id ?? workspaces[0]?.id ?? "";
+    const next = persistedIsValid ? persisted : workspaces[0]?.id ?? "";
 
     if (next) {
       localStorage.setItem(WORKSPACE_KEY, next);
@@ -74,6 +97,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [queryClient, selectedWorkspaceId],
   );
 
+  const createWorkspace = useCallback(
+    async (input: CreateWorkspaceInput) => {
+      const res = await createMutation.mutateAsync(input);
+      if (!res.workspace) {
+        throw new Error("Workspace was not returned by the server");
+      }
+      return res.workspace;
+    },
+    [createMutation],
+  );
+
   const selectedWorkspace = useMemo(
     () => workspaces.find((ws) => ws.id === selectedWorkspaceId) ?? null,
     [selectedWorkspaceId, workspaces],
@@ -81,7 +115,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorkspaceContext.Provider
-      value={{ workspaces, selectedWorkspaceId, selectedWorkspace, isLoading, error, setSelectedWorkspaceId }}
+      value={{
+        workspaces,
+        selectedWorkspaceId,
+        selectedWorkspace,
+        isLoading,
+        isCreating: createMutation.isPending,
+        error,
+        setSelectedWorkspaceId,
+        createWorkspace,
+      }}
     >
       {children}
     </WorkspaceContext.Provider>

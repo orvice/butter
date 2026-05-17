@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { NavLink, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useTheme } from "next-themes";
 import { useOverview } from "@/api/dashboard";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -140,10 +144,96 @@ function WorkspaceSwitcher() {
   );
 }
 
+function WorkspaceCreateCard() {
+  const { createWorkspace, isCreating } = useWorkspace();
+  const [name, setName] = useState("Default");
+  const [slug, setSlug] = useState("default");
+  const [description, setDescription] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    const trimmedSlug = slug.trim();
+    if (!trimmedName) {
+      toast.error("Workspace name is required");
+      return;
+    }
+    if (!trimmedSlug) {
+      toast.error("Workspace slug is required");
+      return;
+    }
+
+    try {
+      await createWorkspace({
+        name: trimmedName,
+        slug: trimmedSlug,
+        description: description.trim(),
+      });
+      toast.success("Workspace created");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create workspace");
+    }
+  }
+
+  return (
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center">
+      <Card className="w-full max-w-xl">
+        <CardHeader>
+          <CardTitle>Create your first workspace</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Workspaces scope agents, channels, cron jobs, model providers, and API tokens. Create one to enter the dashboard.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="workspace-name">Name</label>
+              <Input
+                id="workspace-name"
+                value={name}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setName(next);
+                  setSlug(next.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
+                }}
+                placeholder="Default"
+                disabled={isCreating}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="workspace-slug">Slug</label>
+              <Input
+                id="workspace-slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase().trim().replace(/[^a-z0-9-]+/g, "-"))}
+                placeholder="default"
+                disabled={isCreating}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="workspace-description">Description</label>
+              <Textarea
+                id="workspace-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional description"
+                disabled={isCreating}
+              />
+            </div>
+            <Button type="submit" disabled={isCreating}>
+              {isCreating ? "Creating..." : "Create workspace"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function DashboardLayout() {
   const { isAuthenticated, logout } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { selectedWorkspaceId, isLoading: isWorkspaceLoading } = useWorkspace();
+  const { selectedWorkspaceId, workspaces, isLoading: isWorkspaceLoading } = useWorkspace();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -218,15 +308,24 @@ export default function DashboardLayout() {
         <main className="flex-1 overflow-auto p-6">
           {selectedWorkspaceId ? (
             <Outlet />
+          ) : isWorkspaceLoading ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Loading workspaces</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                Loading available workspaces...
+              </CardContent>
+            </Card>
+          ) : workspaces.length === 0 ? (
+            <WorkspaceCreateCard />
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle>Choose a workspace</CardTitle>
+                <CardTitle>Selecting workspace</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                {isWorkspaceLoading
-                  ? "Loading available workspaces..."
-                  : "Select a workspace from the top bar to load workspace-scoped data."}
+                Preparing your workspace...
               </CardContent>
             </Card>
           )}

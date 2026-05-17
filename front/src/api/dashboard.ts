@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { twirpFetch } from "./client";
+import { WORKSPACE_KEY } from "@/lib/constants";
 import type {
   ActivityEvent,
   CronExecutionBucket,
@@ -32,9 +33,11 @@ function getCronTimeseries(range: CronTimeseriesRange, jobName?: string) {
 }
 
 export function useOverview() {
+  const workspaceId = localStorage.getItem(WORKSPACE_KEY);
   return useQuery({
-    queryKey: ["dashboard", "overview"],
+    queryKey: ["dashboard", "overview", workspaceId],
     queryFn: getOverview,
+    enabled: !!workspaceId,
     refetchInterval: 30_000,
   });
 }
