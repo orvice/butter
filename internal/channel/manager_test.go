@@ -126,3 +126,91 @@ func waitForChannel(t *testing.T, ch <-chan string, want string) {
 		t.Fatalf("timed out waiting for %q", want)
 	}
 }
+
+// TestManagerScopesAgentsPerWorkspace verifies that buildPollers asks the
+// runner for a per-channel workspace-scoped agent list instead of the global
+// view — closes the tenant-boundary leak where workspace A's bot could see
+// (and route to) workspace B's agents.
+func TestManagerScopesAgentsPerWorkspace(t *testing.T) {
+	repo := &fakeChannelRepo{}
+	repo.set(
+		&agentsv1.AgentChannel{
+			Name:        "ch-a",
+			WorkspaceId: "ws-a",
+			Enabled:     true,
+			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
+			Telegram:    &agentsv1.TelegramChannelConfig{BotToken: "token-a"},
+		},
+		&agentsv1.AgentChannel{
+			Name:        "ch-b",
+			WorkspaceId: "ws-b",
+			Enabled:     true,
+			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
+			Telegram:    &agentsv1.TelegramChannelConfig{BotToken: "token-b"},
+		},
+	)
+
+	svc := runner.NewServiceForTest(map[string]string{
+		"agent-a1": "ws-a",
+		"agent-a2": "ws-a",
+		"agent-b1": "ws-b",
+	})
+
+	type captured struct {
+		channel string
+		agents  []string
+	}
+	captures := make(chan captured, 4)
+
+	manager := &Manager{
+		repo:       repo,
+		runnerSvc:  svc,
+		rdb:        redis.NewClient(&redis.Options{Addr: "localhost:6379"}),
+		modelNames: []string{"test"},
+		telegramFactory: func(ch *agentsv1.AgentChannel, _ *runner.Service, _ *redis.Client, agentNames []string, _ []string) (ChannelPoller, error) {
+			captures <- captured{channel: ch.GetName(), agents: agentNames}
+			return &fakePoller{name: ch.GetName(), started: make(chan string, 1), stopped: make(chan string, 1)}, nil
+		},
+		discordFactory: func(ch *agentsv1.AgentChannel, _ *runner.Service, _ *redis.Client, _ []string, _ []string) (ChannelPoller, error) {
+			return nil, nil
+		},
+	}
+
+	if _, err := manager.buildPollers(context.Background()); err != nil {
+		t.Fatalf("buildPollers: %v", err)
+	}
+
+	close(captures)
+	got := map[string][]string{}
+	for c := range captures {
+		sortedAgents := append([]string(nil), c.agents...)
+		// Stable comparison.
+		for i := 1; i < len(sortedAgents); i++ {
+			for j := i; j > 0 && sortedAgents[j-1] > sortedAgents[j]; j-- {
+				sortedAgents[j-1], sortedAgents[j] = sortedAgents[j], sortedAgents[j-1]
+			}
+		}
+		got[c.channel] = sortedAgents
+	}
+
+	wantA := []string{"agent-a1", "agent-a2"}
+	wantB := []string{"agent-b1"}
+	if !equalStringSlice(got["ch-a"], wantA) {
+		t.Errorf("ch-a agents = %v, want %v", got["ch-a"], wantA)
+	}
+	if !equalStringSlice(got["ch-b"], wantB) {
+		t.Errorf("ch-b agents = %v, want %v", got["ch-b"], wantB)
+	}
+}
+
+func equalStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

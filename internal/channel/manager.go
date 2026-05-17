@@ -78,16 +78,20 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 		return nil, fmt.Errorf("list channels: %w", err)
 	}
 
-	agentNames := m.runnerSvc.AgentNames()
 	var pollers []ChannelPoller
 
-	logger.Info("initializing channel manager", "total_channels", len(channels), "available_agents", agentNames)
+	logger.Info("initializing channel manager", "total_channels", len(channels))
 
 	for _, ch := range channels {
 		if !ch.GetEnabled() {
 			logger.Info("skipping disabled channel", "channel", ch.GetName())
 			continue
 		}
+
+		// Each channel only sees agents from its own workspace; passing the
+		// global list here would let workspace A's bot offer (and route to)
+		// workspace B's agents.
+		agentNames := m.runnerSvc.AgentNamesForWorkspace(ch.GetWorkspaceId())
 
 		switch ch.GetPlatform() {
 		case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM:
@@ -98,7 +102,9 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 
 			logger.Info("creating telegram poller",
 				"channel", ch.GetName(),
+				"workspace", ch.GetWorkspaceId(),
 				"default_agent", ch.GetAgentName(),
+				"available_agents", agentNames,
 			)
 			p, err := m.telegramFactory(ch, m.runnerSvc, m.rdb, agentNames, m.modelNames)
 			if err != nil {
@@ -114,7 +120,9 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 
 			logger.Info("creating discord poller",
 				"channel", ch.GetName(),
+				"workspace", ch.GetWorkspaceId(),
 				"default_agent", ch.GetAgentName(),
+				"available_agents", agentNames,
 			)
 			p, err := m.discordFactory(ch, m.runnerSvc, m.rdb, agentNames, m.modelNames)
 			if err != nil {

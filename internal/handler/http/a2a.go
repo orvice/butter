@@ -117,6 +117,7 @@ func (h *A2AHandler) TaskSend(c *gin.Context) {
 		ChannelName: "a2a:" + agentName,
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_A2A,
 		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
+		WorkspaceId: ag.GetWorkspaceId(),
 		Metadata: map[string]string{
 			"task_id": sessionID,
 		},

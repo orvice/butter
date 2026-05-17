@@ -226,7 +226,7 @@ func (p *Poller) handleAgentCommand(s *discordgo.Session, m *discordgo.MessageCr
 		p.sendReply(s, m.ChannelID, "**Agents:**\n"+strings.Join(lines, "\n"))
 
 	case "switch":
-		if !p.runner.HasAgent(arg) {
+		if !p.runner.HasAgentInWorkspace(p.channelCfg.GetWorkspaceId(), arg) {
 			p.sendReply(s, m.ChannelID, fmt.Sprintf("Unknown agent: %q\nAvailable: %s", arg, strings.Join(p.agentNames, ", ")))
 			return
 		}
@@ -353,6 +353,7 @@ func (p *Poller) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate)
 		ChatId:      m.ChannelID,
 		ChannelType: "discord",
 		ChatType:    chatType,
+		WorkspaceId: p.channelCfg.GetWorkspaceId(),
 		Metadata: map[string]string{
 			"channel_id": m.ChannelID,
 		},

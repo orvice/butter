@@ -321,7 +321,24 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 	return nil
 }
 
-// AgentNames returns all registered agent names.
+// NewServiceForTest builds a Service whose registry contains only the given
+// agent name → workspace_id entries. No ADK runtime is initialized — only the
+// workspace lookup helpers are usable. Exposed for cross-package tests.
+func NewServiceForTest(agents map[string]string) *Service {
+	s := &Service{
+		agents:      map[string]agent.Agent{},
+		agentsProto: map[string]*agentsv1.Agent{},
+	}
+	for name, ws := range agents {
+		s.agents[name] = nil
+		s.agentsProto[name] = &agentsv1.Agent{Name: name, WorkspaceId: ws}
+	}
+	return s
+}
+
+// AgentNames returns all registered agent names. Callers exposing this list to
+// tenant-scoped entry points (channels, A2A) must instead use
+// AgentNamesForWorkspace to avoid leaking other workspaces' agents.
 func (s *Service) AgentNames() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -332,12 +349,50 @@ func (s *Service) AgentNames() []string {
 	return names
 }
 
-// HasAgent checks if an agent with the given name exists.
+// AgentNamesForWorkspace returns agent names whose proto config carries the
+// given workspace_id. An empty workspaceID returns every registered agent
+// (admin/system view).
+func (s *Service) AgentNamesForWorkspace(workspaceID string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	names := make([]string, 0, len(s.agentsProto))
+	for name, p := range s.agentsProto {
+		if workspaceID != "" && p.GetWorkspaceId() != workspaceID {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+// HasAgent checks if an agent with the given name exists across all
+// workspaces. Tenant-scoped callers should prefer HasAgentInWorkspace.
 func (s *Service) HasAgent(name string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, ok := s.agents[name]
 	return ok
+}
+
+// HasAgentInWorkspace reports whether an agent with the given name exists and
+// belongs to the given workspace_id. An empty workspaceID falls back to the
+// global lookup (admin/system path).
+func (s *Service) HasAgentInWorkspace(workspaceID, name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.agents[name]; !ok {
+		return false
+	}
+	if workspaceID == "" {
+		return true
+	}
+	p, ok := s.agentsProto[name]
+	if !ok {
+		// Dynamically registered agents (no proto) currently have no workspace
+		// binding — treat them as global and reject from a tenant context.
+		return false
+	}
+	return p.GetWorkspaceId() == workspaceID
 }
 
 // ModelProviders returns the configured model providers.
@@ -539,9 +594,26 @@ func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part
 
 	s.mu.Lock()
 	ag, ok := s.agents[agentName]
+	agentProto := s.agentsProto[agentName]
 	s.mu.Unlock()
 	if !ok {
 		return "", fmt.Errorf("unknown agent: %q", agentName)
+	}
+
+	// Enforce the tenant boundary: when the caller is bound to a workspace,
+	// the resolved agent must belong to that workspace. Without this check a
+	// channel/poller from workspace A could invoke an agent from workspace B
+	// by passing its name. An empty workspace_id on ctxInfo means the call
+	// originates from a system path (admin, root token, cron without
+	// workspace) and is allowed through.
+	if wsID := ctxInfo.GetWorkspaceId(); wsID != "" {
+		var agentWS string
+		if agentProto != nil {
+			agentWS = agentProto.GetWorkspaceId()
+		}
+		if agentWS != wsID {
+			return "", fmt.Errorf("agent %q not available in workspace %q", agentName, wsID)
+		}
 	}
 
 	// If model override is set, rebuild the agent with the overridden model.
