@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -39,7 +39,7 @@ export default function CronJobCreatePage() {
     defaultValues: { name: "", schedule: "", agent_name: "", input: "", timezone: "UTC", enabled: true, delivery_type: "CRON_DELIVERY_TYPE_LOG" },
   });
 
-  const deliveryType = form.watch("delivery_type");
+  const deliveryType = useWatch({ control: form.control, name: "delivery_type" });
 
   function onSubmit(values: FormValues) {
     createMutation.mutate(

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -54,7 +54,8 @@ export default function AgentEditPage() {
   const { data: mcpData } = useMCPServers();
   const { data: remoteData } = useRemoteAgents();
   const updateMutation = useUpdateAgent();
-  const [jsonValue, setJsonValue] = useState("");
+  const initialJsonValue = useMemo(() => (data?.agent ? JSON.stringify(data.agent, null, 2) : ""), [data]);
+  const [jsonValue, setJsonValue] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("form");
 
   const form = useForm<AgentFormValues>({
@@ -73,7 +74,6 @@ export default function AgentEditPage() {
         model: a.config?.model ?? "",
         instruction: a.config?.instruction ?? "",
       });
-      setJsonValue(JSON.stringify(a, null, 2));
     }
   }, [data, form]);
 
@@ -95,7 +95,7 @@ export default function AgentEditPage() {
 
   function onJsonSubmit() {
     try {
-      const agent = JSON.parse(jsonValue) as Agent;
+      const agent = JSON.parse(jsonValue ?? initialJsonValue) as Agent;
       submitUpdate(agent);
     } catch {
       toast.error("Invalid JSON");
@@ -123,7 +123,7 @@ export default function AgentEditPage() {
       setJsonValue(JSON.stringify(agent, null, 2));
     } else if (tab === "form") {
       try {
-        const agent = JSON.parse(jsonValue) as Agent;
+        const agent = JSON.parse(jsonValue ?? initialJsonValue) as Agent;
         form.reset({
           name: agent.name,
           description: agent.description ?? "",
@@ -273,7 +273,7 @@ export default function AgentEditPage() {
                 height="500px"
                 language="json"
                 theme={theme === "dark" ? "vs-dark" : "light"}
-                value={jsonValue}
+                value={jsonValue ?? initialJsonValue}
                 onChange={(v) => setJsonValue(v ?? "")}
                 options={{ minimap: { enabled: false }, formatOnPaste: true }}
               />

@@ -99,11 +99,11 @@ func (s *StatusService) Status(ctx context.Context) (StatusResponse, error) {
 
 func configuredBackend(cfg *appconfig.AppConfig) string {
 	if cfg == nil {
-		return "memory"
+		return "mongo"
 	}
 	backend := strings.TrimSpace(strings.ToLower(cfg.StorageBackend))
 	if backend == "" {
-		return "memory"
+		return "mongo"
 	}
 	return backend
 }
