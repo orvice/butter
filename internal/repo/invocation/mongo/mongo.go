@@ -60,19 +60,24 @@ func (s *Store) Get(ctx context.Context, id string) (*agentsv1.Invocation, error
 }
 
 func (s *Store) List(ctx context.Context, filter invocation.ListFilter, pageSize int32, pageToken string) ([]*agentsv1.Invocation, string, int32, error) {
-	q := bson.M{}
-	if filter.AgentName != "" {
-		q["spec"] = bson.M{"$regex": fmt.Sprintf(`"agentName":\s*"%s"`, regexEscape(filter.AgentName))}
+	clauses := make([]bson.M, 0, 3)
+	if filter.WorkspaceID != "" {
+		clauses = append(clauses, bson.M{"spec": bson.M{"$regex": fmt.Sprintf(`"workspaceId":\s*"%s"`, regexEscape(filter.WorkspaceID))}})
 	}
-	// Filter by session_id by scanning the encoded spec; for our scale this is
-	// acceptable and avoids needing a flattened schema. Combine with agent if both set.
+	if filter.AgentName != "" {
+		clauses = append(clauses, bson.M{"spec": bson.M{"$regex": fmt.Sprintf(`"agentName":\s*"%s"`, regexEscape(filter.AgentName))}})
+	}
 	if filter.SessionID != "" {
-		clause := bson.M{"$regex": fmt.Sprintf(`"sessionId":\s*"%s"`, regexEscape(filter.SessionID))}
-		if existing, ok := q["spec"]; ok {
-			q = bson.M{"$and": []bson.M{{"spec": existing}, {"spec": clause}}}
-		} else {
-			q["spec"] = clause
-		}
+		clauses = append(clauses, bson.M{"spec": bson.M{"$regex": fmt.Sprintf(`"sessionId":\s*"%s"`, regexEscape(filter.SessionID))}})
+	}
+	q := bson.M{}
+	switch len(clauses) {
+	case 0:
+		// no filter
+	case 1:
+		q = clauses[0]
+	default:
+		q = bson.M{"$and": clauses}
 	}
 
 	total, err := s.coll.CountDocuments(ctx, q)

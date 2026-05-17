@@ -245,9 +245,14 @@ func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *agen
 	if s.invRepo == nil {
 		return &agentsv1.ListAgentInvocationsResponse{}, nil
 	}
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	invs, next, total, err := s.invRepo.List(ctx, invocation.ListFilter{
-		AgentName: req.GetAgentName(),
-		SessionID: req.GetSessionId(),
+		WorkspaceID: wsID,
+		AgentName:   req.GetAgentName(),
+		SessionID:   req.GetSessionId(),
 	}, req.GetPageSize(), req.GetPageToken())
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
@@ -274,17 +279,21 @@ func (s *AgentServiceServer) GetAgentRuntimeStatus(ctx context.Context, req *age
 	if req.GetName() == "" {
 		return nil, twirp.RequiredArgumentError("name")
 	}
-	status := s.runtimeStatusFor(ctx, req.GetName())
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	status := s.runtimeStatusFor(ctx, wsID, req.GetName())
 	return &agentsv1.GetAgentRuntimeStatusResponse{Status: status}, nil
 }
 
 func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *agentsv1.ListAgentRuntimeStatusesRequest) (*agentsv1.ListAgentRuntimeStatusesResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	names := req.GetNames()
 	if len(names) == 0 {
-		wsID, err := requireWorkspace(ctx)
-		if err != nil {
-			return nil, err
-		}
 		agents, err := s.repo.ListAgents(ctx, wsID)
 		if err != nil {
 			return nil, toTwirpError(err)
@@ -296,14 +305,14 @@ func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *
 	}
 	out := make([]*agentsv1.AgentRuntimeStatus, 0, len(names))
 	for _, name := range names {
-		out = append(out, s.runtimeStatusFor(ctx, name))
+		out = append(out, s.runtimeStatusFor(ctx, wsID, name))
 	}
 	return &agentsv1.ListAgentRuntimeStatusesResponse{Statuses: out}, nil
 }
 
 // runtimeStatusFor derives an AgentRuntimeStatus from the invocation repo. If
 // no invocations exist (or the repo is not wired) the agent is reported as IDLE.
-func (s *AgentServiceServer) runtimeStatusFor(ctx context.Context, name string) *agentsv1.AgentRuntimeStatus {
+func (s *AgentServiceServer) runtimeStatusFor(ctx context.Context, workspaceID, name string) *agentsv1.AgentRuntimeStatus {
 	out := &agentsv1.AgentRuntimeStatus{
 		Name:  name,
 		State: agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_IDLE,
@@ -313,7 +322,7 @@ func (s *AgentServiceServer) runtimeStatusFor(ctx context.Context, name string) 
 	}
 	// Pull the most recent 100 invocations for this agent — enough to derive
 	// last_run_at + in_flight count for the dashboard table.
-	invs, _, _, err := s.invRepo.List(ctx, invocation.ListFilter{AgentName: name}, 100, "")
+	invs, _, _, err := s.invRepo.List(ctx, invocation.ListFilter{WorkspaceID: workspaceID, AgentName: name}, 100, "")
 	if err != nil || len(invs) == 0 {
 		return out
 	}

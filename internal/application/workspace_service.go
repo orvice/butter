@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,8 +31,11 @@ func (s *WorkspaceServiceServer) ListWorkspaces(ctx context.Context, _ *agentsv1
 	if s.repo == nil {
 		return &agentsv1.ListWorkspacesResponse{}, nil
 	}
-	user, hasUser := auth.UserFromContext(ctx)
-	if hasUser && user.GetRole() != "admin" {
+	if !auth.IsAdmin(ctx) {
+		user, hasUser := auth.UserFromContext(ctx)
+		if !hasUser {
+			return nil, twirp.NewError(twirp.Unauthenticated, "authentication required")
+		}
 		members, err := s.repo.ListMembershipsForUser(ctx, user.GetId())
 		if err != nil {
 			return nil, twirp.InternalErrorWith(err)
@@ -59,6 +63,12 @@ func (s *WorkspaceServiceServer) ListWorkspaces(ctx context.Context, _ *agentsv1
 func (s *WorkspaceServiceServer) GetWorkspace(ctx context.Context, req *agentsv1.GetWorkspaceRequest) (*agentsv1.GetWorkspaceResponse, error) {
 	if s.repo == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+	}
+	if req.GetId() == "" {
+		return nil, twirp.RequiredArgumentError("id")
+	}
+	if err := s.requireMembership(ctx, req.GetId()); err != nil {
+		return nil, err
 	}
 	ws, err := s.repo.GetWorkspace(ctx, req.GetId())
 	if err != nil {
@@ -119,6 +129,9 @@ func (s *WorkspaceServiceServer) UpdateWorkspace(ctx context.Context, req *agent
 	if in == nil || in.GetId() == "" {
 		return nil, twirp.RequiredArgumentError("workspace.id")
 	}
+	if err := s.requireRole(ctx, in.GetId(), "owner"); err != nil {
+		return nil, err
+	}
 	in.UpdatedAt = timestamppb.New(time.Now().UTC())
 	updated, err := s.repo.UpdateWorkspace(ctx, in)
 	if err != nil {
@@ -131,6 +144,12 @@ func (s *WorkspaceServiceServer) DeleteWorkspace(ctx context.Context, req *agent
 	if s.repo == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
 	}
+	if req.GetId() == "" {
+		return nil, twirp.RequiredArgumentError("id")
+	}
+	if err := s.requireRole(ctx, req.GetId(), "owner"); err != nil {
+		return nil, err
+	}
 	if err := s.repo.DeleteWorkspace(ctx, req.GetId()); err != nil {
 		return nil, mapWorkspaceErr(err)
 	}
@@ -140,6 +159,12 @@ func (s *WorkspaceServiceServer) DeleteWorkspace(ctx context.Context, req *agent
 func (s *WorkspaceServiceServer) ListWorkspaceMembers(ctx context.Context, req *agentsv1.ListWorkspaceMembersRequest) (*agentsv1.ListWorkspaceMembersResponse, error) {
 	if s.repo == nil {
 		return &agentsv1.ListWorkspaceMembersResponse{}, nil
+	}
+	if req.GetWorkspaceId() == "" {
+		return nil, twirp.RequiredArgumentError("workspace_id")
+	}
+	if err := s.requireMembership(ctx, req.GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 	members, err := s.repo.ListMembers(ctx, req.GetWorkspaceId())
 	if err != nil {
@@ -151,6 +176,15 @@ func (s *WorkspaceServiceServer) ListWorkspaceMembers(ctx context.Context, req *
 func (s *WorkspaceServiceServer) AddWorkspaceMember(ctx context.Context, req *agentsv1.AddWorkspaceMemberRequest) (*agentsv1.AddWorkspaceMemberResponse, error) {
 	if s.repo == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+	}
+	if req.GetWorkspaceId() == "" {
+		return nil, twirp.RequiredArgumentError("workspace_id")
+	}
+	if req.GetUserId() == "" {
+		return nil, twirp.RequiredArgumentError("user_id")
+	}
+	if err := s.requireRole(ctx, req.GetWorkspaceId(), "owner"); err != nil {
+		return nil, err
 	}
 	role := strings.TrimSpace(req.GetRole())
 	if role == "" {
@@ -173,6 +207,15 @@ func (s *WorkspaceServiceServer) UpdateWorkspaceMember(ctx context.Context, req 
 	if s.repo == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
 	}
+	if req.GetWorkspaceId() == "" {
+		return nil, twirp.RequiredArgumentError("workspace_id")
+	}
+	if req.GetUserId() == "" {
+		return nil, twirp.RequiredArgumentError("user_id")
+	}
+	if err := s.requireRole(ctx, req.GetWorkspaceId(), "owner"); err != nil {
+		return nil, err
+	}
 	m := &agentsv1.WorkspaceMember{
 		WorkspaceId: req.GetWorkspaceId(),
 		UserId:      req.GetUserId(),
@@ -189,10 +232,63 @@ func (s *WorkspaceServiceServer) RemoveWorkspaceMember(ctx context.Context, req 
 	if s.repo == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
 	}
+	if req.GetWorkspaceId() == "" {
+		return nil, twirp.RequiredArgumentError("workspace_id")
+	}
+	if req.GetUserId() == "" {
+		return nil, twirp.RequiredArgumentError("user_id")
+	}
+	if err := s.requireRole(ctx, req.GetWorkspaceId(), "owner"); err != nil {
+		return nil, err
+	}
 	if err := s.repo.RemoveMember(ctx, req.GetWorkspaceId(), req.GetUserId()); err != nil {
 		return nil, mapWorkspaceErr(err)
 	}
 	return &agentsv1.RemoveWorkspaceMemberResponse{}, nil
+}
+
+// requireMembership returns nil if the caller is an admin or a member of the
+// workspace; otherwise NotFound to avoid leaking the existence of workspaces.
+func (s *WorkspaceServiceServer) requireMembership(ctx context.Context, workspaceID string) error {
+	if auth.IsAdmin(ctx) {
+		return nil
+	}
+	user, ok := auth.UserFromContext(ctx)
+	if !ok {
+		return twirp.NewError(twirp.Unauthenticated, "authentication required")
+	}
+	member, err := s.repo.IsMember(ctx, workspaceID, user.GetId())
+	if err != nil {
+		return twirp.InternalErrorWith(err)
+	}
+	if !member {
+		return twirp.NotFoundError("workspace not found")
+	}
+	return nil
+}
+
+// requireRole returns nil if the caller is an admin or a member of the
+// workspace with one of the given roles. Members lacking the required role
+// receive PermissionDenied; non-members receive NotFound.
+func (s *WorkspaceServiceServer) requireRole(ctx context.Context, workspaceID string, roles ...string) error {
+	if auth.IsAdmin(ctx) {
+		return nil
+	}
+	user, ok := auth.UserFromContext(ctx)
+	if !ok {
+		return twirp.NewError(twirp.Unauthenticated, "authentication required")
+	}
+	member, err := s.repo.GetMember(ctx, workspaceID, user.GetId())
+	if err != nil {
+		if errors.Is(err, workspacerepo.ErrNotFound) {
+			return twirp.NotFoundError("workspace not found")
+		}
+		return twirp.InternalErrorWith(err)
+	}
+	if slices.Contains(roles, member.GetRole()) {
+		return nil
+	}
+	return twirp.NewError(twirp.PermissionDenied, "insufficient workspace role")
 }
 
 func mapWorkspaceErr(err error) twirp.Error {

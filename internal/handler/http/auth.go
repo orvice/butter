@@ -65,7 +65,8 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 
 		// Legacy/dev behavior before bootstrap wires repositories.
 		if rootToken == "" && authRepo == nil && apiTokenRepo == nil {
-			c.Request = c.Request.WithContext(applyWorkspaceHeader(c.Request.Context(), c, workspaceRepo, "", true))
+			ctx := auth.WithAdmin(c.Request.Context())
+			c.Request = c.Request.WithContext(applyWorkspaceHeader(ctx, c, workspaceRepo, "", true))
 			c.Next()
 			return
 		}
@@ -81,6 +82,9 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 			if err == nil {
 				go touchSession(authRepo, session.ID)
 				ctx := auth.WithAuthenticated(c.Request.Context(), user, session)
+				if user.GetRole() == "admin" {
+					ctx = auth.WithAdmin(ctx)
+				}
 				ctx = applyWorkspaceHeader(ctx, c, workspaceRepo, user.GetId(), user.GetRole() == "admin")
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
@@ -93,7 +97,8 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 
 		// Try root token (constant-time compare) for ops/daemon/API compatibility.
 		if rootToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(rootToken)) == 1 {
-			c.Request = c.Request.WithContext(applyWorkspaceHeader(c.Request.Context(), c, workspaceRepo, "", true))
+			ctx := auth.WithAdmin(c.Request.Context())
+			c.Request = c.Request.WithContext(applyWorkspaceHeader(ctx, c, workspaceRepo, "", true))
 			c.Next()
 			return
 		}

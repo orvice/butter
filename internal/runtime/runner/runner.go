@@ -657,6 +657,7 @@ func (s *Service) startInvocation(ctx context.Context, agentName string, parts [
 		StartedAt:     timestamppb.New(time.Now().UTC()),
 		ModelOverride: modelOverride,
 		Source:        ctxInfo.GetSource().String(),
+		WorkspaceId:   ctxInfo.GetWorkspaceId(),
 	}
 	// Best-effort: failures are logged but do not block the run.
 	if err := rec.Save(ctx, inv); err != nil {
