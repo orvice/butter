@@ -25,7 +25,7 @@ type AppConfig struct {
 	RedisPassword string `yaml:"redis_password"`
 
 	HTTP           HTTPConfig `yaml:"http"`
-	StorageBackend string     `yaml:"storage_backend"` // "memory" (default) or "mongo"
+	StorageBackend string     `yaml:"storage_backend"` // "mongo" (default) or "memory"
 	GRPCPort       int        `yaml:"grpc_port"`       // daemon gRPC server port (default 9090)
 }
 

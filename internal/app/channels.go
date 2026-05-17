@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"butterfly.orx.me/core/log"
@@ -93,14 +94,17 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	logger.Info("auth bootstrap completed")
 	authRepo = authredis.New(authUserRepo, rdb)
-	if strings.ToLower(strings.TrimSpace(cfg.StorageBackend)) == "mongo" {
+	switch backend := strings.ToLower(strings.TrimSpace(cfg.StorageBackend)); backend {
+	case "", "mongo":
 		tokenRepo = apitokenmongo.New(db)
 		invRepo = invocationmongo.New(db)
 		wsRepo = workspacemongo.New(db)
-	} else {
+	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
 		wsRepo = workspacememory.New()
+	default:
+		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
 	if err := wsRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create workspace indexes", "err", err)

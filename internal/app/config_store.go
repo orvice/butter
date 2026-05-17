@@ -64,15 +64,15 @@ func (s *ConfigStore) InitFromConfig(ctx context.Context, cfg *config.AppConfig)
 }
 
 func (s *ConfigStore) newBackend(ctx context.Context, cfg *config.AppConfig) (configBackend, error) {
-	switch strings.ToLower(cfg.StorageBackend) {
-	case "", "memory":
-		return configmemory.New(), nil
-	case "mongo":
+	switch strings.ToLower(strings.TrimSpace(cfg.StorageBackend)) {
+	case "", "mongo":
 		db, err := connectMongo(ctx, cfg)
 		if err != nil {
 			return nil, err
 		}
 		return configmongo.New(db), nil
+	case "memory":
+		return configmemory.New(), nil
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}

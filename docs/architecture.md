@@ -245,8 +245,8 @@ cmd/butter server
 
 启动时 `ConfigStore.InitFromConfig` 会根据 `storage_backend` 选择后端：
 
-- `memory` 或空：使用内存仓库；初始为空。
-- `mongo`：直接读取 MongoDB 中的配置。YAML 中的 `agents` / `mcp_servers` / `remote_agents` / `channels` / `model_providers` 已不再作为 seed 源，应通过 RPC（带 `X-Workspace-ID`）写入。
+- `mongo` 或空：使用 MongoDB 仓库；直接读取 MongoDB 中的配置。YAML 中的 `agents` / `mcp_servers` / `remote_agents` / `channels` / `model_providers` 已不再作为 seed 源，应通过 RPC（带 `X-Workspace-ID`）写入。
+- `memory`：使用内存仓库；初始为空，进程重启后数据丢失。
 
 RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 workspace；写完成调用 `ConfigRuntime`：
 
@@ -267,7 +267,7 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 - `invocations`：runner 持久化的每次 ADK 调用（runner → `InvocationRecorder.Save`，RUNNING 起记，defer 写终态，附带 `workspace_id`）。驱动 ActivityFeed + AgentRuntimeStatus + ListAgentInvocations。
 - `api_tokens`：DB-stored API tokens（带 `workspace_id` + `secret_hash` + `prefix` + `last_used_at` + `revoked`）。
 
-后端选择：`storage_backend = "mongo"` 时全部走 mongo；否则用内存仓库（`api_tokens` / `invocations` 也支持 memory 实现，方便测试）。
+后端选择：`storage_backend` 为空或等于 `"mongo"` 时全部走 mongo；显式设置为 `"memory"` 时用内存仓库（`api_tokens` / `invocations` 也支持 memory 实现，方便测试）。
 
 Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不可用时登录/session 校验会失败。
 

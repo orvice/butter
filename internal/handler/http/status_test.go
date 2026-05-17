@@ -44,7 +44,7 @@ func seedStatusStore(t *testing.T, store *statusStore) {
 
 func TestStatusHandler_Status(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	cfg := &config.AppConfig{APIToken: "secret-token"}
+	cfg := &config.AppConfig{APIToken: "secret-token", StorageBackend: "memory"}
 	store := &statusStore{Store: configmemory.New()}
 	seedStatusStore(t, store)
 
@@ -94,7 +94,7 @@ func TestStatusHandler_Status(t *testing.T) {
 
 func TestStatusHandler_RequiresAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	cfg := &config.AppConfig{APIToken: "secret-token"}
+	cfg := &config.AppConfig{APIToken: "secret-token", StorageBackend: "memory"}
 	store := &statusStore{Store: configmemory.New()}
 
 	r := gin.New()
