@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { twirpFetch } from "@/api/client";
 import type { Workspace, WorkspaceMember } from "@/gen/agents/v1/workspace_pb";
 
+type WorkspacesCache = { workspaces?: Workspace[] };
+
 const SVC = "agents.v1.WorkspaceService";
 
 export interface CreateWorkspaceInput {
@@ -94,7 +96,11 @@ export function useDeleteWorkspace() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: deleteWorkspaceRequest,
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
+      qc.setQueryData<WorkspacesCache>(["workspaces"], (old) => ({
+        ...old,
+        workspaces: old?.workspaces?.filter((workspace) => workspace.id !== deletedId) ?? [],
+      }));
       void qc.invalidateQueries({ queryKey: ["workspaces"] });
     },
   });

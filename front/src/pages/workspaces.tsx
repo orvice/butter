@@ -22,10 +22,23 @@ import {
   useWorkspaceMembers,
 } from "@/api/workspaces";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { WORKSPACE_KEY } from "@/lib/constants";
 import type { WorkspaceMember } from "@/gen/agents/v1/workspace_pb";
 
+type WorkspaceMemberRecord = WorkspaceMember & {
+  workspace_id?: string;
+  user_id?: string;
+  created_at?: Timestamp;
+};
+
 const MEMBER_ROLES = ["owner", "admin", "member"];
+
+function workspaceMemberUserId(member: WorkspaceMemberRecord) {
+  return member.userId || member.user_id || "";
+}
+
+function workspaceMemberCreatedAt(member: WorkspaceMemberRecord) {
+  return member.createdAt || member.created_at;
+}
 
 function userLabel(user: AuthUser | undefined) {
   if (!user) return "Unknown user";
@@ -39,7 +52,7 @@ function formatDate(value?: Timestamp) {
 }
 
 export default function WorkspacePage() {
-  const { workspaces, selectedWorkspace, selectedWorkspaceId } = useWorkspace();
+  const { workspaces, selectedWorkspace, selectedWorkspaceId, clearSelectedWorkspace } = useWorkspace();
   const { data: membersData, isLoading: membersLoading } = useWorkspaceMembers(selectedWorkspaceId);
   const { data: usersData, isLoading: usersLoading } = useUsers();
   const updateWorkspace = useUpdateWorkspace();
@@ -67,7 +80,7 @@ export default function WorkspacePage() {
   }, [selectedWorkspace?.description, selectedWorkspace?.id, selectedWorkspace?.name, selectedWorkspace?.slug]);
 
   const availableUsers = useMemo(
-    () => users.filter((user) => !members.some((member) => member.userId === user.id)),
+    () => users.filter((user) => !members.some((member) => workspaceMemberUserId(member) === user.id)),
     [members, users],
   );
 
@@ -121,12 +134,13 @@ export default function WorkspacePage() {
     );
   }
 
-  function handleMemberRoleChange(member: WorkspaceMember, role: string | null) {
-    if (!selectedWorkspaceId || !role || role === member.role) return;
+  function handleMemberRoleChange(member: WorkspaceMemberRecord, role: string | null) {
+    const userId = workspaceMemberUserId(member);
+    if (!selectedWorkspaceId || !userId || !role || role === member.role) return;
     updateMember.mutate(
       {
         workspace_id: selectedWorkspaceId,
-        user_id: member.userId,
+        user_id: userId,
         role,
       },
       {
@@ -136,12 +150,13 @@ export default function WorkspacePage() {
     );
   }
 
-  function handleRemoveMember(member: WorkspaceMember) {
-    if (!selectedWorkspaceId) return;
+  function handleRemoveMember(member: WorkspaceMemberRecord) {
+    const userId = workspaceMemberUserId(member);
+    if (!selectedWorkspaceId || !userId) return;
     removeMember.mutate(
       {
         workspace_id: selectedWorkspaceId,
-        user_id: member.userId,
+        user_id: userId,
       },
       {
         onSuccess: () => toast.success("Member removed"),
@@ -154,7 +169,7 @@ export default function WorkspacePage() {
     if (!selectedWorkspaceId) return;
     deleteWorkspace.mutate(selectedWorkspaceId, {
       onSuccess: () => {
-        localStorage.removeItem(WORKSPACE_KEY);
+        clearSelectedWorkspace();
         setDeleteOpen(false);
         toast.success("Workspace deleted");
       },
@@ -162,15 +177,16 @@ export default function WorkspacePage() {
     });
   }
 
-  const columns: Column<WorkspaceMember>[] = [
+  const columns: Column<WorkspaceMemberRecord>[] = [
     {
       header: "Member",
       cell: (member) => {
-        const user = users.find((entry) => entry.id === member.userId);
+        const userId = workspaceMemberUserId(member);
+        const user = users.find((entry) => entry.id === userId);
         return (
           <div>
             <div className="font-medium">{userLabel(user)}</div>
-            <div className="text-xs text-muted-foreground">{user?.username ? `@${user.username}` : member.userId}</div>
+            <div className="text-xs text-muted-foreground">{user?.username ? `@${user.username}` : userId}</div>
           </div>
         );
       },
@@ -194,7 +210,7 @@ export default function WorkspacePage() {
     },
     {
       header: "Joined",
-      cell: (member) => <span className="text-xs text-muted-foreground">{formatDate(member.createdAt)}</span>,
+      cell: (member) => <span className="text-xs text-muted-foreground">{formatDate(workspaceMemberCreatedAt(member))}</span>,
     },
     {
       header: "Actions",

@@ -15,6 +15,7 @@ interface WorkspaceContextValue {
   isCreating: boolean;
   error: unknown;
   setSelectedWorkspaceId: (id: string) => void;
+  clearSelectedWorkspace: () => void;
   createWorkspace: (input: CreateWorkspaceInput) => Promise<Workspace>;
 }
 
@@ -56,7 +57,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, loginWorkspaces, queryClient]);
 
   const workspaces = useMemo(() => {
-    if (data?.workspaces?.length) {
+    if (data?.workspaces !== undefined) {
       return data.workspaces;
     }
     return loginWorkspaces;
@@ -99,6 +100,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [queryClient, selectedWorkspaceId],
   );
 
+  const clearSelectedWorkspace = useCallback(() => {
+    localStorage.removeItem(WORKSPACE_KEY);
+    setSelectedWorkspaceIdState("");
+    void queryClient.invalidateQueries();
+  }, [queryClient]);
+
   const createWorkspace = useCallback(
     async (input: CreateWorkspaceInput) => {
       const res = await createMutation.mutateAsync(input);
@@ -125,6 +132,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         isCreating: createMutation.isPending,
         error,
         setSelectedWorkspaceId,
+        clearSelectedWorkspace,
         createWorkspace,
       }}
     >
