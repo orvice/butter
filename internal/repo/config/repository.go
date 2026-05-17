@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrNotFound     = errors.New("not found")
+	ErrNotFound      = errors.New("not found")
 	ErrAlreadyExists = errors.New("already exists")
 )
 
@@ -46,4 +46,13 @@ type ChannelRepository interface {
 	CreateChannel(ctx context.Context, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error)
 	UpdateChannel(ctx context.Context, channel *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error)
 	DeleteChannel(ctx context.Context, name string) error
+}
+
+// ModelProviderRepository defines CRUD operations for LLM model provider configurations.
+type ModelProviderRepository interface {
+	ListModelProviders(ctx context.Context) ([]*agentsv1.ModelProvider, error)
+	GetModelProvider(ctx context.Context, name string) (*agentsv1.ModelProvider, error)
+	CreateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error)
+	UpdateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error)
+	DeleteModelProvider(ctx context.Context, name string) error
 }

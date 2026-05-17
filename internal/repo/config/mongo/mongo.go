@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	agentsCollection       = "config_agents"
-	mcpServersCollection   = "config_mcpservers"
-	remoteAgentsCollection = "config_remoteagents"
-	channelsCollection     = "config_channels"
+	agentsCollection         = "config_agents"
+	mcpServersCollection     = "config_mcpservers"
+	remoteAgentsCollection   = "config_remoteagents"
+	channelsCollection       = "config_channels"
+	modelProvidersCollection = "config_modelproviders"
 )
 
 // configDoc is the generic MongoDB document for a config entity.
@@ -27,20 +28,22 @@ type configDoc struct {
 	Spec string `bson:"spec"` // protojson-encoded
 }
 
-// Store implements all four config repository interfaces backed by MongoDB.
+// Store implements all config repository interfaces backed by MongoDB.
 type Store struct {
-	agents       *mongo.Collection
-	mcpServers   *mongo.Collection
-	remoteAgents *mongo.Collection
-	channels     *mongo.Collection
+	agents         *mongo.Collection
+	mcpServers     *mongo.Collection
+	remoteAgents   *mongo.Collection
+	channels       *mongo.Collection
+	modelProviders *mongo.Collection
 }
 
 func New(db *mongo.Database) *Store {
 	return &Store{
-		agents:       db.Collection(agentsCollection),
-		mcpServers:   db.Collection(mcpServersCollection),
-		remoteAgents: db.Collection(remoteAgentsCollection),
-		channels:     db.Collection(channelsCollection),
+		agents:         db.Collection(agentsCollection),
+		mcpServers:     db.Collection(mcpServersCollection),
+		remoteAgents:   db.Collection(remoteAgentsCollection),
+		channels:       db.Collection(channelsCollection),
+		modelProviders: db.Collection(modelProvidersCollection),
 	}
 }
 
@@ -373,8 +376,84 @@ func (s *Store) DeleteChannel(ctx context.Context, name string) error {
 	return nil
 }
 
+// --- Model Providers ---
+
+func (s *Store) ListModelProviders(ctx context.Context) ([]*agentsv1.ModelProvider, error) {
+	cursor, err := s.modelProviders.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, fmt.Errorf("list model providers: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var docs []configDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("decode model providers: %w", err)
+	}
+
+	result := make([]*agentsv1.ModelProvider, 0, len(docs))
+	for _, d := range docs {
+		p := &agentsv1.ModelProvider{}
+		if err := unmarshal(d.Spec, p); err != nil {
+			return nil, fmt.Errorf("unmarshal model provider %q: %w", d.ID, err)
+		}
+		result = append(result, p)
+	}
+	return result, nil
+}
+
+func (s *Store) GetModelProvider(ctx context.Context, name string) (*agentsv1.ModelProvider, error) {
+	var doc configDoc
+	err := s.modelProviders.FindOne(ctx, bson.M{"_id": name}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("model provider", name, err)
+	}
+	p := &agentsv1.ModelProvider{}
+	if err := unmarshal(doc.Spec, p); err != nil {
+		return nil, fmt.Errorf("unmarshal model provider %q: %w", name, err)
+	}
+	return p, nil
+}
+
+func (s *Store) CreateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	spec, err := marshal(provider)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.modelProviders.InsertOne(ctx, configDoc{ID: provider.GetName(), Spec: spec})
+	if err != nil {
+		return nil, mapError("model provider", provider.GetName(), err)
+	}
+	return proto.Clone(provider).(*agentsv1.ModelProvider), nil
+}
+
+func (s *Store) UpdateModelProvider(ctx context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	spec, err := marshal(provider)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.modelProviders.ReplaceOne(ctx, bson.M{"_id": provider.GetName()}, configDoc{ID: provider.GetName(), Spec: spec})
+	if err != nil {
+		return nil, mapError("model provider", provider.GetName(), err)
+	}
+	if result.MatchedCount == 0 {
+		return nil, fmt.Errorf("model provider %q: %w", provider.GetName(), configrepo.ErrNotFound)
+	}
+	return proto.Clone(provider).(*agentsv1.ModelProvider), nil
+}
+
+func (s *Store) DeleteModelProvider(ctx context.Context, name string) error {
+	result, err := s.modelProviders.DeleteOne(ctx, bson.M{"_id": name})
+	if err != nil {
+		return mapError("model provider", name, err)
+	}
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("model provider %q: %w", name, configrepo.ErrNotFound)
+	}
+	return nil
+}
+
 // Seed upserts config entries into MongoDB. Existing entries with matching keys are overwritten.
-func (s *Store) Seed(ctx context.Context, agents []agentsv1.Agent, mcpServers []agentsv1.MCPServer, remoteAgents []agentsv1.RemoteAgent, channels []agentsv1.AgentChannel) error {
+func (s *Store) Seed(ctx context.Context, agents []agentsv1.Agent, mcpServers []agentsv1.MCPServer, remoteAgents []agentsv1.RemoteAgent, channels []agentsv1.AgentChannel, modelProviders []agentsv1.ModelProvider) error {
 	for i := range agents {
 		spec, err := marshal(&agents[i])
 		if err != nil {
@@ -417,6 +496,17 @@ func (s *Store) Seed(ctx context.Context, agents []agentsv1.Agent, mcpServers []
 		_, err = s.channels.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, replaceUpsert())
 		if err != nil {
 			return fmt.Errorf("seed channel %q: %w", doc.ID, err)
+		}
+	}
+	for i := range modelProviders {
+		spec, err := marshal(&modelProviders[i])
+		if err != nil {
+			return err
+		}
+		doc := configDoc{ID: modelProviders[i].GetName(), Spec: spec}
+		_, err = s.modelProviders.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, replaceUpsert())
+		if err != nil {
+			return fmt.Errorf("seed model provider %q: %w", doc.ID, err)
 		}
 	}
 	return nil

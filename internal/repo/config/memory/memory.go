@@ -11,21 +11,23 @@ import (
 )
 
 // Store provides thread-safe in-memory CRUD for all config entities.
-// It implements AgentRepository, MCPServerRepository, RemoteAgentRepository, and ChannelRepository.
+// It implements AgentRepository, MCPServerRepository, RemoteAgentRepository, ChannelRepository, and ModelProviderRepository.
 type Store struct {
-	mu           sync.RWMutex
-	agents       map[string]*agentsv1.Agent
-	mcpServers   map[string]*agentsv1.MCPServer
-	remoteAgents map[string]*agentsv1.RemoteAgent
-	channels     map[string]*agentsv1.AgentChannel
+	mu             sync.RWMutex
+	agents         map[string]*agentsv1.Agent
+	mcpServers     map[string]*agentsv1.MCPServer
+	remoteAgents   map[string]*agentsv1.RemoteAgent
+	channels       map[string]*agentsv1.AgentChannel
+	modelProviders map[string]*agentsv1.ModelProvider
 }
 
 func New() *Store {
 	return &Store{
-		agents:       make(map[string]*agentsv1.Agent),
-		mcpServers:   make(map[string]*agentsv1.MCPServer),
-		remoteAgents: make(map[string]*agentsv1.RemoteAgent),
-		channels:     make(map[string]*agentsv1.AgentChannel),
+		agents:         make(map[string]*agentsv1.Agent),
+		mcpServers:     make(map[string]*agentsv1.MCPServer),
+		remoteAgents:   make(map[string]*agentsv1.RemoteAgent),
+		channels:       make(map[string]*agentsv1.AgentChannel),
+		modelProviders: make(map[string]*agentsv1.ModelProvider),
 	}
 }
 
@@ -245,8 +247,62 @@ func (s *Store) DeleteChannel(_ context.Context, name string) error {
 	return nil
 }
 
+// --- Model Providers ---
+
+func (s *Store) ListModelProviders(_ context.Context) ([]*agentsv1.ModelProvider, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]*agentsv1.ModelProvider, 0, len(s.modelProviders))
+	for _, p := range s.modelProviders {
+		result = append(result, proto.Clone(p).(*agentsv1.ModelProvider))
+	}
+	return result, nil
+}
+
+func (s *Store) GetModelProvider(_ context.Context, name string) (*agentsv1.ModelProvider, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	p, ok := s.modelProviders[name]
+	if !ok {
+		return nil, fmt.Errorf("model provider %q: %w", name, configrepo.ErrNotFound)
+	}
+	return proto.Clone(p).(*agentsv1.ModelProvider), nil
+}
+
+func (s *Store) CreateModelProvider(_ context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.modelProviders[provider.GetName()]; ok {
+		return nil, fmt.Errorf("model provider %q: %w", provider.GetName(), configrepo.ErrAlreadyExists)
+	}
+	stored := proto.Clone(provider).(*agentsv1.ModelProvider)
+	s.modelProviders[provider.GetName()] = stored
+	return proto.Clone(stored).(*agentsv1.ModelProvider), nil
+}
+
+func (s *Store) UpdateModelProvider(_ context.Context, provider *agentsv1.ModelProvider) (*agentsv1.ModelProvider, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.modelProviders[provider.GetName()]; !ok {
+		return nil, fmt.Errorf("model provider %q: %w", provider.GetName(), configrepo.ErrNotFound)
+	}
+	stored := proto.Clone(provider).(*agentsv1.ModelProvider)
+	s.modelProviders[provider.GetName()] = stored
+	return proto.Clone(stored).(*agentsv1.ModelProvider), nil
+}
+
+func (s *Store) DeleteModelProvider(_ context.Context, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.modelProviders[name]; !ok {
+		return fmt.Errorf("model provider %q: %w", name, configrepo.ErrNotFound)
+	}
+	delete(s.modelProviders, name)
+	return nil
+}
+
 // Seed populates the store from config data. Existing entries with matching keys are overwritten.
-func (s *Store) Seed(ctx context.Context, agents []agentsv1.Agent, mcpServers []agentsv1.MCPServer, remoteAgents []agentsv1.RemoteAgent, channels []agentsv1.AgentChannel) {
+func (s *Store) Seed(ctx context.Context, agents []agentsv1.Agent, mcpServers []agentsv1.MCPServer, remoteAgents []agentsv1.RemoteAgent, channels []agentsv1.AgentChannel, modelProviders []agentsv1.ModelProvider) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range agents {
@@ -260,5 +316,8 @@ func (s *Store) Seed(ctx context.Context, agents []agentsv1.Agent, mcpServers []
 	}
 	for i := range channels {
 		s.channels[channels[i].GetName()] = proto.Clone(&channels[i]).(*agentsv1.AgentChannel)
+	}
+	for i := range modelProviders {
+		s.modelProviders[modelProviders[i].GetName()] = proto.Clone(&modelProviders[i]).(*agentsv1.ModelProvider)
 	}
 }

@@ -24,7 +24,7 @@ type fakeRunnerReloader struct {
 	err   error
 }
 
-func (r *fakeRunnerReloader) ReloadProtoAgents(context.Context, []agentsv1.Agent, []agentsv1.MCPServer, []agentsv1.RemoteAgent) error {
+func (r *fakeRunnerReloader) ReloadProtoAgents(context.Context, []agentsv1.Agent, []agentsv1.ModelProvider, []agentsv1.MCPServer, []agentsv1.RemoteAgent) error {
 	r.calls++
 	return r.err
 }

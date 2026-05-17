@@ -12,6 +12,9 @@ import AgentEditPage from "@/pages/agents/edit";
 import MCPServerListPage from "@/pages/mcp-servers/list";
 import MCPServerCreatePage from "@/pages/mcp-servers/create";
 import MCPServerEditPage from "@/pages/mcp-servers/edit";
+import ModelProviderListPage from "@/pages/model-providers/list";
+import ModelProviderCreatePage from "@/pages/model-providers/create";
+import ModelProviderEditPage from "@/pages/model-providers/edit";
 import RemoteAgentListPage from "@/pages/remote-agents/list";
 import RemoteAgentCreatePage from "@/pages/remote-agents/create";
 import RemoteAgentEditPage from "@/pages/remote-agents/edit";
@@ -51,6 +54,9 @@ export default function App() {
                 <Route path="mcp-servers" element={<MCPServerListPage />} />
                 <Route path="mcp-servers/create" element={<MCPServerCreatePage />} />
                 <Route path="mcp-servers/:id/edit" element={<MCPServerEditPage />} />
+                <Route path="model-providers" element={<ModelProviderListPage />} />
+                <Route path="model-providers/create" element={<ModelProviderCreatePage />} />
+                <Route path="model-providers/:name/edit" element={<ModelProviderEditPage />} />
                 <Route path="remote-agents" element={<RemoteAgentListPage />} />
                 <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
                 <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />

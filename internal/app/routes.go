@@ -21,25 +21,27 @@ import (
 
 // Handlers holds all HTTP/Twirp handlers that need post-bootstrap wiring.
 type Handlers struct {
-	a2aHandler         *httpHandler.A2AHandler
-	agentSvcServer     *application.AgentServiceServer
-	mcpSvcServer       *application.MCPServerServiceServer
-	remoteSvcServer    *application.RemoteAgentServiceServer
-	sessionSvcServer   *application.SessionServiceServer
-	cronSvcServer      *application.CronJobServiceServer
-	channelSvcServer   *application.ChannelServiceServer
-	dashboardSvcServer *application.DashboardServiceServer
-	daemonSvcServer    *application.DaemonServiceServer
-	apiTokenSvcServer  *application.APITokenServiceServer
-	authSvcServer      *application.AuthServiceServer
-	authRepo           atomic.Value // auth.Repository
-	apiTokenRepo       atomic.Value // apitoken.Repository
-	configStore        *ConfigStore
-	configRuntime      *ConfigRuntime
-	agentRepo          configrepo.AgentRepository
-	mcpServerRepo      configrepo.MCPServerRepository
-	remoteAgentRepo    configrepo.RemoteAgentRepository
-	channelRepo        configrepo.ChannelRepository
+	a2aHandler             *httpHandler.A2AHandler
+	agentSvcServer         *application.AgentServiceServer
+	mcpSvcServer           *application.MCPServerServiceServer
+	modelProviderSvcServer *application.ModelProviderServiceServer
+	remoteSvcServer        *application.RemoteAgentServiceServer
+	sessionSvcServer       *application.SessionServiceServer
+	cronSvcServer          *application.CronJobServiceServer
+	channelSvcServer       *application.ChannelServiceServer
+	dashboardSvcServer     *application.DashboardServiceServer
+	daemonSvcServer        *application.DaemonServiceServer
+	apiTokenSvcServer      *application.APITokenServiceServer
+	authSvcServer          *application.AuthServiceServer
+	authRepo               atomic.Value // auth.Repository
+	apiTokenRepo           atomic.Value // apitoken.Repository
+	configStore            *ConfigStore
+	configRuntime          *ConfigRuntime
+	agentRepo              configrepo.AgentRepository
+	mcpServerRepo          configrepo.MCPServerRepository
+	modelProviderRepo      configrepo.ModelProviderRepository
+	remoteAgentRepo        configrepo.RemoteAgentRepository
+	channelRepo            configrepo.ChannelRepository
 }
 
 // apiTokenRepoFromHolder returns the currently wired apitoken repository, if any.
@@ -104,6 +106,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		}
 		h.agentSvcServer.SetRuntime(h.configRuntime)
 		h.mcpSvcServer.SetRuntime(h.configRuntime)
+		h.modelProviderSvcServer.SetRuntime(h.configRuntime)
 		h.remoteSvcServer.SetRuntime(h.configRuntime)
 		h.channelSvcServer.SetRuntime(h.configRuntime)
 	}
@@ -179,10 +182,12 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	pathPrefix := twirp.WithServerPathPrefix("/api")
 	agentSvcServer := application.NewAgentServiceServer(configStore)
 	mcpSvcServer := application.NewMCPServerServiceServer(configStore)
+	modelProviderSvcServer := application.NewModelProviderServiceServer(configStore)
 	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
 	remoteSvcServer.SetDaemonRegistry(daemonRegistry)
 	agentTwirp := agentsv1.NewAgentServiceServer(agentSvcServer, pathPrefix)
 	mcpTwirp := agentsv1.NewMCPServerServiceServer(mcpSvcServer, pathPrefix)
+	modelProviderTwirp := agentsv1.NewModelProviderServiceServer(modelProviderSvcServer, pathPrefix)
 	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(remoteSvcServer, pathPrefix)
 	channelSvcServer := application.NewChannelServiceServer(configStore)
 	channelTwirp := agentsv1.NewChannelServiceServer(channelSvcServer, pathPrefix)
@@ -200,23 +205,25 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	authTwirp := agentsv1.NewAuthServiceServer(authSvcServer, pathPrefix)
 
 	handlers := &Handlers{
-		a2aHandler:         a2aHandler,
-		agentSvcServer:     agentSvcServer,
-		mcpSvcServer:       mcpSvcServer,
-		remoteSvcServer:    remoteSvcServer,
-		sessionSvcServer:   sessionSvcServer,
-		cronSvcServer:      cronSvcServer,
-		channelSvcServer:   channelSvcServer,
-		dashboardSvcServer: dashboardSvcServer,
-		daemonSvcServer:    daemonSvcServer,
-		apiTokenSvcServer:  apiTokenSvcServer,
-		authSvcServer:      authSvcServer,
-		configStore:        configStore,
-		configRuntime:      configRuntime,
-		agentRepo:          configStore,
-		mcpServerRepo:      configStore,
-		remoteAgentRepo:    configStore,
-		channelRepo:        configStore,
+		a2aHandler:             a2aHandler,
+		agentSvcServer:         agentSvcServer,
+		mcpSvcServer:           mcpSvcServer,
+		modelProviderSvcServer: modelProviderSvcServer,
+		remoteSvcServer:        remoteSvcServer,
+		sessionSvcServer:       sessionSvcServer,
+		cronSvcServer:          cronSvcServer,
+		channelSvcServer:       channelSvcServer,
+		dashboardSvcServer:     dashboardSvcServer,
+		daemonSvcServer:        daemonSvcServer,
+		apiTokenSvcServer:      apiTokenSvcServer,
+		authSvcServer:          authSvcServer,
+		configStore:            configStore,
+		configRuntime:          configRuntime,
+		agentRepo:              configStore,
+		mcpServerRepo:          configStore,
+		modelProviderRepo:      configStore,
+		remoteAgentRepo:        configStore,
+		channelRepo:            configStore,
 	}
 
 	router := func(r *gin.Engine) {
@@ -228,6 +235,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		// Mount Twirp handlers under /api prefix
 		r.Any(agentTwirp.PathPrefix()+"*path", gin.WrapH(agentTwirp))
 		r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
+		r.Any(modelProviderTwirp.PathPrefix()+"*path", gin.WrapH(modelProviderTwirp))
 		r.Any(remoteTwirp.PathPrefix()+"*path", gin.WrapH(remoteTwirp))
 		r.Any(channelTwirp.PathPrefix()+"*path", gin.WrapH(channelTwirp))
 		r.Any(sessionTwirp.PathPrefix()+"*path", gin.WrapH(sessionTwirp))

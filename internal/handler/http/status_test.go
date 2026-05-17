@@ -32,6 +32,7 @@ func TestStatusHandler_Status(t *testing.T) {
 		[]agentsv1.MCPServer{{Id: "mcp-primary"}},
 		[]agentsv1.RemoteAgent{{Id: "remote-primary"}},
 		[]agentsv1.AgentChannel{{Name: "telegram-main"}},
+		nil,
 	)
 
 	r := gin.New()

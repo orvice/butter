@@ -17,6 +17,7 @@ import {
   LogOut,
   Cpu,
   Cable,
+  BrainCircuit,
   KeyRound,
   Users,
   CircleCheck,
@@ -54,6 +55,7 @@ const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashb
     label: "Settings",
     items: [
       { to: "/channels", icon: Cable, label: "Channels" },
+      { to: "/model-providers", icon: BrainCircuit, label: "Model Providers" },
       { to: "/api-tokens", icon: KeyRound, label: "API Tokens" },
       { to: "/users", icon: Users, label: "Users" },
     ],
