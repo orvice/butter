@@ -21,6 +21,7 @@ import RemoteAgentCreatePage from "@/pages/remote-agents/create";
 import RemoteAgentEditPage from "@/pages/remote-agents/edit";
 import SessionListPage from "@/pages/sessions/list";
 import SessionDetailPage from "@/pages/sessions/detail";
+import ChatPage from "@/pages/chat";
 import CronJobListPage from "@/pages/cron/list";
 import CronJobCreatePage from "@/pages/cron/create";
 import CronJobEditPage from "@/pages/cron/edit";
@@ -65,6 +66,7 @@ export default function App() {
                   <Route path="remote-agents" element={<RemoteAgentListPage />} />
                   <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
                   <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />
+                  <Route path="chat" element={<ChatPage />} />
                   <Route path="sessions" element={<SessionListPage />} />
                   <Route path="sessions/detail" element={<SessionDetailPage />} />
                   <Route path="cron" element={<CronJobListPage />} />
