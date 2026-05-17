@@ -7,6 +7,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
+	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/cron"
@@ -80,6 +81,9 @@ func (s *DashboardServiceServer) SetCronExecutionRepo(repo cron.ExecutionRepo) {
 }
 
 func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context, req *agentsv1.GetCronExecutionTimeseriesRequest) (*agentsv1.GetCronExecutionTimeseriesResponse, error) {
+	if err := requireDashboardAccess(ctx); err != nil {
+		return nil, err
+	}
 	if s.cronExecRepo == nil {
 		return &agentsv1.GetCronExecutionTimeseriesResponse{}, nil
 	}
@@ -131,6 +135,9 @@ func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context,
 }
 
 func (s *DashboardServiceServer) GetActivityFeed(ctx context.Context, req *agentsv1.GetActivityFeedRequest) (*agentsv1.GetActivityFeedResponse, error) {
+	if err := requireDashboardAccess(ctx); err != nil {
+		return nil, err
+	}
 	if s.invRepo == nil {
 		return &agentsv1.GetActivityFeedResponse{}, nil
 	}
@@ -178,6 +185,9 @@ func invocationToActivity(inv *agentsv1.Invocation) *agentsv1.ActivityEvent {
 }
 
 func (s *DashboardServiceServer) GetOverview(ctx context.Context, _ *agentsv1.GetOverviewRequest) (*agentsv1.GetOverviewResponse, error) {
+	if err := requireDashboardAccess(ctx); err != nil {
+		return nil, err
+	}
 	counts, err := s.counts(ctx)
 	if err != nil {
 		return nil, toTwirpError(err)
@@ -337,4 +347,14 @@ func (s *DashboardServiceServer) latestHandshake() *agentsv1.DaemonHandshake {
 		ConnectedAt:  timestamppb.New(latest.ConnectedAt),
 		Os:           latest.Info.GetOs(),
 	}
+}
+
+// requireDashboardAccess rejects callers that aren't admin-equivalent. The
+// dashboard aggregates data across every workspace (counts, activity feed,
+// cron timeseries) and must not be exposed to ordinary tenant members.
+func requireDashboardAccess(ctx context.Context) error {
+	if auth.IsAdmin(ctx) {
+		return nil
+	}
+	return twirp.NewError(twirp.PermissionDenied, "dashboard access requires admin role")
 }

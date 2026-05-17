@@ -12,8 +12,9 @@ var ErrNotFound = errors.New("invocation not found")
 
 // ListFilter narrows results returned by List.
 type ListFilter struct {
-	AgentName string
-	SessionID string
+	WorkspaceID string
+	AgentName   string
+	SessionID   string
 }
 
 // Repository persists invocation records produced by runner.Service.

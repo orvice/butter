@@ -129,8 +129,8 @@ func (s *Scheduler) registerJob(job *agentsv1.CronJob) error {
 		return nil
 	}
 
-	if !s.runner.HasAgent(job.GetAgentName()) {
-		return fmt.Errorf("cron job %q references unknown agent %q", job.GetName(), job.GetAgentName())
+	if !s.runner.HasAgentInWorkspace(job.GetWorkspaceId(), job.GetAgentName()) {
+		return fmt.Errorf("cron job %q references unknown agent %q in workspace %q", job.GetName(), job.GetAgentName(), job.GetWorkspaceId())
 	}
 
 	schedule := job.GetSchedule()
@@ -191,8 +191,8 @@ func (s *Scheduler) RunJobNow(ctx context.Context, workspaceID, name string) (*a
 	if err != nil {
 		return nil, err
 	}
-	if !s.runner.HasAgent(job.GetAgentName()) {
-		return nil, fmt.Errorf("cron job %q references unknown agent %q", name, job.GetAgentName())
+	if !s.runner.HasAgentInWorkspace(job.GetWorkspaceId(), job.GetAgentName()) {
+		return nil, fmt.Errorf("cron job %q references unknown agent %q in workspace %q", name, job.GetAgentName(), job.GetWorkspaceId())
 	}
 	return s.executeJob(job), nil
 }

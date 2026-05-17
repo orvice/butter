@@ -92,6 +92,22 @@ func (s *APITokenServiceServer) RevokeAPIToken(ctx context.Context, req *agentsv
 	if req.GetId() == "" {
 		return nil, twirp.RequiredArgumentError("id")
 	}
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.repo.Get(ctx, req.GetId())
+	if err != nil {
+		if errors.Is(err, apitoken.ErrNotFound) {
+			return nil, twirp.NotFoundError("api token not found")
+		}
+		return nil, twirp.InternalErrorWith(err)
+	}
+	// Disguise cross-tenant revoke attempts as NotFound to avoid leaking the
+	// existence of tokens belonging to other workspaces.
+	if existing.GetWorkspaceId() != wsID {
+		return nil, twirp.NotFoundError("api token not found")
+	}
 	token, err := s.repo.Revoke(ctx, req.GetId())
 	if err != nil {
 		if errors.Is(err, apitoken.ErrNotFound) {

@@ -47,6 +47,9 @@ func (s *Store) List(_ context.Context, filter invocation.ListFilter, pageSize i
 	all := s.snapshotDesc()
 	matched := make([]*agentsv1.Invocation, 0, len(all))
 	for _, inv := range all {
+		if filter.WorkspaceID != "" && inv.GetWorkspaceId() != filter.WorkspaceID {
+			continue
+		}
 		if filter.AgentName != "" && inv.GetAgentName() != filter.AgentName {
 			continue
 		}

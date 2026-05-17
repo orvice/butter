@@ -174,7 +174,7 @@ platform update
   -> send reply/status/debug/clear response
 ```
 
-Redis 主要保存用户或会话维度的活跃 agent/model 选择；MongoDB 保存长期 session/memory。
+Redis 保存 dashboard auth sessions，以及用户或会话维度的活跃 agent/model 选择；MongoDB 保存长期 ADK session/memory。
 
 ## HTTP 与 RPC
 
@@ -204,7 +204,7 @@ Twirp server 位于 `internal/application`，挂载在 `/api`：
 
 除 `/ping` 与 `AuthService.Login` 外，HTTP/Twirp 请求经过 `AuthMiddleware`：
 
-1. 优先解析 `Authorization: Bearer <token>` 中的 user session（`auth_sessions` 集合，命中后异步 `TouchSession`）。
+1. 优先解析 `Authorization: Bearer <token>` 中的 user session（Redis `butter:auth:session:<sha256(token)>`，命中后异步 `TouchSession`）。
 2. 不匹配则用 `subtle.ConstantTimeCompare` 比对配置的 root token (`cfg.apiToken`)。
 3. 再不匹配则查 `apitoken.Repository.Lookup(sha256(token))`；命中后异步 `TouchLastUsed`，放行。
 4. 通过后解析 `X-Workspace-ID` 头：用户 session 走成员关系校验（admin 旁路）；API token 直接绑定到其存储的 workspace，覆盖 header；root token 与未配置 repo 时接受 header 原值。
@@ -262,13 +262,14 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 - 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_channels` / `config_modelproviders`，`_id` 为 `"{workspace_id}:{name}"` 复合键，并对 `(workspace_id, name)` 建索引。
 - `workspaces`：workspace 元数据，`slug` 唯一索引。
 - `workspace_members`：用户与 workspace 的多对多关系，`(workspace_id, user_id)` 复合唯一索引、`user_id` 普通索引。
+- `users`：dashboard 用户、bcrypt password hash 与全局角色。
 - Cron jobs / executions（`cron_jobs` / `cron_executions`，`_id = "{workspace_id}:{name}"`；含 `ListByTimeRange` 支撑时序聚合，`workspace_id` 字段可作过滤）。
 - `invocations`：runner 持久化的每次 ADK 调用（runner → `InvocationRecorder.Save`，RUNNING 起记，defer 写终态，附带 `workspace_id`）。驱动 ActivityFeed + AgentRuntimeStatus + ListAgentInvocations。
 - `api_tokens`：DB-stored API tokens（带 `workspace_id` + `secret_hash` + `prefix` + `last_used_at` + `revoked`）。
 
 后端选择：`storage_backend = "mongo"` 时全部走 mongo；否则用内存仓库（`api_tokens` / `invocations` 也支持 memory 实现，方便测试）。
 
-Redis 地址默认 `localhost:6379`。Redis 连接失败不会阻止服务启动，但渠道内 active agent/model 选择可能无法持久化。
+Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不可用时登录/session 校验会失败。
 
 ## 运维面板与可观测性
 

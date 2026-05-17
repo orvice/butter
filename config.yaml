@@ -15,11 +15,11 @@ auth:
   initial_admin_password: "change-me"
   session_ttl: 168h
 
-# MongoDB for ADK session persistence and auth storage
+# MongoDB for ADK session persistence and dashboard users
 mongo_uri: "mongodb://localhost:27017"
 mongo_db: "butter"
 
-# Redis for agent selection persistence
+# Redis for dashboard auth sessions and agent selection persistence
 redis_addr: "localhost:6379"
 redis_password: ""
 

@@ -18,6 +18,7 @@ import (
 	apitokenmongo "go.orx.me/apps/butter/internal/repo/apitoken/mongo"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	authmongo "go.orx.me/apps/butter/internal/repo/auth/mongo"
+	authredis "go.orx.me/apps/butter/internal/repo/auth/redis"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
@@ -84,11 +85,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		invRepo   invocation.Repository
 		wsRepo    workspacerepo.Repository
 	)
-	authRepo = authmongo.New(db)
-	if err := application.BootstrapInitialAdmin(ctx, authRepo, cfg.Auth); err != nil {
+	authUserRepo := authmongo.New(db)
+	if err := application.BootstrapInitialAdmin(ctx, authUserRepo, cfg.Auth); err != nil {
 		logger.Error("failed to initialize auth", "err", err)
 		return nil, err
 	}
+	authRepo = authredis.New(authUserRepo, rdb)
 	if strings.ToLower(strings.TrimSpace(cfg.StorageBackend)) == "mongo" {
 		tokenRepo = apitokenmongo.New(db)
 		invRepo = invocationmongo.New(db)

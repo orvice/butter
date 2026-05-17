@@ -217,7 +217,7 @@ func (p *Poller) handleAgentCommand(ctx context.Context, b *bot.Bot, msg *models
 		p.sendAgentList(ctx, b, msg, activeAgent)
 
 	case "switch":
-		if !p.runner.HasAgent(arg) {
+		if !p.runner.HasAgentInWorkspace(p.channelCfg.GetWorkspaceId(), arg) {
 			logger.Warn("agent switch failed: unknown agent",
 				"channel", p.channelName,
 				"requested_agent", arg,
@@ -331,6 +331,7 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 		ChatId:      fmt.Sprintf("%d", msg.Chat.ID),
 		ChannelType: "telegram",
 		ChatType:    chatType,
+		WorkspaceId: p.channelCfg.GetWorkspaceId(),
 		Metadata: map[string]string{
 			"chat_id": fmt.Sprintf("%d", msg.Chat.ID),
 		},
@@ -632,7 +633,7 @@ func (p *Poller) handleAgentSelectCallback(ctx context.Context, b *bot.Bot, upda
 	}
 
 	agentName := strings.TrimPrefix(cq.Data, callbackAgentSelectPrefix)
-	if !p.runner.HasAgent(agentName) {
+	if !p.runner.HasAgentInWorkspace(p.channelCfg.GetWorkspaceId(), agentName) {
 		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID, Text: "❓ Unknown agent."}) //nolint:errcheck
 		return
 	}
