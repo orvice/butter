@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AgentModelSelect } from "./model-select";
 import {
   Form,
   FormControl,
@@ -126,7 +127,10 @@ export default function AgentCreatePage() {
               <FormField control={form.control} name="model" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Model</FormLabel>
-                  <FormControl><Input placeholder="flash" {...field} /></FormControl>
+                  <AgentModelSelect value={field.value} onChange={field.onChange} />
+                  <p className="text-xs text-muted-foreground">
+                    Models are loaded from configured model providers. Agents use the model alias when available.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )} />

@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { AGENT_TYPE_LABELS } from "@/lib/constants";
 import { useTheme } from "next-themes";
+import { AgentModelSelect } from "./model-select";
 import type { Agent, AgentType } from "@/types/api";
 
 const agentSchema = z.object({
@@ -203,7 +204,10 @@ export default function AgentEditPage() {
                   <FormField control={form.control} name="model" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Model</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <AgentModelSelect value={field.value} onChange={field.onChange} />
+                      <p className="text-xs text-muted-foreground">
+                        Models are loaded from configured model providers. Agents use the model alias when available.
+                      </p>
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="instruction" render={({ field }) => (
