@@ -86,10 +86,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		wsRepo    workspacerepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
+	logger.Info("initializing auth bootstrap")
 	if err := application.BootstrapInitialAdmin(ctx, authUserRepo, cfg.Auth); err != nil {
 		logger.Error("failed to initialize auth", "err", err)
 		return nil, err
 	}
+	logger.Info("auth bootstrap completed")
 	authRepo = authredis.New(authUserRepo, rdb)
 	if strings.ToLower(strings.TrimSpace(cfg.StorageBackend)) == "mongo" {
 		tokenRepo = apitokenmongo.New(db)
