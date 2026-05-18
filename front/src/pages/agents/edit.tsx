@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -34,6 +34,8 @@ import {
 import { AGENT_TYPE_LABELS } from "@/lib/constants";
 import { useTheme } from "next-themes";
 import { AgentModelSelect } from "./model-select";
+import { AgentIconUpload } from "./icon-upload";
+import { agentIconUrl } from "./icon-utils";
 import type { Agent, AgentType } from "@/types/api";
 
 const agentSchema = z.object({
@@ -44,9 +46,18 @@ const agentSchema = z.object({
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
+  icon_url: z.string().optional(),
 });
 
 type AgentFormValues = z.infer<typeof agentSchema>;
+
+function mergeAgentIconMetadata(metadata: Agent["metadata"] | undefined, iconUrl: string | undefined) {
+  const next = { ...(metadata ?? {}) };
+  delete next.avatar_url;
+  if (iconUrl) next.icon_url = iconUrl;
+  else delete next.icon_url;
+  return Object.keys(next).length > 0 ? next : undefined;
+}
 
 export default function AgentEditPage() {
   const { name } = useParams<{ name: string }>();
@@ -62,8 +73,10 @@ export default function AgentEditPage() {
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
-    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "", mcp_server_ids: [] },
+    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "", mcp_server_ids: [], icon_url: "" },
   });
+  const agentName = useWatch({ control: form.control, name: "name" });
+  const iconUrl = useWatch({ control: form.control, name: "icon_url" });
 
   useEffect(() => {
     if (data?.agent) {
@@ -76,6 +89,7 @@ export default function AgentEditPage() {
         model: a.config?.model ?? "",
         instruction: a.config?.instruction ?? "",
         mcp_server_ids: a.config?.mcp_server_ids ?? [],
+        icon_url: agentIconUrl(a),
       });
     }
   }, [data, form]);
@@ -87,6 +101,7 @@ export default function AgentEditPage() {
       description: values.description,
       type: values.type as AgentType,
       enable_a2a: values.enable_a2a,
+      metadata: mergeAgentIconMetadata(data?.agent?.metadata, values.icon_url),
       config: {
         ...data?.agent?.config,
         model: values.model,
@@ -122,6 +137,7 @@ export default function AgentEditPage() {
         description: values.description,
         type: values.type as AgentType,
         enable_a2a: values.enable_a2a,
+        metadata: mergeAgentIconMetadata(data?.agent?.metadata, values.icon_url),
         config: { ...data?.agent?.config, model: values.model, instruction: values.instruction, mcp_server_ids: values.mcp_server_ids ?? [] },
       };
       setJsonValue(JSON.stringify(agent, null, 2));
@@ -136,6 +152,7 @@ export default function AgentEditPage() {
           model: agent.config?.model ?? "",
           instruction: agent.config?.instruction ?? "",
           mcp_server_ids: agent.config?.mcp_server_ids ?? [],
+          icon_url: agentIconUrl(agent),
         });
       } catch { /* keep current form values if JSON is invalid */ }
     }
@@ -199,6 +216,17 @@ export default function AgentEditPage() {
                       <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                     </FormItem>
                   )} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>Icon</CardTitle></CardHeader>
+                <CardContent>
+                  <AgentIconUpload
+                    agentName={agentName}
+                    value={iconUrl}
+                    onChange={(url) => form.setValue("icon_url", url, { shouldDirty: true })}
+                  />
                 </CardContent>
               </Card>
 
