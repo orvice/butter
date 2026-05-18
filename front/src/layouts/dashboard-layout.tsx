@@ -31,8 +31,16 @@ import {
   Building2,
   CircleCheck,
   CircleAlert,
+  Menu,
 } from "lucide-react";
 import type { ComponentHealth } from "@/types/api";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashboard; label: string }[] }[] = [
   {
@@ -114,7 +122,7 @@ function WorkspaceSwitcher() {
   const { workspaces, selectedWorkspaceId, selectedWorkspace, isLoading, setSelectedWorkspaceId } = useWorkspace();
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border bg-background px-2 py-1">
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border bg-background px-2 py-1">
       <Building2 className="h-4 w-4 text-muted-foreground" />
       <div className="hidden leading-tight sm:block">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Workspace</div>
@@ -129,7 +137,7 @@ function WorkspaceSwitcher() {
         }}
         disabled={isLoading || workspaces.length === 0}
       >
-        <SelectTrigger size="sm" className="w-44">
+        <SelectTrigger size="sm" className="w-36 sm:w-44">
           <SelectValue placeholder={isLoading ? "Loading workspaces" : "Select workspace"} />
         </SelectTrigger>
         <SelectContent align="end">
@@ -144,6 +152,53 @@ function WorkspaceSwitcher() {
         </SelectContent>
       </Select>
     </div>
+  );
+}
+
+function Brand() {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary font-bold text-primary-foreground">
+        B
+      </div>
+      <div>
+        <div className="text-sm font-bold leading-tight">Butter</div>
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Orchestration</div>
+      </div>
+    </div>
+  );
+}
+
+function SidebarNav() {
+  return (
+    <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
+      {NAV_GROUPS.map((group) => (
+        <div key={group.label}>
+          <div className="px-3 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            {group.label}
+          </div>
+          <div className="space-y-0.5">
+            {group.items.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === "/"}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                    isActive
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  }`
+                }
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
   );
 }
 
@@ -244,45 +299,12 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="flex w-60 flex-col border-r bg-card">
+      <aside className="hidden w-60 shrink-0 flex-col border-r bg-card md:flex">
         <div className="flex items-center gap-2 p-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold">
-            B
-          </div>
-          <div>
-            <div className="text-sm font-bold leading-tight">Butter</div>
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Orchestration</div>
-          </div>
+          <Brand />
         </div>
         <Separator />
-        <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.label}>
-              <div className="px-3 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                {group.label}
-              </div>
-              <div className="space-y-0.5">
-                {group.items.map(({ to, icon: Icon, label }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    end={to === "/"}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                        isActive
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                      }`
-                    }
-                  >
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </NavLink>
-                ))}
-              </div>
-            </div>
-          ))}
-        </nav>
+        <SidebarNav />
         <Separator />
         <div className="flex items-center justify-between p-3">
           <Button
@@ -299,13 +321,45 @@ export default function DashboardLayout() {
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center justify-end gap-3 border-b bg-card/40 px-6">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex min-h-14 flex-wrap items-center justify-between gap-2 border-b bg-card/40 px-3 py-2 sm:px-6 md:justify-end">
+          <div className="flex items-center gap-2 md:hidden">
+            <Sheet>
+              <SheetTrigger render={<Button variant="ghost" size="icon" aria-label="Open navigation" />}>
+                <Menu className="h-4 w-4" />
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 p-0" showCloseButton={false}>
+                <SheetHeader className="border-b">
+                  <SheetTitle>
+                    <Brand />
+                  </SheetTitle>
+                </SheetHeader>
+                <SidebarNav />
+                <Separator />
+                <div className="flex items-center justify-between p-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                    aria-label="Toggle theme"
+                  >
+                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <Brand />
+          </div>
           <WorkspaceSwitcher />
-          <StatusPill />
-          <Badge variant="outline" className="text-xs">Production</Badge>
+          <div className="flex items-center gap-2">
+            <StatusPill />
+            <Badge variant="outline" className="hidden text-xs sm:inline-flex">Production</Badge>
+          </div>
         </header>
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
           {selectedWorkspaceId ? (
             <Outlet />
           ) : isWorkspaceLoading ? (

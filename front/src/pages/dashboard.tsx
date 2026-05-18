@@ -112,8 +112,8 @@ export default function DashboardPage() {
   if (loadingOverview) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold">Overview</h2>
-        <div className="grid grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
+        <h2 className="text-xl font-bold sm:text-2xl">Overview</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
         <Skeleton className="h-72" />
       </div>
     );
@@ -121,15 +121,15 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Overview</h2>
+          <h2 className="text-xl font-bold sm:text-2xl">Overview</h2>
           <p className="text-sm text-muted-foreground">Platform metrics and system health at a glance.</p>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <StatCard label="Active Agents" value={counts?.active_agents ?? 0} icon={Bot} />
         <StatCard label="MCP Servers" value={counts?.mcp_servers ?? 0} icon={Server} />
         <StatCard label="Connected Daemons" value={counts?.connected_daemons ?? 0} icon={Cpu} />
@@ -138,9 +138,9 @@ export default function DashboardPage() {
 
       {/* Cron timeseries */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Cron Executions</CardTitle>
-          <div className="flex gap-1">
+          <div className="grid grid-cols-3 gap-1 sm:flex">
             {(["RANGE_1D", "RANGE_7D", "RANGE_30D"] as const).map((r) => (
               <Button
                 key={r}

@@ -103,7 +103,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="-m-6 flex h-[calc(100vh-3.5rem)]">
+    <div className="-m-4 flex h-[calc(100vh-4.5rem)] flex-col sm:-m-6 sm:h-[calc(100vh-3.5rem)] md:flex-row">
       <ChatSidebar
         sessions={sessions}
         isLoading={sessionsQuery.isLoading}

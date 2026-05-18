@@ -58,8 +58,8 @@ function ChannelCard({ channel }: { channel: AgentChannel }) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-        <div className="flex items-center gap-2">
+      <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Icon className="h-4 w-4 text-muted-foreground" />
           <CardTitle className="text-base">{label}</CardTitle>
           {enabled ? (
@@ -86,10 +86,10 @@ function ChannelCard({ channel }: { channel: AgentChannel }) {
         </DropdownMenu>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="text-xs text-muted-foreground">ID: {channel.name}</div>
+        <div className="break-all text-xs text-muted-foreground">ID: {channel.name}</div>
         <div>
           <div className="text-xs text-muted-foreground">Bot Token</div>
-          <div className="font-mono text-sm">{maskToken(botToken)}</div>
+          <div className="break-all font-mono text-sm">{maskToken(botToken)}</div>
         </div>
         {triggerKeywords.length > 0 && (
           <div>
@@ -105,7 +105,7 @@ function ChannelCard({ channel }: { channel: AgentChannel }) {
           <div className="text-xs text-muted-foreground">Agent</div>
           <div className="text-sm font-medium">{channel.agent_name}</div>
         </div>
-        <div className="flex gap-2 pt-2">
+        <div className="flex flex-col gap-2 pt-2 sm:flex-row">
           {enabled ? (
             <Button
               size="sm"
@@ -152,11 +152,11 @@ export default function ChannelListPage() {
       </p>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-64" />)}
         </div>
       ) : channels.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground sm:p-12">
           No channels configured yet.
         </div>
       ) : (

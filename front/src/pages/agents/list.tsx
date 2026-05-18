@@ -193,15 +193,16 @@ export default function AgentListPage() {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Agents</h2>
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Agents</h2>
           <p className="text-sm text-muted-foreground">Manage and monitor orchestration nodes.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <Button
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() =>
               reloadMutation.mutate(undefined, {
                 onSuccess: () => toast.success("Agents reloaded"),
@@ -213,7 +214,7 @@ export default function AgentListPage() {
             <RefreshCw className={`mr-2 h-3 w-3 ${reloadMutation.isPending ? "animate-spin" : ""}`} />
             Hot-reload
           </Button>
-          <Button onClick={() => navigate("/agents/create")}>
+          <Button className="w-full sm:w-auto" onClick={() => navigate("/agents/create")}>
             <Plus className="mr-2 h-4 w-4" />
             Deploy Agent
           </Button>
@@ -221,7 +222,7 @@ export default function AgentListPage() {
       </div>
 
       {/* Summary strip */}
-      <div className="mb-4 grid grid-cols-4 gap-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="p-3">
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-muted-foreground" />

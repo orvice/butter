@@ -118,14 +118,14 @@ export default function MCPServerListPage() {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">MCP Toolsets</h2>
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">MCP Toolsets</h2>
           <p className="text-sm text-muted-foreground">
             Connected servers exposing tools and resources.
           </p>
         </div>
-        <Button onClick={() => navigate("/mcp-servers/create")}>
+        <Button className="w-full sm:w-auto" onClick={() => navigate("/mcp-servers/create")}>
           <Server className="mr-2 h-4 w-4" /> Add Server
         </Button>
       </div>
@@ -139,7 +139,7 @@ export default function MCPServerListPage() {
 
       {/* Tool filter / aggregated view */}
       <Card className="mt-6">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Filter className="h-4 w-4" /> Tool Filter
@@ -156,7 +156,7 @@ export default function MCPServerListPage() {
               {Object.entries(toolErrors).map(([id, err]) => (
                 <div
                   key={id}
-                  className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+                  className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-400"
                 >
                   <XCircle className="h-3.5 w-3.5" />
                   <span className="font-mono">{id}</span>
@@ -200,7 +200,7 @@ export default function MCPServerListPage() {
 
 function ToolRow({ tool }: { tool: MCPTool }) {
   return (
-    <div className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/40">
+    <div className="flex flex-col gap-2 rounded-md px-2 py-1.5 hover:bg-muted/40 sm:flex-row sm:items-center sm:gap-3">
       <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">

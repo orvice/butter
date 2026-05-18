@@ -116,14 +116,14 @@ export default function RemoteAgentListPage() {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Remote Agents</h2>
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Remote Agents</h2>
           <p className="text-sm text-muted-foreground">
             External orchestrators and autonomous daemon instances.
           </p>
         </div>
-        <Button onClick={() => navigate("/remote-agents/create")}>
+        <Button className="w-full sm:w-auto" onClick={() => navigate("/remote-agents/create")}>
           <Plus className="mr-2 h-4 w-4" /> Register Agent
         </Button>
       </div>
