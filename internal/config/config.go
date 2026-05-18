@@ -24,10 +24,37 @@ type AppConfig struct {
 	RedisAddr     string `yaml:"redis_addr"`
 	RedisPassword string `yaml:"redis_password"`
 
-	HTTP           HTTPConfig   `yaml:"http"`
-	Static         StaticConfig `yaml:"static"`
-	StorageBackend string       `yaml:"storage_backend"` // "mongo" (default) or "memory"
-	GRPCPort       int          `yaml:"grpc_port"`       // daemon gRPC server port (default 9090)
+	HTTP           HTTPConfig     `yaml:"http"`
+	Static         StaticConfig   `yaml:"static"`
+	Artifact       ArtifactConfig `yaml:"artifact"`
+	StorageBackend string         `yaml:"storage_backend"` // "mongo" (default) or "memory"
+	GRPCPort       int            `yaml:"grpc_port"`       // daemon gRPC server port (default 9090)
+}
+
+// ArtifactConfig configures the S3-backed ADK artifact service. Artifacts are
+// per-(app, user, session) blobs produced or consumed by agents (e.g. a tool
+// returning a generated image, a session-scoped attachment).
+//
+// Storage is delegated to the S3 client registered with butterfly core under
+// `store.s3.<S3Bucket>` (see https://butterfly.orz.ee/stores/s3.html). Keep
+// this bucket private — unlike static assets, artifacts are not served from
+// a CDN and may contain user-specific or model-generated content.
+//
+// When S3Bucket is empty the artifact service is disabled and ADK falls back
+// to its in-process behavior (artifact writes are no-ops / reads fail).
+type ArtifactConfig struct {
+	// S3Bucket is the key under `store.s3` to use for artifact storage
+	// (e.g. "artifacts"). If empty, the artifact service is disabled.
+	S3Bucket string `yaml:"s3_bucket"`
+
+	// KeyPrefix is prepended to every object key (e.g. "artifacts/").
+	// Optional. Use it to share a bucket with other workloads.
+	KeyPrefix string `yaml:"key_prefix"`
+}
+
+// Enabled reports whether artifact storage is configured.
+func (a ArtifactConfig) Enabled() bool {
+	return a.S3Bucket != ""
 }
 
 type HTTPConfig struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/achetronic/adk-utils-go/plugin/contextguard"
 	"github.com/google/uuid"
 	"google.golang.org/adk/agent"
+	"google.golang.org/adk/artifact"
 	"google.golang.org/adk/memory"
 	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
@@ -53,6 +54,7 @@ type Service struct {
 	daemonRegistry   *daemon.Registry
 	sessionSvc       session.Service
 	memorySvc        memory.Service
+	artifactSvc      artifact.Service
 	basePluginConfig adkrunner.PluginConfig
 	pluginConfig     adkrunner.PluginConfig
 
@@ -109,7 +111,10 @@ func (s *Service) deregisterCancel(id string) {
 }
 
 // NewService builds the agent registry from proto configs.
-func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
+//
+// artifactSvc is optional; pass nil to run without artifact persistence (ADK
+// then no-ops artifact reads/writes inside agent tools).
+func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
 	logger := log.FromContext(ctx)
 	basePluginConfig := pluginConfig
 	registry := make(map[string]agent.Agent, len(agents))
@@ -156,6 +161,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 		daemonRegistry:   daemonRegistry,
 		sessionSvc:       sessionSvc,
 		memorySvc:        memorySvc,
+		artifactSvc:      artifactSvc,
 		basePluginConfig: basePluginConfig,
 		pluginConfig:     pluginConfig,
 		runners:          make(map[string]*adkrunner.Runner),
@@ -527,11 +533,12 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName,
 	logger.Info("creating new ADK runner", "channel", channelName, "agent", agentName, "model_override", modelOverride)
 
 	r, err := adkrunner.New(adkrunner.Config{
-		AppName:        channelName,
-		Agent:          ag,
-		SessionService: s.sessionSvc,
-		MemoryService:  s.memorySvc,
-		PluginConfig:   s.pluginConfig,
+		AppName:         channelName,
+		Agent:           ag,
+		SessionService:  s.sessionSvc,
+		MemoryService:   s.memorySvc,
+		ArtifactService: s.artifactSvc,
+		PluginConfig:    s.pluginConfig,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating runner for channel %q: %w", channelName, err)

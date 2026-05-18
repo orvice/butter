@@ -4,13 +4,16 @@ import (
 	"context"
 
 	"butterfly.orx.me/core/log"
+	"butterfly.orx.me/core/store/s3"
 	"github.com/achetronic/adk-utils-go/plugin/langfuse"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"google.golang.org/adk/artifact"
 	adkrunner "google.golang.org/adk/runner"
 
 	"go.orx.me/apps/butter/internal/config"
+	"go.orx.me/apps/butter/pkg/adkutils"
 )
 
 // connectMongo establishes a connection to MongoDB and returns the database handle.
@@ -60,6 +63,35 @@ func connectRedis(ctx context.Context, cfg *config.AppConfig) *redis.Client {
 	}
 
 	return rdb
+}
+
+// setupArtifactService builds the ADK artifact.Service from cfg.Artifact.
+// Returns nil when the bucket is not configured or the referenced S3 client
+// is not registered — ADK then runs without artifact persistence.
+func setupArtifactService(ctx context.Context, cfg *config.AppConfig) artifact.Service {
+	logger := log.FromContext(ctx)
+	if !cfg.Artifact.Enabled() {
+		logger.Info("artifact service disabled (artifact.s3_bucket not set)")
+		return nil
+	}
+	client := s3.GetClient(cfg.Artifact.S3Bucket)
+	bucket := s3.GetBucket(cfg.Artifact.S3Bucket)
+	if client == nil || bucket == "" {
+		logger.Warn("artifact service disabled: s3 client not registered",
+			"store_key", cfg.Artifact.S3Bucket,
+		)
+		return nil
+	}
+	var opts []adkutils.Option
+	if cfg.Artifact.KeyPrefix != "" {
+		opts = append(opts, adkutils.WithKeyPrefix(cfg.Artifact.KeyPrefix))
+	}
+	logger.Info("artifact service enabled",
+		"store_key", cfg.Artifact.S3Bucket,
+		"bucket", bucket,
+		"key_prefix", cfg.Artifact.KeyPrefix,
+	)
+	return adkutils.NewS3ArtifactService(bucket, client, opts...)
 }
 
 // setupLangfuse initializes the Langfuse plugin if configured.

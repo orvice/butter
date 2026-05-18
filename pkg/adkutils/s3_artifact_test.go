@@ -140,6 +140,45 @@ func TestS3ArtifactService(t *testing.T) {
 	})
 }
 
+func TestS3ArtifactServiceKeyPrefix(t *testing.T) {
+	client := newFakeS3Client()
+	srv := NewS3ArtifactService("bucket", client, WithKeyPrefix("artifacts/"))
+	ctx := t.Context()
+
+	if _, err := srv.Save(ctx, &artifact.SaveRequest{
+		AppName: "app", UserID: "user", SessionID: "session", FileName: "report",
+		Part: genai.NewPartFromText("hello"),
+	}); err != nil {
+		t.Fatalf("Save() failed: %v", err)
+	}
+
+	wantKey := "artifacts/app/user/session/report/1"
+	if _, ok := client.objects[wantKey]; !ok {
+		var keys []string
+		for k := range client.objects {
+			keys = append(keys, k)
+		}
+		t.Fatalf("expected object at key %q, got keys: %v", wantKey, keys)
+	}
+
+	if _, err := srv.Load(ctx, &artifact.LoadRequest{
+		AppName: "app", UserID: "user", SessionID: "session", FileName: "report",
+	}); err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	got, err := srv.GetArtifactVersion(ctx, &artifact.GetArtifactVersionRequest{
+		AppName: "app", UserID: "user", SessionID: "session", FileName: "report",
+	})
+	if err != nil {
+		t.Fatalf("GetArtifactVersion() failed: %v", err)
+	}
+	wantURI := "s3://bucket/artifacts/app/user/session/report/1"
+	if got.ArtifactVersion.CanonicalURI != wantURI {
+		t.Fatalf("CanonicalURI = %q, want %q", got.ArtifactVersion.CanonicalURI, wantURI)
+	}
+}
+
 func TestS3ArtifactServiceExplicitVersion(t *testing.T) {
 	srv := NewS3ArtifactService("bucket", newFakeS3Client())
 	ctx := t.Context()
