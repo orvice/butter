@@ -202,7 +202,9 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	statusService := service.NewStatusService(cfg, configStore)
 	statusHandler := httpHandler.NewStatusHandler(statusService)
 	a2aHandler := httpHandler.NewA2AHandler(cfg)
-	uploadSvc := service.NewUploadService(cfg.Static)
+	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg,
+	// so we read cfg.Static on every request instead of snapshotting now.
+	uploadSvc := service.NewUploadServiceLazy(func() config.StaticConfig { return cfg.Static })
 	uploadHandler := httpHandler.NewUploadHandler(uploadSvc)
 
 	pathPrefix := twirp.WithServerPathPrefix("/api")

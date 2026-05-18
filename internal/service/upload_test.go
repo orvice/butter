@@ -22,6 +22,36 @@ func TestUploadServiceEnabled(t *testing.T) {
 	}
 }
 
+// TestNewUploadServiceLazyPicksUpConfigAfterConstruction guards the fix for
+// the bug where the upload service was constructed with a zero-value
+// StaticConfig (because route setup runs before YAML load) and never
+// became enabled. The lazy provider must observe later mutations.
+func TestNewUploadServiceLazyPicksUpConfigAfterConstruction(t *testing.T) {
+	t.Parallel()
+	var cfg config.StaticConfig
+	s := NewUploadServiceLazy(func() config.StaticConfig { return cfg })
+	if s == nil {
+		t.Fatal("NewUploadServiceLazy should not return nil for a non-nil provider")
+	}
+	if s.Enabled() {
+		t.Fatal("expected service disabled while bucket is empty")
+	}
+	cfg.S3Bucket = "assets"
+	if !s.Enabled() {
+		t.Fatal("expected service enabled after bucket is set")
+	}
+	if got := s.PublicURL("k"); got != "s3://assets/k" {
+		t.Fatalf("PublicURL reflects updated config; got %q", got)
+	}
+}
+
+func TestNewUploadServiceLazyNilProviderReturnsNil(t *testing.T) {
+	t.Parallel()
+	if s := NewUploadServiceLazy(nil); s != nil {
+		t.Fatalf("expected nil, got %#v", s)
+	}
+}
+
 func TestStaticConfigPublicURL(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -63,8 +93,9 @@ func TestStaticConfigPublicURL(t *testing.T) {
 
 func TestBuildAvatarKeyShape(t *testing.T) {
 	t.Parallel()
-	s := NewUploadService(config.StaticConfig{S3Bucket: "assets", KeyPrefix: "butter"})
-	key := s.buildAvatarKey("user", "u-123", ".png")
+	cfg := config.StaticConfig{S3Bucket: "assets", KeyPrefix: "butter"}
+	s := NewUploadService(cfg)
+	key := s.buildAvatarKey(cfg, "user", "u-123", ".png")
 	if !strings.HasPrefix(key, "butter/avatars/user/u-123/") {
 		t.Fatalf("unexpected key prefix: %q", key)
 	}
