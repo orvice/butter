@@ -34,15 +34,15 @@ export function DataTable<T>({ columns, data, isLoading, emptyMessage = "No data
 
   if (!data || data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center sm:p-12">
         <p className="text-muted-foreground">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
+    <div className="overflow-hidden rounded-md border">
+      <Table className="min-w-max">
         <TableHeader>
           <TableRow>
             {columns.map((col) => (

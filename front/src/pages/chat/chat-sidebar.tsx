@@ -28,7 +28,7 @@ export function ChatSidebar({
   onDelete,
 }: ChatSidebarProps) {
   return (
-    <aside className="flex h-full w-72 flex-col border-r bg-card/40">
+    <aside className="flex max-h-64 w-full shrink-0 flex-col border-b bg-card/40 md:h-full md:max-h-none md:w-72 md:border-b-0 md:border-r">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <MessageCircle className="h-4 w-4" /> Chats
@@ -79,7 +79,7 @@ export function ChatSidebar({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      className="opacity-0 group-hover:opacity-100"
+                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(s);

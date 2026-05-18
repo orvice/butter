@@ -139,9 +139,9 @@ export default function SessionListPage() {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Session Explorer</h2>
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Session Explorer</h2>
           <p className="text-sm text-muted-foreground">
             View ADK sessions, events, and long-term memory stored in MongoDB.
           </p>
@@ -226,7 +226,7 @@ export default function SessionListPage() {
         emptyMessage="No sessions match the current filters."
       />
 
-      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+      <div className="mt-3 flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>
           Showing {sessions.length} of {total.toLocaleString()} sessions
         </span>

@@ -78,17 +78,17 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
 
   return (
     <div className="flex h-full flex-1 flex-col">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between border-b px-3 py-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2">
           <Bot className="h-4 w-4 text-muted-foreground" />
-          <div>
+          <div className="min-w-0">
             <div className="text-sm font-semibold">{agentName ?? "Unknown agent"}</div>
-            <div className="font-mono text-[10px] text-muted-foreground">{sessionId}</div>
+            <div className="truncate font-mono text-[10px] text-muted-foreground">{sessionId}</div>
           </div>
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-4">
         {liveQuery.isLoading ? (
           <>
             <Skeleton className="h-16 w-2/3" />
@@ -234,7 +234,7 @@ function MessageBubble({ event }: { event: ParsedEvent }) {
           <Bot className="h-3 w-3" />
         </div>
       ) : null}
-      <div className={cn("max-w-[75%] space-y-1.5", isUser && "items-end")}>
+      <div className={cn("max-w-[88%] space-y-1.5 sm:max-w-[75%]", isUser && "items-end")}>
         {hasText ? (
           <MarkdownMessage text={event.text} isUser={isUser} />
         ) : null}

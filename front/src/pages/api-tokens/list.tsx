@@ -93,12 +93,12 @@ export default function APITokenListPage() {
       <PageHeader title="API Tokens" />
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Bearer Tokens</CardTitle>
             <CardDescription>Manage tokens used by external integrations to call the Twirp API.</CardDescription>
           </div>
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
             <KeyRound className="mr-2 h-4 w-4" /> Generate New Token
           </Button>
         </CardHeader>
