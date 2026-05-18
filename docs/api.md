@@ -148,6 +148,131 @@ Request/response bodies are JSON. Content-Type: `application/json`.
 
 ---
 
+### AuthService
+
+Manages dashboard user authentication. `Login` is public; all other methods require a Bearer token. User management methods are admin-only.
+
+#### Login
+
+```
+POST /api/agents.v1.AuthService/Login
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `username` | string | Required |
+| `password` | string | Required |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `token` | string | Dashboard session token |
+| `user` | User | Authenticated dashboard user |
+| `expires_at` | timestamp | Session expiry |
+| `workspaces` | Workspace[] | Workspaces this user can access |
+
+#### Me
+
+```
+POST /api/agents.v1.AuthService/Me
+```
+
+**Request:** `{}`
+
+**Response:** `{ "user": User }`
+
+#### Logout
+
+```
+POST /api/agents.v1.AuthService/Logout
+```
+
+Revokes the current session token.
+
+**Request:** `{}`
+**Response:** `{}`
+
+#### ListUsers
+
+```
+POST /api/agents.v1.AuthService/ListUsers
+```
+
+Admin only.
+
+**Request:** `{}`
+
+**Response:** `{ "users": User[] }`
+
+#### CreateUser
+
+```
+POST /api/agents.v1.AuthService/CreateUser
+```
+
+Admin only.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `username` | string | Required |
+| `password` | string | Required |
+| `display_name` | string | Optional |
+| `role` | string | User role, e.g. `admin` |
+| `disabled` | bool | Whether the user starts disabled |
+
+**Response:** `{ "user": User }`
+
+#### UpdateUserPassword
+
+```
+POST /api/agents.v1.AuthService/UpdateUserPassword
+```
+
+Admin only.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Required user id |
+| `password` | string | Required new password |
+
+**Response:** `{ "user": User }`
+
+#### SetUserDisabled
+
+```
+POST /api/agents.v1.AuthService/SetUserDisabled
+```
+
+Admin only.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Required user id |
+| `disabled` | bool | New disabled state |
+
+**Response:** `{ "user": User }`
+
+| User | Type | Description |
+|-------|------|-------------|
+| `id` | string | User id |
+| `username` | string | Login username |
+| `display_name` | string | Display name |
+| `role` | string | User role |
+| `disabled` | bool | Whether login is disabled |
+| `created_at` | timestamp |  |
+| `updated_at` | timestamp |  |
+
+---
+
 ### AgentService
 
 Manages agent configurations.
@@ -581,6 +706,78 @@ Enumerates tools across configured MCP servers. STDIO transports are skipped and
 
 ---
 
+### ModelProviderService
+
+Manages LLM provider configurations. Requires `X-Workspace-ID` for user-session and root-token callers; API-token callers use the token's workspace.
+
+#### ListModelProviders
+
+```
+POST /api/agents.v1.ModelProviderService/ListModelProviders
+```
+
+**Request:** `{}`
+
+**Response:** `{ "model_providers": ModelProvider[] }`
+
+#### GetModelProvider
+
+```
+POST /api/agents.v1.ModelProviderService/GetModelProvider
+```
+
+**Request:** `{ "name": "<provider-name>" }`
+
+**Response:** `{ "model_provider": ModelProvider }`
+
+#### CreateModelProvider
+
+```
+POST /api/agents.v1.ModelProviderService/CreateModelProvider
+```
+
+**Request:** `{ "model_provider": ModelProvider }`
+
+**Response:** `{ "model_provider": ModelProvider }`
+
+#### UpdateModelProvider
+
+```
+POST /api/agents.v1.ModelProviderService/UpdateModelProvider
+```
+
+**Request:** `{ "model_provider": ModelProvider }`
+
+**Response:** `{ "model_provider": ModelProvider }`
+
+#### DeleteModelProvider
+
+```
+POST /api/agents.v1.ModelProviderService/DeleteModelProvider
+```
+
+**Request:** `{ "name": "<provider-name>" }`
+
+**Response:** `{}`
+
+#### ModelProvider Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Human-readable provider name, e.g. `openai` |
+| `type` | string | Provider backend, e.g. `gemini` or `openai` |
+| `api_key` | string | API key or env-injected value |
+| `base_url` | string | Base URL for OpenAI-compatible endpoints |
+| `models` | ModelConfig[] | Models served by this provider |
+| `workspace_id` | string | Owning workspace |
+
+| ModelConfig | Type | Description |
+|-------|------|-------------|
+| `name` | string | Provider model identifier |
+| `alias` | string | Short alias used by agents and channels |
+
+---
+
 ### RemoteAgentService
 
 Manages remote agent configurations (A2A protocol).
@@ -729,9 +926,41 @@ POST /api/agents.v1.ChannelService/GetChannel
 
 **Response:** `{ "channel": AgentChannel }`
 
-#### CreateChannel / UpdateChannel / DeleteChannel
+#### CreateChannel
 
-Standard CRUD; payloads accept `{ "channel": AgentChannel }`. Delete uses `{ "name": "<channel-name>" }`. All mutations reload the channel manager.
+```
+POST /api/agents.v1.ChannelService/CreateChannel
+```
+
+Creates an `AgentChannel` configuration and reloads the channel manager.
+
+**Request:** `{ "channel": AgentChannel }`
+
+**Response:** `{ "channel": AgentChannel }`
+
+#### UpdateChannel
+
+```
+POST /api/agents.v1.ChannelService/UpdateChannel
+```
+
+Updates an `AgentChannel` configuration and reloads the channel manager.
+
+**Request:** `{ "channel": AgentChannel }`
+
+**Response:** `{ "channel": AgentChannel }`
+
+#### DeleteChannel
+
+```
+POST /api/agents.v1.ChannelService/DeleteChannel
+```
+
+Deletes an `AgentChannel` configuration and reloads the channel manager.
+
+**Request:** `{ "name": "<channel-name>" }`
+
+**Response:** `{}`
 
 #### GetChannelStatus
 
@@ -762,9 +991,24 @@ Reloads the channel manager (bounces all pollers). Optional `name` field is echo
 **Request:** `{ "name": "<channel-name>"? }`
 **Response:** `{ "channel": AgentChannel? }`
 
-#### PauseChannel / ResumeChannel
+#### PauseChannel
 
-Toggles the channel's `enabled` flag and reloads. Idempotent.
+```
+POST /api/agents.v1.ChannelService/PauseChannel
+```
+
+Disables the channel and reloads the channel manager. Idempotent.
+
+**Request:** `{ "name": "<channel-name>" }`
+**Response:** `{ "channel": AgentChannel }`
+
+#### ResumeChannel
+
+```
+POST /api/agents.v1.ChannelService/ResumeChannel
+```
+
+Enables the channel and reloads the channel manager. Idempotent.
 
 **Request:** `{ "name": "<channel-name>" }`
 **Response:** `{ "channel": AgentChannel }`
@@ -1299,6 +1543,34 @@ Process-level diagnostics for the daemon bridge.
 
 ---
 
+### DaemonConnectorService
+
+Daemon client connection protocol. This is a bidirectional gRPC streaming service, not a Twirp JSON endpoint under `/api`.
+
+#### Connect
+
+```
+grpc agents.v1.DaemonConnectorService/Connect
+```
+
+Establishes a long-lived stream. The daemon sends a `register` message first, then sends `task_update` messages. The server sends task assignments and cancellation requests on the response stream.
+
+**Client stream (`ConnectRequest`):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `register` | DaemonInfo | First message only; registers daemon id, name, capabilities, labels, version, OS, and executor names |
+| `task_update` | DaemonTaskUpdate | Subsequent task lifecycle, output, error, current step, and progress updates |
+
+**Server stream (`ConnectResponse`):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `task` | DaemonTask | Task assignment, including agent name, input, session/user ids, metadata, and capability |
+| `cancel` | CancelTask | Cancellation request by `task_id` |
+
+---
+
 ### WorkspaceService
 
 Manages workspaces and their memberships. No `X-Workspace-ID` header required — the service is the workspace selector itself.
@@ -1343,9 +1615,29 @@ Creates a new workspace; the caller is added as the initial `owner`.
 
 **Response:** `{ "workspace": Workspace }` — `id`, `created_at`, `updated_at` filled by server.
 
-#### UpdateWorkspace / DeleteWorkspace
+#### UpdateWorkspace
 
-Standard CRUD: `UpdateWorkspace` takes a full `Workspace` (matched by `id`); `DeleteWorkspace` takes `{ "id": "<workspace-id>" }`. `DeleteWorkspace` also removes every `workspace_members` row for that workspace.
+```
+POST /api/agents.v1.WorkspaceService/UpdateWorkspace
+```
+
+Updates workspace metadata. The workspace is matched by `workspace.id`.
+
+**Request:** `{ "workspace": Workspace }`
+
+**Response:** `{ "workspace": Workspace }`
+
+#### DeleteWorkspace
+
+```
+POST /api/agents.v1.WorkspaceService/DeleteWorkspace
+```
+
+Permanently deletes a workspace and removes every `workspace_members` row for that workspace.
+
+**Request:** `{ "id": "<workspace-id>" }`
+
+**Response:** `{}`
 
 #### ListWorkspaceMembers
 
