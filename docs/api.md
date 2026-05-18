@@ -140,6 +140,66 @@ Sends a task to an agent using JSON-RPC 2.0.
 
 ---
 
+### Uploads
+
+All upload endpoints use the same auth middleware as the rest of `/api`.
+They require S3-compatible static storage to be enabled with `static.s3_bucket`
+in config. See [storage.md](storage.md) for full object storage setup,
+authorization details, and response examples.
+
+#### Upload current user avatar
+
+```
+POST /api/uploads/avatar
+```
+
+Multipart form:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `file` | yes | Avatar image bytes |
+| `content_type` | no | Overrides the form part content type; must be PNG, JPEG, GIF, or WebP |
+
+Uploads an avatar for the authenticated user and returns:
+
+```json
+{
+  "key": "butter/avatars/user/u-123/20260518123045-9f3a1b2c.png",
+  "url": "https://cdn.example.com/butter/avatars/user/u-123/20260518123045-9f3a1b2c.png",
+  "content_type": "image/png",
+  "size": 24580
+}
+```
+
+#### Upload avatar for owner
+
+```
+POST /api/uploads/avatar/:owner_kind/:owner_id
+```
+
+Uploads an avatar for another owner. Admins may upload for any owner. Non-admin
+users may upload their own `user` avatar and may upload `agent` icons in their
+current workspace.
+
+#### Upload static asset
+
+```
+POST /api/uploads/static
+```
+
+Admin only. Multipart form:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `file` | yes | Asset bytes |
+| `name` | no | Object name; defaults to the uploaded filename |
+| `content_type` | no | Overrides the form part content type |
+
+Stores the asset under `<static.key_prefix>/static/<name>` and returns the same
+response shape as avatar uploads.
+
+---
+
 ## Twirp RPC Endpoints
 
 All Twirp endpoints use `POST` with path pattern `/api/<package>.<Service>/<Method>`.
