@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScheduleBuilder } from "@/components/schedule-builder";
 import type { CronDeliveryType } from "@/types/api";
 
 const schema = z.object({
@@ -113,7 +114,13 @@ export default function CronJobEditPage() {
                 <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} disabled /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="schedule" render={({ field }) => (
-                <FormItem><FormLabel>Schedule</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>Schedule</FormLabel>
+                  <FormControl>
+                    <ScheduleBuilder value={field.value} onChange={field.onChange} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="agent_name" render={({ field }) => (
                 <FormItem>
