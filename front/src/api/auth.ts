@@ -7,6 +7,8 @@ export interface AuthUser {
   username: string;
   display_name?: string;
   displayName?: string;
+  avatar_url?: string;
+  avatarUrl?: string;
   role?: string;
   disabled?: boolean;
   created_at?: string;
@@ -43,6 +45,7 @@ export interface SetUserDisabledInput {
 
 export interface UpdateProfileInput {
   display_name: string;
+  avatar_url?: string;
 }
 
 export interface ChangePasswordInput {

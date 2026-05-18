@@ -89,27 +89,27 @@ type DaemonInfo struct {
 
 	// Unique identifier for this daemon instance.
 	// @gotags: json:"daemon_id,omitempty" yaml:"daemon_id,omitempty"
-	DaemonId string `protobuf:"bytes,1,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
+	DaemonId string `protobuf:"bytes,1,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty" yaml:"daemon_id,omitempty"`
 	// Human-readable name for this daemon.
 	// @gotags: json:"name,omitempty" yaml:"name,omitempty"
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty" yaml:"name,omitempty"`
 	// Execution capabilities this daemon supports (e.g. "opencode", "shell").
 	// @gotags: json:"capabilities,omitempty" yaml:"capabilities,omitempty"
-	Capabilities []string `protobuf:"bytes,3,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	Capabilities []string `protobuf:"bytes,3,rep,name=capabilities,proto3" json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
 	// Routing labels (reserved for future use; not used for selection in Phase 1).
 	// @gotags: json:"labels,omitempty" yaml:"labels,omitempty"
-	Labels map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Labels map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" yaml:"labels,omitempty"`
 	// Semantic version of the daemon client binary (e.g. "v1.4.2").
 	// @gotags: json:"version,omitempty" yaml:"version,omitempty"
-	Version string `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
+	Version string `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty" yaml:"version,omitempty"`
 	// Operating system identifier (e.g. "linux-amd64", "darwin-arm64").
 	// @gotags: json:"os,omitempty" yaml:"os,omitempty"
-	Os string `protobuf:"bytes,6,opt,name=os,proto3" json:"os,omitempty"`
+	Os string `protobuf:"bytes,6,opt,name=os,proto3" json:"os,omitempty" yaml:"os,omitempty"`
 	// Optional executor names the daemon will use (e.g. "shell", "open-code",
 	// "claude-code"). Surfaced to the dashboard for diagnostics. Capabilities
 	// remain the routing primitive; this is purely informational.
 	// @gotags: json:"executors,omitempty" yaml:"executors,omitempty"
-	Executors []string `protobuf:"bytes,7,rep,name=executors,proto3" json:"executors,omitempty"`
+	Executors []string `protobuf:"bytes,7,rep,name=executors,proto3" json:"executors,omitempty" yaml:"executors,omitempty"`
 }
 
 func (x *DaemonInfo) Reset() {
@@ -200,23 +200,23 @@ type DaemonTask struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
-	TaskId string `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskId string `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty" yaml:"task_id,omitempty"`
 	// The agent name on the server side that triggered this task.
 	// @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty"
-	AgentName string `protobuf:"bytes,2,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty"`
+	AgentName string `protobuf:"bytes,2,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty" yaml:"agent_name,omitempty"`
 	// User input text to execute.
 	// @gotags: json:"input,omitempty" yaml:"input,omitempty"
-	Input string `protobuf:"bytes,3,opt,name=input,proto3" json:"input,omitempty"`
+	Input string `protobuf:"bytes,3,opt,name=input,proto3" json:"input,omitempty" yaml:"input,omitempty"`
 	// @gotags: json:"session_id,omitempty" yaml:"session_id,omitempty"
-	SessionId string `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	SessionId string `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty" yaml:"session_id,omitempty"`
 	// @gotags: json:"user_id,omitempty" yaml:"user_id,omitempty"
-	UserId string `protobuf:"bytes,5,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId string `protobuf:"bytes,5,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty" yaml:"user_id,omitempty"`
 	// @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
-	Metadata map[string]string `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Metadata map[string]string `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" yaml:"metadata,omitempty"`
 	// Capability routing key. The daemon uses this to select the executor.
 	// Populated by the server from RemoteAgent.daemon_capability.
 	// @gotags: json:"capability,omitempty" yaml:"capability,omitempty"
-	Capability string `protobuf:"bytes,7,opt,name=capability,proto3" json:"capability,omitempty"`
+	Capability string `protobuf:"bytes,7,opt,name=capability,proto3" json:"capability,omitempty" yaml:"capability,omitempty"`
 }
 
 func (x *DaemonTask) Reset() {
@@ -307,23 +307,23 @@ type DaemonTaskUpdate struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
-	TaskId string `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskId string `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty" yaml:"task_id,omitempty"`
 	// @gotags: json:"status,omitempty" yaml:"status,omitempty"
-	Status DaemonTaskStatus `protobuf:"varint,2,opt,name=status,proto3,enum=agents.v1.DaemonTaskStatus" json:"status,omitempty"`
+	Status DaemonTaskStatus `protobuf:"varint,2,opt,name=status,proto3,enum=agents.v1.DaemonTaskStatus" json:"status,omitempty" yaml:"status,omitempty"`
 	// Partial or final output text.
 	// @gotags: json:"output,omitempty" yaml:"output,omitempty"
-	Output string `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Output string `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty" yaml:"output,omitempty"`
 	// Error message (populated when status is FAILED).
 	// @gotags: json:"error,omitempty" yaml:"error,omitempty"
-	Error string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	Error string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty" yaml:"error,omitempty"`
 	// @gotags: json:"timestamp,omitempty" yaml:"timestamp,omitempty"
-	Timestamp *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Timestamp *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty" yaml:"timestamp,omitempty"`
 	// Optional short label for the current step (e.g. "Compiling dependencies").
 	// @gotags: json:"current_step,omitempty" yaml:"current_step,omitempty"
-	CurrentStep string `protobuf:"bytes,6,opt,name=current_step,json=currentStep,proto3" json:"current_step,omitempty"`
+	CurrentStep string `protobuf:"bytes,6,opt,name=current_step,json=currentStep,proto3" json:"current_step,omitempty" yaml:"current_step,omitempty"`
 	// Optional progress percentage in [0, 100]. 0 when unknown.
 	// @gotags: json:"progress,omitempty" yaml:"progress,omitempty"
-	Progress int32 `protobuf:"varint,7,opt,name=progress,proto3" json:"progress,omitempty"`
+	Progress int32 `protobuf:"varint,7,opt,name=progress,proto3" json:"progress,omitempty" yaml:"progress,omitempty"`
 }
 
 func (x *DaemonTaskUpdate) Reset() {
@@ -414,7 +414,7 @@ type CancelTask struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
-	TaskId string `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskId string `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty" yaml:"task_id,omitempty"`
 }
 
 func (x *CancelTask) Reset() {

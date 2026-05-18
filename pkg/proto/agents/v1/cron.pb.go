@@ -133,30 +133,30 @@ type CronJob struct {
 
 	// Unique name identifying this cron job.
 	// @gotags: json:"name,omitempty" yaml:"name,omitempty"
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty" yaml:"name,omitempty"`
 	// Cron expression (5-field) or predefined schedule (@every, @daily, etc.).
 	// @gotags: json:"schedule,omitempty" yaml:"schedule,omitempty"
-	Schedule string `protobuf:"bytes,2,opt,name=schedule,proto3" json:"schedule,omitempty"`
+	Schedule string `protobuf:"bytes,2,opt,name=schedule,proto3" json:"schedule,omitempty" yaml:"schedule,omitempty"`
 	// Name of the agent to execute.
 	// @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty"
-	AgentName string `protobuf:"bytes,3,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty"`
+	AgentName string `protobuf:"bytes,3,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty" yaml:"agent_name,omitempty"`
 	// Input message to send to the agent on each execution.
 	// @gotags: json:"input,omitempty" yaml:"input,omitempty"
-	Input string `protobuf:"bytes,4,opt,name=input,proto3" json:"input,omitempty"`
+	Input string `protobuf:"bytes,4,opt,name=input,proto3" json:"input,omitempty" yaml:"input,omitempty"`
 	// IANA timezone name (e.g. "Asia/Shanghai"). Defaults to UTC if empty.
 	// @gotags: json:"timezone,omitempty" yaml:"timezone,omitempty"
-	Timezone string `protobuf:"bytes,5,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	Timezone string `protobuf:"bytes,5,opt,name=timezone,proto3" json:"timezone,omitempty" yaml:"timezone,omitempty"`
 	// Whether this cron job is enabled. Defaults to true.
 	// @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
-	Enabled bool `protobuf:"varint,6,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Enabled bool `protobuf:"varint,6,opt,name=enabled,proto3" json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	// Delivery configuration for execution results.
 	// @gotags: json:"delivery,omitempty" yaml:"delivery,omitempty"
-	Delivery *CronDelivery `protobuf:"bytes,7,opt,name=delivery,proto3" json:"delivery,omitempty"`
+	Delivery *CronDelivery `protobuf:"bytes,7,opt,name=delivery,proto3" json:"delivery,omitempty" yaml:"delivery,omitempty"`
 	// @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
-	Metadata map[string]string `protobuf:"bytes,10,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Metadata map[string]string `protobuf:"bytes,10,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" yaml:"metadata,omitempty"`
 	// ID of the workspace this cron job belongs to.
 	// @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
-	WorkspaceId string `protobuf:"bytes,100,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
+	WorkspaceId string `protobuf:"bytes,100,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"`
 }
 
 func (x *CronJob) Reset() {
@@ -261,16 +261,16 @@ type CronDelivery struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: json:"type,omitempty" yaml:"type,omitempty"
-	Type CronDeliveryType `protobuf:"varint,1,opt,name=type,proto3,enum=agents.v1.CronDeliveryType" json:"type,omitempty"`
+	Type CronDeliveryType `protobuf:"varint,1,opt,name=type,proto3,enum=agents.v1.CronDeliveryType" json:"type,omitempty" yaml:"type,omitempty"`
 	// Webhook URL for WEBHOOK delivery type.
 	// @gotags: json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"
-	WebhookUrl string `protobuf:"bytes,2,opt,name=webhook_url,json=webhookUrl,proto3" json:"webhook_url,omitempty"`
+	WebhookUrl string `protobuf:"bytes,2,opt,name=webhook_url,json=webhookUrl,proto3" json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"`
 	// Channel name referencing an existing AgentChannel for CHANNEL delivery type.
 	// @gotags: json:"channel_name,omitempty" yaml:"channel_name,omitempty"
-	ChannelName string `protobuf:"bytes,3,opt,name=channel_name,json=channelName,proto3" json:"channel_name,omitempty"`
+	ChannelName string `protobuf:"bytes,3,opt,name=channel_name,json=channelName,proto3" json:"channel_name,omitempty" yaml:"channel_name,omitempty"`
 	// Target chat/conversation ID for CHANNEL delivery type.
 	// @gotags: json:"chat_id,omitempty" yaml:"chat_id,omitempty"
-	ChatId string `protobuf:"bytes,4,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	ChatId string `protobuf:"bytes,4,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty" yaml:"chat_id,omitempty"`
 }
 
 func (x *CronDelivery) Reset() {
@@ -341,31 +341,31 @@ type CronExecution struct {
 
 	// Unique execution identifier.
 	// @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"`
 	// Name of the cron job that was executed.
 	// @gotags: json:"job_name,omitempty" yaml:"job_name,omitempty" bson:"job_name,omitempty"
-	JobName string `protobuf:"bytes,2,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty"`
+	JobName string `protobuf:"bytes,2,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty" yaml:"job_name,omitempty" bson:"job_name,omitempty"`
 	// Name of the agent that was executed.
 	// @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty" bson:"agent_name,omitempty"
-	AgentName string `protobuf:"bytes,3,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty"`
+	AgentName string `protobuf:"bytes,3,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty" yaml:"agent_name,omitempty" bson:"agent_name,omitempty"`
 	// Execution status.
 	// @gotags: json:"status,omitempty" yaml:"status,omitempty" bson:"status,omitempty"
-	Status CronExecutionStatus `protobuf:"varint,4,opt,name=status,proto3,enum=agents.v1.CronExecutionStatus" json:"status,omitempty"`
+	Status CronExecutionStatus `protobuf:"varint,4,opt,name=status,proto3,enum=agents.v1.CronExecutionStatus" json:"status,omitempty" yaml:"status,omitempty" bson:"status,omitempty"`
 	// Input message sent to the agent.
 	// @gotags: json:"input,omitempty" yaml:"input,omitempty" bson:"input,omitempty"
-	Input string `protobuf:"bytes,5,opt,name=input,proto3" json:"input,omitempty"`
+	Input string `protobuf:"bytes,5,opt,name=input,proto3" json:"input,omitempty" yaml:"input,omitempty" bson:"input,omitempty"`
 	// Agent output text or error message.
 	// @gotags: json:"output,omitempty" yaml:"output,omitempty" bson:"output,omitempty"
-	Output string `protobuf:"bytes,6,opt,name=output,proto3" json:"output,omitempty"`
+	Output string `protobuf:"bytes,6,opt,name=output,proto3" json:"output,omitempty" yaml:"output,omitempty" bson:"output,omitempty"`
 	// When the execution started.
 	// @gotags: json:"started_at,omitempty" yaml:"started_at,omitempty" bson:"started_at,omitempty"
-	StartedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty" yaml:"started_at,omitempty" bson:"started_at,omitempty"`
 	// When the execution finished.
 	// @gotags: json:"finished_at,omitempty" yaml:"finished_at,omitempty" bson:"finished_at,omitempty"
-	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty" yaml:"finished_at,omitempty" bson:"finished_at,omitempty"`
 	// ID of the workspace this execution belongs to.
 	// @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
-	WorkspaceId string `protobuf:"bytes,100,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
+	WorkspaceId string `protobuf:"bytes,100,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"`
 }
 
 func (x *CronExecution) Reset() {
@@ -554,7 +554,7 @@ type GetCronJobRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: json:"name,omitempty" yaml:"name,omitempty"
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty" yaml:"name,omitempty"`
 }
 
 func (x *GetCronJobRequest) Reset() {
@@ -696,7 +696,7 @@ type DeleteCronJobRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: json:"name,omitempty" yaml:"name,omitempty"
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty" yaml:"name,omitempty"`
 }
 
 func (x *DeleteCronJobRequest) Reset() {
@@ -933,13 +933,13 @@ type ListCronExecutionsRequest struct {
 
 	// Optional: filter by job name. Empty returns all.
 	// @gotags: json:"job_name,omitempty" yaml:"job_name,omitempty"
-	JobName string `protobuf:"bytes,1,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty"`
+	JobName string `protobuf:"bytes,1,opt,name=job_name,json=jobName,proto3" json:"job_name,omitempty" yaml:"job_name,omitempty"`
 	// Maximum number of records to return. Defaults to 20.
 	// @gotags: json:"page_size,omitempty" yaml:"page_size,omitempty"
-	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty" yaml:"page_size,omitempty"`
 	// Pagination token from a previous response.
 	// @gotags: json:"page_token,omitempty" yaml:"page_token,omitempty"
-	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty" yaml:"page_token,omitempty"`
 }
 
 func (x *ListCronExecutionsRequest) Reset() {
@@ -1001,7 +1001,7 @@ type RunCronJobNowRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: json:"name,omitempty" yaml:"name,omitempty"
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty" yaml:"name,omitempty"`
 }
 
 func (x *RunCronJobNowRequest) Reset() {
@@ -1098,7 +1098,7 @@ type ListCronExecutionsResponse struct {
 	Executions []*CronExecution `protobuf:"bytes,1,rep,name=executions,proto3" json:"executions,omitempty"`
 	// Token for the next page. Empty if no more results.
 	// @gotags: json:"next_page_token,omitempty" yaml:"next_page_token,omitempty"
-	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty" yaml:"next_page_token,omitempty"`
 }
 
 func (x *ListCronExecutionsResponse) Reset() {

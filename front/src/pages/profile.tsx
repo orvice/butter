@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Copy, ImageUp, Upload } from "lucide-react";
+import { ImageUp, Trash2, Upload } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useChangePassword, useUpdateProfile, type AuthUser } from "@/api/auth";
-import { useUploadAvatar, type UploadResult } from "@/api/uploads";
+import { useUploadAvatar } from "@/api/uploads";
 import { useAuth } from "@/hooks/use-auth";
 
 function displayName(user: { display_name?: string; displayName?: string; username: string }) {
   return user.display_name || user.displayName || user.username;
+}
+
+function avatarUrl(user: { avatar_url?: string; avatarUrl?: string }) {
+  return user.avatar_url || user.avatarUrl || "";
 }
 
 export default function ProfilePage() {
@@ -30,10 +34,11 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
 
   const [name, setName] = useState(() => displayName(user));
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarResult, setAvatarResult] = useState<UploadResult | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const storedAvatar = avatarUrl(user);
 
   const avatarPreview = useMemo(() => {
     if (!avatarFile) return "";
@@ -47,7 +52,6 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
   }, [avatarPreview]);
 
   function handleAvatarFileChange(file: File | undefined) {
-    setAvatarResult(null);
     if (!file) {
       setAvatarFile(null);
       return;
@@ -68,22 +72,36 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
       { file: avatarFile },
       {
         onSuccess: (res) => {
-          setAvatarResult(res);
-          toast.success("Avatar uploaded");
+          updateProfile.mutate(
+            { display_name: name.trim() || user.username, avatar_url: res.url },
+            {
+              onSuccess: (resp) => {
+                if (resp.user) refreshUser(resp.user);
+                setAvatarFile(null);
+                toast.success("Avatar updated");
+              },
+              onError: (e) => toast.error(e.message),
+            },
+          );
         },
         onError: (e) => toast.error(e.message),
       },
     );
   }
 
-  async function copyAvatarUrl() {
-    if (!avatarResult?.url) return;
-    try {
-      await navigator.clipboard.writeText(avatarResult.url);
-      toast.success("Avatar URL copied");
-    } catch {
-      toast.error("Could not copy URL");
-    }
+  function handleRemoveAvatar() {
+    if (!storedAvatar) return;
+    updateProfile.mutate(
+      { display_name: name.trim() || user.username, avatar_url: "" },
+      {
+        onSuccess: (res) => {
+          if (res.user) refreshUser(res.user);
+          setAvatarFile(null);
+          toast.success("Avatar removed");
+        },
+        onError: (e) => toast.error(e.message),
+      },
+    );
   }
 
   function handleUpdateProfile() {
@@ -93,7 +111,7 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
       return;
     }
     updateProfile.mutate(
-      { display_name: trimmed },
+      { display_name: trimmed, avatar_url: storedAvatar },
       {
         onSuccess: (res) => {
           toast.success("Profile updated");
@@ -163,9 +181,9 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
-              {avatarPreview || avatarResult?.url ? (
+              {avatarPreview || storedAvatar ? (
                 <img
-                  src={avatarPreview || avatarResult?.url}
+                  src={avatarPreview || storedAvatar}
                   alt=""
                   className="h-full w-full object-cover"
                 />
@@ -185,23 +203,25 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={handleUploadAvatar} disabled={!avatarFile || uploadAvatar.isPending}>
+            <Button
+              onClick={handleUploadAvatar}
+              disabled={!avatarFile || uploadAvatar.isPending || updateProfile.isPending}
+            >
               <Upload className="mr-2 h-4 w-4" />
-              {uploadAvatar.isPending ? "Uploading..." : "Upload avatar"}
+              {uploadAvatar.isPending || updateProfile.isPending ? "Uploading..." : "Upload avatar"}
             </Button>
-            {avatarResult?.url ? (
-              <Button type="button" variant="outline" onClick={copyAvatarUrl}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copy URL
+            {storedAvatar ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleRemoveAvatar}
+                disabled={updateProfile.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Remove avatar
               </Button>
             ) : null}
           </div>
-          {avatarResult?.url ? (
-            <div className="space-y-1">
-              <Label htmlFor="avatar-url">Uploaded URL</Label>
-              <Input id="avatar-url" readOnly value={avatarResult.url} />
-            </div>
-          ) : null}
         </CardContent>
       </Card>
 

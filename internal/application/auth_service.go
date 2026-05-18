@@ -308,7 +308,8 @@ func (s *AuthServiceServer) UpdateProfile(ctx context.Context, req *agentsv1.Upd
 	if displayName == "" {
 		return nil, twirp.RequiredArgumentError("display_name")
 	}
-	user, err := s.repo.UpdateUserProfile(ctx, current.GetId(), displayName, time.Now().UTC())
+	avatarURL := strings.TrimSpace(req.GetAvatarUrl())
+	user, err := s.repo.UpdateUserProfile(ctx, current.GetId(), displayName, avatarURL, time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			return nil, twirp.NotFoundError("user")

@@ -24,6 +24,7 @@ type userDoc struct {
 	ID           string    `bson:"_id"`
 	Username     string    `bson:"username"`
 	DisplayName  string    `bson:"display_name,omitempty"`
+	AvatarURL    string    `bson:"avatar_url,omitempty"`
 	PasswordHash string    `bson:"password_hash"`
 	Role         string    `bson:"role,omitempty"`
 	Disabled     bool      `bson:"disabled,omitempty"`
@@ -115,6 +116,7 @@ func (s *Store) CreateUser(ctx context.Context, user *agentsv1.User, passwordHas
 		ID:           user.GetId(),
 		Username:     user.GetUsername(),
 		DisplayName:  user.GetDisplayName(),
+		AvatarURL:    user.GetAvatarUrl(),
 		PasswordHash: passwordHash,
 		Role:         user.GetRole(),
 		Disabled:     user.GetDisabled(),
@@ -130,11 +132,15 @@ func (s *Store) CreateUser(ctx context.Context, user *agentsv1.User, passwordHas
 	return nil
 }
 
-func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName string, updatedAt time.Time) (*agentsv1.User, error) {
+func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName, avatarURL string, updatedAt time.Time) (*agentsv1.User, error) {
 	res := s.users.FindOneAndUpdate(
 		ctx,
 		bson.M{"_id": id},
-		bson.M{"$set": bson.M{"display_name": displayName, "updated_at": updatedAt}},
+		bson.M{"$set": bson.M{
+			"display_name": displayName,
+			"avatar_url":   avatarURL,
+			"updated_at":   updatedAt,
+		}},
 		options.FindOneAndUpdate().SetReturnDocument(options.After),
 	)
 	var doc userDoc
@@ -265,6 +271,7 @@ func userToProto(doc *userDoc) *agentsv1.User {
 		Id:          doc.ID,
 		Username:    doc.Username,
 		DisplayName: doc.DisplayName,
+		AvatarUrl:   doc.AvatarURL,
 		Role:        doc.Role,
 		Disabled:    doc.Disabled,
 		CreatedAt:   timestamppb.New(doc.CreatedAt),

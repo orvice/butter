@@ -45,6 +45,8 @@ message User {
   google.protobuf.Timestamp created_at = 6;
   // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
   google.protobuf.Timestamp updated_at = 7;
+  // @gotags: json:"avatar_url,omitempty" yaml:"avatar_url,omitempty" bson:"avatar_url,omitempty"
+  string avatar_url = 8;
 }
 
 message LoginRequest {
@@ -110,6 +112,8 @@ message SetUserDisabledResponse {
 
 message UpdateProfileRequest {
   string display_name = 1 [(validate.rules).string.min_len = 1];
+  // Avatar URL. Empty string clears the stored avatar.
+  string avatar_url = 2;
 }
 
 message UpdateProfileResponse {

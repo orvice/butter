@@ -67,8 +67,8 @@ func (s *Store) UpdateUserPassword(ctx context.Context, id string, passwordHash 
 	return s.users.UpdateUserPassword(ctx, id, passwordHash, updatedAt)
 }
 
-func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName string, updatedAt time.Time) (*agentsv1.User, error) {
-	return s.users.UpdateUserProfile(ctx, id, displayName, updatedAt)
+func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName, avatarURL string, updatedAt time.Time) (*agentsv1.User, error) {
+	return s.users.UpdateUserProfile(ctx, id, displayName, avatarURL, updatedAt)
 }
 
 func (s *Store) SetUserDisabled(ctx context.Context, id string, disabled bool, updatedAt time.Time) (*agentsv1.User, error) {
