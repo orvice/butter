@@ -23,6 +23,7 @@ import (
 // Handlers holds all HTTP/Twirp handlers that need post-bootstrap wiring.
 type Handlers struct {
 	a2aHandler             *httpHandler.A2AHandler
+	chatStreamHandler      *httpHandler.ChatStreamHandler
 	agentSvcServer         *application.AgentServiceServer
 	mcpSvcServer           *application.MCPServerServiceServer
 	modelProviderSvcServer *application.ModelProviderServiceServer
@@ -91,6 +92,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.RunnerSvc != nil {
 		h.a2aHandler.SetRunnerService(result.RunnerSvc)
+		h.chatStreamHandler.SetRunnerService(result.RunnerSvc)
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
 	}
@@ -202,6 +204,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	statusService := service.NewStatusService(cfg, configStore)
 	statusHandler := httpHandler.NewStatusHandler(statusService)
 	a2aHandler := httpHandler.NewA2AHandler(cfg)
+	chatStreamHandler := httpHandler.NewChatStreamHandler()
 	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg,
 	// so we read cfg.Static on every request instead of snapshotting now.
 	uploadSvc := service.NewUploadServiceLazy(func() config.StaticConfig { return cfg.Static })
@@ -236,6 +239,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 
 	handlers := &Handlers{
 		a2aHandler:             a2aHandler,
+		chatStreamHandler:      chatStreamHandler,
 		agentSvcServer:         agentSvcServer,
 		mcpSvcServer:           mcpSvcServer,
 		modelProviderSvcServer: modelProviderSvcServer,
@@ -262,6 +266,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		healthHandler.Register(r)
 		statusHandler.Register(r)
 		a2aHandler.Register(r)
+		chatStreamHandler.Register(r)
 		uploadHandler.Register(r)
 
 		// Mount Twirp handlers under /api prefix
