@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"butterfly.orx.me/core/log"
+
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -61,6 +63,12 @@ func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *a
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
+	logger.Info("creating remote agent",
+		"workspace_id", wsID,
+		"name", req.GetRemoteAgent().GetName(),
+		"protocol", req.GetRemoteAgent().GetProtocol().String(),
+	)
 	r, err := mutateWithRuntime(
 		func() (*agentsv1.RemoteAgent, error) {
 			return s.repo.CreateRemoteAgent(ctx, wsID, req.GetRemoteAgent())
@@ -76,8 +84,10 @@ func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *a
 		},
 	)
 	if err != nil {
+		logger.Error("create remote agent failed", "workspace_id", wsID, "name", req.GetRemoteAgent().GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("remote agent created", "workspace_id", wsID, "id", r.GetId(), "name", r.GetName())
 	return &agentsv1.CreateRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
@@ -86,10 +96,12 @@ func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *a
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetRemoteAgent().GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	logger.Info("updating remote agent", "workspace_id", wsID, "id", req.GetRemoteAgent().GetId(), "name", req.GetRemoteAgent().GetName())
 
 	r, err := mutateWithRuntime(
 		func() (*agentsv1.RemoteAgent, error) {
@@ -106,8 +118,10 @@ func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *a
 		},
 	)
 	if err != nil {
+		logger.Error("update remote agent failed", "workspace_id", wsID, "id", req.GetRemoteAgent().GetId(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("remote agent updated", "workspace_id", wsID, "id", r.GetId(), "name", r.GetName())
 	return &agentsv1.UpdateRemoteAgentResponse{RemoteAgent: r}, nil
 }
 
@@ -116,10 +130,12 @@ func (s *RemoteAgentServiceServer) DeleteRemoteAgent(ctx context.Context, req *a
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	logger.Info("deleting remote agent", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
 
 	err = deleteWithRuntime(
 		func() error {
@@ -136,8 +152,10 @@ func (s *RemoteAgentServiceServer) DeleteRemoteAgent(ctx context.Context, req *a
 		},
 	)
 	if err != nil {
+		logger.Error("delete remote agent failed", "workspace_id", wsID, "id", req.GetId(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("remote agent deleted", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
 	return &agentsv1.DeleteRemoteAgentResponse{}, nil
 }
 

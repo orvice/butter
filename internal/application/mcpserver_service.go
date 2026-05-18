@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"butterfly.orx.me/core/log"
+
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -53,6 +55,12 @@ func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agent
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
+	logger.Info("creating mcp server",
+		"workspace_id", wsID,
+		"name", req.GetMcpServer().GetName(),
+		"transport", req.GetMcpServer().GetTransport().String(),
+	)
 	m, err := mutateWithRuntime(
 		func() (*agentsv1.MCPServer, error) {
 			return s.repo.CreateMCPServer(ctx, wsID, req.GetMcpServer())
@@ -68,8 +76,10 @@ func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agent
 		},
 	)
 	if err != nil {
+		logger.Error("create mcp server failed", "workspace_id", wsID, "name", req.GetMcpServer().GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("mcp server created", "workspace_id", wsID, "id", m.GetId(), "name", m.GetName())
 	return &agentsv1.CreateMCPServerResponse{McpServer: m}, nil
 }
 
@@ -78,10 +88,12 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agent
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetMCPServer(ctx, wsID, req.GetMcpServer().GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	logger.Info("updating mcp server", "workspace_id", wsID, "id", req.GetMcpServer().GetId(), "name", req.GetMcpServer().GetName())
 
 	m, err := mutateWithRuntime(
 		func() (*agentsv1.MCPServer, error) {
@@ -98,8 +110,10 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agent
 		},
 	)
 	if err != nil {
+		logger.Error("update mcp server failed", "workspace_id", wsID, "id", req.GetMcpServer().GetId(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("mcp server updated", "workspace_id", wsID, "id", m.GetId(), "name", m.GetName())
 	return &agentsv1.UpdateMCPServerResponse{McpServer: m}, nil
 }
 
@@ -108,10 +122,12 @@ func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agent
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetMCPServer(ctx, wsID, req.GetId())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	logger.Info("deleting mcp server", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
 
 	err = deleteWithRuntime(
 		func() error {
@@ -128,8 +144,10 @@ func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agent
 		},
 	)
 	if err != nil {
+		logger.Error("delete mcp server failed", "workspace_id", wsID, "id", req.GetId(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("mcp server deleted", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
 	return &agentsv1.DeleteMCPServerResponse{}, nil
 }
 
@@ -160,6 +178,8 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 	defer cancel()
 	result, err := internalagent.ProbeMCPServer(probeCtx, m)
 	if err != nil {
+		log.FromContext(ctx).Warn("mcp server probe failed",
+			"workspace_id", wsID, "id", m.GetId(), "name", m.GetName(), "err", err)
 		status.State = agentsv1.MCPServerStatus_STATE_DISCONNECTED
 		status.Detail = err.Error()
 		status.ToolCount = int32(len(m.GetToolFilter()))

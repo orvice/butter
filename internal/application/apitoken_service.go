@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"butterfly.orx.me/core/log"
 	"github.com/google/uuid"
 	"github.com/twitchtv/twirp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -79,9 +80,12 @@ func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *agentsv
 		CreatedAt:   timestamppb.New(time.Now().UTC()),
 		WorkspaceId: wsID,
 	}
+	logger := log.FromContext(ctx)
 	if err := s.repo.Create(ctx, token, hash); err != nil {
+		logger.Error("create api token failed", "workspace_id", wsID, "name", name, "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("api token created", "workspace_id", wsID, "id", token.GetId(), "name", name, "prefix", token.GetPrefix())
 	return &agentsv1.CreateAPITokenResponse{Token: token, Secret: secret}, nil
 }
 
@@ -108,13 +112,16 @@ func (s *APITokenServiceServer) RevokeAPIToken(ctx context.Context, req *agentsv
 	if existing.GetWorkspaceId() != wsID {
 		return nil, twirp.NotFoundError("api token not found")
 	}
+	logger := log.FromContext(ctx)
 	token, err := s.repo.Revoke(ctx, req.GetId())
 	if err != nil {
 		if errors.Is(err, apitoken.ErrNotFound) {
 			return nil, twirp.NotFoundError("api token not found")
 		}
+		logger.Error("revoke api token failed", "workspace_id", wsID, "id", req.GetId(), "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("api token revoked", "workspace_id", wsID, "id", token.GetId(), "name", token.GetName())
 	return &agentsv1.RevokeAPITokenResponse{Token: token}, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"butterfly.orx.me/core/log"
 	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/runtime/daemon"
@@ -72,9 +73,21 @@ func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *agentsv
 		}
 	}
 
+	logger := log.FromContext(ctx)
+	logger.Info("cancelling daemon task",
+		"task_id", req.GetTaskId(),
+		"daemon_id", target.Info.GetDaemonId(),
+		"daemon_name", target.Info.GetName(),
+	)
 	if err := target.CancelTask(req.GetTaskId()); err != nil {
+		logger.Error("cancel daemon task failed",
+			"task_id", req.GetTaskId(),
+			"daemon_id", target.Info.GetDaemonId(),
+			"err", err,
+		)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("daemon task cancelled", "task_id", req.GetTaskId(), "daemon_id", target.Info.GetDaemonId())
 	return &agentsv1.CancelDaemonTaskResponse{DaemonId: target.Info.GetDaemonId()}, nil
 }
 

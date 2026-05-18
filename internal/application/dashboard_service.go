@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"butterfly.orx.me/core/log"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
@@ -107,6 +108,7 @@ func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context,
 
 	execs, err := s.cronExecRepo.ListByTimeRange(ctx, "", req.GetJobName(), start, end)
 	if err != nil {
+		log.FromContext(ctx).Error("dashboard cron timeseries failed", "job", req.GetJobName(), "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
 
@@ -150,6 +152,7 @@ func (s *DashboardServiceServer) GetActivityFeed(ctx context.Context, req *agent
 	}
 	invs, next, err := s.invRepo.ListRecent(ctx, limit, req.GetPageToken())
 	if err != nil {
+		log.FromContext(ctx).Error("dashboard activity feed failed", "limit", limit, "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
 	events := make([]*agentsv1.ActivityEvent, 0, len(invs))
@@ -264,6 +267,7 @@ func (s *DashboardServiceServer) checkMongo(ctx context.Context) *agentsv1.Compo
 	latency := time.Since(start).Milliseconds()
 	now := timestamppb.New(time.Now().UTC())
 	if err != nil {
+		log.FromContext(ctx).Warn("mongodb health probe failed", "latency_ms", latency, "err", err)
 		return &agentsv1.ComponentHealth{
 			Status:    agentsv1.ComponentHealth_STATUS_DOWN,
 			Detail:    err.Error(),
@@ -293,6 +297,7 @@ func (s *DashboardServiceServer) checkRedis(ctx context.Context) *agentsv1.Compo
 	latency := time.Since(start).Milliseconds()
 	now := timestamppb.New(time.Now().UTC())
 	if err != nil {
+		log.FromContext(ctx).Warn("redis health probe failed", "latency_ms", latency, "err", err)
 		return &agentsv1.ComponentHealth{
 			Status:    agentsv1.ComponentHealth_STATUS_DEGRADED,
 			Detail:    err.Error(),
