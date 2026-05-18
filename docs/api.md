@@ -412,6 +412,49 @@ One-shot agent run. If `session_id` is empty an ephemeral id `invoke-<uuid>` is 
 | `session_id` | string | The session id used (echoed back) |
 | `response` | string | Final agent response text |
 
+### Chat streaming HTTP endpoint
+
+#### Stream chat
+
+```
+POST /api/chat/stream
+```
+
+Runs an agent and streams progress over Server-Sent Events (SSE). This endpoint is intended for chat UIs that need immediate invocation metadata, intermediate ADK runner events, and the final response without waiting for a unary Twirp response.
+
+It uses the same authentication middleware as `/api` endpoints. If the request includes `X-Workspace-ID`, the runner invocation is scoped to that workspace.
+
+**Request JSON:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_name` | string | Required agent name |
+| `message` | string | Required user message |
+| `app_name` | string | Defaults to `"api"` |
+| `user_id` | string | Defaults to `"api"` |
+| `session_id` | string | Reuse an existing session; empty creates `chat-<uuid>` |
+| `model_override` | string | Optional model alias or full name |
+
+**Events:**
+
+| SSE event | Description |
+|-----------|-------------|
+| `invocation_started` | First event. Contains `invocation_id`, `session_id`, and `agent_name`. |
+| `agent_event` | Intermediate non-final ADK event. Contains event metadata and `content_json` when present. |
+| `final` | Final successful response. Contains `response`. |
+| `error` | Terminal error. Contains `error`. |
+
+**Example:**
+
+```bash
+curl -N \
+  -H 'Authorization: Bearer <token>' \
+  -H 'X-Workspace-ID: <workspace-id>' \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_name":"assistant","message":"Hello"}' \
+  http://localhost:8080/api/chat/stream
+```
+
 #### CancelAgentInvocation
 
 ```
