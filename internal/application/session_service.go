@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"butterfly.orx.me/core/log"
 	"github.com/twitchtv/twirp"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -85,6 +86,7 @@ func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.
 		state = req.GetState().AsMap()
 	}
 
+	logger := log.FromContext(ctx)
 	resp, err := sessionSvc.Create(ctx, &session.CreateRequest{
 		AppName:   req.GetAppName(),
 		UserID:    req.GetUserId(),
@@ -92,9 +94,20 @@ func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.
 		State:     state,
 	})
 	if err != nil {
+		logger.Error("create session failed",
+			"app_name", req.GetAppName(),
+			"user_id", req.GetUserId(),
+			"session_id", req.GetSessionId(),
+			"err", err,
+		)
 		return nil, twirp.InternalErrorWith(err)
 	}
 
+	logger.Info("session created",
+		"app_name", req.GetAppName(),
+		"user_id", req.GetUserId(),
+		"session_id", resp.Session.ID(),
+	)
 	return &agentsv1.CreateSessionResponse{Session: sessionToInfo(resp.Session)}, nil
 }
 
@@ -225,14 +238,26 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.
 		return nil, twirp.NewError(twirp.FailedPrecondition, "session service not available")
 	}
 
+	logger := log.FromContext(ctx)
 	err := sessionSvc.Delete(ctx, &session.DeleteRequest{
 		AppName:   req.GetAppName(),
 		UserID:    req.GetUserId(),
 		SessionID: req.GetSessionId(),
 	})
 	if err != nil {
+		logger.Error("delete session failed",
+			"app_name", req.GetAppName(),
+			"user_id", req.GetUserId(),
+			"session_id", req.GetSessionId(),
+			"err", err,
+		)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("session deleted",
+		"app_name", req.GetAppName(),
+		"user_id", req.GetUserId(),
+		"session_id", req.GetSessionId(),
+	)
 	return &agentsv1.DeleteSessionResponse{}, nil
 }
 
@@ -250,11 +275,30 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *agentsv1.R
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
 	}
 
+	logger := log.FromContext(ctx)
+	logger.Info("replying to session",
+		"agent", req.GetAgentName(),
+		"app_name", req.GetAppName(),
+		"user_id", req.GetUserId(),
+		"session_id", req.GetSessionId(),
+		"message_len", len(req.GetMessage()),
+	)
+	start := time.Now()
 	response, err := runnerSvc.Run(ctx, req.GetAgentName(), []*genai.Part{textPart}, req.GetModelOverride(), ctxInfo, nil, nil)
 	if err != nil {
+		logger.Error("session reply failed",
+			"agent", req.GetAgentName(),
+			"session_id", req.GetSessionId(),
+			"elapsed_ms", time.Since(start).Milliseconds(),
+			"err", err,
+		)
 		return nil, twirp.InternalErrorWith(err)
 	}
-
+	logger.Info("session reply completed",
+		"agent", req.GetAgentName(),
+		"session_id", req.GetSessionId(),
+		"elapsed_ms", time.Since(start).Milliseconds(),
+	)
 	return &agentsv1.ReplySessionResponse{Response: response}, nil
 }
 

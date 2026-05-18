@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"butterfly.orx.me/core/log"
 	"github.com/google/uuid"
 	"github.com/twitchtv/twirp"
 	"google.golang.org/genai"
@@ -93,12 +94,16 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *agentsv1.ListA
 }
 
 func (s *AgentServiceServer) ReloadAgents(ctx context.Context, _ *agentsv1.ReloadAgentsRequest) (*agentsv1.ReloadAgentsResponse, error) {
+	logger := log.FromContext(ctx)
 	if s.runtime == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "config runtime not wired")
 	}
+	logger.Info("reloading agent runtime")
 	if err := s.runtime.ReloadRunner(ctx); err != nil {
+		logger.Error("reload agent runtime failed", "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("agent runtime reloaded")
 	return &agentsv1.ReloadAgentsResponse{ReloadedAt: timestamppb.New(time.Now().UTC())}, nil
 }
 
@@ -119,6 +124,8 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *agentsv1.Crea
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
+	logger.Info("creating agent", "workspace_id", wsID, "agent", req.GetAgent().GetName(), "type", req.GetAgent().GetType().String())
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
 			return s.repo.CreateAgent(ctx, wsID, req.GetAgent())
@@ -134,8 +141,10 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *agentsv1.Crea
 		},
 	)
 	if err != nil {
+		logger.Error("create agent failed", "workspace_id", wsID, "agent", req.GetAgent().GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("agent created", "workspace_id", wsID, "agent", a.GetName(), "type", a.GetType().String())
 	return &agentsv1.CreateAgentResponse{Agent: a}, nil
 }
 
@@ -144,10 +153,12 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.Upda
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetAgent(ctx, wsID, req.GetAgent().GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	logger.Info("updating agent", "workspace_id", wsID, "agent", req.GetAgent().GetName())
 
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
@@ -164,8 +175,10 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.Upda
 		},
 	)
 	if err != nil {
+		logger.Error("update agent failed", "workspace_id", wsID, "agent", req.GetAgent().GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("agent updated", "workspace_id", wsID, "agent", a.GetName())
 	return &agentsv1.UpdateAgentResponse{Agent: a}, nil
 }
 
@@ -174,10 +187,12 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.Dele
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetAgent(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	logger.Info("deleting agent", "workspace_id", wsID, "agent", req.GetName())
 
 	err = deleteWithRuntime(
 		func() error {
@@ -194,8 +209,10 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.Dele
 		},
 	)
 	if err != nil {
+		logger.Error("delete agent failed", "workspace_id", wsID, "agent", req.GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("agent deleted", "workspace_id", wsID, "agent", req.GetName())
 	return &agentsv1.DeleteAgentResponse{}, nil
 }
 
@@ -233,11 +250,35 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.Invo
 		WorkspaceId: wsID,
 	}
 
+	logger := log.FromContext(ctx)
+	logger.Info("invoking agent",
+		"workspace_id", wsID,
+		"agent", req.GetAgentName(),
+		"app_name", appName,
+		"user_id", userID,
+		"session_id", sessionID,
+		"model_override", req.GetModelOverride(),
+		"input_len", len(req.GetInput()),
+	)
 	parts := []*genai.Part{{Text: req.GetInput()}}
+	start := time.Now()
 	response, err := s.runnerSvc.Run(ctx, req.GetAgentName(), parts, req.GetModelOverride(), ctxInfo, nil, nil)
 	if err != nil {
+		logger.Error("agent invocation failed",
+			"workspace_id", wsID,
+			"agent", req.GetAgentName(),
+			"session_id", sessionID,
+			"elapsed_ms", time.Since(start).Milliseconds(),
+			"err", err,
+		)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("agent invocation completed",
+		"workspace_id", wsID,
+		"agent", req.GetAgentName(),
+		"session_id", sessionID,
+		"elapsed_ms", time.Since(start).Milliseconds(),
+	)
 	return &agentsv1.InvokeAgentResponse{SessionId: sessionID, Response: response}, nil
 }
 
@@ -272,6 +313,10 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *age
 		return nil, twirp.RequiredArgumentError("invocation_id")
 	}
 	cancelled := s.runnerSvc.CancelInvocation(req.GetInvocationId())
+	log.FromContext(ctx).Info("cancel agent invocation requested",
+		"invocation_id", req.GetInvocationId(),
+		"cancelled", cancelled,
+	)
 	return &agentsv1.CancelAgentInvocationResponse{Cancelled: cancelled}, nil
 }
 

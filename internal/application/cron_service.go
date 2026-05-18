@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"butterfly.orx.me/core/log"
 	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/runtime/cron"
@@ -79,9 +80,13 @@ func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.
 	}
 	job := req.GetCronJob()
 	job.WorkspaceId = wsID
+	logger := log.FromContext(ctx)
+	logger.Info("creating cron job", "workspace_id", wsID, "name", job.GetName(), "schedule", job.GetSchedule())
 	if err := s.scheduler.AddJob(ctx, job); err != nil {
+		logger.Error("create cron job failed", "workspace_id", wsID, "name", job.GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("cron job created", "workspace_id", wsID, "name", job.GetName())
 	return &agentsv1.CreateCronJobResponse{CronJob: job}, nil
 }
 
@@ -95,9 +100,13 @@ func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.
 	}
 	job := req.GetCronJob()
 	job.WorkspaceId = wsID
+	logger := log.FromContext(ctx)
+	logger.Info("updating cron job", "workspace_id", wsID, "name", job.GetName(), "schedule", job.GetSchedule())
 	if err := s.scheduler.UpdateJob(ctx, job); err != nil {
+		logger.Error("update cron job failed", "workspace_id", wsID, "name", job.GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("cron job updated", "workspace_id", wsID, "name", job.GetName())
 	return &agentsv1.UpdateCronJobResponse{CronJob: job}, nil
 }
 
@@ -109,13 +118,17 @@ func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
 	job, err := s.scheduler.GetJob(ctx, wsID, req.GetName())
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	logger.Info("deleting cron job", "workspace_id", wsID, "name", req.GetName())
 	if err := s.scheduler.RemoveJob(ctx, wsID, req.GetName()); err != nil {
+		logger.Error("delete cron job failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("cron job deleted", "workspace_id", wsID, "name", req.GetName())
 	return &agentsv1.DeleteCronJobResponse{CronJob: job}, nil
 }
 
@@ -127,10 +140,14 @@ func (s *CronJobServiceServer) RunCronJobNow(ctx context.Context, req *agentsv1.
 	if err != nil {
 		return nil, err
 	}
+	logger := log.FromContext(ctx)
+	logger.Info("running cron job manually", "workspace_id", wsID, "name", req.GetName())
 	exec, err := s.scheduler.RunJobNow(ctx, wsID, req.GetName())
 	if err != nil {
+		logger.Error("run cron job manually failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
 		return nil, toTwirpError(err)
 	}
+	logger.Info("cron job manual run started", "workspace_id", wsID, "name", req.GetName(), "execution_id", exec.GetId())
 	return &agentsv1.RunCronJobNowResponse{Execution: exec}, nil
 }
 

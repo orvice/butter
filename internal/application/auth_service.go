@@ -48,7 +48,9 @@ func (s *AuthServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
 }
 
 func (s *AuthServiceServer) Login(ctx context.Context, req *agentsv1.LoginRequest) (*agentsv1.LoginResponse, error) {
+	logger := log.FromContext(ctx)
 	if s.repo == nil {
+		logger.Warn("login rejected: auth store not available")
 		return nil, twirp.NewError(twirp.FailedPrecondition, "auth store not available")
 	}
 	username := strings.TrimSpace(req.GetUsername())
@@ -59,22 +61,29 @@ func (s *AuthServiceServer) Login(ctx context.Context, req *agentsv1.LoginReques
 		return nil, twirp.RequiredArgumentError("password")
 	}
 
+	logger.Debug("login attempt", "username", username)
+
 	user, passwordHash, err := s.repo.FindUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
+			logger.Info("login failed: unknown user", "username", username)
 			return nil, twirp.NewError(twirp.Unauthenticated, "invalid username or password")
 		}
+		logger.Error("login failed: user lookup error", "username", username, "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
 	if user.GetDisabled() {
+		logger.Info("login rejected: user disabled", "username", username, "user_id", user.GetId())
 		return nil, twirp.NewError(twirp.PermissionDenied, "user disabled")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.GetPassword())); err != nil {
+		logger.Info("login failed: password mismatch", "username", username, "user_id", user.GetId())
 		return nil, twirp.NewError(twirp.Unauthenticated, "invalid username or password")
 	}
 
 	secret, err := generateSessionSecret()
 	if err != nil {
+		logger.Error("login failed: cannot generate session secret", "user_id", user.GetId(), "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
 	now := time.Now().UTC()
@@ -87,10 +96,18 @@ func (s *AuthServiceServer) Login(ctx context.Context, req *agentsv1.LoginReques
 		ExpiresAt: expiresAt,
 	}
 	if err := s.repo.CreateSession(ctx, session); err != nil {
+		logger.Error("login failed: cannot create session", "user_id", user.GetId(), "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
 
 	workspaces := s.userWorkspaces(ctx, user)
+	logger.Info("login succeeded",
+		"username", username,
+		"user_id", user.GetId(),
+		"role", user.GetRole(),
+		"session_id", session.ID,
+		"workspace_count", len(workspaces),
+	)
 	return &agentsv1.LoginResponse{
 		Token:      secret,
 		User:       user,
@@ -182,6 +199,7 @@ func (s *AuthServiceServer) Me(ctx context.Context, _ *agentsv1.MeRequest) (*age
 }
 
 func (s *AuthServiceServer) Logout(ctx context.Context, _ *agentsv1.LogoutRequest) (*agentsv1.LogoutResponse, error) {
+	logger := log.FromContext(ctx)
 	if s.repo == nil {
 		return &agentsv1.LogoutResponse{}, nil
 	}
@@ -190,8 +208,10 @@ func (s *AuthServiceServer) Logout(ctx context.Context, _ *agentsv1.LogoutReques
 		return nil, twirp.NewError(twirp.Unauthenticated, "unauthenticated")
 	}
 	if err := s.repo.RevokeSession(ctx, session.ID); err != nil {
+		logger.Error("logout failed: revoke session", "session_id", session.ID, "user_id", session.UserID, "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("logout succeeded", "session_id", session.ID, "user_id", session.UserID)
 	return &agentsv1.LogoutResponse{}, nil
 }
 
@@ -235,12 +255,16 @@ func (s *AuthServiceServer) CreateUser(ctx context.Context, req *agentsv1.Create
 	if user.GetDisplayName() == "" {
 		user.DisplayName = username
 	}
+	logger := log.FromContext(ctx)
 	if err := s.repo.CreateUser(ctx, user, string(hash)); err != nil {
 		if errors.Is(err, auth.ErrUserAlreadyExists) {
+			logger.Info("create user rejected: username already exists", "username", username)
 			return nil, twirp.NewError(twirp.AlreadyExists, "username already exists")
 		}
+		logger.Error("create user failed", "username", username, "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("user created", "username", username, "user_id", user.GetId(), "role", user.GetRole(), "disabled", user.GetDisabled())
 	return &agentsv1.CreateUserResponse{User: user}, nil
 }
 
@@ -259,13 +283,16 @@ func (s *AuthServiceServer) UpdateUserPassword(ctx context.Context, req *agentsv
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger := log.FromContext(ctx)
 	user, err := s.repo.UpdateUserPassword(ctx, id, string(hash), time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			return nil, twirp.NotFoundError("user")
 		}
+		logger.Error("update user password failed", "user_id", id, "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("user password updated", "user_id", id, "username", user.GetUsername())
 	return &agentsv1.UpdateUserPasswordResponse{User: user}, nil
 }
 
@@ -341,13 +368,16 @@ func (s *AuthServiceServer) SetUserDisabled(ctx context.Context, req *agentsv1.S
 	if current != nil && current.GetId() == id && req.GetDisabled() {
 		return nil, twirp.NewError(twirp.PermissionDenied, "cannot disable current user")
 	}
+	logger := log.FromContext(ctx)
 	user, err := s.repo.SetUserDisabled(ctx, id, req.GetDisabled(), time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			return nil, twirp.NotFoundError("user")
 		}
+		logger.Error("set user disabled failed", "user_id", id, "disabled", req.GetDisabled(), "err", err)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	logger.Info("user disabled flag updated", "user_id", id, "username", user.GetUsername(), "disabled", user.GetDisabled())
 	return &agentsv1.SetUserDisabledResponse{User: user}, nil
 }
 
