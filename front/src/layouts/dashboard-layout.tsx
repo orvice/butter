@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { NavLink, Navigate, Outlet } from "react-router-dom";
+import { Link, NavLink, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
+import type { AuthUser } from "@/api/auth";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useTheme } from "next-themes";
 import { useOverview } from "@/api/dashboard";
@@ -294,8 +295,28 @@ function WorkspaceCreateCard() {
   );
 }
 
+function UserAvatarLink({ user }: { user: AuthUser | null }) {
+  if (!user) return null;
+  const avatar = user.avatar_url || user.avatarUrl || "";
+  const name = user.display_name || user.displayName || user.username;
+  const initial = (name || user.username || "?").trim().charAt(0).toUpperCase() || "?";
+  return (
+    <Link
+      to="/profile"
+      aria-label={`Profile of ${name}`}
+      className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted text-xs font-medium hover:opacity-80"
+    >
+      {avatar ? (
+        <img src={avatar} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span>{initial}</span>
+      )}
+    </Link>
+  );
+}
+
 export default function DashboardLayout() {
-  const { isAuthenticated, isAdmin, logout } = useAuth();
+  const { isAuthenticated, isAdmin, logout, user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { selectedWorkspaceId, workspaces, isLoading: isWorkspaceLoading } = useWorkspace();
 
@@ -363,6 +384,7 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-2">
             <StatusPill />
             <Badge variant="outline" className="hidden text-xs sm:inline-flex">Production</Badge>
+            <UserAvatarLink user={user} />
           </div>
         </header>
         <main className="flex-1 overflow-auto p-4 sm:p-6">

@@ -95,8 +95,10 @@ Response (200):
 }
 ```
 
-Store the returned `url` on the user / agent record (or use the
-[Auth/Agent services](api.md) once the proto fields land).
+Store the returned `url` on the user / agent record via the
+[Auth/Agent services](api.md) — for user avatars call
+`AuthService.UpdateProfile` with the `avatar_url` field; for agents put
+the URL on `Agent.metadata.icon_url`.
 
 ### `POST /api/uploads/avatar/:owner_kind/:owner_id`
 
@@ -120,11 +122,17 @@ Returns the same shape as `/avatar`. Asset is placed at
 
 ## 4. Storing avatar URLs
 
-Until `User.avatar_url` / `Agent.avatar_url` are added to the proto schema,
-clients should persist the returned `url` field themselves (e.g. on a user
-metadata document) and render it directly from the CDN. Stable keys make it
-safe to overwrite an existing avatar: keys include a timestamp + random
-suffix so each upload produces a new cacheable URL.
+- **User avatars** are persisted on `User.avatar_url`. After a successful
+  `POST /api/uploads/avatar` the dashboard automatically calls
+  `AuthService.UpdateProfile` with the returned `url` so the value
+  survives logout/refresh; `Me` and `Login` responses both carry it.
+  Pass an empty `avatar_url` to clear.
+- **Agent icons** are persisted on `Agent.metadata.icon_url` (a free-form
+  metadata map; no dedicated proto field yet). The dashboard reads this
+  key when rendering agent cards.
+
+Keys include a timestamp + random suffix, so each upload produces a new
+cacheable URL — overwriting an old avatar is safe.
 
 ## 5. Troubleshooting
 

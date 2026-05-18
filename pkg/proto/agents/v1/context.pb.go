@@ -134,36 +134,36 @@ type ContextInfo struct {
 
 	// Unique identifier for this context instance, generated per request.
 	// @gotags: json:"uuid,omitempty" yaml:"uuid,omitempty"
-	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty" yaml:"uuid,omitempty"`
 	// Session identifier for the conversation.
 	// @gotags: json:"session_id,omitempty" yaml:"session_id,omitempty"
-	SessionId string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	SessionId string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty" yaml:"session_id,omitempty"`
 	// User identifier.
 	// @gotags: json:"user_id,omitempty" yaml:"user_id,omitempty"
-	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty" yaml:"user_id,omitempty"`
 	// Channel through which the request arrived.
 	// @gotags: json:"channel_name,omitempty" yaml:"channel_name,omitempty"
-	ChannelName string `protobuf:"bytes,4,opt,name=channel_name,json=channelName,proto3" json:"channel_name,omitempty"`
+	ChannelName string `protobuf:"bytes,4,opt,name=channel_name,json=channelName,proto3" json:"channel_name,omitempty" yaml:"channel_name,omitempty"`
 	// Transport-level origin of the request.
 	// @gotags: json:"source,omitempty" yaml:"source,omitempty"
-	Source ContextSource `protobuf:"varint,5,opt,name=source,proto3,enum=agents.v1.ContextSource" json:"source,omitempty"`
+	Source ContextSource `protobuf:"varint,5,opt,name=source,proto3,enum=agents.v1.ContextSource" json:"source,omitempty" yaml:"source,omitempty"`
 	// Chat/conversation identifier (e.g., Telegram chat ID, A2A task ID).
 	// @gotags: json:"chat_id,omitempty" yaml:"chat_id,omitempty"
-	ChatId string `protobuf:"bytes,6,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	ChatId string `protobuf:"bytes,6,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty" yaml:"chat_id,omitempty"`
 	// Specific channel type within the source (e.g., "telegram", "discord", "rest").
 	// @gotags: json:"channel_type,omitempty" yaml:"channel_type,omitempty"
-	ChannelType string `protobuf:"bytes,7,opt,name=channel_type,json=channelType,proto3" json:"channel_type,omitempty"`
+	ChannelType string `protobuf:"bytes,7,opt,name=channel_type,json=channelType,proto3" json:"channel_type,omitempty" yaml:"channel_type,omitempty"`
 	// Whether the conversation is private or group.
 	// @gotags: json:"chat_type,omitempty" yaml:"chat_type,omitempty"
-	ChatType ChatType `protobuf:"varint,8,opt,name=chat_type,json=chatType,proto3,enum=agents.v1.ChatType" json:"chat_type,omitempty"`
+	ChatType ChatType `protobuf:"varint,8,opt,name=chat_type,json=chatType,proto3,enum=agents.v1.ChatType" json:"chat_type,omitempty" yaml:"chat_type,omitempty"`
 	// Generic key-value map for source-specific context data.
 	// @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
-	Metadata map[string]string `protobuf:"bytes,10,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Metadata map[string]string `protobuf:"bytes,10,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" yaml:"metadata,omitempty"`
 	// Workspace id for this request. Channels and cron jobs propagate their
 	// owning workspace; API callers may leave this empty and rely on the HTTP
 	// middleware to derive it from X-Workspace-ID.
 	// @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
-	WorkspaceId string `protobuf:"bytes,11,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
+	WorkspaceId string `protobuf:"bytes,11,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"`
 }
 
 func (x *ContextInfo) Reset() {

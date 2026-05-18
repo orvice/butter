@@ -124,6 +124,8 @@ func (m *User) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for AvatarUrl
+
 	if len(errors) > 0 {
 		return UserMultiError(errors)
 	}
@@ -1972,6 +1974,10 @@ func (m *UpdateProfileRequest) validate(all bool) error {
 			return err
 		}
 		errors = append(errors, err)
+	}
+
+	if m.AvatarUrl != nil {
+		// no validation rules for AvatarUrl
 	}
 
 	if len(errors) > 0 {

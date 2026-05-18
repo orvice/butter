@@ -48,13 +48,21 @@ func (h *UploadHandler) UploadAvatar(c *gin.Context) {
 	h.handleAvatar(c, "user", user.GetId())
 }
 
-// UploadAvatarFor uploads an avatar for an arbitrary owner. Admin only when
-// the owner is not the caller themself.
+// UploadAvatarFor uploads an avatar for an arbitrary owner.
 //
 // Authorization order matters: callers authenticated via the root API token
 // (ops/automation) have `auth.IsAdmin` true but no `UserFromContext`. They
-// must still be able to set avatars for agents/users, so admin is checked
-// first and a session user is only required for the self-upload short-circuit.
+// must still be able to set avatars for any owner, so admin is checked
+// first.
+//
+// For session users the rules mirror the corresponding entity's write
+// authorization:
+//   - owner_kind=user → self only (admins fall under the IsAdmin branch)
+//   - owner_kind=agent → any authenticated workspace member, matching
+//     AgentService.CreateAgent/UpdateAgent which only require a workspace
+//     context (no admin gate). Without this, regular members can create
+//     an agent but get 403 when uploading its icon.
+//   - anything else (workspace, etc.) requires admin
 func (h *UploadHandler) UploadAvatarFor(c *gin.Context) {
 	if !h.enabled(c) {
 		return
@@ -72,7 +80,15 @@ func (h *UploadHandler) UploadAvatarFor(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 			return
 		}
-		if !(ownerKind == "user" && user.GetId() == ownerID) {
+		switch ownerKind {
+		case "user":
+			if user.GetId() != ownerID {
+				c.JSON(http.StatusForbidden, gin.H{"error": "admin role required"})
+				return
+			}
+		case "agent":
+			// any authenticated user can upload an agent icon
+		default:
 			c.JSON(http.StatusForbidden, gin.H{"error": "admin role required"})
 			return
 		}

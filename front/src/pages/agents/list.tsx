@@ -40,6 +40,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { AGENT_TYPE_LABELS } from "@/lib/constants";
+import { agentIconUrl } from "./icon-utils";
 import type { Agent, AgentRuntimeStatus } from "@/types/api";
 
 const TYPE_ICON: Record<string, string> = {
@@ -90,19 +91,28 @@ export default function AgentListPage() {
   const columns: Column<Agent>[] = [
     {
       header: "Name",
-      cell: (row) => (
-        <div className="flex items-center gap-2">
-          <span className="text-base">{TYPE_ICON[row.type ?? ""] ?? "•"}</span>
-          <div>
-            <div className="font-medium">{row.name}</div>
-            {row.description && (
-              <div className="text-xs text-muted-foreground line-clamp-1 max-w-md">
-                {row.description}
-              </div>
-            )}
+      cell: (row) => {
+        const iconUrl = agentIconUrl(row);
+        return (
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+              {iconUrl ? (
+                <img src={iconUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-base">{TYPE_ICON[row.type ?? ""] ?? "•"}</span>
+              )}
+            </div>
+            <div>
+              <div className="font-medium">{row.name}</div>
+              {row.description && (
+                <div className="text-xs text-muted-foreground line-clamp-1 max-w-md">
+                  {row.description}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: "Type",

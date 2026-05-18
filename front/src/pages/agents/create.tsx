@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AgentModelSelect } from "./model-select";
+import { AgentIconUpload } from "./icon-upload";
 import {
   Form,
   FormControl,
@@ -38,6 +39,7 @@ const agentSchema = z.object({
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
+  icon_url: z.string().optional(),
 });
 
 type AgentFormValues = z.infer<typeof agentSchema>;
@@ -49,8 +51,10 @@ export default function AgentCreatePage() {
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
-    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "", mcp_server_ids: [] },
+    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "", mcp_server_ids: [], icon_url: "" },
   });
+  const agentName = useWatch({ control: form.control, name: "name" });
+  const iconUrl = useWatch({ control: form.control, name: "icon_url" });
 
   function onSubmit(values: AgentFormValues) {
     createMutation.mutate(
@@ -59,6 +63,7 @@ export default function AgentCreatePage() {
         description: values.description,
         type: values.type as AgentType,
         enable_a2a: values.enable_a2a,
+        metadata: values.icon_url ? { icon_url: values.icon_url } : undefined,
         config: {
           model: values.model,
           instruction: values.instruction,
@@ -123,6 +128,17 @@ export default function AgentCreatePage() {
                   <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                 </FormItem>
               )} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Icon</CardTitle></CardHeader>
+            <CardContent>
+              <AgentIconUpload
+                agentName={agentName}
+                value={iconUrl}
+                onChange={(url) => form.setValue("icon_url", url, { shouldDirty: true })}
+              />
             </CardContent>
           </Card>
 

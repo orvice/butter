@@ -261,11 +261,31 @@ Admin only.
 
 **Response:** `{ "user": User }`
 
+#### UpdateProfile
+
+```
+POST /api/agents.v1.AuthService/UpdateProfile
+```
+
+Updates the authenticated user's display name and avatar. Avatar URLs
+are typically produced by `POST /api/uploads/avatar` (see
+[storage.md](storage.md)); pass an empty `avatar_url` to clear it.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `display_name` | string | Required, non-empty |
+| `avatar_url` | string | Optional. Empty string clears the stored avatar. |
+
+**Response:** `{ "user": User }`
+
 | User | Type | Description |
 |-------|------|-------------|
 | `id` | string | User id |
 | `username` | string | Login username |
 | `display_name` | string | Display name |
+| `avatar_url` | string | Avatar URL (CDN-aware, see [storage.md](storage.md)) |
 | `role` | string | User role |
 | `disabled` | bool | Whether login is disabled |
 | `created_at` | timestamp |  |
