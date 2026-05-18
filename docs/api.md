@@ -1555,6 +1555,8 @@ grpc agents.v1.DaemonConnectorService/Connect
 
 Establishes a long-lived stream. The daemon sends a `register` message first, then sends `task_update` messages. The server sends task assignments and cancellation requests on the response stream.
 
+When `apiToken` is configured, the client must include gRPC metadata `authorization: Bearer <apiToken>`. The server validates this metadata before reading the first `register` message and returns `Unauthenticated` when it is missing or invalid.
+
 **Client stream (`ConnectRequest`):**
 
 | Field | Type | Description |
