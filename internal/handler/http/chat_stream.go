@@ -12,6 +12,7 @@ import (
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -118,7 +119,12 @@ func (h *ChatStreamHandler) Stream(c *gin.Context) {
 		invocationID = id.String()
 	}
 
-	workspaceID, _ := wsctx.FromContext(c.Request.Context())
+	reqCtx := c.Request.Context()
+	workspaceID, hasWorkspace := wsctx.FromContext(reqCtx)
+	if !hasWorkspace && !auth.IsAdmin(reqCtx) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace required (set X-Workspace-ID header)"})
+		return
+	}
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        invocationID,
 		SessionId:   sessionID,
@@ -129,7 +135,7 @@ func (h *ChatStreamHandler) Stream(c *gin.Context) {
 		WorkspaceId: workspaceID,
 	}
 
-	logger := log.FromContext(c.Request.Context())
+	logger := log.FromContext(reqCtx)
 	logger.Info("streaming chat started",
 		"workspace_id", workspaceID,
 		"agent", req.AgentName,
@@ -146,13 +152,12 @@ func (h *ChatStreamHandler) Stream(c *gin.Context) {
 	w.WriteHeader(http.StatusOK)
 
 	messages := make(chan chatStreamMessage, 32)
-	done := make(chan struct{})
 
 	send := func(event string, payload chatStreamPayload) bool {
 		select {
 		case messages <- chatStreamMessage{Event: event, Data: payload}:
 			return true
-		case <-c.Request.Context().Done():
+		case <-reqCtx.Done():
 			return false
 		}
 	}
@@ -160,7 +165,7 @@ func (h *ChatStreamHandler) Stream(c *gin.Context) {
 	go func() {
 		defer close(messages)
 		parts := []*genai.Part{genai.NewPartFromText(req.Message)}
-		response, err := svc.Run(c.Request.Context(), req.AgentName, parts, req.ModelOverride, ctxInfo, func(evt *session.Event) {
+		response, err := svc.Run(reqCtx, req.AgentName, parts, req.ModelOverride, ctxInfo, func(evt *session.Event) {
 			_ = send("agent_event", chatStreamPayload{
 				InvocationID: invocationID,
 				SessionID:    sessionID,
@@ -196,14 +201,12 @@ func (h *ChatStreamHandler) Stream(c *gin.Context) {
 		select {
 		case msg, ok := <-messages:
 			if !ok {
-				close(done)
 				return
 			}
 			c.SSEvent(msg.Event, msg.Data)
 			w.Flush()
-		case <-c.Request.Context().Done():
+		case <-reqCtx.Done():
 			logger.Info("streaming chat client disconnected", "invocation_id", invocationID)
-			close(done)
 			return
 		}
 	}
