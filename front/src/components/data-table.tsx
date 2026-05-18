@@ -34,14 +34,14 @@ export function DataTable<T>({ columns, data, isLoading, emptyMessage = "No data
 
   if (!data || data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center sm:p-12">
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card p-6 text-center sm:p-12">
         <p className="text-muted-foreground">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-md border">
+    <div className="overflow-hidden rounded-lg border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
       <Table className="min-w-max">
         <TableHeader>
           <TableRow>

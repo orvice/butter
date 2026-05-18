@@ -51,7 +51,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 const STATE_BADGE: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; cls?: string; label: string }> = {
-  AGENT_RUNTIME_STATE_RUNNING: { variant: "default", cls: "bg-blue-500/10 text-blue-600", label: "Running" },
+  AGENT_RUNTIME_STATE_RUNNING: { variant: "default", cls: "bg-emerald-500/10 text-emerald-700", label: "Running" },
   AGENT_RUNTIME_STATE_IDLE: { variant: "secondary", label: "Idle" },
   AGENT_RUNTIME_STATE_FAILED: { variant: "destructive", label: "Failed" },
   AGENT_RUNTIME_STATE_UNSPECIFIED: { variant: "outline", label: "Unknown" },
@@ -205,7 +205,7 @@ export default function AgentListPage() {
     <>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Agents</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">Agents</h2>
           <p className="text-sm text-muted-foreground">Manage and monitor orchestration nodes.</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
@@ -236,21 +236,21 @@ export default function AgentListPage() {
         <Card className="p-3">
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-muted-foreground" />
-            <div className="text-xs text-muted-foreground">Total</div>
+            <div className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Total</div>
           </div>
           <div className="mt-1 text-2xl font-bold">{agents.length}</div>
         </Card>
         <Card className="p-3">
-          <div className="text-xs text-muted-foreground">Running</div>
-          <div className="mt-1 text-2xl font-bold text-blue-600">{summary.running}</div>
+          <div className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Running</div>
+          <div className="mt-1 text-2xl font-bold text-emerald-700">{summary.running}</div>
         </Card>
         <Card className="p-3">
-          <div className="text-xs text-muted-foreground">Idle</div>
+          <div className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Idle</div>
           <div className="mt-1 text-2xl font-bold">{summary.idle}</div>
         </Card>
         <Card className="p-3">
-          <div className="text-xs text-muted-foreground">Failed</div>
-          <div className="mt-1 text-2xl font-bold text-red-600">{summary.failed}</div>
+          <div className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Failed</div>
+          <div className="mt-1 text-2xl font-bold text-rose-700">{summary.failed}</div>
         </Card>
       </div>
 

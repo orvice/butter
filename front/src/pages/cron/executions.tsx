@@ -22,8 +22,8 @@ export default function CronExecutionsPage() {
       header: "Status",
       cell: (row) =>
         row.status === "CRON_EXECUTION_STATUS_SUCCESS"
-          ? <Badge className="bg-green-500/10 text-green-500">Success</Badge>
-          : <Badge variant="destructive">Error</Badge>,
+          ? <Badge className="bg-emerald-500/10 text-emerald-700">Success</Badge>
+          : <Badge className="bg-rose-500/10 text-rose-700">Error</Badge>,
     },
     { header: "Duration", cell: (row) => formatDuration(row.started_at, row.finished_at) },
     { header: "Started", cell: (row) => row.started_at ? new Date(row.started_at).toLocaleString() : "-" },

@@ -26,10 +26,10 @@ import type { RemoteAgent, RemoteAgentState } from "@/types/api";
 const STATE_LABEL: Record<RemoteAgentState, { cls: string; label: string }> = {
   STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "Unknown" },
   STATE_CONFIGURED: { cls: "bg-muted text-muted-foreground", label: "Configured" },
-  STATE_ACTIVE: { cls: "bg-blue-500/10 text-blue-600", label: "Active" },
-  STATE_IDLE: { cls: "bg-green-500/10 text-green-600", label: "Idle" },
-  STATE_UNREACHABLE: { cls: "bg-red-500/10 text-red-600", label: "Unreachable" },
-  STATE_ERROR: { cls: "bg-red-500/10 text-red-600", label: "Error" },
+  STATE_ACTIVE: { cls: "bg-sky-500/10 text-sky-700", label: "Active" },
+  STATE_IDLE: { cls: "bg-emerald-500/10 text-emerald-700", label: "Idle" },
+  STATE_UNREACHABLE: { cls: "bg-rose-500/10 text-rose-700", label: "Unreachable" },
+  STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
 };
 
 function StatusBadge({ id }: { id: string }) {
@@ -37,7 +37,12 @@ function StatusBadge({ id }: { id: string }) {
   if (isLoading || !data) return <Badge variant="outline" className="text-xs">…</Badge>;
   const state = (data.status.state ?? "STATE_UNSPECIFIED") as RemoteAgentState;
   const p = STATE_LABEL[state];
-  return <Badge className={p.cls}>{p.label}</Badge>;
+  return (
+    <Badge className={p.cls}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {p.label}
+    </Badge>
+  );
 }
 
 export default function RemoteAgentListPage() {
@@ -85,7 +90,7 @@ export default function RemoteAgentListPage() {
       header: "Verified",
       cell: (row) =>
         row.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON" ? (
-          <ShieldCheck className="h-4 w-4 text-green-600" />
+          <ShieldCheck className="h-4 w-4 text-emerald-700" />
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         ),
