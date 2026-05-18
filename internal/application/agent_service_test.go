@@ -227,6 +227,70 @@ func TestChannelServiceServer_ReloadsRuntime(t *testing.T) {
 	}
 }
 
+func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
+	ctx := testCtx()
+
+	t.Run("rejects unspecified on create", func(t *testing.T) {
+		store := memory.New()
+		svc := NewChannelServiceServer(store)
+
+		_, err := svc.CreateChannel(ctx, &agentsv1.CreateChannelRequest{
+			Channel: &agentsv1.AgentChannel{
+				Name:      "ch1",
+				AgentName: "agent1",
+				Triggers: []*agentsv1.AgentTrigger{{
+					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_UNSPECIFIED,
+				}},
+			},
+		})
+		if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+			t.Fatalf("expected InvalidArgument, got %v", err)
+		}
+		if _, err := store.GetChannel(ctx, wsTest, "ch1"); !errors.Is(err, configrepo.ErrNotFound) {
+			t.Fatalf("expected invalid channel not to be persisted, got %v", err)
+		}
+	})
+
+	t.Run("rejects unimplemented mention on update", func(t *testing.T) {
+		store := memory.New()
+		if _, err := store.CreateChannel(ctx, wsTest, &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"}); err != nil {
+			t.Fatalf("seed channel: %v", err)
+		}
+		svc := NewChannelServiceServer(store)
+
+		_, err := svc.UpdateChannel(ctx, &agentsv1.UpdateChannelRequest{
+			Channel: &agentsv1.AgentChannel{
+				Name:      "ch1",
+				AgentName: "agent1",
+				Triggers: []*agentsv1.AgentTrigger{{
+					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_MENTION,
+				}},
+			},
+		})
+		if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+			t.Fatalf("expected InvalidArgument, got %v", err)
+		}
+	})
+
+	t.Run("accepts supported trigger", func(t *testing.T) {
+		store := memory.New()
+		svc := NewChannelServiceServer(store)
+
+		_, err := svc.CreateChannel(ctx, &agentsv1.CreateChannelRequest{
+			Channel: &agentsv1.AgentChannel{
+				Name:      "ch1",
+				AgentName: "agent1",
+				Triggers: []*agentsv1.AgentTrigger{{
+					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_MESSAGE,
+				}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("expected supported trigger to pass, got %v", err)
+		}
+	})
+}
+
 func TestChannelServiceServer_ReloadError(t *testing.T) {
 	store := memory.New()
 	svc := NewChannelServiceServer(store)

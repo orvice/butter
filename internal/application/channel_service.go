@@ -62,9 +62,29 @@ func (s *ChannelServiceServer) GetChannel(ctx context.Context, req *agentsv1.Get
 	return &agentsv1.GetChannelResponse{Channel: c}, nil
 }
 
+func validateChannelTriggers(channel *agentsv1.AgentChannel) error {
+	for i, trigger := range channel.GetTriggers() {
+		switch trigger.GetType() {
+		case agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_MESSAGE,
+			agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_COMMAND,
+			agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_PRIVATE_CHAT:
+			continue
+		default:
+			return twirp.InvalidArgumentError(
+				fmt.Sprintf("channel.triggers[%d].type", i),
+				fmt.Sprintf("unsupported trigger type %s", trigger.GetType()),
+			)
+		}
+	}
+	return nil
+}
+
 func (s *ChannelServiceServer) CreateChannel(ctx context.Context, req *agentsv1.CreateChannelRequest) (*agentsv1.CreateChannelResponse, error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateChannelTriggers(req.GetChannel()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -99,6 +119,9 @@ func (s *ChannelServiceServer) CreateChannel(ctx context.Context, req *agentsv1.
 func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *agentsv1.UpdateChannelRequest) (*agentsv1.UpdateChannelResponse, error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateChannelTriggers(req.GetChannel()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
