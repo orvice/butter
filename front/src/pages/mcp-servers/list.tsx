@@ -206,7 +206,7 @@ function ToolRow({ tool }: { tool: MCPTool }) {
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm">{tool.name}</span>
           {tool.allowed ? (
-            <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-600">
+            <Badge variant="outline" className="border-emerald-500/30 text-[10px] text-emerald-700">
               <CheckCircle2 className="mr-1 h-3 w-3" /> allowed
             </Badge>
           ) : (

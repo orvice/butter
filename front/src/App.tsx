@@ -7,6 +7,8 @@ import { WorkspaceProvider } from "@/hooks/use-workspace";
 import DashboardLayout from "@/layouts/dashboard-layout";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
+import IntegrationsPage from "@/pages/integrations";
+import OperationsPage from "@/pages/operations";
 import AgentListPage from "@/pages/agents/list";
 import AgentCreatePage from "@/pages/agents/create";
 import AgentEditPage from "@/pages/agents/edit";
@@ -67,9 +69,11 @@ export default function App() {
                   <Route path="remote-agents" element={<RemoteAgentListPage />} />
                   <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
                   <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />
+                  <Route path="integrations" element={<IntegrationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="sessions" element={<SessionListPage />} />
                   <Route path="sessions/detail" element={<SessionDetailPage />} />
+                  <Route path="operations" element={<OperationsPage />} />
                   <Route path="cron" element={<CronJobListPage />} />
                   <Route path="cron/create" element={<CronJobCreatePage />} />
                   <Route path="cron/:name/edit" element={<CronJobEditPage />} />

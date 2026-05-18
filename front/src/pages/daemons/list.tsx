@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import type { DaemonStatus, DaemonTaskInFlight } from "@/types/api";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
-import { AlertCircle, Cpu, MemoryStick, Activity, X } from "lucide-react";
+import { AlertCircle, Cpu, MemoryStick, Activity, X, Terminal, Router } from "lucide-react";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown error";
@@ -51,7 +51,17 @@ function DaemonStateBadge({ state }: { state?: DaemonStatus["state"] }) {
     STATE_OFFLINE: "Offline",
   };
   const key = state ?? "STATE_UNSPECIFIED";
-  return <Badge variant={variant[key] ?? "outline"}>{label[key] ?? "Unknown"}</Badge>;
+  const cls: Record<string, string> = {
+    STATE_ONLINE: "bg-emerald-500/10 text-emerald-700",
+    STATE_IDLE: "bg-muted text-muted-foreground",
+    STATE_OFFLINE: "bg-rose-500/10 text-rose-700",
+  };
+  return (
+    <Badge variant={variant[key] ?? "outline"} className={cls[key]}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label[key] ?? "Unknown"}
+    </Badge>
+  );
 }
 
 export default function DaemonListPage() {
@@ -137,7 +147,10 @@ export default function DaemonListPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Daemon Monitor" />
+      <PageHeader
+        title="Daemon Monitor"
+        description="Real-time telemetry and execution state for connected butter-daemons."
+      />
 
       {[daemonError, taskError, bridgeError].filter(Boolean).length > 0 ? (
         <Card className="border-destructive/30 bg-destructive/5">
@@ -155,10 +168,9 @@ export default function DaemonListPage() {
         </Card>
       ) : null}
 
-      {/* Top stats */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Active Daemons</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Active Daemons</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
               {onlineCount}
@@ -167,18 +179,18 @@ export default function DaemonListPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground flex items-center gap-2"><Activity className="h-4 w-4" /> Active Tasks</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground"><Activity className="h-4 w-4" /> Active Tasks</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-bold">{tasks.length}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground flex items-center gap-2"><Cpu className="h-4 w-4" /> Router CPU</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground"><Cpu className="h-4 w-4" /> Router CPU</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{(diag?.cpu_percent ?? 0).toFixed(1)}%</div>
             <p className="text-xs text-muted-foreground">{diag?.goroutines ?? 0} goroutines</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground flex items-center gap-2"><MemoryStick className="h-4 w-4" /> Router Memory</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground"><MemoryStick className="h-4 w-4" /> Router Memory</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{fmtBytes(diag?.memory_used_bytes)}</div>
             {diag?.memory_limit_bytes ? (
@@ -188,25 +200,37 @@ export default function DaemonListPage() {
         </Card>
       </div>
 
-      {/* Daemons */}
       <Card>
-        <CardHeader><CardTitle>Connected Daemons</CardTitle></CardHeader>
+        <CardHeader className="border-b bg-muted/30 pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <Terminal className="h-4 w-4 text-muted-foreground" />
+            Connected Daemons
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <DataTable columns={daemonCols} data={daemons} isLoading={loadingDaemons} emptyMessage="No daemons connected." />
         </CardContent>
       </Card>
 
-      {/* Active tasks */}
-      <Card>
-        <CardHeader><CardTitle>Active Tasks</CardTitle></CardHeader>
-        <CardContent>
+      <Card className="border-[#374151] bg-[#111827] text-gray-200">
+        <CardHeader className="border-b border-gray-800 bg-gray-900 pb-4">
+          <CardTitle className="flex items-center gap-2 text-gray-200">
+            <Activity className="h-4 w-4 text-primary" />
+            Active Tasks
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-5">
           <DataTable columns={taskCols} data={tasks} isLoading={false} emptyMessage="No tasks running." />
         </CardContent>
       </Card>
 
-      {/* Bridge latency */}
       <Card>
-        <CardHeader><CardTitle>Bridge Latency (recent samples)</CardTitle></CardHeader>
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <Router className="h-4 w-4 text-muted-foreground" />
+            Bridge Latency
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={latencyData}>

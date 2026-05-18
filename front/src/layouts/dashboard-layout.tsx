@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, Navigate, Outlet } from "react-router-dom";
+import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import type { AuthUser } from "@/api/auth";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -17,10 +17,6 @@ import {
   LayoutDashboard,
   Bot,
   Server,
-  Globe,
-  MessageSquare,
-  MessageCircle,
-  Clock,
   Sun,
   Moon,
   LogOut,
@@ -34,6 +30,14 @@ import {
   CircleCheck,
   CircleAlert,
   Menu,
+  Search,
+  Bell,
+  Database,
+  RefreshCw,
+  Plus,
+  BookOpen,
+  LifeBuoy,
+  Settings2,
 } from "lucide-react";
 import type { ComponentHealth } from "@/types/api";
 import {
@@ -44,44 +48,44 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashboard; label: string; adminOnly?: boolean }[] }[] = [
+type NavItem = {
+  to: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  activePrefixes?: string[];
+  adminOnly?: boolean;
+};
+
+const PRIMARY_NAV: NavItem[] = [
+  { to: "/", icon: LayoutDashboard, label: "Overview" },
+  { to: "/agents", icon: Bot, label: "Agents", activePrefixes: ["/agents"] },
   {
-    label: "Dashboard",
-    items: [{ to: "/", icon: LayoutDashboard, label: "Overview" }],
-  },
-  {
-    label: "Orchestration",
-    items: [
-      { to: "/agents", icon: Bot, label: "Agents" },
-      { to: "/cron", icon: Clock, label: "Cron Jobs" },
-    ],
-  },
-  {
+    to: "/integrations",
+    icon: Server,
     label: "Integrations",
-    items: [
-      { to: "/mcp-servers", icon: Server, label: "MCP Servers" },
-      { to: "/remote-agents", icon: Globe, label: "Remote Agents" },
-    ],
+    activePrefixes: ["/integrations", "/mcp-servers", "/remote-agents"],
   },
   {
+    to: "/daemons",
+    icon: Cpu,
     label: "Execution",
-    items: [
-      { to: "/chat", icon: MessageCircle, label: "Chat" },
-      { to: "/daemons", icon: Cpu, label: "Daemons" },
-      { to: "/sessions", icon: MessageSquare, label: "Sessions" },
-    ],
+    activePrefixes: ["/daemons", "/chat"],
   },
+  { to: "/channels", icon: Cable, label: "Channels", activePrefixes: ["/channels"] },
   {
-    label: "Settings",
-    items: [
-      { to: "/workspaces", icon: Building2, label: "Workspaces" },
-      { to: "/channels", icon: Cable, label: "Channels" },
-      { to: "/model-providers", icon: BrainCircuit, label: "Model Providers" },
-      { to: "/api-tokens", icon: KeyRound, label: "API Tokens" },
-      { to: "/profile", icon: UserCircle, label: "Profile" },
-      { to: "/users", icon: Users, label: "Users", adminOnly: true },
-    ],
+    to: "/operations",
+    icon: Settings2,
+    label: "Operations",
+    activePrefixes: ["/operations", "/cron", "/sessions"],
   },
+];
+
+const SECONDARY_NAV: NavItem[] = [
+  { to: "/workspaces", icon: Building2, label: "Workspaces", activePrefixes: ["/workspaces"] },
+  { to: "/model-providers", icon: BrainCircuit, label: "Model Providers", activePrefixes: ["/model-providers"] },
+  { to: "/api-tokens", icon: KeyRound, label: "API Tokens", activePrefixes: ["/api-tokens"] },
+  { to: "/profile", icon: UserCircle, label: "Profile", activePrefixes: ["/profile"] },
+  { to: "/users", icon: Users, label: "Users", activePrefixes: ["/users"], adminOnly: true },
 ];
 
 type StatusBucket = "healthy" | "degraded" | "down" | "unknown";
@@ -107,9 +111,9 @@ function StatusPill() {
   const { data } = useOverview();
   const status = worstStatus(data?.health?.mongodb, data?.health?.redis, data?.health?.runner);
   const palette = {
-    healthy: { cls: "bg-green-500/10 text-green-600 border-green-500/20", label: "Healthy", icon: CircleCheck },
-    degraded: { cls: "bg-amber-500/10 text-amber-600 border-amber-500/20", label: "Degraded", icon: CircleAlert },
-    down: { cls: "bg-red-500/10 text-red-600 border-red-500/20", label: "Down", icon: CircleAlert },
+    healthy: { cls: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20", label: "Healthy", icon: CircleCheck },
+    degraded: { cls: "bg-amber-500/10 text-amber-700 border-amber-500/20", label: "Degraded", icon: CircleAlert },
+    down: { cls: "bg-rose-500/10 text-rose-700 border-rose-500/20", label: "Down", icon: CircleAlert },
     unknown: { cls: "bg-muted text-muted-foreground border-border", label: "Unknown", icon: CircleAlert },
   }[status];
   const Icon = palette.icon;
@@ -125,7 +129,7 @@ function WorkspaceSwitcher() {
   const { workspaces, selectedWorkspaceId, selectedWorkspace, isLoading, setSelectedWorkspaceId } = useWorkspace();
 
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-lg border bg-background px-2 py-1">
+    <div className="flex min-w-0 items-center gap-2 rounded-md border bg-card px-2 py-1">
       <Building2 className="h-4 w-4 text-muted-foreground" />
       <div className="hidden leading-tight sm:block">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Workspace</div>
@@ -161,50 +165,79 @@ function WorkspaceSwitcher() {
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary font-bold text-primary-foreground">
-        B
+      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        <LayoutDashboard className="h-4 w-4" />
       </div>
       <div>
-        <div className="text-sm font-bold leading-tight">Butter</div>
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Orchestration</div>
+        <div className="text-lg font-bold leading-tight text-primary">Butter</div>
+        <div className="text-[10px] font-medium uppercase tracking-[0.05em] text-muted-foreground">Orchestration Platform</div>
       </div>
+    </div>
+  );
+}
+
+function isActiveNav(item: NavItem, pathname: string) {
+  if (item.to === "/") return pathname === "/";
+  return (item.activePrefixes ?? [item.to]).some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+function NavList({ items, isAdmin }: { items: NavItem[]; isAdmin: boolean }) {
+  const location = useLocation();
+  return (
+    <div className="space-y-1">
+      {items
+        .filter((item) => !item.adminOnly || isAdmin)
+        .map(({ to, icon: Icon, label, activePrefixes, adminOnly }) => {
+          const active = isActiveNav({ to, icon: Icon, label, activePrefixes, adminOnly }, location.pathname);
+          return (
+            <Link
+              key={to}
+              to={to}
+              className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm transition-colors ${
+                active
+                  ? "border-primary bg-muted font-semibold text-primary"
+                  : "border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-5 w-5 shrink-0 stroke-[1.7]" />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
     </div>
   );
 }
 
 function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
   return (
-    <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
-      {NAV_GROUPS.map((group) => {
-        const items = group.items.filter((item) => !item.adminOnly || isAdmin);
-        if (items.length === 0) return null;
-        return (
-          <div key={group.label}>
-          <div className="px-3 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            {group.label}
-          </div>
-          <div className="space-y-0.5">
-            {items.map(({ to, icon: Icon, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === "/"}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                    isActive
-                      ? "bg-accent font-medium text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  }`
-                }
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {label}
-              </NavLink>
-            ))}
-          </div>
-          </div>
-        );
-      })}
+    <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-3">
+      <NavList items={PRIMARY_NAV} isAdmin={isAdmin} />
+      <div className="border-t pt-4">
+        <div className="px-3 pb-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          Settings
+        </div>
+        <NavList items={SECONDARY_NAV} isAdmin={isAdmin} />
+      </div>
+      <div className="border-t pt-4">
+        <a
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+          href="https://github.com/orvice/butter"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <BookOpen className="h-4 w-4" />
+          Documentation
+        </a>
+        <a
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+          href="https://github.com/orvice/butter/issues"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <LifeBuoy className="h-4 w-4" />
+          Support
+        </a>
+      </div>
     </nav>
   );
 }
@@ -319,6 +352,7 @@ export default function DashboardLayout() {
   const { isAuthenticated, isAdmin, logout, user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { selectedWorkspaceId, workspaces, isLoading: isWorkspaceLoading } = useWorkspace();
+  const navigate = useNavigate();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -326,14 +360,19 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-60 shrink-0 flex-col border-r bg-card md:flex">
-        <div className="flex items-center gap-2 p-4">
+      <aside className="hidden w-[260px] shrink-0 flex-col border-r bg-sidebar md:flex">
+        <div className="flex items-center gap-2 border-b px-6 py-5">
           <Brand />
         </div>
-        <Separator />
+        <div className="px-4 py-4">
+          <Button className="w-full" onClick={() => navigate("/agents/create")}>
+            <Plus className="mr-2 h-4 w-4" />
+            Deploy Agent
+          </Button>
+        </div>
         <SidebarNav isAdmin={isAdmin} />
         <Separator />
-        <div className="flex items-center justify-between p-3">
+        <div className="flex items-center justify-between p-4">
           <Button
             variant="ghost"
             size="icon"
@@ -349,7 +388,7 @@ export default function DashboardLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex min-h-14 flex-wrap items-center justify-between gap-2 border-b bg-card/40 px-3 py-2 sm:px-6 md:justify-end">
+        <header className="sticky top-0 z-10 flex min-h-16 flex-wrap items-center justify-between gap-2 border-b bg-card px-3 py-2 sm:px-8">
           <div className="flex items-center gap-2 md:hidden">
             <Sheet>
               <SheetTrigger render={<Button variant="ghost" size="icon" aria-label="Open navigation" />}>
@@ -361,6 +400,12 @@ export default function DashboardLayout() {
                     <Brand />
                   </SheetTitle>
                 </SheetHeader>
+                <div className="px-4 py-4">
+                  <Button className="w-full" onClick={() => navigate("/agents/create")}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Deploy Agent
+                  </Button>
+                </div>
                 <SidebarNav isAdmin={isAdmin} />
                 <Separator />
                 <div className="flex items-center justify-between p-3">
@@ -380,14 +425,29 @@ export default function DashboardLayout() {
             </Sheet>
             <Brand />
           </div>
-          <WorkspaceSwitcher />
-          <div className="flex items-center gap-2">
+          <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex">
+            <div className="relative w-full max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Search..." />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <WorkspaceSwitcher />
             <StatusPill />
             <Badge variant="outline" className="hidden text-xs sm:inline-flex">Production</Badge>
+            <Button variant="ghost" size="icon" aria-label="Storage status">
+              <Database className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Refresh status">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Notifications">
+              <Bell className="h-4 w-4" />
+            </Button>
             <UserAvatarLink user={user} />
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 sm:p-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-8">
           {selectedWorkspaceId ? (
             <Outlet />
           ) : isWorkspaceLoading ? (

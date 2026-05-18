@@ -119,7 +119,7 @@ export default function CronJobListPage() {
         const ok = exec.status === "CRON_EXECUTION_STATUS_SUCCESS";
         return (
           <div className="flex items-center gap-2">
-            <Badge className={ok ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}>
+            <Badge className={ok ? "bg-emerald-500/10 text-emerald-700" : "bg-rose-500/10 text-rose-700"}>
               {ok ? "Success" : "Error"}
             </Badge>
             <span className="text-xs text-muted-foreground">{timeAgo(exec.started_at)}</span>
@@ -178,10 +178,12 @@ export default function CronJobListPage() {
 
   return (
     <>
-      <PageHeader title="Cron Jobs" createLabel="Add Schedule" createTo="/cron/create" />
-      <p className="mb-4 text-sm text-muted-foreground">
-        Scheduled agent execution. Run jobs immediately with <em>Run now</em>.
-      </p>
+      <PageHeader
+        title="Cron Jobs"
+        description="Scheduled agent execution. Run jobs immediately with Run now."
+        createLabel="Add Schedule"
+        createTo="/cron/create"
+      />
       <DataTable
         columns={columns}
         data={data?.cron_jobs}

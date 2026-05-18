@@ -5,9 +5,9 @@ import type { MCPServerState } from "@/types/api";
 const PALETTE: Record<MCPServerState, { cls: string; label: string }> = {
   STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "Unknown" },
   STATE_CONFIGURED: { cls: "bg-muted text-muted-foreground", label: "Configured" },
-  STATE_CONNECTED: { cls: "bg-green-500/10 text-green-600", label: "Connected" },
-  STATE_DISCONNECTED: { cls: "bg-red-500/10 text-red-600", label: "Disconnected" },
-  STATE_ERROR: { cls: "bg-red-500/10 text-red-600", label: "Error" },
+  STATE_CONNECTED: { cls: "bg-emerald-500/10 text-emerald-700", label: "Connected" },
+  STATE_DISCONNECTED: { cls: "bg-rose-500/10 text-rose-700", label: "Disconnected" },
+  STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
 };
 
 export function ServerStatusBadge({ id }: { id: string }) {
@@ -15,7 +15,12 @@ export function ServerStatusBadge({ id }: { id: string }) {
   if (isLoading || !data) return <Badge variant="outline" className="text-xs">…</Badge>;
   const state = (data.status.state ?? "STATE_UNSPECIFIED") as MCPServerState;
   const p = PALETTE[state];
-  return <Badge className={p.cls}>{p.label}</Badge>;
+  return (
+    <Badge className={p.cls}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {p.label}
+    </Badge>
+  );
 }
 
 export function ServerStatusInline({ id }: { id: string }) {

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BarChart,
   Bar,
@@ -23,6 +24,10 @@ import {
   AlertTriangle,
   Heart,
   Terminal,
+  TrendingDown,
+  TrendingUp,
+  Minus,
+  Copy,
 } from "lucide-react";
 import type {
   ActivityEvent,
@@ -31,9 +36,9 @@ import type {
 } from "@/types/api";
 
 const STATUS_COLORS: Record<string, string> = {
-  STATUS_HEALTHY: "bg-green-500/10 text-green-600",
-  STATUS_DEGRADED: "bg-amber-500/10 text-amber-600",
-  STATUS_DOWN: "bg-red-500/10 text-red-600",
+  STATUS_HEALTHY: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
+  STATUS_DEGRADED: "bg-amber-500/10 text-amber-700 border-amber-500/20",
+  STATUS_DOWN: "bg-rose-500/10 text-rose-700 border-rose-500/20",
   STATUS_UNSPECIFIED: "bg-muted text-muted-foreground",
 };
 
@@ -47,19 +52,24 @@ const STATUS_LABEL: Record<string, string> = {
 function HealthRow({ label, icon: Icon, health }: { label: string; icon: typeof Database; health?: ComponentHealth }) {
   const status = health?.status ?? "STATUS_UNSPECIFIED";
   return (
-    <div className="flex items-center justify-between gap-2 py-2">
+    <div className="flex items-center justify-between gap-3 py-3">
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </div>
         <div>
           <div className="text-sm font-medium">{label}</div>
-          <div className="text-xs text-muted-foreground">{health?.detail ?? ""}</div>
+          <div className="font-mono text-[11px] text-muted-foreground">{health?.detail ?? "Primary cluster"}</div>
         </div>
       </div>
       <div className="flex items-center gap-2">
         {health?.latency_ms !== undefined && health.latency_ms > 0 && (
           <span className="text-xs text-muted-foreground">{health.latency_ms}ms</span>
         )}
-        <Badge className={STATUS_COLORS[status] ?? STATUS_COLORS.STATUS_UNSPECIFIED}>{STATUS_LABEL[status]}</Badge>
+        <Badge className={STATUS_COLORS[status] ?? STATUS_COLORS.STATUS_UNSPECIFIED}>
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          {STATUS_LABEL[status]}
+        </Badge>
       </div>
     </div>
   );
@@ -72,17 +82,19 @@ function ActivityRow({ event }: { event: ActivityEvent }) {
       ? Check
       : Terminal;
   const color = event.kind === "error"
-    ? "text-red-500"
+    ? "text-rose-500"
     : event.kind === "execution_completed"
-      ? "text-green-500"
+      ? "text-emerald-500"
       : "text-muted-foreground";
   return (
-    <div className="flex items-start gap-3 py-2">
-      <Icon className={`mt-0.5 h-4 w-4 ${color}`} />
+    <div className="relative flex items-start gap-4 py-2">
+      <div className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-card bg-card">
+        <Icon className={`h-3.5 w-3.5 ${color}`} />
+      </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm">
+        <div className="text-[13px] leading-5">
           <span className="font-medium">{event.actor ?? "unknown"}</span>
-          <span className="text-muted-foreground"> — {event.message ?? ""}</span>
+          <span className="text-muted-foreground"> {event.message ?? ""}</span>
         </div>
         <div className="text-xs text-muted-foreground">
           {event.timestamp ? new Date(event.timestamp).toLocaleString() : ""}
@@ -112,7 +124,7 @@ export default function DashboardPage() {
   if (loadingOverview) {
     return (
       <div className="space-y-6">
-        <h2 className="text-xl font-bold sm:text-2xl">Overview</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Overview</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
         <Skeleton className="h-72" />
       </div>
@@ -121,97 +133,120 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold sm:text-2xl">Overview</h2>
+          <h2 className="text-4xl font-bold tracking-tight text-foreground">Overview</h2>
           <p className="text-sm text-muted-foreground">Platform metrics and system health at a glance.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Environment</span>
+          <Select defaultValue="production">
+            <SelectTrigger className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="production">Production</SelectItem>
+              <SelectItem value="staging">Staging</SelectItem>
+              <SelectItem value="development">Development</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        <StatCard label="Active Agents" value={counts?.active_agents ?? 0} icon={Bot} />
-        <StatCard label="MCP Servers" value={counts?.mcp_servers ?? 0} icon={Server} />
-        <StatCard label="Connected Daemons" value={counts?.connected_daemons ?? 0} icon={Cpu} />
-        <StatCard label="ADK Sessions" value={counts?.active_sessions ?? 0} icon={HardDrive} />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Active Agents" value={counts?.active_agents ?? 0} icon={Bot} trend="up" accent="primary" meta="+12%" />
+        <StatCard label="MCP Servers" value={counts?.mcp_servers ?? 0} icon={Server} trend="stable" accent="yellow" meta="Stable" />
+        <StatCard label="Connected Daemons" value={counts?.connected_daemons ?? 0} icon={Cpu} trend="up" accent="orange" meta="+5%" />
+        <StatCard label="ADK Sessions" value={counts?.active_sessions ?? 0} icon={HardDrive} trend="down" accent="primary" meta="-2" />
       </div>
 
-      {/* Cron timeseries */}
-      <Card>
-        <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Cron Executions</CardTitle>
-          <div className="grid grid-cols-3 gap-1 sm:flex">
-            {(["RANGE_1D", "RANGE_7D", "RANGE_30D"] as const).map((r) => (
-              <Button
-                key={r}
-                size="sm"
-                variant={range === r ? "default" : "outline"}
-                onClick={() => setRange(r)}
-              >
-                {r.replace("RANGE_", "")}
-              </Button>
-            ))}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData}>
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="success" stackId="a" fill="#4ade80" name="Success" />
-              <Bar dataKey="error" stackId="a" fill="#ef4444" name="Error" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Health */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2"><Heart className="h-4 w-4" /> System Health</CardTitle></CardHeader>
-          <CardContent>
-            <HealthRow label="MongoDB" icon={Database} health={health?.mongodb} />
-            <HealthRow label="Redis" icon={HardDrive} health={health?.redis} />
-            <HealthRow label="Runner" icon={Cpu} health={health?.runner} />
-          </CardContent>
-        </Card>
-
-        {/* Latest daemon handshake */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2"><Terminal className="h-4 w-4" /> Latest Daemon Handshake</CardTitle></CardHeader>
-          <CardContent>
-            {handshake?.daemon_id ? (
-              <pre className="rounded bg-muted p-3 text-xs overflow-x-auto">
-                {JSON.stringify(
-                  {
-                    daemon_id: handshake.daemon_id,
-                    name: handshake.name,
-                    os: handshake.os,
-                    capabilities: handshake.capabilities,
-                    connected_at: handshake.connected_at,
-                  },
-                  null,
-                  2,
-                )}
-              </pre>
-            ) : (
-              <p className="text-sm text-muted-foreground">No daemons have connected yet.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Activity feed */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2"><Activity className="h-4 w-4" /> Activity Feed</CardTitle></CardHeader>
-        <CardContent>
-          {events.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">No recent activity.</p>
-          ) : (
-            <div className="divide-y">
-              {events.map((e) => <ActivityRow key={e.id} event={e} />)}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader className="flex flex-col gap-3 border-b bg-card pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>Cron Executions</CardTitle>
+              <p className="text-[13px] text-muted-foreground">Recent scheduled agent execution volume.</p>
             </div>
+            <div className="grid grid-cols-3 gap-1 sm:flex">
+              {(["RANGE_1D", "RANGE_7D", "RANGE_30D"] as const).map((r) => (
+                <Button
+                  key={r}
+                  size="sm"
+                  variant={range === r ? "default" : "ghost"}
+                  onClick={() => setRange(r)}
+                >
+                  {r.replace("RANGE_", "")}
+                </Button>
+              ))}
+            </div>
+          </CardHeader>
+          <CardContent className="pt-5">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartData}>
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: "rgba(79, 70, 229, 0.08)" }} />
+                <Bar dataKey="success" stackId="a" fill="#10b981" name="Success" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="error" stackId="a" fill="#f43f5e" name="Error" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="border-b pb-4">
+              <CardTitle className="flex items-center gap-2"><Heart className="h-4 w-4 text-primary" /> System Health</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y">
+              <HealthRow label="MongoDB" icon={Database} health={health?.mongodb} />
+              <HealthRow label="Redis Cache" icon={HardDrive} health={health?.redis} />
+              <HealthRow label="Runner" icon={Cpu} health={health?.runner} />
+            </CardContent>
+          </Card>
+
+          <Card className="min-h-0">
+            <CardHeader className="border-b bg-muted/30 pb-4">
+              <CardTitle className="flex items-center gap-2"><Activity className="h-4 w-4 text-muted-foreground" /> Activity Feed</CardTitle>
+            </CardHeader>
+            <CardContent className="relative max-h-64 overflow-y-auto pt-4 before:absolute before:bottom-5 before:left-[31px] before:top-5 before:w-px before:bg-border">
+              {events.length === 0 ? (
+                <p className="py-4 text-sm text-muted-foreground">No recent activity.</p>
+              ) : (
+                <div className="space-y-3">
+                  {events.slice(0, 6).map((e) => <ActivityRow key={e.id} event={e} />)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <Card className="border-[#374151] bg-[#111827] text-gray-200">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-gray-800 bg-gray-900 pb-4">
+          <CardTitle className="flex items-center gap-2 text-sm text-gray-200">
+            <Terminal className="h-4 w-4 text-gray-400" />
+            Latest Daemon Handshake
+          </CardTitle>
+          <Button size="sm" variant="ghost" className="text-gray-400 hover:bg-gray-800 hover:text-white">
+            <Copy className="mr-1 h-3 w-3" />
+            Copy
+          </Button>
+        </CardHeader>
+        <CardContent className="pt-5">
+          {handshake?.daemon_id ? (
+            <pre className="overflow-x-auto text-[13px] leading-6 text-gray-300">
+              {formatJsonWithLineNumbers({
+                event: "daemon.connect",
+                daemon_id: handshake.daemon_id,
+                name: handshake.name,
+                os: handshake.os,
+                capabilities: handshake.capabilities,
+                connected_at: handshake.connected_at,
+              })}
+            </pre>
+          ) : (
+            <p className="text-sm text-gray-400">No daemons have connected yet.</p>
           )}
         </CardContent>
       </Card>
@@ -219,15 +254,52 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon: Icon }: { label: string; value: number; icon: typeof Bot }) {
+function formatJsonWithLineNumbers(value: unknown) {
+  return JSON.stringify(value, null, 2)
+    .split("\n")
+    .map((line, index) => `${String(index + 1).padStart(2, " ")}  ${line}`)
+    .join("\n");
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  trend,
+  accent,
+  meta,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Bot;
+  trend: "up" | "down" | "stable";
+  accent: "primary" | "yellow" | "orange";
+  meta: string;
+}) {
+  const accentClass = {
+    primary: "text-primary bg-primary",
+    yellow: "text-amber-500 bg-amber-400",
+    orange: "text-orange-600 bg-orange-500",
+  }[accent];
+  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
+  const trendClass = trend === "up"
+    ? "bg-emerald-500/10 text-emerald-700"
+    : trend === "down"
+      ? "bg-rose-500/10 text-rose-700"
+      : "bg-muted text-muted-foreground";
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm text-muted-foreground">{label}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+    <Card className="relative h-32 justify-between transition-colors hover:border-primary/40">
+      <CardHeader className="flex flex-row items-start justify-between pb-0">
+        <CardTitle className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</CardTitle>
+        <Icon className={`h-5 w-5 ${accentClass.split(" ")[0]}`} />
       </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold">{value.toLocaleString()}</div>
+      <CardContent className="flex items-end justify-between">
+        <div className="text-4xl font-bold tracking-tight">{value.toLocaleString()}</div>
+        <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${trendClass}`}>
+          <TrendIcon className="h-3.5 w-3.5" />
+          {meta}
+        </div>
+        <div className={`absolute bottom-0 left-0 h-1 w-1/3 ${accentClass.split(" ")[1]}`} />
       </CardContent>
     </Card>
   );
