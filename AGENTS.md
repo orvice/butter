@@ -70,4 +70,5 @@ Docs directory layout:
 - `docs/dashboard-api-gap.md` — Dashboard backend API gap analysis, including current coverage, recommended API extensions, persistence additions, phased implementation, and compatibility notes.
 - `docs/design-daemon-agent.md` — Daemon Agent design proposal with background, goals, architecture analysis, core challenges, incremental implementation plan, end-to-end flow, and file change list.
 - `docs/project-structure.md` — Project directory structure documentation and maintenance guidance.
+- `docs/storage.md` — S3 object storage + static asset / avatar upload configuration and HTTP endpoints.
 - `docs/structure-review.md` — Directory structure review with strengths, issues, and refactoring recommendations such as renaming, bootstrap split, and runtime organization.

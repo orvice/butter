@@ -2,13 +2,16 @@ package daemon
 
 import (
 	"context"
+	"io"
 	"net"
 	"testing"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -136,6 +139,9 @@ func TestGRPCHandlerAuthRejectsInvalidToken(t *testing.T) {
 		},
 	})
 	if err != nil {
+		if err == io.EOF {
+			return
+		}
 		t.Fatalf("Send: %v", err)
 	}
 
@@ -143,6 +149,9 @@ func TestGRPCHandlerAuthRejectsInvalidToken(t *testing.T) {
 	_, err = stream.Recv()
 	if err == nil {
 		t.Fatal("expected auth error")
+	}
+	if code := status.Code(err); code != codes.Unauthenticated {
+		t.Fatalf("expected unauthenticated error, got %v: %v", code, err)
 	}
 }
 
