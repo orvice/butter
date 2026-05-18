@@ -24,6 +24,42 @@ storage_backend: "mongo"
 redis_addr: "localhost:6379"
 redis_password: ""
 
+# Object storage (S3-compatible). Managed by butterfly core — see
+# https://butterfly.orz.ee/stores/s3.html for the full schema.
+# Each key under store.s3 registers a named client retrievable via
+# s3.GetClient("<name>") / s3.GetBucket("<name>").
+#
+# store:
+#   s3:
+#     assets:
+#       endpoint: "s3.amazonaws.com"
+#       access_key_id: "AKIA..."
+#       secret_access_key: "..."
+#       region: "us-east-1"
+#       bucket: "butter-assets"
+#       use_ssl: true
+#       use_path_style: false
+#     # MinIO example:
+#     # local:
+#     #   endpoint: "localhost:9000"
+#     #   ak: "minioadmin"
+#     #   sk: "minioadmin"
+#     #   region: "us-east-1"
+#     #   bucket: "butter-local"
+#     #   use_ssl: false
+#     #   use_path_style: true
+
+# Static asset / avatar uploads. Set static.s3_bucket to one of the keys
+# defined under store.s3 above to enable the upload endpoints
+# (POST /api/uploads/avatar, POST /api/uploads/static).
+# CDN-aware URLs are returned to clients when cdn_base_url is set.
+static:
+  s3_bucket: ""              # e.g. "assets" — must match a store.s3 key
+  key_prefix: "butter"       # object key prefix (optional)
+  cdn_base_url: ""           # e.g. "https://cdn.example.com"
+  public_base_url: ""        # fallback when no CDN (e.g. https://s3.amazonaws.com/butter-assets)
+  max_upload_bytes: 5242880  # 5 MiB; 0 = use default
+
 # Langfuse observability (optional — disabled when keys are empty)
 langfuse:
   publicKey: ""       # LANGFUSE_PUBLIC_KEY
