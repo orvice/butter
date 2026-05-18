@@ -31,26 +31,26 @@ type APIToken struct {
 
 	// Server-assigned unique identifier.
 	// @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Human-readable label.
 	// @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"`
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Display prefix (first chars of the token). Used by the dashboard to help
 	// operators identify tokens without storing the secret.
 	// @gotags: json:"prefix,omitempty" yaml:"prefix,omitempty" bson:"prefix,omitempty"
-	Prefix string `protobuf:"bytes,3,opt,name=prefix,proto3" json:"prefix,omitempty" yaml:"prefix,omitempty" bson:"prefix,omitempty"`
+	Prefix string `protobuf:"bytes,3,opt,name=prefix,proto3" json:"prefix,omitempty"`
 	// @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// Time the token was last accepted by the auth middleware. May be zero.
 	// @gotags: json:"last_used_at,omitempty" yaml:"last_used_at,omitempty" bson:"last_used_at,omitempty"
-	LastUsedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty" yaml:"last_used_at,omitempty" bson:"last_used_at,omitempty"`
+	LastUsedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty"`
 	// True once the token is revoked. Revoked tokens cannot authenticate.
 	// @gotags: json:"revoked,omitempty" yaml:"revoked,omitempty" bson:"revoked,omitempty"
-	Revoked bool `protobuf:"varint,6,opt,name=revoked,proto3" json:"revoked,omitempty" yaml:"revoked,omitempty" bson:"revoked,omitempty"`
+	Revoked bool `protobuf:"varint,6,opt,name=revoked,proto3" json:"revoked,omitempty"`
 	// ID of the workspace this token belongs to. Tokens authenticate within
 	// a single workspace.
 	// @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
-	WorkspaceId string `protobuf:"bytes,100,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"`
+	WorkspaceId string `protobuf:"bytes,100,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
 }
 
 func (x *APIToken) Reset() {

@@ -1441,6 +1441,8 @@ Aggregates `cron_executions` into time buckets for the Overview chart.
 
 Read-only views and control over connected daemons.
 
+> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's gRPC bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is not exposed as a regular Twirp JSON endpoint; dashboard / ops clients should use the `DaemonService` endpoints below.
+
 #### ListDaemons
 
 ```

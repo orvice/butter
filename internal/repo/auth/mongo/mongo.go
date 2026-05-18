@@ -130,6 +130,23 @@ func (s *Store) CreateUser(ctx context.Context, user *agentsv1.User, passwordHas
 	return nil
 }
 
+func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName string, updatedAt time.Time) (*agentsv1.User, error) {
+	res := s.users.FindOneAndUpdate(
+		ctx,
+		bson.M{"_id": id},
+		bson.M{"$set": bson.M{"display_name": displayName, "updated_at": updatedAt}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+	var doc userDoc
+	if err := res.Decode(&doc); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, auth.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("update user profile: %w", err)
+	}
+	return userToProto(&doc), nil
+}
+
 func (s *Store) UpdateUserPassword(ctx context.Context, id string, passwordHash string, updatedAt time.Time) (*agentsv1.User, error) {
 	res := s.users.FindOneAndUpdate(
 		ctx,
@@ -177,15 +194,20 @@ func (s *Store) FindUserByUsername(ctx context.Context, username string) (*agent
 }
 
 func (s *Store) GetUser(ctx context.Context, id string) (*agentsv1.User, error) {
+	user, _, err := s.FindUserByID(ctx, id)
+	return user, err
+}
+
+func (s *Store) FindUserByID(ctx context.Context, id string) (*agentsv1.User, string, error) {
 	var doc userDoc
 	err := s.users.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, auth.ErrUserNotFound
+			return nil, "", auth.ErrUserNotFound
 		}
-		return nil, fmt.Errorf("get user: %w", err)
+		return nil, "", fmt.Errorf("find user by id: %w", err)
 	}
-	return userToProto(&doc), nil
+	return userToProto(&doc), doc.PasswordHash, nil
 }
 
 func (s *Store) CreateSession(ctx context.Context, session *auth.Session) error {

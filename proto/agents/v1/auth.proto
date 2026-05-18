@@ -24,6 +24,10 @@ service AuthService {
   rpc UpdateUserPassword(UpdateUserPasswordRequest) returns (UpdateUserPasswordResponse);
   // SetUserDisabled enables or disables a user. Admin only.
   rpc SetUserDisabled(SetUserDisabledRequest) returns (SetUserDisabledResponse);
+  // UpdateProfile updates the authenticated user's display name.
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  // ChangePassword changes the authenticated user's password.
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
 }
 
 message User {
@@ -101,5 +105,22 @@ message SetUserDisabledRequest {
 }
 
 message SetUserDisabledResponse {
+  User user = 1;
+}
+
+message UpdateProfileRequest {
+  string display_name = 1 [(validate.rules).string.min_len = 1];
+}
+
+message UpdateProfileResponse {
+  User user = 1;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1 [(validate.rules).string.min_len = 1];
+  string new_password = 2 [(validate.rules).string.min_len = 1];
+}
+
+message ChangePasswordResponse {
   User user = 1;
 }
