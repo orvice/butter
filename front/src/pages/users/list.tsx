@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { UserPlus, LockKeyhole, Ban, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -42,7 +43,7 @@ function createdAt(user: AuthUser) {
 }
 
 export default function UserListPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isAdmin } = useAuth();
   const { data, isLoading } = useUsers();
   const create = useCreateUser();
   const updatePassword = useUpdateUserPassword();
@@ -57,6 +58,8 @@ export default function UserListPage() {
   const [newPassword, setNewPassword] = useState("");
 
   const users = data?.users ?? [];
+
+  if (!isAdmin) return <Navigate to="/profile" replace />;
 
   function resetCreateForm() {
     setUsername("");

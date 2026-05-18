@@ -28,6 +28,7 @@ import {
   BrainCircuit,
   KeyRound,
   Users,
+  UserCircle,
   Building2,
   CircleCheck,
   CircleAlert,
@@ -42,7 +43,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashboard; label: string }[] }[] = [
+const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashboard; label: string; adminOnly?: boolean }[] }[] = [
   {
     label: "Dashboard",
     items: [{ to: "/", icon: LayoutDashboard, label: "Overview" }],
@@ -76,7 +77,8 @@ const NAV_GROUPS: { label: string; items: { to: string; icon: typeof LayoutDashb
       { to: "/channels", icon: Cable, label: "Channels" },
       { to: "/model-providers", icon: BrainCircuit, label: "Model Providers" },
       { to: "/api-tokens", icon: KeyRound, label: "API Tokens" },
-      { to: "/users", icon: Users, label: "Users" },
+      { to: "/profile", icon: UserCircle, label: "Profile" },
+      { to: "/users", icon: Users, label: "Users", adminOnly: true },
     ],
   },
 ];
@@ -169,16 +171,19 @@ function Brand() {
   );
 }
 
-function SidebarNav() {
+function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
   return (
     <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
-      {NAV_GROUPS.map((group) => (
-        <div key={group.label}>
+      {NAV_GROUPS.map((group) => {
+        const items = group.items.filter((item) => !item.adminOnly || isAdmin);
+        if (items.length === 0) return null;
+        return (
+          <div key={group.label}>
           <div className="px-3 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
             {group.label}
           </div>
           <div className="space-y-0.5">
-            {group.items.map(({ to, icon: Icon, label }) => (
+            {items.map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -196,8 +201,9 @@ function SidebarNav() {
               </NavLink>
             ))}
           </div>
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -289,7 +295,7 @@ function WorkspaceCreateCard() {
 }
 
 export default function DashboardLayout() {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, isAdmin, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const { selectedWorkspaceId, workspaces, isLoading: isWorkspaceLoading } = useWorkspace();
 
@@ -304,7 +310,7 @@ export default function DashboardLayout() {
           <Brand />
         </div>
         <Separator />
-        <SidebarNav />
+        <SidebarNav isAdmin={isAdmin} />
         <Separator />
         <div className="flex items-center justify-between p-3">
           <Button
@@ -334,7 +340,7 @@ export default function DashboardLayout() {
                     <Brand />
                   </SheetTitle>
                 </SheetHeader>
-                <SidebarNav />
+                <SidebarNav isAdmin={isAdmin} />
                 <Separator />
                 <div className="flex items-center justify-between p-3">
                   <Button

@@ -269,6 +269,66 @@ func (s *AuthServiceServer) UpdateUserPassword(ctx context.Context, req *agentsv
 	return &agentsv1.UpdateUserPasswordResponse{User: user}, nil
 }
 
+func (s *AuthServiceServer) UpdateProfile(ctx context.Context, req *agentsv1.UpdateProfileRequest) (*agentsv1.UpdateProfileResponse, error) {
+	if s.repo == nil {
+		return nil, twirp.NewError(twirp.FailedPrecondition, "auth store not available")
+	}
+	current, ok := auth.UserFromContext(ctx)
+	if !ok {
+		return nil, twirp.NewError(twirp.Unauthenticated, "unauthenticated")
+	}
+	displayName := strings.TrimSpace(req.GetDisplayName())
+	if displayName == "" {
+		return nil, twirp.RequiredArgumentError("display_name")
+	}
+	user, err := s.repo.UpdateUserProfile(ctx, current.GetId(), displayName, time.Now().UTC())
+	if err != nil {
+		if errors.Is(err, auth.ErrUserNotFound) {
+			return nil, twirp.NotFoundError("user")
+		}
+		return nil, twirp.InternalErrorWith(err)
+	}
+	return &agentsv1.UpdateProfileResponse{User: user}, nil
+}
+
+func (s *AuthServiceServer) ChangePassword(ctx context.Context, req *agentsv1.ChangePasswordRequest) (*agentsv1.ChangePasswordResponse, error) {
+	if s.repo == nil {
+		return nil, twirp.NewError(twirp.FailedPrecondition, "auth store not available")
+	}
+	current, ok := auth.UserFromContext(ctx)
+	if !ok {
+		return nil, twirp.NewError(twirp.Unauthenticated, "unauthenticated")
+	}
+	if req.GetCurrentPassword() == "" {
+		return nil, twirp.RequiredArgumentError("current_password")
+	}
+	if req.GetNewPassword() == "" {
+		return nil, twirp.RequiredArgumentError("new_password")
+	}
+	_, passwordHash, err := s.repo.FindUserByID(ctx, current.GetId())
+	if err != nil {
+		if errors.Is(err, auth.ErrUserNotFound) {
+			return nil, twirp.NotFoundError("user")
+		}
+		return nil, twirp.InternalErrorWith(err)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.GetCurrentPassword())); err != nil {
+		return nil, twirp.NewError(twirp.PermissionDenied, "current password is incorrect")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.GetNewPassword()), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, twirp.InternalErrorWith(err)
+	}
+	user, err := s.repo.UpdateUserPassword(ctx, current.GetId(), string(hash), time.Now().UTC())
+	if err != nil {
+		if errors.Is(err, auth.ErrUserNotFound) {
+			return nil, twirp.NotFoundError("user")
+		}
+		return nil, twirp.InternalErrorWith(err)
+	}
+	return &agentsv1.ChangePasswordResponse{User: user}, nil
+}
+
 func (s *AuthServiceServer) SetUserDisabled(ctx context.Context, req *agentsv1.SetUserDisabledRequest) (*agentsv1.SetUserDisabledResponse, error) {
 	if err := s.requireAdmin(ctx); err != nil {
 		return nil, err

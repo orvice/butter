@@ -32,6 +32,7 @@ import ChannelCreatePage from "@/pages/channels/create";
 import ChannelEditPage from "@/pages/channels/edit";
 import APITokenListPage from "@/pages/api-tokens/list";
 import UserListPage from "@/pages/users/list";
+import ProfilePage from "@/pages/profile";
 import WorkspacePage from "@/pages/workspaces";
 
 const queryClient = new QueryClient({
@@ -78,6 +79,7 @@ export default function App() {
                   <Route path="channels/create" element={<ChannelCreatePage />} />
                   <Route path="channels/:name/edit" element={<ChannelEditPage />} />
                   <Route path="api-tokens" element={<APITokenListPage />} />
+                  <Route path="profile" element={<ProfilePage />} />
                   <Route path="users" element={<UserListPage />} />
                   <Route path="workspaces" element={<WorkspacePage />} />
                 </Route>

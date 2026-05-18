@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { Workspace } from "@/gen/agents/v1/workspace_pb";
 import { TOKEN_KEY } from "@/lib/constants";
-import { login as loginRequest, logout as logoutRequest, me as meRequest, type AuthUser } from "@/api/auth";
+import { isAdmin as checkAdmin, login as loginRequest, logout as logoutRequest, me as meRequest, type AuthUser } from "@/api/auth";
 
 interface AuthContextValue {
   token: string | null;
@@ -11,8 +11,10 @@ interface AuthContextValue {
   loginWorkspaces: Workspace[];
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAdmin: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
+  refreshUser: (user: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -97,8 +99,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  const refreshUser = useCallback((next: AuthUser) => {
+    setUser(next);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ token, user, loginWorkspaces, isAuthenticated: !!token, isLoading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        token,
+        user,
+        loginWorkspaces,
+        isAuthenticated: !!token,
+        isLoading,
+        isAdmin: checkAdmin(user),
+        login,
+        logout,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

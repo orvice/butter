@@ -1225,35 +1225,35 @@ type Invocation struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: bson:"_id,omitempty"
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty" bson:"_id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// @gotags: bson:"agent_name,omitempty"
-	AgentName string `protobuf:"bytes,2,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty" bson:"agent_name,omitempty"`
+	AgentName string `protobuf:"bytes,2,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty"`
 	// @gotags: bson:"app_name,omitempty"
-	AppName string `protobuf:"bytes,3,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty" bson:"app_name,omitempty"`
+	AppName string `protobuf:"bytes,3,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty"`
 	// @gotags: bson:"user_id,omitempty"
-	UserId string `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty" bson:"user_id,omitempty"`
+	UserId string `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	// @gotags: bson:"session_id,omitempty"
-	SessionId string `protobuf:"bytes,5,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty" bson:"session_id,omitempty"`
+	SessionId string `protobuf:"bytes,5,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// @gotags: bson:"status,omitempty"
-	Status InvocationStatus `protobuf:"varint,6,opt,name=status,proto3,enum=agents.v1.InvocationStatus" json:"status,omitempty" bson:"status,omitempty"`
+	Status InvocationStatus `protobuf:"varint,6,opt,name=status,proto3,enum=agents.v1.InvocationStatus" json:"status,omitempty"`
 	// @gotags: bson:"input,omitempty"
-	Input string `protobuf:"bytes,7,opt,name=input,proto3" json:"input,omitempty" bson:"input,omitempty"`
+	Input string `protobuf:"bytes,7,opt,name=input,proto3" json:"input,omitempty"`
 	// @gotags: bson:"output,omitempty"
-	Output string `protobuf:"bytes,8,opt,name=output,proto3" json:"output,omitempty" bson:"output,omitempty"`
+	Output string `protobuf:"bytes,8,opt,name=output,proto3" json:"output,omitempty"`
 	// @gotags: bson:"error,omitempty"
-	Error string `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty" bson:"error,omitempty"`
+	Error string `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
 	// @gotags: bson:"started_at,omitempty"
-	StartedAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty" bson:"started_at,omitempty"`
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	// @gotags: bson:"finished_at,omitempty"
-	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty" bson:"finished_at,omitempty"`
+	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
 	// @gotags: bson:"latency_ms,omitempty"
-	LatencyMs int64 `protobuf:"varint,12,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty" bson:"latency_ms,omitempty"`
+	LatencyMs int64 `protobuf:"varint,12,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
 	// @gotags: bson:"model_override,omitempty"
-	ModelOverride string `protobuf:"bytes,13,opt,name=model_override,json=modelOverride,proto3" json:"model_override,omitempty" bson:"model_override,omitempty"`
+	ModelOverride string `protobuf:"bytes,13,opt,name=model_override,json=modelOverride,proto3" json:"model_override,omitempty"`
 	// @gotags: bson:"source,omitempty"
-	Source string `protobuf:"bytes,14,opt,name=source,proto3" json:"source,omitempty" bson:"source,omitempty"`
+	Source string `protobuf:"bytes,14,opt,name=source,proto3" json:"source,omitempty"`
 	// @gotags: bson:"workspace_id,omitempty"
-	WorkspaceId string `protobuf:"bytes,100,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty" bson:"workspace_id,omitempty"`
+	WorkspaceId string `protobuf:"bytes,100,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
 }
 
 func (x *Invocation) Reset() {

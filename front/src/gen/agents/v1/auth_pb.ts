@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/auth.proto.
  */
 export const file_agents_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChRhZ2VudHMvdjEvYXV0aC5wcm90bxIJYWdlbnRzLnYxIroBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkQKDExvZ2luUmVxdWVzdBIZCgh1c2VybmFtZRgBIAEoCUIH+kIEcgIQARIZCghwYXNzd29yZBgCIAEoCUIH+kIEcgIQASKXAQoNTG9naW5SZXNwb25zZRINCgV0b2tlbhgBIAEoCRIdCgR1c2VyGAIgASgLMg8uYWdlbnRzLnYxLlVzZXISLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKAoKd29ya3NwYWNlcxgEIAMoCzIULmFnZW50cy52MS5Xb3Jrc3BhY2UiCwoJTWVSZXF1ZXN0IisKCk1lUmVzcG9uc2USHQoEdXNlchgBIAEoCzIPLmFnZW50cy52MS5Vc2VyIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiEgoQTGlzdFVzZXJzUmVxdWVzdCIzChFMaXN0VXNlcnNSZXNwb25zZRIeCgV1c2VycxgBIAMoCzIPLmFnZW50cy52MS5Vc2VyIn8KEUNyZWF0ZVVzZXJSZXF1ZXN0EhkKCHVzZXJuYW1lGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIIjMKEkNyZWF0ZVVzZXJSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiSwoZVXBkYXRlVXNlclBhc3N3b3JkUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQARIZCghwYXNzd29yZBgCIAEoCUIH+kIEcgIQASI7ChpVcGRhdGVVc2VyUGFzc3dvcmRSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiPwoWU2V0VXNlckRpc2FibGVkUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQARIQCghkaXNhYmxlZBgCIAEoCCI4ChdTZXRVc2VyRGlzYWJsZWRSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIyiwQKC0F1dGhTZXJ2aWNlEjoKBUxvZ2luEhcuYWdlbnRzLnYxLkxvZ2luUmVxdWVzdBoYLmFnZW50cy52MS5Mb2dpblJlc3BvbnNlEjEKAk1lEhQuYWdlbnRzLnYxLk1lUmVxdWVzdBoVLmFnZW50cy52MS5NZVJlc3BvbnNlEj0KBkxvZ291dBIYLmFnZW50cy52MS5Mb2dvdXRSZXF1ZXN0GhkuYWdlbnRzLnYxLkxvZ291dFJlc3BvbnNlEkYKCUxpc3RVc2VycxIbLmFnZW50cy52MS5MaXN0VXNlcnNSZXF1ZXN0GhwuYWdlbnRzLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlEkkKCkNyZWF0ZVVzZXISHC5hZ2VudHMudjEuQ3JlYXRlVXNlclJlcXVlc3QaHS5hZ2VudHMudjEuQ3JlYXRlVXNlclJlc3BvbnNlEmEKElVwZGF0ZVVzZXJQYXNzd29yZBIkLmFnZW50cy52MS5VcGRhdGVVc2VyUGFzc3dvcmRSZXF1ZXN0GiUuYWdlbnRzLnYxLlVwZGF0ZVVzZXJQYXNzd29yZFJlc3BvbnNlElgKD1NldFVzZXJEaXNhYmxlZBIhLmFnZW50cy52MS5TZXRVc2VyRGlzYWJsZWRSZXF1ZXN0GiIuYWdlbnRzLnYxLlNldFVzZXJEaXNhYmxlZFJlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_agents_v1_workspace, file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChRhZ2VudHMvdjEvYXV0aC5wcm90bxIJYWdlbnRzLnYxIroBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkQKDExvZ2luUmVxdWVzdBIZCgh1c2VybmFtZRgBIAEoCUIH+kIEcgIQARIZCghwYXNzd29yZBgCIAEoCUIH+kIEcgIQASKXAQoNTG9naW5SZXNwb25zZRINCgV0b2tlbhgBIAEoCRIdCgR1c2VyGAIgASgLMg8uYWdlbnRzLnYxLlVzZXISLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKAoKd29ya3NwYWNlcxgEIAMoCzIULmFnZW50cy52MS5Xb3Jrc3BhY2UiCwoJTWVSZXF1ZXN0IisKCk1lUmVzcG9uc2USHQoEdXNlchgBIAEoCzIPLmFnZW50cy52MS5Vc2VyIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiEgoQTGlzdFVzZXJzUmVxdWVzdCIzChFMaXN0VXNlcnNSZXNwb25zZRIeCgV1c2VycxgBIAMoCzIPLmFnZW50cy52MS5Vc2VyIn8KEUNyZWF0ZVVzZXJSZXF1ZXN0EhkKCHVzZXJuYW1lGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIIjMKEkNyZWF0ZVVzZXJSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiSwoZVXBkYXRlVXNlclBhc3N3b3JkUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQARIZCghwYXNzd29yZBgCIAEoCUIH+kIEcgIQASI7ChpVcGRhdGVVc2VyUGFzc3dvcmRSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiPwoWU2V0VXNlckRpc2FibGVkUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQARIQCghkaXNhYmxlZBgCIAEoCCI4ChdTZXRVc2VyRGlzYWJsZWRSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiNQoUVXBkYXRlUHJvZmlsZVJlcXVlc3QSHQoMZGlzcGxheV9uYW1lGAEgASgJQgf6QgRyAhABIjYKFVVwZGF0ZVByb2ZpbGVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiWQoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EiEKEGN1cnJlbnRfcGFzc3dvcmQYASABKAlCB/pCBHICEAESHQoMbmV3X3Bhc3N3b3JkGAIgASgJQgf6QgRyAhABIjcKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USHQoEdXNlchgBIAEoCzIPLmFnZW50cy52MS5Vc2VyMrYFCgtBdXRoU2VydmljZRI6CgVMb2dpbhIXLmFnZW50cy52MS5Mb2dpblJlcXVlc3QaGC5hZ2VudHMudjEuTG9naW5SZXNwb25zZRIxCgJNZRIULmFnZW50cy52MS5NZVJlcXVlc3QaFS5hZ2VudHMudjEuTWVSZXNwb25zZRI9CgZMb2dvdXQSGC5hZ2VudHMudjEuTG9nb3V0UmVxdWVzdBoZLmFnZW50cy52MS5Mb2dvdXRSZXNwb25zZRJGCglMaXN0VXNlcnMSGy5hZ2VudHMudjEuTGlzdFVzZXJzUmVxdWVzdBocLmFnZW50cy52MS5MaXN0VXNlcnNSZXNwb25zZRJJCgpDcmVhdGVVc2VyEhwuYWdlbnRzLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0Gh0uYWdlbnRzLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJhChJVcGRhdGVVc2VyUGFzc3dvcmQSJC5hZ2VudHMudjEuVXBkYXRlVXNlclBhc3N3b3JkUmVxdWVzdBolLmFnZW50cy52MS5VcGRhdGVVc2VyUGFzc3dvcmRSZXNwb25zZRJYCg9TZXRVc2VyRGlzYWJsZWQSIS5hZ2VudHMudjEuU2V0VXNlckRpc2FibGVkUmVxdWVzdBoiLmFnZW50cy52MS5TZXRVc2VyRGlzYWJsZWRSZXNwb25zZRJSCg1VcGRhdGVQcm9maWxlEh8uYWdlbnRzLnYxLlVwZGF0ZVByb2ZpbGVSZXF1ZXN0GiAuYWdlbnRzLnYxLlVwZGF0ZVByb2ZpbGVSZXNwb25zZRJVCg5DaGFuZ2VQYXNzd29yZBIgLmFnZW50cy52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaIS5hZ2VudHMudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_agents_v1_workspace, file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * @generated from message agents.v1.User
@@ -355,6 +355,79 @@ export const SetUserDisabledResponseSchema: GenMessage<SetUserDisabledResponse> 
   messageDesc(file_agents_v1_auth, 14);
 
 /**
+ * @generated from message agents.v1.UpdateProfileRequest
+ */
+export type UpdateProfileRequest = Message<"agents.v1.UpdateProfileRequest"> & {
+  /**
+   * @generated from field: string display_name = 1;
+   */
+  displayName: string;
+};
+
+/**
+ * Describes the message agents.v1.UpdateProfileRequest.
+ * Use `create(UpdateProfileRequestSchema)` to create a new message.
+ */
+export const UpdateProfileRequestSchema: GenMessage<UpdateProfileRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 15);
+
+/**
+ * @generated from message agents.v1.UpdateProfileResponse
+ */
+export type UpdateProfileResponse = Message<"agents.v1.UpdateProfileResponse"> & {
+  /**
+   * @generated from field: agents.v1.User user = 1;
+   */
+  user?: User;
+};
+
+/**
+ * Describes the message agents.v1.UpdateProfileResponse.
+ * Use `create(UpdateProfileResponseSchema)` to create a new message.
+ */
+export const UpdateProfileResponseSchema: GenMessage<UpdateProfileResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 16);
+
+/**
+ * @generated from message agents.v1.ChangePasswordRequest
+ */
+export type ChangePasswordRequest = Message<"agents.v1.ChangePasswordRequest"> & {
+  /**
+   * @generated from field: string current_password = 1;
+   */
+  currentPassword: string;
+
+  /**
+   * @generated from field: string new_password = 2;
+   */
+  newPassword: string;
+};
+
+/**
+ * Describes the message agents.v1.ChangePasswordRequest.
+ * Use `create(ChangePasswordRequestSchema)` to create a new message.
+ */
+export const ChangePasswordRequestSchema: GenMessage<ChangePasswordRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 17);
+
+/**
+ * @generated from message agents.v1.ChangePasswordResponse
+ */
+export type ChangePasswordResponse = Message<"agents.v1.ChangePasswordResponse"> & {
+  /**
+   * @generated from field: agents.v1.User user = 1;
+   */
+  user?: User;
+};
+
+/**
+ * Describes the message agents.v1.ChangePasswordResponse.
+ * Use `create(ChangePasswordResponseSchema)` to create a new message.
+ */
+export const ChangePasswordResponseSchema: GenMessage<ChangePasswordResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 18);
+
+/**
  * AuthService manages dashboard user authentication.
  *
  * @generated from service agents.v1.AuthService
@@ -429,6 +502,26 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof SetUserDisabledRequestSchema;
     output: typeof SetUserDisabledResponseSchema;
+  },
+  /**
+   * UpdateProfile updates the authenticated user's display name.
+   *
+   * @generated from rpc agents.v1.AuthService.UpdateProfile
+   */
+  updateProfile: {
+    methodKind: "unary";
+    input: typeof UpdateProfileRequestSchema;
+    output: typeof UpdateProfileResponseSchema;
+  },
+  /**
+   * ChangePassword changes the authenticated user's password.
+   *
+   * @generated from rpc agents.v1.AuthService.ChangePassword
+   */
+  changePassword: {
+    methodKind: "unary";
+    input: typeof ChangePasswordRequestSchema;
+    output: typeof ChangePasswordResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_auth, 0);
