@@ -18,7 +18,11 @@ const schema = z.object({
   platform: z.enum(["AGENT_CHANNEL_PLATFORM_TELEGRAM", "AGENT_CHANNEL_PLATFORM_DISCORD"]),
   enabled: z.boolean(),
   model: z.string().optional(),
-  trigger_type: z.enum(["AGENT_TRIGGER_TYPE_ALL", "AGENT_TRIGGER_TYPE_COMMAND", "AGENT_TRIGGER_TYPE_MESSAGE"]),
+  trigger_type: z.enum([
+    "AGENT_TRIGGER_TYPE_MESSAGE",
+    "AGENT_TRIGGER_TYPE_COMMAND",
+    "AGENT_TRIGGER_TYPE_PRIVATE_CHAT",
+  ]),
   commands_text: z.string().optional(),
   prefixes_text: z.string().optional(),
   require_mention: z.boolean(),
@@ -70,7 +74,7 @@ export default function ChannelForm({
       platform: "AGENT_CHANNEL_PLATFORM_TELEGRAM",
       enabled: true,
       model: "",
-      trigger_type: "AGENT_TRIGGER_TYPE_ALL",
+      trigger_type: "AGENT_TRIGGER_TYPE_MESSAGE",
       commands_text: "",
       prefixes_text: "",
       require_mention: false,
@@ -95,9 +99,11 @@ export default function ChannelForm({
         : "AGENT_CHANNEL_PLATFORM_TELEGRAM"),
       enabled: initialValue.enabled ?? true,
       model: initialValue.model ?? "",
-      trigger_type: (trigger?.type === "AGENT_TRIGGER_TYPE_COMMAND" || trigger?.type === "AGENT_TRIGGER_TYPE_MESSAGE"
+      trigger_type: (trigger?.type === "AGENT_TRIGGER_TYPE_COMMAND"
+        || trigger?.type === "AGENT_TRIGGER_TYPE_PRIVATE_CHAT"
+        || trigger?.type === "AGENT_TRIGGER_TYPE_MESSAGE"
         ? trigger.type
-        : "AGENT_TRIGGER_TYPE_ALL"),
+        : "AGENT_TRIGGER_TYPE_MESSAGE"),
       commands_text: listToLines(trigger?.commands),
       prefixes_text: listToLines(trigger?.prefixes),
       require_mention: trigger?.require_mention ?? false,
@@ -111,8 +117,8 @@ export default function ChannelForm({
     const trigger = {
       type: values.trigger_type as AgentTriggerType,
       commands: values.trigger_type === "AGENT_TRIGGER_TYPE_COMMAND" ? linesToList(values.commands_text) : [],
-      prefixes: values.trigger_type === "AGENT_TRIGGER_TYPE_MESSAGE" ? linesToList(values.prefixes_text) : [],
-      require_mention: values.require_mention,
+      prefixes: [],
+      require_mention: false,
     };
 
     const channel: AgentChannel = {
@@ -235,9 +241,9 @@ export default function ChannelForm({
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                   <SelectContent>
-                    <SelectItem value="AGENT_TRIGGER_TYPE_ALL">All messages</SelectItem>
+                    <SelectItem value="AGENT_TRIGGER_TYPE_MESSAGE">All messages</SelectItem>
                     <SelectItem value="AGENT_TRIGGER_TYPE_COMMAND">Commands</SelectItem>
-                    <SelectItem value="AGENT_TRIGGER_TYPE_MESSAGE">Prefixes</SelectItem>
+                    <SelectItem value="AGENT_TRIGGER_TYPE_PRIVATE_CHAT">Private chat only</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -252,21 +258,7 @@ export default function ChannelForm({
                 </FormItem>
               )} />
             )}
-            {triggerType === "AGENT_TRIGGER_TYPE_MESSAGE" && (
-              <FormField control={form.control} name="prefixes_text" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prefixes</FormLabel>
-                  <FormControl><Textarea rows={4} placeholder={"!butter\n@bot"} {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            )}
-            <FormField control={form.control} name="require_mention" render={({ field }) => (
-              <FormItem className="flex items-center gap-3">
-                <FormLabel>Require Mention</FormLabel>
-                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-              </FormItem>
-            )} />
+
           </CardContent>
         </Card>
 
