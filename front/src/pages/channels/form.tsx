@@ -53,6 +53,14 @@ function listToLines(items?: string[]): string {
   return (items ?? []).join("\n");
 }
 
+function telegramAllowedChatIds(channel?: AgentChannel): string[] {
+  return channel?.telegram?.allowed_chat_ids ?? channel?.telegram?.allow_chat_ids ?? [];
+}
+
+function discordAllowedChannelIds(channel?: AgentChannel): string[] {
+  return channel?.discord?.allowed_channel_ids ?? channel?.discord?.allow_channel_ids ?? [];
+}
+
 function firstTrigger(channel?: AgentChannel) {
   return channel?.triggers?.[0];
 }
@@ -108,8 +116,8 @@ export default function ChannelForm({
       prefixes_text: listToLines(trigger?.prefixes),
       require_mention: trigger?.require_mention ?? false,
       bot_token: initialValue.telegram?.bot_token ?? initialValue.discord?.bot_token ?? "",
-      allow_chat_ids_text: listToLines(initialValue.telegram?.allow_chat_ids),
-      allow_channel_ids_text: listToLines(initialValue.discord?.allow_channel_ids),
+      allow_chat_ids_text: listToLines(telegramAllowedChatIds(initialValue)),
+      allow_channel_ids_text: listToLines(discordAllowedChannelIds(initialValue)),
     });
   }, [form, initialValue]);
 
@@ -132,13 +140,13 @@ export default function ChannelForm({
         ? {
             telegram: {
               bot_token: values.bot_token?.trim() || undefined,
-              allow_chat_ids: linesToList(values.allow_chat_ids_text),
+              allowed_chat_ids: linesToList(values.allow_chat_ids_text),
             },
           }
         : {
             discord: {
               bot_token: values.bot_token?.trim() || undefined,
-              allow_channel_ids: linesToList(values.allow_channel_ids_text),
+              allowed_channel_ids: linesToList(values.allow_channel_ids_text),
             },
           }),
     };
