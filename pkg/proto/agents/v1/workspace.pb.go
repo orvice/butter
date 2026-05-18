@@ -29,20 +29,20 @@ type Workspace struct {
 
 	// Stable server-assigned identifier (UUID).
 	// @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Human-readable name.
 	// @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"`
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// URL-safe short identifier, unique across workspaces.
 	// @gotags: json:"slug,omitempty" yaml:"slug,omitempty" bson:"slug,omitempty"
-	Slug string `protobuf:"bytes,3,opt,name=slug,proto3" json:"slug,omitempty" yaml:"slug,omitempty" bson:"slug,omitempty"`
+	Slug string `protobuf:"bytes,3,opt,name=slug,proto3" json:"slug,omitempty"`
 	// Free-form description.
 	// @gotags: json:"description,omitempty" yaml:"description,omitempty" bson:"description,omitempty"
-	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty" yaml:"description,omitempty" bson:"description,omitempty"`
+	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
 	// @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
-	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 }
 
 func (x *Workspace) Reset() {
@@ -127,14 +127,14 @@ type WorkspaceMember struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
-	WorkspaceId string `protobuf:"bytes,1,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"`
+	WorkspaceId string `protobuf:"bytes,1,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
 	// @gotags: json:"user_id,omitempty" yaml:"user_id,omitempty" bson:"user_id,omitempty"
-	UserId string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty" yaml:"user_id,omitempty" bson:"user_id,omitempty"`
+	UserId string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	// Role inside the workspace: "owner", "admin", "member".
 	// @gotags: json:"role,omitempty" yaml:"role,omitempty" bson:"role,omitempty"
-	Role string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty" yaml:"role,omitempty" bson:"role,omitempty"`
+	Role string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
 	// @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 }
 
 func (x *WorkspaceMember) Reset() {

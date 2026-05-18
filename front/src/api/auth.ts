@@ -41,6 +41,15 @@ export interface SetUserDisabledInput {
   disabled: boolean;
 }
 
+export interface UpdateProfileInput {
+  display_name: string;
+}
+
+export interface ChangePasswordInput {
+  current_password: string;
+  new_password: string;
+}
+
 const SVC = "agents.v1.AuthService";
 
 export function login(username: string, password: string) {
@@ -71,8 +80,20 @@ function setUserDisabled(input: SetUserDisabledInput) {
   return twirpFetch<SetUserDisabledInput, { user?: AuthUser }>(SVC, "SetUserDisabled", input);
 }
 
-export function useUsers() {
-  return useQuery({ queryKey: ["users"], queryFn: listUsers });
+function updateProfile(input: UpdateProfileInput) {
+  return twirpFetch<UpdateProfileInput, { user?: AuthUser }>(SVC, "UpdateProfile", input);
+}
+
+function changePassword(input: ChangePasswordInput) {
+  return twirpFetch<ChangePasswordInput, { user?: AuthUser }>(SVC, "ChangePassword", input);
+}
+
+export function isAdmin(user: AuthUser | null | undefined) {
+  return user?.role === "admin";
+}
+
+export function useUsers(options?: { enabled?: boolean }) {
+  return useQuery({ queryKey: ["users"], queryFn: listUsers, enabled: options?.enabled ?? true });
 }
 
 export function useCreateUser() {
@@ -97,4 +118,12 @@ export function useSetUserDisabled() {
     mutationFn: setUserDisabled,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
   });
+}
+
+export function useUpdateProfile() {
+  return useMutation({ mutationFn: updateProfile });
+}
+
+export function useChangePassword() {
+  return useMutation({ mutationFn: changePassword });
 }
