@@ -43,8 +43,8 @@ function createdAt(user: AuthUser) {
 }
 
 export default function UserListPage() {
-  const { user: currentUser, isAdmin } = useAuth();
-  const { data, isLoading } = useUsers();
+  const { user: currentUser, isAdmin, isLoading: isAuthLoading } = useAuth();
+  const { data, isLoading } = useUsers({ enabled: isAdmin });
   const create = useCreateUser();
   const updatePassword = useUpdateUserPassword();
   const setDisabled = useSetUserDisabled();
@@ -58,6 +58,17 @@ export default function UserListPage() {
   const [newPassword, setNewPassword] = useState("");
 
   const users = data?.users ?? [];
+
+  if (isAuthLoading || !currentUser) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Users" />
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">Loading…</CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!isAdmin) return <Navigate to="/profile" replace />;
 

@@ -92,8 +92,8 @@ export function isAdmin(user: AuthUser | null | undefined) {
   return user?.role === "admin";
 }
 
-export function useUsers() {
-  return useQuery({ queryKey: ["users"], queryFn: listUsers });
+export function useUsers(options?: { enabled?: boolean }) {
+  return useQuery({ queryKey: ["users"], queryFn: listUsers, enabled: options?.enabled ?? true });
 }
 
 export function useCreateUser() {
