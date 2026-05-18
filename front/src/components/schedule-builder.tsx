@@ -57,7 +57,11 @@ function buildCron(s: SimpleState): string {
     case "daily":
       return `${s.minute} ${s.hour} * * *`;
     case "weekly": {
-      const days = s.weekdays.length > 0 ? [...s.weekdays].sort((a, b) => a - b).join(",") : "*";
+      // Require at least one weekday — otherwise emit an empty string so the
+      // form's `min(1)` validation rejects submission instead of silently
+      // falling back to a daily schedule.
+      if (s.weekdays.length === 0) return "";
+      const days = [...s.weekdays].sort((a, b) => a - b).join(",");
       return `${s.minute} ${s.hour} * * ${days}`;
     }
     case "monthly":
@@ -207,6 +211,7 @@ export function ScheduleBuilder({ value, onChange }: ScheduleBuilderProps) {
   }
 
   const preview = buildCron(simple);
+  const invalid = mode === "simple" && simple.frequency === "weekly" && simple.weekdays.length === 0;
 
   return (
     <div className="space-y-3">
@@ -329,9 +334,18 @@ export function ScheduleBuilder({ value, onChange }: ScheduleBuilderProps) {
             </div>
           )}
 
-          <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-            <div className="text-muted-foreground">{describe(simple)}</div>
-            <div className="mt-1 font-mono text-xs">{preview}</div>
+          <div
+            className={cn(
+              "rounded-md border bg-muted/40 px-3 py-2 text-sm",
+              invalid && "border-destructive/50 bg-destructive/5",
+            )}
+          >
+            <div className={cn("text-muted-foreground", invalid && "text-destructive")}>
+              {describe(simple)}
+            </div>
+            <div className="mt-1 font-mono text-xs">
+              {invalid ? <span className="text-destructive">—</span> : preview}
+            </div>
           </div>
         </TabsContent>
 
