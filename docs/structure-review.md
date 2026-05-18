@@ -2,6 +2,8 @@
 
 评审时间：2026-04-12
 
+> **状态说明（2026-05-18）**：本文是一次历史目录结构评审，保留用于记录当时的重构背景与判断。文中部分路径（例如 `internal/bootstrap`、`internal/service/configapi`、`internal/repo/configstore`、`internal/runner` 等）已经在后续重构中迁移或删除；当前结构请以 `docs/project-structure.md` 和 `docs/architecture.md` 为准。
+
 ## 结论
 
 当前项目的主干分层是合理的，`cmd`、`internal`、`proto`、`pkg/proto` 这几个层次清晰，整体符合 Go 服务项目的常见组织方式。
