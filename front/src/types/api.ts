@@ -221,11 +221,13 @@ export interface AgentTrigger {
 
 export interface TelegramChannelConfig {
   bot_token?: string;
+  allowed_chat_ids?: string[];
   allow_chat_ids?: string[];
 }
 
 export interface DiscordChannelConfig {
   bot_token?: string;
+  allowed_channel_ids?: string[];
   allow_channel_ids?: string[];
 }
 
