@@ -1,7 +1,16 @@
 import type { TwirpError } from "@/types/api";
 import { TOKEN_KEY, WORKSPACE_KEY } from "@/lib/constants";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
+export function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const workspaceId = localStorage.getItem(WORKSPACE_KEY);
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(workspaceId ? { "X-Workspace-ID": workspaceId } : {}),
+  };
+}
 
 export class ApiError extends Error {
   code: string;
@@ -17,16 +26,13 @@ export async function twirpFetch<TReq, TRes>(
   method: string,
   body: TReq,
 ): Promise<TRes> {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const workspaceId = localStorage.getItem(WORKSPACE_KEY);
   const url = `${BASE_URL}/api/${service}/${method}`;
 
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(workspaceId ? { "X-Workspace-ID": workspaceId } : {}),
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
   });
@@ -48,14 +54,13 @@ export async function twirpFetch<TReq, TRes>(
 }
 
 export async function validateToken(token: string): Promise<boolean> {
-  const workspaceId = localStorage.getItem(WORKSPACE_KEY);
   const url = `${BASE_URL}/api/agents.v1.AuthService/Me`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders(),
       Authorization: `Bearer ${token}`,
-      ...(workspaceId ? { "X-Workspace-ID": workspaceId } : {}),
     },
     body: JSON.stringify({}),
   });

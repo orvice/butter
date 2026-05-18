@@ -52,7 +52,7 @@ function invokeAgent(params: InvokeAgentParams) {
   );
 }
 
-function cancelAgentInvocation(invocationId: string) {
+export function cancelAgentInvocation(invocationId: string) {
   return twirpFetch<{ invocation_id: string }, { cancelled: boolean }>(
     SVC,
     "CancelAgentInvocation",

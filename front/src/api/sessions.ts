@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { twirpFetch } from "./client";
+import { replySession } from "./chat";
 import type { SessionInfo, SessionDetail } from "@/types/api";
 
 const SVC = "agents.v1.SessionService";
@@ -39,14 +40,6 @@ interface CreateSessionParams {
   state?: Record<string, unknown>;
 }
 
-interface ReplySessionParams {
-  agent_name: string;
-  app_name: string;
-  user_id: string;
-  session_id: string;
-  message: string;
-  model_override?: string;
-}
 
 function listSessions(params: ListSessionsParams) {
   return twirpFetch<ListSessionsParams, ListSessionsResponse>(SVC, "ListSessions", params);
@@ -66,10 +59,6 @@ function deleteSession(params: DeleteSessionParams) {
 
 function createSession(params: CreateSessionParams) {
   return twirpFetch<CreateSessionParams, { session: SessionInfo }>(SVC, "CreateSession", params);
-}
-
-function replySession(params: ReplySessionParams) {
-  return twirpFetch<ReplySessionParams, { response: string }>(SVC, "ReplySession", params);
 }
 
 export function useSessions(params: ListSessionsParams = {}, options?: { enabled?: boolean }) {

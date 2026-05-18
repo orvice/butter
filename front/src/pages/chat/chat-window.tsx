@@ -6,9 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { parseSessionEvents, type ParsedEvent } from "@/lib/session-events";
+import { parseSessionEvent, parseSessionEvents, type ParsedEvent } from "@/lib/session-events";
 import { useLiveSession, useReplySession } from "@/api/sessions";
-import { Bot, Send, User as UserIcon, Wrench, ExternalLink, Loader2 } from "lucide-react";
+import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api/chat";
+import { Bot, Send, User as UserIcon, Wrench, ExternalLink, Loader2, Square } from "lucide-react";
 import { toast } from "sonner";
 import type { SessionInfo } from "@/types/api";
 
@@ -23,16 +24,42 @@ interface ChatWindowProps {
 export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
+  const [streamingEvents, setStreamingEvents] = useState<ParsedEvent[]>([]);
+  const [streamingResponse, setStreamingResponse] = useState("");
+  const [invocationId, setInvocationId] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const sessionId = session?.session_id ?? "";
   const liveQuery = useLiveSession(APP_NAME, userId, sessionId, pending);
   const reply = useReplySession();
 
-  const events = useMemo<ParsedEvent[]>(
+  const persistedEvents = useMemo<ParsedEvent[]>(
     () => parseSessionEvents(liveQuery.data?.session_detail.events),
     [liveQuery.data],
   );
+  const optimisticUserEvent = useMemo<ParsedEvent | null>(() => {
+    if (!pendingUserMessage) return null;
+    return makeOptimisticTextEvent("pending-user", "user", pendingUserMessage);
+  }, [pendingUserMessage]);
+  const events = useMemo<ParsedEvent[]>(() => {
+    const out = [...persistedEvents];
+    if (optimisticUserEvent) out.push(optimisticUserEvent);
+    out.push(...streamingEvents);
+    if (streamingResponse.trim()) {
+      out.push(makeOptimisticTextEvent("streaming-assistant", "assistant", streamingResponse));
+    }
+    return out;
+  }, [persistedEvents, optimisticUserEvent, streamingEvents, streamingResponse]);
+
+  useEffect(() => {
+    setStreamingEvents([]);
+    setStreamingResponse("");
+    setInvocationId(null);
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }, [sessionId]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -53,19 +80,84 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
     if (!text || !agentName || pending) return;
     setDraft("");
     setPending(true);
+    setPendingUserMessage(text);
+    setStreamingEvents([]);
+    setStreamingResponse("");
+    setInvocationId(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let streamStarted = false;
+
     try {
-      await reply.mutateAsync({
-        agent_name: agentName,
-        app_name: APP_NAME,
-        user_id: userId,
-        session_id: sessionId,
-        message: text,
-      });
+      await streamChat(
+        {
+          agent_name: agentName,
+          app_name: APP_NAME,
+          user_id: userId,
+          session_id: sessionId,
+          message: text,
+        },
+        {
+          onStarted: (payload) => {
+            streamStarted = true;
+            if (payload.invocation_id) setInvocationId(payload.invocation_id);
+          },
+          onAgentEvent: (payload) => {
+            const event = payloadToParsedEvent(payload);
+            if (event) {
+              setStreamingEvents((prev) => [...prev, event]);
+            }
+          },
+          onFinal: (payload) => {
+            setStreamingResponse(payload.response ?? "");
+          },
+          onError: (payload) => {
+            if (payload.error) toast.error(payload.error);
+          },
+        },
+        controller.signal,
+      );
+      await liveQuery.refetch();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send message");
-      setDraft(text);
+      if (isAbortError(err)) {
+        toast.info("Chat stopped");
+      } else if (!streamStarted) {
+        // Preserve old behavior as a fallback when the SSE endpoint cannot be opened.
+        try {
+          await reply.mutateAsync({
+            agent_name: agentName,
+            app_name: APP_NAME,
+            user_id: userId,
+            session_id: sessionId,
+            message: text,
+          });
+        } catch (fallbackErr) {
+          toast.error(fallbackErr instanceof Error ? fallbackErr.message : "Failed to send message");
+          setDraft(text);
+        }
+      } else {
+        toast.error(err instanceof Error ? err.message : "Failed to send message");
+      }
     } finally {
       setPending(false);
+      setPendingUserMessage(null);
+      setStreamingEvents([]);
+      setStreamingResponse("");
+      setInvocationId(null);
+      abortRef.current = null;
+    }
+  }
+
+  async function handleStop() {
+    abortRef.current?.abort();
+    const id = invocationId;
+    if (id) {
+      try {
+        await cancelAgentInvocation(id);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to cancel invocation");
+      }
     }
   }
 
@@ -124,15 +216,61 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
             className="flex-1 resize-none"
           />
           <Button
-            onClick={() => void handleSend()}
-            disabled={!agentName || pending || draft.trim().length === 0}
+            variant={pending ? "secondary" : "default"}
+            onClick={() => pending ? void handleStop() : void handleSend()}
+            disabled={!agentName || (!pending && draft.trim().length === 0)}
           >
-            <Send className="mr-1 h-3 w-3" /> Send
+            {pending ? (
+              <><Square className="mr-1 h-3 w-3" /> Stop</>
+            ) : (
+              <><Send className="mr-1 h-3 w-3" /> Send</>
+            )}
           </Button>
         </div>
       </div>
     </div>
   );
+}
+
+function makeOptimisticTextEvent(
+  eventId: string,
+  role: ParsedEvent["role"],
+  text: string,
+): ParsedEvent {
+  const author = role === "assistant" ? "agent" : role;
+  return {
+    eventId,
+    author,
+    role,
+    text,
+    toolCalls: [],
+    toolResponses: [],
+    timestamp: new Date().toISOString(),
+    raw: {
+      event_id: eventId,
+      author,
+      timestamp: new Date().toISOString(),
+      content_json: JSON.stringify({ role, parts: [{ text }] }),
+    },
+  };
+}
+
+function payloadToParsedEvent(payload: ChatStreamPayload): ParsedEvent | null {
+  const evt = payload.event;
+  if (!evt?.event_id) return null;
+  return parseSessionEvent({
+    event_id: evt.event_id,
+    invocation_id: evt.invocation_id,
+    author: evt.author,
+    branch: evt.branch,
+    content_json: evt.content_json,
+    timestamp: evt.timestamp,
+    trace_id: evt.invocation_id,
+  });
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
 }
 
 function MarkdownMessage({ text, isUser }: { text: string; isUser: boolean }) {
