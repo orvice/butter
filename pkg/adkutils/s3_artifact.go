@@ -25,7 +25,8 @@ import (
 
 const defaultTextContentType = "text/plain"
 
-type s3ArtifactClient interface {
+// S3ArtifactClient is the subset of the AWS S3 client used by the artifact service.
+type S3ArtifactClient interface {
 	PutObject(context.Context, *s3.PutObjectInput, ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 	GetObject(context.Context, *s3.GetObjectInput, ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	HeadObject(context.Context, *s3.HeadObjectInput, ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
@@ -36,21 +37,11 @@ type s3ArtifactClient interface {
 
 type s3ArtifactService struct {
 	bucket string
-	client s3ArtifactClient
+	client S3ArtifactClient
 }
 
 // NewS3ArtifactService creates an ADK artifact.Service backed by S3.
-//
-// Use s3.Options functions to configure endpoint overrides, path-style access,
-// or other S3-compatible storage behavior.
-func NewS3ArtifactService(bucket string, cfg aws.Config, optFns ...func(*s3.Options)) artifact.Service {
-	return &s3ArtifactService{
-		bucket: bucket,
-		client: s3.NewFromConfig(cfg, optFns...),
-	}
-}
-
-func newS3ArtifactServiceWithClient(bucket string, client s3ArtifactClient) artifact.Service {
+func NewS3ArtifactService(bucket string, client S3ArtifactClient) artifact.Service {
 	return &s3ArtifactService{
 		bucket: bucket,
 		client: client,

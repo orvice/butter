@@ -21,7 +21,7 @@ import (
 )
 
 func TestS3ArtifactService(t *testing.T) {
-	srv := newS3ArtifactServiceWithClient("bucket", newFakeS3Client())
+	srv := NewS3ArtifactService("bucket", newFakeS3Client())
 	ctx := t.Context()
 
 	testData := []struct {
@@ -141,7 +141,7 @@ func TestS3ArtifactService(t *testing.T) {
 }
 
 func TestS3ArtifactServiceExplicitVersion(t *testing.T) {
-	srv := newS3ArtifactServiceWithClient("bucket", newFakeS3Client())
+	srv := NewS3ArtifactService("bucket", newFakeS3Client())
 	ctx := t.Context()
 
 	got, err := srv.Save(ctx, &artifact.SaveRequest{
@@ -290,4 +290,4 @@ func mapsClone(in map[string]string) map[string]string {
 	return out
 }
 
-var _ s3ArtifactClient = (*fakeS3Client)(nil)
+var _ S3ArtifactClient = (*fakeS3Client)(nil)
