@@ -132,15 +132,18 @@ func (s *Store) CreateUser(ctx context.Context, user *agentsv1.User, passwordHas
 	return nil
 }
 
-func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName, avatarURL string, updatedAt time.Time) (*agentsv1.User, error) {
+func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName string, avatarURL *string, updatedAt time.Time) (*agentsv1.User, error) {
+	set := bson.M{
+		"display_name": displayName,
+		"updated_at":   updatedAt,
+	}
+	if avatarURL != nil {
+		set["avatar_url"] = *avatarURL
+	}
 	res := s.users.FindOneAndUpdate(
 		ctx,
 		bson.M{"_id": id},
-		bson.M{"$set": bson.M{
-			"display_name": displayName,
-			"avatar_url":   avatarURL,
-			"updated_at":   updatedAt,
-		}},
+		bson.M{"$set": set},
 		options.FindOneAndUpdate().SetReturnDocument(options.After),
 	)
 	var doc userDoc

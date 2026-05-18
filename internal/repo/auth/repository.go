@@ -31,7 +31,10 @@ type Repository interface {
 	ListUsers(ctx context.Context) ([]*agentsv1.User, error)
 	CreateUser(ctx context.Context, user *agentsv1.User, passwordHash string) error
 	UpdateUserPassword(ctx context.Context, id string, passwordHash string, updatedAt time.Time) (*agentsv1.User, error)
-	UpdateUserProfile(ctx context.Context, id string, displayName, avatarURL string, updatedAt time.Time) (*agentsv1.User, error)
+	// UpdateUserProfile updates the user's display name and (optionally)
+	// avatar URL. If avatarURL is nil the stored avatar is left untouched;
+	// pass a pointer to an empty string to clear it.
+	UpdateUserProfile(ctx context.Context, id string, displayName string, avatarURL *string, updatedAt time.Time) (*agentsv1.User, error)
 	SetUserDisabled(ctx context.Context, id string, disabled bool, updatedAt time.Time) (*agentsv1.User, error)
 	FindUserByUsername(ctx context.Context, username string) (*agentsv1.User, string, error)
 	FindUserByID(ctx context.Context, id string) (*agentsv1.User, string, error)

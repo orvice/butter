@@ -1976,7 +1976,9 @@ func (m *UpdateProfileRequest) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	// no validation rules for AvatarUrl
+	if m.AvatarUrl != nil {
+		// no validation rules for AvatarUrl
+	}
 
 	if len(errors) > 0 {
 		return UpdateProfileRequestMultiError(errors)

@@ -67,7 +67,7 @@ func (s *Store) UpdateUserPassword(ctx context.Context, id string, passwordHash 
 	return s.users.UpdateUserPassword(ctx, id, passwordHash, updatedAt)
 }
 
-func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName, avatarURL string, updatedAt time.Time) (*agentsv1.User, error) {
+func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName string, avatarURL *string, updatedAt time.Time) (*agentsv1.User, error) {
 	return s.users.UpdateUserProfile(ctx, id, displayName, avatarURL, updatedAt)
 }
 

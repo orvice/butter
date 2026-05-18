@@ -111,7 +111,7 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
       return;
     }
     updateProfile.mutate(
-      { display_name: trimmed, avatar_url: storedAvatar },
+      { display_name: trimmed },
       {
         onSuccess: (res) => {
           toast.success("Profile updated");

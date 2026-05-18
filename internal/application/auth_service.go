@@ -308,7 +308,14 @@ func (s *AuthServiceServer) UpdateProfile(ctx context.Context, req *agentsv1.Upd
 	if displayName == "" {
 		return nil, twirp.RequiredArgumentError("display_name")
 	}
-	avatarURL := strings.TrimSpace(req.GetAvatarUrl())
+	// req.AvatarUrl is nil when the client did not include the field — leave
+	// the stored avatar untouched. A non-nil pointer (including empty string)
+	// is a deliberate update; trim whitespace but preserve the explicit clear.
+	var avatarURL *string
+	if req.AvatarUrl != nil {
+		trimmed := strings.TrimSpace(*req.AvatarUrl)
+		avatarURL = &trimmed
+	}
 	user, err := s.repo.UpdateUserProfile(ctx, current.GetId(), displayName, avatarURL, time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
