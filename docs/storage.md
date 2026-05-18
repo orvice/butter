@@ -1,7 +1,7 @@
-# Object Storage & Static Assets
+# Object Storage, Static Assets & Artifacts
 
-Butter persists user-uploaded assets (avatars, static files) in an
-S3-compatible object store. Storage is delegated to the
+Butter can persist user-uploaded public assets (avatars, static files) and
+private ADK artifacts in S3-compatible object stores. Storage is delegated to the
 [`butterfly.orx.me/core/store/s3`](https://butterfly.orz.ee/stores/s3.html)
 helper bundled with the Butterfly core framework, so any service that the
 core supports (AWS S3, MinIO, Cloudflare R2, Backblaze B2, etc.) works out
@@ -70,10 +70,40 @@ Returned URLs are built as:
 If both `cdn_base_url` and `public_base_url` are empty, URLs fall back to
 `s3://<bucket>/<key>` — useful for local development.
 
-## 3. Upload endpoints
+## 3. Enable ADK artifact persistence
 
-All endpoints sit behind the standard auth middleware (cookie session or
-API token + `X-Workspace-ID`).
+Agents and tools may use ADK artifacts for per-app/user/session blobs such as
+generated files or tool outputs. Configure a private S3 bucket via the top-level
+`artifact` block:
+
+```yaml
+artifact:
+  s3_bucket: "artifacts"      # must match a store.s3.<key>
+  key_prefix: "artifacts"    # optional object key prefix
+```
+
+| Field | Description |
+|-------|-------------|
+| `s3_bucket` | The `store.s3.<name>` entry to use. Empty disables artifact persistence. |
+| `key_prefix` | Prepended to every artifact object key. |
+
+Artifact keys are internal and versioned by ADK identity:
+
+```
+<key_prefix>/<app_name>/<user_id>/<session_id>/<file_name>/<version>
+<key_prefix>/<app_name>/<user_id>/user/<file_name>/<version>
+```
+
+Keep artifact buckets private. Unlike static uploads, artifacts are not returned
+through a CDN URL by Butter and may contain user-specific or model-generated
+content. If `artifact.s3_bucket` is empty or the named S3 client is not
+registered, Butter runs without artifact persistence.
+
+## 4. Upload endpoints
+
+All endpoints sit behind the standard auth middleware (dashboard Bearer session,
+root token, or workspace-bound API token; user/root-token callers should include
+`X-Workspace-ID`).
 
 ### `POST /api/uploads/avatar`
 
@@ -103,9 +133,9 @@ the URL on `Agent.metadata.icon_url`.
 ### `POST /api/uploads/avatar/:owner_kind/:owner_id`
 
 Uploads an avatar for an arbitrary owner. `owner_kind` is a free-form
-string (e.g. `user`, `agent`, `workspace`). Cross-owner uploads require the
-admin role; self uploads (`owner_kind=user`, `owner_id=<caller>`) are
-always allowed.
+string (e.g. `user`, `agent`, `workspace`). Admins may upload for any owner.
+Non-admin users may upload their own `user` avatar and may upload `agent`
+icons in their current workspace.
 
 ### `POST /api/uploads/static` (admin only)
 
@@ -120,7 +150,7 @@ General-purpose static asset upload. Multipart form:
 Returns the same shape as `/avatar`. Asset is placed at
 `<key_prefix>/static/<name>`.
 
-## 4. Storing avatar URLs
+## 5. Storing avatar URLs
 
 - **User avatars** are persisted on `User.avatar_url`. After a successful
   `POST /api/uploads/avatar` the dashboard automatically calls
@@ -134,11 +164,13 @@ Returns the same shape as `/avatar`. Asset is placed at
 Keys include a timestamp + random suffix, so each upload produces a new
 cacheable URL — overwriting an old avatar is safe.
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 | Symptom | Likely cause |
 |---------|--------------|
 | `503 static storage is not configured` | `static.s3_bucket` is empty or doesn't match a `store.s3.<key>`. |
 | `500 ... s3 client "xxx" is not configured` | The named client failed to initialize at startup — check core logs. |
+| `artifact service disabled (artifact.s3_bucket not set)` | Artifact persistence is intentionally disabled. |
+| `artifact service disabled: s3 client not registered` | `artifact.s3_bucket` does not match an initialized `store.s3.<key>`. |
 | `413 payload exceeds max size` | Body larger than `static.max_upload_bytes`. Bump the limit or shrink the asset. |
 | `415 unsupported content type` | Avatar endpoint only accepts PNG / JPEG / GIF / WebP. |
