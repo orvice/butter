@@ -121,9 +121,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		return nil, err
 	}
 
+	// Setup S3-backed artifact service if configured. nil disables artifacts.
+	artifactSvc := setupArtifactService(ctx, cfg)
+
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, pluginConfig)
+	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, pluginConfig)
 	if err == nil {
 		runnerSvc.SetInvocationRecorder(invRepo)
 	}

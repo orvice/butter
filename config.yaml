@@ -60,6 +60,18 @@ static:
   public_base_url: ""        # fallback when no CDN (e.g. https://s3.amazonaws.com/butter-assets)
   max_upload_bytes: 5242880  # 5 MiB; 0 = use default
 
+# ADK artifact service. Artifacts are per-(app, user, session) blobs produced
+# or consumed by agents (e.g. a tool returning a generated image). Keep this
+# bucket PRIVATE — unlike static assets, artifacts are not served from a CDN
+# and may contain user-specific or model-generated content.
+#
+# Set artifact.s3_bucket to one of the keys defined under store.s3 above to
+# enable artifact persistence. Leave empty to disable (ADK runs without an
+# artifact backend — agent tools that load/save artifacts will no-op or fail).
+artifact:
+  s3_bucket: ""              # e.g. "artifacts" — must match a store.s3 key
+  key_prefix: "artifacts"    # object key prefix (optional)
+
 # Langfuse observability (optional — disabled when keys are empty)
 langfuse:
   publicKey: ""       # LANGFUSE_PUBLIC_KEY

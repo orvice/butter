@@ -36,42 +36,66 @@ type S3ArtifactClient interface {
 }
 
 type s3ArtifactService struct {
-	bucket string
-	client S3ArtifactClient
+	bucket    string
+	keyPrefix string
+	client    S3ArtifactClient
+}
+
+// Option configures an S3-backed artifact service.
+type Option func(*s3ArtifactService)
+
+// WithKeyPrefix sets a prefix prepended to every S3 key (e.g. "artifacts/").
+// Trailing slashes are normalized — pass "artifacts" or "artifacts/" interchangeably.
+// Use this when sharing a bucket with other apps to isolate artifact keys.
+func WithKeyPrefix(prefix string) Option {
+	return func(s *s3ArtifactService) {
+		s.keyPrefix = strings.Trim(prefix, "/")
+	}
 }
 
 // NewS3ArtifactService creates an ADK artifact.Service backed by S3.
-func NewS3ArtifactService(bucket string, client S3ArtifactClient) artifact.Service {
-	return &s3ArtifactService{
+func NewS3ArtifactService(bucket string, client S3ArtifactClient, opts ...Option) artifact.Service {
+	s := &s3ArtifactService{
 		bucket: bucket,
 		client: client,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func artifactHasUserNamespace(filename string) bool {
 	return strings.HasPrefix(filename, "user:")
 }
 
-func buildArtifactKey(appName, userID, sessionID, fileName string, version int64) string {
-	if artifactHasUserNamespace(fileName) {
-		return fmt.Sprintf("%s/%s/user/%s/%d", appName, userID, fileName, version)
+func (s *s3ArtifactService) withPrefix(rest string) string {
+	if s.keyPrefix == "" {
+		return rest
 	}
-	return fmt.Sprintf("%s/%s/%s/%s/%d", appName, userID, sessionID, fileName, version)
+	return s.keyPrefix + "/" + rest
 }
 
-func buildArtifactPrefix(appName, userID, sessionID, fileName string) string {
+func (s *s3ArtifactService) buildArtifactKey(appName, userID, sessionID, fileName string, version int64) string {
 	if artifactHasUserNamespace(fileName) {
-		return fmt.Sprintf("%s/%s/user/%s/", appName, userID, fileName)
+		return s.withPrefix(fmt.Sprintf("%s/%s/user/%s/%d", appName, userID, fileName, version))
 	}
-	return fmt.Sprintf("%s/%s/%s/%s/", appName, userID, sessionID, fileName)
+	return s.withPrefix(fmt.Sprintf("%s/%s/%s/%s/%d", appName, userID, sessionID, fileName, version))
 }
 
-func buildSessionPrefix(appName, userID, sessionID string) string {
-	return fmt.Sprintf("%s/%s/%s/", appName, userID, sessionID)
+func (s *s3ArtifactService) buildArtifactPrefix(appName, userID, sessionID, fileName string) string {
+	if artifactHasUserNamespace(fileName) {
+		return s.withPrefix(fmt.Sprintf("%s/%s/user/%s/", appName, userID, fileName))
+	}
+	return s.withPrefix(fmt.Sprintf("%s/%s/%s/%s/", appName, userID, sessionID, fileName))
 }
 
-func buildUserPrefix(appName, userID string) string {
-	return fmt.Sprintf("%s/%s/user/", appName, userID)
+func (s *s3ArtifactService) buildSessionPrefix(appName, userID, sessionID string) string {
+	return s.withPrefix(fmt.Sprintf("%s/%s/%s/", appName, userID, sessionID))
+}
+
+func (s *s3ArtifactService) buildUserPrefix(appName, userID string) string {
+	return s.withPrefix(fmt.Sprintf("%s/%s/user/", appName, userID))
 }
 
 // Save implements artifact.Service.
@@ -95,7 +119,7 @@ func (s *s3ArtifactService) Save(ctx context.Context, req *artifact.SaveRequest)
 	}
 
 	body, contentType := partBody(req.Part)
-	key := buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
+	key := s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
 	if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
@@ -126,7 +150,7 @@ func (s *s3ArtifactService) Load(ctx context.Context, req *artifact.LoadRequest)
 		return nil, err
 	}
 
-	key := buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
+	key := s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
 	resp, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
@@ -158,7 +182,7 @@ func (s *s3ArtifactService) Delete(ctx context.Context, req *artifact.DeleteRequ
 	}
 
 	if req.Version != 0 {
-		key := buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, req.Version)
+		key := s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, req.Version)
 		if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket: aws.String(s.bucket),
 			Key:    aws.String(key),
@@ -180,7 +204,7 @@ func (s *s3ArtifactService) Delete(ctx context.Context, req *artifact.DeleteRequ
 
 	keys := make([]string, 0, len(resp.Versions))
 	for _, version := range resp.Versions {
-		keys = append(keys, buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version))
+		keys = append(keys, s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version))
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -215,10 +239,10 @@ func (s *s3ArtifactService) List(ctx context.Context, req *artifact.ListRequest)
 	}
 
 	filenames := map[string]bool{}
-	if err := s.fetchFilenames(ctx, buildSessionPrefix(req.AppName, req.UserID, req.SessionID), filenames); err != nil {
+	if err := s.fetchFilenames(ctx, s.buildSessionPrefix(req.AppName, req.UserID, req.SessionID), filenames); err != nil {
 		return nil, fmt.Errorf("failed to list session artifacts: %w", err)
 	}
-	if err := s.fetchFilenames(ctx, buildUserPrefix(req.AppName, req.UserID), filenames); err != nil {
+	if err := s.fetchFilenames(ctx, s.buildUserPrefix(req.AppName, req.UserID), filenames); err != nil {
 		return nil, fmt.Errorf("failed to list user artifacts: %w", err)
 	}
 
@@ -255,7 +279,7 @@ func (s *s3ArtifactService) versions(ctx context.Context, req *artifact.Versions
 		return nil, fmt.Errorf("request validation failed: %w", err)
 	}
 
-	prefix := buildArtifactPrefix(req.AppName, req.UserID, req.SessionID, req.FileName)
+	prefix := s.buildArtifactPrefix(req.AppName, req.UserID, req.SessionID, req.FileName)
 	versions := []int64{}
 	if err := s.listKeys(ctx, prefix, func(key string) error {
 		segments := strings.Split(key, "/")
@@ -328,7 +352,7 @@ func (s *s3ArtifactService) GetArtifactVersion(ctx context.Context, req *artifac
 		return nil, err
 	}
 
-	key := buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
+	key := s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
 	resp, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
