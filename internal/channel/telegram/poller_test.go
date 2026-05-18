@@ -133,3 +133,31 @@ func TestMatchesTrigger(t *testing.T) {
 		})
 	}
 }
+
+func TestWebhookEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *agentsv1.TelegramChannelConfig
+		want bool
+	}{
+		{
+			name: "disabled without url",
+			cfg:  &agentsv1.TelegramChannelConfig{},
+			want: false,
+		},
+		{
+			name: "enabled with url",
+			cfg:  &agentsv1.TelegramChannelConfig{WebhookUrl: "https://example.com/webhooks/telegram/main"},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Poller{telegramCfg: tt.cfg}
+			if got := p.webhookEnabled(); got != tt.want {
+				t.Errorf("webhookEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

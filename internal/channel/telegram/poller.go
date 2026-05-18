@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -22,7 +23,7 @@ const (
 	callbackModelSelectPrefix = "model_select:"
 )
 
-// Poller handles long-polling for a single Telegram AgentChannel.
+// Poller handles updates for a single Telegram AgentChannel.
 type Poller struct {
 	channelName   string
 	channelCfg    *agentsv1.AgentChannel
@@ -36,7 +37,7 @@ type Poller struct {
 	modelNames    []string // available model aliases
 }
 
-// NewPoller creates a new Telegram long-polling consumer.
+// NewPoller creates a new Telegram update consumer.
 func NewPoller(
 	channelCfg *agentsv1.AgentChannel,
 	runnerSvc *runner.Service,
@@ -58,12 +59,20 @@ func NewPoller(
 		modelNames:    modelNames,
 	}
 
-	b, err := bot.New(
-		channelCfg.GetTelegram().GetBotToken(),
+	telegramCfg := channelCfg.GetTelegram()
+	opts := []bot.Option{
 		bot.WithDefaultHandler(p.handleUpdate),
 		bot.WithCallbackQueryDataHandler(callbackDebugToggle, bot.MatchTypeExact, p.handleDebugToggleCallback),
 		bot.WithCallbackQueryDataHandler(callbackAgentSelectPrefix, bot.MatchTypePrefix, p.handleAgentSelectCallback),
 		bot.WithCallbackQueryDataHandler(callbackModelSelectPrefix, bot.MatchTypePrefix, p.handleModelSelectCallback),
+	}
+	if telegramCfg.GetWebhookSecret() != "" {
+		opts = append(opts, bot.WithWebhookSecretToken(telegramCfg.GetWebhookSecret()))
+	}
+
+	b, err := bot.New(
+		telegramCfg.GetBotToken(),
+		opts...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating telegram bot for channel %q: %w", channelCfg.GetName(), err)
@@ -73,12 +82,42 @@ func NewPoller(
 	return p, nil
 }
 
-// Start begins the long-polling loop. Blocks until ctx is cancelled.
+// Start begins receiving Telegram updates. It uses webhook mode when
+// webhook_url is configured and long polling otherwise. Blocks until ctx is
+// cancelled or webhook registration fails.
 func (p *Poller) Start(ctx context.Context) {
 	logger := log.FromContext(ctx)
+	if p.webhookEnabled() {
+		logger.Info("starting telegram webhook consumer",
+			"channel", p.channelName,
+			"agent_default", p.channelCfg.GetAgentName(),
+			"webhook_url", p.telegramCfg.GetWebhookUrl(),
+		)
+		if _, err := p.bot.SetWebhook(ctx, &bot.SetWebhookParams{
+			URL:         p.telegramCfg.GetWebhookUrl(),
+			SecretToken: p.telegramCfg.GetWebhookSecret(),
+		}); err != nil {
+			logger.Error("failed to set telegram webhook", "channel", p.channelName, "err", err)
+			return
+		}
+		p.bot.StartWebhook(ctx)
+		logger.Info("telegram webhook consumer stopped", "channel", p.channelName)
+		return
+	}
+
 	logger.Info("starting telegram poller", "channel", p.channelName, "agent_default", p.channelCfg.GetAgentName())
 	p.bot.Start(ctx)
 	logger.Info("telegram poller stopped", "channel", p.channelName)
+}
+
+func (p *Poller) webhookEnabled() bool {
+	return p.telegramCfg.GetWebhookUrl() != ""
+}
+
+// WebhookHandler returns the HTTP handler that feeds Telegram updates into
+// this poller. It is only registered by the manager when webhook mode is on.
+func (p *Poller) WebhookHandler() http.Handler {
+	return p.bot.WebhookHandler()
 }
 
 func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Update) {

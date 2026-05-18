@@ -3,6 +3,7 @@ package channel
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"butterfly.orx.me/core/log"
@@ -18,6 +19,15 @@ import (
 // ChannelPoller is the common interface for platform-specific pollers.
 type ChannelPoller interface {
 	Start(ctx context.Context)
+}
+
+type WebhookPoller interface {
+	WebhookHandler() http.Handler
+}
+
+type buildResult struct {
+	pollers  []ChannelPoller
+	webhooks map[string]http.Handler
 }
 
 type pollerFactory func(
@@ -42,6 +52,7 @@ type Manager struct {
 	runCancel context.CancelFunc
 	runWG     sync.WaitGroup
 	started   bool
+	webhooks  map[string]http.Handler
 }
 
 // NewManager creates a reloadable channel manager backed by the config repository.
@@ -71,7 +82,7 @@ func NewManager(
 	return m, nil
 }
 
-func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
+func (m *Manager) buildPollers(ctx context.Context) (*buildResult, error) {
 	logger := log.FromContext(ctx)
 	channels, err := m.repo.ListChannelsAcrossWorkspaces(ctx)
 	if err != nil {
@@ -79,6 +90,7 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 	}
 
 	var pollers []ChannelPoller
+	webhooks := make(map[string]http.Handler)
 
 	logger.Info("initializing channel manager", "total_channels", len(channels))
 
@@ -111,6 +123,13 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 				return nil, fmt.Errorf("creating telegram poller for channel %q: %w", ch.GetName(), err)
 			}
 			pollers = append(pollers, p)
+			if ch.GetTelegram().GetWebhookUrl() != "" {
+				wh, ok := p.(WebhookPoller)
+				if !ok {
+					return nil, fmt.Errorf("telegram poller for channel %q does not expose webhook handler", ch.GetName())
+				}
+				webhooks[ch.GetName()] = wh.WebhookHandler()
+			}
 
 		case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD:
 			if ch.GetDiscord().GetBotToken() == "" {
@@ -136,7 +155,7 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 	}
 
 	logger.Info("channel manager initialized", "active_pollers", len(pollers))
-	return pollers, nil
+	return &buildResult{pollers: pollers, webhooks: webhooks}, nil
 }
 
 // Start launches all pollers in goroutines. Blocks until ctx is cancelled.
@@ -152,7 +171,7 @@ func (m *Manager) Start(ctx context.Context) {
 
 // Reload refreshes the running pollers from the current config repository state.
 func (m *Manager) Reload(ctx context.Context) error {
-	pollers, err := m.buildPollers(ctx)
+	built, err := m.buildPollers(ctx)
 	if err != nil {
 		return err
 	}
@@ -161,6 +180,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 	defer m.mu.Unlock()
 
 	if !m.started {
+		m.webhooks = built.webhooks
 		return nil
 	}
 
@@ -169,13 +189,14 @@ func (m *Manager) Reload(ctx context.Context) error {
 		m.runWG.Wait()
 	}
 
-	m.startPollersLocked(pollers)
-	log.FromContext(ctx).Info("channel manager reloaded", "active_pollers", len(pollers))
+	m.webhooks = built.webhooks
+	m.startPollersLocked(built.pollers)
+	log.FromContext(ctx).Info("channel manager reloaded", "active_pollers", len(built.pollers))
 	return nil
 }
 
 func (m *Manager) start(ctx context.Context) error {
-	pollers, err := m.buildPollers(ctx)
+	built, err := m.buildPollers(ctx)
 	if err != nil {
 		return err
 	}
@@ -189,13 +210,14 @@ func (m *Manager) start(ctx context.Context) error {
 
 	m.parentCtx = ctx
 	m.started = true
-	m.startPollersLocked(pollers)
+	m.webhooks = built.webhooks
+	m.startPollersLocked(built.pollers)
 
 	logger := log.FromContext(ctx)
-	if len(pollers) == 0 {
+	if len(built.pollers) == 0 {
 		logger.Info("no channels configured, channel manager idle")
 	} else {
-		logger.Info("all channel pollers started", "count", len(pollers))
+		logger.Info("all channel pollers started", "count", len(built.pollers))
 	}
 	return nil
 }
@@ -210,6 +232,15 @@ func (m *Manager) startPollersLocked(pollers []ChannelPoller) {
 			p.Start(runCtx)
 		}(poller)
 	}
+}
+
+// TelegramWebhookHandler returns the current HTTP handler for a webhook-backed
+// Telegram channel.
+func (m *Manager) TelegramWebhookHandler(channelName string) (http.Handler, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	h, ok := m.webhooks[channelName]
+	return h, ok
 }
 
 // RuntimeState describes the running state of a configured channel.

@@ -2,6 +2,8 @@ package channel
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -60,12 +62,17 @@ type fakePoller struct {
 	started chan string
 	stopped chan string
 	name    string
+	webhook http.Handler
 }
 
 func (p *fakePoller) Start(ctx context.Context) {
 	p.started <- p.name
 	<-ctx.Done()
 	p.stopped <- p.name
+}
+
+func (p *fakePoller) WebhookHandler() http.Handler {
+	return p.webhook
 }
 
 func TestManagerReload(t *testing.T) {
@@ -85,7 +92,7 @@ func TestManagerReload(t *testing.T) {
 		rdb:        redis.NewClient(&redis.Options{Addr: "localhost:6379"}),
 		modelNames: []string{"test"},
 		telegramFactory: func(ch *agentsv1.AgentChannel, _ *runner.Service, _ *redis.Client, _ []string, _ []string) (ChannelPoller, error) {
-			return &fakePoller{name: ch.GetName(), started: started, stopped: stopped}, nil
+			return &fakePoller{name: ch.GetName(), started: started, stopped: stopped, webhook: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})}, nil
 		},
 		discordFactory: func(ch *agentsv1.AgentChannel, _ *runner.Service, _ *redis.Client, _ []string, _ []string) (ChannelPoller, error) {
 			return &fakePoller{name: ch.GetName(), started: started, stopped: stopped}, nil
@@ -125,6 +132,77 @@ func waitForChannel(t *testing.T, ch <-chan string, want string) {
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timed out waiting for %q", want)
 	}
+}
+
+func TestManagerTelegramWebhookHandlerReload(t *testing.T) {
+	repo := &fakeChannelRepo{}
+	repo.set(&agentsv1.AgentChannel{
+		Name:     "telegram-main",
+		Enabled:  true,
+		Platform: agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
+		Telegram: &agentsv1.TelegramChannelConfig{
+			BotToken:   "token",
+			WebhookUrl: "https://example.com/webhooks/telegram/telegram-main",
+		},
+	})
+
+	started := make(chan string, 8)
+	stopped := make(chan string, 8)
+	handlerA := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	handlerB := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	nextHandler := handlerA
+
+	manager := &Manager{
+		repo:       repo,
+		runnerSvc:  &runner.Service{},
+		rdb:        redis.NewClient(&redis.Options{Addr: "localhost:6379"}),
+		modelNames: []string{"test"},
+		telegramFactory: func(ch *agentsv1.AgentChannel, _ *runner.Service, _ *redis.Client, _ []string, _ []string) (ChannelPoller, error) {
+			return &fakePoller{name: ch.GetName(), started: started, stopped: stopped, webhook: nextHandler}, nil
+		},
+		discordFactory: func(ch *agentsv1.AgentChannel, _ *runner.Service, _ *redis.Client, _ []string, _ []string) (ChannelPoller, error) {
+			return &fakePoller{name: ch.GetName(), started: started, stopped: stopped}, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go manager.Start(ctx)
+	waitForChannel(t, started, "telegram-main")
+
+	h, ok := manager.TelegramWebhookHandler("telegram-main")
+	if !ok {
+		t.Fatal("expected webhook handler")
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/webhooks/telegram/telegram-main", nil))
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("handler status = %d, want %d", rec.Code, http.StatusAccepted)
+	}
+
+	nextHandler = handlerB
+	if err := manager.Reload(context.Background()); err != nil {
+		t.Fatalf("reload failed: %v", err)
+	}
+	waitForChannel(t, stopped, "telegram-main")
+	waitForChannel(t, started, "telegram-main")
+
+	h, ok = manager.TelegramWebhookHandler("telegram-main")
+	if !ok {
+		t.Fatal("expected webhook handler after reload")
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/webhooks/telegram/telegram-main", nil))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("handler status after reload = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+
+	cancel()
+	waitForChannel(t, stopped, "telegram-main")
 }
 
 // TestManagerScopesAgentsPerWorkspace verifies that buildPollers asks the

@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"net/http"
 	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
 	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/application"
+	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/repo"
@@ -45,6 +47,7 @@ type Handlers struct {
 	modelProviderRepo      configrepo.ModelProviderRepository
 	remoteAgentRepo        configrepo.RemoteAgentRepository
 	channelRepo            configrepo.ChannelRepository
+	channelMgr             atomic.Value // *channel.Manager
 }
 
 // apiTokenRepoFromHolder returns the currently wired apitoken repository, if any.
@@ -82,6 +85,45 @@ func (h *Handlers) workspaceRepoFromHolder() workspace.Repository {
 	}
 	repo, _ := v.(workspace.Repository)
 	return repo
+}
+
+func (h *Handlers) channelManagerFromHolder() *channel.Manager {
+	if h == nil {
+		return nil
+	}
+	v := h.channelMgr.Load()
+	if v == nil {
+		return nil
+	}
+	mgr, _ := v.(*channel.Manager)
+	return mgr
+}
+
+type telegramWebhookRouter interface {
+	TelegramWebhookHandler(channelName string) (http.Handler, bool)
+}
+
+func (h *Handlers) telegramWebhookRouterFromHolder() telegramWebhookRouter {
+	return h.channelManagerFromHolder()
+}
+
+func registerTelegramWebhookRoute(r *gin.Engine, lookup func() telegramWebhookRouter) {
+	r.POST("/webhooks/telegram/:channel", func(c *gin.Context) {
+		router := lookup()
+		if router == nil {
+			c.Status(http.StatusServiceUnavailable)
+			return
+		}
+		handler, ok := router.TelegramWebhookHandler(c.Param("channel"))
+		if !ok {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		handler.ServeHTTP(c.Writer, c.Request)
+		if !c.Writer.Written() {
+			c.Status(http.StatusOK)
+		}
+	})
 }
 
 // Wire connects the bootstrap result to the handlers.
@@ -126,6 +168,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.channelSvcServer.SetRuntime(h.configRuntime)
 	}
 	if result.ChannelMgr != nil {
+		h.channelMgr.Store(result.ChannelMgr)
 		h.channelSvcServer.SetChannelManager(result.ChannelMgr)
 	}
 	if result.APITokenRepo != nil {
@@ -258,6 +301,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	}
 
 	router := func(r *gin.Engine) {
+		registerTelegramWebhookRoute(r, handlers.telegramWebhookRouterFromHolder)
 		r.Use(httpHandler.AuthMiddleware(cfg, handlers.authRepoFromHolder, handlers.apiTokenRepoFromHolder, handlers.workspaceRepoFromHolder))
 		healthHandler.Register(r)
 		statusHandler.Register(r)
