@@ -12,21 +12,26 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/service"
+	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 // uploadTestRouter wires UploadHandler with a service that reports Enabled()
 // but has no real S3 client, so the auth gate is exercised in isolation —
 // the S3 PutObject call (if reached) errors out below the auth check.
-func uploadTestRouter(t *testing.T, user *agentsv1.User) *gin.Engine {
+func uploadTestRouter(t *testing.T, user *agentsv1.User, workspaceID string) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
+		ctx := c.Request.Context()
 		if user != nil {
-			ctx := auth.WithAuthenticated(c.Request.Context(), user, &auth.Session{})
-			c.Request = c.Request.WithContext(ctx)
+			ctx = auth.WithAuthenticated(ctx, user, &auth.Session{})
 		}
+		if workspaceID != "" {
+			ctx = workspace.WithID(ctx, workspaceID)
+		}
+		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	})
 	svc := service.NewUploadServiceLazy(func() config.StaticConfig {
@@ -54,7 +59,7 @@ func multipartImage(t *testing.T) (*bytes.Buffer, string) {
 }
 
 func TestUploadAvatarFor_AgentAllowsNonAdmin(t *testing.T) {
-	r := uploadTestRouter(t, &agentsv1.User{Id: "u1", Role: "user"})
+	r := uploadTestRouter(t, &agentsv1.User{Id: "u1", Role: "user"}, "ws1")
 	body, ct := multipartImage(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/uploads/avatar/agent/my-agent", body)
@@ -67,8 +72,22 @@ func TestUploadAvatarFor_AgentAllowsNonAdmin(t *testing.T) {
 	}
 }
 
+func TestUploadAvatarFor_AgentRequiresWorkspace(t *testing.T) {
+	r := uploadTestRouter(t, &agentsv1.User{Id: "u1", Role: "user"}, "")
+	body, ct := multipartImage(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/uploads/avatar/agent/my-agent", body)
+	req.Header.Set("Content-Type", ct)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("agent avatar upload without workspace should 403; got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestUploadAvatarFor_UserRequiresSelf(t *testing.T) {
-	r := uploadTestRouter(t, &agentsv1.User{Id: "u1", Role: "user"})
+	r := uploadTestRouter(t, &agentsv1.User{Id: "u1", Role: "user"}, "")
 	body, ct := multipartImage(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/uploads/avatar/user/u2", body)
@@ -82,7 +101,7 @@ func TestUploadAvatarFor_UserRequiresSelf(t *testing.T) {
 }
 
 func TestUploadAvatarFor_OtherKindRequiresAdmin(t *testing.T) {
-	r := uploadTestRouter(t, &agentsv1.User{Id: "u1", Role: "user"})
+	r := uploadTestRouter(t, &agentsv1.User{Id: "u1", Role: "user"}, "")
 	body, ct := multipartImage(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/uploads/avatar/workspace/ws1", body)
