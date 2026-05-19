@@ -1,5 +1,7 @@
 # Daemon Agent 设计方案
 
+> **状态说明**：本文是 daemon agent 落地前的历史设计记录，保留用于说明背景和取舍。当前接口以 `proto/agents/v1/daemon.proto`、`proto/agents/v1/dashboard.proto` 和 [api.md](api.md) 为准；正文中出现的 `DaemonMessage` / `ServerMessage` / `DaemonConnector` / `GetDaemonTask` 等名称属于 proposal 阶段命名，现实现分别使用 `ConnectRequest` / `ConnectResponse` / `DaemonConnectorService`，并通过 `DaemonService` 暴露 daemon 管理能力。
+
 ## 背景
 
 Butter 当前已支持通过 ADK Go 封装的本地执行 agent（LLM、Loop、Sequential、Parallel），以及通过 A2A 协议调用的远程 agent。本文档描述支持第三种执行模式——**Daemon Agent**：Client 作为长驻进程与 Server 建立持久连接，Server 将任务下发给 Client，Client 通过 CLI 调用 opencode/claude-code 等工具执行任务并回传结果。
