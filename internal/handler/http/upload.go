@@ -9,6 +9,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/service"
+	"go.orx.me/apps/butter/internal/workspace"
 )
 
 // UploadHandler exposes HTTP endpoints for uploading user/agent avatars and
@@ -87,7 +88,10 @@ func (h *UploadHandler) UploadAvatarFor(c *gin.Context) {
 				return
 			}
 		case "agent":
-			// any authenticated user can upload an agent icon
+			if _, ok := workspace.FromContext(ctx); !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "workspace required"})
+				return
+			}
 		default:
 			c.JSON(http.StatusForbidden, gin.H{"error": "admin role required"})
 			return
