@@ -155,7 +155,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Active Agents" value={counts?.active_agents ?? 0} icon={Bot} trend="up" accent="primary" meta="+12%" />
-        <StatCard label="MCP Servers" value={counts?.mcp_servers ?? 0} icon={Server} trend="stable" accent="yellow" meta="Stable" />
+        <StatCard label="MCP Servers" value={counts?.mcp_servers ?? 0} icon={Server} trend="stable" accent="green" meta="Stable" />
         <StatCard label="Connected Daemons" value={counts?.connected_daemons ?? 0} icon={Cpu} trend="up" accent="orange" meta="+5%" />
         <StatCard label="ADK Sessions" value={counts?.active_sessions ?? 0} icon={HardDrive} trend="down" accent="primary" meta="-2" />
       </div>
@@ -185,9 +185,9 @@ export default function DashboardPage() {
               <BarChart data={chartData}>
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "rgba(79, 70, 229, 0.08)" }} />
-                <Bar dataKey="success" stackId="a" fill="#10b981" name="Success" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="error" stackId="a" fill="#f43f5e" name="Error" radius={[3, 3, 0, 0]} />
+                <Tooltip cursor={{ fill: "rgba(246, 195, 67, 0.14)" }} />
+                <Bar dataKey="success" stackId="a" fill="var(--chart-2)" name="Success" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="error" stackId="a" fill="var(--chart-5)" name="Error" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -273,12 +273,12 @@ function StatCard({
   value: number;
   icon: typeof Bot;
   trend: "up" | "down" | "stable";
-  accent: "primary" | "yellow" | "orange";
+  accent: "primary" | "green" | "orange";
   meta: string;
 }) {
   const accentClass = {
     primary: "text-primary bg-primary",
-    yellow: "text-amber-500 bg-amber-400",
+    green: "text-secondary bg-secondary",
     orange: "text-orange-600 bg-orange-500",
   }[accent];
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
