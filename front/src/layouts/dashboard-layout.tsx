@@ -39,6 +39,7 @@ import {
   BookOpen,
   LifeBuoy,
   Settings2,
+  Sparkles,
 } from "lucide-react";
 import type { ComponentHealth } from "@/types/api";
 import {
@@ -167,12 +168,12 @@ function WorkspaceSwitcher() {
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-        <LayoutDashboard className="h-4 w-4" />
+      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-amber-300/70 bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+        <Sparkles className="h-4.5 w-4.5" />
       </div>
       <div>
-        <div className="text-lg font-bold leading-tight text-primary">Butter</div>
-        <div className="text-[10px] font-medium uppercase tracking-[0.05em] text-muted-foreground">Orchestration Platform</div>
+        <div className="text-lg font-black leading-tight text-foreground">Butter</div>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">Smooth Agent Ops</div>
       </div>
     </div>
   );
@@ -197,8 +198,8 @@ function NavList({ items, isAdmin }: { items: NavItem[]; isAdmin: boolean }) {
               to={to}
               className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm transition-colors ${
                 active
-                  ? "border-primary bg-muted font-semibold text-primary"
-                  : "border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                  ? "border-primary bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_rgba(246,195,67,0.18)]"
+                  : "border-transparent text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
               }`}
             >
               <Icon className="h-5 w-5 shrink-0 stroke-[1.7]" />
@@ -222,7 +223,7 @@ function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
       </div>
       <div className="border-t pt-4">
         <a
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
           href="https://github.com/orvice/butter"
           target="_blank"
           rel="noreferrer"
@@ -231,7 +232,7 @@ function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
           Documentation
         </a>
         <a
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
           href="https://github.com/orvice/butter/issues"
           target="_blank"
           rel="noreferrer"
@@ -362,7 +363,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-[260px] shrink-0 flex-col border-r bg-sidebar md:flex">
+      <aside className="hidden w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
         <div className="flex items-center gap-2 border-b px-6 py-5">
           <Brand />
         </div>
@@ -390,7 +391,7 @@ export default function DashboardLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="sticky top-0 z-10 flex min-h-16 flex-wrap items-center justify-between gap-2 border-b bg-card px-3 py-2 sm:px-8">
+        <header className="sticky top-0 z-10 flex min-h-16 flex-wrap items-center justify-between gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur sm:px-8">
           <div className="flex items-center gap-2 md:hidden">
             <Sheet>
               <SheetTrigger render={<Button variant="ghost" size="icon" aria-label="Open navigation" />}>
