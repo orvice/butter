@@ -188,7 +188,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
           </>
         ) : events.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-            No messages yet. Say hi 👋
+            No messages yet.
           </div>
         ) : (
           events.map((evt) => <MessageBubble key={evt.eventId} event={evt} />)
@@ -208,7 +208,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
             onKeyDown={handleKeyDown}
             placeholder={
               agentName
-                ? "Message the agent... (Enter to send, Shift+Enter for newline)"
+                ? "Message the agent..."
                 : "This chat is missing an agent reference; cannot send."
             }
             disabled={!agentName || pending}

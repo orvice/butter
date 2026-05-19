@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   Bot,
   Server,
+  MessageCircle,
   Sun,
   Moon,
   LogOut,
@@ -59,6 +60,7 @@ type NavItem = {
 const PRIMARY_NAV: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Overview" },
   { to: "/agents", icon: Bot, label: "Agents", activePrefixes: ["/agents"] },
+  { to: "/chat", icon: MessageCircle, label: "Chat", activePrefixes: ["/chat"] },
   {
     to: "/integrations",
     icon: Server,
@@ -69,7 +71,7 @@ const PRIMARY_NAV: NavItem[] = [
     to: "/daemons",
     icon: Cpu,
     label: "Execution",
-    activePrefixes: ["/daemons", "/chat"],
+    activePrefixes: ["/daemons"],
   },
   { to: "/channels", icon: Cable, label: "Channels", activePrefixes: ["/channels"] },
   {
