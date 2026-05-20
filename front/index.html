@@ -1,10 +1,23 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-color-theme="butter">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Butter Dashboard</title>
+    <script>
+      (() => {
+        try {
+          const themes = ["butter", "mint", "blueberry", "rose", "slate"];
+          const theme = localStorage.getItem("butter_color_theme");
+          if (themes.includes(theme)) {
+            document.documentElement.dataset.colorTheme = theme;
+          }
+        } catch {
+          document.documentElement.dataset.colorTheme = "butter";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
