@@ -24,6 +24,7 @@ const schema = z.object({
   transport: z.string(),
   command: z.string().optional(),
   url: z.string().optional(),
+  timeout_seconds: z.string().regex(/^\d*$/, "Timeout must be a non-negative integer").optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -40,7 +41,7 @@ export default function MCPServerCreatePage() {
   const createMutation = useCreateMCPServer();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { id: "", name: "", transport: "MCP_SERVER_TRANSPORT_STDIO", command: "", url: "" },
+    defaultValues: { id: "", name: "", transport: "MCP_SERVER_TRANSPORT_STDIO", command: "", url: "", timeout_seconds: "" },
   });
 
   const transport = useWatch({ control: form.control, name: "transport" });
@@ -48,6 +49,7 @@ export default function MCPServerCreatePage() {
 
   function onSubmit(values: FormValues) {
     const remote = isRemoteTransport(values.transport);
+    const timeoutSeconds = Number(values.timeout_seconds || 0);
     createMutation.mutate(
       {
         id: values.id,
@@ -56,6 +58,7 @@ export default function MCPServerCreatePage() {
         command: values.command,
         url: values.url,
         headers: remote ? entriesToRecord(headers) : undefined,
+        timeout_seconds: timeoutSeconds > 0 ? timeoutSeconds : undefined,
       },
       {
         onSuccess: () => { toast.success("MCP server created"); navigate("/mcp-servers"); },
@@ -118,6 +121,13 @@ export default function MCPServerCreatePage() {
                     <FormLabel>Headers</FormLabel>
                     <HeadersEditor value={headers} onChange={setHeaders} />
                   </div>
+                  <FormField control={form.control} name="timeout_seconds" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Timeout Seconds</FormLabel>
+                      <FormControl><Input type="number" min={0} placeholder="5" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                 </>
               )}
             </CardContent>

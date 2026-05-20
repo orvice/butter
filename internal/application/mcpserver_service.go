@@ -174,7 +174,14 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 		return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
 	}
 
-	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	timeout, err := internalagent.MCPTimeout(m)
+	if err != nil {
+		status.State = agentsv1.MCPServerStatus_STATE_DISCONNECTED
+		status.Detail = err.Error()
+		status.ToolCount = int32(len(m.GetToolFilter()))
+		return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	result, err := internalagent.ProbeMCPServer(probeCtx, m)
 	if err != nil {
@@ -216,7 +223,12 @@ func (s *MCPServerServiceServer) ListMCPTools(ctx context.Context, req *agentsv1
 			resp.Errors[srv.GetId()] = "stdio probing not supported"
 			continue
 		}
-		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		timeout, err := internalagent.MCPTimeout(srv)
+		if err != nil {
+			resp.Errors[srv.GetId()] = err.Error()
+			continue
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, timeout)
 		result, err := internalagent.ProbeMCPServer(probeCtx, srv)
 		cancel()
 		if err != nil {

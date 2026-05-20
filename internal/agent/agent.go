@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"butterfly.orx.me/core/log"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -19,6 +20,8 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+const defaultMCPTimeout = 5 * time.Second
 
 // NewFromProto creates an ADK agent from an agentsv1.Agent proto config.
 // providers is the list of model provider mappings used to resolve LLM backends.
@@ -223,6 +226,18 @@ func buildMCPToolsets(servers []*agentsv1.MCPServer) ([]tool.Toolset, error) {
 		toolsets = append(toolsets, ts)
 	}
 	return toolsets, nil
+}
+
+// MCPTimeout returns the effective timeout for MCP probe operations.
+// A zero value preserves the historical default.
+func MCPTimeout(srv *agentsv1.MCPServer) (time.Duration, error) {
+	if srv == nil || srv.GetTimeoutSeconds() == 0 {
+		return defaultMCPTimeout, nil
+	}
+	if srv.GetTimeoutSeconds() < 0 {
+		return 0, fmt.Errorf("timeout_seconds must be greater than or equal to 0")
+	}
+	return time.Duration(srv.GetTimeoutSeconds()) * time.Second, nil
 }
 
 // MCPProbeTool is a single tool exposed by an MCP server, surfaced alongside

@@ -26,6 +26,7 @@ const schema = z.object({
   transport: z.string(),
   command: z.string().optional(),
   url: z.string().optional(),
+  timeout_seconds: z.string().regex(/^\d*$/, "Timeout must be a non-negative integer").optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -45,7 +46,7 @@ export default function MCPServerEditPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { id: "", name: "", transport: "MCP_SERVER_TRANSPORT_STDIO", command: "", url: "" },
+    defaultValues: { id: "", name: "", transport: "MCP_SERVER_TRANSPORT_STDIO", command: "", url: "", timeout_seconds: "" },
   });
 
   const transport = useWatch({ control: form.control, name: "transport" });
@@ -59,12 +60,13 @@ export default function MCPServerEditPage() {
   useEffect(() => {
     if (data?.mcp_server) {
       const s = data.mcp_server;
-      form.reset({ id: s.id ?? "", name: s.name, transport: s.transport ?? "MCP_SERVER_TRANSPORT_STDIO", command: s.command ?? "", url: s.url ?? "" });
+      form.reset({ id: s.id ?? "", name: s.name, transport: s.transport ?? "MCP_SERVER_TRANSPORT_STDIO", command: s.command ?? "", url: s.url ?? "", timeout_seconds: s.timeout_seconds ? String(s.timeout_seconds) : "" });
     }
   }, [data, form]);
 
   function onSubmit(values: FormValues) {
     const remote = isRemoteTransport(values.transport);
+    const timeoutSeconds = Number(values.timeout_seconds || 0);
     updateMutation.mutate(
       {
         ...data?.mcp_server,
@@ -74,6 +76,7 @@ export default function MCPServerEditPage() {
         command: values.command,
         url: values.url,
         headers: remote ? entriesToRecord(headers) : undefined,
+        timeout_seconds: timeoutSeconds > 0 ? timeoutSeconds : undefined,
       },
       {
         onSuccess: () => { toast.success("MCP server updated"); navigate("/mcp-servers"); },
@@ -137,6 +140,13 @@ export default function MCPServerEditPage() {
                     <FormLabel>Headers</FormLabel>
                     <HeadersEditor value={headers} onChange={setHeadersDraft} />
                   </div>
+                  <FormField control={form.control} name="timeout_seconds" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Timeout Seconds</FormLabel>
+                      <FormControl><Input type="number" min={0} placeholder="5" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                 </>
               )}
             </CardContent>
