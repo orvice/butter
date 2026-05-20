@@ -13,6 +13,8 @@ declare module "next-themes" {
   }
 
   export interface UseThemeResult {
+    resolvedTheme?: string;
+    systemTheme?: string;
     theme?: string;
     setTheme: (theme: string) => void;
   }

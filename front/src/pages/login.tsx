@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThemeControls } from "@/components/theme-controls";
 import { Sparkles } from "lucide-react";
 
 export default function LoginPage() {
@@ -34,10 +35,13 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,#ffe08a_0,#fff8e8_34%,transparent_62%)] dark:bg-[radial-gradient(circle_at_top,#5c4213_0,#17130b_48%,transparent_72%)]" />
-      <Card className="w-full max-w-sm border-amber-200/80 shadow-[0_18px_50px_rgba(120,82,0,0.14)]">
+      <div className="absolute right-4 top-4">
+        <ThemeControls />
+      </div>
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,color-mix(in_srgb,var(--primary)_36%,transparent)_0,color-mix(in_srgb,var(--accent)_60%,transparent)_34%,transparent_62%)] dark:bg-[radial-gradient(circle_at_top,color-mix(in_srgb,var(--primary)_26%,transparent)_0,var(--background)_48%,transparent_72%)]" />
+      <Card className="w-full max-w-sm border-primary/20 shadow-[0_18px_50px_color-mix(in_srgb,var(--primary)_20%,transparent)]">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-md border border-amber-300/70 bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-md border border-primary/40 bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
             <Sparkles className="h-5 w-5" />
           </div>
           <CardTitle className="text-2xl font-black">Butter</CardTitle>

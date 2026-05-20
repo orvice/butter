@@ -3,10 +3,10 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-d
 import { useAuth } from "@/hooks/use-auth";
 import type { AuthUser } from "@/api/auth";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { useTheme } from "next-themes";
 import { useOverview } from "@/api/dashboard";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ThemeControls } from "@/components/theme-controls";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +18,6 @@ import {
   Bot,
   Server,
   MessageCircle,
-  Sun,
-  Moon,
   LogOut,
   Cpu,
   Cable,
@@ -169,7 +167,7 @@ function WorkspaceSwitcher() {
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-amber-300/70 bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-primary/40 bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
         <Sparkles className="h-4.5 w-4.5" />
       </div>
       <div>
@@ -199,7 +197,7 @@ function NavList({ items, isAdmin }: { items: NavItem[]; isAdmin: boolean }) {
               to={to}
               className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm transition-colors ${
                 active
-                  ? "border-primary bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_rgba(246,195,67,0.18)]"
+                  ? "border-primary bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_18%,transparent)]"
                   : "border-transparent text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
               }`}
             >
@@ -354,7 +352,6 @@ function UserAvatarLink({ user }: { user: AuthUser | null }) {
 
 export default function DashboardLayout() {
   const { isAuthenticated, isAdmin, logout, user } = useAuth();
-  const { theme, setTheme } = useTheme();
   const { selectedWorkspaceId, workspaces, isLoading: isWorkspaceLoading } = useWorkspace();
   const navigate = useNavigate();
 
@@ -377,14 +374,7 @@ export default function DashboardLayout() {
         <SidebarNav isAdmin={isAdmin} />
         <Separator />
         <div className="flex items-center justify-between p-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            aria-label="Toggle theme"
-          >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+          <ThemeControls />
           <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
@@ -413,14 +403,7 @@ export default function DashboardLayout() {
                 <SidebarNav isAdmin={isAdmin} />
                 <Separator />
                 <div className="flex items-center justify-between p-3">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                    aria-label="Toggle theme"
-                  >
-                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  </Button>
+                  <ThemeControls />
                   <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
                     <LogOut className="h-4 w-4" />
                   </Button>
