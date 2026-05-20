@@ -825,6 +825,7 @@ Enumerates tools across configured MCP servers. STDIO transports are skipped and
 | `headers` | map\<string,string\> | HTTP headers |
 | `tool_filter` | string[] | Allowlist of exposed tools |
 | `metadata` | map\<string,string\> | Custom metadata |
+| `timeout_seconds` | int32 | Optional MCP initialization/probe timeout; `0` uses the default |
 | `workspace_id` | string | Owning workspace |
 
 ---
