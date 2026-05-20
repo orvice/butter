@@ -64,6 +64,15 @@ service ModelProviderService {
   rpc DeleteModelProvider(DeleteModelProviderRequest) returns (DeleteModelProviderResponse);
 }
 
+// NotifyGroupService manages outbound notification groups.
+service NotifyGroupService {
+  rpc ListNotifyGroups(ListNotifyGroupsRequest) returns (ListNotifyGroupsResponse);
+  rpc GetNotifyGroup(GetNotifyGroupRequest) returns (GetNotifyGroupResponse);
+  rpc CreateNotifyGroup(CreateNotifyGroupRequest) returns (CreateNotifyGroupResponse);
+  rpc UpdateNotifyGroup(UpdateNotifyGroupRequest) returns (UpdateNotifyGroupResponse);
+  rpc DeleteNotifyGroup(DeleteNotifyGroupRequest) returns (DeleteNotifyGroupResponse);
+}
+
 // RemoteAgentService manages Remote Agent configurations.
 service RemoteAgentService {
   rpc ListRemoteAgents(ListRemoteAgentsRequest) returns (ListRemoteAgentsResponse);
@@ -329,6 +338,44 @@ message DeleteModelProviderRequest {
 }
 
 message DeleteModelProviderResponse {}
+
+// --- NotifyGroup messages ---
+
+message ListNotifyGroupsRequest {}
+
+message ListNotifyGroupsResponse {
+  repeated NotifyGroup notify_groups = 1;
+}
+
+message GetNotifyGroupRequest {
+  string name = 1;
+}
+
+message GetNotifyGroupResponse {
+  NotifyGroup notify_group = 1;
+}
+
+message CreateNotifyGroupRequest {
+  NotifyGroup notify_group = 1;
+}
+
+message CreateNotifyGroupResponse {
+  NotifyGroup notify_group = 1;
+}
+
+message UpdateNotifyGroupRequest {
+  NotifyGroup notify_group = 1;
+}
+
+message UpdateNotifyGroupResponse {
+  NotifyGroup notify_group = 1;
+}
+
+message DeleteNotifyGroupRequest {
+  string name = 1;
+}
+
+message DeleteNotifyGroupResponse {}
 
 // --- RemoteAgent messages ---
 

@@ -29,6 +29,7 @@ import {
   Webhook,
   MessageCircle,
   ScrollText,
+  Bell,
 } from "lucide-react";
 import type { CronJob, CronDeliveryType, CronExecution } from "@/types/api";
 
@@ -38,6 +39,7 @@ const DELIVERY_META: Record<
 > = {
   CRON_DELIVERY_TYPE_WEBHOOK: { icon: Webhook, label: "Webhook" },
   CRON_DELIVERY_TYPE_CHANNEL: { icon: MessageCircle, label: "Channel" },
+  CRON_DELIVERY_TYPE_NOTIFY_GROUP: { icon: Bell, label: "Notify Group" },
   CRON_DELIVERY_TYPE_LOG: { icon: ScrollText, label: "Log" },
   CRON_DELIVERY_TYPE_UNSPECIFIED: { icon: ScrollText, label: "Log" },
 };

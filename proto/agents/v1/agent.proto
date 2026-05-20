@@ -153,11 +153,6 @@ message MCPServer {
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 9;
 
-  // Optional timeout in seconds for MCP initialization/probe requests.
-  // 0 uses the default timeout.
-  // @gotags: json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"
-  int32 timeout_seconds = 11;
-
   // ID of the workspace this server config belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
@@ -287,4 +282,93 @@ message ModelProvider {
   // ID of the workspace this provider belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
+}
+
+// NotifyGroup groups outbound notification targets for cron delivery.
+message NotifyGroup {
+  // Unique name identifying this notify group.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+
+  // Whether this group is enabled. Disabled groups are skipped at delivery time.
+  // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
+  bool enabled = 2;
+
+  // Notification targets in this group.
+  // @gotags: json:"targets,omitempty" yaml:"targets,omitempty"
+  repeated NotifyTarget targets = 3;
+
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+  map<string, string> metadata = 10;
+
+  // ID of the workspace this notify group belongs to.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// NotifyTarget is a single outbound destination in a notify group.
+message NotifyTarget {
+  // Human-readable target name for logging and UI display.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+
+  // Whether this target is enabled. Disabled targets are skipped.
+  // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
+  bool enabled = 2;
+
+  // Target platform.
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
+  NotifyTargetType type = 3;
+
+  // Telegram target config.
+  // @gotags: json:"telegram,omitempty" yaml:"telegram,omitempty"
+  TelegramNotifyTarget telegram = 4;
+
+  // Lark/Feishu webhook target config.
+  // @gotags: json:"lark,omitempty" yaml:"lark,omitempty"
+  LarkNotifyTarget lark = 5;
+
+  // Discord webhook target config.
+  // @gotags: json:"discord,omitempty" yaml:"discord,omitempty"
+  DiscordNotifyTarget discord = 6;
+
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+  map<string, string> metadata = 10;
+}
+
+enum NotifyTargetType {
+  NOTIFY_TARGET_TYPE_UNSPECIFIED = 0;
+  NOTIFY_TARGET_TYPE_TELEGRAM = 1;
+  NOTIFY_TARGET_TYPE_LARK_WEBHOOK = 2;
+  NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK = 3;
+}
+
+message TelegramNotifyTarget {
+  // @gotags: json:"bot_token,omitempty" yaml:"bot_token,omitempty"
+  string bot_token = 1;
+  // @gotags: json:"chat_id,omitempty" yaml:"chat_id,omitempty"
+  string chat_id = 2;
+  // @gotags: json:"parse_mode,omitempty" yaml:"parse_mode,omitempty"
+  string parse_mode = 3;
+  // @gotags: json:"message_thread_id,omitempty" yaml:"message_thread_id,omitempty"
+  int64 message_thread_id = 4;
+}
+
+message LarkNotifyTarget {
+  // @gotags: json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"
+  string webhook_url = 1;
+  // Optional signing secret for Lark custom bot webhooks.
+  // @gotags: json:"secret,omitempty" yaml:"secret,omitempty"
+  string secret = 2;
+}
+
+message DiscordNotifyTarget {
+  // @gotags: json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"
+  string webhook_url = 1;
+  // @gotags: json:"username,omitempty" yaml:"username,omitempty"
+  string username = 2;
+  // @gotags: json:"avatar_url,omitempty" yaml:"avatar_url,omitempty"
+  string avatar_url = 3;
+  // @gotags: json:"thread_id,omitempty" yaml:"thread_id,omitempty"
+  string thread_id = 4;
 }

@@ -61,6 +61,10 @@ message CronDelivery {
   // Target chat/conversation ID for CHANNEL delivery type.
   // @gotags: json:"chat_id,omitempty" yaml:"chat_id,omitempty"
   string chat_id = 4;
+
+  // Notify group name for NOTIFY_GROUP delivery type.
+  // @gotags: json:"notify_group_name,omitempty" yaml:"notify_group_name,omitempty"
+  string notify_group_name = 5;
 }
 
 // CronDeliveryType selects how cron results are delivered.
@@ -69,6 +73,7 @@ enum CronDeliveryType {
   CRON_DELIVERY_TYPE_LOG = 1;
   CRON_DELIVERY_TYPE_WEBHOOK = 2;
   CRON_DELIVERY_TYPE_CHANNEL = 3;
+  CRON_DELIVERY_TYPE_NOTIFY_GROUP = 4;
 }
 
 // CronExecution records a single cron job execution.

@@ -1,9 +1,17 @@
 package cron
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"sync"
 	"testing"
+	"time"
 
+	"go.orx.me/apps/butter/internal/notify"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestJobConfigValidation(t *testing.T) {
@@ -116,5 +124,158 @@ func TestDeliveryDefaults(t *testing.T) {
 	}
 	if job3.GetDelivery().GetWebhookUrl() != "https://example.com/hook" {
 		t.Error("expected webhook URL")
+	}
+}
+
+type testNotifyGroupRepo struct {
+	group *agentsv1.NotifyGroup
+}
+
+func (r *testNotifyGroupRepo) ListNotifyGroups(context.Context, string) ([]*agentsv1.NotifyGroup, error) {
+	return []*agentsv1.NotifyGroup{r.group}, nil
+}
+
+func (r *testNotifyGroupRepo) GetNotifyGroup(context.Context, string, string) (*agentsv1.NotifyGroup, error) {
+	if r.group == nil {
+		return nil, configrepo.ErrNotFound
+	}
+	return r.group, nil
+}
+
+func (r *testNotifyGroupRepo) CreateNotifyGroup(context.Context, string, *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *testNotifyGroupRepo) UpdateNotifyGroup(context.Context, string, *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *testNotifyGroupRepo) DeleteNotifyGroup(context.Context, string, string) error {
+	return errors.New("not implemented")
+}
+
+func (r *testNotifyGroupRepo) ListNotifyGroupsAcrossWorkspaces(context.Context) ([]*agentsv1.NotifyGroup, error) {
+	return []*agentsv1.NotifyGroup{r.group}, nil
+}
+
+type fanoutTransport struct {
+	mu      sync.Mutex
+	paths   []string
+	hungHit chan struct{}
+}
+
+func (t *fanoutTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.mu.Lock()
+	t.paths = append(t.paths, req.URL.Path)
+	t.mu.Unlock()
+	if req.URL.Path == "/hang" {
+		select {
+		case <-t.hungHit:
+		default:
+			close(t.hungHit)
+		}
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	}
+	if req.URL.Path == "/fail" {
+		return &http.Response{
+			StatusCode: http.StatusInternalServerError,
+			Body:       http.NoBody,
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	}
+	return &http.Response{
+		StatusCode: http.StatusNoContent,
+		Body:       http.NoBody,
+		Header:     make(http.Header),
+		Request:    req,
+	}, nil
+}
+
+func (t *fanoutTransport) saw(path string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, got := range t.paths {
+		if got == path {
+			return true
+		}
+	}
+	return false
+}
+
+func TestDeliverNotifyGroupTimeoutFailureContinuesFanout(t *testing.T) {
+	origTimeout := notifyTargetTimeout
+	notifyTargetTimeout = 25 * time.Millisecond
+	defer func() { notifyTargetTimeout = origTimeout }()
+
+	transport := &fanoutTransport{hungHit: make(chan struct{})}
+	s := &Scheduler{
+		ctx: context.Background(),
+		groupRepo: &testNotifyGroupRepo{group: &agentsv1.NotifyGroup{
+			Name:    "ops",
+			Enabled: true,
+			Targets: []*agentsv1.NotifyTarget{
+				{
+					Name:    "hang",
+					Enabled: true,
+					Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_LARK_WEBHOOK,
+					Lark:    &agentsv1.LarkNotifyTarget{WebhookUrl: "https://notify.test/hang"},
+				},
+				{
+					Name:    "fail",
+					Enabled: true,
+					Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK,
+					Discord: &agentsv1.DiscordNotifyTarget{
+						WebhookUrl: "https://notify.test/fail",
+					},
+				},
+				{
+					Name:    "ok",
+					Enabled: true,
+					Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK,
+					Discord: &agentsv1.DiscordNotifyTarget{
+						WebhookUrl: "https://notify.test/ok",
+					},
+				},
+			},
+		}},
+		notifier: notify.NewSender(&http.Client{Transport: transport}),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		s.deliverNotifyGroup(&agentsv1.CronJob{
+			Name:        "job1",
+			WorkspaceId: "ws1",
+			Delivery: &agentsv1.CronDelivery{
+				Type:            agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_NOTIFY_GROUP,
+				NotifyGroupName: "ops",
+			},
+		}, &agentsv1.CronExecution{
+			JobName:   "job1",
+			Status:    agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
+			Output:    "done",
+			StartedAt: timestamppb.Now(),
+		})
+		close(done)
+	}()
+
+	select {
+	case <-transport.hungHit:
+	case <-time.After(time.Second):
+		t.Fatal("hung target was not called")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("notify group delivery did not return after target timeout")
+	}
+	if !transport.saw("/fail") {
+		t.Fatal("expected fan-out to continue to failing target after timeout")
+	}
+	if !transport.saw("/ok") {
+		t.Fatal("expected fan-out to continue to later successful target after failure")
 	}
 }

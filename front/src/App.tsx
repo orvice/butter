@@ -18,6 +18,9 @@ import MCPServerEditPage from "@/pages/mcp-servers/edit";
 import ModelProviderListPage from "@/pages/model-providers/list";
 import ModelProviderCreatePage from "@/pages/model-providers/create";
 import ModelProviderEditPage from "@/pages/model-providers/edit";
+import NotifyGroupListPage from "@/pages/notify-groups/list";
+import NotifyGroupCreatePage from "@/pages/notify-groups/create";
+import NotifyGroupEditPage from "@/pages/notify-groups/edit";
 import RemoteAgentListPage from "@/pages/remote-agents/list";
 import RemoteAgentCreatePage from "@/pages/remote-agents/create";
 import RemoteAgentEditPage from "@/pages/remote-agents/edit";
@@ -66,6 +69,9 @@ export default function App() {
                   <Route path="model-providers" element={<ModelProviderListPage />} />
                   <Route path="model-providers/create" element={<ModelProviderCreatePage />} />
                   <Route path="model-providers/:name/edit" element={<ModelProviderEditPage />} />
+                  <Route path="notify-groups" element={<NotifyGroupListPage />} />
+                  <Route path="notify-groups/create" element={<NotifyGroupCreatePage />} />
+                  <Route path="notify-groups/:name/edit" element={<NotifyGroupEditPage />} />
                   <Route path="remote-agents" element={<RemoteAgentListPage />} />
                   <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
                   <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />

@@ -20,6 +20,7 @@ type configBackend interface {
 	configrepo.RemoteAgentRepository
 	configrepo.ChannelRepository
 	configrepo.ModelProviderRepository
+	configrepo.NotifyGroupRepository
 }
 
 // ConfigStore is a runtime-selectable config repository wrapper. All CRUD
@@ -282,4 +283,30 @@ func (s *ConfigStore) UpdateModelProvider(ctx context.Context, workspaceID strin
 
 func (s *ConfigStore) DeleteModelProvider(ctx context.Context, workspaceID, name string) error {
 	return s.current().DeleteModelProvider(ctx, workspaceID, name)
+}
+
+// --- Notify Groups ---
+
+func (s *ConfigStore) ListNotifyGroups(ctx context.Context, workspaceID string) ([]*agentsv1.NotifyGroup, error) {
+	return s.current().ListNotifyGroups(ctx, workspaceID)
+}
+
+func (s *ConfigStore) ListNotifyGroupsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.NotifyGroup, error) {
+	return s.current().ListNotifyGroupsAcrossWorkspaces(ctx)
+}
+
+func (s *ConfigStore) GetNotifyGroup(ctx context.Context, workspaceID, name string) (*agentsv1.NotifyGroup, error) {
+	return s.current().GetNotifyGroup(ctx, workspaceID, name)
+}
+
+func (s *ConfigStore) CreateNotifyGroup(ctx context.Context, workspaceID string, group *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error) {
+	return s.current().CreateNotifyGroup(ctx, workspaceID, group)
+}
+
+func (s *ConfigStore) UpdateNotifyGroup(ctx context.Context, workspaceID string, group *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error) {
+	return s.current().UpdateNotifyGroup(ctx, workspaceID, group)
+}
+
+func (s *ConfigStore) DeleteNotifyGroup(ctx context.Context, workspaceID, name string) error {
+	return s.current().DeleteNotifyGroup(ctx, workspaceID, name)
 }

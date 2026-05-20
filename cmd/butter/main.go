@@ -34,7 +34,7 @@ func main() {
 				if err := handlers.SeedConfig(channelCtx, cfg); err != nil {
 					return err
 				}
-				result, err := butterapp.StartChannels(channelCtx, cfg, handlers.AgentRepo(), handlers.ChannelRepo(), daemonRegistry)
+				result, err := butterapp.StartChannels(channelCtx, cfg, handlers.AgentRepo(), handlers.ChannelRepo(), handlers.NotifyGroupRepo(), daemonRegistry)
 				if err != nil {
 					return err
 				}

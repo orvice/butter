@@ -5367,6 +5367,1209 @@ var _ interface {
 	ErrorName() string
 } = DeleteModelProviderResponseValidationError{}
 
+// Validate checks the field values on ListNotifyGroupsRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListNotifyGroupsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListNotifyGroupsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListNotifyGroupsRequestMultiError, or nil if none found.
+func (m *ListNotifyGroupsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListNotifyGroupsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return ListNotifyGroupsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListNotifyGroupsRequestMultiError is an error wrapping multiple validation
+// errors returned by ListNotifyGroupsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type ListNotifyGroupsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListNotifyGroupsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListNotifyGroupsRequestMultiError) AllErrors() []error { return m }
+
+// ListNotifyGroupsRequestValidationError is the validation error returned by
+// ListNotifyGroupsRequest.Validate if the designated constraints aren't met.
+type ListNotifyGroupsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListNotifyGroupsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListNotifyGroupsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListNotifyGroupsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListNotifyGroupsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListNotifyGroupsRequestValidationError) ErrorName() string {
+	return "ListNotifyGroupsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListNotifyGroupsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListNotifyGroupsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListNotifyGroupsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListNotifyGroupsRequestValidationError{}
+
+// Validate checks the field values on ListNotifyGroupsResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListNotifyGroupsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListNotifyGroupsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListNotifyGroupsResponseMultiError, or nil if none found.
+func (m *ListNotifyGroupsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListNotifyGroupsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetNotifyGroups() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListNotifyGroupsResponseValidationError{
+						field:  fmt.Sprintf("NotifyGroups[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListNotifyGroupsResponseValidationError{
+						field:  fmt.Sprintf("NotifyGroups[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListNotifyGroupsResponseValidationError{
+					field:  fmt.Sprintf("NotifyGroups[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListNotifyGroupsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListNotifyGroupsResponseMultiError is an error wrapping multiple validation
+// errors returned by ListNotifyGroupsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type ListNotifyGroupsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListNotifyGroupsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListNotifyGroupsResponseMultiError) AllErrors() []error { return m }
+
+// ListNotifyGroupsResponseValidationError is the validation error returned by
+// ListNotifyGroupsResponse.Validate if the designated constraints aren't met.
+type ListNotifyGroupsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListNotifyGroupsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListNotifyGroupsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListNotifyGroupsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListNotifyGroupsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListNotifyGroupsResponseValidationError) ErrorName() string {
+	return "ListNotifyGroupsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListNotifyGroupsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListNotifyGroupsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListNotifyGroupsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListNotifyGroupsResponseValidationError{}
+
+// Validate checks the field values on GetNotifyGroupRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetNotifyGroupRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetNotifyGroupRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetNotifyGroupRequestMultiError, or nil if none found.
+func (m *GetNotifyGroupRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetNotifyGroupRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	if len(errors) > 0 {
+		return GetNotifyGroupRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetNotifyGroupRequestMultiError is an error wrapping multiple validation
+// errors returned by GetNotifyGroupRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetNotifyGroupRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetNotifyGroupRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetNotifyGroupRequestMultiError) AllErrors() []error { return m }
+
+// GetNotifyGroupRequestValidationError is the validation error returned by
+// GetNotifyGroupRequest.Validate if the designated constraints aren't met.
+type GetNotifyGroupRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetNotifyGroupRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetNotifyGroupRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetNotifyGroupRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetNotifyGroupRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetNotifyGroupRequestValidationError) ErrorName() string {
+	return "GetNotifyGroupRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetNotifyGroupRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetNotifyGroupRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetNotifyGroupRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetNotifyGroupRequestValidationError{}
+
+// Validate checks the field values on GetNotifyGroupResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetNotifyGroupResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetNotifyGroupResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetNotifyGroupResponseMultiError, or nil if none found.
+func (m *GetNotifyGroupResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetNotifyGroupResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetNotifyGroup()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetNotifyGroupResponseValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetNotifyGroupResponseValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNotifyGroup()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetNotifyGroupResponseValidationError{
+				field:  "NotifyGroup",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetNotifyGroupResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetNotifyGroupResponseMultiError is an error wrapping multiple validation
+// errors returned by GetNotifyGroupResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetNotifyGroupResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetNotifyGroupResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetNotifyGroupResponseMultiError) AllErrors() []error { return m }
+
+// GetNotifyGroupResponseValidationError is the validation error returned by
+// GetNotifyGroupResponse.Validate if the designated constraints aren't met.
+type GetNotifyGroupResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetNotifyGroupResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetNotifyGroupResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetNotifyGroupResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetNotifyGroupResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetNotifyGroupResponseValidationError) ErrorName() string {
+	return "GetNotifyGroupResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetNotifyGroupResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetNotifyGroupResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetNotifyGroupResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetNotifyGroupResponseValidationError{}
+
+// Validate checks the field values on CreateNotifyGroupRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CreateNotifyGroupRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateNotifyGroupRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateNotifyGroupRequestMultiError, or nil if none found.
+func (m *CreateNotifyGroupRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateNotifyGroupRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetNotifyGroup()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateNotifyGroupRequestValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateNotifyGroupRequestValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNotifyGroup()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CreateNotifyGroupRequestValidationError{
+				field:  "NotifyGroup",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CreateNotifyGroupRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// CreateNotifyGroupRequestMultiError is an error wrapping multiple validation
+// errors returned by CreateNotifyGroupRequest.ValidateAll() if the designated
+// constraints aren't met.
+type CreateNotifyGroupRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateNotifyGroupRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateNotifyGroupRequestMultiError) AllErrors() []error { return m }
+
+// CreateNotifyGroupRequestValidationError is the validation error returned by
+// CreateNotifyGroupRequest.Validate if the designated constraints aren't met.
+type CreateNotifyGroupRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CreateNotifyGroupRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CreateNotifyGroupRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CreateNotifyGroupRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CreateNotifyGroupRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CreateNotifyGroupRequestValidationError) ErrorName() string {
+	return "CreateNotifyGroupRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CreateNotifyGroupRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCreateNotifyGroupRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CreateNotifyGroupRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CreateNotifyGroupRequestValidationError{}
+
+// Validate checks the field values on CreateNotifyGroupResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CreateNotifyGroupResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateNotifyGroupResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateNotifyGroupResponseMultiError, or nil if none found.
+func (m *CreateNotifyGroupResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateNotifyGroupResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetNotifyGroup()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateNotifyGroupResponseValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateNotifyGroupResponseValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNotifyGroup()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CreateNotifyGroupResponseValidationError{
+				field:  "NotifyGroup",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CreateNotifyGroupResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// CreateNotifyGroupResponseMultiError is an error wrapping multiple validation
+// errors returned by CreateNotifyGroupResponse.ValidateAll() if the
+// designated constraints aren't met.
+type CreateNotifyGroupResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateNotifyGroupResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateNotifyGroupResponseMultiError) AllErrors() []error { return m }
+
+// CreateNotifyGroupResponseValidationError is the validation error returned by
+// CreateNotifyGroupResponse.Validate if the designated constraints aren't met.
+type CreateNotifyGroupResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CreateNotifyGroupResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CreateNotifyGroupResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CreateNotifyGroupResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CreateNotifyGroupResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CreateNotifyGroupResponseValidationError) ErrorName() string {
+	return "CreateNotifyGroupResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CreateNotifyGroupResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCreateNotifyGroupResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CreateNotifyGroupResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CreateNotifyGroupResponseValidationError{}
+
+// Validate checks the field values on UpdateNotifyGroupRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateNotifyGroupRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateNotifyGroupRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UpdateNotifyGroupRequestMultiError, or nil if none found.
+func (m *UpdateNotifyGroupRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateNotifyGroupRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetNotifyGroup()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateNotifyGroupRequestValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateNotifyGroupRequestValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNotifyGroup()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateNotifyGroupRequestValidationError{
+				field:  "NotifyGroup",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateNotifyGroupRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateNotifyGroupRequestMultiError is an error wrapping multiple validation
+// errors returned by UpdateNotifyGroupRequest.ValidateAll() if the designated
+// constraints aren't met.
+type UpdateNotifyGroupRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateNotifyGroupRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateNotifyGroupRequestMultiError) AllErrors() []error { return m }
+
+// UpdateNotifyGroupRequestValidationError is the validation error returned by
+// UpdateNotifyGroupRequest.Validate if the designated constraints aren't met.
+type UpdateNotifyGroupRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateNotifyGroupRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateNotifyGroupRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateNotifyGroupRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateNotifyGroupRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateNotifyGroupRequestValidationError) ErrorName() string {
+	return "UpdateNotifyGroupRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateNotifyGroupRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateNotifyGroupRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateNotifyGroupRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateNotifyGroupRequestValidationError{}
+
+// Validate checks the field values on UpdateNotifyGroupResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateNotifyGroupResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateNotifyGroupResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UpdateNotifyGroupResponseMultiError, or nil if none found.
+func (m *UpdateNotifyGroupResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateNotifyGroupResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetNotifyGroup()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateNotifyGroupResponseValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateNotifyGroupResponseValidationError{
+					field:  "NotifyGroup",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNotifyGroup()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateNotifyGroupResponseValidationError{
+				field:  "NotifyGroup",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateNotifyGroupResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateNotifyGroupResponseMultiError is an error wrapping multiple validation
+// errors returned by UpdateNotifyGroupResponse.ValidateAll() if the
+// designated constraints aren't met.
+type UpdateNotifyGroupResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateNotifyGroupResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateNotifyGroupResponseMultiError) AllErrors() []error { return m }
+
+// UpdateNotifyGroupResponseValidationError is the validation error returned by
+// UpdateNotifyGroupResponse.Validate if the designated constraints aren't met.
+type UpdateNotifyGroupResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateNotifyGroupResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateNotifyGroupResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateNotifyGroupResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateNotifyGroupResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateNotifyGroupResponseValidationError) ErrorName() string {
+	return "UpdateNotifyGroupResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateNotifyGroupResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateNotifyGroupResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateNotifyGroupResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateNotifyGroupResponseValidationError{}
+
+// Validate checks the field values on DeleteNotifyGroupRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteNotifyGroupRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteNotifyGroupRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeleteNotifyGroupRequestMultiError, or nil if none found.
+func (m *DeleteNotifyGroupRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteNotifyGroupRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	if len(errors) > 0 {
+		return DeleteNotifyGroupRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteNotifyGroupRequestMultiError is an error wrapping multiple validation
+// errors returned by DeleteNotifyGroupRequest.ValidateAll() if the designated
+// constraints aren't met.
+type DeleteNotifyGroupRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteNotifyGroupRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteNotifyGroupRequestMultiError) AllErrors() []error { return m }
+
+// DeleteNotifyGroupRequestValidationError is the validation error returned by
+// DeleteNotifyGroupRequest.Validate if the designated constraints aren't met.
+type DeleteNotifyGroupRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteNotifyGroupRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteNotifyGroupRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteNotifyGroupRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteNotifyGroupRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteNotifyGroupRequestValidationError) ErrorName() string {
+	return "DeleteNotifyGroupRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteNotifyGroupRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteNotifyGroupRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteNotifyGroupRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteNotifyGroupRequestValidationError{}
+
+// Validate checks the field values on DeleteNotifyGroupResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteNotifyGroupResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteNotifyGroupResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeleteNotifyGroupResponseMultiError, or nil if none found.
+func (m *DeleteNotifyGroupResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteNotifyGroupResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return DeleteNotifyGroupResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteNotifyGroupResponseMultiError is an error wrapping multiple validation
+// errors returned by DeleteNotifyGroupResponse.ValidateAll() if the
+// designated constraints aren't met.
+type DeleteNotifyGroupResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteNotifyGroupResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteNotifyGroupResponseMultiError) AllErrors() []error { return m }
+
+// DeleteNotifyGroupResponseValidationError is the validation error returned by
+// DeleteNotifyGroupResponse.Validate if the designated constraints aren't met.
+type DeleteNotifyGroupResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteNotifyGroupResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteNotifyGroupResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteNotifyGroupResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteNotifyGroupResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteNotifyGroupResponseValidationError) ErrorName() string {
+	return "DeleteNotifyGroupResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteNotifyGroupResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteNotifyGroupResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteNotifyGroupResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteNotifyGroupResponseValidationError{}
+
 // Validate checks the field values on ListRemoteAgentsRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.

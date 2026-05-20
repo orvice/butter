@@ -15,18 +15,24 @@ import (
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"go.orx.me/apps/butter/internal/notify"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+var notifyTargetTimeout = 10 * time.Second
+
 // Scheduler manages cron-based agent execution.
 type Scheduler struct {
-	cron     *robfigcron.Cron
-	runner   *runner.Service
-	execRepo ExecutionRepo
-	jobRepo  JobRepo
-	ctx      context.Context
-	cancelFn context.CancelFunc
+	cron      *robfigcron.Cron
+	runner    *runner.Service
+	execRepo  ExecutionRepo
+	jobRepo   JobRepo
+	groupRepo configrepo.NotifyGroupRepository
+	notifier  *notify.Sender
+	ctx       context.Context
+	cancelFn  context.CancelFunc
 
 	mu       sync.Mutex
 	entryIDs map[string]robfigcron.EntryID // composite "workspace_id:name" -> cron entry ID
@@ -35,20 +41,22 @@ type Scheduler struct {
 func jobKey(workspaceID, name string) string { return workspaceID + ":" + name }
 
 // NewScheduler creates a scheduler, loads jobs from the repo, and registers them.
-func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRepo, execRepo ExecutionRepo) (*Scheduler, error) {
+func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRepo, execRepo ExecutionRepo, groupRepo configrepo.NotifyGroupRepository) (*Scheduler, error) {
 	logger := log.FromContext(ctx)
 	schedCtx, cancel := context.WithCancel(ctx)
 
 	c := robfigcron.New(robfigcron.WithChain(robfigcron.SkipIfStillRunning(robfigcron.DefaultLogger)))
 
 	s := &Scheduler{
-		cron:     c,
-		runner:   runnerSvc,
-		execRepo: execRepo,
-		jobRepo:  jobRepo,
-		ctx:      schedCtx,
-		cancelFn: cancel,
-		entryIDs: make(map[string]robfigcron.EntryID),
+		cron:      c,
+		runner:    runnerSvc,
+		execRepo:  execRepo,
+		jobRepo:   jobRepo,
+		groupRepo: groupRepo,
+		notifier:  notify.NewSender(nil),
+		ctx:       schedCtx,
+		cancelFn:  cancel,
+		entryIDs:  make(map[string]robfigcron.EntryID),
 	}
 
 	// Load existing jobs from MongoDB across every workspace.
@@ -233,14 +241,15 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 	finishTime := time.Now()
 
 	exec := &agentsv1.CronExecution{
-		Id:         execID,
-		JobName:    job.GetName(),
-		AgentName:  job.GetAgentName(),
-		Status:     agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
-		Input:      job.GetInput(),
-		Output:     output,
-		StartedAt:  timestamppb.New(startTime),
-		FinishedAt: timestamppb.New(finishTime),
+		Id:          execID,
+		JobName:     job.GetName(),
+		AgentName:   job.GetAgentName(),
+		Status:      agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
+		Input:       job.GetInput(),
+		Output:      output,
+		StartedAt:   timestamppb.New(startTime),
+		FinishedAt:  timestamppb.New(finishTime),
+		WorkspaceId: job.GetWorkspaceId(),
 	}
 
 	if err != nil {
@@ -287,6 +296,8 @@ func (s *Scheduler) deliver(job *agentsv1.CronJob, exec *agentsv1.CronExecution)
 		s.deliverWebhook(job, exec)
 	case agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL:
 		s.deliverChannel(job, exec)
+	case agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_NOTIFY_GROUP:
+		s.deliverNotifyGroup(job, exec)
 	default:
 		s.deliverLog(job, exec)
 	}
@@ -348,4 +359,74 @@ func (s *Scheduler) deliverChannel(_ *agentsv1.CronJob, _ *agentsv1.CronExecutio
 	// TODO: implement channel delivery when channel send interface is available.
 	logger := log.FromContext(s.ctx)
 	logger.Warn("channel delivery not yet implemented, falling back to log delivery")
+}
+
+func (s *Scheduler) deliverNotifyGroup(job *agentsv1.CronJob, exec *agentsv1.CronExecution) {
+	logger := log.FromContext(s.ctx)
+	delivery := job.GetDelivery()
+	if delivery.GetNotifyGroupName() == "" {
+		logger.Error("notify group delivery configured but no notify_group_name set", "job", job.GetName(), "workspace_id", job.GetWorkspaceId())
+		return
+	}
+	if s.groupRepo == nil || s.notifier == nil {
+		logger.Error("notify group delivery configured but notifier is not available", "job", job.GetName(), "workspace_id", job.GetWorkspaceId())
+		return
+	}
+
+	group, err := s.groupRepo.GetNotifyGroup(s.ctx, job.GetWorkspaceId(), delivery.GetNotifyGroupName())
+	if err != nil {
+		logger.Error("failed to load notify group for cron delivery",
+			"job", job.GetName(),
+			"workspace_id", job.GetWorkspaceId(),
+			"notify_group", delivery.GetNotifyGroupName(),
+			"err", err,
+		)
+		return
+	}
+	if !group.GetEnabled() {
+		logger.Info("skipping disabled notify group",
+			"job", job.GetName(),
+			"workspace_id", job.GetWorkspaceId(),
+			"notify_group", group.GetName(),
+		)
+		return
+	}
+
+	message := notify.Message{
+		Title: fmt.Sprintf("Cron job %s: %s", exec.GetJobName(), cronStatus(exec)),
+		Text:  exec.GetOutput(),
+	}
+	for _, target := range group.GetTargets() {
+		if target == nil || !target.GetEnabled() {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(s.ctx, notifyTargetTimeout)
+		err := s.notifier.Send(ctx, target, message)
+		cancel()
+		if err != nil {
+			logger.Error("notify group target delivery failed",
+				"job", job.GetName(),
+				"workspace_id", job.GetWorkspaceId(),
+				"notify_group", group.GetName(),
+				"target", target.GetName(),
+				"type", target.GetType().String(),
+				"err", err,
+			)
+			continue
+		}
+		logger.Info("notify group target delivered",
+			"job", job.GetName(),
+			"workspace_id", job.GetWorkspaceId(),
+			"notify_group", group.GetName(),
+			"target", target.GetName(),
+			"type", target.GetType().String(),
+		)
+	}
+}
+
+func cronStatus(exec *agentsv1.CronExecution) string {
+	if exec.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR {
+		return "error"
+	}
+	return "success"
 }

@@ -27,6 +27,7 @@ type Handlers struct {
 	agentSvcServer         *application.AgentServiceServer
 	mcpSvcServer           *application.MCPServerServiceServer
 	modelProviderSvcServer *application.ModelProviderServiceServer
+	notifyGroupSvcServer   *application.NotifyGroupServiceServer
 	remoteSvcServer        *application.RemoteAgentServiceServer
 	sessionSvcServer       *application.SessionServiceServer
 	cronSvcServer          *application.CronJobServiceServer
@@ -44,6 +45,7 @@ type Handlers struct {
 	agentRepo              configrepo.AgentRepository
 	mcpServerRepo          configrepo.MCPServerRepository
 	modelProviderRepo      configrepo.ModelProviderRepository
+	notifyGroupRepo        configrepo.NotifyGroupRepository
 	remoteAgentRepo        configrepo.RemoteAgentRepository
 	channelRepo            configrepo.ChannelRepository
 }
@@ -184,6 +186,11 @@ func (h *Handlers) ChannelRepo() configrepo.ChannelRepository {
 	return h.channelRepo
 }
 
+// NotifyGroupRepo returns the notify group repository.
+func (h *Handlers) NotifyGroupRepo() configrepo.NotifyGroupRepository {
+	return h.notifyGroupRepo
+}
+
 // SeedConfig initializes and seeds the config repositories from AppConfig.
 func (h *Handlers) SeedConfig(ctx context.Context, cfg *config.AppConfig) error {
 	if h.configStore == nil {
@@ -214,11 +221,13 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	agentSvcServer := application.NewAgentServiceServer(configStore)
 	mcpSvcServer := application.NewMCPServerServiceServer(configStore)
 	modelProviderSvcServer := application.NewModelProviderServiceServer(configStore)
+	notifyGroupSvcServer := application.NewNotifyGroupServiceServer(configStore)
 	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
 	remoteSvcServer.SetDaemonRegistry(daemonRegistry)
 	agentTwirp := agentsv1.NewAgentServiceServer(agentSvcServer, pathPrefix)
 	mcpTwirp := agentsv1.NewMCPServerServiceServer(mcpSvcServer, pathPrefix)
 	modelProviderTwirp := agentsv1.NewModelProviderServiceServer(modelProviderSvcServer, pathPrefix)
+	notifyGroupTwirp := agentsv1.NewNotifyGroupServiceServer(notifyGroupSvcServer, pathPrefix)
 	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(remoteSvcServer, pathPrefix)
 	channelSvcServer := application.NewChannelServiceServer(configStore)
 	channelTwirp := agentsv1.NewChannelServiceServer(channelSvcServer, pathPrefix)
@@ -243,6 +252,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		agentSvcServer:         agentSvcServer,
 		mcpSvcServer:           mcpSvcServer,
 		modelProviderSvcServer: modelProviderSvcServer,
+		notifyGroupSvcServer:   notifyGroupSvcServer,
 		remoteSvcServer:        remoteSvcServer,
 		sessionSvcServer:       sessionSvcServer,
 		cronSvcServer:          cronSvcServer,
@@ -257,6 +267,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		agentRepo:              configStore,
 		mcpServerRepo:          configStore,
 		modelProviderRepo:      configStore,
+		notifyGroupRepo:        configStore,
 		remoteAgentRepo:        configStore,
 		channelRepo:            configStore,
 	}
@@ -273,6 +284,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any(agentTwirp.PathPrefix()+"*path", gin.WrapH(agentTwirp))
 		r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
 		r.Any(modelProviderTwirp.PathPrefix()+"*path", gin.WrapH(modelProviderTwirp))
+		r.Any(notifyGroupTwirp.PathPrefix()+"*path", gin.WrapH(notifyGroupTwirp))
 		r.Any(remoteTwirp.PathPrefix()+"*path", gin.WrapH(remoteTwirp))
 		r.Any(channelTwirp.PathPrefix()+"*path", gin.WrapH(channelTwirp))
 		r.Any(sessionTwirp.PathPrefix()+"*path", gin.WrapH(sessionTwirp))

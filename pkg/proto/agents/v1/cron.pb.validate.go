@@ -235,6 +235,8 @@ func (m *CronDelivery) validate(all bool) error {
 
 	// no validation rules for ChatId
 
+	// no validation rules for NotifyGroupName
+
 	if len(errors) > 0 {
 		return CronDeliveryMultiError(errors)
 	}

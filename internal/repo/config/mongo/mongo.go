@@ -20,6 +20,7 @@ const (
 	remoteAgentsCollection   = "config_remoteagents"
 	channelsCollection       = "config_channels"
 	modelProvidersCollection = "config_modelproviders"
+	notifyGroupsCollection   = "config_notifygroups"
 )
 
 // configDoc is the generic MongoDB document for a config entity. The _id is
@@ -39,6 +40,7 @@ type Store struct {
 	remoteAgents   *mongo.Collection
 	channels       *mongo.Collection
 	modelProviders *mongo.Collection
+	notifyGroups   *mongo.Collection
 }
 
 func New(db *mongo.Database) *Store {
@@ -48,13 +50,14 @@ func New(db *mongo.Database) *Store {
 		remoteAgents:   db.Collection(remoteAgentsCollection),
 		channels:       db.Collection(channelsCollection),
 		modelProviders: db.Collection(modelProvidersCollection),
+		notifyGroups:   db.Collection(notifyGroupsCollection),
 	}
 }
 
 // EnsureIndexes creates the (workspace_id, name) compound indexes for fast
 // per-workspace listings.
 func (s *Store) EnsureIndexes(ctx context.Context) error {
-	collections := []*mongo.Collection{s.agents, s.mcpServers, s.remoteAgents, s.channels, s.modelProviders}
+	collections := []*mongo.Collection{s.agents, s.mcpServers, s.remoteAgents, s.channels, s.modelProviders, s.notifyGroups}
 	for _, c := range collections {
 		_, err := c.Indexes().CreateOne(ctx, mongo.IndexModel{
 			Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "name", Value: 1}},
@@ -567,6 +570,96 @@ func (s *Store) DeleteModelProvider(ctx context.Context, workspaceID, name strin
 	}
 	if res.DeletedCount == 0 {
 		return mapError("model provider", workspaceID, name, mongo.ErrNoDocuments)
+	}
+	return nil
+}
+
+// --- Notify Groups ---
+
+func (s *Store) ListNotifyGroups(ctx context.Context, workspaceID string) ([]*agentsv1.NotifyGroup, error) {
+	docs, err := listInWorkspace(ctx, s.notifyGroups, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentsv1.NotifyGroup, 0, len(docs))
+	for _, d := range docs {
+		g := &agentsv1.NotifyGroup{}
+		if err := unmarshal(d.Spec, g); err != nil {
+			return nil, fmt.Errorf("unmarshal notify group %q: %w", d.ID, err)
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
+func (s *Store) ListNotifyGroupsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.NotifyGroup, error) {
+	docs, err := listAll(ctx, s.notifyGroups)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentsv1.NotifyGroup, 0, len(docs))
+	for _, d := range docs {
+		g := &agentsv1.NotifyGroup{}
+		if err := unmarshal(d.Spec, g); err != nil {
+			return nil, fmt.Errorf("unmarshal notify group %q: %w", d.ID, err)
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
+func (s *Store) GetNotifyGroup(ctx context.Context, workspaceID, name string) (*agentsv1.NotifyGroup, error) {
+	var doc configDoc
+	err := s.notifyGroups.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, name)}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("notify group", workspaceID, name, err)
+	}
+	g := &agentsv1.NotifyGroup{}
+	if err := unmarshal(doc.Spec, g); err != nil {
+		return nil, fmt.Errorf("unmarshal notify group %q: %w", name, err)
+	}
+	return g, nil
+}
+
+func (s *Store) CreateNotifyGroup(ctx context.Context, workspaceID string, group *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error) {
+	clone := proto.Clone(group).(*agentsv1.NotifyGroup)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	if _, err := s.notifyGroups.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("notify group", workspaceID, clone.GetName(), err)
+	}
+	return clone, nil
+}
+
+func (s *Store) UpdateNotifyGroup(ctx context.Context, workspaceID string, group *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error) {
+	clone := proto.Clone(group).(*agentsv1.NotifyGroup)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	res, err := s.notifyGroups.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
+	if err != nil {
+		return nil, mapError("notify group", workspaceID, clone.GetName(), err)
+	}
+	if res.MatchedCount == 0 {
+		return nil, mapError("notify group", workspaceID, clone.GetName(), mongo.ErrNoDocuments)
+	}
+	return clone, nil
+}
+
+func (s *Store) DeleteNotifyGroup(ctx context.Context, workspaceID, name string) error {
+	res, err := s.notifyGroups.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, name)})
+	if err != nil {
+		return mapError("notify group", workspaceID, name, err)
+	}
+	if res.DeletedCount == 0 {
+		return mapError("notify group", workspaceID, name, mongo.ErrNoDocuments)
 	}
 	return nil
 }
