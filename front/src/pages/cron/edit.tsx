@@ -6,6 +6,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useCronJob, useUpdateCronJob } from "@/api/cron";
 import { useAgents } from "@/api/agents";
+import { useNotifyGroups } from "@/api/notify-groups";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +30,7 @@ const schema = z.object({
   webhook_url: z.string().optional(),
   channel_name: z.string().optional(),
   chat_id: z.string().optional(),
+  notify_group_name: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -38,6 +40,7 @@ export default function CronJobEditPage() {
   const navigate = useNavigate();
   const { data, isLoading } = useCronJob(name ?? "");
   const { data: agentsData } = useAgents();
+  const { data: notifyGroupsData } = useNotifyGroups();
   const updateMutation = useUpdateCronJob();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -52,6 +55,7 @@ export default function CronJobEditPage() {
       webhook_url: "",
       channel_name: "",
       chat_id: "",
+      notify_group_name: "",
     },
   });
   const deliveryType = useWatch({ control: form.control, name: "delivery_type" });
@@ -70,6 +74,7 @@ export default function CronJobEditPage() {
         webhook_url: j.delivery?.webhook_url ?? "",
         channel_name: j.delivery?.channel_name ?? "",
         chat_id: j.delivery?.chat_id ?? "",
+        notify_group_name: j.delivery?.notify_group_name ?? "",
       });
     }
   }, [data, form]);
@@ -83,7 +88,13 @@ export default function CronJobEditPage() {
         input: values.input,
         timezone: values.timezone,
         enabled: values.enabled,
-        delivery: { type: values.delivery_type as CronDeliveryType, webhook_url: values.webhook_url, channel_name: values.channel_name, chat_id: values.chat_id },
+        delivery: {
+          type: values.delivery_type as CronDeliveryType,
+          webhook_url: values.webhook_url,
+          channel_name: values.channel_name,
+          chat_id: values.chat_id,
+          notify_group_name: values.notify_group_name,
+        },
       },
       {
         onSuccess: () => { toast.success("Cron job updated"); navigate("/cron"); },
@@ -161,6 +172,7 @@ export default function CronJobEditPage() {
                       <SelectItem value="CRON_DELIVERY_TYPE_LOG">Log</SelectItem>
                       <SelectItem value="CRON_DELIVERY_TYPE_WEBHOOK">Webhook</SelectItem>
                       <SelectItem value="CRON_DELIVERY_TYPE_CHANNEL">Channel</SelectItem>
+                      <SelectItem value="CRON_DELIVERY_TYPE_NOTIFY_GROUP">Notify Group</SelectItem>
                     </SelectContent>
                   </Select>
                 </FormItem>
@@ -179,6 +191,21 @@ export default function CronJobEditPage() {
                     <FormItem><FormLabel>Chat ID</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                   )} />
                 </>
+              )}
+              {deliveryType === "CRON_DELIVERY_TYPE_NOTIFY_GROUP" && (
+                <FormField control={form.control} name="notify_group_name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notify Group</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select notify group" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {(notifyGroupsData?.notify_groups ?? []).map((group) => (
+                          <SelectItem key={group.name} value={group.name}>{group.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
               )}
             </CardContent>
           </Card>

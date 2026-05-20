@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/agent.proto.
  */
 export const file_agents_v1_agent: GenFile = /*@__PURE__*/
-  fileDesc("ChVhZ2VudHMvdjEvYWdlbnQucHJvdG8SCWFnZW50cy52MSKVAwoFQWdlbnQSGwoEbmFtZRgBIAEoCUIN+kIKcggQAVoEdXNlchITCgtkZXNjcmlwdGlvbhgCIAEoCRIkCgpzdWJfYWdlbnRzGAMgAygLMhAuYWdlbnRzLnYxLkFnZW50EiwKBmxhYmVscxgEIAMoCzIcLmFnZW50cy52MS5BZ2VudC5MYWJlbHNFbnRyeRIwCghtZXRhZGF0YRgFIAMoCzIeLmFnZW50cy52MS5BZ2VudC5NZXRhZGF0YUVudHJ5EiYKBmNvbmZpZxgGIAEoCzIWLmFnZW50cy52MS5BZ2VudENvbmZpZxIiCgR0eXBlGBQgASgOMhQuYWdlbnRzLnYxLkFnZW50VHlwZRISCgplbmFibGVfYTJhGBUgASgIEhQKDHdvcmtzcGFjZV9pZBhkIAEoCRotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLvAwoLQWdlbnRDb25maWcSKAoHcnVudGltZRgBIAEoCzIXLmFnZW50cy52MS5BZ2VudFJ1bnRpbWUSKQoLbWNwX3NlcnZlcnMYAiADKAsyFC5hZ2VudHMudjEuTUNQU2VydmVyEjQKDWNvbnRleHRfZ3VhcmQYAyABKAsyHS5hZ2VudHMudjEuQ29udGV4dEd1YXJkQ29uZmlnEhYKDm1jcF9zZXJ2ZXJfaWRzGAQgAygJEhgKEHJlbW90ZV9hZ2VudF9pZHMYBSADKAkSDQoFbW9kZWwYFCABKAkSEwoLaW5zdHJ1Y3Rpb24YFSABKAkSGgoSZ2xvYmFsX2luc3RydWN0aW9uGBYgASgJEiMKG2Rpc2FsbG93X3RyYW5zZmVyX3RvX3BhcmVudBgXIAEoCBIiChpkaXNhbGxvd190cmFuc2Zlcl90b19wZWVycxgYIAEoCBI3ChBpbmNsdWRlX2NvbnRlbnRzGBkgASgOMh0uYWdlbnRzLnYxLkxMTUluY2x1ZGVDb250ZW50cxISCgpvdXRwdXRfa2V5GBogASgJEhkKEWlucHV0X3NjaGVtYV9qc29uGBsgASgJEhoKEm91dHB1dF9zY2hlbWFfanNvbhgcIAEoCRIWCg5tYXhfaXRlcmF0aW9ucxgeIAEoDSJnCgxBZ2VudFJ1bnRpbWUSMAoOc3RyZWFtaW5nX21vZGUYASABKA4yGC5hZ2VudHMudjEuU3RyZWFtaW5nTW9kZRIlCh1zYXZlX2lucHV0X2Jsb2JzX2FzX2FydGlmYWN0cxgCIAEoCCLzAwoJTUNQU2VydmVyEhUKBG5hbWUYASABKAlCB/pCBHICEAESMAoJdHJhbnNwb3J0GAIgASgOMh0uYWdlbnRzLnYxLk1DUFNlcnZlclRyYW5zcG9ydBIKCgJpZBgKIAEoCRIPCgdjb21tYW5kGAMgASgJEgwKBGFyZ3MYBCADKAkSKgoDZW52GAUgAygLMh0uYWdlbnRzLnYxLk1DUFNlcnZlci5FbnZFbnRyeRILCgN1cmwYBiABKAkSMgoHaGVhZGVycxgHIAMoCzIhLmFnZW50cy52MS5NQ1BTZXJ2ZXIuSGVhZGVyc0VudHJ5EhMKC3Rvb2xfZmlsdGVyGAggAygJEjQKCG1ldGFkYXRhGAkgAygLMiIuYWdlbnRzLnYxLk1DUFNlcnZlci5NZXRhZGF0YUVudHJ5EhcKD3RpbWVvdXRfc2Vjb25kcxgLIAEoBRIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaKgoIRW52RW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEibgoSQ29udGV4dEd1YXJkQ29uZmlnEjEKCHN0cmF0ZWd5GAEgASgOMh8uYWdlbnRzLnYxLkNvbnRleHRHdWFyZFN0cmF0ZWd5EhEKCW1heF90dXJucxgCIAEoBRISCgptYXhfdG9rZW5zGAMgASgFIqkBCgtSZW1vdGVBZ2VudBITCgJpZBgBIAEoCUIH+kIEcgIQARIVCgRuYW1lGAIgASgJQgf6QgRyAhABEgsKA3VybBgDIAEoCRIwCghwcm90b2NvbBgEIAEoDjIeLmFnZW50cy52MS5SZW1vdGVBZ2VudFByb3RvY29sEhkKEWRhZW1vbl9jYXBhYmlsaXR5GAUgASgJEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSIqCgtNb2RlbENvbmZpZxIMCgRuYW1lGAEgASgJEg0KBWFsaWFzGAIgASgJIowBCg1Nb2RlbFByb3ZpZGVyEgwKBG5hbWUYASABKAkSDAoEdHlwZRgCIAEoCRIPCgdhcGlfa2V5GAMgASgJEhAKCGJhc2VfdXJsGAQgASgJEiYKBm1vZGVscxgFIAMoCzIWLmFnZW50cy52MS5Nb2RlbENvbmZpZxIUCgx3b3Jrc3BhY2VfaWQYZCABKAkqYAoNU3RyZWFtaW5nTW9kZRIeChpTVFJFQU1JTkdfTU9ERV9VTlNQRUNJRklFRBAAEhcKE1NUUkVBTUlOR19NT0RFX05PTkUQARIWChJTVFJFQU1JTkdfTU9ERV9TU0UQAiqEAQoJQWdlbnRUeXBlEhoKFkFHRU5UX1RZUEVfVU5TUEVDSUZJRUQQABISCg5BR0VOVF9UWVBFX0xMTRABEhMKD0FHRU5UX1RZUEVfTE9PUBACEhkKFUFHRU5UX1RZUEVfU0VRVUVOVElBTBADEhcKE0FHRU5UX1RZUEVfUEFSQUxMRUwQBCp7ChJMTE1JbmNsdWRlQ29udGVudHMSJAogTExNX0lOQ0xVREVfQ09OVEVOVFNfVU5TUEVDSUZJRUQQABIgChxMTE1fSU5DTFVERV9DT05URU5UU19ERUZBVUxUEAESHQoZTExNX0lOQ0xVREVfQ09OVEVOVFNfTk9ORRACKqIBChJNQ1BTZXJ2ZXJUcmFuc3BvcnQSJAogTUNQX1NFUlZFUl9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIeChpNQ1BfU0VSVkVSX1RSQU5TUE9SVF9TVERJTxABEigKJE1DUF9TRVJWRVJfVFJBTlNQT1JUX1NUUkVBTUFCTEVfSFRUUBACEhwKGE1DUF9TRVJWRVJfVFJBTlNQT1JUX1NTRRADKn0KE1JlbW90ZUFnZW50UHJvdG9jb2wSJQohUkVNT1RFX0FHRU5UX1BST1RPQ09MX1VOU1BFQ0lGSUVEEAASHQoZUkVNT1RFX0FHRU5UX1BST1RPQ09MX0EyQRABEiAKHFJFTU9URV9BR0VOVF9QUk9UT0NPTF9EQUVNT04QAiqPAQoUQ29udGV4dEd1YXJkU3RyYXRlZ3kSJgoiQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9VTlNQRUNJRklFRBAAEiQKIENPTlRFWFRfR1VBUkRfU1RSQVRFR1lfVEhSRVNIT0xEEAESKQolQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9TTElESU5HX1dJTkRPVxACQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_validate_validate]);
+  fileDesc("ChVhZ2VudHMvdjEvYWdlbnQucHJvdG8SCWFnZW50cy52MSKVAwoFQWdlbnQSGwoEbmFtZRgBIAEoCUIN+kIKcggQAVoEdXNlchITCgtkZXNjcmlwdGlvbhgCIAEoCRIkCgpzdWJfYWdlbnRzGAMgAygLMhAuYWdlbnRzLnYxLkFnZW50EiwKBmxhYmVscxgEIAMoCzIcLmFnZW50cy52MS5BZ2VudC5MYWJlbHNFbnRyeRIwCghtZXRhZGF0YRgFIAMoCzIeLmFnZW50cy52MS5BZ2VudC5NZXRhZGF0YUVudHJ5EiYKBmNvbmZpZxgGIAEoCzIWLmFnZW50cy52MS5BZ2VudENvbmZpZxIiCgR0eXBlGBQgASgOMhQuYWdlbnRzLnYxLkFnZW50VHlwZRISCgplbmFibGVfYTJhGBUgASgIEhQKDHdvcmtzcGFjZV9pZBhkIAEoCRotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLvAwoLQWdlbnRDb25maWcSKAoHcnVudGltZRgBIAEoCzIXLmFnZW50cy52MS5BZ2VudFJ1bnRpbWUSKQoLbWNwX3NlcnZlcnMYAiADKAsyFC5hZ2VudHMudjEuTUNQU2VydmVyEjQKDWNvbnRleHRfZ3VhcmQYAyABKAsyHS5hZ2VudHMudjEuQ29udGV4dEd1YXJkQ29uZmlnEhYKDm1jcF9zZXJ2ZXJfaWRzGAQgAygJEhgKEHJlbW90ZV9hZ2VudF9pZHMYBSADKAkSDQoFbW9kZWwYFCABKAkSEwoLaW5zdHJ1Y3Rpb24YFSABKAkSGgoSZ2xvYmFsX2luc3RydWN0aW9uGBYgASgJEiMKG2Rpc2FsbG93X3RyYW5zZmVyX3RvX3BhcmVudBgXIAEoCBIiChpkaXNhbGxvd190cmFuc2Zlcl90b19wZWVycxgYIAEoCBI3ChBpbmNsdWRlX2NvbnRlbnRzGBkgASgOMh0uYWdlbnRzLnYxLkxMTUluY2x1ZGVDb250ZW50cxISCgpvdXRwdXRfa2V5GBogASgJEhkKEWlucHV0X3NjaGVtYV9qc29uGBsgASgJEhoKEm91dHB1dF9zY2hlbWFfanNvbhgcIAEoCRIWCg5tYXhfaXRlcmF0aW9ucxgeIAEoDSJnCgxBZ2VudFJ1bnRpbWUSMAoOc3RyZWFtaW5nX21vZGUYASABKA4yGC5hZ2VudHMudjEuU3RyZWFtaW5nTW9kZRIlCh1zYXZlX2lucHV0X2Jsb2JzX2FzX2FydGlmYWN0cxgCIAEoCCLzAwoJTUNQU2VydmVyEhUKBG5hbWUYASABKAlCB/pCBHICEAESMAoJdHJhbnNwb3J0GAIgASgOMh0uYWdlbnRzLnYxLk1DUFNlcnZlclRyYW5zcG9ydBIKCgJpZBgKIAEoCRIPCgdjb21tYW5kGAMgASgJEgwKBGFyZ3MYBCADKAkSKgoDZW52GAUgAygLMh0uYWdlbnRzLnYxLk1DUFNlcnZlci5FbnZFbnRyeRILCgN1cmwYBiABKAkSMgoHaGVhZGVycxgHIAMoCzIhLmFnZW50cy52MS5NQ1BTZXJ2ZXIuSGVhZGVyc0VudHJ5EhMKC3Rvb2xfZmlsdGVyGAggAygJEjQKCG1ldGFkYXRhGAkgAygLMiIuYWdlbnRzLnYxLk1DUFNlcnZlci5NZXRhZGF0YUVudHJ5EhcKD3RpbWVvdXRfc2Vjb25kcxgLIAEoBRIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaKgoIRW52RW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEibgoSQ29udGV4dEd1YXJkQ29uZmlnEjEKCHN0cmF0ZWd5GAEgASgOMh8uYWdlbnRzLnYxLkNvbnRleHRHdWFyZFN0cmF0ZWd5EhEKCW1heF90dXJucxgCIAEoBRISCgptYXhfdG9rZW5zGAMgASgFIqkBCgtSZW1vdGVBZ2VudBITCgJpZBgBIAEoCUIH+kIEcgIQARIVCgRuYW1lGAIgASgJQgf6QgRyAhABEgsKA3VybBgDIAEoCRIwCghwcm90b2NvbBgEIAEoDjIeLmFnZW50cy52MS5SZW1vdGVBZ2VudFByb3RvY29sEhkKEWRhZW1vbl9jYXBhYmlsaXR5GAUgASgJEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSIqCgtNb2RlbENvbmZpZxIMCgRuYW1lGAEgASgJEg0KBWFsaWFzGAIgASgJIowBCg1Nb2RlbFByb3ZpZGVyEgwKBG5hbWUYASABKAkSDAoEdHlwZRgCIAEoCRIPCgdhcGlfa2V5GAMgASgJEhAKCGJhc2VfdXJsGAQgASgJEiYKBm1vZGVscxgFIAMoCzIWLmFnZW50cy52MS5Nb2RlbENvbmZpZxIUCgx3b3Jrc3BhY2VfaWQYZCABKAki1QEKC05vdGlmeUdyb3VwEgwKBG5hbWUYASABKAkSDwoHZW5hYmxlZBgCIAEoCBIoCgd0YXJnZXRzGAMgAygLMhcuYWdlbnRzLnYxLk5vdGlmeVRhcmdldBI2CghtZXRhZGF0YRgKIAMoCzIkLmFnZW50cy52MS5Ob3RpZnlHcm91cC5NZXRhZGF0YUVudHJ5EhQKDHdvcmtzcGFjZV9pZBhkIAEoCRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEi0QIKDE5vdGlmeVRhcmdldBIMCgRuYW1lGAEgASgJEg8KB2VuYWJsZWQYAiABKAgSKQoEdHlwZRgDIAEoDjIbLmFnZW50cy52MS5Ob3RpZnlUYXJnZXRUeXBlEjEKCHRlbGVncmFtGAQgASgLMh8uYWdlbnRzLnYxLlRlbGVncmFtTm90aWZ5VGFyZ2V0EikKBGxhcmsYBSABKAsyGy5hZ2VudHMudjEuTGFya05vdGlmeVRhcmdldBIvCgdkaXNjb3JkGAYgASgLMh4uYWdlbnRzLnYxLkRpc2NvcmROb3RpZnlUYXJnZXQSNwoIbWV0YWRhdGEYCiADKAsyJS5hZ2VudHMudjEuTm90aWZ5VGFyZ2V0Lk1ldGFkYXRhRW50cnkaLwoNTWV0YWRhdGFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBImkKFFRlbGVncmFtTm90aWZ5VGFyZ2V0EhEKCWJvdF90b2tlbhgBIAEoCRIPCgdjaGF0X2lkGAIgASgJEhIKCnBhcnNlX21vZGUYAyABKAkSGQoRbWVzc2FnZV90aHJlYWRfaWQYBCABKAMiNwoQTGFya05vdGlmeVRhcmdldBITCgt3ZWJob29rX3VybBgBIAEoCRIOCgZzZWNyZXQYAiABKAkiYwoTRGlzY29yZE5vdGlmeVRhcmdldBITCgt3ZWJob29rX3VybBgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRISCgphdmF0YXJfdXJsGAMgASgJEhEKCXRocmVhZF9pZBgEIAEoCSpgCg1TdHJlYW1pbmdNb2RlEh4KGlNUUkVBTUlOR19NT0RFX1VOU1BFQ0lGSUVEEAASFwoTU1RSRUFNSU5HX01PREVfTk9ORRABEhYKElNUUkVBTUlOR19NT0RFX1NTRRACKoQBCglBZ2VudFR5cGUSGgoWQUdFTlRfVFlQRV9VTlNQRUNJRklFRBAAEhIKDkFHRU5UX1RZUEVfTExNEAESEwoPQUdFTlRfVFlQRV9MT09QEAISGQoVQUdFTlRfVFlQRV9TRVFVRU5USUFMEAMSFwoTQUdFTlRfVFlQRV9QQVJBTExFTBAEKnsKEkxMTUluY2x1ZGVDb250ZW50cxIkCiBMTE1fSU5DTFVERV9DT05URU5UU19VTlNQRUNJRklFRBAAEiAKHExMTV9JTkNMVURFX0NPTlRFTlRTX0RFRkFVTFQQARIdChlMTE1fSU5DTFVERV9DT05URU5UU19OT05FEAIqogEKEk1DUFNlcnZlclRyYW5zcG9ydBIkCiBNQ1BfU0VSVkVSX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEh4KGk1DUF9TRVJWRVJfVFJBTlNQT1JUX1NURElPEAESKAokTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1RSRUFNQUJMRV9IVFRQEAISHAoYTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1NFEAMqfQoTUmVtb3RlQWdlbnRQcm90b2NvbBIlCiFSRU1PVEVfQUdFTlRfUFJPVE9DT0xfVU5TUEVDSUZJRUQQABIdChlSRU1PVEVfQUdFTlRfUFJPVE9DT0xfQTJBEAESIAocUkVNT1RFX0FHRU5UX1BST1RPQ09MX0RBRU1PThACKo8BChRDb250ZXh0R3VhcmRTdHJhdGVneRImCiJDT05URVhUX0dVQVJEX1NUUkFURUdZX1VOU1BFQ0lGSUVEEAASJAogQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9USFJFU0hPTEQQARIpCiVDT05URVhUX0dVQVJEX1NUUkFURUdZX1NMSURJTkdfV0lORE9XEAIqpAEKEE5vdGlmeVRhcmdldFR5cGUSIgoeTk9USUZZX1RBUkdFVF9UWVBFX1VOU1BFQ0lGSUVEEAASHwobTk9USUZZX1RBUkdFVF9UWVBFX1RFTEVHUkFNEAESIwofTk9USUZZX1RBUkdFVF9UWVBFX0xBUktfV0VCSE9PSxACEiYKIk5PVElGWV9UQVJHRVRfVFlQRV9ESVNDT1JEX1dFQkhPT0sQA0I0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_validate_validate]);
 
 /**
  * Agent describes a declarative ADK agent configuration.
@@ -342,8 +342,7 @@ export type MCPServer = Message<"agents.v1.MCPServer"> & {
   metadata: { [key: string]: string };
 
   /**
-   * Optional timeout in seconds for MCP initialization/probe requests.
-   * 0 uses the default timeout.
+   * Optional connection timeout in seconds for MCP clients.
    * @gotags: json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"
    *
    * @generated from field: int32 timeout_seconds = 11;
@@ -562,6 +561,235 @@ export const ModelProviderSchema: GenMessage<ModelProvider> = /*@__PURE__*/
   messageDesc(file_agents_v1_agent, 7);
 
 /**
+ * NotifyGroup groups outbound notification targets for cron delivery.
+ *
+ * @generated from message agents.v1.NotifyGroup
+ */
+export type NotifyGroup = Message<"agents.v1.NotifyGroup"> & {
+  /**
+   * Unique name identifying this notify group.
+   * @gotags: json:"name,omitempty" yaml:"name,omitempty"
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Whether this group is enabled. Disabled groups are skipped at delivery time.
+   * @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
+   *
+   * @generated from field: bool enabled = 2;
+   */
+  enabled: boolean;
+
+  /**
+   * Notification targets in this group.
+   * @gotags: json:"targets,omitempty" yaml:"targets,omitempty"
+   *
+   * @generated from field: repeated agents.v1.NotifyTarget targets = 3;
+   */
+  targets: NotifyTarget[];
+
+  /**
+   * @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+   *
+   * @generated from field: map<string, string> metadata = 10;
+   */
+  metadata: { [key: string]: string };
+
+  /**
+   * ID of the workspace this notify group belongs to.
+   * @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+   *
+   * @generated from field: string workspace_id = 100;
+   */
+  workspaceId: string;
+};
+
+/**
+ * Describes the message agents.v1.NotifyGroup.
+ * Use `create(NotifyGroupSchema)` to create a new message.
+ */
+export const NotifyGroupSchema: GenMessage<NotifyGroup> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 8);
+
+/**
+ * NotifyTarget is a single outbound destination in a notify group.
+ *
+ * @generated from message agents.v1.NotifyTarget
+ */
+export type NotifyTarget = Message<"agents.v1.NotifyTarget"> & {
+  /**
+   * Human-readable target name for logging and UI display.
+   * @gotags: json:"name,omitempty" yaml:"name,omitempty"
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Whether this target is enabled. Disabled targets are skipped.
+   * @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
+   *
+   * @generated from field: bool enabled = 2;
+   */
+  enabled: boolean;
+
+  /**
+   * Target platform.
+   * @gotags: json:"type,omitempty" yaml:"type,omitempty"
+   *
+   * @generated from field: agents.v1.NotifyTargetType type = 3;
+   */
+  type: NotifyTargetType;
+
+  /**
+   * Telegram target config.
+   * @gotags: json:"telegram,omitempty" yaml:"telegram,omitempty"
+   *
+   * @generated from field: agents.v1.TelegramNotifyTarget telegram = 4;
+   */
+  telegram?: TelegramNotifyTarget;
+
+  /**
+   * Lark/Feishu webhook target config.
+   * @gotags: json:"lark,omitempty" yaml:"lark,omitempty"
+   *
+   * @generated from field: agents.v1.LarkNotifyTarget lark = 5;
+   */
+  lark?: LarkNotifyTarget;
+
+  /**
+   * Discord webhook target config.
+   * @gotags: json:"discord,omitempty" yaml:"discord,omitempty"
+   *
+   * @generated from field: agents.v1.DiscordNotifyTarget discord = 6;
+   */
+  discord?: DiscordNotifyTarget;
+
+  /**
+   * @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
+   *
+   * @generated from field: map<string, string> metadata = 10;
+   */
+  metadata: { [key: string]: string };
+};
+
+/**
+ * Describes the message agents.v1.NotifyTarget.
+ * Use `create(NotifyTargetSchema)` to create a new message.
+ */
+export const NotifyTargetSchema: GenMessage<NotifyTarget> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 9);
+
+/**
+ * @generated from message agents.v1.TelegramNotifyTarget
+ */
+export type TelegramNotifyTarget = Message<"agents.v1.TelegramNotifyTarget"> & {
+  /**
+   * @gotags: json:"bot_token,omitempty" yaml:"bot_token,omitempty"
+   *
+   * @generated from field: string bot_token = 1;
+   */
+  botToken: string;
+
+  /**
+   * @gotags: json:"chat_id,omitempty" yaml:"chat_id,omitempty"
+   *
+   * @generated from field: string chat_id = 2;
+   */
+  chatId: string;
+
+  /**
+   * @gotags: json:"parse_mode,omitempty" yaml:"parse_mode,omitempty"
+   *
+   * @generated from field: string parse_mode = 3;
+   */
+  parseMode: string;
+
+  /**
+   * @gotags: json:"message_thread_id,omitempty" yaml:"message_thread_id,omitempty"
+   *
+   * @generated from field: int64 message_thread_id = 4;
+   */
+  messageThreadId: bigint;
+};
+
+/**
+ * Describes the message agents.v1.TelegramNotifyTarget.
+ * Use `create(TelegramNotifyTargetSchema)` to create a new message.
+ */
+export const TelegramNotifyTargetSchema: GenMessage<TelegramNotifyTarget> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 10);
+
+/**
+ * @generated from message agents.v1.LarkNotifyTarget
+ */
+export type LarkNotifyTarget = Message<"agents.v1.LarkNotifyTarget"> & {
+  /**
+   * @gotags: json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"
+   *
+   * @generated from field: string webhook_url = 1;
+   */
+  webhookUrl: string;
+
+  /**
+   * Optional signing secret for Lark custom bot webhooks.
+   * @gotags: json:"secret,omitempty" yaml:"secret,omitempty"
+   *
+   * @generated from field: string secret = 2;
+   */
+  secret: string;
+};
+
+/**
+ * Describes the message agents.v1.LarkNotifyTarget.
+ * Use `create(LarkNotifyTargetSchema)` to create a new message.
+ */
+export const LarkNotifyTargetSchema: GenMessage<LarkNotifyTarget> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 11);
+
+/**
+ * @generated from message agents.v1.DiscordNotifyTarget
+ */
+export type DiscordNotifyTarget = Message<"agents.v1.DiscordNotifyTarget"> & {
+  /**
+   * @gotags: json:"webhook_url,omitempty" yaml:"webhook_url,omitempty"
+   *
+   * @generated from field: string webhook_url = 1;
+   */
+  webhookUrl: string;
+
+  /**
+   * @gotags: json:"username,omitempty" yaml:"username,omitempty"
+   *
+   * @generated from field: string username = 2;
+   */
+  username: string;
+
+  /**
+   * @gotags: json:"avatar_url,omitempty" yaml:"avatar_url,omitempty"
+   *
+   * @generated from field: string avatar_url = 3;
+   */
+  avatarUrl: string;
+
+  /**
+   * @gotags: json:"thread_id,omitempty" yaml:"thread_id,omitempty"
+   *
+   * @generated from field: string thread_id = 4;
+   */
+  threadId: string;
+};
+
+/**
+ * Describes the message agents.v1.DiscordNotifyTarget.
+ * Use `create(DiscordNotifyTargetSchema)` to create a new message.
+ */
+export const DiscordNotifyTargetSchema: GenMessage<DiscordNotifyTarget> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 12);
+
+/**
  * @generated from enum agents.v1.StreamingMode
  */
 export enum StreamingMode {
@@ -739,4 +967,35 @@ export enum ContextGuardStrategy {
  */
 export const ContextGuardStrategySchema: GenEnum<ContextGuardStrategy> = /*@__PURE__*/
   enumDesc(file_agents_v1_agent, 5);
+
+/**
+ * @generated from enum agents.v1.NotifyTargetType
+ */
+export enum NotifyTargetType {
+  /**
+   * @generated from enum value: NOTIFY_TARGET_TYPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: NOTIFY_TARGET_TYPE_TELEGRAM = 1;
+   */
+  TELEGRAM = 1,
+
+  /**
+   * @generated from enum value: NOTIFY_TARGET_TYPE_LARK_WEBHOOK = 2;
+   */
+  LARK_WEBHOOK = 2,
+
+  /**
+   * @generated from enum value: NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK = 3;
+   */
+  DISCORD_WEBHOOK = 3,
+}
+
+/**
+ * Describes the enum agents.v1.NotifyTargetType.
+ */
+export const NotifyTargetTypeSchema: GenEnum<NotifyTargetType> = /*@__PURE__*/
+  enumDesc(file_agents_v1_agent, 6);
 

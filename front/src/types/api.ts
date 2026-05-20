@@ -86,7 +86,14 @@ export type CronDeliveryType =
   | "CRON_DELIVERY_TYPE_UNSPECIFIED"
   | "CRON_DELIVERY_TYPE_LOG"
   | "CRON_DELIVERY_TYPE_WEBHOOK"
-  | "CRON_DELIVERY_TYPE_CHANNEL";
+  | "CRON_DELIVERY_TYPE_CHANNEL"
+  | "CRON_DELIVERY_TYPE_NOTIFY_GROUP";
+
+export type NotifyTargetType =
+  | "NOTIFY_TARGET_TYPE_UNSPECIFIED"
+  | "NOTIFY_TARGET_TYPE_TELEGRAM"
+  | "NOTIFY_TARGET_TYPE_LARK_WEBHOOK"
+  | "NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK";
 
 export type CronExecutionStatus =
   | "CRON_EXECUTION_STATUS_UNSPECIFIED"
@@ -183,6 +190,42 @@ export interface ModelProvider {
   api_key?: string;
   base_url?: string;
   models?: ModelConfig[];
+}
+
+export interface TelegramNotifyTarget {
+  bot_token?: string;
+  chat_id?: string;
+  parse_mode?: string;
+  message_thread_id?: number;
+}
+
+export interface LarkNotifyTarget {
+  webhook_url?: string;
+  secret?: string;
+}
+
+export interface DiscordNotifyTarget {
+  webhook_url?: string;
+  username?: string;
+  avatar_url?: string;
+  thread_id?: string;
+}
+
+export interface NotifyTarget {
+  name?: string;
+  enabled?: boolean;
+  type?: NotifyTargetType;
+  telegram?: TelegramNotifyTarget;
+  lark?: LarkNotifyTarget;
+  discord?: DiscordNotifyTarget;
+  metadata?: Record<string, string>;
+}
+
+export interface NotifyGroup {
+  name: string;
+  enabled?: boolean;
+  targets?: NotifyTarget[];
+  metadata?: Record<string, string>;
 }
 
 export interface SessionInfo {
@@ -420,6 +463,7 @@ export interface CronDelivery {
   webhook_url?: string;
   channel_name?: string;
   chat_id?: string;
+  notify_group_name?: string;
 }
 
 export interface CronJob {

@@ -79,13 +79,14 @@ const PRIMARY_NAV: NavItem[] = [
     to: "/operations",
     icon: Settings2,
     label: "Operations",
-    activePrefixes: ["/operations", "/cron", "/sessions"],
+    activePrefixes: ["/operations", "/cron", "/sessions", "/notify-groups"],
   },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
   { to: "/workspaces", icon: Building2, label: "Workspaces", activePrefixes: ["/workspaces"] },
   { to: "/model-providers", icon: BrainCircuit, label: "Model Providers", activePrefixes: ["/model-providers"] },
+  { to: "/notify-groups", icon: Bell, label: "Notify Groups", activePrefixes: ["/notify-groups"] },
   { to: "/api-tokens", icon: KeyRound, label: "API Tokens", activePrefixes: ["/api-tokens"] },
   { to: "/profile", icon: UserCircle, label: "Profile", activePrefixes: ["/profile"] },
   { to: "/users", icon: Users, label: "Users", activePrefixes: ["/users"], adminOnly: true },

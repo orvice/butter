@@ -27,6 +27,8 @@ const (
 	MCPServerServiceName = "agents.v1.MCPServerService"
 	// ModelProviderServiceName is the fully-qualified name of the ModelProviderService service.
 	ModelProviderServiceName = "agents.v1.ModelProviderService"
+	// NotifyGroupServiceName is the fully-qualified name of the NotifyGroupService service.
+	NotifyGroupServiceName = "agents.v1.NotifyGroupService"
 	// RemoteAgentServiceName is the fully-qualified name of the RemoteAgentService service.
 	RemoteAgentServiceName = "agents.v1.RemoteAgentService"
 	// ChannelServiceName is the fully-qualified name of the ChannelService service.
@@ -110,6 +112,21 @@ const (
 	// ModelProviderServiceDeleteModelProviderProcedure is the fully-qualified name of the
 	// ModelProviderService's DeleteModelProvider RPC.
 	ModelProviderServiceDeleteModelProviderProcedure = "/agents.v1.ModelProviderService/DeleteModelProvider"
+	// NotifyGroupServiceListNotifyGroupsProcedure is the fully-qualified name of the
+	// NotifyGroupService's ListNotifyGroups RPC.
+	NotifyGroupServiceListNotifyGroupsProcedure = "/agents.v1.NotifyGroupService/ListNotifyGroups"
+	// NotifyGroupServiceGetNotifyGroupProcedure is the fully-qualified name of the NotifyGroupService's
+	// GetNotifyGroup RPC.
+	NotifyGroupServiceGetNotifyGroupProcedure = "/agents.v1.NotifyGroupService/GetNotifyGroup"
+	// NotifyGroupServiceCreateNotifyGroupProcedure is the fully-qualified name of the
+	// NotifyGroupService's CreateNotifyGroup RPC.
+	NotifyGroupServiceCreateNotifyGroupProcedure = "/agents.v1.NotifyGroupService/CreateNotifyGroup"
+	// NotifyGroupServiceUpdateNotifyGroupProcedure is the fully-qualified name of the
+	// NotifyGroupService's UpdateNotifyGroup RPC.
+	NotifyGroupServiceUpdateNotifyGroupProcedure = "/agents.v1.NotifyGroupService/UpdateNotifyGroup"
+	// NotifyGroupServiceDeleteNotifyGroupProcedure is the fully-qualified name of the
+	// NotifyGroupService's DeleteNotifyGroup RPC.
+	NotifyGroupServiceDeleteNotifyGroupProcedure = "/agents.v1.NotifyGroupService/DeleteNotifyGroup"
 	// RemoteAgentServiceListRemoteAgentsProcedure is the fully-qualified name of the
 	// RemoteAgentService's ListRemoteAgents RPC.
 	RemoteAgentServiceListRemoteAgentsProcedure = "/agents.v1.RemoteAgentService/ListRemoteAgents"
@@ -936,6 +953,180 @@ func (UnimplementedModelProviderServiceHandler) UpdateModelProvider(context.Cont
 
 func (UnimplementedModelProviderServiceHandler) DeleteModelProvider(context.Context, *connect.Request[v1.DeleteModelProviderRequest]) (*connect.Response[v1.DeleteModelProviderResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ModelProviderService.DeleteModelProvider is not implemented"))
+}
+
+// NotifyGroupServiceClient is a client for the agents.v1.NotifyGroupService service.
+type NotifyGroupServiceClient interface {
+	ListNotifyGroups(context.Context, *connect.Request[v1.ListNotifyGroupsRequest]) (*connect.Response[v1.ListNotifyGroupsResponse], error)
+	GetNotifyGroup(context.Context, *connect.Request[v1.GetNotifyGroupRequest]) (*connect.Response[v1.GetNotifyGroupResponse], error)
+	CreateNotifyGroup(context.Context, *connect.Request[v1.CreateNotifyGroupRequest]) (*connect.Response[v1.CreateNotifyGroupResponse], error)
+	UpdateNotifyGroup(context.Context, *connect.Request[v1.UpdateNotifyGroupRequest]) (*connect.Response[v1.UpdateNotifyGroupResponse], error)
+	DeleteNotifyGroup(context.Context, *connect.Request[v1.DeleteNotifyGroupRequest]) (*connect.Response[v1.DeleteNotifyGroupResponse], error)
+}
+
+// NewNotifyGroupServiceClient constructs a client for the agents.v1.NotifyGroupService service. By
+// default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses,
+// and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
+// connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewNotifyGroupServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) NotifyGroupServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	notifyGroupServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("NotifyGroupService").Methods()
+	return &notifyGroupServiceClient{
+		listNotifyGroups: connect.NewClient[v1.ListNotifyGroupsRequest, v1.ListNotifyGroupsResponse](
+			httpClient,
+			baseURL+NotifyGroupServiceListNotifyGroupsProcedure,
+			connect.WithSchema(notifyGroupServiceMethods.ByName("ListNotifyGroups")),
+			connect.WithClientOptions(opts...),
+		),
+		getNotifyGroup: connect.NewClient[v1.GetNotifyGroupRequest, v1.GetNotifyGroupResponse](
+			httpClient,
+			baseURL+NotifyGroupServiceGetNotifyGroupProcedure,
+			connect.WithSchema(notifyGroupServiceMethods.ByName("GetNotifyGroup")),
+			connect.WithClientOptions(opts...),
+		),
+		createNotifyGroup: connect.NewClient[v1.CreateNotifyGroupRequest, v1.CreateNotifyGroupResponse](
+			httpClient,
+			baseURL+NotifyGroupServiceCreateNotifyGroupProcedure,
+			connect.WithSchema(notifyGroupServiceMethods.ByName("CreateNotifyGroup")),
+			connect.WithClientOptions(opts...),
+		),
+		updateNotifyGroup: connect.NewClient[v1.UpdateNotifyGroupRequest, v1.UpdateNotifyGroupResponse](
+			httpClient,
+			baseURL+NotifyGroupServiceUpdateNotifyGroupProcedure,
+			connect.WithSchema(notifyGroupServiceMethods.ByName("UpdateNotifyGroup")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteNotifyGroup: connect.NewClient[v1.DeleteNotifyGroupRequest, v1.DeleteNotifyGroupResponse](
+			httpClient,
+			baseURL+NotifyGroupServiceDeleteNotifyGroupProcedure,
+			connect.WithSchema(notifyGroupServiceMethods.ByName("DeleteNotifyGroup")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// notifyGroupServiceClient implements NotifyGroupServiceClient.
+type notifyGroupServiceClient struct {
+	listNotifyGroups  *connect.Client[v1.ListNotifyGroupsRequest, v1.ListNotifyGroupsResponse]
+	getNotifyGroup    *connect.Client[v1.GetNotifyGroupRequest, v1.GetNotifyGroupResponse]
+	createNotifyGroup *connect.Client[v1.CreateNotifyGroupRequest, v1.CreateNotifyGroupResponse]
+	updateNotifyGroup *connect.Client[v1.UpdateNotifyGroupRequest, v1.UpdateNotifyGroupResponse]
+	deleteNotifyGroup *connect.Client[v1.DeleteNotifyGroupRequest, v1.DeleteNotifyGroupResponse]
+}
+
+// ListNotifyGroups calls agents.v1.NotifyGroupService.ListNotifyGroups.
+func (c *notifyGroupServiceClient) ListNotifyGroups(ctx context.Context, req *connect.Request[v1.ListNotifyGroupsRequest]) (*connect.Response[v1.ListNotifyGroupsResponse], error) {
+	return c.listNotifyGroups.CallUnary(ctx, req)
+}
+
+// GetNotifyGroup calls agents.v1.NotifyGroupService.GetNotifyGroup.
+func (c *notifyGroupServiceClient) GetNotifyGroup(ctx context.Context, req *connect.Request[v1.GetNotifyGroupRequest]) (*connect.Response[v1.GetNotifyGroupResponse], error) {
+	return c.getNotifyGroup.CallUnary(ctx, req)
+}
+
+// CreateNotifyGroup calls agents.v1.NotifyGroupService.CreateNotifyGroup.
+func (c *notifyGroupServiceClient) CreateNotifyGroup(ctx context.Context, req *connect.Request[v1.CreateNotifyGroupRequest]) (*connect.Response[v1.CreateNotifyGroupResponse], error) {
+	return c.createNotifyGroup.CallUnary(ctx, req)
+}
+
+// UpdateNotifyGroup calls agents.v1.NotifyGroupService.UpdateNotifyGroup.
+func (c *notifyGroupServiceClient) UpdateNotifyGroup(ctx context.Context, req *connect.Request[v1.UpdateNotifyGroupRequest]) (*connect.Response[v1.UpdateNotifyGroupResponse], error) {
+	return c.updateNotifyGroup.CallUnary(ctx, req)
+}
+
+// DeleteNotifyGroup calls agents.v1.NotifyGroupService.DeleteNotifyGroup.
+func (c *notifyGroupServiceClient) DeleteNotifyGroup(ctx context.Context, req *connect.Request[v1.DeleteNotifyGroupRequest]) (*connect.Response[v1.DeleteNotifyGroupResponse], error) {
+	return c.deleteNotifyGroup.CallUnary(ctx, req)
+}
+
+// NotifyGroupServiceHandler is an implementation of the agents.v1.NotifyGroupService service.
+type NotifyGroupServiceHandler interface {
+	ListNotifyGroups(context.Context, *connect.Request[v1.ListNotifyGroupsRequest]) (*connect.Response[v1.ListNotifyGroupsResponse], error)
+	GetNotifyGroup(context.Context, *connect.Request[v1.GetNotifyGroupRequest]) (*connect.Response[v1.GetNotifyGroupResponse], error)
+	CreateNotifyGroup(context.Context, *connect.Request[v1.CreateNotifyGroupRequest]) (*connect.Response[v1.CreateNotifyGroupResponse], error)
+	UpdateNotifyGroup(context.Context, *connect.Request[v1.UpdateNotifyGroupRequest]) (*connect.Response[v1.UpdateNotifyGroupResponse], error)
+	DeleteNotifyGroup(context.Context, *connect.Request[v1.DeleteNotifyGroupRequest]) (*connect.Response[v1.DeleteNotifyGroupResponse], error)
+}
+
+// NewNotifyGroupServiceHandler builds an HTTP handler from the service implementation. It returns
+// the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewNotifyGroupServiceHandler(svc NotifyGroupServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	notifyGroupServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("NotifyGroupService").Methods()
+	notifyGroupServiceListNotifyGroupsHandler := connect.NewUnaryHandler(
+		NotifyGroupServiceListNotifyGroupsProcedure,
+		svc.ListNotifyGroups,
+		connect.WithSchema(notifyGroupServiceMethods.ByName("ListNotifyGroups")),
+		connect.WithHandlerOptions(opts...),
+	)
+	notifyGroupServiceGetNotifyGroupHandler := connect.NewUnaryHandler(
+		NotifyGroupServiceGetNotifyGroupProcedure,
+		svc.GetNotifyGroup,
+		connect.WithSchema(notifyGroupServiceMethods.ByName("GetNotifyGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	notifyGroupServiceCreateNotifyGroupHandler := connect.NewUnaryHandler(
+		NotifyGroupServiceCreateNotifyGroupProcedure,
+		svc.CreateNotifyGroup,
+		connect.WithSchema(notifyGroupServiceMethods.ByName("CreateNotifyGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	notifyGroupServiceUpdateNotifyGroupHandler := connect.NewUnaryHandler(
+		NotifyGroupServiceUpdateNotifyGroupProcedure,
+		svc.UpdateNotifyGroup,
+		connect.WithSchema(notifyGroupServiceMethods.ByName("UpdateNotifyGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	notifyGroupServiceDeleteNotifyGroupHandler := connect.NewUnaryHandler(
+		NotifyGroupServiceDeleteNotifyGroupProcedure,
+		svc.DeleteNotifyGroup,
+		connect.WithSchema(notifyGroupServiceMethods.ByName("DeleteNotifyGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.NotifyGroupService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case NotifyGroupServiceListNotifyGroupsProcedure:
+			notifyGroupServiceListNotifyGroupsHandler.ServeHTTP(w, r)
+		case NotifyGroupServiceGetNotifyGroupProcedure:
+			notifyGroupServiceGetNotifyGroupHandler.ServeHTTP(w, r)
+		case NotifyGroupServiceCreateNotifyGroupProcedure:
+			notifyGroupServiceCreateNotifyGroupHandler.ServeHTTP(w, r)
+		case NotifyGroupServiceUpdateNotifyGroupProcedure:
+			notifyGroupServiceUpdateNotifyGroupHandler.ServeHTTP(w, r)
+		case NotifyGroupServiceDeleteNotifyGroupProcedure:
+			notifyGroupServiceDeleteNotifyGroupHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedNotifyGroupServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedNotifyGroupServiceHandler struct{}
+
+func (UnimplementedNotifyGroupServiceHandler) ListNotifyGroups(context.Context, *connect.Request[v1.ListNotifyGroupsRequest]) (*connect.Response[v1.ListNotifyGroupsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.NotifyGroupService.ListNotifyGroups is not implemented"))
+}
+
+func (UnimplementedNotifyGroupServiceHandler) GetNotifyGroup(context.Context, *connect.Request[v1.GetNotifyGroupRequest]) (*connect.Response[v1.GetNotifyGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.NotifyGroupService.GetNotifyGroup is not implemented"))
+}
+
+func (UnimplementedNotifyGroupServiceHandler) CreateNotifyGroup(context.Context, *connect.Request[v1.CreateNotifyGroupRequest]) (*connect.Response[v1.CreateNotifyGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.NotifyGroupService.CreateNotifyGroup is not implemented"))
+}
+
+func (UnimplementedNotifyGroupServiceHandler) UpdateNotifyGroup(context.Context, *connect.Request[v1.UpdateNotifyGroupRequest]) (*connect.Response[v1.UpdateNotifyGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.NotifyGroupService.UpdateNotifyGroup is not implemented"))
+}
+
+func (UnimplementedNotifyGroupServiceHandler) DeleteNotifyGroup(context.Context, *connect.Request[v1.DeleteNotifyGroupRequest]) (*connect.Response[v1.DeleteNotifyGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.NotifyGroupService.DeleteNotifyGroup is not implemented"))
 }
 
 // RemoteAgentServiceClient is a client for the agents.v1.RemoteAgentService service.

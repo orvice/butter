@@ -825,7 +825,6 @@ Enumerates tools across configured MCP servers. STDIO transports are skipped and
 | `headers` | map\<string,string\> | HTTP headers |
 | `tool_filter` | string[] | Allowlist of exposed tools |
 | `metadata` | map\<string,string\> | Custom metadata |
-| `timeout_seconds` | int32 | Optional MCP initialization/probe timeout; `0` uses the default |
 | `workspace_id` | string | Owning workspace |
 
 ---
@@ -899,6 +898,34 @@ POST /api/agents.v1.ModelProviderService/DeleteModelProvider
 |-------|------|-------------|
 | `name` | string | Provider model identifier |
 | `alias` | string | Short alias used by agents and channels |
+
+---
+
+### NotifyGroupService
+
+Manages outbound notification groups for cron job delivery. Requires `X-Workspace-ID` for user-session and root-token callers; API-token callers use the token's workspace.
+
+Endpoints:
+
+| RPC | Path | Request | Response |
+|-----|------|---------|----------|
+| `ListNotifyGroups` | `POST /api/agents.v1.NotifyGroupService/ListNotifyGroups` | `{}` | `{ "notify_groups": NotifyGroup[] }` |
+| `GetNotifyGroup` | `POST /api/agents.v1.NotifyGroupService/GetNotifyGroup` | `{ "name": "<group-name>" }` | `{ "notify_group": NotifyGroup }` |
+| `CreateNotifyGroup` | `POST /api/agents.v1.NotifyGroupService/CreateNotifyGroup` | `{ "notify_group": NotifyGroup }` | `{ "notify_group": NotifyGroup }` |
+| `UpdateNotifyGroup` | `POST /api/agents.v1.NotifyGroupService/UpdateNotifyGroup` | `{ "notify_group": NotifyGroup }` | `{ "notify_group": NotifyGroup }` |
+| `DeleteNotifyGroup` | `POST /api/agents.v1.NotifyGroupService/DeleteNotifyGroup` | `{ "name": "<group-name>" }` | `{}` |
+
+#### NotifyGroup Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Unique group name |
+| `enabled` | bool | Disabled groups are skipped by cron delivery |
+| `targets` | NotifyTarget[] | Telegram, Lark webhook, or Discord webhook targets |
+| `metadata` | map<string,string> | Optional metadata |
+| `workspace_id` | string | Owning workspace |
+
+`NotifyTarget.type` is one of `NOTIFY_TARGET_TYPE_TELEGRAM`, `NOTIFY_TARGET_TYPE_LARK_WEBHOOK`, or `NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK`. Target-specific config is stored under `telegram`, `lark`, or `discord`.
 
 ---
 
@@ -1450,10 +1477,11 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | enum | `CRON_DELIVERY_TYPE_LOG`, `CRON_DELIVERY_TYPE_WEBHOOK`, `CRON_DELIVERY_TYPE_CHANNEL` |
+| `type` | enum | `CRON_DELIVERY_TYPE_LOG`, `CRON_DELIVERY_TYPE_WEBHOOK`, `CRON_DELIVERY_TYPE_CHANNEL`, `CRON_DELIVERY_TYPE_NOTIFY_GROUP` |
 | `webhook_url` | string | URL for WEBHOOK type |
 | `channel_name` | string | AgentChannel name for CHANNEL type |
 | `chat_id` | string | Target chat ID for CHANNEL type |
+| `notify_group_name` | string | NotifyGroup name for NOTIFY_GROUP type |
 
 #### CronExecution Object
 

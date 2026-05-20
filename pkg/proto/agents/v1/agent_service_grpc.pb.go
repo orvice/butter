@@ -1133,6 +1133,264 @@ var ModelProviderService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	NotifyGroupService_ListNotifyGroups_FullMethodName  = "/agents.v1.NotifyGroupService/ListNotifyGroups"
+	NotifyGroupService_GetNotifyGroup_FullMethodName    = "/agents.v1.NotifyGroupService/GetNotifyGroup"
+	NotifyGroupService_CreateNotifyGroup_FullMethodName = "/agents.v1.NotifyGroupService/CreateNotifyGroup"
+	NotifyGroupService_UpdateNotifyGroup_FullMethodName = "/agents.v1.NotifyGroupService/UpdateNotifyGroup"
+	NotifyGroupService_DeleteNotifyGroup_FullMethodName = "/agents.v1.NotifyGroupService/DeleteNotifyGroup"
+)
+
+// NotifyGroupServiceClient is the client API for NotifyGroupService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// NotifyGroupService manages outbound notification groups.
+type NotifyGroupServiceClient interface {
+	ListNotifyGroups(ctx context.Context, in *ListNotifyGroupsRequest, opts ...grpc.CallOption) (*ListNotifyGroupsResponse, error)
+	GetNotifyGroup(ctx context.Context, in *GetNotifyGroupRequest, opts ...grpc.CallOption) (*GetNotifyGroupResponse, error)
+	CreateNotifyGroup(ctx context.Context, in *CreateNotifyGroupRequest, opts ...grpc.CallOption) (*CreateNotifyGroupResponse, error)
+	UpdateNotifyGroup(ctx context.Context, in *UpdateNotifyGroupRequest, opts ...grpc.CallOption) (*UpdateNotifyGroupResponse, error)
+	DeleteNotifyGroup(ctx context.Context, in *DeleteNotifyGroupRequest, opts ...grpc.CallOption) (*DeleteNotifyGroupResponse, error)
+}
+
+type notifyGroupServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewNotifyGroupServiceClient(cc grpc.ClientConnInterface) NotifyGroupServiceClient {
+	return &notifyGroupServiceClient{cc}
+}
+
+func (c *notifyGroupServiceClient) ListNotifyGroups(ctx context.Context, in *ListNotifyGroupsRequest, opts ...grpc.CallOption) (*ListNotifyGroupsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListNotifyGroupsResponse)
+	err := c.cc.Invoke(ctx, NotifyGroupService_ListNotifyGroups_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notifyGroupServiceClient) GetNotifyGroup(ctx context.Context, in *GetNotifyGroupRequest, opts ...grpc.CallOption) (*GetNotifyGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetNotifyGroupResponse)
+	err := c.cc.Invoke(ctx, NotifyGroupService_GetNotifyGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notifyGroupServiceClient) CreateNotifyGroup(ctx context.Context, in *CreateNotifyGroupRequest, opts ...grpc.CallOption) (*CreateNotifyGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateNotifyGroupResponse)
+	err := c.cc.Invoke(ctx, NotifyGroupService_CreateNotifyGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notifyGroupServiceClient) UpdateNotifyGroup(ctx context.Context, in *UpdateNotifyGroupRequest, opts ...grpc.CallOption) (*UpdateNotifyGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateNotifyGroupResponse)
+	err := c.cc.Invoke(ctx, NotifyGroupService_UpdateNotifyGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notifyGroupServiceClient) DeleteNotifyGroup(ctx context.Context, in *DeleteNotifyGroupRequest, opts ...grpc.CallOption) (*DeleteNotifyGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteNotifyGroupResponse)
+	err := c.cc.Invoke(ctx, NotifyGroupService_DeleteNotifyGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// NotifyGroupServiceServer is the server API for NotifyGroupService service.
+// All implementations must embed UnimplementedNotifyGroupServiceServer
+// for forward compatibility.
+//
+// NotifyGroupService manages outbound notification groups.
+type NotifyGroupServiceServer interface {
+	ListNotifyGroups(context.Context, *ListNotifyGroupsRequest) (*ListNotifyGroupsResponse, error)
+	GetNotifyGroup(context.Context, *GetNotifyGroupRequest) (*GetNotifyGroupResponse, error)
+	CreateNotifyGroup(context.Context, *CreateNotifyGroupRequest) (*CreateNotifyGroupResponse, error)
+	UpdateNotifyGroup(context.Context, *UpdateNotifyGroupRequest) (*UpdateNotifyGroupResponse, error)
+	DeleteNotifyGroup(context.Context, *DeleteNotifyGroupRequest) (*DeleteNotifyGroupResponse, error)
+	mustEmbedUnimplementedNotifyGroupServiceServer()
+}
+
+// UnimplementedNotifyGroupServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedNotifyGroupServiceServer struct{}
+
+func (UnimplementedNotifyGroupServiceServer) ListNotifyGroups(context.Context, *ListNotifyGroupsRequest) (*ListNotifyGroupsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListNotifyGroups not implemented")
+}
+func (UnimplementedNotifyGroupServiceServer) GetNotifyGroup(context.Context, *GetNotifyGroupRequest) (*GetNotifyGroupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNotifyGroup not implemented")
+}
+func (UnimplementedNotifyGroupServiceServer) CreateNotifyGroup(context.Context, *CreateNotifyGroupRequest) (*CreateNotifyGroupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateNotifyGroup not implemented")
+}
+func (UnimplementedNotifyGroupServiceServer) UpdateNotifyGroup(context.Context, *UpdateNotifyGroupRequest) (*UpdateNotifyGroupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateNotifyGroup not implemented")
+}
+func (UnimplementedNotifyGroupServiceServer) DeleteNotifyGroup(context.Context, *DeleteNotifyGroupRequest) (*DeleteNotifyGroupResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteNotifyGroup not implemented")
+}
+func (UnimplementedNotifyGroupServiceServer) mustEmbedUnimplementedNotifyGroupServiceServer() {}
+func (UnimplementedNotifyGroupServiceServer) testEmbeddedByValue()                            {}
+
+// UnsafeNotifyGroupServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to NotifyGroupServiceServer will
+// result in compilation errors.
+type UnsafeNotifyGroupServiceServer interface {
+	mustEmbedUnimplementedNotifyGroupServiceServer()
+}
+
+func RegisterNotifyGroupServiceServer(s grpc.ServiceRegistrar, srv NotifyGroupServiceServer) {
+	// If the following call panics, it indicates UnimplementedNotifyGroupServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&NotifyGroupService_ServiceDesc, srv)
+}
+
+func _NotifyGroupService_ListNotifyGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNotifyGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotifyGroupServiceServer).ListNotifyGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotifyGroupService_ListNotifyGroups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotifyGroupServiceServer).ListNotifyGroups(ctx, req.(*ListNotifyGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotifyGroupService_GetNotifyGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNotifyGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotifyGroupServiceServer).GetNotifyGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotifyGroupService_GetNotifyGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotifyGroupServiceServer).GetNotifyGroup(ctx, req.(*GetNotifyGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotifyGroupService_CreateNotifyGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateNotifyGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotifyGroupServiceServer).CreateNotifyGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotifyGroupService_CreateNotifyGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotifyGroupServiceServer).CreateNotifyGroup(ctx, req.(*CreateNotifyGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotifyGroupService_UpdateNotifyGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateNotifyGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotifyGroupServiceServer).UpdateNotifyGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotifyGroupService_UpdateNotifyGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotifyGroupServiceServer).UpdateNotifyGroup(ctx, req.(*UpdateNotifyGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotifyGroupService_DeleteNotifyGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteNotifyGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotifyGroupServiceServer).DeleteNotifyGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotifyGroupService_DeleteNotifyGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotifyGroupServiceServer).DeleteNotifyGroup(ctx, req.(*DeleteNotifyGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// NotifyGroupService_ServiceDesc is the grpc.ServiceDesc for NotifyGroupService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var NotifyGroupService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.NotifyGroupService",
+	HandlerType: (*NotifyGroupServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListNotifyGroups",
+			Handler:    _NotifyGroupService_ListNotifyGroups_Handler,
+		},
+		{
+			MethodName: "GetNotifyGroup",
+			Handler:    _NotifyGroupService_GetNotifyGroup_Handler,
+		},
+		{
+			MethodName: "CreateNotifyGroup",
+			Handler:    _NotifyGroupService_CreateNotifyGroup_Handler,
+		},
+		{
+			MethodName: "UpdateNotifyGroup",
+			Handler:    _NotifyGroupService_UpdateNotifyGroup_Handler,
+		},
+		{
+			MethodName: "DeleteNotifyGroup",
+			Handler:    _NotifyGroupService_DeleteNotifyGroup_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agents/v1/agent_service.proto",
+}
+
+const (
 	RemoteAgentService_ListRemoteAgents_FullMethodName     = "/agents.v1.RemoteAgentService/ListRemoteAgents"
 	RemoteAgentService_GetRemoteAgent_FullMethodName       = "/agents.v1.RemoteAgentService/GetRemoteAgent"
 	RemoteAgentService_CreateRemoteAgent_FullMethodName    = "/agents.v1.RemoteAgentService/CreateRemoteAgent"

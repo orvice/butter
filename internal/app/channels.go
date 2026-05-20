@@ -55,7 +55,7 @@ type BootstrapResult struct {
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
 // and cron scheduler. It returns the bootstrap result.
 // agentRepo is the shared agent repository used by the system agent for agent queries.
-func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configrepo.AgentRepository, channelRepo configrepo.ChannelRepository, daemonRegistry *daemon.Registry) (*BootstrapResult, error) {
+func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configrepo.AgentRepository, channelRepo configrepo.ChannelRepository, notifyGroupRepo configrepo.NotifyGroupRepository, daemonRegistry *daemon.Registry) (*BootstrapResult, error) {
 	logger := log.FromContext(ctx)
 
 	// Connect to MongoDB.
@@ -136,7 +136,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 
 	// Initialize cron scheduler.
-	cronScheduler, cronExecRepo, cronJobRepo, err := startCron(ctx, db, runnerSvc)
+	cronScheduler, cronExecRepo, cronJobRepo, err := startCron(ctx, db, runnerSvc, notifyGroupRepo)
 	if err != nil {
 		return nil, err
 	}

@@ -19,6 +19,7 @@ type Store struct {
 	remoteAgents   map[string]map[string]*agentsv1.RemoteAgent
 	channels       map[string]map[string]*agentsv1.AgentChannel
 	modelProviders map[string]map[string]*agentsv1.ModelProvider
+	notifyGroups   map[string]map[string]*agentsv1.NotifyGroup
 }
 
 func New() *Store {
@@ -28,6 +29,7 @@ func New() *Store {
 		remoteAgents:   make(map[string]map[string]*agentsv1.RemoteAgent),
 		channels:       make(map[string]map[string]*agentsv1.AgentChannel),
 		modelProviders: make(map[string]map[string]*agentsv1.ModelProvider),
+		notifyGroups:   make(map[string]map[string]*agentsv1.NotifyGroup),
 	}
 }
 
@@ -43,6 +45,9 @@ func cloneChannel(c *agentsv1.AgentChannel) *agentsv1.AgentChannel {
 }
 func cloneProvider(p *agentsv1.ModelProvider) *agentsv1.ModelProvider {
 	return proto.Clone(p).(*agentsv1.ModelProvider)
+}
+func cloneNotifyGroup(g *agentsv1.NotifyGroup) *agentsv1.NotifyGroup {
+	return proto.Clone(g).(*agentsv1.NotifyGroup)
 }
 
 func notFound(entity, ws, key string) error {
@@ -478,6 +483,92 @@ func (s *Store) DeleteModelProvider(_ context.Context, workspaceID, name string)
 	}
 	if _, ok := bucket[name]; !ok {
 		return notFound("model provider", workspaceID, name)
+	}
+	delete(bucket, name)
+	return nil
+}
+
+// --- Notify Groups ---
+
+func (s *Store) ListNotifyGroups(_ context.Context, workspaceID string) ([]*agentsv1.NotifyGroup, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bucket := s.notifyGroups[workspaceID]
+	out := make([]*agentsv1.NotifyGroup, 0, len(bucket))
+	for _, g := range bucket {
+		out = append(out, cloneNotifyGroup(g))
+	}
+	return out, nil
+}
+
+func (s *Store) ListNotifyGroupsAcrossWorkspaces(_ context.Context) ([]*agentsv1.NotifyGroup, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []*agentsv1.NotifyGroup
+	for _, bucket := range s.notifyGroups {
+		for _, g := range bucket {
+			out = append(out, cloneNotifyGroup(g))
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) GetNotifyGroup(_ context.Context, workspaceID, name string) (*agentsv1.NotifyGroup, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bucket, ok := s.notifyGroups[workspaceID]
+	if !ok {
+		return nil, notFound("notify group", workspaceID, name)
+	}
+	g, ok := bucket[name]
+	if !ok {
+		return nil, notFound("notify group", workspaceID, name)
+	}
+	return cloneNotifyGroup(g), nil
+}
+
+func (s *Store) CreateNotifyGroup(_ context.Context, workspaceID string, group *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	bucket := s.notifyGroups[workspaceID]
+	if bucket == nil {
+		bucket = make(map[string]*agentsv1.NotifyGroup)
+		s.notifyGroups[workspaceID] = bucket
+	}
+	if _, ok := bucket[group.GetName()]; ok {
+		return nil, alreadyExists("notify group", workspaceID, group.GetName())
+	}
+	stored := cloneNotifyGroup(group)
+	stored.WorkspaceId = workspaceID
+	bucket[group.GetName()] = stored
+	return cloneNotifyGroup(stored), nil
+}
+
+func (s *Store) UpdateNotifyGroup(_ context.Context, workspaceID string, group *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	bucket, ok := s.notifyGroups[workspaceID]
+	if !ok {
+		return nil, notFound("notify group", workspaceID, group.GetName())
+	}
+	if _, ok := bucket[group.GetName()]; !ok {
+		return nil, notFound("notify group", workspaceID, group.GetName())
+	}
+	stored := cloneNotifyGroup(group)
+	stored.WorkspaceId = workspaceID
+	bucket[group.GetName()] = stored
+	return cloneNotifyGroup(stored), nil
+}
+
+func (s *Store) DeleteNotifyGroup(_ context.Context, workspaceID, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	bucket, ok := s.notifyGroups[workspaceID]
+	if !ok {
+		return notFound("notify group", workspaceID, name)
+	}
+	if _, ok := bucket[name]; !ok {
+		return notFound("notify group", workspaceID, name)
 	}
 	delete(bucket, name)
 	return nil

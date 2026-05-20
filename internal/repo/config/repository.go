@@ -65,3 +65,13 @@ type ModelProviderRepository interface {
 	DeleteModelProvider(ctx context.Context, workspaceID, name string) error
 	ListModelProvidersAcrossWorkspaces(ctx context.Context) ([]*agentsv1.ModelProvider, error)
 }
+
+// NotifyGroupRepository defines CRUD operations for outbound notification groups.
+type NotifyGroupRepository interface {
+	ListNotifyGroups(ctx context.Context, workspaceID string) ([]*agentsv1.NotifyGroup, error)
+	GetNotifyGroup(ctx context.Context, workspaceID, name string) (*agentsv1.NotifyGroup, error)
+	CreateNotifyGroup(ctx context.Context, workspaceID string, group *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error)
+	UpdateNotifyGroup(ctx context.Context, workspaceID string, group *agentsv1.NotifyGroup) (*agentsv1.NotifyGroup, error)
+	DeleteNotifyGroup(ctx context.Context, workspaceID, name string) error
+	ListNotifyGroupsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.NotifyGroup, error)
+}

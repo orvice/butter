@@ -59,7 +59,7 @@ func newTestScheduler(t *testing.T, jobRepo *mockJobRepo) *cron.Scheduler {
 	t.Helper()
 	// Create scheduler with empty job repo and nil runner.
 	// This works because no jobs need to be registered at startup.
-	s, err := cron.NewScheduler(context.Background(), nil, jobRepo, &mockExecRepo{})
+	s, err := cron.NewScheduler(context.Background(), nil, jobRepo, &mockExecRepo{}, nil)
 	if err != nil {
 		t.Fatalf("NewScheduler: %v", err)
 	}

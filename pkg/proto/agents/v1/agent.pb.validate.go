@@ -1159,3 +1159,662 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ModelProviderValidationError{}
+
+// Validate checks the field values on NotifyGroup with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *NotifyGroup) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NotifyGroup with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in NotifyGroupMultiError, or
+// nil if none found.
+func (m *NotifyGroup) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NotifyGroup) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	// no validation rules for Enabled
+
+	for idx, item := range m.GetTargets() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, NotifyGroupValidationError{
+						field:  fmt.Sprintf("Targets[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, NotifyGroupValidationError{
+						field:  fmt.Sprintf("Targets[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return NotifyGroupValidationError{
+					field:  fmt.Sprintf("Targets[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Metadata
+
+	// no validation rules for WorkspaceId
+
+	if len(errors) > 0 {
+		return NotifyGroupMultiError(errors)
+	}
+
+	return nil
+}
+
+// NotifyGroupMultiError is an error wrapping multiple validation errors
+// returned by NotifyGroup.ValidateAll() if the designated constraints aren't met.
+type NotifyGroupMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NotifyGroupMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NotifyGroupMultiError) AllErrors() []error { return m }
+
+// NotifyGroupValidationError is the validation error returned by
+// NotifyGroup.Validate if the designated constraints aren't met.
+type NotifyGroupValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NotifyGroupValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NotifyGroupValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NotifyGroupValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NotifyGroupValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NotifyGroupValidationError) ErrorName() string { return "NotifyGroupValidationError" }
+
+// Error satisfies the builtin error interface
+func (e NotifyGroupValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNotifyGroup.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NotifyGroupValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NotifyGroupValidationError{}
+
+// Validate checks the field values on NotifyTarget with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *NotifyTarget) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NotifyTarget with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in NotifyTargetMultiError, or
+// nil if none found.
+func (m *NotifyTarget) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NotifyTarget) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	// no validation rules for Enabled
+
+	// no validation rules for Type
+
+	if all {
+		switch v := interface{}(m.GetTelegram()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, NotifyTargetValidationError{
+					field:  "Telegram",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, NotifyTargetValidationError{
+					field:  "Telegram",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTelegram()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return NotifyTargetValidationError{
+				field:  "Telegram",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetLark()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, NotifyTargetValidationError{
+					field:  "Lark",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, NotifyTargetValidationError{
+					field:  "Lark",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetLark()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return NotifyTargetValidationError{
+				field:  "Lark",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetDiscord()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, NotifyTargetValidationError{
+					field:  "Discord",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, NotifyTargetValidationError{
+					field:  "Discord",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDiscord()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return NotifyTargetValidationError{
+				field:  "Discord",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for Metadata
+
+	if len(errors) > 0 {
+		return NotifyTargetMultiError(errors)
+	}
+
+	return nil
+}
+
+// NotifyTargetMultiError is an error wrapping multiple validation errors
+// returned by NotifyTarget.ValidateAll() if the designated constraints aren't met.
+type NotifyTargetMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NotifyTargetMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NotifyTargetMultiError) AllErrors() []error { return m }
+
+// NotifyTargetValidationError is the validation error returned by
+// NotifyTarget.Validate if the designated constraints aren't met.
+type NotifyTargetValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NotifyTargetValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NotifyTargetValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NotifyTargetValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NotifyTargetValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NotifyTargetValidationError) ErrorName() string { return "NotifyTargetValidationError" }
+
+// Error satisfies the builtin error interface
+func (e NotifyTargetValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNotifyTarget.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NotifyTargetValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NotifyTargetValidationError{}
+
+// Validate checks the field values on TelegramNotifyTarget with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *TelegramNotifyTarget) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on TelegramNotifyTarget with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// TelegramNotifyTargetMultiError, or nil if none found.
+func (m *TelegramNotifyTarget) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *TelegramNotifyTarget) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for BotToken
+
+	// no validation rules for ChatId
+
+	// no validation rules for ParseMode
+
+	// no validation rules for MessageThreadId
+
+	if len(errors) > 0 {
+		return TelegramNotifyTargetMultiError(errors)
+	}
+
+	return nil
+}
+
+// TelegramNotifyTargetMultiError is an error wrapping multiple validation
+// errors returned by TelegramNotifyTarget.ValidateAll() if the designated
+// constraints aren't met.
+type TelegramNotifyTargetMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m TelegramNotifyTargetMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m TelegramNotifyTargetMultiError) AllErrors() []error { return m }
+
+// TelegramNotifyTargetValidationError is the validation error returned by
+// TelegramNotifyTarget.Validate if the designated constraints aren't met.
+type TelegramNotifyTargetValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e TelegramNotifyTargetValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e TelegramNotifyTargetValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e TelegramNotifyTargetValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e TelegramNotifyTargetValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e TelegramNotifyTargetValidationError) ErrorName() string {
+	return "TelegramNotifyTargetValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e TelegramNotifyTargetValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sTelegramNotifyTarget.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = TelegramNotifyTargetValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = TelegramNotifyTargetValidationError{}
+
+// Validate checks the field values on LarkNotifyTarget with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *LarkNotifyTarget) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LarkNotifyTarget with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// LarkNotifyTargetMultiError, or nil if none found.
+func (m *LarkNotifyTarget) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LarkNotifyTarget) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for WebhookUrl
+
+	// no validation rules for Secret
+
+	if len(errors) > 0 {
+		return LarkNotifyTargetMultiError(errors)
+	}
+
+	return nil
+}
+
+// LarkNotifyTargetMultiError is an error wrapping multiple validation errors
+// returned by LarkNotifyTarget.ValidateAll() if the designated constraints
+// aren't met.
+type LarkNotifyTargetMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LarkNotifyTargetMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LarkNotifyTargetMultiError) AllErrors() []error { return m }
+
+// LarkNotifyTargetValidationError is the validation error returned by
+// LarkNotifyTarget.Validate if the designated constraints aren't met.
+type LarkNotifyTargetValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e LarkNotifyTargetValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e LarkNotifyTargetValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e LarkNotifyTargetValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e LarkNotifyTargetValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e LarkNotifyTargetValidationError) ErrorName() string { return "LarkNotifyTargetValidationError" }
+
+// Error satisfies the builtin error interface
+func (e LarkNotifyTargetValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sLarkNotifyTarget.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = LarkNotifyTargetValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = LarkNotifyTargetValidationError{}
+
+// Validate checks the field values on DiscordNotifyTarget with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DiscordNotifyTarget) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DiscordNotifyTarget with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DiscordNotifyTargetMultiError, or nil if none found.
+func (m *DiscordNotifyTarget) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DiscordNotifyTarget) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for WebhookUrl
+
+	// no validation rules for Username
+
+	// no validation rules for AvatarUrl
+
+	// no validation rules for ThreadId
+
+	if len(errors) > 0 {
+		return DiscordNotifyTargetMultiError(errors)
+	}
+
+	return nil
+}
+
+// DiscordNotifyTargetMultiError is an error wrapping multiple validation
+// errors returned by DiscordNotifyTarget.ValidateAll() if the designated
+// constraints aren't met.
+type DiscordNotifyTargetMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DiscordNotifyTargetMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DiscordNotifyTargetMultiError) AllErrors() []error { return m }
+
+// DiscordNotifyTargetValidationError is the validation error returned by
+// DiscordNotifyTarget.Validate if the designated constraints aren't met.
+type DiscordNotifyTargetValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DiscordNotifyTargetValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DiscordNotifyTargetValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DiscordNotifyTargetValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DiscordNotifyTargetValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DiscordNotifyTargetValidationError) ErrorName() string {
+	return "DiscordNotifyTargetValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DiscordNotifyTargetValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDiscordNotifyTarget.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DiscordNotifyTargetValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DiscordNotifyTargetValidationError{}

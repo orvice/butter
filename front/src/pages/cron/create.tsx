@@ -5,6 +5,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useCreateCronJob } from "@/api/cron";
 import { useAgents } from "@/api/agents";
+import { useNotifyGroups } from "@/api/notify-groups";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +28,7 @@ const schema = z.object({
   webhook_url: z.string().optional(),
   channel_name: z.string().optional(),
   chat_id: z.string().optional(),
+  notify_group_name: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -35,6 +37,7 @@ export default function CronJobCreatePage() {
   const navigate = useNavigate();
   const createMutation = useCreateCronJob();
   const { data: agentsData } = useAgents();
+  const { data: notifyGroupsData } = useNotifyGroups();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", schedule: "", agent_name: "", input: "", timezone: "UTC", enabled: true, delivery_type: "CRON_DELIVERY_TYPE_LOG" },
@@ -56,6 +59,7 @@ export default function CronJobCreatePage() {
           webhook_url: values.webhook_url,
           channel_name: values.channel_name,
           chat_id: values.chat_id,
+          notify_group_name: values.notify_group_name,
         },
       },
       {
@@ -134,6 +138,7 @@ export default function CronJobCreatePage() {
                       <SelectItem value="CRON_DELIVERY_TYPE_LOG">Log</SelectItem>
                       <SelectItem value="CRON_DELIVERY_TYPE_WEBHOOK">Webhook</SelectItem>
                       <SelectItem value="CRON_DELIVERY_TYPE_CHANNEL">Channel</SelectItem>
+                      <SelectItem value="CRON_DELIVERY_TYPE_NOTIFY_GROUP">Notify Group</SelectItem>
                     </SelectContent>
                   </Select>
                 </FormItem>
@@ -152,6 +157,21 @@ export default function CronJobCreatePage() {
                     <FormItem><FormLabel>Chat ID</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                   )} />
                 </>
+              )}
+              {deliveryType === "CRON_DELIVERY_TYPE_NOTIFY_GROUP" && (
+                <FormField control={form.control} name="notify_group_name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notify Group</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select notify group" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {(notifyGroupsData?.notify_groups ?? []).map((group) => (
+                          <SelectItem key={group.name} value={group.name}>{group.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
               )}
             </CardContent>
           </Card>

@@ -164,19 +164,20 @@ func (r *MongoExecutionRepo) GetByID(ctx context.Context, id string) (*agentsv1.
 // cronJobDoc is the MongoDB document for a cron job config. _id is the
 // composite "workspace_id:name".
 type cronJobDoc struct {
-	ID           string            `bson:"_id"`
-	WorkspaceID  string            `bson:"workspace_id"`
-	Name         string            `bson:"name"`
-	Schedule     string            `bson:"schedule"`
-	AgentName    string            `bson:"agent_name"`
-	Input        string            `bson:"input"`
-	Timezone     string            `bson:"timezone"`
-	Enabled      bool              `bson:"enabled"`
-	DeliveryType int32             `bson:"delivery_type"`
-	WebhookURL   string            `bson:"webhook_url"`
-	ChannelName  string            `bson:"channel_name"`
-	ChatID       string            `bson:"chat_id"`
-	Metadata     map[string]string `bson:"metadata,omitempty"`
+	ID              string            `bson:"_id"`
+	WorkspaceID     string            `bson:"workspace_id"`
+	Name            string            `bson:"name"`
+	Schedule        string            `bson:"schedule"`
+	AgentName       string            `bson:"agent_name"`
+	Input           string            `bson:"input"`
+	Timezone        string            `bson:"timezone"`
+	Enabled         bool              `bson:"enabled"`
+	DeliveryType    int32             `bson:"delivery_type"`
+	WebhookURL      string            `bson:"webhook_url"`
+	ChannelName     string            `bson:"channel_name"`
+	ChatID          string            `bson:"chat_id"`
+	NotifyGroupName string            `bson:"notify_group_name"`
+	Metadata        map[string]string `bson:"metadata,omitempty"`
 }
 
 func jobCompositeID(workspaceID, name string) string { return workspaceID + ":" + name }
@@ -198,6 +199,7 @@ func jobDocFromProto(j *agentsv1.CronJob) *cronJobDoc {
 		doc.WebhookURL = d.GetWebhookUrl()
 		doc.ChannelName = d.GetChannelName()
 		doc.ChatID = d.GetChatId()
+		doc.NotifyGroupName = d.GetNotifyGroupName()
 	}
 	return doc
 }
@@ -213,12 +215,13 @@ func jobDocToProto(d *cronJobDoc) *agentsv1.CronJob {
 		Metadata:    d.Metadata,
 		WorkspaceId: d.WorkspaceID,
 	}
-	if d.DeliveryType != 0 || d.WebhookURL != "" || d.ChannelName != "" {
+	if d.DeliveryType != 0 || d.WebhookURL != "" || d.ChannelName != "" || d.NotifyGroupName != "" {
 		job.Delivery = &agentsv1.CronDelivery{
-			Type:        agentsv1.CronDeliveryType(d.DeliveryType),
-			WebhookUrl:  d.WebhookURL,
-			ChannelName: d.ChannelName,
-			ChatId:      d.ChatID,
+			Type:            agentsv1.CronDeliveryType(d.DeliveryType),
+			WebhookUrl:      d.WebhookURL,
+			ChannelName:     d.ChannelName,
+			ChatId:          d.ChatID,
+			NotifyGroupName: d.NotifyGroupName,
 		}
 	}
 	return job
