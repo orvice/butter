@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -40,7 +41,14 @@ func (r *fakeChannelRepo) ListChannelsAcrossWorkspaces(context.Context) ([]*agen
 	return out, nil
 }
 
-func (r *fakeChannelRepo) GetChannel(context.Context, string, string) (*agentsv1.AgentChannel, error) {
+func (r *fakeChannelRepo) GetChannel(_ context.Context, workspaceID, name string) (*agentsv1.AgentChannel, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, ch := range r.channels {
+		if ch.GetWorkspaceId() == workspaceID && ch.GetName() == name {
+			return ch, nil
+		}
+	}
 	return nil, configrepo.ErrNotFound
 }
 
@@ -213,4 +221,54 @@ func equalStringSlice(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func TestManagerDeliverCronResultTelegram(t *testing.T) {
+	repo := &fakeChannelRepo{}
+	repo.set(&agentsv1.AgentChannel{
+		Name:        "ops-telegram",
+		WorkspaceId: "ws-a",
+		Enabled:     true,
+		Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
+		Telegram:    &agentsv1.TelegramChannelConfig{BotToken: "telegram-token"},
+	})
+
+	var gotToken, gotChatID, gotText string
+	manager := &Manager{
+		repo: repo,
+		telegramSender: func(_ context.Context, token, chatID, text string) error {
+			gotToken = token
+			gotChatID = chatID
+			gotText = text
+			return nil
+		},
+	}
+
+	err := manager.DeliverCronResult(context.Background(), &agentsv1.CronJob{
+		Name:        "daily-report",
+		AgentName:   "analyst",
+		WorkspaceId: "ws-a",
+		Delivery: &agentsv1.CronDelivery{
+			Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
+			ChannelName: "ops-telegram",
+			ChatId:      "123456",
+		},
+	}, &agentsv1.CronExecution{
+		JobName:   "daily-report",
+		AgentName: "analyst",
+		Status:    agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
+		Output:    "summary ready",
+	})
+	if err != nil {
+		t.Fatalf("DeliverCronResult: %v", err)
+	}
+	if gotToken != "telegram-token" {
+		t.Errorf("token = %q, want telegram-token", gotToken)
+	}
+	if gotChatID != "123456" {
+		t.Errorf("chatID = %q, want 123456", gotChatID)
+	}
+	if gotText == "" || !strings.Contains(gotText, "summary ready") {
+		t.Errorf("text = %q, want formatted output", gotText)
+	}
 }

@@ -21,34 +21,45 @@ import (
 
 // Scheduler manages cron-based agent execution.
 type Scheduler struct {
-	cron     *robfigcron.Cron
-	runner   *runner.Service
-	execRepo ExecutionRepo
-	jobRepo  JobRepo
-	ctx      context.Context
-	cancelFn context.CancelFunc
+	cron      *robfigcron.Cron
+	runner    *runner.Service
+	execRepo  ExecutionRepo
+	jobRepo   JobRepo
+	deliverer ChannelDeliverer
+	ctx       context.Context
+	cancelFn  context.CancelFunc
 
 	mu       sync.Mutex
 	entryIDs map[string]robfigcron.EntryID // composite "workspace_id:name" -> cron entry ID
 }
 
+// ChannelDeliverer sends cron results to an AgentChannel-backed destination.
+type ChannelDeliverer interface {
+	DeliverCronResult(ctx context.Context, job *agentsv1.CronJob, exec *agentsv1.CronExecution) error
+}
+
 func jobKey(workspaceID, name string) string { return workspaceID + ":" + name }
 
 // NewScheduler creates a scheduler, loads jobs from the repo, and registers them.
-func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRepo, execRepo ExecutionRepo) (*Scheduler, error) {
+func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRepo, execRepo ExecutionRepo, deliverers ...ChannelDeliverer) (*Scheduler, error) {
 	logger := log.FromContext(ctx)
 	schedCtx, cancel := context.WithCancel(ctx)
 
 	c := robfigcron.New(robfigcron.WithChain(robfigcron.SkipIfStillRunning(robfigcron.DefaultLogger)))
+	var deliverer ChannelDeliverer
+	if len(deliverers) > 0 {
+		deliverer = deliverers[0]
+	}
 
 	s := &Scheduler{
-		cron:     c,
-		runner:   runnerSvc,
-		execRepo: execRepo,
-		jobRepo:  jobRepo,
-		ctx:      schedCtx,
-		cancelFn: cancel,
-		entryIDs: make(map[string]robfigcron.EntryID),
+		cron:      c,
+		runner:    runnerSvc,
+		execRepo:  execRepo,
+		jobRepo:   jobRepo,
+		deliverer: deliverer,
+		ctx:       schedCtx,
+		cancelFn:  cancel,
+		entryIDs:  make(map[string]robfigcron.EntryID),
 	}
 
 	// Load existing jobs from MongoDB across every workspace.
@@ -66,6 +77,13 @@ func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRep
 
 	logger.Info("cron scheduler initialized", "job_count", len(jobs))
 	return s, nil
+}
+
+// SetChannelDeliverer wires channel delivery after dependent services are ready.
+func (s *Scheduler) SetChannelDeliverer(deliverer ChannelDeliverer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deliverer = deliverer
 }
 
 // Start begins the cron scheduler.
@@ -233,14 +251,15 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 	finishTime := time.Now()
 
 	exec := &agentsv1.CronExecution{
-		Id:         execID,
-		JobName:    job.GetName(),
-		AgentName:  job.GetAgentName(),
-		Status:     agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
-		Input:      job.GetInput(),
-		Output:     output,
-		StartedAt:  timestamppb.New(startTime),
-		FinishedAt: timestamppb.New(finishTime),
+		Id:          execID,
+		JobName:     job.GetName(),
+		AgentName:   job.GetAgentName(),
+		Status:      agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
+		Input:       job.GetInput(),
+		Output:      output,
+		StartedAt:   timestamppb.New(startTime),
+		FinishedAt:  timestamppb.New(finishTime),
+		WorkspaceId: job.GetWorkspaceId(),
 	}
 
 	if err != nil {
@@ -344,8 +363,21 @@ func (s *Scheduler) deliverWebhook(job *agentsv1.CronJob, exec *agentsv1.CronExe
 	}
 }
 
-func (s *Scheduler) deliverChannel(_ *agentsv1.CronJob, _ *agentsv1.CronExecution) {
-	// TODO: implement channel delivery when channel send interface is available.
+func (s *Scheduler) deliverChannel(job *agentsv1.CronJob, exec *agentsv1.CronExecution) {
 	logger := log.FromContext(s.ctx)
-	logger.Warn("channel delivery not yet implemented, falling back to log delivery")
+	s.mu.Lock()
+	deliverer := s.deliverer
+	s.mu.Unlock()
+	if deliverer == nil {
+		logger.Warn("channel delivery configured but no channel deliverer is available", "job", job.GetName())
+		return
+	}
+	if err := deliverer.DeliverCronResult(s.ctx, job, exec); err != nil {
+		logger.Error("channel delivery failed",
+			"job", job.GetName(),
+			"channel", job.GetDelivery().GetChannelName(),
+			"chat_id", job.GetDelivery().GetChatId(),
+			"err", err,
+		)
+	}
 }

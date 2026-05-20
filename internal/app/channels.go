@@ -156,6 +156,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		logger.Error("failed to create channel manager", "err", err)
 		return nil, err
 	}
+	cronScheduler.SetChannelDeliverer(mgr)
 
 	logger.Info("starting channel manager in background")
 	go mgr.Start(ctx)

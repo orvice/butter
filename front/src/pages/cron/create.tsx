@@ -5,6 +5,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useCreateCronJob } from "@/api/cron";
 import { useAgents } from "@/api/agents";
+import { useChannels } from "@/api/channels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +28,18 @@ const schema = z.object({
   webhook_url: z.string().optional(),
   channel_name: z.string().optional(),
   chat_id: z.string().optional(),
+}).superRefine((values, ctx) => {
+  if (values.delivery_type === "CRON_DELIVERY_TYPE_WEBHOOK" && !values.webhook_url?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["webhook_url"], message: "Webhook URL is required" });
+  }
+  if (values.delivery_type === "CRON_DELIVERY_TYPE_CHANNEL") {
+    if (!values.channel_name?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["channel_name"], message: "Channel is required" });
+    }
+    if (!values.chat_id?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["chat_id"], message: "Chat ID is required" });
+    }
+  }
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -35,6 +48,7 @@ export default function CronJobCreatePage() {
   const navigate = useNavigate();
   const createMutation = useCreateCronJob();
   const { data: agentsData } = useAgents();
+  const { data: channelsData } = useChannels();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", schedule: "", agent_name: "", input: "", timezone: "UTC", enabled: true, delivery_type: "CRON_DELIVERY_TYPE_LOG" },
@@ -140,16 +154,27 @@ export default function CronJobCreatePage() {
               )} />
               {deliveryType === "CRON_DELIVERY_TYPE_WEBHOOK" && (
                 <FormField control={form.control} name="webhook_url" render={({ field }) => (
-                  <FormItem><FormLabel>Webhook URL</FormLabel><FormControl><Input placeholder="https://..." {...field} /></FormControl></FormItem>
+                  <FormItem><FormLabel>Webhook URL</FormLabel><FormControl><Input placeholder="https://..." {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
               )}
               {deliveryType === "CRON_DELIVERY_TYPE_CHANNEL" && (
                 <>
                   <FormField control={form.control} name="channel_name" render={({ field }) => (
-                    <FormItem><FormLabel>Channel Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                    <FormItem>
+                      <FormLabel>Channel</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {(channelsData?.channels ?? []).map((channel) => (
+                            <SelectItem key={channel.name} value={channel.name}>{channel.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
                   )} />
                   <FormField control={form.control} name="chat_id" render={({ field }) => (
-                    <FormItem><FormLabel>Chat ID</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                    <FormItem><FormLabel>Chat ID</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                 </>
               )}

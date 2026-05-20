@@ -36,6 +36,8 @@ type Manager struct {
 	modelNames      []string
 	telegramFactory pollerFactory
 	discordFactory  pollerFactory
+	telegramSender  textSender
+	discordSender   textSender
 
 	mu        sync.Mutex
 	parentCtx context.Context
