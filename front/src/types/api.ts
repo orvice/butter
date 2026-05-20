@@ -168,6 +168,7 @@ export interface MCPServer {
   headers?: Record<string, string>;
   tool_filter?: string[];
   metadata?: Record<string, string>;
+  timeout_seconds?: number;
 }
 
 export interface RemoteAgent {

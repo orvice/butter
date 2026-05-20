@@ -153,6 +153,10 @@ message MCPServer {
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 9;
 
+  // Optional connection timeout in seconds for MCP clients.
+  // @gotags: json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"
+  int32 timeout_seconds = 11;
+
   // ID of the workspace this server config belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
