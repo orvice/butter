@@ -22,8 +22,8 @@ func (blockingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 type captureTransport struct {
-	reqBody []byte
-	req     *http.Request
+	reqBodies [][]byte
+	reqs      []*http.Request
 }
 
 func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -31,8 +31,8 @@ func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if err != nil {
 		return nil, err
 	}
-	t.req = req
-	t.reqBody = body
+	t.reqs = append(t.reqs, req)
+	t.reqBodies = append(t.reqBodies, body)
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       http.NoBody,
@@ -65,16 +65,38 @@ func TestSendTelegramPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("send telegram: %v", err)
 	}
-	if transport.req.Method != http.MethodPost {
-		t.Fatalf("expected POST, got %s", transport.req.Method)
+	if len(transport.reqs) != 2 {
+		t.Fatalf("expected 2 telegram requests, got %d", len(transport.reqs))
 	}
-	if transport.req.URL.String() != "https://api.telegram.org/botsecret-token/sendMessage" {
-		t.Fatalf("unexpected telegram URL %s", transport.req.URL.String())
+	if transport.reqs[0].Method != http.MethodPost {
+		t.Fatalf("expected POST, got %s", transport.reqs[0].Method)
 	}
-	if got := transport.req.Header.Get("Content-Type"); got != "application/json" {
+	if transport.reqs[0].URL.String() != "https://api.telegram.org/botsecret-token/sendChatAction" {
+		t.Fatalf("unexpected telegram typing URL %s", transport.reqs[0].URL.String())
+	}
+	if got := transport.reqs[0].Header.Get("Content-Type"); got != "application/json" {
 		t.Fatalf("expected JSON content type, got %q", got)
 	}
-	if err := json.Unmarshal(transport.reqBody, &payload); err != nil {
+	if err := json.Unmarshal(transport.reqBodies[0], &payload); err != nil {
+		t.Fatalf("decode typing payload: %v", err)
+	}
+	if payload["chat_id"] != "chat-1" {
+		t.Fatalf("unexpected typing chat_id %#v", payload["chat_id"])
+	}
+	if payload["action"] != "typing" {
+		t.Fatalf("unexpected typing action %#v", payload["action"])
+	}
+	if payload["message_thread_id"] != float64(7) {
+		t.Fatalf("unexpected typing message_thread_id %#v", payload["message_thread_id"])
+	}
+
+	if transport.reqs[1].URL.String() != "https://api.telegram.org/botsecret-token/sendMessage" {
+		t.Fatalf("unexpected telegram message URL %s", transport.reqs[1].URL.String())
+	}
+	if got := transport.reqs[1].Header.Get("Content-Type"); got != "application/json" {
+		t.Fatalf("expected JSON content type, got %q", got)
+	}
+	if err := json.Unmarshal(transport.reqBodies[1], &payload); err != nil {
 		t.Fatalf("decode payload: %v", err)
 	}
 	if payload["chat_id"] != "chat-1" {
@@ -110,7 +132,10 @@ func TestSendTelegramEscapesMarkdownV2Payload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("send telegram: %v", err)
 	}
-	if err := json.Unmarshal(transport.reqBody, &payload); err != nil {
+	if len(transport.reqBodies) != 2 {
+		t.Fatalf("expected 2 telegram requests, got %d", len(transport.reqBodies))
+	}
+	if err := json.Unmarshal(transport.reqBodies[1], &payload); err != nil {
 		t.Fatalf("decode payload: %v", err)
 	}
 	if payload["text"] != `Cron job daily\-ticket: success`+"\n"+`workspace\=prod\-1 status\=ok\.` {
@@ -207,7 +232,10 @@ func TestTelegramMessageTruncation(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 	var payload map[string]any
-	if err := json.Unmarshal(transport.reqBody, &payload); err != nil {
+	if len(transport.reqBodies) != 2 {
+		t.Fatalf("expected 2 telegram requests, got %d", len(transport.reqBodies))
+	}
+	if err := json.Unmarshal(transport.reqBodies[1], &payload); err != nil {
 		t.Fatalf("decode payload: %v", err)
 	}
 	text, _ := payload["text"].(string)
