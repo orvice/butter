@@ -81,9 +81,13 @@ func (s *Sender) sendTelegram(ctx context.Context, target *agentsv1.TelegramNoti
 	if target.GetBotToken() == "" || target.GetChatId() == "" {
 		return fmt.Errorf("telegram target requires bot_token and chat_id")
 	}
+	text := formatMessage(msg)
+	if isTelegramMarkdownV2(target.GetParseMode()) {
+		text = escapeTelegramMarkdownV2(text)
+	}
 	payload := map[string]any{
 		"chat_id": target.GetChatId(),
-		"text":    truncateForTelegram(formatMessage(msg)),
+		"text":    truncateForTelegram(text),
 	}
 	if target.GetParseMode() != "" {
 		payload["parse_mode"] = target.GetParseMode()
@@ -170,6 +174,23 @@ func formatMessage(msg Message) string {
 		return msg.Title
 	}
 	return msg.Title + "\n" + msg.Text
+}
+
+func isTelegramMarkdownV2(parseMode string) bool {
+	return strings.EqualFold(strings.TrimSpace(parseMode), "MarkdownV2")
+}
+
+func escapeTelegramMarkdownV2(text string) string {
+	var b strings.Builder
+	b.Grow(len(text))
+	for _, r := range text {
+		switch r {
+		case '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!', '\\':
+			b.WriteRune('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 func larkSign(timestamp, secret string) string {
