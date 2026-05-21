@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// ForumService manages workspace-scoped discussion threads where users and
+// agents can participate together.
+service ForumService {
+  rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+  rpc GetThread(GetThreadRequest) returns (GetThreadResponse);
+  rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
+  rpc UpdateThread(UpdateThreadRequest) returns (UpdateThreadResponse);
+  rpc DeleteThread(DeleteThreadRequest) returns (DeleteThreadResponse);
+  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+  rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
+  rpc InvokeAgentInThread(InvokeAgentInThreadRequest) returns (InvokeAgentInThreadResponse);
+}
+
+message ForumThread {
+  // @gotags: bson:"_id,omitempty"
+  string id = 1;
+  // @gotags: bson:"title,omitempty"
+  string title = 2;
+  // @gotags: bson:"body,omitempty"
+  string body = 3;
+  // @gotags: bson:"created_by,omitempty"
+  string created_by = 4;
+  // @gotags: bson:"status,omitempty"
+  string status = 5;
+  // @gotags: bson:"agent_names,omitempty"
+  repeated string agent_names = 6;
+  // @gotags: bson:"metadata,omitempty"
+  map<string, string> metadata = 7;
+  // @gotags: bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 8;
+  // @gotags: bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 9;
+  // @gotags: bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+message ForumPost {
+  // @gotags: bson:"_id,omitempty"
+  string id = 1;
+  // @gotags: bson:"thread_id,omitempty"
+  string thread_id = 2;
+  // @gotags: bson:"body,omitempty"
+  string body = 3;
+  // @gotags: bson:"author_user_id,omitempty"
+  string author_user_id = 4;
+  // @gotags: bson:"author_agent_name,omitempty"
+  string author_agent_name = 5;
+  // @gotags: bson:"author_kind,omitempty"
+  string author_kind = 6;
+  // @gotags: bson:"invocation_id,omitempty"
+  string invocation_id = 7;
+  // @gotags: bson:"parent_post_id,omitempty"
+  string parent_post_id = 8;
+  // @gotags: bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 9;
+  // @gotags: bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 10;
+  // @gotags: bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+message ListThreadsRequest {
+  string status = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListThreadsResponse {
+  repeated ForumThread threads = 1;
+  string next_page_token = 2;
+  int32 total = 3;
+}
+
+message GetThreadRequest {
+  string id = 1;
+  int32 post_page_size = 2;
+  string post_page_token = 3;
+}
+
+message GetThreadResponse {
+  ForumThread thread = 1;
+  repeated ForumPost posts = 2;
+  string next_post_page_token = 3;
+  int32 post_total = 4;
+}
+
+message CreateThreadRequest {
+  string title = 1;
+  string body = 2;
+  repeated string agent_names = 3;
+  map<string, string> metadata = 4;
+}
+
+message CreateThreadResponse {
+  ForumThread thread = 1;
+  ForumPost first_post = 2;
+}
+
+message UpdateThreadRequest {
+  string id = 1;
+  string title = 2;
+  string body = 3;
+  string status = 4;
+  repeated string agent_names = 5;
+  map<string, string> metadata = 6;
+}
+
+message UpdateThreadResponse {
+  ForumThread thread = 1;
+}
+
+message DeleteThreadRequest {
+  string id = 1;
+}
+
+message DeleteThreadResponse {}
+
+message CreatePostRequest {
+  string thread_id = 1;
+  string body = 2;
+  string parent_post_id = 3;
+}
+
+message CreatePostResponse {
+  ForumPost post = 1;
+}
+
+message DeletePostRequest {
+  string thread_id = 1;
+  string post_id = 2;
+}
+
+message DeletePostResponse {}
+
+message InvokeAgentInThreadRequest {
+  string thread_id = 1;
+  string agent_name = 2;
+  string message = 3;
+  string model_override = 4;
+  int32 recent_post_limit = 5;
+}
+
+message InvokeAgentInThreadResponse {
+  ForumPost post = 1;
+  string response = 2;
+}

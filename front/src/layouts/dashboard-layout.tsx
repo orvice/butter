@@ -18,6 +18,7 @@ import {
   Bot,
   Server,
   MessageCircle,
+  MessagesSquare,
   LogOut,
   Cpu,
   Cable,
@@ -60,6 +61,7 @@ const PRIMARY_NAV: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Overview" },
   { to: "/agents", icon: Bot, label: "Agents", activePrefixes: ["/agents"] },
   { to: "/chat", icon: MessageCircle, label: "Chat", activePrefixes: ["/chat"] },
+  { to: "/forum", icon: MessagesSquare, label: "Forum", activePrefixes: ["/forum"] },
   {
     to: "/integrations",
     icon: Server,

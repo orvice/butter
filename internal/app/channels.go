@@ -22,6 +22,9 @@ import (
 	authmongo "go.orx.me/apps/butter/internal/repo/auth/mongo"
 	authredis "go.orx.me/apps/butter/internal/repo/auth/redis"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/forum"
+	forummemory "go.orx.me/apps/butter/internal/repo/forum/memory"
+	forummongo "go.orx.me/apps/butter/internal/repo/forum/mongo"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	invocationmongo "go.orx.me/apps/butter/internal/repo/invocation/mongo"
@@ -51,6 +54,7 @@ type BootstrapResult struct {
 	AuthRepo        auth.Repository
 	APITokenRepo    apitoken.Repository
 	InvocationRepo  invocation.Repository
+	ForumRepo       forum.Repository
 	WorkspaceRepo   workspacerepo.Repository
 	MCPOAuthRepo    mcpoauthrepo.Repository
 	MCPOAuthSvc     *mcpoauth.Service
@@ -91,6 +95,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		authRepo  auth.Repository
 		tokenRepo apitoken.Repository
 		invRepo   invocation.Repository
+		forumRepo forum.Repository
 		wsRepo    workspacerepo.Repository
 		oauthRepo mcpoauthrepo.Repository
 	)
@@ -106,11 +111,13 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	case "", "mongo":
 		tokenRepo = apitokenmongo.New(db)
 		invRepo = invocationmongo.New(db)
+		forumRepo = forummongo.New(db)
 		wsRepo = workspacemongo.New(db)
 		oauthRepo = mcpoauthmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
+		forumRepo = forummemory.New()
 		wsRepo = workspacememory.New()
 		oauthRepo = mcpoauthmemory.New()
 	default:
@@ -119,6 +126,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	if err := wsRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create workspace indexes", "err", err)
 		return nil, err
+	}
+	if forumRepo != nil {
+		if err := forumRepo.EnsureIndexes(ctx); err != nil {
+			logger.Error("failed to create forum indexes", "err", err)
+			return nil, err
+		}
 	}
 	if err := application.BootstrapDefaultWorkspace(ctx, wsRepo, authRepo); err != nil {
 		logger.Error("failed to bootstrap default workspace", "err", err)
@@ -196,6 +209,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		AuthRepo:        authRepo,
 		APITokenRepo:    tokenRepo,
 		InvocationRepo:  invRepo,
+		ForumRepo:       forumRepo,
 		WorkspaceRepo:   wsRepo,
 		MCPOAuthRepo:    oauthRepo,
 		MCPOAuthSvc:     oauthSvc,
