@@ -94,7 +94,11 @@ func (s *Store) DeleteThread(_ context.Context, workspaceID, id string) error {
 func (s *Store) CreatePost(_ context.Context, post *agentsv1.ForumPost) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.posts[post.GetId()] = proto.Clone(post).(*agentsv1.ForumPost)
+	stored := proto.Clone(post).(*agentsv1.ForumPost)
+	s.posts[post.GetId()] = stored
+	if thread, ok := s.threads[post.GetThreadId()]; ok && thread.GetWorkspaceId() == post.GetWorkspaceId() {
+		thread.UpdatedAt = stored.GetCreatedAt()
+	}
 	return nil
 }
 
