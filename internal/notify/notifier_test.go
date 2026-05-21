@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -157,6 +158,66 @@ func TestSendDiscordPayload(t *testing.T) {
 	if payload["avatar_url"] != "https://example.com/avatar.png" {
 		t.Fatalf("unexpected avatar_url %#v", payload["avatar_url"])
 	}
+}
+
+func TestTelegramMessageTruncation(t *testing.T) {
+	transport := &captureTransport{}
+	sender := NewSender(&http.Client{Transport: transport})
+
+	longText := strings.Repeat("a", telegramMaxTextBytes+100)
+	err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
+		Enabled: true,
+		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
+		Telegram: &agentsv1.TelegramNotifyTarget{
+			BotToken: "tok",
+			ChatId:   "chat",
+		},
+	}, Message{Text: longText})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(transport.reqBody, &payload); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	text, _ := payload["text"].(string)
+	if len([]rune(text)) > telegramMaxTextBytes {
+		t.Fatalf("text length %d exceeds Telegram limit %d", len([]rune(text)), telegramMaxTextBytes)
+	}
+	if !strings.HasSuffix(text, "[truncated]") {
+		t.Fatalf("expected truncated suffix, got: %q", text[max(0, len(text)-30):])
+	}
+}
+
+func TestPostJSONIncludesResponseBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"ok":false,"description":"Bad Request: can't parse entities"}`))
+	}))
+	defer server.Close()
+
+	sender := NewSender(server.Client())
+	err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
+		Enabled: true,
+		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_LARK_WEBHOOK,
+		Lark:    &agentsv1.LarkNotifyTarget{WebhookUrl: server.URL},
+	}, Message{Text: "body"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "400") {
+		t.Fatalf("expected status 400 in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "can't parse entities") {
+		t.Fatalf("expected response body in error, got: %v", err)
+	}
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func TestSendHonorsContextTimeout(t *testing.T) {
