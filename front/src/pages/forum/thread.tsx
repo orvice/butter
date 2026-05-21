@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Bot, Send, User } from "lucide-react";
+import { Bot, Loader2, Send, User } from "lucide-react";
 import { useAgents } from "@/api/agents";
 import { useCreateForumPost, useForumThread, useInvokeAgentInThread } from "@/api/forum";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ function fmtDate(v?: string) {
 }
 
 function authorLabel(post: ForumPost) {
+  if (post.author_kind === "system") return "system";
   if (post.author_kind === "agent" || post.author_agent_name) return post.author_agent_name || "agent";
   return post.author_user_id || "user";
 }
@@ -43,6 +44,8 @@ export default function ForumThreadPage() {
   const agents = agentsData?.agents ?? [];
   const defaultAgent = useMemo(() => thread?.agent_names?.[0] || agents[0]?.name || "", [thread, agents]);
   const selectedAgent = agentName || defaultAgent;
+  const isProcessing = thread?.status === "processing";
+  const processingAgent = thread?.metadata?.processing_agent;
 
   async function handlePost() {
     const clean = body.trim();
@@ -69,9 +72,9 @@ export default function ForumThreadPage() {
         recent_post_limit: 30,
       });
       setAgentMessage("");
-      toast.success(`${selectedAgent} replied`);
+      toast.success(`${selectedAgent} is processing this thread`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Agent invocation failed");
+      toast.error(err instanceof Error ? err.message : "Failed to queue agent");
     }
   }
 
@@ -95,16 +98,25 @@ export default function ForumThreadPage() {
           <h2 className="text-2xl font-bold tracking-tight">{thread.title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">Updated {fmtDate(thread.updated_at)}</p>
         </div>
-        <Badge>{thread.status || "open"}</Badge>
+        <div className="flex items-center gap-2">
+          {isProcessing ? (
+            <Badge variant="secondary" className="gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {processingAgent ? `${processingAgent} processing` : "Processing"}
+            </Badge>
+          ) : null}
+          <Badge>{thread.status || "open"}</Badge>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-3">
           {posts.map((post) => {
-            const isAgent = post.author_kind === "agent" || !!post.author_agent_name;
-            const Icon = isAgent ? Bot : User;
+            const isSystem = post.author_kind === "system";
+            const isAgent = !isSystem && (post.author_kind === "agent" || !!post.author_agent_name);
+            const Icon = isAgent || isSystem ? Bot : User;
             return (
-              <Card key={post.id} className={isAgent ? "border-primary/30 bg-primary/5" : undefined}>
+              <Card key={post.id} className={isAgent ? "border-primary/30 bg-primary/5" : isSystem ? "border-destructive/30 bg-destructive/5" : undefined}>
                 <CardContent className="p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -123,6 +135,14 @@ export default function ForumThreadPage() {
               </Card>
             );
           })}
+          {isProcessing ? (
+            <Card className="border-dashed">
+              <CardContent className="flex items-center gap-3 p-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>{processingAgent ? `${processingAgent} is working on a reply.` : "Agent is working on a reply."}</span>
+              </CardContent>
+            </Card>
+          ) : null}
           {posts.length === 0 ? <p className="text-sm text-muted-foreground">No posts yet.</p> : null}
         </div>
 
@@ -156,8 +176,8 @@ export default function ForumThreadPage() {
                 </SelectContent>
               </Select>
               <Textarea value={agentMessage} onChange={(e) => setAgentMessage(e.target.value)} rows={4} placeholder="Optional instruction for the agent..." />
-              <Button className="w-full" onClick={handleAskAgent} disabled={invokeAgent.isPending || !selectedAgent}>
-                <Bot className="mr-2 h-4 w-4" /> {invokeAgent.isPending ? "Thinking..." : "Ask Agent"}
+              <Button className="w-full" onClick={handleAskAgent} disabled={invokeAgent.isPending || isProcessing || !selectedAgent}>
+                <Bot className="mr-2 h-4 w-4" /> {invokeAgent.isPending ? "Queueing..." : isProcessing ? "Agent processing" : "Ask Agent"}
               </Button>
             </CardContent>
           </Card>

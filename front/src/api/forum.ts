@@ -104,6 +104,7 @@ export function useForumThread(id: string) {
     queryKey: ["forum", "thread", id],
     queryFn: () => getForumThread(id),
     enabled: !!id,
+    refetchInterval: (query) => (query.state.data?.thread?.status === "processing" ? 3000 : false),
   });
 }
 
