@@ -9,13 +9,13 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 // ForumService manages workspace-scoped discussion threads where users and
 // agents can participate together.
 service ForumService {
-  rpc ListThreads(ListForumThreadsRequest) returns (ListForumThreadsResponse);
-  rpc GetThread(GetForumThreadRequest) returns (GetForumThreadResponse);
-  rpc CreateThread(CreateForumThreadRequest) returns (CreateForumThreadResponse);
-  rpc UpdateThread(UpdateForumThreadRequest) returns (UpdateForumThreadResponse);
-  rpc DeleteThread(DeleteForumThreadRequest) returns (DeleteForumThreadResponse);
-  rpc CreatePost(CreateForumPostRequest) returns (CreateForumPostResponse);
-  rpc DeletePost(DeleteForumPostRequest) returns (DeleteForumPostResponse);
+  rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+  rpc GetThread(GetThreadRequest) returns (GetThreadResponse);
+  rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
+  rpc UpdateThread(UpdateThreadRequest) returns (UpdateThreadResponse);
+  rpc DeleteThread(DeleteThreadRequest) returns (DeleteThreadResponse);
+  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+  rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
   rpc InvokeAgentInThread(InvokeAgentInThreadRequest) returns (InvokeAgentInThreadResponse);
 }
 
@@ -67,44 +67,44 @@ message ForumPost {
   string workspace_id = 100;
 }
 
-message ListForumThreadsRequest {
+message ListThreadsRequest {
   string status = 1;
   int32 page_size = 2;
   string page_token = 3;
 }
 
-message ListForumThreadsResponse {
+message ListThreadsResponse {
   repeated ForumThread threads = 1;
   string next_page_token = 2;
   int32 total = 3;
 }
 
-message GetForumThreadRequest {
+message GetThreadRequest {
   string id = 1;
   int32 post_page_size = 2;
   string post_page_token = 3;
 }
 
-message GetForumThreadResponse {
+message GetThreadResponse {
   ForumThread thread = 1;
   repeated ForumPost posts = 2;
   string next_post_page_token = 3;
   int32 post_total = 4;
 }
 
-message CreateForumThreadRequest {
+message CreateThreadRequest {
   string title = 1;
   string body = 2;
   repeated string agent_names = 3;
   map<string, string> metadata = 4;
 }
 
-message CreateForumThreadResponse {
+message CreateThreadResponse {
   ForumThread thread = 1;
   ForumPost first_post = 2;
 }
 
-message UpdateForumThreadRequest {
+message UpdateThreadRequest {
   string id = 1;
   string title = 2;
   string body = 3;
@@ -113,32 +113,32 @@ message UpdateForumThreadRequest {
   map<string, string> metadata = 6;
 }
 
-message UpdateForumThreadResponse {
+message UpdateThreadResponse {
   ForumThread thread = 1;
 }
 
-message DeleteForumThreadRequest {
+message DeleteThreadRequest {
   string id = 1;
 }
 
-message DeleteForumThreadResponse {}
+message DeleteThreadResponse {}
 
-message CreateForumPostRequest {
+message CreatePostRequest {
   string thread_id = 1;
   string body = 2;
   string parent_post_id = 3;
 }
 
-message CreateForumPostResponse {
+message CreatePostResponse {
   ForumPost post = 1;
 }
 
-message DeleteForumPostRequest {
+message DeletePostRequest {
   string thread_id = 1;
   string post_id = 2;
 }
 
-message DeleteForumPostResponse {}
+message DeletePostResponse {}
 
 message InvokeAgentInThreadRequest {
   string thread_id = 1;

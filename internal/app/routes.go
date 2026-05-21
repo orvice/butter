@@ -78,18 +78,6 @@ func (h *Handlers) authRepoFromHolder() auth.Repository {
 	return repo
 }
 
-func (h *Handlers) forumRepoFromHolder() forum.Repository {
-	if h == nil {
-		return nil
-	}
-	v := h.forumRepo.Load()
-	if v == nil {
-		return nil
-	}
-	repo, _ := v.(forum.Repository)
-	return repo
-}
-
 func (h *Handlers) workspaceRepoFromHolder() workspace.Repository {
 	if h == nil {
 		return nil

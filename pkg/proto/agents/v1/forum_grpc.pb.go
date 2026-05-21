@@ -36,13 +36,13 @@ const (
 // ForumService manages workspace-scoped discussion threads where users and
 // agents can participate together.
 type ForumServiceClient interface {
-	ListThreads(ctx context.Context, in *ListForumThreadsRequest, opts ...grpc.CallOption) (*ListForumThreadsResponse, error)
-	GetThread(ctx context.Context, in *GetForumThreadRequest, opts ...grpc.CallOption) (*GetForumThreadResponse, error)
-	CreateThread(ctx context.Context, in *CreateForumThreadRequest, opts ...grpc.CallOption) (*CreateForumThreadResponse, error)
-	UpdateThread(ctx context.Context, in *UpdateForumThreadRequest, opts ...grpc.CallOption) (*UpdateForumThreadResponse, error)
-	DeleteThread(ctx context.Context, in *DeleteForumThreadRequest, opts ...grpc.CallOption) (*DeleteForumThreadResponse, error)
-	CreatePost(ctx context.Context, in *CreateForumPostRequest, opts ...grpc.CallOption) (*CreateForumPostResponse, error)
-	DeletePost(ctx context.Context, in *DeleteForumPostRequest, opts ...grpc.CallOption) (*DeleteForumPostResponse, error)
+	ListThreads(ctx context.Context, in *ListThreadsRequest, opts ...grpc.CallOption) (*ListThreadsResponse, error)
+	GetThread(ctx context.Context, in *GetThreadRequest, opts ...grpc.CallOption) (*GetThreadResponse, error)
+	CreateThread(ctx context.Context, in *CreateThreadRequest, opts ...grpc.CallOption) (*CreateThreadResponse, error)
+	UpdateThread(ctx context.Context, in *UpdateThreadRequest, opts ...grpc.CallOption) (*UpdateThreadResponse, error)
+	DeleteThread(ctx context.Context, in *DeleteThreadRequest, opts ...grpc.CallOption) (*DeleteThreadResponse, error)
+	CreatePost(ctx context.Context, in *CreatePostRequest, opts ...grpc.CallOption) (*CreatePostResponse, error)
+	DeletePost(ctx context.Context, in *DeletePostRequest, opts ...grpc.CallOption) (*DeletePostResponse, error)
 	InvokeAgentInThread(ctx context.Context, in *InvokeAgentInThreadRequest, opts ...grpc.CallOption) (*InvokeAgentInThreadResponse, error)
 }
 
@@ -54,9 +54,9 @@ func NewForumServiceClient(cc grpc.ClientConnInterface) ForumServiceClient {
 	return &forumServiceClient{cc}
 }
 
-func (c *forumServiceClient) ListThreads(ctx context.Context, in *ListForumThreadsRequest, opts ...grpc.CallOption) (*ListForumThreadsResponse, error) {
+func (c *forumServiceClient) ListThreads(ctx context.Context, in *ListThreadsRequest, opts ...grpc.CallOption) (*ListThreadsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListForumThreadsResponse)
+	out := new(ListThreadsResponse)
 	err := c.cc.Invoke(ctx, ForumService_ListThreads_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -64,9 +64,9 @@ func (c *forumServiceClient) ListThreads(ctx context.Context, in *ListForumThrea
 	return out, nil
 }
 
-func (c *forumServiceClient) GetThread(ctx context.Context, in *GetForumThreadRequest, opts ...grpc.CallOption) (*GetForumThreadResponse, error) {
+func (c *forumServiceClient) GetThread(ctx context.Context, in *GetThreadRequest, opts ...grpc.CallOption) (*GetThreadResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetForumThreadResponse)
+	out := new(GetThreadResponse)
 	err := c.cc.Invoke(ctx, ForumService_GetThread_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -74,9 +74,9 @@ func (c *forumServiceClient) GetThread(ctx context.Context, in *GetForumThreadRe
 	return out, nil
 }
 
-func (c *forumServiceClient) CreateThread(ctx context.Context, in *CreateForumThreadRequest, opts ...grpc.CallOption) (*CreateForumThreadResponse, error) {
+func (c *forumServiceClient) CreateThread(ctx context.Context, in *CreateThreadRequest, opts ...grpc.CallOption) (*CreateThreadResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateForumThreadResponse)
+	out := new(CreateThreadResponse)
 	err := c.cc.Invoke(ctx, ForumService_CreateThread_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -84,9 +84,9 @@ func (c *forumServiceClient) CreateThread(ctx context.Context, in *CreateForumTh
 	return out, nil
 }
 
-func (c *forumServiceClient) UpdateThread(ctx context.Context, in *UpdateForumThreadRequest, opts ...grpc.CallOption) (*UpdateForumThreadResponse, error) {
+func (c *forumServiceClient) UpdateThread(ctx context.Context, in *UpdateThreadRequest, opts ...grpc.CallOption) (*UpdateThreadResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdateForumThreadResponse)
+	out := new(UpdateThreadResponse)
 	err := c.cc.Invoke(ctx, ForumService_UpdateThread_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -94,9 +94,9 @@ func (c *forumServiceClient) UpdateThread(ctx context.Context, in *UpdateForumTh
 	return out, nil
 }
 
-func (c *forumServiceClient) DeleteThread(ctx context.Context, in *DeleteForumThreadRequest, opts ...grpc.CallOption) (*DeleteForumThreadResponse, error) {
+func (c *forumServiceClient) DeleteThread(ctx context.Context, in *DeleteThreadRequest, opts ...grpc.CallOption) (*DeleteThreadResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteForumThreadResponse)
+	out := new(DeleteThreadResponse)
 	err := c.cc.Invoke(ctx, ForumService_DeleteThread_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -104,9 +104,9 @@ func (c *forumServiceClient) DeleteThread(ctx context.Context, in *DeleteForumTh
 	return out, nil
 }
 
-func (c *forumServiceClient) CreatePost(ctx context.Context, in *CreateForumPostRequest, opts ...grpc.CallOption) (*CreateForumPostResponse, error) {
+func (c *forumServiceClient) CreatePost(ctx context.Context, in *CreatePostRequest, opts ...grpc.CallOption) (*CreatePostResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateForumPostResponse)
+	out := new(CreatePostResponse)
 	err := c.cc.Invoke(ctx, ForumService_CreatePost_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -114,9 +114,9 @@ func (c *forumServiceClient) CreatePost(ctx context.Context, in *CreateForumPost
 	return out, nil
 }
 
-func (c *forumServiceClient) DeletePost(ctx context.Context, in *DeleteForumPostRequest, opts ...grpc.CallOption) (*DeleteForumPostResponse, error) {
+func (c *forumServiceClient) DeletePost(ctx context.Context, in *DeletePostRequest, opts ...grpc.CallOption) (*DeletePostResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteForumPostResponse)
+	out := new(DeletePostResponse)
 	err := c.cc.Invoke(ctx, ForumService_DeletePost_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -141,13 +141,13 @@ func (c *forumServiceClient) InvokeAgentInThread(ctx context.Context, in *Invoke
 // ForumService manages workspace-scoped discussion threads where users and
 // agents can participate together.
 type ForumServiceServer interface {
-	ListThreads(context.Context, *ListForumThreadsRequest) (*ListForumThreadsResponse, error)
-	GetThread(context.Context, *GetForumThreadRequest) (*GetForumThreadResponse, error)
-	CreateThread(context.Context, *CreateForumThreadRequest) (*CreateForumThreadResponse, error)
-	UpdateThread(context.Context, *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error)
-	DeleteThread(context.Context, *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error)
-	CreatePost(context.Context, *CreateForumPostRequest) (*CreateForumPostResponse, error)
-	DeletePost(context.Context, *DeleteForumPostRequest) (*DeleteForumPostResponse, error)
+	ListThreads(context.Context, *ListThreadsRequest) (*ListThreadsResponse, error)
+	GetThread(context.Context, *GetThreadRequest) (*GetThreadResponse, error)
+	CreateThread(context.Context, *CreateThreadRequest) (*CreateThreadResponse, error)
+	UpdateThread(context.Context, *UpdateThreadRequest) (*UpdateThreadResponse, error)
+	DeleteThread(context.Context, *DeleteThreadRequest) (*DeleteThreadResponse, error)
+	CreatePost(context.Context, *CreatePostRequest) (*CreatePostResponse, error)
+	DeletePost(context.Context, *DeletePostRequest) (*DeletePostResponse, error)
 	InvokeAgentInThread(context.Context, *InvokeAgentInThreadRequest) (*InvokeAgentInThreadResponse, error)
 	mustEmbedUnimplementedForumServiceServer()
 }
@@ -159,25 +159,25 @@ type ForumServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedForumServiceServer struct{}
 
-func (UnimplementedForumServiceServer) ListThreads(context.Context, *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
+func (UnimplementedForumServiceServer) ListThreads(context.Context, *ListThreadsRequest) (*ListThreadsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListThreads not implemented")
 }
-func (UnimplementedForumServiceServer) GetThread(context.Context, *GetForumThreadRequest) (*GetForumThreadResponse, error) {
+func (UnimplementedForumServiceServer) GetThread(context.Context, *GetThreadRequest) (*GetThreadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetThread not implemented")
 }
-func (UnimplementedForumServiceServer) CreateThread(context.Context, *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
+func (UnimplementedForumServiceServer) CreateThread(context.Context, *CreateThreadRequest) (*CreateThreadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateThread not implemented")
 }
-func (UnimplementedForumServiceServer) UpdateThread(context.Context, *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
+func (UnimplementedForumServiceServer) UpdateThread(context.Context, *UpdateThreadRequest) (*UpdateThreadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateThread not implemented")
 }
-func (UnimplementedForumServiceServer) DeleteThread(context.Context, *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
+func (UnimplementedForumServiceServer) DeleteThread(context.Context, *DeleteThreadRequest) (*DeleteThreadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteThread not implemented")
 }
-func (UnimplementedForumServiceServer) CreatePost(context.Context, *CreateForumPostRequest) (*CreateForumPostResponse, error) {
+func (UnimplementedForumServiceServer) CreatePost(context.Context, *CreatePostRequest) (*CreatePostResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreatePost not implemented")
 }
-func (UnimplementedForumServiceServer) DeletePost(context.Context, *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
+func (UnimplementedForumServiceServer) DeletePost(context.Context, *DeletePostRequest) (*DeletePostResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeletePost not implemented")
 }
 func (UnimplementedForumServiceServer) InvokeAgentInThread(context.Context, *InvokeAgentInThreadRequest) (*InvokeAgentInThreadResponse, error) {
@@ -205,7 +205,7 @@ func RegisterForumServiceServer(s grpc.ServiceRegistrar, srv ForumServiceServer)
 }
 
 func _ForumService_ListThreads_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListForumThreadsRequest)
+	in := new(ListThreadsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -217,13 +217,13 @@ func _ForumService_ListThreads_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: ForumService_ListThreads_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ForumServiceServer).ListThreads(ctx, req.(*ListForumThreadsRequest))
+		return srv.(ForumServiceServer).ListThreads(ctx, req.(*ListThreadsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ForumService_GetThread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetForumThreadRequest)
+	in := new(GetThreadRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -235,13 +235,13 @@ func _ForumService_GetThread_Handler(srv interface{}, ctx context.Context, dec f
 		FullMethod: ForumService_GetThread_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ForumServiceServer).GetThread(ctx, req.(*GetForumThreadRequest))
+		return srv.(ForumServiceServer).GetThread(ctx, req.(*GetThreadRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ForumService_CreateThread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateForumThreadRequest)
+	in := new(CreateThreadRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -253,13 +253,13 @@ func _ForumService_CreateThread_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: ForumService_CreateThread_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ForumServiceServer).CreateThread(ctx, req.(*CreateForumThreadRequest))
+		return srv.(ForumServiceServer).CreateThread(ctx, req.(*CreateThreadRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ForumService_UpdateThread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateForumThreadRequest)
+	in := new(UpdateThreadRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -271,13 +271,13 @@ func _ForumService_UpdateThread_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: ForumService_UpdateThread_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ForumServiceServer).UpdateThread(ctx, req.(*UpdateForumThreadRequest))
+		return srv.(ForumServiceServer).UpdateThread(ctx, req.(*UpdateThreadRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ForumService_DeleteThread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteForumThreadRequest)
+	in := new(DeleteThreadRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -289,13 +289,13 @@ func _ForumService_DeleteThread_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: ForumService_DeleteThread_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ForumServiceServer).DeleteThread(ctx, req.(*DeleteForumThreadRequest))
+		return srv.(ForumServiceServer).DeleteThread(ctx, req.(*DeleteThreadRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ForumService_CreatePost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateForumPostRequest)
+	in := new(CreatePostRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -307,13 +307,13 @@ func _ForumService_CreatePost_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: ForumService_CreatePost_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ForumServiceServer).CreatePost(ctx, req.(*CreateForumPostRequest))
+		return srv.(ForumServiceServer).CreatePost(ctx, req.(*CreatePostRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ForumService_DeletePost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteForumPostRequest)
+	in := new(DeletePostRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -325,7 +325,7 @@ func _ForumService_DeletePost_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: ForumService_DeletePost_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ForumServiceServer).DeletePost(ctx, req.(*DeleteForumPostRequest))
+		return srv.(ForumServiceServer).DeletePost(ctx, req.(*DeletePostRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

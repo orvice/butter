@@ -29,19 +29,19 @@ const _ = twirp.TwirpPackageMinVersion_8_1_0
 // ForumService manages workspace-scoped discussion threads where users and
 // agents can participate together.
 type ForumService interface {
-	ListThreads(context.Context, *ListForumThreadsRequest) (*ListForumThreadsResponse, error)
+	ListThreads(context.Context, *ListThreadsRequest) (*ListThreadsResponse, error)
 
-	GetThread(context.Context, *GetForumThreadRequest) (*GetForumThreadResponse, error)
+	GetThread(context.Context, *GetThreadRequest) (*GetThreadResponse, error)
 
-	CreateThread(context.Context, *CreateForumThreadRequest) (*CreateForumThreadResponse, error)
+	CreateThread(context.Context, *CreateThreadRequest) (*CreateThreadResponse, error)
 
-	UpdateThread(context.Context, *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error)
+	UpdateThread(context.Context, *UpdateThreadRequest) (*UpdateThreadResponse, error)
 
-	DeleteThread(context.Context, *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error)
+	DeleteThread(context.Context, *DeleteThreadRequest) (*DeleteThreadResponse, error)
 
-	CreatePost(context.Context, *CreateForumPostRequest) (*CreateForumPostResponse, error)
+	CreatePost(context.Context, *CreatePostRequest) (*CreatePostResponse, error)
 
-	DeletePost(context.Context, *DeleteForumPostRequest) (*DeleteForumPostResponse, error)
+	DeletePost(context.Context, *DeletePostRequest) (*DeletePostResponse, error)
 
 	InvokeAgentInThread(context.Context, *InvokeAgentInThreadRequest) (*InvokeAgentInThreadResponse, error)
 }
@@ -99,26 +99,26 @@ func NewForumServiceProtobufClient(baseURL string, client HTTPClient, opts ...tw
 	}
 }
 
-func (c *forumServiceProtobufClient) ListThreads(ctx context.Context, in *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
+func (c *forumServiceProtobufClient) ListThreads(ctx context.Context, in *ListThreadsRequest) (*ListThreadsResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "ListThreads")
 	caller := c.callListThreads
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
+		caller = func(ctx context.Context, req *ListThreadsRequest) (*ListThreadsResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ListForumThreadsRequest)
+					typedReq, ok := req.(*ListThreadsRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ListForumThreadsRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ListThreadsRequest) when calling interceptor")
 					}
 					return c.callListThreads(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*ListForumThreadsResponse)
+				typedResp, ok := resp.(*ListThreadsResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ListForumThreadsResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ListThreadsResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -128,8 +128,8 @@ func (c *forumServiceProtobufClient) ListThreads(ctx context.Context, in *ListFo
 	return caller(ctx, in)
 }
 
-func (c *forumServiceProtobufClient) callListThreads(ctx context.Context, in *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
-	out := new(ListForumThreadsResponse)
+func (c *forumServiceProtobufClient) callListThreads(ctx context.Context, in *ListThreadsRequest) (*ListThreadsResponse, error) {
+	out := new(ListThreadsResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -145,26 +145,26 @@ func (c *forumServiceProtobufClient) callListThreads(ctx context.Context, in *Li
 	return out, nil
 }
 
-func (c *forumServiceProtobufClient) GetThread(ctx context.Context, in *GetForumThreadRequest) (*GetForumThreadResponse, error) {
+func (c *forumServiceProtobufClient) GetThread(ctx context.Context, in *GetThreadRequest) (*GetThreadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetThread")
 	caller := c.callGetThread
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetForumThreadRequest) (*GetForumThreadResponse, error) {
+		caller = func(ctx context.Context, req *GetThreadRequest) (*GetThreadResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*GetForumThreadRequest)
+					typedReq, ok := req.(*GetThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*GetForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*GetThreadRequest) when calling interceptor")
 					}
 					return c.callGetThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*GetForumThreadResponse)
+				typedResp, ok := resp.(*GetThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*GetForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -174,8 +174,8 @@ func (c *forumServiceProtobufClient) GetThread(ctx context.Context, in *GetForum
 	return caller(ctx, in)
 }
 
-func (c *forumServiceProtobufClient) callGetThread(ctx context.Context, in *GetForumThreadRequest) (*GetForumThreadResponse, error) {
-	out := new(GetForumThreadResponse)
+func (c *forumServiceProtobufClient) callGetThread(ctx context.Context, in *GetThreadRequest) (*GetThreadResponse, error) {
+	out := new(GetThreadResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -191,26 +191,26 @@ func (c *forumServiceProtobufClient) callGetThread(ctx context.Context, in *GetF
 	return out, nil
 }
 
-func (c *forumServiceProtobufClient) CreateThread(ctx context.Context, in *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
+func (c *forumServiceProtobufClient) CreateThread(ctx context.Context, in *CreateThreadRequest) (*CreateThreadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateThread")
 	caller := c.callCreateThread
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
+		caller = func(ctx context.Context, req *CreateThreadRequest) (*CreateThreadResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*CreateForumThreadRequest)
+					typedReq, ok := req.(*CreateThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*CreateForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*CreateThreadRequest) when calling interceptor")
 					}
 					return c.callCreateThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CreateForumThreadResponse)
+				typedResp, ok := resp.(*CreateThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CreateForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -220,8 +220,8 @@ func (c *forumServiceProtobufClient) CreateThread(ctx context.Context, in *Creat
 	return caller(ctx, in)
 }
 
-func (c *forumServiceProtobufClient) callCreateThread(ctx context.Context, in *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
-	out := new(CreateForumThreadResponse)
+func (c *forumServiceProtobufClient) callCreateThread(ctx context.Context, in *CreateThreadRequest) (*CreateThreadResponse, error) {
+	out := new(CreateThreadResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -237,26 +237,26 @@ func (c *forumServiceProtobufClient) callCreateThread(ctx context.Context, in *C
 	return out, nil
 }
 
-func (c *forumServiceProtobufClient) UpdateThread(ctx context.Context, in *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
+func (c *forumServiceProtobufClient) UpdateThread(ctx context.Context, in *UpdateThreadRequest) (*UpdateThreadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateThread")
 	caller := c.callUpdateThread
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
+		caller = func(ctx context.Context, req *UpdateThreadRequest) (*UpdateThreadResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*UpdateForumThreadRequest)
+					typedReq, ok := req.(*UpdateThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*UpdateForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateThreadRequest) when calling interceptor")
 					}
 					return c.callUpdateThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*UpdateForumThreadResponse)
+				typedResp, ok := resp.(*UpdateThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*UpdateForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -266,8 +266,8 @@ func (c *forumServiceProtobufClient) UpdateThread(ctx context.Context, in *Updat
 	return caller(ctx, in)
 }
 
-func (c *forumServiceProtobufClient) callUpdateThread(ctx context.Context, in *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
-	out := new(UpdateForumThreadResponse)
+func (c *forumServiceProtobufClient) callUpdateThread(ctx context.Context, in *UpdateThreadRequest) (*UpdateThreadResponse, error) {
+	out := new(UpdateThreadResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -283,26 +283,26 @@ func (c *forumServiceProtobufClient) callUpdateThread(ctx context.Context, in *U
 	return out, nil
 }
 
-func (c *forumServiceProtobufClient) DeleteThread(ctx context.Context, in *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
+func (c *forumServiceProtobufClient) DeleteThread(ctx context.Context, in *DeleteThreadRequest) (*DeleteThreadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteThread")
 	caller := c.callDeleteThread
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
+		caller = func(ctx context.Context, req *DeleteThreadRequest) (*DeleteThreadResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DeleteForumThreadRequest)
+					typedReq, ok := req.(*DeleteThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DeleteForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteThreadRequest) when calling interceptor")
 					}
 					return c.callDeleteThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*DeleteForumThreadResponse)
+				typedResp, ok := resp.(*DeleteThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*DeleteForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -312,8 +312,8 @@ func (c *forumServiceProtobufClient) DeleteThread(ctx context.Context, in *Delet
 	return caller(ctx, in)
 }
 
-func (c *forumServiceProtobufClient) callDeleteThread(ctx context.Context, in *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
-	out := new(DeleteForumThreadResponse)
+func (c *forumServiceProtobufClient) callDeleteThread(ctx context.Context, in *DeleteThreadRequest) (*DeleteThreadResponse, error) {
+	out := new(DeleteThreadResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -329,26 +329,26 @@ func (c *forumServiceProtobufClient) callDeleteThread(ctx context.Context, in *D
 	return out, nil
 }
 
-func (c *forumServiceProtobufClient) CreatePost(ctx context.Context, in *CreateForumPostRequest) (*CreateForumPostResponse, error) {
+func (c *forumServiceProtobufClient) CreatePost(ctx context.Context, in *CreatePostRequest) (*CreatePostResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreatePost")
 	caller := c.callCreatePost
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateForumPostRequest) (*CreateForumPostResponse, error) {
+		caller = func(ctx context.Context, req *CreatePostRequest) (*CreatePostResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*CreateForumPostRequest)
+					typedReq, ok := req.(*CreatePostRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*CreateForumPostRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*CreatePostRequest) when calling interceptor")
 					}
 					return c.callCreatePost(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CreateForumPostResponse)
+				typedResp, ok := resp.(*CreatePostResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CreateForumPostResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreatePostResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -358,8 +358,8 @@ func (c *forumServiceProtobufClient) CreatePost(ctx context.Context, in *CreateF
 	return caller(ctx, in)
 }
 
-func (c *forumServiceProtobufClient) callCreatePost(ctx context.Context, in *CreateForumPostRequest) (*CreateForumPostResponse, error) {
-	out := new(CreateForumPostResponse)
+func (c *forumServiceProtobufClient) callCreatePost(ctx context.Context, in *CreatePostRequest) (*CreatePostResponse, error) {
+	out := new(CreatePostResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -375,26 +375,26 @@ func (c *forumServiceProtobufClient) callCreatePost(ctx context.Context, in *Cre
 	return out, nil
 }
 
-func (c *forumServiceProtobufClient) DeletePost(ctx context.Context, in *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
+func (c *forumServiceProtobufClient) DeletePost(ctx context.Context, in *DeletePostRequest) (*DeletePostResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeletePost")
 	caller := c.callDeletePost
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
+		caller = func(ctx context.Context, req *DeletePostRequest) (*DeletePostResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DeleteForumPostRequest)
+					typedReq, ok := req.(*DeletePostRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DeleteForumPostRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*DeletePostRequest) when calling interceptor")
 					}
 					return c.callDeletePost(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*DeleteForumPostResponse)
+				typedResp, ok := resp.(*DeletePostResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*DeleteForumPostResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeletePostResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -404,8 +404,8 @@ func (c *forumServiceProtobufClient) DeletePost(ctx context.Context, in *DeleteF
 	return caller(ctx, in)
 }
 
-func (c *forumServiceProtobufClient) callDeletePost(ctx context.Context, in *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
-	out := new(DeleteForumPostResponse)
+func (c *forumServiceProtobufClient) callDeletePost(ctx context.Context, in *DeletePostRequest) (*DeletePostResponse, error) {
+	out := new(DeletePostResponse)
 	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[6], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -520,26 +520,26 @@ func NewForumServiceJSONClient(baseURL string, client HTTPClient, opts ...twirp.
 	}
 }
 
-func (c *forumServiceJSONClient) ListThreads(ctx context.Context, in *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
+func (c *forumServiceJSONClient) ListThreads(ctx context.Context, in *ListThreadsRequest) (*ListThreadsResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "ListThreads")
 	caller := c.callListThreads
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
+		caller = func(ctx context.Context, req *ListThreadsRequest) (*ListThreadsResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ListForumThreadsRequest)
+					typedReq, ok := req.(*ListThreadsRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ListForumThreadsRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ListThreadsRequest) when calling interceptor")
 					}
 					return c.callListThreads(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*ListForumThreadsResponse)
+				typedResp, ok := resp.(*ListThreadsResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ListForumThreadsResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ListThreadsResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -549,8 +549,8 @@ func (c *forumServiceJSONClient) ListThreads(ctx context.Context, in *ListForumT
 	return caller(ctx, in)
 }
 
-func (c *forumServiceJSONClient) callListThreads(ctx context.Context, in *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
-	out := new(ListForumThreadsResponse)
+func (c *forumServiceJSONClient) callListThreads(ctx context.Context, in *ListThreadsRequest) (*ListThreadsResponse, error) {
+	out := new(ListThreadsResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -566,26 +566,26 @@ func (c *forumServiceJSONClient) callListThreads(ctx context.Context, in *ListFo
 	return out, nil
 }
 
-func (c *forumServiceJSONClient) GetThread(ctx context.Context, in *GetForumThreadRequest) (*GetForumThreadResponse, error) {
+func (c *forumServiceJSONClient) GetThread(ctx context.Context, in *GetThreadRequest) (*GetThreadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "GetThread")
 	caller := c.callGetThread
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *GetForumThreadRequest) (*GetForumThreadResponse, error) {
+		caller = func(ctx context.Context, req *GetThreadRequest) (*GetThreadResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*GetForumThreadRequest)
+					typedReq, ok := req.(*GetThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*GetForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*GetThreadRequest) when calling interceptor")
 					}
 					return c.callGetThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*GetForumThreadResponse)
+				typedResp, ok := resp.(*GetThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*GetForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -595,8 +595,8 @@ func (c *forumServiceJSONClient) GetThread(ctx context.Context, in *GetForumThre
 	return caller(ctx, in)
 }
 
-func (c *forumServiceJSONClient) callGetThread(ctx context.Context, in *GetForumThreadRequest) (*GetForumThreadResponse, error) {
-	out := new(GetForumThreadResponse)
+func (c *forumServiceJSONClient) callGetThread(ctx context.Context, in *GetThreadRequest) (*GetThreadResponse, error) {
+	out := new(GetThreadResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -612,26 +612,26 @@ func (c *forumServiceJSONClient) callGetThread(ctx context.Context, in *GetForum
 	return out, nil
 }
 
-func (c *forumServiceJSONClient) CreateThread(ctx context.Context, in *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
+func (c *forumServiceJSONClient) CreateThread(ctx context.Context, in *CreateThreadRequest) (*CreateThreadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateThread")
 	caller := c.callCreateThread
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
+		caller = func(ctx context.Context, req *CreateThreadRequest) (*CreateThreadResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*CreateForumThreadRequest)
+					typedReq, ok := req.(*CreateThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*CreateForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*CreateThreadRequest) when calling interceptor")
 					}
 					return c.callCreateThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CreateForumThreadResponse)
+				typedResp, ok := resp.(*CreateThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CreateForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -641,8 +641,8 @@ func (c *forumServiceJSONClient) CreateThread(ctx context.Context, in *CreateFor
 	return caller(ctx, in)
 }
 
-func (c *forumServiceJSONClient) callCreateThread(ctx context.Context, in *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
-	out := new(CreateForumThreadResponse)
+func (c *forumServiceJSONClient) callCreateThread(ctx context.Context, in *CreateThreadRequest) (*CreateThreadResponse, error) {
+	out := new(CreateThreadResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -658,26 +658,26 @@ func (c *forumServiceJSONClient) callCreateThread(ctx context.Context, in *Creat
 	return out, nil
 }
 
-func (c *forumServiceJSONClient) UpdateThread(ctx context.Context, in *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
+func (c *forumServiceJSONClient) UpdateThread(ctx context.Context, in *UpdateThreadRequest) (*UpdateThreadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "UpdateThread")
 	caller := c.callUpdateThread
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
+		caller = func(ctx context.Context, req *UpdateThreadRequest) (*UpdateThreadResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*UpdateForumThreadRequest)
+					typedReq, ok := req.(*UpdateThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*UpdateForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateThreadRequest) when calling interceptor")
 					}
 					return c.callUpdateThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*UpdateForumThreadResponse)
+				typedResp, ok := resp.(*UpdateThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*UpdateForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -687,8 +687,8 @@ func (c *forumServiceJSONClient) UpdateThread(ctx context.Context, in *UpdateFor
 	return caller(ctx, in)
 }
 
-func (c *forumServiceJSONClient) callUpdateThread(ctx context.Context, in *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
-	out := new(UpdateForumThreadResponse)
+func (c *forumServiceJSONClient) callUpdateThread(ctx context.Context, in *UpdateThreadRequest) (*UpdateThreadResponse, error) {
+	out := new(UpdateThreadResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -704,26 +704,26 @@ func (c *forumServiceJSONClient) callUpdateThread(ctx context.Context, in *Updat
 	return out, nil
 }
 
-func (c *forumServiceJSONClient) DeleteThread(ctx context.Context, in *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
+func (c *forumServiceJSONClient) DeleteThread(ctx context.Context, in *DeleteThreadRequest) (*DeleteThreadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeleteThread")
 	caller := c.callDeleteThread
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
+		caller = func(ctx context.Context, req *DeleteThreadRequest) (*DeleteThreadResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DeleteForumThreadRequest)
+					typedReq, ok := req.(*DeleteThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DeleteForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteThreadRequest) when calling interceptor")
 					}
 					return c.callDeleteThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*DeleteForumThreadResponse)
+				typedResp, ok := resp.(*DeleteThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*DeleteForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -733,8 +733,8 @@ func (c *forumServiceJSONClient) DeleteThread(ctx context.Context, in *DeleteFor
 	return caller(ctx, in)
 }
 
-func (c *forumServiceJSONClient) callDeleteThread(ctx context.Context, in *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
-	out := new(DeleteForumThreadResponse)
+func (c *forumServiceJSONClient) callDeleteThread(ctx context.Context, in *DeleteThreadRequest) (*DeleteThreadResponse, error) {
+	out := new(DeleteThreadResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -750,26 +750,26 @@ func (c *forumServiceJSONClient) callDeleteThread(ctx context.Context, in *Delet
 	return out, nil
 }
 
-func (c *forumServiceJSONClient) CreatePost(ctx context.Context, in *CreateForumPostRequest) (*CreateForumPostResponse, error) {
+func (c *forumServiceJSONClient) CreatePost(ctx context.Context, in *CreatePostRequest) (*CreatePostResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "CreatePost")
 	caller := c.callCreatePost
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *CreateForumPostRequest) (*CreateForumPostResponse, error) {
+		caller = func(ctx context.Context, req *CreatePostRequest) (*CreatePostResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*CreateForumPostRequest)
+					typedReq, ok := req.(*CreatePostRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*CreateForumPostRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*CreatePostRequest) when calling interceptor")
 					}
 					return c.callCreatePost(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CreateForumPostResponse)
+				typedResp, ok := resp.(*CreatePostResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CreateForumPostResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreatePostResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -779,8 +779,8 @@ func (c *forumServiceJSONClient) CreatePost(ctx context.Context, in *CreateForum
 	return caller(ctx, in)
 }
 
-func (c *forumServiceJSONClient) callCreatePost(ctx context.Context, in *CreateForumPostRequest) (*CreateForumPostResponse, error) {
-	out := new(CreateForumPostResponse)
+func (c *forumServiceJSONClient) callCreatePost(ctx context.Context, in *CreatePostRequest) (*CreatePostResponse, error) {
+	out := new(CreatePostResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -796,26 +796,26 @@ func (c *forumServiceJSONClient) callCreatePost(ctx context.Context, in *CreateF
 	return out, nil
 }
 
-func (c *forumServiceJSONClient) DeletePost(ctx context.Context, in *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
+func (c *forumServiceJSONClient) DeletePost(ctx context.Context, in *DeletePostRequest) (*DeletePostResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
 	ctx = ctxsetters.WithServiceName(ctx, "ForumService")
 	ctx = ctxsetters.WithMethodName(ctx, "DeletePost")
 	caller := c.callDeletePost
 	if c.interceptor != nil {
-		caller = func(ctx context.Context, req *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
+		caller = func(ctx context.Context, req *DeletePostRequest) (*DeletePostResponse, error) {
 			resp, err := c.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DeleteForumPostRequest)
+					typedReq, ok := req.(*DeletePostRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DeleteForumPostRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*DeletePostRequest) when calling interceptor")
 					}
 					return c.callDeletePost(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*DeleteForumPostResponse)
+				typedResp, ok := resp.(*DeletePostResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*DeleteForumPostResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeletePostResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -825,8 +825,8 @@ func (c *forumServiceJSONClient) DeletePost(ctx context.Context, in *DeleteForum
 	return caller(ctx, in)
 }
 
-func (c *forumServiceJSONClient) callDeletePost(ctx context.Context, in *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
-	out := new(DeleteForumPostResponse)
+func (c *forumServiceJSONClient) callDeletePost(ctx context.Context, in *DeletePostRequest) (*DeletePostResponse, error) {
+	out := new(DeletePostResponse)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[6], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -1049,7 +1049,7 @@ func (s *forumServiceServer) serveListThreadsJSON(ctx context.Context, resp http
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(ListForumThreadsRequest)
+	reqContent := new(ListThreadsRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
@@ -1058,20 +1058,20 @@ func (s *forumServiceServer) serveListThreadsJSON(ctx context.Context, resp http
 
 	handler := s.ForumService.ListThreads
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
+		handler = func(ctx context.Context, req *ListThreadsRequest) (*ListThreadsResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ListForumThreadsRequest)
+					typedReq, ok := req.(*ListThreadsRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ListForumThreadsRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ListThreadsRequest) when calling interceptor")
 					}
 					return s.ForumService.ListThreads(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*ListForumThreadsResponse)
+				typedResp, ok := resp.(*ListThreadsResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ListForumThreadsResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ListThreadsResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1080,7 +1080,7 @@ func (s *forumServiceServer) serveListThreadsJSON(ctx context.Context, resp http
 	}
 
 	// Call service method
-	var respContent *ListForumThreadsResponse
+	var respContent *ListThreadsResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1091,7 +1091,7 @@ func (s *forumServiceServer) serveListThreadsJSON(ctx context.Context, resp http
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListForumThreadsResponse and nil error while calling ListThreads. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListThreadsResponse and nil error while calling ListThreads. nil responses are not supported"))
 		return
 	}
 
@@ -1131,7 +1131,7 @@ func (s *forumServiceServer) serveListThreadsProtobuf(ctx context.Context, resp 
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(ListForumThreadsRequest)
+	reqContent := new(ListThreadsRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
@@ -1139,20 +1139,20 @@ func (s *forumServiceServer) serveListThreadsProtobuf(ctx context.Context, resp 
 
 	handler := s.ForumService.ListThreads
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *ListForumThreadsRequest) (*ListForumThreadsResponse, error) {
+		handler = func(ctx context.Context, req *ListThreadsRequest) (*ListThreadsResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*ListForumThreadsRequest)
+					typedReq, ok := req.(*ListThreadsRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*ListForumThreadsRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*ListThreadsRequest) when calling interceptor")
 					}
 					return s.ForumService.ListThreads(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*ListForumThreadsResponse)
+				typedResp, ok := resp.(*ListThreadsResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*ListForumThreadsResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*ListThreadsResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1161,7 +1161,7 @@ func (s *forumServiceServer) serveListThreadsProtobuf(ctx context.Context, resp 
 	}
 
 	// Call service method
-	var respContent *ListForumThreadsResponse
+	var respContent *ListThreadsResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1172,7 +1172,7 @@ func (s *forumServiceServer) serveListThreadsProtobuf(ctx context.Context, resp 
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListForumThreadsResponse and nil error while calling ListThreads. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListThreadsResponse and nil error while calling ListThreads. nil responses are not supported"))
 		return
 	}
 
@@ -1229,7 +1229,7 @@ func (s *forumServiceServer) serveGetThreadJSON(ctx context.Context, resp http.R
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(GetForumThreadRequest)
+	reqContent := new(GetThreadRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
@@ -1238,20 +1238,20 @@ func (s *forumServiceServer) serveGetThreadJSON(ctx context.Context, resp http.R
 
 	handler := s.ForumService.GetThread
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetForumThreadRequest) (*GetForumThreadResponse, error) {
+		handler = func(ctx context.Context, req *GetThreadRequest) (*GetThreadResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*GetForumThreadRequest)
+					typedReq, ok := req.(*GetThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*GetForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*GetThreadRequest) when calling interceptor")
 					}
 					return s.ForumService.GetThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*GetForumThreadResponse)
+				typedResp, ok := resp.(*GetThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*GetForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1260,7 +1260,7 @@ func (s *forumServiceServer) serveGetThreadJSON(ctx context.Context, resp http.R
 	}
 
 	// Call service method
-	var respContent *GetForumThreadResponse
+	var respContent *GetThreadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1271,7 +1271,7 @@ func (s *forumServiceServer) serveGetThreadJSON(ctx context.Context, resp http.R
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetForumThreadResponse and nil error while calling GetThread. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetThreadResponse and nil error while calling GetThread. nil responses are not supported"))
 		return
 	}
 
@@ -1311,7 +1311,7 @@ func (s *forumServiceServer) serveGetThreadProtobuf(ctx context.Context, resp ht
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(GetForumThreadRequest)
+	reqContent := new(GetThreadRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
@@ -1319,20 +1319,20 @@ func (s *forumServiceServer) serveGetThreadProtobuf(ctx context.Context, resp ht
 
 	handler := s.ForumService.GetThread
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *GetForumThreadRequest) (*GetForumThreadResponse, error) {
+		handler = func(ctx context.Context, req *GetThreadRequest) (*GetThreadResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*GetForumThreadRequest)
+					typedReq, ok := req.(*GetThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*GetForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*GetThreadRequest) when calling interceptor")
 					}
 					return s.ForumService.GetThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*GetForumThreadResponse)
+				typedResp, ok := resp.(*GetThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*GetForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*GetThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1341,7 +1341,7 @@ func (s *forumServiceServer) serveGetThreadProtobuf(ctx context.Context, resp ht
 	}
 
 	// Call service method
-	var respContent *GetForumThreadResponse
+	var respContent *GetThreadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1352,7 +1352,7 @@ func (s *forumServiceServer) serveGetThreadProtobuf(ctx context.Context, resp ht
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetForumThreadResponse and nil error while calling GetThread. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *GetThreadResponse and nil error while calling GetThread. nil responses are not supported"))
 		return
 	}
 
@@ -1409,7 +1409,7 @@ func (s *forumServiceServer) serveCreateThreadJSON(ctx context.Context, resp htt
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(CreateForumThreadRequest)
+	reqContent := new(CreateThreadRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
@@ -1418,20 +1418,20 @@ func (s *forumServiceServer) serveCreateThreadJSON(ctx context.Context, resp htt
 
 	handler := s.ForumService.CreateThread
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
+		handler = func(ctx context.Context, req *CreateThreadRequest) (*CreateThreadResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*CreateForumThreadRequest)
+					typedReq, ok := req.(*CreateThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*CreateForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*CreateThreadRequest) when calling interceptor")
 					}
 					return s.ForumService.CreateThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CreateForumThreadResponse)
+				typedResp, ok := resp.(*CreateThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CreateForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1440,7 +1440,7 @@ func (s *forumServiceServer) serveCreateThreadJSON(ctx context.Context, resp htt
 	}
 
 	// Call service method
-	var respContent *CreateForumThreadResponse
+	var respContent *CreateThreadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1451,7 +1451,7 @@ func (s *forumServiceServer) serveCreateThreadJSON(ctx context.Context, resp htt
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateForumThreadResponse and nil error while calling CreateThread. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateThreadResponse and nil error while calling CreateThread. nil responses are not supported"))
 		return
 	}
 
@@ -1491,7 +1491,7 @@ func (s *forumServiceServer) serveCreateThreadProtobuf(ctx context.Context, resp
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(CreateForumThreadRequest)
+	reqContent := new(CreateThreadRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
@@ -1499,20 +1499,20 @@ func (s *forumServiceServer) serveCreateThreadProtobuf(ctx context.Context, resp
 
 	handler := s.ForumService.CreateThread
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateForumThreadRequest) (*CreateForumThreadResponse, error) {
+		handler = func(ctx context.Context, req *CreateThreadRequest) (*CreateThreadResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*CreateForumThreadRequest)
+					typedReq, ok := req.(*CreateThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*CreateForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*CreateThreadRequest) when calling interceptor")
 					}
 					return s.ForumService.CreateThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CreateForumThreadResponse)
+				typedResp, ok := resp.(*CreateThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CreateForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreateThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1521,7 +1521,7 @@ func (s *forumServiceServer) serveCreateThreadProtobuf(ctx context.Context, resp
 	}
 
 	// Call service method
-	var respContent *CreateForumThreadResponse
+	var respContent *CreateThreadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1532,7 +1532,7 @@ func (s *forumServiceServer) serveCreateThreadProtobuf(ctx context.Context, resp
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateForumThreadResponse and nil error while calling CreateThread. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateThreadResponse and nil error while calling CreateThread. nil responses are not supported"))
 		return
 	}
 
@@ -1589,7 +1589,7 @@ func (s *forumServiceServer) serveUpdateThreadJSON(ctx context.Context, resp htt
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(UpdateForumThreadRequest)
+	reqContent := new(UpdateThreadRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
@@ -1598,20 +1598,20 @@ func (s *forumServiceServer) serveUpdateThreadJSON(ctx context.Context, resp htt
 
 	handler := s.ForumService.UpdateThread
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
+		handler = func(ctx context.Context, req *UpdateThreadRequest) (*UpdateThreadResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*UpdateForumThreadRequest)
+					typedReq, ok := req.(*UpdateThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*UpdateForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateThreadRequest) when calling interceptor")
 					}
 					return s.ForumService.UpdateThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*UpdateForumThreadResponse)
+				typedResp, ok := resp.(*UpdateThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*UpdateForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1620,7 +1620,7 @@ func (s *forumServiceServer) serveUpdateThreadJSON(ctx context.Context, resp htt
 	}
 
 	// Call service method
-	var respContent *UpdateForumThreadResponse
+	var respContent *UpdateThreadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1631,7 +1631,7 @@ func (s *forumServiceServer) serveUpdateThreadJSON(ctx context.Context, resp htt
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateForumThreadResponse and nil error while calling UpdateThread. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateThreadResponse and nil error while calling UpdateThread. nil responses are not supported"))
 		return
 	}
 
@@ -1671,7 +1671,7 @@ func (s *forumServiceServer) serveUpdateThreadProtobuf(ctx context.Context, resp
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(UpdateForumThreadRequest)
+	reqContent := new(UpdateThreadRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
@@ -1679,20 +1679,20 @@ func (s *forumServiceServer) serveUpdateThreadProtobuf(ctx context.Context, resp
 
 	handler := s.ForumService.UpdateThread
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *UpdateForumThreadRequest) (*UpdateForumThreadResponse, error) {
+		handler = func(ctx context.Context, req *UpdateThreadRequest) (*UpdateThreadResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*UpdateForumThreadRequest)
+					typedReq, ok := req.(*UpdateThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*UpdateForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*UpdateThreadRequest) when calling interceptor")
 					}
 					return s.ForumService.UpdateThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*UpdateForumThreadResponse)
+				typedResp, ok := resp.(*UpdateThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*UpdateForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*UpdateThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1701,7 +1701,7 @@ func (s *forumServiceServer) serveUpdateThreadProtobuf(ctx context.Context, resp
 	}
 
 	// Call service method
-	var respContent *UpdateForumThreadResponse
+	var respContent *UpdateThreadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1712,7 +1712,7 @@ func (s *forumServiceServer) serveUpdateThreadProtobuf(ctx context.Context, resp
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateForumThreadResponse and nil error while calling UpdateThread. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *UpdateThreadResponse and nil error while calling UpdateThread. nil responses are not supported"))
 		return
 	}
 
@@ -1769,7 +1769,7 @@ func (s *forumServiceServer) serveDeleteThreadJSON(ctx context.Context, resp htt
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(DeleteForumThreadRequest)
+	reqContent := new(DeleteThreadRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
@@ -1778,20 +1778,20 @@ func (s *forumServiceServer) serveDeleteThreadJSON(ctx context.Context, resp htt
 
 	handler := s.ForumService.DeleteThread
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
+		handler = func(ctx context.Context, req *DeleteThreadRequest) (*DeleteThreadResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DeleteForumThreadRequest)
+					typedReq, ok := req.(*DeleteThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DeleteForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteThreadRequest) when calling interceptor")
 					}
 					return s.ForumService.DeleteThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*DeleteForumThreadResponse)
+				typedResp, ok := resp.(*DeleteThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*DeleteForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1800,7 +1800,7 @@ func (s *forumServiceServer) serveDeleteThreadJSON(ctx context.Context, resp htt
 	}
 
 	// Call service method
-	var respContent *DeleteForumThreadResponse
+	var respContent *DeleteThreadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1811,7 +1811,7 @@ func (s *forumServiceServer) serveDeleteThreadJSON(ctx context.Context, resp htt
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteForumThreadResponse and nil error while calling DeleteThread. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteThreadResponse and nil error while calling DeleteThread. nil responses are not supported"))
 		return
 	}
 
@@ -1851,7 +1851,7 @@ func (s *forumServiceServer) serveDeleteThreadProtobuf(ctx context.Context, resp
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(DeleteForumThreadRequest)
+	reqContent := new(DeleteThreadRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
@@ -1859,20 +1859,20 @@ func (s *forumServiceServer) serveDeleteThreadProtobuf(ctx context.Context, resp
 
 	handler := s.ForumService.DeleteThread
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteForumThreadRequest) (*DeleteForumThreadResponse, error) {
+		handler = func(ctx context.Context, req *DeleteThreadRequest) (*DeleteThreadResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DeleteForumThreadRequest)
+					typedReq, ok := req.(*DeleteThreadRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DeleteForumThreadRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*DeleteThreadRequest) when calling interceptor")
 					}
 					return s.ForumService.DeleteThread(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*DeleteForumThreadResponse)
+				typedResp, ok := resp.(*DeleteThreadResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*DeleteForumThreadResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeleteThreadResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1881,7 +1881,7 @@ func (s *forumServiceServer) serveDeleteThreadProtobuf(ctx context.Context, resp
 	}
 
 	// Call service method
-	var respContent *DeleteForumThreadResponse
+	var respContent *DeleteThreadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1892,7 +1892,7 @@ func (s *forumServiceServer) serveDeleteThreadProtobuf(ctx context.Context, resp
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteForumThreadResponse and nil error while calling DeleteThread. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteThreadResponse and nil error while calling DeleteThread. nil responses are not supported"))
 		return
 	}
 
@@ -1949,7 +1949,7 @@ func (s *forumServiceServer) serveCreatePostJSON(ctx context.Context, resp http.
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(CreateForumPostRequest)
+	reqContent := new(CreatePostRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
@@ -1958,20 +1958,20 @@ func (s *forumServiceServer) serveCreatePostJSON(ctx context.Context, resp http.
 
 	handler := s.ForumService.CreatePost
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateForumPostRequest) (*CreateForumPostResponse, error) {
+		handler = func(ctx context.Context, req *CreatePostRequest) (*CreatePostResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*CreateForumPostRequest)
+					typedReq, ok := req.(*CreatePostRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*CreateForumPostRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*CreatePostRequest) when calling interceptor")
 					}
 					return s.ForumService.CreatePost(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CreateForumPostResponse)
+				typedResp, ok := resp.(*CreatePostResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CreateForumPostResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreatePostResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -1980,7 +1980,7 @@ func (s *forumServiceServer) serveCreatePostJSON(ctx context.Context, resp http.
 	}
 
 	// Call service method
-	var respContent *CreateForumPostResponse
+	var respContent *CreatePostResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -1991,7 +1991,7 @@ func (s *forumServiceServer) serveCreatePostJSON(ctx context.Context, resp http.
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateForumPostResponse and nil error while calling CreatePost. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreatePostResponse and nil error while calling CreatePost. nil responses are not supported"))
 		return
 	}
 
@@ -2031,7 +2031,7 @@ func (s *forumServiceServer) serveCreatePostProtobuf(ctx context.Context, resp h
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(CreateForumPostRequest)
+	reqContent := new(CreatePostRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
@@ -2039,20 +2039,20 @@ func (s *forumServiceServer) serveCreatePostProtobuf(ctx context.Context, resp h
 
 	handler := s.ForumService.CreatePost
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *CreateForumPostRequest) (*CreateForumPostResponse, error) {
+		handler = func(ctx context.Context, req *CreatePostRequest) (*CreatePostResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*CreateForumPostRequest)
+					typedReq, ok := req.(*CreatePostRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*CreateForumPostRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*CreatePostRequest) when calling interceptor")
 					}
 					return s.ForumService.CreatePost(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*CreateForumPostResponse)
+				typedResp, ok := resp.(*CreatePostResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*CreateForumPostResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*CreatePostResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2061,7 +2061,7 @@ func (s *forumServiceServer) serveCreatePostProtobuf(ctx context.Context, resp h
 	}
 
 	// Call service method
-	var respContent *CreateForumPostResponse
+	var respContent *CreatePostResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -2072,7 +2072,7 @@ func (s *forumServiceServer) serveCreatePostProtobuf(ctx context.Context, resp h
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreateForumPostResponse and nil error while calling CreatePost. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *CreatePostResponse and nil error while calling CreatePost. nil responses are not supported"))
 		return
 	}
 
@@ -2129,7 +2129,7 @@ func (s *forumServiceServer) serveDeletePostJSON(ctx context.Context, resp http.
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
 		return
 	}
-	reqContent := new(DeleteForumPostRequest)
+	reqContent := new(DeletePostRequest)
 	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
 	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
 		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
@@ -2138,20 +2138,20 @@ func (s *forumServiceServer) serveDeletePostJSON(ctx context.Context, resp http.
 
 	handler := s.ForumService.DeletePost
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
+		handler = func(ctx context.Context, req *DeletePostRequest) (*DeletePostResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DeleteForumPostRequest)
+					typedReq, ok := req.(*DeletePostRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DeleteForumPostRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*DeletePostRequest) when calling interceptor")
 					}
 					return s.ForumService.DeletePost(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*DeleteForumPostResponse)
+				typedResp, ok := resp.(*DeletePostResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*DeleteForumPostResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeletePostResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2160,7 +2160,7 @@ func (s *forumServiceServer) serveDeletePostJSON(ctx context.Context, resp http.
 	}
 
 	// Call service method
-	var respContent *DeleteForumPostResponse
+	var respContent *DeletePostResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -2171,7 +2171,7 @@ func (s *forumServiceServer) serveDeletePostJSON(ctx context.Context, resp http.
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteForumPostResponse and nil error while calling DeletePost. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeletePostResponse and nil error while calling DeletePost. nil responses are not supported"))
 		return
 	}
 
@@ -2211,7 +2211,7 @@ func (s *forumServiceServer) serveDeletePostProtobuf(ctx context.Context, resp h
 		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
 		return
 	}
-	reqContent := new(DeleteForumPostRequest)
+	reqContent := new(DeletePostRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
@@ -2219,20 +2219,20 @@ func (s *forumServiceServer) serveDeletePostProtobuf(ctx context.Context, resp h
 
 	handler := s.ForumService.DeletePost
 	if s.interceptor != nil {
-		handler = func(ctx context.Context, req *DeleteForumPostRequest) (*DeleteForumPostResponse, error) {
+		handler = func(ctx context.Context, req *DeletePostRequest) (*DeletePostResponse, error) {
 			resp, err := s.interceptor(
 				func(ctx context.Context, req interface{}) (interface{}, error) {
-					typedReq, ok := req.(*DeleteForumPostRequest)
+					typedReq, ok := req.(*DeletePostRequest)
 					if !ok {
-						return nil, twirp.InternalError("failed type assertion req.(*DeleteForumPostRequest) when calling interceptor")
+						return nil, twirp.InternalError("failed type assertion req.(*DeletePostRequest) when calling interceptor")
 					}
 					return s.ForumService.DeletePost(ctx, typedReq)
 				},
 			)(ctx, req)
 			if resp != nil {
-				typedResp, ok := resp.(*DeleteForumPostResponse)
+				typedResp, ok := resp.(*DeletePostResponse)
 				if !ok {
-					return nil, twirp.InternalError("failed type assertion resp.(*DeleteForumPostResponse) when calling interceptor")
+					return nil, twirp.InternalError("failed type assertion resp.(*DeletePostResponse) when calling interceptor")
 				}
 				return typedResp, err
 			}
@@ -2241,7 +2241,7 @@ func (s *forumServiceServer) serveDeletePostProtobuf(ctx context.Context, resp h
 	}
 
 	// Call service method
-	var respContent *DeleteForumPostResponse
+	var respContent *DeletePostResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
 		respContent, err = handler(ctx, reqContent)
@@ -2252,7 +2252,7 @@ func (s *forumServiceServer) serveDeletePostProtobuf(ctx context.Context, resp h
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeleteForumPostResponse and nil error while calling DeletePost. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *DeletePostResponse and nil error while calling DeletePost. nil responses are not supported"))
 		return
 	}
 
@@ -2472,77 +2472,76 @@ func (s *forumServiceServer) PathPrefix() string {
 }
 
 var twirpFileDescriptor7 = []byte{
-	// 1143 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xdb, 0x72, 0xdb, 0x44,
-	0x18, 0x1e, 0xf9, 0x14, 0xeb, 0xb7, 0xd3, 0xd0, 0x25, 0x75, 0x14, 0x65, 0x3a, 0x75, 0x94, 0x34,
-	0xe3, 0xc9, 0x85, 0x4c, 0x52, 0x2e, 0x80, 0xde, 0x90, 0x16, 0xe8, 0x78, 0x7a, 0x20, 0xe3, 0xa4,
-	0xcc, 0x94, 0x1b, 0x8f, 0x6c, 0x6d, 0x5c, 0x8d, 0x2d, 0xad, 0xd0, 0xae, 0x4c, 0xdd, 0x2b, 0xae,
-	0x79, 0x03, 0xae, 0x79, 0x08, 0x5e, 0x00, 0x1e, 0x82, 0xc7, 0xe0, 0x0d, 0x98, 0x3d, 0xc8, 0x96,
-	0x6d, 0xc9, 0x35, 0x01, 0xee, 0xbc, 0xff, 0x7e, 0xfb, 0x9f, 0xbe, 0xff, 0x20, 0xc3, 0x3d, 0x67,
-	0x88, 0x03, 0x46, 0xdb, 0x93, 0xb3, 0xf6, 0x0d, 0x89, 0x62, 0xdf, 0x0e, 0x23, 0xc2, 0x08, 0xd2,
-	0xa5, 0xd8, 0x9e, 0x9c, 0x99, 0x0f, 0x86, 0x84, 0x0c, 0xc7, 0xb8, 0x2d, 0x2e, 0xfa, 0xf1, 0x4d,
-	0x9b, 0x79, 0x3e, 0xa6, 0xcc, 0xf1, 0x43, 0x89, 0xb5, 0x7e, 0x2b, 0x42, 0xed, 0x1b, 0xfe, 0xf6,
-	0xfa, 0x6d, 0x84, 0x1d, 0x17, 0xdd, 0x81, 0x82, 0xe7, 0x1a, 0x5a, 0x53, 0x6b, 0xe9, 0xdd, 0x82,
-	0xe7, 0xa2, 0x5d, 0x28, 0x33, 0x8f, 0x8d, 0xb1, 0x51, 0x10, 0x22, 0x79, 0x40, 0x08, 0x4a, 0x7d,
-	0xe2, 0x4e, 0x8d, 0xa2, 0x10, 0x8a, 0xdf, 0xe8, 0x3e, 0xc0, 0x20, 0xc2, 0x0e, 0xc3, 0x6e, 0xaf,
-	0x3f, 0x35, 0x4a, 0xe2, 0x46, 0x57, 0x92, 0x27, 0x53, 0xd4, 0x80, 0x0a, 0x65, 0x0e, 0x8b, 0xa9,
-	0x51, 0x16, 0x57, 0xea, 0x84, 0x1e, 0x40, 0x4d, 0xb8, 0xdb, 0x0b, 0x1c, 0x1f, 0x53, 0xa3, 0xd2,
-	0x2c, 0xb6, 0xf4, 0x2e, 0x08, 0xd1, 0x2b, 0x2e, 0x41, 0x5f, 0x42, 0xd5, 0xc7, 0xcc, 0x71, 0x1d,
-	0xe6, 0x18, 0x5b, 0xcd, 0x62, 0xab, 0x76, 0x7e, 0x6c, 0xcf, 0x02, 0xb4, 0x53, 0xbe, 0xdb, 0x2f,
-	0x15, 0xec, 0xeb, 0x80, 0x45, 0xd3, 0xee, 0xec, 0x15, 0xfa, 0x7c, 0xee, 0x99, 0xc3, 0x8c, 0x6a,
-	0x53, 0x6b, 0xd5, 0xce, 0x4d, 0x5b, 0x66, 0xc6, 0x4e, 0x32, 0x63, 0x5f, 0x27, 0x99, 0x99, 0x79,
-	0x7d, 0xc1, 0xf8, 0xd3, 0x38, 0x74, 0x93, 0xa7, 0xfa, 0x87, 0x9f, 0x2a, 0xf4, 0x05, 0x43, 0x87,
-	0x50, 0xff, 0x91, 0x44, 0x23, 0x1a, 0x3a, 0x03, 0xdc, 0xf3, 0x5c, 0xc3, 0x15, 0x61, 0xd7, 0x66,
-	0xb2, 0x8e, 0x6b, 0x3e, 0x86, 0xed, 0x05, 0x9f, 0xd1, 0x47, 0x50, 0x1c, 0xe1, 0xa9, 0x4a, 0x3f,
-	0xff, 0xc9, 0xf3, 0x3f, 0x71, 0xc6, 0xf1, 0x2c, 0xff, 0xe2, 0xf0, 0x45, 0xe1, 0x33, 0xcd, 0xfa,
-	0xb5, 0x08, 0xba, 0x88, 0xfe, 0x92, 0x50, 0xb6, 0xc2, 0xdb, 0x01, 0xe8, 0x4c, 0x64, 0x85, 0x9b,
-	0x96, 0x6f, 0xab, 0x52, 0xd0, 0x71, 0x33, 0xe9, 0x3b, 0x86, 0x3b, 0x4e, 0xcc, 0xde, 0x92, 0xa8,
-	0x17, 0x53, 0x1c, 0xf1, 0x57, 0x92, 0xc2, 0xba, 0x94, 0xbe, 0xa6, 0x38, 0xea, 0xb8, 0xe8, 0x14,
-	0xee, 0x2a, 0xd4, 0x9c, 0x34, 0x45, 0xe8, 0x8e, 0xbc, 0xb8, 0x48, 0x98, 0x13, 0xcc, 0x4a, 0xec,
-	0xc8, 0x0b, 0x5c, 0xa3, 0x22, 0x50, 0x20, 0x45, 0xcf, 0xbd, 0xc0, 0x45, 0x47, 0xb0, 0xed, 0x05,
-	0x13, 0x32, 0x70, 0x98, 0x47, 0x02, 0x6e, 0x71, 0x4b, 0x5a, 0x9c, 0x0b, 0x3b, 0x2e, 0xf7, 0x2b,
-	0x74, 0x22, 0x6e, 0x2b, 0x24, 0x94, 0x71, 0x54, 0x55, 0xa2, 0xa4, 0x94, 0x07, 0xdf, 0x71, 0x97,
-	0x28, 0xd6, 0x6f, 0x4f, 0x31, 0xfc, 0xb7, 0x14, 0x5b, 0x3e, 0xec, 0xbd, 0xf0, 0x28, 0x4b, 0x95,
-	0x29, 0xed, 0xe2, 0x1f, 0x62, 0x4c, 0x59, 0xaa, 0x23, 0xb4, 0x85, 0x8e, 0x38, 0x00, 0x3d, 0x74,
-	0x86, 0xb8, 0x47, 0xbd, 0xf7, 0x92, 0xf6, 0x72, 0xb7, 0xca, 0x05, 0x57, 0xde, 0x7b, 0xcc, 0xbb,
-	0x4c, 0x5c, 0x32, 0x32, 0xc2, 0x81, 0x22, 0x50, 0xc0, 0xaf, 0xb9, 0xc0, 0xfa, 0x59, 0x03, 0x63,
-	0xd5, 0x1e, 0x0d, 0x49, 0x40, 0x31, 0xfa, 0x04, 0xb6, 0x64, 0x09, 0x70, 0x8b, 0xbc, 0x91, 0x1a,
-	0xd9, 0x8d, 0xd4, 0x4d, 0x60, 0xe8, 0x04, 0x76, 0x02, 0xfc, 0x8e, 0xf5, 0x52, 0x26, 0x65, 0x2d,
-	0x6d, 0x73, 0xf1, 0x65, 0x62, 0x56, 0x4c, 0x09, 0xc2, 0x9c, 0xb1, 0x70, 0xa8, 0xdc, 0x95, 0x07,
-	0x2b, 0x86, 0x7b, 0xcf, 0x70, 0xda, 0x95, 0x24, 0xf2, 0xe5, 0x62, 0xe5, 0x1c, 0x73, 0x72, 0x97,
-	0xc3, 0xae, 0x73, 0xe9, 0x65, 0x12, 0xfa, 0x09, 0xec, 0xcc, 0x51, 0xe9, 0xf8, 0xb7, 0x13, 0x98,
-	0xcc, 0xc1, 0xef, 0x1a, 0x34, 0x96, 0xed, 0xaa, 0x0c, 0xd8, 0x50, 0x91, 0xa1, 0x09, 0xe3, 0xf9,
-	0x09, 0x50, 0x28, 0x74, 0x0a, 0x65, 0xae, 0x9b, 0x1a, 0x05, 0x91, 0xaf, 0xdd, 0x65, 0x38, 0xaf,
-	0xbe, 0xae, 0x84, 0xa0, 0x36, 0xec, 0xca, 0x5c, 0x65, 0xfa, 0x78, 0x57, 0x24, 0x2c, 0xed, 0xa7,
-	0xa0, 0x92, 0x63, 0x65, 0xe6, 0x4a, 0x22, 0x62, 0x9d, 0x4b, 0xae, 0x45, 0xf6, 0xfe, 0xd2, 0xc0,
-	0x78, 0x2a, 0xaa, 0x34, 0x23, 0x83, 0xb3, 0xb1, 0xac, 0x65, 0x8d, 0xe5, 0x42, 0xaa, 0xaf, 0x97,
-	0xe6, 0x6b, 0x71, 0x65, 0xbe, 0xbe, 0x4c, 0xcd, 0xd7, 0x92, 0x08, 0xf3, 0x2c, 0x15, 0x66, 0x9e,
-	0x07, 0x79, 0xc3, 0xf6, 0xdf, 0xcd, 0xb4, 0x9f, 0x34, 0xd8, 0xcf, 0xb0, 0x78, 0x4b, 0xf6, 0x1e,
-	0x01, 0xdc, 0x78, 0x11, 0x95, 0x94, 0x08, 0x63, 0x79, 0x14, 0xea, 0x02, 0xc7, 0x7f, 0x5a, 0xbf,
-	0x14, 0xc0, 0x78, 0x2d, 0x3a, 0x7c, 0x83, 0xc2, 0xdd, 0x7c, 0x3b, 0xce, 0x9b, 0xbd, 0xb4, 0x6e,
-	0xfd, 0x95, 0xd7, 0xd2, 0x53, 0x59, 0xa1, 0x27, 0xcf, 0xd3, 0xff, 0x87, 0x9e, 0xe7, 0xb0, 0x9f,
-	0x61, 0xf0, 0x76, 0xec, 0x58, 0xa7, 0x60, 0x7c, 0x85, 0xc7, 0x78, 0x93, 0x3c, 0x5b, 0x07, 0xb0,
-	0x9f, 0x81, 0x95, 0x86, 0x2d, 0x02, 0x8d, 0x54, 0xcd, 0x08, 0x3e, 0x95, 0x9a, 0x85, 0x25, 0xa8,
-	0xe5, 0x2c, 0xc1, 0xc2, 0xe2, 0x12, 0x5c, 0x5a, 0x36, 0xc5, 0xd5, 0x65, 0x63, 0x3d, 0x85, 0xbd,
-	0x15, 0x83, 0x2a, 0x09, 0x2d, 0x28, 0x89, 0x62, 0xd3, 0xd6, 0x14, 0x9b, 0x40, 0x58, 0xaf, 0xa0,
-	0x91, 0x0a, 0x69, 0x63, 0xaf, 0xf7, 0x60, 0x2b, 0x71, 0x4d, 0x3a, 0x5e, 0x09, 0xa5, 0x53, 0xfb,
-	0xb0, 0xb7, 0xa2, 0x4f, 0x25, 0xe8, 0x0f, 0x0d, 0xcc, 0x4e, 0x30, 0x21, 0x23, 0x2c, 0x96, 0x73,
-	0x27, 0x58, 0x4c, 0xf6, 0x5a, 0x7b, 0xf7, 0x01, 0x52, 0x9b, 0x5e, 0x9a, 0xd4, 0x67, 0xe5, 0x89,
-	0x0c, 0xd8, 0xf2, 0x31, 0xa5, 0xce, 0x10, 0xab, 0x4c, 0x25, 0x47, 0xf4, 0x10, 0xee, 0xf8, 0xc4,
-	0xc5, 0xe3, 0x1e, 0x99, 0xe0, 0x28, 0xf2, 0x5c, 0xac, 0x0a, 0x7f, 0x5b, 0x48, 0xbf, 0x55, 0x42,
-	0xfe, 0x41, 0x11, 0xe1, 0xc1, 0x2c, 0xe3, 0x63, 0xcf, 0xf7, 0x98, 0xf8, 0xa0, 0x28, 0x77, 0x77,
-	0xe4, 0x05, 0x0f, 0xe5, 0x05, 0x17, 0x5b, 0x03, 0x38, 0xc8, 0x0c, 0xe3, 0x9f, 0xe6, 0x1e, 0x99,
-	0x50, 0x8d, 0xd4, 0xab, 0xe4, 0xdb, 0x28, 0x39, 0x9f, 0xff, 0x59, 0x86, 0xba, 0xc0, 0x5f, 0xe1,
-	0x68, 0xe2, 0x0d, 0x30, 0xfa, 0x0e, 0x6a, 0x7c, 0xa3, 0xaa, 0x65, 0x8a, 0xac, 0x94, 0xde, 0x9c,
-	0xcd, 0x6e, 0x1e, 0xad, 0xc5, 0x28, 0x77, 0x2f, 0x41, 0x7f, 0x86, 0x95, 0x5a, 0xd4, 0x4c, 0xbd,
-	0xc8, 0xdc, 0x99, 0xe6, 0xe1, 0x1a, 0x84, 0xd2, 0xf8, 0x06, 0xea, 0xb2, 0x2e, 0x95, 0xd2, 0xa3,
-	0x0d, 0xe6, 0xb8, 0x79, 0xbc, 0x1e, 0x34, 0x57, 0x2d, 0x3b, 0x3f, 0x43, 0x75, 0xde, 0x0c, 0x5a,
-	0x50, 0x9d, 0x3f, 0x37, 0xde, 0x40, 0x5d, 0x16, 0x6e, 0x86, 0xea, 0xbc, 0x01, 0xb1, 0xa0, 0x3a,
-	0x77, 0x32, 0xa0, 0x2b, 0x00, 0x19, 0x92, 0xf8, 0x44, 0x3e, 0xcc, 0x8e, 0x34, 0xd5, 0x7a, 0xa6,
-	0xb5, 0x0e, 0x32, 0x57, 0x2a, 0x2d, 0xae, 0x28, 0xcd, 0xee, 0xe7, 0x05, 0xa5, 0x39, 0x2d, 0x8a,
-	0x5c, 0xf8, 0x38, 0xa3, 0xb4, 0xd1, 0xc3, 0xd4, 0xd3, 0xfc, 0x0e, 0x36, 0x4f, 0x3e, 0x04, 0x93,
-	0x56, 0x9e, 0x7c, 0xfa, 0xfd, 0xf9, 0x90, 0xd8, 0x24, 0x7a, 0x67, 0xfb, 0xb8, 0xed, 0x84, 0x21,
-	0x6d, 0xf7, 0x63, 0xc6, 0x70, 0xd4, 0x0e, 0x47, 0x43, 0xf9, 0x17, 0xb1, 0x3d, 0xfb, 0x47, 0xf9,
-	0x58, 0xfe, 0x9a, 0x9c, 0xf5, 0x2b, 0xe2, 0xe6, 0xd1, 0xdf, 0x01, 0x00, 0x00, 0xff, 0xff, 0x10,
-	0x43, 0x9d, 0x8e, 0x6e, 0x0e, 0x00, 0x00,
+	// 1131 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xcb, 0x72, 0xe3, 0x44,
+	0x14, 0x2d, 0xf9, 0x15, 0xeb, 0xda, 0x49, 0x26, 0x1d, 0x13, 0x54, 0xca, 0x64, 0x12, 0xc4, 0x24,
+	0x95, 0x9a, 0xa2, 0x64, 0x92, 0x61, 0x01, 0x4c, 0x15, 0x45, 0x06, 0x08, 0xb8, 0x08, 0x24, 0xe5,
+	0xc9, 0x6c, 0xd8, 0xb8, 0x64, 0xab, 0xe3, 0x08, 0xdb, 0x6a, 0xa1, 0x6e, 0x9b, 0xf1, 0xb0, 0x66,
+	0xcd, 0x82, 0x4f, 0xe0, 0x23, 0x58, 0xb2, 0xe2, 0x5b, 0xf8, 0x0d, 0xaa, 0x1f, 0x92, 0x5b, 0xb6,
+	0xec, 0x0c, 0x01, 0x76, 0xea, 0xdb, 0xa7, 0xef, 0xeb, 0xdc, 0x87, 0x0d, 0x6f, 0x79, 0x7d, 0x1c,
+	0x32, 0xda, 0x9c, 0x9c, 0x34, 0x6f, 0x48, 0x3c, 0x1e, 0xb9, 0x51, 0x4c, 0x18, 0x41, 0xa6, 0x14,
+	0xbb, 0x93, 0x13, 0x7b, 0xbf, 0x4f, 0x48, 0x7f, 0x88, 0x9b, 0xe2, 0xa2, 0x3b, 0xbe, 0x69, 0xb2,
+	0x60, 0x84, 0x29, 0xf3, 0x46, 0x91, 0xc4, 0x3a, 0xbf, 0x17, 0xa1, 0x76, 0xce, 0xdf, 0x5e, 0xdf,
+	0xc6, 0xd8, 0xf3, 0xd1, 0x06, 0x14, 0x02, 0xdf, 0x32, 0x0e, 0x8c, 0x63, 0xb3, 0x5d, 0x08, 0x7c,
+	0xd4, 0x80, 0x32, 0x0b, 0xd8, 0x10, 0x5b, 0x05, 0x21, 0x92, 0x07, 0x84, 0xa0, 0xd4, 0x25, 0xfe,
+	0xd4, 0x2a, 0x0a, 0xa1, 0xf8, 0x46, 0x7b, 0x00, 0xbd, 0x18, 0x7b, 0x0c, 0xfb, 0x9d, 0xee, 0xd4,
+	0x2a, 0x89, 0x1b, 0x53, 0x49, 0x9e, 0x4f, 0xd1, 0x0e, 0x54, 0x28, 0xf3, 0xd8, 0x98, 0x5a, 0x65,
+	0x71, 0xa5, 0x4e, 0x68, 0x1f, 0x6a, 0xc2, 0xdd, 0x4e, 0xe8, 0x8d, 0x30, 0xb5, 0x2a, 0x07, 0xc5,
+	0x63, 0xb3, 0x0d, 0x42, 0xf4, 0x2d, 0x97, 0xa0, 0x4f, 0xa1, 0x3a, 0xc2, 0xcc, 0xf3, 0x3d, 0xe6,
+	0x59, 0x6b, 0x07, 0xc5, 0xe3, 0xda, 0xe9, 0x63, 0x37, 0x0d, 0xd0, 0xd5, 0x7c, 0x77, 0xbf, 0x51,
+	0xb0, 0x2f, 0x42, 0x16, 0x4f, 0xdb, 0xe9, 0x2b, 0xf4, 0xd1, 0xcc, 0x33, 0x8f, 0x59, 0xd5, 0x03,
+	0xe3, 0xb8, 0x76, 0x6a, 0xbb, 0x32, 0x33, 0x6e, 0x92, 0x19, 0xf7, 0x3a, 0xc9, 0x4c, 0xea, 0xf5,
+	0x19, 0xe3, 0x4f, 0xc7, 0x91, 0x9f, 0x3c, 0x35, 0xef, 0x7e, 0xaa, 0xd0, 0x67, 0x0c, 0xbd, 0x03,
+	0xf5, 0x1f, 0x49, 0x3c, 0xa0, 0x91, 0xd7, 0xc3, 0x9d, 0xc0, 0xb7, 0x7c, 0x11, 0x76, 0x2d, 0x95,
+	0xb5, 0x7c, 0xfb, 0x19, 0xac, 0x67, 0x7c, 0x46, 0x0f, 0xa0, 0x38, 0xc0, 0x53, 0x95, 0x7e, 0xfe,
+	0xc9, 0xf3, 0x3f, 0xf1, 0x86, 0xe3, 0x34, 0xff, 0xe2, 0xf0, 0x71, 0xe1, 0x43, 0xc3, 0xf9, 0xad,
+	0x08, 0xa6, 0x88, 0xfe, 0x8a, 0x50, 0xb6, 0xc0, 0xdb, 0x2e, 0x98, 0x4c, 0x64, 0x85, 0x9b, 0x96,
+	0x6f, 0xab, 0x52, 0xd0, 0xf2, 0x73, 0xe9, 0x7b, 0x0c, 0x1b, 0xde, 0x98, 0xdd, 0x92, 0xb8, 0x33,
+	0xa6, 0x38, 0xe6, 0xaf, 0x24, 0x85, 0x75, 0x29, 0x7d, 0x49, 0x71, 0xdc, 0xf2, 0xd1, 0x13, 0xd8,
+	0x52, 0xa8, 0x19, 0x69, 0x8a, 0xd0, 0x4d, 0x79, 0x71, 0x96, 0x30, 0x27, 0x98, 0x95, 0xd8, 0x41,
+	0x10, 0xfa, 0x56, 0x45, 0xa0, 0x40, 0x8a, 0xbe, 0x0e, 0x42, 0x1f, 0xbd, 0x0b, 0xeb, 0x41, 0x38,
+	0x21, 0x3d, 0x8f, 0x05, 0x24, 0xe4, 0x16, 0xd7, 0xa4, 0xc5, 0x99, 0xb0, 0xe5, 0x73, 0xbf, 0x22,
+	0x2f, 0xe6, 0xb6, 0x22, 0x42, 0x19, 0x47, 0x55, 0x25, 0x4a, 0x4a, 0x79, 0xf0, 0x2d, 0x7f, 0x8e,
+	0x62, 0xf3, 0xfe, 0x14, 0xc3, 0x7f, 0x4b, 0xb1, 0x73, 0x0b, 0xe8, 0x22, 0xa0, 0x4c, 0x56, 0x28,
+	0x6d, 0xe3, 0x1f, 0xc6, 0x98, 0x32, 0xad, 0x19, 0x8c, 0x4c, 0x33, 0xec, 0x82, 0x19, 0x79, 0x7d,
+	0xdc, 0xa1, 0xc1, 0x6b, 0xc9, 0x78, 0xb9, 0x5d, 0xe5, 0x82, 0x17, 0xc1, 0x6b, 0xcc, 0x1b, 0x4c,
+	0x5c, 0x32, 0x32, 0xc0, 0xa1, 0xe2, 0x4e, 0xc0, 0xaf, 0xb9, 0xc0, 0xf9, 0xd9, 0x80, 0xed, 0x8c,
+	0x29, 0x1a, 0x91, 0x90, 0x62, 0xf4, 0x3e, 0xac, 0x49, 0xe2, 0xb9, 0x31, 0xde, 0x3e, 0x3b, 0xf9,
+	0xed, 0xd3, 0x4e, 0x60, 0xe8, 0x08, 0x36, 0x43, 0xfc, 0x8a, 0x75, 0x34, 0x6b, 0xb2, 0x82, 0xd6,
+	0xb9, 0xf8, 0x2a, 0xb1, 0x28, 0x66, 0x03, 0x61, 0xde, 0x50, 0xf8, 0x52, 0x6e, 0xcb, 0x83, 0x13,
+	0xc1, 0x83, 0x2f, 0xb1, 0xf2, 0x22, 0x89, 0x77, 0xbe, 0x3a, 0x39, 0xa9, 0x9c, 0xcd, 0xf9, 0x60,
+	0xeb, 0x5c, 0x7a, 0x95, 0x04, 0x7c, 0x04, 0x9b, 0x33, 0x94, 0x1e, 0xf5, 0x7a, 0x02, 0x93, 0x91,
+	0xff, 0x61, 0xc0, 0x96, 0x66, 0x52, 0xc5, 0xed, 0x42, 0x45, 0x06, 0x24, 0xec, 0x2e, 0x0f, 0x5b,
+	0xa1, 0xd0, 0x13, 0x28, 0x73, 0xb5, 0xd4, 0x2a, 0x88, 0x2c, 0x35, 0xe6, 0xe1, 0xbc, 0xd2, 0xda,
+	0x12, 0x82, 0x9a, 0xd0, 0x90, 0x19, 0xca, 0x75, 0x6f, 0x4b, 0xa4, 0x49, 0x77, 0x51, 0x70, 0xc7,
+	0xb1, 0x32, 0x5f, 0x25, 0x11, 0xac, 0xc9, 0x25, 0xd7, 0x22, 0x67, 0x7f, 0x19, 0xb0, 0xfd, 0x99,
+	0xa8, 0xc8, 0x6c, 0xde, 0xd2, 0xe9, 0x6b, 0xe4, 0x4d, 0xdf, 0x82, 0xd6, 0xbe, 0x73, 0x63, 0xb4,
+	0xb8, 0x30, 0x46, 0xbf, 0xd2, 0xc6, 0x68, 0x49, 0x44, 0xf8, 0x9e, 0x16, 0x61, 0x8e, 0xf1, 0x65,
+	0xe3, 0xf4, 0xdf, 0x4d, 0xad, 0x9f, 0xa0, 0x91, 0xb5, 0x75, 0x4f, 0xb6, 0x9e, 0x02, 0xdc, 0x04,
+	0x31, 0x95, 0x14, 0x08, 0x33, 0xcb, 0x28, 0x33, 0x05, 0x8e, 0x7f, 0x3a, 0xbf, 0x14, 0x60, 0xfb,
+	0xa5, 0xe8, 0xde, 0xd5, 0xe5, 0xf9, 0xe6, 0x4b, 0x6f, 0xd6, 0xc8, 0xa5, 0x55, 0x5b, 0xad, 0xbc,
+	0x92, 0x8e, 0xca, 0x02, 0x1d, 0x39, 0x4e, 0xfe, 0x3f, 0x74, 0x9c, 0x43, 0x23, 0x6b, 0xeb, 0x7e,
+	0x74, 0x38, 0x87, 0xb0, 0xfd, 0x39, 0x1e, 0xe2, 0x3b, 0x12, 0xeb, 0xec, 0x40, 0x23, 0x0b, 0x93,
+	0xe6, 0x9c, 0xef, 0x61, 0x4b, 0x56, 0x85, 0x60, 0x4c, 0x3d, 0xce, 0xac, 0x30, 0x63, 0xc9, 0x0a,
+	0x2b, 0x64, 0x57, 0xd8, 0xdc, 0xaa, 0x28, 0x2e, 0xae, 0x0a, 0xe7, 0x13, 0x40, 0xba, 0x2d, 0x15,
+	0xf0, 0x31, 0x94, 0x44, 0x25, 0x19, 0x2b, 0x2a, 0x49, 0x20, 0x9c, 0x16, 0x6c, 0xc9, 0x18, 0xde,
+	0xd8, 0xd7, 0xb7, 0x61, 0x2d, 0x71, 0x48, 0xba, 0x5b, 0x89, 0xa4, 0x2b, 0x0d, 0x40, 0xba, 0x2a,
+	0x95, 0x8c, 0x3f, 0x0d, 0xb0, 0x5b, 0xe1, 0x84, 0x0c, 0xb0, 0xd8, 0xa5, 0xad, 0x30, 0x9b, 0xd3,
+	0x95, 0xa6, 0xf6, 0x00, 0xb4, 0xc5, 0x2c, 0xad, 0x99, 0x69, 0xd9, 0x21, 0x0b, 0xd6, 0x46, 0x98,
+	0x52, 0xaf, 0x8f, 0x55, 0x6a, 0x92, 0x23, 0x3a, 0x84, 0x8d, 0x11, 0xf1, 0xf1, 0xb0, 0x43, 0x26,
+	0x38, 0x8e, 0x03, 0x1f, 0xab, 0x82, 0x5e, 0x17, 0xd2, 0x4b, 0x25, 0xe4, 0xfb, 0x3f, 0xc6, 0xbd,
+	0x34, 0xc5, 0xc3, 0x60, 0x14, 0x30, 0xb1, 0xff, 0xcb, 0xed, 0x4d, 0x79, 0xc1, 0x43, 0xb9, 0xe0,
+	0x62, 0xa7, 0x07, 0xbb, 0xb9, 0x61, 0xfc, 0xd3, 0x8c, 0x23, 0x1b, 0xaa, 0xb1, 0x7a, 0x95, 0xfc,
+	0x94, 0x49, 0xce, 0xa7, 0xbf, 0x96, 0xa1, 0x2e, 0xf0, 0x2f, 0x70, 0x3c, 0x09, 0x7a, 0x18, 0x5d,
+	0x40, 0x4d, 0xdb, 0x82, 0x68, 0x4f, 0xd3, 0xbb, 0xb8, 0x88, 0xed, 0x47, 0xcb, 0xae, 0x95, 0x93,
+	0xe7, 0x60, 0xa6, 0x9b, 0x05, 0xed, 0x6a, 0xe0, 0xf9, 0x15, 0x67, 0x3f, 0xcc, 0xbf, 0x54, 0x7a,
+	0x2e, 0xa1, 0xae, 0x8f, 0x3d, 0xf4, 0x68, 0xf5, 0xec, 0xb5, 0xf7, 0x97, 0xde, 0xcf, 0x14, 0xea,
+	0x8d, 0x9b, 0x51, 0x98, 0x33, 0x3d, 0x32, 0x0a, 0x73, 0x3b, 0xfe, 0x12, 0xea, 0x7a, 0x6b, 0x66,
+	0x14, 0xe6, 0xb4, 0x76, 0x46, 0x61, 0x5e, 0x4f, 0xa3, 0x16, 0xc0, 0xac, 0xcf, 0xd0, 0xc3, 0x85,
+	0x80, 0xb4, 0xf6, 0xb1, 0xf7, 0x96, 0xdc, 0xce, 0x54, 0xcd, 0xfa, 0x24, 0xa3, 0x6a, 0xa1, 0x13,
+	0x33, 0xaa, 0x16, 0x9b, 0x0b, 0xf9, 0xb0, 0x9d, 0x53, 0x94, 0xe8, 0x50, 0x7b, 0xb5, 0xbc, 0xf7,
+	0xec, 0xa3, 0xbb, 0x60, 0xd2, 0xca, 0xf3, 0x0f, 0xbe, 0x3b, 0xed, 0x13, 0x97, 0xc4, 0xaf, 0xdc,
+	0x11, 0x6e, 0x7a, 0x51, 0x44, 0x9b, 0xdd, 0x31, 0x63, 0x38, 0x6e, 0x46, 0x83, 0xbe, 0xfc, 0x2f,
+	0xd6, 0x4c, 0xff, 0xba, 0x3d, 0x93, 0x5f, 0x93, 0x93, 0x6e, 0x45, 0xdc, 0x3c, 0xfd, 0x3b, 0x00,
+	0x00, 0xff, 0xff, 0x7c, 0x54, 0x9f, 0xad, 0xd7, 0x0d, 0x00, 0x00,
 }

@@ -381,22 +381,22 @@ var _ interface {
 	ErrorName() string
 } = ForumPostValidationError{}
 
-// Validate checks the field values on ListForumThreadsRequest with the rules
+// Validate checks the field values on ListThreadsRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *ListForumThreadsRequest) Validate() error {
+func (m *ListThreadsRequest) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on ListForumThreadsRequest with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on ListThreadsRequest with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// ListForumThreadsRequestMultiError, or nil if none found.
-func (m *ListForumThreadsRequest) ValidateAll() error {
+// ListThreadsRequestMultiError, or nil if none found.
+func (m *ListThreadsRequest) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *ListForumThreadsRequest) validate(all bool) error {
+func (m *ListThreadsRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -410,19 +410,19 @@ func (m *ListForumThreadsRequest) validate(all bool) error {
 	// no validation rules for PageToken
 
 	if len(errors) > 0 {
-		return ListForumThreadsRequestMultiError(errors)
+		return ListThreadsRequestMultiError(errors)
 	}
 
 	return nil
 }
 
-// ListForumThreadsRequestMultiError is an error wrapping multiple validation
-// errors returned by ListForumThreadsRequest.ValidateAll() if the designated
-// constraints aren't met.
-type ListForumThreadsRequestMultiError []error
+// ListThreadsRequestMultiError is an error wrapping multiple validation errors
+// returned by ListThreadsRequest.ValidateAll() if the designated constraints
+// aren't met.
+type ListThreadsRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m ListForumThreadsRequestMultiError) Error() string {
+func (m ListThreadsRequestMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -431,11 +431,11 @@ func (m ListForumThreadsRequestMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m ListForumThreadsRequestMultiError) AllErrors() []error { return m }
+func (m ListThreadsRequestMultiError) AllErrors() []error { return m }
 
-// ListForumThreadsRequestValidationError is the validation error returned by
-// ListForumThreadsRequest.Validate if the designated constraints aren't met.
-type ListForumThreadsRequestValidationError struct {
+// ListThreadsRequestValidationError is the validation error returned by
+// ListThreadsRequest.Validate if the designated constraints aren't met.
+type ListThreadsRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -443,24 +443,24 @@ type ListForumThreadsRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e ListForumThreadsRequestValidationError) Field() string { return e.field }
+func (e ListThreadsRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e ListForumThreadsRequestValidationError) Reason() string { return e.reason }
+func (e ListThreadsRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e ListForumThreadsRequestValidationError) Cause() error { return e.cause }
+func (e ListThreadsRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e ListForumThreadsRequestValidationError) Key() bool { return e.key }
+func (e ListThreadsRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e ListForumThreadsRequestValidationError) ErrorName() string {
-	return "ListForumThreadsRequestValidationError"
+func (e ListThreadsRequestValidationError) ErrorName() string {
+	return "ListThreadsRequestValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e ListForumThreadsRequestValidationError) Error() string {
+func (e ListThreadsRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -472,14 +472,14 @@ func (e ListForumThreadsRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sListForumThreadsRequest.%s: %s%s",
+		"invalid %sListThreadsRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = ListForumThreadsRequestValidationError{}
+var _ error = ListThreadsRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -487,24 +487,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = ListForumThreadsRequestValidationError{}
+} = ListThreadsRequestValidationError{}
 
-// Validate checks the field values on ListForumThreadsResponse with the rules
+// Validate checks the field values on ListThreadsResponse with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *ListForumThreadsResponse) Validate() error {
+func (m *ListThreadsResponse) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on ListForumThreadsResponse with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on ListThreadsResponse with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// ListForumThreadsResponseMultiError, or nil if none found.
-func (m *ListForumThreadsResponse) ValidateAll() error {
+// ListThreadsResponseMultiError, or nil if none found.
+func (m *ListThreadsResponse) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *ListForumThreadsResponse) validate(all bool) error {
+func (m *ListThreadsResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -518,7 +518,7 @@ func (m *ListForumThreadsResponse) validate(all bool) error {
 			switch v := interface{}(item).(type) {
 			case interface{ ValidateAll() error }:
 				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, ListForumThreadsResponseValidationError{
+					errors = append(errors, ListThreadsResponseValidationError{
 						field:  fmt.Sprintf("Threads[%v]", idx),
 						reason: "embedded message failed validation",
 						cause:  err,
@@ -526,7 +526,7 @@ func (m *ListForumThreadsResponse) validate(all bool) error {
 				}
 			case interface{ Validate() error }:
 				if err := v.Validate(); err != nil {
-					errors = append(errors, ListForumThreadsResponseValidationError{
+					errors = append(errors, ListThreadsResponseValidationError{
 						field:  fmt.Sprintf("Threads[%v]", idx),
 						reason: "embedded message failed validation",
 						cause:  err,
@@ -535,7 +535,7 @@ func (m *ListForumThreadsResponse) validate(all bool) error {
 			}
 		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
-				return ListForumThreadsResponseValidationError{
+				return ListThreadsResponseValidationError{
 					field:  fmt.Sprintf("Threads[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -550,19 +550,19 @@ func (m *ListForumThreadsResponse) validate(all bool) error {
 	// no validation rules for Total
 
 	if len(errors) > 0 {
-		return ListForumThreadsResponseMultiError(errors)
+		return ListThreadsResponseMultiError(errors)
 	}
 
 	return nil
 }
 
-// ListForumThreadsResponseMultiError is an error wrapping multiple validation
-// errors returned by ListForumThreadsResponse.ValidateAll() if the designated
+// ListThreadsResponseMultiError is an error wrapping multiple validation
+// errors returned by ListThreadsResponse.ValidateAll() if the designated
 // constraints aren't met.
-type ListForumThreadsResponseMultiError []error
+type ListThreadsResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m ListForumThreadsResponseMultiError) Error() string {
+func (m ListThreadsResponseMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -571,11 +571,11 @@ func (m ListForumThreadsResponseMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m ListForumThreadsResponseMultiError) AllErrors() []error { return m }
+func (m ListThreadsResponseMultiError) AllErrors() []error { return m }
 
-// ListForumThreadsResponseValidationError is the validation error returned by
-// ListForumThreadsResponse.Validate if the designated constraints aren't met.
-type ListForumThreadsResponseValidationError struct {
+// ListThreadsResponseValidationError is the validation error returned by
+// ListThreadsResponse.Validate if the designated constraints aren't met.
+type ListThreadsResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -583,24 +583,24 @@ type ListForumThreadsResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e ListForumThreadsResponseValidationError) Field() string { return e.field }
+func (e ListThreadsResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e ListForumThreadsResponseValidationError) Reason() string { return e.reason }
+func (e ListThreadsResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e ListForumThreadsResponseValidationError) Cause() error { return e.cause }
+func (e ListThreadsResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e ListForumThreadsResponseValidationError) Key() bool { return e.key }
+func (e ListThreadsResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e ListForumThreadsResponseValidationError) ErrorName() string {
-	return "ListForumThreadsResponseValidationError"
+func (e ListThreadsResponseValidationError) ErrorName() string {
+	return "ListThreadsResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e ListForumThreadsResponseValidationError) Error() string {
+func (e ListThreadsResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -612,14 +612,14 @@ func (e ListForumThreadsResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sListForumThreadsResponse.%s: %s%s",
+		"invalid %sListThreadsResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = ListForumThreadsResponseValidationError{}
+var _ error = ListThreadsResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -627,24 +627,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = ListForumThreadsResponseValidationError{}
+} = ListThreadsResponseValidationError{}
 
-// Validate checks the field values on GetForumThreadRequest with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, the first error encountered is returned, or nil if there are no violations.
-func (m *GetForumThreadRequest) Validate() error {
+// Validate checks the field values on GetThreadRequest with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *GetThreadRequest) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on GetForumThreadRequest with the rules
+// ValidateAll checks the field values on GetThreadRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// GetForumThreadRequestMultiError, or nil if none found.
-func (m *GetForumThreadRequest) ValidateAll() error {
+// GetThreadRequestMultiError, or nil if none found.
+func (m *GetThreadRequest) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *GetForumThreadRequest) validate(all bool) error {
+func (m *GetThreadRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -658,19 +658,19 @@ func (m *GetForumThreadRequest) validate(all bool) error {
 	// no validation rules for PostPageToken
 
 	if len(errors) > 0 {
-		return GetForumThreadRequestMultiError(errors)
+		return GetThreadRequestMultiError(errors)
 	}
 
 	return nil
 }
 
-// GetForumThreadRequestMultiError is an error wrapping multiple validation
-// errors returned by GetForumThreadRequest.ValidateAll() if the designated
-// constraints aren't met.
-type GetForumThreadRequestMultiError []error
+// GetThreadRequestMultiError is an error wrapping multiple validation errors
+// returned by GetThreadRequest.ValidateAll() if the designated constraints
+// aren't met.
+type GetThreadRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m GetForumThreadRequestMultiError) Error() string {
+func (m GetThreadRequestMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -679,11 +679,11 @@ func (m GetForumThreadRequestMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m GetForumThreadRequestMultiError) AllErrors() []error { return m }
+func (m GetThreadRequestMultiError) AllErrors() []error { return m }
 
-// GetForumThreadRequestValidationError is the validation error returned by
-// GetForumThreadRequest.Validate if the designated constraints aren't met.
-type GetForumThreadRequestValidationError struct {
+// GetThreadRequestValidationError is the validation error returned by
+// GetThreadRequest.Validate if the designated constraints aren't met.
+type GetThreadRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -691,24 +691,22 @@ type GetForumThreadRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e GetForumThreadRequestValidationError) Field() string { return e.field }
+func (e GetThreadRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e GetForumThreadRequestValidationError) Reason() string { return e.reason }
+func (e GetThreadRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e GetForumThreadRequestValidationError) Cause() error { return e.cause }
+func (e GetThreadRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e GetForumThreadRequestValidationError) Key() bool { return e.key }
+func (e GetThreadRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e GetForumThreadRequestValidationError) ErrorName() string {
-	return "GetForumThreadRequestValidationError"
-}
+func (e GetThreadRequestValidationError) ErrorName() string { return "GetThreadRequestValidationError" }
 
 // Error satisfies the builtin error interface
-func (e GetForumThreadRequestValidationError) Error() string {
+func (e GetThreadRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -720,14 +718,14 @@ func (e GetForumThreadRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sGetForumThreadRequest.%s: %s%s",
+		"invalid %sGetThreadRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = GetForumThreadRequestValidationError{}
+var _ error = GetThreadRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -735,24 +733,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = GetForumThreadRequestValidationError{}
+} = GetThreadRequestValidationError{}
 
-// Validate checks the field values on GetForumThreadResponse with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, the first error encountered is returned, or nil if there are no violations.
-func (m *GetForumThreadResponse) Validate() error {
+// Validate checks the field values on GetThreadResponse with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *GetThreadResponse) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on GetForumThreadResponse with the rules
+// ValidateAll checks the field values on GetThreadResponse with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// GetForumThreadResponseMultiError, or nil if none found.
-func (m *GetForumThreadResponse) ValidateAll() error {
+// GetThreadResponseMultiError, or nil if none found.
+func (m *GetThreadResponse) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *GetForumThreadResponse) validate(all bool) error {
+func (m *GetThreadResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -763,7 +761,7 @@ func (m *GetForumThreadResponse) validate(all bool) error {
 		switch v := interface{}(m.GetThread()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, GetForumThreadResponseValidationError{
+				errors = append(errors, GetThreadResponseValidationError{
 					field:  "Thread",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -771,7 +769,7 @@ func (m *GetForumThreadResponse) validate(all bool) error {
 			}
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
-				errors = append(errors, GetForumThreadResponseValidationError{
+				errors = append(errors, GetThreadResponseValidationError{
 					field:  "Thread",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -780,7 +778,7 @@ func (m *GetForumThreadResponse) validate(all bool) error {
 		}
 	} else if v, ok := interface{}(m.GetThread()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
-			return GetForumThreadResponseValidationError{
+			return GetThreadResponseValidationError{
 				field:  "Thread",
 				reason: "embedded message failed validation",
 				cause:  err,
@@ -795,7 +793,7 @@ func (m *GetForumThreadResponse) validate(all bool) error {
 			switch v := interface{}(item).(type) {
 			case interface{ ValidateAll() error }:
 				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, GetForumThreadResponseValidationError{
+					errors = append(errors, GetThreadResponseValidationError{
 						field:  fmt.Sprintf("Posts[%v]", idx),
 						reason: "embedded message failed validation",
 						cause:  err,
@@ -803,7 +801,7 @@ func (m *GetForumThreadResponse) validate(all bool) error {
 				}
 			case interface{ Validate() error }:
 				if err := v.Validate(); err != nil {
-					errors = append(errors, GetForumThreadResponseValidationError{
+					errors = append(errors, GetThreadResponseValidationError{
 						field:  fmt.Sprintf("Posts[%v]", idx),
 						reason: "embedded message failed validation",
 						cause:  err,
@@ -812,7 +810,7 @@ func (m *GetForumThreadResponse) validate(all bool) error {
 			}
 		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
-				return GetForumThreadResponseValidationError{
+				return GetThreadResponseValidationError{
 					field:  fmt.Sprintf("Posts[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -827,19 +825,19 @@ func (m *GetForumThreadResponse) validate(all bool) error {
 	// no validation rules for PostTotal
 
 	if len(errors) > 0 {
-		return GetForumThreadResponseMultiError(errors)
+		return GetThreadResponseMultiError(errors)
 	}
 
 	return nil
 }
 
-// GetForumThreadResponseMultiError is an error wrapping multiple validation
-// errors returned by GetForumThreadResponse.ValidateAll() if the designated
-// constraints aren't met.
-type GetForumThreadResponseMultiError []error
+// GetThreadResponseMultiError is an error wrapping multiple validation errors
+// returned by GetThreadResponse.ValidateAll() if the designated constraints
+// aren't met.
+type GetThreadResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m GetForumThreadResponseMultiError) Error() string {
+func (m GetThreadResponseMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -848,11 +846,11 @@ func (m GetForumThreadResponseMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m GetForumThreadResponseMultiError) AllErrors() []error { return m }
+func (m GetThreadResponseMultiError) AllErrors() []error { return m }
 
-// GetForumThreadResponseValidationError is the validation error returned by
-// GetForumThreadResponse.Validate if the designated constraints aren't met.
-type GetForumThreadResponseValidationError struct {
+// GetThreadResponseValidationError is the validation error returned by
+// GetThreadResponse.Validate if the designated constraints aren't met.
+type GetThreadResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -860,24 +858,24 @@ type GetForumThreadResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e GetForumThreadResponseValidationError) Field() string { return e.field }
+func (e GetThreadResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e GetForumThreadResponseValidationError) Reason() string { return e.reason }
+func (e GetThreadResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e GetForumThreadResponseValidationError) Cause() error { return e.cause }
+func (e GetThreadResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e GetForumThreadResponseValidationError) Key() bool { return e.key }
+func (e GetThreadResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e GetForumThreadResponseValidationError) ErrorName() string {
-	return "GetForumThreadResponseValidationError"
+func (e GetThreadResponseValidationError) ErrorName() string {
+	return "GetThreadResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e GetForumThreadResponseValidationError) Error() string {
+func (e GetThreadResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -889,14 +887,14 @@ func (e GetForumThreadResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sGetForumThreadResponse.%s: %s%s",
+		"invalid %sGetThreadResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = GetForumThreadResponseValidationError{}
+var _ error = GetThreadResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -904,24 +902,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = GetForumThreadResponseValidationError{}
+} = GetThreadResponseValidationError{}
 
-// Validate checks the field values on CreateForumThreadRequest with the rules
+// Validate checks the field values on CreateThreadRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *CreateForumThreadRequest) Validate() error {
+func (m *CreateThreadRequest) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on CreateForumThreadRequest with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on CreateThreadRequest with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// CreateForumThreadRequestMultiError, or nil if none found.
-func (m *CreateForumThreadRequest) ValidateAll() error {
+// CreateThreadRequestMultiError, or nil if none found.
+func (m *CreateThreadRequest) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *CreateForumThreadRequest) validate(all bool) error {
+func (m *CreateThreadRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -935,19 +933,19 @@ func (m *CreateForumThreadRequest) validate(all bool) error {
 	// no validation rules for Metadata
 
 	if len(errors) > 0 {
-		return CreateForumThreadRequestMultiError(errors)
+		return CreateThreadRequestMultiError(errors)
 	}
 
 	return nil
 }
 
-// CreateForumThreadRequestMultiError is an error wrapping multiple validation
-// errors returned by CreateForumThreadRequest.ValidateAll() if the designated
+// CreateThreadRequestMultiError is an error wrapping multiple validation
+// errors returned by CreateThreadRequest.ValidateAll() if the designated
 // constraints aren't met.
-type CreateForumThreadRequestMultiError []error
+type CreateThreadRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m CreateForumThreadRequestMultiError) Error() string {
+func (m CreateThreadRequestMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -956,11 +954,11 @@ func (m CreateForumThreadRequestMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m CreateForumThreadRequestMultiError) AllErrors() []error { return m }
+func (m CreateThreadRequestMultiError) AllErrors() []error { return m }
 
-// CreateForumThreadRequestValidationError is the validation error returned by
-// CreateForumThreadRequest.Validate if the designated constraints aren't met.
-type CreateForumThreadRequestValidationError struct {
+// CreateThreadRequestValidationError is the validation error returned by
+// CreateThreadRequest.Validate if the designated constraints aren't met.
+type CreateThreadRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -968,24 +966,24 @@ type CreateForumThreadRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e CreateForumThreadRequestValidationError) Field() string { return e.field }
+func (e CreateThreadRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e CreateForumThreadRequestValidationError) Reason() string { return e.reason }
+func (e CreateThreadRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e CreateForumThreadRequestValidationError) Cause() error { return e.cause }
+func (e CreateThreadRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e CreateForumThreadRequestValidationError) Key() bool { return e.key }
+func (e CreateThreadRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e CreateForumThreadRequestValidationError) ErrorName() string {
-	return "CreateForumThreadRequestValidationError"
+func (e CreateThreadRequestValidationError) ErrorName() string {
+	return "CreateThreadRequestValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e CreateForumThreadRequestValidationError) Error() string {
+func (e CreateThreadRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -997,14 +995,14 @@ func (e CreateForumThreadRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sCreateForumThreadRequest.%s: %s%s",
+		"invalid %sCreateThreadRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = CreateForumThreadRequestValidationError{}
+var _ error = CreateThreadRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -1012,24 +1010,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = CreateForumThreadRequestValidationError{}
+} = CreateThreadRequestValidationError{}
 
-// Validate checks the field values on CreateForumThreadResponse with the rules
+// Validate checks the field values on CreateThreadResponse with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *CreateForumThreadResponse) Validate() error {
+func (m *CreateThreadResponse) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on CreateForumThreadResponse with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on CreateThreadResponse with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// CreateForumThreadResponseMultiError, or nil if none found.
-func (m *CreateForumThreadResponse) ValidateAll() error {
+// CreateThreadResponseMultiError, or nil if none found.
+func (m *CreateThreadResponse) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *CreateForumThreadResponse) validate(all bool) error {
+func (m *CreateThreadResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1040,7 +1038,7 @@ func (m *CreateForumThreadResponse) validate(all bool) error {
 		switch v := interface{}(m.GetThread()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, CreateForumThreadResponseValidationError{
+				errors = append(errors, CreateThreadResponseValidationError{
 					field:  "Thread",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -1048,7 +1046,7 @@ func (m *CreateForumThreadResponse) validate(all bool) error {
 			}
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
-				errors = append(errors, CreateForumThreadResponseValidationError{
+				errors = append(errors, CreateThreadResponseValidationError{
 					field:  "Thread",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -1057,7 +1055,7 @@ func (m *CreateForumThreadResponse) validate(all bool) error {
 		}
 	} else if v, ok := interface{}(m.GetThread()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
-			return CreateForumThreadResponseValidationError{
+			return CreateThreadResponseValidationError{
 				field:  "Thread",
 				reason: "embedded message failed validation",
 				cause:  err,
@@ -1069,7 +1067,7 @@ func (m *CreateForumThreadResponse) validate(all bool) error {
 		switch v := interface{}(m.GetFirstPost()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, CreateForumThreadResponseValidationError{
+				errors = append(errors, CreateThreadResponseValidationError{
 					field:  "FirstPost",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -1077,7 +1075,7 @@ func (m *CreateForumThreadResponse) validate(all bool) error {
 			}
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
-				errors = append(errors, CreateForumThreadResponseValidationError{
+				errors = append(errors, CreateThreadResponseValidationError{
 					field:  "FirstPost",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -1086,7 +1084,7 @@ func (m *CreateForumThreadResponse) validate(all bool) error {
 		}
 	} else if v, ok := interface{}(m.GetFirstPost()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
-			return CreateForumThreadResponseValidationError{
+			return CreateThreadResponseValidationError{
 				field:  "FirstPost",
 				reason: "embedded message failed validation",
 				cause:  err,
@@ -1095,19 +1093,19 @@ func (m *CreateForumThreadResponse) validate(all bool) error {
 	}
 
 	if len(errors) > 0 {
-		return CreateForumThreadResponseMultiError(errors)
+		return CreateThreadResponseMultiError(errors)
 	}
 
 	return nil
 }
 
-// CreateForumThreadResponseMultiError is an error wrapping multiple validation
-// errors returned by CreateForumThreadResponse.ValidateAll() if the
-// designated constraints aren't met.
-type CreateForumThreadResponseMultiError []error
+// CreateThreadResponseMultiError is an error wrapping multiple validation
+// errors returned by CreateThreadResponse.ValidateAll() if the designated
+// constraints aren't met.
+type CreateThreadResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m CreateForumThreadResponseMultiError) Error() string {
+func (m CreateThreadResponseMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1116,11 +1114,11 @@ func (m CreateForumThreadResponseMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m CreateForumThreadResponseMultiError) AllErrors() []error { return m }
+func (m CreateThreadResponseMultiError) AllErrors() []error { return m }
 
-// CreateForumThreadResponseValidationError is the validation error returned by
-// CreateForumThreadResponse.Validate if the designated constraints aren't met.
-type CreateForumThreadResponseValidationError struct {
+// CreateThreadResponseValidationError is the validation error returned by
+// CreateThreadResponse.Validate if the designated constraints aren't met.
+type CreateThreadResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1128,24 +1126,24 @@ type CreateForumThreadResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e CreateForumThreadResponseValidationError) Field() string { return e.field }
+func (e CreateThreadResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e CreateForumThreadResponseValidationError) Reason() string { return e.reason }
+func (e CreateThreadResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e CreateForumThreadResponseValidationError) Cause() error { return e.cause }
+func (e CreateThreadResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e CreateForumThreadResponseValidationError) Key() bool { return e.key }
+func (e CreateThreadResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e CreateForumThreadResponseValidationError) ErrorName() string {
-	return "CreateForumThreadResponseValidationError"
+func (e CreateThreadResponseValidationError) ErrorName() string {
+	return "CreateThreadResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e CreateForumThreadResponseValidationError) Error() string {
+func (e CreateThreadResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1157,14 +1155,14 @@ func (e CreateForumThreadResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sCreateForumThreadResponse.%s: %s%s",
+		"invalid %sCreateThreadResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = CreateForumThreadResponseValidationError{}
+var _ error = CreateThreadResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -1172,24 +1170,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = CreateForumThreadResponseValidationError{}
+} = CreateThreadResponseValidationError{}
 
-// Validate checks the field values on UpdateForumThreadRequest with the rules
+// Validate checks the field values on UpdateThreadRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *UpdateForumThreadRequest) Validate() error {
+func (m *UpdateThreadRequest) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on UpdateForumThreadRequest with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on UpdateThreadRequest with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// UpdateForumThreadRequestMultiError, or nil if none found.
-func (m *UpdateForumThreadRequest) ValidateAll() error {
+// UpdateThreadRequestMultiError, or nil if none found.
+func (m *UpdateThreadRequest) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *UpdateForumThreadRequest) validate(all bool) error {
+func (m *UpdateThreadRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1207,19 +1205,19 @@ func (m *UpdateForumThreadRequest) validate(all bool) error {
 	// no validation rules for Metadata
 
 	if len(errors) > 0 {
-		return UpdateForumThreadRequestMultiError(errors)
+		return UpdateThreadRequestMultiError(errors)
 	}
 
 	return nil
 }
 
-// UpdateForumThreadRequestMultiError is an error wrapping multiple validation
-// errors returned by UpdateForumThreadRequest.ValidateAll() if the designated
+// UpdateThreadRequestMultiError is an error wrapping multiple validation
+// errors returned by UpdateThreadRequest.ValidateAll() if the designated
 // constraints aren't met.
-type UpdateForumThreadRequestMultiError []error
+type UpdateThreadRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m UpdateForumThreadRequestMultiError) Error() string {
+func (m UpdateThreadRequestMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1228,11 +1226,11 @@ func (m UpdateForumThreadRequestMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m UpdateForumThreadRequestMultiError) AllErrors() []error { return m }
+func (m UpdateThreadRequestMultiError) AllErrors() []error { return m }
 
-// UpdateForumThreadRequestValidationError is the validation error returned by
-// UpdateForumThreadRequest.Validate if the designated constraints aren't met.
-type UpdateForumThreadRequestValidationError struct {
+// UpdateThreadRequestValidationError is the validation error returned by
+// UpdateThreadRequest.Validate if the designated constraints aren't met.
+type UpdateThreadRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1240,24 +1238,24 @@ type UpdateForumThreadRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e UpdateForumThreadRequestValidationError) Field() string { return e.field }
+func (e UpdateThreadRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e UpdateForumThreadRequestValidationError) Reason() string { return e.reason }
+func (e UpdateThreadRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e UpdateForumThreadRequestValidationError) Cause() error { return e.cause }
+func (e UpdateThreadRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e UpdateForumThreadRequestValidationError) Key() bool { return e.key }
+func (e UpdateThreadRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e UpdateForumThreadRequestValidationError) ErrorName() string {
-	return "UpdateForumThreadRequestValidationError"
+func (e UpdateThreadRequestValidationError) ErrorName() string {
+	return "UpdateThreadRequestValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e UpdateForumThreadRequestValidationError) Error() string {
+func (e UpdateThreadRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1269,14 +1267,14 @@ func (e UpdateForumThreadRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sUpdateForumThreadRequest.%s: %s%s",
+		"invalid %sUpdateThreadRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = UpdateForumThreadRequestValidationError{}
+var _ error = UpdateThreadRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -1284,24 +1282,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = UpdateForumThreadRequestValidationError{}
+} = UpdateThreadRequestValidationError{}
 
-// Validate checks the field values on UpdateForumThreadResponse with the rules
+// Validate checks the field values on UpdateThreadResponse with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *UpdateForumThreadResponse) Validate() error {
+func (m *UpdateThreadResponse) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on UpdateForumThreadResponse with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on UpdateThreadResponse with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// UpdateForumThreadResponseMultiError, or nil if none found.
-func (m *UpdateForumThreadResponse) ValidateAll() error {
+// UpdateThreadResponseMultiError, or nil if none found.
+func (m *UpdateThreadResponse) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *UpdateForumThreadResponse) validate(all bool) error {
+func (m *UpdateThreadResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1312,7 +1310,7 @@ func (m *UpdateForumThreadResponse) validate(all bool) error {
 		switch v := interface{}(m.GetThread()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, UpdateForumThreadResponseValidationError{
+				errors = append(errors, UpdateThreadResponseValidationError{
 					field:  "Thread",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -1320,7 +1318,7 @@ func (m *UpdateForumThreadResponse) validate(all bool) error {
 			}
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
-				errors = append(errors, UpdateForumThreadResponseValidationError{
+				errors = append(errors, UpdateThreadResponseValidationError{
 					field:  "Thread",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -1329,7 +1327,7 @@ func (m *UpdateForumThreadResponse) validate(all bool) error {
 		}
 	} else if v, ok := interface{}(m.GetThread()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
-			return UpdateForumThreadResponseValidationError{
+			return UpdateThreadResponseValidationError{
 				field:  "Thread",
 				reason: "embedded message failed validation",
 				cause:  err,
@@ -1338,19 +1336,19 @@ func (m *UpdateForumThreadResponse) validate(all bool) error {
 	}
 
 	if len(errors) > 0 {
-		return UpdateForumThreadResponseMultiError(errors)
+		return UpdateThreadResponseMultiError(errors)
 	}
 
 	return nil
 }
 
-// UpdateForumThreadResponseMultiError is an error wrapping multiple validation
-// errors returned by UpdateForumThreadResponse.ValidateAll() if the
-// designated constraints aren't met.
-type UpdateForumThreadResponseMultiError []error
+// UpdateThreadResponseMultiError is an error wrapping multiple validation
+// errors returned by UpdateThreadResponse.ValidateAll() if the designated
+// constraints aren't met.
+type UpdateThreadResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m UpdateForumThreadResponseMultiError) Error() string {
+func (m UpdateThreadResponseMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1359,11 +1357,11 @@ func (m UpdateForumThreadResponseMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m UpdateForumThreadResponseMultiError) AllErrors() []error { return m }
+func (m UpdateThreadResponseMultiError) AllErrors() []error { return m }
 
-// UpdateForumThreadResponseValidationError is the validation error returned by
-// UpdateForumThreadResponse.Validate if the designated constraints aren't met.
-type UpdateForumThreadResponseValidationError struct {
+// UpdateThreadResponseValidationError is the validation error returned by
+// UpdateThreadResponse.Validate if the designated constraints aren't met.
+type UpdateThreadResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1371,24 +1369,24 @@ type UpdateForumThreadResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e UpdateForumThreadResponseValidationError) Field() string { return e.field }
+func (e UpdateThreadResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e UpdateForumThreadResponseValidationError) Reason() string { return e.reason }
+func (e UpdateThreadResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e UpdateForumThreadResponseValidationError) Cause() error { return e.cause }
+func (e UpdateThreadResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e UpdateForumThreadResponseValidationError) Key() bool { return e.key }
+func (e UpdateThreadResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e UpdateForumThreadResponseValidationError) ErrorName() string {
-	return "UpdateForumThreadResponseValidationError"
+func (e UpdateThreadResponseValidationError) ErrorName() string {
+	return "UpdateThreadResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e UpdateForumThreadResponseValidationError) Error() string {
+func (e UpdateThreadResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1400,14 +1398,14 @@ func (e UpdateForumThreadResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sUpdateForumThreadResponse.%s: %s%s",
+		"invalid %sUpdateThreadResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = UpdateForumThreadResponseValidationError{}
+var _ error = UpdateThreadResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -1415,24 +1413,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = UpdateForumThreadResponseValidationError{}
+} = UpdateThreadResponseValidationError{}
 
-// Validate checks the field values on DeleteForumThreadRequest with the rules
+// Validate checks the field values on DeleteThreadRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *DeleteForumThreadRequest) Validate() error {
+func (m *DeleteThreadRequest) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on DeleteForumThreadRequest with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on DeleteThreadRequest with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// DeleteForumThreadRequestMultiError, or nil if none found.
-func (m *DeleteForumThreadRequest) ValidateAll() error {
+// DeleteThreadRequestMultiError, or nil if none found.
+func (m *DeleteThreadRequest) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *DeleteForumThreadRequest) validate(all bool) error {
+func (m *DeleteThreadRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1442,19 +1440,19 @@ func (m *DeleteForumThreadRequest) validate(all bool) error {
 	// no validation rules for Id
 
 	if len(errors) > 0 {
-		return DeleteForumThreadRequestMultiError(errors)
+		return DeleteThreadRequestMultiError(errors)
 	}
 
 	return nil
 }
 
-// DeleteForumThreadRequestMultiError is an error wrapping multiple validation
-// errors returned by DeleteForumThreadRequest.ValidateAll() if the designated
+// DeleteThreadRequestMultiError is an error wrapping multiple validation
+// errors returned by DeleteThreadRequest.ValidateAll() if the designated
 // constraints aren't met.
-type DeleteForumThreadRequestMultiError []error
+type DeleteThreadRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m DeleteForumThreadRequestMultiError) Error() string {
+func (m DeleteThreadRequestMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1463,11 +1461,11 @@ func (m DeleteForumThreadRequestMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m DeleteForumThreadRequestMultiError) AllErrors() []error { return m }
+func (m DeleteThreadRequestMultiError) AllErrors() []error { return m }
 
-// DeleteForumThreadRequestValidationError is the validation error returned by
-// DeleteForumThreadRequest.Validate if the designated constraints aren't met.
-type DeleteForumThreadRequestValidationError struct {
+// DeleteThreadRequestValidationError is the validation error returned by
+// DeleteThreadRequest.Validate if the designated constraints aren't met.
+type DeleteThreadRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1475,24 +1473,24 @@ type DeleteForumThreadRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e DeleteForumThreadRequestValidationError) Field() string { return e.field }
+func (e DeleteThreadRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e DeleteForumThreadRequestValidationError) Reason() string { return e.reason }
+func (e DeleteThreadRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e DeleteForumThreadRequestValidationError) Cause() error { return e.cause }
+func (e DeleteThreadRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e DeleteForumThreadRequestValidationError) Key() bool { return e.key }
+func (e DeleteThreadRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e DeleteForumThreadRequestValidationError) ErrorName() string {
-	return "DeleteForumThreadRequestValidationError"
+func (e DeleteThreadRequestValidationError) ErrorName() string {
+	return "DeleteThreadRequestValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e DeleteForumThreadRequestValidationError) Error() string {
+func (e DeleteThreadRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1504,14 +1502,14 @@ func (e DeleteForumThreadRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sDeleteForumThreadRequest.%s: %s%s",
+		"invalid %sDeleteThreadRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = DeleteForumThreadRequestValidationError{}
+var _ error = DeleteThreadRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -1519,24 +1517,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = DeleteForumThreadRequestValidationError{}
+} = DeleteThreadRequestValidationError{}
 
-// Validate checks the field values on DeleteForumThreadResponse with the rules
+// Validate checks the field values on DeleteThreadResponse with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *DeleteForumThreadResponse) Validate() error {
+func (m *DeleteThreadResponse) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on DeleteForumThreadResponse with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on DeleteThreadResponse with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// DeleteForumThreadResponseMultiError, or nil if none found.
-func (m *DeleteForumThreadResponse) ValidateAll() error {
+// DeleteThreadResponseMultiError, or nil if none found.
+func (m *DeleteThreadResponse) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *DeleteForumThreadResponse) validate(all bool) error {
+func (m *DeleteThreadResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1544,19 +1542,19 @@ func (m *DeleteForumThreadResponse) validate(all bool) error {
 	var errors []error
 
 	if len(errors) > 0 {
-		return DeleteForumThreadResponseMultiError(errors)
+		return DeleteThreadResponseMultiError(errors)
 	}
 
 	return nil
 }
 
-// DeleteForumThreadResponseMultiError is an error wrapping multiple validation
-// errors returned by DeleteForumThreadResponse.ValidateAll() if the
-// designated constraints aren't met.
-type DeleteForumThreadResponseMultiError []error
+// DeleteThreadResponseMultiError is an error wrapping multiple validation
+// errors returned by DeleteThreadResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DeleteThreadResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m DeleteForumThreadResponseMultiError) Error() string {
+func (m DeleteThreadResponseMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1565,11 +1563,11 @@ func (m DeleteForumThreadResponseMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m DeleteForumThreadResponseMultiError) AllErrors() []error { return m }
+func (m DeleteThreadResponseMultiError) AllErrors() []error { return m }
 
-// DeleteForumThreadResponseValidationError is the validation error returned by
-// DeleteForumThreadResponse.Validate if the designated constraints aren't met.
-type DeleteForumThreadResponseValidationError struct {
+// DeleteThreadResponseValidationError is the validation error returned by
+// DeleteThreadResponse.Validate if the designated constraints aren't met.
+type DeleteThreadResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1577,24 +1575,24 @@ type DeleteForumThreadResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e DeleteForumThreadResponseValidationError) Field() string { return e.field }
+func (e DeleteThreadResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e DeleteForumThreadResponseValidationError) Reason() string { return e.reason }
+func (e DeleteThreadResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e DeleteForumThreadResponseValidationError) Cause() error { return e.cause }
+func (e DeleteThreadResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e DeleteForumThreadResponseValidationError) Key() bool { return e.key }
+func (e DeleteThreadResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e DeleteForumThreadResponseValidationError) ErrorName() string {
-	return "DeleteForumThreadResponseValidationError"
+func (e DeleteThreadResponseValidationError) ErrorName() string {
+	return "DeleteThreadResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e DeleteForumThreadResponseValidationError) Error() string {
+func (e DeleteThreadResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1606,14 +1604,14 @@ func (e DeleteForumThreadResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sDeleteForumThreadResponse.%s: %s%s",
+		"invalid %sDeleteThreadResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = DeleteForumThreadResponseValidationError{}
+var _ error = DeleteThreadResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -1621,24 +1619,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = DeleteForumThreadResponseValidationError{}
+} = DeleteThreadResponseValidationError{}
 
-// Validate checks the field values on CreateForumPostRequest with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, the first error encountered is returned, or nil if there are no violations.
-func (m *CreateForumPostRequest) Validate() error {
+// Validate checks the field values on CreatePostRequest with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *CreatePostRequest) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on CreateForumPostRequest with the rules
+// ValidateAll checks the field values on CreatePostRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// CreateForumPostRequestMultiError, or nil if none found.
-func (m *CreateForumPostRequest) ValidateAll() error {
+// CreatePostRequestMultiError, or nil if none found.
+func (m *CreatePostRequest) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *CreateForumPostRequest) validate(all bool) error {
+func (m *CreatePostRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1652,19 +1650,19 @@ func (m *CreateForumPostRequest) validate(all bool) error {
 	// no validation rules for ParentPostId
 
 	if len(errors) > 0 {
-		return CreateForumPostRequestMultiError(errors)
+		return CreatePostRequestMultiError(errors)
 	}
 
 	return nil
 }
 
-// CreateForumPostRequestMultiError is an error wrapping multiple validation
-// errors returned by CreateForumPostRequest.ValidateAll() if the designated
-// constraints aren't met.
-type CreateForumPostRequestMultiError []error
+// CreatePostRequestMultiError is an error wrapping multiple validation errors
+// returned by CreatePostRequest.ValidateAll() if the designated constraints
+// aren't met.
+type CreatePostRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m CreateForumPostRequestMultiError) Error() string {
+func (m CreatePostRequestMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1673,11 +1671,11 @@ func (m CreateForumPostRequestMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m CreateForumPostRequestMultiError) AllErrors() []error { return m }
+func (m CreatePostRequestMultiError) AllErrors() []error { return m }
 
-// CreateForumPostRequestValidationError is the validation error returned by
-// CreateForumPostRequest.Validate if the designated constraints aren't met.
-type CreateForumPostRequestValidationError struct {
+// CreatePostRequestValidationError is the validation error returned by
+// CreatePostRequest.Validate if the designated constraints aren't met.
+type CreatePostRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1685,24 +1683,24 @@ type CreateForumPostRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e CreateForumPostRequestValidationError) Field() string { return e.field }
+func (e CreatePostRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e CreateForumPostRequestValidationError) Reason() string { return e.reason }
+func (e CreatePostRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e CreateForumPostRequestValidationError) Cause() error { return e.cause }
+func (e CreatePostRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e CreateForumPostRequestValidationError) Key() bool { return e.key }
+func (e CreatePostRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e CreateForumPostRequestValidationError) ErrorName() string {
-	return "CreateForumPostRequestValidationError"
+func (e CreatePostRequestValidationError) ErrorName() string {
+	return "CreatePostRequestValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e CreateForumPostRequestValidationError) Error() string {
+func (e CreatePostRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1714,14 +1712,14 @@ func (e CreateForumPostRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sCreateForumPostRequest.%s: %s%s",
+		"invalid %sCreatePostRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = CreateForumPostRequestValidationError{}
+var _ error = CreatePostRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -1729,24 +1727,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = CreateForumPostRequestValidationError{}
+} = CreatePostRequestValidationError{}
 
-// Validate checks the field values on CreateForumPostResponse with the rules
+// Validate checks the field values on CreatePostResponse with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *CreateForumPostResponse) Validate() error {
+func (m *CreatePostResponse) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on CreateForumPostResponse with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on CreatePostResponse with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// CreateForumPostResponseMultiError, or nil if none found.
-func (m *CreateForumPostResponse) ValidateAll() error {
+// CreatePostResponseMultiError, or nil if none found.
+func (m *CreatePostResponse) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *CreateForumPostResponse) validate(all bool) error {
+func (m *CreatePostResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1757,7 +1755,7 @@ func (m *CreateForumPostResponse) validate(all bool) error {
 		switch v := interface{}(m.GetPost()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, CreateForumPostResponseValidationError{
+				errors = append(errors, CreatePostResponseValidationError{
 					field:  "Post",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -1765,7 +1763,7 @@ func (m *CreateForumPostResponse) validate(all bool) error {
 			}
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
-				errors = append(errors, CreateForumPostResponseValidationError{
+				errors = append(errors, CreatePostResponseValidationError{
 					field:  "Post",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -1774,7 +1772,7 @@ func (m *CreateForumPostResponse) validate(all bool) error {
 		}
 	} else if v, ok := interface{}(m.GetPost()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
-			return CreateForumPostResponseValidationError{
+			return CreatePostResponseValidationError{
 				field:  "Post",
 				reason: "embedded message failed validation",
 				cause:  err,
@@ -1783,19 +1781,19 @@ func (m *CreateForumPostResponse) validate(all bool) error {
 	}
 
 	if len(errors) > 0 {
-		return CreateForumPostResponseMultiError(errors)
+		return CreatePostResponseMultiError(errors)
 	}
 
 	return nil
 }
 
-// CreateForumPostResponseMultiError is an error wrapping multiple validation
-// errors returned by CreateForumPostResponse.ValidateAll() if the designated
-// constraints aren't met.
-type CreateForumPostResponseMultiError []error
+// CreatePostResponseMultiError is an error wrapping multiple validation errors
+// returned by CreatePostResponse.ValidateAll() if the designated constraints
+// aren't met.
+type CreatePostResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m CreateForumPostResponseMultiError) Error() string {
+func (m CreatePostResponseMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1804,11 +1802,11 @@ func (m CreateForumPostResponseMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m CreateForumPostResponseMultiError) AllErrors() []error { return m }
+func (m CreatePostResponseMultiError) AllErrors() []error { return m }
 
-// CreateForumPostResponseValidationError is the validation error returned by
-// CreateForumPostResponse.Validate if the designated constraints aren't met.
-type CreateForumPostResponseValidationError struct {
+// CreatePostResponseValidationError is the validation error returned by
+// CreatePostResponse.Validate if the designated constraints aren't met.
+type CreatePostResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1816,24 +1814,24 @@ type CreateForumPostResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e CreateForumPostResponseValidationError) Field() string { return e.field }
+func (e CreatePostResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e CreateForumPostResponseValidationError) Reason() string { return e.reason }
+func (e CreatePostResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e CreateForumPostResponseValidationError) Cause() error { return e.cause }
+func (e CreatePostResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e CreateForumPostResponseValidationError) Key() bool { return e.key }
+func (e CreatePostResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e CreateForumPostResponseValidationError) ErrorName() string {
-	return "CreateForumPostResponseValidationError"
+func (e CreatePostResponseValidationError) ErrorName() string {
+	return "CreatePostResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e CreateForumPostResponseValidationError) Error() string {
+func (e CreatePostResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1845,14 +1843,14 @@ func (e CreateForumPostResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sCreateForumPostResponse.%s: %s%s",
+		"invalid %sCreatePostResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = CreateForumPostResponseValidationError{}
+var _ error = CreatePostResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -1860,24 +1858,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = CreateForumPostResponseValidationError{}
+} = CreatePostResponseValidationError{}
 
-// Validate checks the field values on DeleteForumPostRequest with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, the first error encountered is returned, or nil if there are no violations.
-func (m *DeleteForumPostRequest) Validate() error {
+// Validate checks the field values on DeletePostRequest with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *DeletePostRequest) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on DeleteForumPostRequest with the rules
+// ValidateAll checks the field values on DeletePostRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// DeleteForumPostRequestMultiError, or nil if none found.
-func (m *DeleteForumPostRequest) ValidateAll() error {
+// DeletePostRequestMultiError, or nil if none found.
+func (m *DeletePostRequest) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *DeleteForumPostRequest) validate(all bool) error {
+func (m *DeletePostRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1889,19 +1887,19 @@ func (m *DeleteForumPostRequest) validate(all bool) error {
 	// no validation rules for PostId
 
 	if len(errors) > 0 {
-		return DeleteForumPostRequestMultiError(errors)
+		return DeletePostRequestMultiError(errors)
 	}
 
 	return nil
 }
 
-// DeleteForumPostRequestMultiError is an error wrapping multiple validation
-// errors returned by DeleteForumPostRequest.ValidateAll() if the designated
-// constraints aren't met.
-type DeleteForumPostRequestMultiError []error
+// DeletePostRequestMultiError is an error wrapping multiple validation errors
+// returned by DeletePostRequest.ValidateAll() if the designated constraints
+// aren't met.
+type DeletePostRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m DeleteForumPostRequestMultiError) Error() string {
+func (m DeletePostRequestMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1910,11 +1908,11 @@ func (m DeleteForumPostRequestMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m DeleteForumPostRequestMultiError) AllErrors() []error { return m }
+func (m DeletePostRequestMultiError) AllErrors() []error { return m }
 
-// DeleteForumPostRequestValidationError is the validation error returned by
-// DeleteForumPostRequest.Validate if the designated constraints aren't met.
-type DeleteForumPostRequestValidationError struct {
+// DeletePostRequestValidationError is the validation error returned by
+// DeletePostRequest.Validate if the designated constraints aren't met.
+type DeletePostRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1922,24 +1920,24 @@ type DeleteForumPostRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e DeleteForumPostRequestValidationError) Field() string { return e.field }
+func (e DeletePostRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e DeleteForumPostRequestValidationError) Reason() string { return e.reason }
+func (e DeletePostRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e DeleteForumPostRequestValidationError) Cause() error { return e.cause }
+func (e DeletePostRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e DeleteForumPostRequestValidationError) Key() bool { return e.key }
+func (e DeletePostRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e DeleteForumPostRequestValidationError) ErrorName() string {
-	return "DeleteForumPostRequestValidationError"
+func (e DeletePostRequestValidationError) ErrorName() string {
+	return "DeletePostRequestValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e DeleteForumPostRequestValidationError) Error() string {
+func (e DeletePostRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1951,14 +1949,14 @@ func (e DeleteForumPostRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sDeleteForumPostRequest.%s: %s%s",
+		"invalid %sDeletePostRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = DeleteForumPostRequestValidationError{}
+var _ error = DeletePostRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -1966,24 +1964,24 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = DeleteForumPostRequestValidationError{}
+} = DeletePostRequestValidationError{}
 
-// Validate checks the field values on DeleteForumPostResponse with the rules
+// Validate checks the field values on DeletePostResponse with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
-func (m *DeleteForumPostResponse) Validate() error {
+func (m *DeletePostResponse) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on DeleteForumPostResponse with the
-// rules defined in the proto definition for this message. If any rules are
+// ValidateAll checks the field values on DeletePostResponse with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// DeleteForumPostResponseMultiError, or nil if none found.
-func (m *DeleteForumPostResponse) ValidateAll() error {
+// DeletePostResponseMultiError, or nil if none found.
+func (m *DeletePostResponse) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *DeleteForumPostResponse) validate(all bool) error {
+func (m *DeletePostResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -1991,19 +1989,19 @@ func (m *DeleteForumPostResponse) validate(all bool) error {
 	var errors []error
 
 	if len(errors) > 0 {
-		return DeleteForumPostResponseMultiError(errors)
+		return DeletePostResponseMultiError(errors)
 	}
 
 	return nil
 }
 
-// DeleteForumPostResponseMultiError is an error wrapping multiple validation
-// errors returned by DeleteForumPostResponse.ValidateAll() if the designated
-// constraints aren't met.
-type DeleteForumPostResponseMultiError []error
+// DeletePostResponseMultiError is an error wrapping multiple validation errors
+// returned by DeletePostResponse.ValidateAll() if the designated constraints
+// aren't met.
+type DeletePostResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m DeleteForumPostResponseMultiError) Error() string {
+func (m DeletePostResponseMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -2012,11 +2010,11 @@ func (m DeleteForumPostResponseMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m DeleteForumPostResponseMultiError) AllErrors() []error { return m }
+func (m DeletePostResponseMultiError) AllErrors() []error { return m }
 
-// DeleteForumPostResponseValidationError is the validation error returned by
-// DeleteForumPostResponse.Validate if the designated constraints aren't met.
-type DeleteForumPostResponseValidationError struct {
+// DeletePostResponseValidationError is the validation error returned by
+// DeletePostResponse.Validate if the designated constraints aren't met.
+type DeletePostResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -2024,24 +2022,24 @@ type DeleteForumPostResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e DeleteForumPostResponseValidationError) Field() string { return e.field }
+func (e DeletePostResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e DeleteForumPostResponseValidationError) Reason() string { return e.reason }
+func (e DeletePostResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e DeleteForumPostResponseValidationError) Cause() error { return e.cause }
+func (e DeletePostResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e DeleteForumPostResponseValidationError) Key() bool { return e.key }
+func (e DeletePostResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e DeleteForumPostResponseValidationError) ErrorName() string {
-	return "DeleteForumPostResponseValidationError"
+func (e DeletePostResponseValidationError) ErrorName() string {
+	return "DeletePostResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e DeleteForumPostResponseValidationError) Error() string {
+func (e DeletePostResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -2053,14 +2051,14 @@ func (e DeleteForumPostResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sDeleteForumPostResponse.%s: %s%s",
+		"invalid %sDeletePostResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = DeleteForumPostResponseValidationError{}
+var _ error = DeletePostResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -2068,7 +2066,7 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = DeleteForumPostResponseValidationError{}
+} = DeletePostResponseValidationError{}
 
 // Validate checks the field values on InvokeAgentInThreadRequest with the
 // rules defined in the proto definition for this message. If any rules are

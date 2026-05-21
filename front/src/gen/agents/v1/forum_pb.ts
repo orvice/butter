@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/forum.proto.
  */
 export const file_agents_v1_forum: GenFile = /*@__PURE__*/
-  fileDesc("ChVhZ2VudHMvdjEvZm9ydW0ucHJvdG8SCWFnZW50cy52MSLOAgoLRm9ydW1UaHJlYWQSCgoCaWQYASABKAkSDQoFdGl0bGUYAiABKAkSDAoEYm9keRgDIAEoCRISCgpjcmVhdGVkX2J5GAQgASgJEg4KBnN0YXR1cxgFIAEoCRITCgthZ2VudF9uYW1lcxgGIAMoCRI2CghtZXRhZGF0YRgHIAMoCzIkLmFnZW50cy52MS5Gb3J1bVRocmVhZC5NZXRhZGF0YUVudHJ5Ei4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDHdvcmtzcGFjZV9pZBhkIAEoCRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEipQIKCUZvcnVtUG9zdBIKCgJpZBgBIAEoCRIRCgl0aHJlYWRfaWQYAiABKAkSDAoEYm9keRgDIAEoCRIWCg5hdXRob3JfdXNlcl9pZBgEIAEoCRIZChFhdXRob3JfYWdlbnRfbmFtZRgFIAEoCRITCgthdXRob3Jfa2luZBgGIAEoCRIVCg1pbnZvY2F0aW9uX2lkGAcgASgJEhYKDnBhcmVudF9wb3N0X2lkGAggASgJEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSJQChdMaXN0Rm9ydW1UaHJlYWRzUmVxdWVzdBIOCgZzdGF0dXMYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkiawoYTGlzdEZvcnVtVGhyZWFkc1Jlc3BvbnNlEicKB3RocmVhZHMYASADKAsyFi5hZ2VudHMudjEuRm9ydW1UaHJlYWQSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJEg0KBXRvdGFsGAMgASgFIlQKFUdldEZvcnVtVGhyZWFkUmVxdWVzdBIKCgJpZBgBIAEoCRIWCg5wb3N0X3BhZ2Vfc2l6ZRgCIAEoBRIXCg9wb3N0X3BhZ2VfdG9rZW4YAyABKAkilwEKFkdldEZvcnVtVGhyZWFkUmVzcG9uc2USJgoGdGhyZWFkGAEgASgLMhYuYWdlbnRzLnYxLkZvcnVtVGhyZWFkEiMKBXBvc3RzGAIgAygLMhQuYWdlbnRzLnYxLkZvcnVtUG9zdBIcChRuZXh0X3Bvc3RfcGFnZV90b2tlbhgDIAEoCRISCgpwb3N0X3RvdGFsGAQgASgFIsIBChhDcmVhdGVGb3J1bVRocmVhZFJlcXVlc3QSDQoFdGl0bGUYASABKAkSDAoEYm9keRgCIAEoCRITCgthZ2VudF9uYW1lcxgDIAMoCRJDCghtZXRhZGF0YRgEIAMoCzIxLmFnZW50cy52MS5DcmVhdGVGb3J1bVRocmVhZFJlcXVlc3QuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEibQoZQ3JlYXRlRm9ydW1UaHJlYWRSZXNwb25zZRImCgZ0aHJlYWQYASABKAsyFi5hZ2VudHMudjEuRm9ydW1UaHJlYWQSKAoKZmlyc3RfcG9zdBgCIAEoCzIULmFnZW50cy52MS5Gb3J1bVBvc3Qi3gEKGFVwZGF0ZUZvcnVtVGhyZWFkUmVxdWVzdBIKCgJpZBgBIAEoCRINCgV0aXRsZRgCIAEoCRIMCgRib2R5GAMgASgJEg4KBnN0YXR1cxgEIAEoCRITCgthZ2VudF9uYW1lcxgFIAMoCRJDCghtZXRhZGF0YRgGIAMoCzIxLmFnZW50cy52MS5VcGRhdGVGb3J1bVRocmVhZFJlcXVlc3QuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiQwoZVXBkYXRlRm9ydW1UaHJlYWRSZXNwb25zZRImCgZ0aHJlYWQYASABKAsyFi5hZ2VudHMudjEuRm9ydW1UaHJlYWQiJgoYRGVsZXRlRm9ydW1UaHJlYWRSZXF1ZXN0EgoKAmlkGAEgASgJIhsKGURlbGV0ZUZvcnVtVGhyZWFkUmVzcG9uc2UiUQoWQ3JlYXRlRm9ydW1Qb3N0UmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDAoEYm9keRgCIAEoCRIWCg5wYXJlbnRfcG9zdF9pZBgDIAEoCSI9ChdDcmVhdGVGb3J1bVBvc3RSZXNwb25zZRIiCgRwb3N0GAEgASgLMhQuYWdlbnRzLnYxLkZvcnVtUG9zdCI8ChZEZWxldGVGb3J1bVBvc3RSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIPCgdwb3N0X2lkGAIgASgJIhkKF0RlbGV0ZUZvcnVtUG9zdFJlc3BvbnNlIocBChpJbnZva2VBZ2VudEluVGhyZWFkUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSEgoKYWdlbnRfbmFtZRgCIAEoCRIPCgdtZXNzYWdlGAMgASgJEhYKDm1vZGVsX292ZXJyaWRlGAQgASgJEhkKEXJlY2VudF9wb3N0X2xpbWl0GAUgASgFIlMKG0ludm9rZUFnZW50SW5UaHJlYWRSZXNwb25zZRIiCgRwb3N0GAEgASgLMhQuYWdlbnRzLnYxLkZvcnVtUG9zdBIQCghyZXNwb25zZRgCIAEoCTLZBQoMRm9ydW1TZXJ2aWNlElYKC0xpc3RUaHJlYWRzEiIuYWdlbnRzLnYxLkxpc3RGb3J1bVRocmVhZHNSZXF1ZXN0GiMuYWdlbnRzLnYxLkxpc3RGb3J1bVRocmVhZHNSZXNwb25zZRJQCglHZXRUaHJlYWQSIC5hZ2VudHMudjEuR2V0Rm9ydW1UaHJlYWRSZXF1ZXN0GiEuYWdlbnRzLnYxLkdldEZvcnVtVGhyZWFkUmVzcG9uc2USWQoMQ3JlYXRlVGhyZWFkEiMuYWdlbnRzLnYxLkNyZWF0ZUZvcnVtVGhyZWFkUmVxdWVzdBokLmFnZW50cy52MS5DcmVhdGVGb3J1bVRocmVhZFJlc3BvbnNlElkKDFVwZGF0ZVRocmVhZBIjLmFnZW50cy52MS5VcGRhdGVGb3J1bVRocmVhZFJlcXVlc3QaJC5hZ2VudHMudjEuVXBkYXRlRm9ydW1UaHJlYWRSZXNwb25zZRJZCgxEZWxldGVUaHJlYWQSIy5hZ2VudHMudjEuRGVsZXRlRm9ydW1UaHJlYWRSZXF1ZXN0GiQuYWdlbnRzLnYxLkRlbGV0ZUZvcnVtVGhyZWFkUmVzcG9uc2USUwoKQ3JlYXRlUG9zdBIhLmFnZW50cy52MS5DcmVhdGVGb3J1bVBvc3RSZXF1ZXN0GiIuYWdlbnRzLnYxLkNyZWF0ZUZvcnVtUG9zdFJlc3BvbnNlElMKCkRlbGV0ZVBvc3QSIS5hZ2VudHMudjEuRGVsZXRlRm9ydW1Qb3N0UmVxdWVzdBoiLmFnZW50cy52MS5EZWxldGVGb3J1bVBvc3RSZXNwb25zZRJkChNJbnZva2VBZ2VudEluVGhyZWFkEiUuYWdlbnRzLnYxLkludm9rZUFnZW50SW5UaHJlYWRSZXF1ZXN0GiYuYWdlbnRzLnYxLkludm9rZUFnZW50SW5UaHJlYWRSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChVhZ2VudHMvdjEvZm9ydW0ucHJvdG8SCWFnZW50cy52MSLOAgoLRm9ydW1UaHJlYWQSCgoCaWQYASABKAkSDQoFdGl0bGUYAiABKAkSDAoEYm9keRgDIAEoCRISCgpjcmVhdGVkX2J5GAQgASgJEg4KBnN0YXR1cxgFIAEoCRITCgthZ2VudF9uYW1lcxgGIAMoCRI2CghtZXRhZGF0YRgHIAMoCzIkLmFnZW50cy52MS5Gb3J1bVRocmVhZC5NZXRhZGF0YUVudHJ5Ei4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDHdvcmtzcGFjZV9pZBhkIAEoCRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEipQIKCUZvcnVtUG9zdBIKCgJpZBgBIAEoCRIRCgl0aHJlYWRfaWQYAiABKAkSDAoEYm9keRgDIAEoCRIWCg5hdXRob3JfdXNlcl9pZBgEIAEoCRIZChFhdXRob3JfYWdlbnRfbmFtZRgFIAEoCRITCgthdXRob3Jfa2luZBgGIAEoCRIVCg1pbnZvY2F0aW9uX2lkGAcgASgJEhYKDnBhcmVudF9wb3N0X2lkGAggASgJEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSJLChJMaXN0VGhyZWFkc1JlcXVlc3QSDgoGc3RhdHVzGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJImYKE0xpc3RUaHJlYWRzUmVzcG9uc2USJwoHdGhyZWFkcxgBIAMoCzIWLmFnZW50cy52MS5Gb3J1bVRocmVhZBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkSDQoFdG90YWwYAyABKAUiTwoQR2V0VGhyZWFkUmVxdWVzdBIKCgJpZBgBIAEoCRIWCg5wb3N0X3BhZ2Vfc2l6ZRgCIAEoBRIXCg9wb3N0X3BhZ2VfdG9rZW4YAyABKAkikgEKEUdldFRocmVhZFJlc3BvbnNlEiYKBnRocmVhZBgBIAEoCzIWLmFnZW50cy52MS5Gb3J1bVRocmVhZBIjCgVwb3N0cxgCIAMoCzIULmFnZW50cy52MS5Gb3J1bVBvc3QSHAoUbmV4dF9wb3N0X3BhZ2VfdG9rZW4YAyABKAkSEgoKcG9zdF90b3RhbBgEIAEoBSK4AQoTQ3JlYXRlVGhyZWFkUmVxdWVzdBINCgV0aXRsZRgBIAEoCRIMCgRib2R5GAIgASgJEhMKC2FnZW50X25hbWVzGAMgAygJEj4KCG1ldGFkYXRhGAQgAygLMiwuYWdlbnRzLnYxLkNyZWF0ZVRocmVhZFJlcXVlc3QuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiaAoUQ3JlYXRlVGhyZWFkUmVzcG9uc2USJgoGdGhyZWFkGAEgASgLMhYuYWdlbnRzLnYxLkZvcnVtVGhyZWFkEigKCmZpcnN0X3Bvc3QYAiABKAsyFC5hZ2VudHMudjEuRm9ydW1Qb3N0ItQBChNVcGRhdGVUaHJlYWRSZXF1ZXN0EgoKAmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEgwKBGJvZHkYAyABKAkSDgoGc3RhdHVzGAQgASgJEhMKC2FnZW50X25hbWVzGAUgAygJEj4KCG1ldGFkYXRhGAYgAygLMiwuYWdlbnRzLnYxLlVwZGF0ZVRocmVhZFJlcXVlc3QuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiPgoUVXBkYXRlVGhyZWFkUmVzcG9uc2USJgoGdGhyZWFkGAEgASgLMhYuYWdlbnRzLnYxLkZvcnVtVGhyZWFkIiEKE0RlbGV0ZVRocmVhZFJlcXVlc3QSCgoCaWQYASABKAkiFgoURGVsZXRlVGhyZWFkUmVzcG9uc2UiTAoRQ3JlYXRlUG9zdFJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEgwKBGJvZHkYAiABKAkSFgoOcGFyZW50X3Bvc3RfaWQYAyABKAkiOAoSQ3JlYXRlUG9zdFJlc3BvbnNlEiIKBHBvc3QYASABKAsyFC5hZ2VudHMudjEuRm9ydW1Qb3N0IjcKEURlbGV0ZVBvc3RSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIPCgdwb3N0X2lkGAIgASgJIhQKEkRlbGV0ZVBvc3RSZXNwb25zZSKHAQoaSW52b2tlQWdlbnRJblRocmVhZFJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEhIKCmFnZW50X25hbWUYAiABKAkSDwoHbWVzc2FnZRgDIAEoCRIWCg5tb2RlbF9vdmVycmlkZRgEIAEoCRIZChFyZWNlbnRfcG9zdF9saW1pdBgFIAEoBSJTChtJbnZva2VBZ2VudEluVGhyZWFkUmVzcG9uc2USIgoEcG9zdBgBIAEoCzIULmFnZW50cy52MS5Gb3J1bVBvc3QSEAoIcmVzcG9uc2UYAiABKAkykwUKDEZvcnVtU2VydmljZRJMCgtMaXN0VGhyZWFkcxIdLmFnZW50cy52MS5MaXN0VGhyZWFkc1JlcXVlc3QaHi5hZ2VudHMudjEuTGlzdFRocmVhZHNSZXNwb25zZRJGCglHZXRUaHJlYWQSGy5hZ2VudHMudjEuR2V0VGhyZWFkUmVxdWVzdBocLmFnZW50cy52MS5HZXRUaHJlYWRSZXNwb25zZRJPCgxDcmVhdGVUaHJlYWQSHi5hZ2VudHMudjEuQ3JlYXRlVGhyZWFkUmVxdWVzdBofLmFnZW50cy52MS5DcmVhdGVUaHJlYWRSZXNwb25zZRJPCgxVcGRhdGVUaHJlYWQSHi5hZ2VudHMudjEuVXBkYXRlVGhyZWFkUmVxdWVzdBofLmFnZW50cy52MS5VcGRhdGVUaHJlYWRSZXNwb25zZRJPCgxEZWxldGVUaHJlYWQSHi5hZ2VudHMudjEuRGVsZXRlVGhyZWFkUmVxdWVzdBofLmFnZW50cy52MS5EZWxldGVUaHJlYWRSZXNwb25zZRJJCgpDcmVhdGVQb3N0EhwuYWdlbnRzLnYxLkNyZWF0ZVBvc3RSZXF1ZXN0Gh0uYWdlbnRzLnYxLkNyZWF0ZVBvc3RSZXNwb25zZRJJCgpEZWxldGVQb3N0EhwuYWdlbnRzLnYxLkRlbGV0ZVBvc3RSZXF1ZXN0Gh0uYWdlbnRzLnYxLkRlbGV0ZVBvc3RSZXNwb25zZRJkChNJbnZva2VBZ2VudEluVGhyZWFkEiUuYWdlbnRzLnYxLkludm9rZUFnZW50SW5UaHJlYWRSZXF1ZXN0GiYuYWdlbnRzLnYxLkludm9rZUFnZW50SW5UaHJlYWRSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message agents.v1.ForumThread
@@ -186,9 +186,9 @@ export const ForumPostSchema: GenMessage<ForumPost> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 1);
 
 /**
- * @generated from message agents.v1.ListForumThreadsRequest
+ * @generated from message agents.v1.ListThreadsRequest
  */
-export type ListForumThreadsRequest = Message<"agents.v1.ListForumThreadsRequest"> & {
+export type ListThreadsRequest = Message<"agents.v1.ListThreadsRequest"> & {
   /**
    * @generated from field: string status = 1;
    */
@@ -206,16 +206,16 @@ export type ListForumThreadsRequest = Message<"agents.v1.ListForumThreadsRequest
 };
 
 /**
- * Describes the message agents.v1.ListForumThreadsRequest.
- * Use `create(ListForumThreadsRequestSchema)` to create a new message.
+ * Describes the message agents.v1.ListThreadsRequest.
+ * Use `create(ListThreadsRequestSchema)` to create a new message.
  */
-export const ListForumThreadsRequestSchema: GenMessage<ListForumThreadsRequest> = /*@__PURE__*/
+export const ListThreadsRequestSchema: GenMessage<ListThreadsRequest> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 2);
 
 /**
- * @generated from message agents.v1.ListForumThreadsResponse
+ * @generated from message agents.v1.ListThreadsResponse
  */
-export type ListForumThreadsResponse = Message<"agents.v1.ListForumThreadsResponse"> & {
+export type ListThreadsResponse = Message<"agents.v1.ListThreadsResponse"> & {
   /**
    * @generated from field: repeated agents.v1.ForumThread threads = 1;
    */
@@ -233,16 +233,16 @@ export type ListForumThreadsResponse = Message<"agents.v1.ListForumThreadsRespon
 };
 
 /**
- * Describes the message agents.v1.ListForumThreadsResponse.
- * Use `create(ListForumThreadsResponseSchema)` to create a new message.
+ * Describes the message agents.v1.ListThreadsResponse.
+ * Use `create(ListThreadsResponseSchema)` to create a new message.
  */
-export const ListForumThreadsResponseSchema: GenMessage<ListForumThreadsResponse> = /*@__PURE__*/
+export const ListThreadsResponseSchema: GenMessage<ListThreadsResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 3);
 
 /**
- * @generated from message agents.v1.GetForumThreadRequest
+ * @generated from message agents.v1.GetThreadRequest
  */
-export type GetForumThreadRequest = Message<"agents.v1.GetForumThreadRequest"> & {
+export type GetThreadRequest = Message<"agents.v1.GetThreadRequest"> & {
   /**
    * @generated from field: string id = 1;
    */
@@ -260,16 +260,16 @@ export type GetForumThreadRequest = Message<"agents.v1.GetForumThreadRequest"> &
 };
 
 /**
- * Describes the message agents.v1.GetForumThreadRequest.
- * Use `create(GetForumThreadRequestSchema)` to create a new message.
+ * Describes the message agents.v1.GetThreadRequest.
+ * Use `create(GetThreadRequestSchema)` to create a new message.
  */
-export const GetForumThreadRequestSchema: GenMessage<GetForumThreadRequest> = /*@__PURE__*/
+export const GetThreadRequestSchema: GenMessage<GetThreadRequest> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 4);
 
 /**
- * @generated from message agents.v1.GetForumThreadResponse
+ * @generated from message agents.v1.GetThreadResponse
  */
-export type GetForumThreadResponse = Message<"agents.v1.GetForumThreadResponse"> & {
+export type GetThreadResponse = Message<"agents.v1.GetThreadResponse"> & {
   /**
    * @generated from field: agents.v1.ForumThread thread = 1;
    */
@@ -292,16 +292,16 @@ export type GetForumThreadResponse = Message<"agents.v1.GetForumThreadResponse">
 };
 
 /**
- * Describes the message agents.v1.GetForumThreadResponse.
- * Use `create(GetForumThreadResponseSchema)` to create a new message.
+ * Describes the message agents.v1.GetThreadResponse.
+ * Use `create(GetThreadResponseSchema)` to create a new message.
  */
-export const GetForumThreadResponseSchema: GenMessage<GetForumThreadResponse> = /*@__PURE__*/
+export const GetThreadResponseSchema: GenMessage<GetThreadResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 5);
 
 /**
- * @generated from message agents.v1.CreateForumThreadRequest
+ * @generated from message agents.v1.CreateThreadRequest
  */
-export type CreateForumThreadRequest = Message<"agents.v1.CreateForumThreadRequest"> & {
+export type CreateThreadRequest = Message<"agents.v1.CreateThreadRequest"> & {
   /**
    * @generated from field: string title = 1;
    */
@@ -324,16 +324,16 @@ export type CreateForumThreadRequest = Message<"agents.v1.CreateForumThreadReque
 };
 
 /**
- * Describes the message agents.v1.CreateForumThreadRequest.
- * Use `create(CreateForumThreadRequestSchema)` to create a new message.
+ * Describes the message agents.v1.CreateThreadRequest.
+ * Use `create(CreateThreadRequestSchema)` to create a new message.
  */
-export const CreateForumThreadRequestSchema: GenMessage<CreateForumThreadRequest> = /*@__PURE__*/
+export const CreateThreadRequestSchema: GenMessage<CreateThreadRequest> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 6);
 
 /**
- * @generated from message agents.v1.CreateForumThreadResponse
+ * @generated from message agents.v1.CreateThreadResponse
  */
-export type CreateForumThreadResponse = Message<"agents.v1.CreateForumThreadResponse"> & {
+export type CreateThreadResponse = Message<"agents.v1.CreateThreadResponse"> & {
   /**
    * @generated from field: agents.v1.ForumThread thread = 1;
    */
@@ -346,16 +346,16 @@ export type CreateForumThreadResponse = Message<"agents.v1.CreateForumThreadResp
 };
 
 /**
- * Describes the message agents.v1.CreateForumThreadResponse.
- * Use `create(CreateForumThreadResponseSchema)` to create a new message.
+ * Describes the message agents.v1.CreateThreadResponse.
+ * Use `create(CreateThreadResponseSchema)` to create a new message.
  */
-export const CreateForumThreadResponseSchema: GenMessage<CreateForumThreadResponse> = /*@__PURE__*/
+export const CreateThreadResponseSchema: GenMessage<CreateThreadResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 7);
 
 /**
- * @generated from message agents.v1.UpdateForumThreadRequest
+ * @generated from message agents.v1.UpdateThreadRequest
  */
-export type UpdateForumThreadRequest = Message<"agents.v1.UpdateForumThreadRequest"> & {
+export type UpdateThreadRequest = Message<"agents.v1.UpdateThreadRequest"> & {
   /**
    * @generated from field: string id = 1;
    */
@@ -388,16 +388,16 @@ export type UpdateForumThreadRequest = Message<"agents.v1.UpdateForumThreadReque
 };
 
 /**
- * Describes the message agents.v1.UpdateForumThreadRequest.
- * Use `create(UpdateForumThreadRequestSchema)` to create a new message.
+ * Describes the message agents.v1.UpdateThreadRequest.
+ * Use `create(UpdateThreadRequestSchema)` to create a new message.
  */
-export const UpdateForumThreadRequestSchema: GenMessage<UpdateForumThreadRequest> = /*@__PURE__*/
+export const UpdateThreadRequestSchema: GenMessage<UpdateThreadRequest> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 8);
 
 /**
- * @generated from message agents.v1.UpdateForumThreadResponse
+ * @generated from message agents.v1.UpdateThreadResponse
  */
-export type UpdateForumThreadResponse = Message<"agents.v1.UpdateForumThreadResponse"> & {
+export type UpdateThreadResponse = Message<"agents.v1.UpdateThreadResponse"> & {
   /**
    * @generated from field: agents.v1.ForumThread thread = 1;
    */
@@ -405,16 +405,16 @@ export type UpdateForumThreadResponse = Message<"agents.v1.UpdateForumThreadResp
 };
 
 /**
- * Describes the message agents.v1.UpdateForumThreadResponse.
- * Use `create(UpdateForumThreadResponseSchema)` to create a new message.
+ * Describes the message agents.v1.UpdateThreadResponse.
+ * Use `create(UpdateThreadResponseSchema)` to create a new message.
  */
-export const UpdateForumThreadResponseSchema: GenMessage<UpdateForumThreadResponse> = /*@__PURE__*/
+export const UpdateThreadResponseSchema: GenMessage<UpdateThreadResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 9);
 
 /**
- * @generated from message agents.v1.DeleteForumThreadRequest
+ * @generated from message agents.v1.DeleteThreadRequest
  */
-export type DeleteForumThreadRequest = Message<"agents.v1.DeleteForumThreadRequest"> & {
+export type DeleteThreadRequest = Message<"agents.v1.DeleteThreadRequest"> & {
   /**
    * @generated from field: string id = 1;
    */
@@ -422,29 +422,29 @@ export type DeleteForumThreadRequest = Message<"agents.v1.DeleteForumThreadReque
 };
 
 /**
- * Describes the message agents.v1.DeleteForumThreadRequest.
- * Use `create(DeleteForumThreadRequestSchema)` to create a new message.
+ * Describes the message agents.v1.DeleteThreadRequest.
+ * Use `create(DeleteThreadRequestSchema)` to create a new message.
  */
-export const DeleteForumThreadRequestSchema: GenMessage<DeleteForumThreadRequest> = /*@__PURE__*/
+export const DeleteThreadRequestSchema: GenMessage<DeleteThreadRequest> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 10);
 
 /**
- * @generated from message agents.v1.DeleteForumThreadResponse
+ * @generated from message agents.v1.DeleteThreadResponse
  */
-export type DeleteForumThreadResponse = Message<"agents.v1.DeleteForumThreadResponse"> & {
+export type DeleteThreadResponse = Message<"agents.v1.DeleteThreadResponse"> & {
 };
 
 /**
- * Describes the message agents.v1.DeleteForumThreadResponse.
- * Use `create(DeleteForumThreadResponseSchema)` to create a new message.
+ * Describes the message agents.v1.DeleteThreadResponse.
+ * Use `create(DeleteThreadResponseSchema)` to create a new message.
  */
-export const DeleteForumThreadResponseSchema: GenMessage<DeleteForumThreadResponse> = /*@__PURE__*/
+export const DeleteThreadResponseSchema: GenMessage<DeleteThreadResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 11);
 
 /**
- * @generated from message agents.v1.CreateForumPostRequest
+ * @generated from message agents.v1.CreatePostRequest
  */
-export type CreateForumPostRequest = Message<"agents.v1.CreateForumPostRequest"> & {
+export type CreatePostRequest = Message<"agents.v1.CreatePostRequest"> & {
   /**
    * @generated from field: string thread_id = 1;
    */
@@ -462,16 +462,16 @@ export type CreateForumPostRequest = Message<"agents.v1.CreateForumPostRequest">
 };
 
 /**
- * Describes the message agents.v1.CreateForumPostRequest.
- * Use `create(CreateForumPostRequestSchema)` to create a new message.
+ * Describes the message agents.v1.CreatePostRequest.
+ * Use `create(CreatePostRequestSchema)` to create a new message.
  */
-export const CreateForumPostRequestSchema: GenMessage<CreateForumPostRequest> = /*@__PURE__*/
+export const CreatePostRequestSchema: GenMessage<CreatePostRequest> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 12);
 
 /**
- * @generated from message agents.v1.CreateForumPostResponse
+ * @generated from message agents.v1.CreatePostResponse
  */
-export type CreateForumPostResponse = Message<"agents.v1.CreateForumPostResponse"> & {
+export type CreatePostResponse = Message<"agents.v1.CreatePostResponse"> & {
   /**
    * @generated from field: agents.v1.ForumPost post = 1;
    */
@@ -479,16 +479,16 @@ export type CreateForumPostResponse = Message<"agents.v1.CreateForumPostResponse
 };
 
 /**
- * Describes the message agents.v1.CreateForumPostResponse.
- * Use `create(CreateForumPostResponseSchema)` to create a new message.
+ * Describes the message agents.v1.CreatePostResponse.
+ * Use `create(CreatePostResponseSchema)` to create a new message.
  */
-export const CreateForumPostResponseSchema: GenMessage<CreateForumPostResponse> = /*@__PURE__*/
+export const CreatePostResponseSchema: GenMessage<CreatePostResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 13);
 
 /**
- * @generated from message agents.v1.DeleteForumPostRequest
+ * @generated from message agents.v1.DeletePostRequest
  */
-export type DeleteForumPostRequest = Message<"agents.v1.DeleteForumPostRequest"> & {
+export type DeletePostRequest = Message<"agents.v1.DeletePostRequest"> & {
   /**
    * @generated from field: string thread_id = 1;
    */
@@ -501,23 +501,23 @@ export type DeleteForumPostRequest = Message<"agents.v1.DeleteForumPostRequest">
 };
 
 /**
- * Describes the message agents.v1.DeleteForumPostRequest.
- * Use `create(DeleteForumPostRequestSchema)` to create a new message.
+ * Describes the message agents.v1.DeletePostRequest.
+ * Use `create(DeletePostRequestSchema)` to create a new message.
  */
-export const DeleteForumPostRequestSchema: GenMessage<DeleteForumPostRequest> = /*@__PURE__*/
+export const DeletePostRequestSchema: GenMessage<DeletePostRequest> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 14);
 
 /**
- * @generated from message agents.v1.DeleteForumPostResponse
+ * @generated from message agents.v1.DeletePostResponse
  */
-export type DeleteForumPostResponse = Message<"agents.v1.DeleteForumPostResponse"> & {
+export type DeletePostResponse = Message<"agents.v1.DeletePostResponse"> & {
 };
 
 /**
- * Describes the message agents.v1.DeleteForumPostResponse.
- * Use `create(DeleteForumPostResponseSchema)` to create a new message.
+ * Describes the message agents.v1.DeletePostResponse.
+ * Use `create(DeletePostResponseSchema)` to create a new message.
  */
-export const DeleteForumPostResponseSchema: GenMessage<DeleteForumPostResponse> = /*@__PURE__*/
+export const DeletePostResponseSchema: GenMessage<DeletePostResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_forum, 15);
 
 /**
@@ -591,56 +591,56 @@ export const ForumService: GenService<{
    */
   listThreads: {
     methodKind: "unary";
-    input: typeof ListForumThreadsRequestSchema;
-    output: typeof ListForumThreadsResponseSchema;
+    input: typeof ListThreadsRequestSchema;
+    output: typeof ListThreadsResponseSchema;
   },
   /**
    * @generated from rpc agents.v1.ForumService.GetThread
    */
   getThread: {
     methodKind: "unary";
-    input: typeof GetForumThreadRequestSchema;
-    output: typeof GetForumThreadResponseSchema;
+    input: typeof GetThreadRequestSchema;
+    output: typeof GetThreadResponseSchema;
   },
   /**
    * @generated from rpc agents.v1.ForumService.CreateThread
    */
   createThread: {
     methodKind: "unary";
-    input: typeof CreateForumThreadRequestSchema;
-    output: typeof CreateForumThreadResponseSchema;
+    input: typeof CreateThreadRequestSchema;
+    output: typeof CreateThreadResponseSchema;
   },
   /**
    * @generated from rpc agents.v1.ForumService.UpdateThread
    */
   updateThread: {
     methodKind: "unary";
-    input: typeof UpdateForumThreadRequestSchema;
-    output: typeof UpdateForumThreadResponseSchema;
+    input: typeof UpdateThreadRequestSchema;
+    output: typeof UpdateThreadResponseSchema;
   },
   /**
    * @generated from rpc agents.v1.ForumService.DeleteThread
    */
   deleteThread: {
     methodKind: "unary";
-    input: typeof DeleteForumThreadRequestSchema;
-    output: typeof DeleteForumThreadResponseSchema;
+    input: typeof DeleteThreadRequestSchema;
+    output: typeof DeleteThreadResponseSchema;
   },
   /**
    * @generated from rpc agents.v1.ForumService.CreatePost
    */
   createPost: {
     methodKind: "unary";
-    input: typeof CreateForumPostRequestSchema;
-    output: typeof CreateForumPostResponseSchema;
+    input: typeof CreatePostRequestSchema;
+    output: typeof CreatePostResponseSchema;
   },
   /**
    * @generated from rpc agents.v1.ForumService.DeletePost
    */
   deletePost: {
     methodKind: "unary";
-    input: typeof DeleteForumPostRequestSchema;
-    output: typeof DeleteForumPostResponseSchema;
+    input: typeof DeletePostRequestSchema;
+    output: typeof DeletePostResponseSchema;
   },
   /**
    * @generated from rpc agents.v1.ForumService.InvokeAgentInThread

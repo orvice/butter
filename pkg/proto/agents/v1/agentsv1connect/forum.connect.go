@@ -58,13 +58,13 @@ const (
 
 // ForumServiceClient is a client for the agents.v1.ForumService service.
 type ForumServiceClient interface {
-	ListThreads(context.Context, *connect.Request[v1.ListForumThreadsRequest]) (*connect.Response[v1.ListForumThreadsResponse], error)
-	GetThread(context.Context, *connect.Request[v1.GetForumThreadRequest]) (*connect.Response[v1.GetForumThreadResponse], error)
-	CreateThread(context.Context, *connect.Request[v1.CreateForumThreadRequest]) (*connect.Response[v1.CreateForumThreadResponse], error)
-	UpdateThread(context.Context, *connect.Request[v1.UpdateForumThreadRequest]) (*connect.Response[v1.UpdateForumThreadResponse], error)
-	DeleteThread(context.Context, *connect.Request[v1.DeleteForumThreadRequest]) (*connect.Response[v1.DeleteForumThreadResponse], error)
-	CreatePost(context.Context, *connect.Request[v1.CreateForumPostRequest]) (*connect.Response[v1.CreateForumPostResponse], error)
-	DeletePost(context.Context, *connect.Request[v1.DeleteForumPostRequest]) (*connect.Response[v1.DeleteForumPostResponse], error)
+	ListThreads(context.Context, *connect.Request[v1.ListThreadsRequest]) (*connect.Response[v1.ListThreadsResponse], error)
+	GetThread(context.Context, *connect.Request[v1.GetThreadRequest]) (*connect.Response[v1.GetThreadResponse], error)
+	CreateThread(context.Context, *connect.Request[v1.CreateThreadRequest]) (*connect.Response[v1.CreateThreadResponse], error)
+	UpdateThread(context.Context, *connect.Request[v1.UpdateThreadRequest]) (*connect.Response[v1.UpdateThreadResponse], error)
+	DeleteThread(context.Context, *connect.Request[v1.DeleteThreadRequest]) (*connect.Response[v1.DeleteThreadResponse], error)
+	CreatePost(context.Context, *connect.Request[v1.CreatePostRequest]) (*connect.Response[v1.CreatePostResponse], error)
+	DeletePost(context.Context, *connect.Request[v1.DeletePostRequest]) (*connect.Response[v1.DeletePostResponse], error)
 	InvokeAgentInThread(context.Context, *connect.Request[v1.InvokeAgentInThreadRequest]) (*connect.Response[v1.InvokeAgentInThreadResponse], error)
 }
 
@@ -79,43 +79,43 @@ func NewForumServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 	baseURL = strings.TrimRight(baseURL, "/")
 	forumServiceMethods := v1.File_agents_v1_forum_proto.Services().ByName("ForumService").Methods()
 	return &forumServiceClient{
-		listThreads: connect.NewClient[v1.ListForumThreadsRequest, v1.ListForumThreadsResponse](
+		listThreads: connect.NewClient[v1.ListThreadsRequest, v1.ListThreadsResponse](
 			httpClient,
 			baseURL+ForumServiceListThreadsProcedure,
 			connect.WithSchema(forumServiceMethods.ByName("ListThreads")),
 			connect.WithClientOptions(opts...),
 		),
-		getThread: connect.NewClient[v1.GetForumThreadRequest, v1.GetForumThreadResponse](
+		getThread: connect.NewClient[v1.GetThreadRequest, v1.GetThreadResponse](
 			httpClient,
 			baseURL+ForumServiceGetThreadProcedure,
 			connect.WithSchema(forumServiceMethods.ByName("GetThread")),
 			connect.WithClientOptions(opts...),
 		),
-		createThread: connect.NewClient[v1.CreateForumThreadRequest, v1.CreateForumThreadResponse](
+		createThread: connect.NewClient[v1.CreateThreadRequest, v1.CreateThreadResponse](
 			httpClient,
 			baseURL+ForumServiceCreateThreadProcedure,
 			connect.WithSchema(forumServiceMethods.ByName("CreateThread")),
 			connect.WithClientOptions(opts...),
 		),
-		updateThread: connect.NewClient[v1.UpdateForumThreadRequest, v1.UpdateForumThreadResponse](
+		updateThread: connect.NewClient[v1.UpdateThreadRequest, v1.UpdateThreadResponse](
 			httpClient,
 			baseURL+ForumServiceUpdateThreadProcedure,
 			connect.WithSchema(forumServiceMethods.ByName("UpdateThread")),
 			connect.WithClientOptions(opts...),
 		),
-		deleteThread: connect.NewClient[v1.DeleteForumThreadRequest, v1.DeleteForumThreadResponse](
+		deleteThread: connect.NewClient[v1.DeleteThreadRequest, v1.DeleteThreadResponse](
 			httpClient,
 			baseURL+ForumServiceDeleteThreadProcedure,
 			connect.WithSchema(forumServiceMethods.ByName("DeleteThread")),
 			connect.WithClientOptions(opts...),
 		),
-		createPost: connect.NewClient[v1.CreateForumPostRequest, v1.CreateForumPostResponse](
+		createPost: connect.NewClient[v1.CreatePostRequest, v1.CreatePostResponse](
 			httpClient,
 			baseURL+ForumServiceCreatePostProcedure,
 			connect.WithSchema(forumServiceMethods.ByName("CreatePost")),
 			connect.WithClientOptions(opts...),
 		),
-		deletePost: connect.NewClient[v1.DeleteForumPostRequest, v1.DeleteForumPostResponse](
+		deletePost: connect.NewClient[v1.DeletePostRequest, v1.DeletePostResponse](
 			httpClient,
 			baseURL+ForumServiceDeletePostProcedure,
 			connect.WithSchema(forumServiceMethods.ByName("DeletePost")),
@@ -132,48 +132,48 @@ func NewForumServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 
 // forumServiceClient implements ForumServiceClient.
 type forumServiceClient struct {
-	listThreads         *connect.Client[v1.ListForumThreadsRequest, v1.ListForumThreadsResponse]
-	getThread           *connect.Client[v1.GetForumThreadRequest, v1.GetForumThreadResponse]
-	createThread        *connect.Client[v1.CreateForumThreadRequest, v1.CreateForumThreadResponse]
-	updateThread        *connect.Client[v1.UpdateForumThreadRequest, v1.UpdateForumThreadResponse]
-	deleteThread        *connect.Client[v1.DeleteForumThreadRequest, v1.DeleteForumThreadResponse]
-	createPost          *connect.Client[v1.CreateForumPostRequest, v1.CreateForumPostResponse]
-	deletePost          *connect.Client[v1.DeleteForumPostRequest, v1.DeleteForumPostResponse]
+	listThreads         *connect.Client[v1.ListThreadsRequest, v1.ListThreadsResponse]
+	getThread           *connect.Client[v1.GetThreadRequest, v1.GetThreadResponse]
+	createThread        *connect.Client[v1.CreateThreadRequest, v1.CreateThreadResponse]
+	updateThread        *connect.Client[v1.UpdateThreadRequest, v1.UpdateThreadResponse]
+	deleteThread        *connect.Client[v1.DeleteThreadRequest, v1.DeleteThreadResponse]
+	createPost          *connect.Client[v1.CreatePostRequest, v1.CreatePostResponse]
+	deletePost          *connect.Client[v1.DeletePostRequest, v1.DeletePostResponse]
 	invokeAgentInThread *connect.Client[v1.InvokeAgentInThreadRequest, v1.InvokeAgentInThreadResponse]
 }
 
 // ListThreads calls agents.v1.ForumService.ListThreads.
-func (c *forumServiceClient) ListThreads(ctx context.Context, req *connect.Request[v1.ListForumThreadsRequest]) (*connect.Response[v1.ListForumThreadsResponse], error) {
+func (c *forumServiceClient) ListThreads(ctx context.Context, req *connect.Request[v1.ListThreadsRequest]) (*connect.Response[v1.ListThreadsResponse], error) {
 	return c.listThreads.CallUnary(ctx, req)
 }
 
 // GetThread calls agents.v1.ForumService.GetThread.
-func (c *forumServiceClient) GetThread(ctx context.Context, req *connect.Request[v1.GetForumThreadRequest]) (*connect.Response[v1.GetForumThreadResponse], error) {
+func (c *forumServiceClient) GetThread(ctx context.Context, req *connect.Request[v1.GetThreadRequest]) (*connect.Response[v1.GetThreadResponse], error) {
 	return c.getThread.CallUnary(ctx, req)
 }
 
 // CreateThread calls agents.v1.ForumService.CreateThread.
-func (c *forumServiceClient) CreateThread(ctx context.Context, req *connect.Request[v1.CreateForumThreadRequest]) (*connect.Response[v1.CreateForumThreadResponse], error) {
+func (c *forumServiceClient) CreateThread(ctx context.Context, req *connect.Request[v1.CreateThreadRequest]) (*connect.Response[v1.CreateThreadResponse], error) {
 	return c.createThread.CallUnary(ctx, req)
 }
 
 // UpdateThread calls agents.v1.ForumService.UpdateThread.
-func (c *forumServiceClient) UpdateThread(ctx context.Context, req *connect.Request[v1.UpdateForumThreadRequest]) (*connect.Response[v1.UpdateForumThreadResponse], error) {
+func (c *forumServiceClient) UpdateThread(ctx context.Context, req *connect.Request[v1.UpdateThreadRequest]) (*connect.Response[v1.UpdateThreadResponse], error) {
 	return c.updateThread.CallUnary(ctx, req)
 }
 
 // DeleteThread calls agents.v1.ForumService.DeleteThread.
-func (c *forumServiceClient) DeleteThread(ctx context.Context, req *connect.Request[v1.DeleteForumThreadRequest]) (*connect.Response[v1.DeleteForumThreadResponse], error) {
+func (c *forumServiceClient) DeleteThread(ctx context.Context, req *connect.Request[v1.DeleteThreadRequest]) (*connect.Response[v1.DeleteThreadResponse], error) {
 	return c.deleteThread.CallUnary(ctx, req)
 }
 
 // CreatePost calls agents.v1.ForumService.CreatePost.
-func (c *forumServiceClient) CreatePost(ctx context.Context, req *connect.Request[v1.CreateForumPostRequest]) (*connect.Response[v1.CreateForumPostResponse], error) {
+func (c *forumServiceClient) CreatePost(ctx context.Context, req *connect.Request[v1.CreatePostRequest]) (*connect.Response[v1.CreatePostResponse], error) {
 	return c.createPost.CallUnary(ctx, req)
 }
 
 // DeletePost calls agents.v1.ForumService.DeletePost.
-func (c *forumServiceClient) DeletePost(ctx context.Context, req *connect.Request[v1.DeleteForumPostRequest]) (*connect.Response[v1.DeleteForumPostResponse], error) {
+func (c *forumServiceClient) DeletePost(ctx context.Context, req *connect.Request[v1.DeletePostRequest]) (*connect.Response[v1.DeletePostResponse], error) {
 	return c.deletePost.CallUnary(ctx, req)
 }
 
@@ -184,13 +184,13 @@ func (c *forumServiceClient) InvokeAgentInThread(ctx context.Context, req *conne
 
 // ForumServiceHandler is an implementation of the agents.v1.ForumService service.
 type ForumServiceHandler interface {
-	ListThreads(context.Context, *connect.Request[v1.ListForumThreadsRequest]) (*connect.Response[v1.ListForumThreadsResponse], error)
-	GetThread(context.Context, *connect.Request[v1.GetForumThreadRequest]) (*connect.Response[v1.GetForumThreadResponse], error)
-	CreateThread(context.Context, *connect.Request[v1.CreateForumThreadRequest]) (*connect.Response[v1.CreateForumThreadResponse], error)
-	UpdateThread(context.Context, *connect.Request[v1.UpdateForumThreadRequest]) (*connect.Response[v1.UpdateForumThreadResponse], error)
-	DeleteThread(context.Context, *connect.Request[v1.DeleteForumThreadRequest]) (*connect.Response[v1.DeleteForumThreadResponse], error)
-	CreatePost(context.Context, *connect.Request[v1.CreateForumPostRequest]) (*connect.Response[v1.CreateForumPostResponse], error)
-	DeletePost(context.Context, *connect.Request[v1.DeleteForumPostRequest]) (*connect.Response[v1.DeleteForumPostResponse], error)
+	ListThreads(context.Context, *connect.Request[v1.ListThreadsRequest]) (*connect.Response[v1.ListThreadsResponse], error)
+	GetThread(context.Context, *connect.Request[v1.GetThreadRequest]) (*connect.Response[v1.GetThreadResponse], error)
+	CreateThread(context.Context, *connect.Request[v1.CreateThreadRequest]) (*connect.Response[v1.CreateThreadResponse], error)
+	UpdateThread(context.Context, *connect.Request[v1.UpdateThreadRequest]) (*connect.Response[v1.UpdateThreadResponse], error)
+	DeleteThread(context.Context, *connect.Request[v1.DeleteThreadRequest]) (*connect.Response[v1.DeleteThreadResponse], error)
+	CreatePost(context.Context, *connect.Request[v1.CreatePostRequest]) (*connect.Response[v1.CreatePostResponse], error)
+	DeletePost(context.Context, *connect.Request[v1.DeletePostRequest]) (*connect.Response[v1.DeletePostResponse], error)
 	InvokeAgentInThread(context.Context, *connect.Request[v1.InvokeAgentInThreadRequest]) (*connect.Response[v1.InvokeAgentInThreadResponse], error)
 }
 
@@ -276,31 +276,31 @@ func NewForumServiceHandler(svc ForumServiceHandler, opts ...connect.HandlerOpti
 // UnimplementedForumServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedForumServiceHandler struct{}
 
-func (UnimplementedForumServiceHandler) ListThreads(context.Context, *connect.Request[v1.ListForumThreadsRequest]) (*connect.Response[v1.ListForumThreadsResponse], error) {
+func (UnimplementedForumServiceHandler) ListThreads(context.Context, *connect.Request[v1.ListThreadsRequest]) (*connect.Response[v1.ListThreadsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.ListThreads is not implemented"))
 }
 
-func (UnimplementedForumServiceHandler) GetThread(context.Context, *connect.Request[v1.GetForumThreadRequest]) (*connect.Response[v1.GetForumThreadResponse], error) {
+func (UnimplementedForumServiceHandler) GetThread(context.Context, *connect.Request[v1.GetThreadRequest]) (*connect.Response[v1.GetThreadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.GetThread is not implemented"))
 }
 
-func (UnimplementedForumServiceHandler) CreateThread(context.Context, *connect.Request[v1.CreateForumThreadRequest]) (*connect.Response[v1.CreateForumThreadResponse], error) {
+func (UnimplementedForumServiceHandler) CreateThread(context.Context, *connect.Request[v1.CreateThreadRequest]) (*connect.Response[v1.CreateThreadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.CreateThread is not implemented"))
 }
 
-func (UnimplementedForumServiceHandler) UpdateThread(context.Context, *connect.Request[v1.UpdateForumThreadRequest]) (*connect.Response[v1.UpdateForumThreadResponse], error) {
+func (UnimplementedForumServiceHandler) UpdateThread(context.Context, *connect.Request[v1.UpdateThreadRequest]) (*connect.Response[v1.UpdateThreadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.UpdateThread is not implemented"))
 }
 
-func (UnimplementedForumServiceHandler) DeleteThread(context.Context, *connect.Request[v1.DeleteForumThreadRequest]) (*connect.Response[v1.DeleteForumThreadResponse], error) {
+func (UnimplementedForumServiceHandler) DeleteThread(context.Context, *connect.Request[v1.DeleteThreadRequest]) (*connect.Response[v1.DeleteThreadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.DeleteThread is not implemented"))
 }
 
-func (UnimplementedForumServiceHandler) CreatePost(context.Context, *connect.Request[v1.CreateForumPostRequest]) (*connect.Response[v1.CreateForumPostResponse], error) {
+func (UnimplementedForumServiceHandler) CreatePost(context.Context, *connect.Request[v1.CreatePostRequest]) (*connect.Response[v1.CreatePostResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.CreatePost is not implemented"))
 }
 
-func (UnimplementedForumServiceHandler) DeletePost(context.Context, *connect.Request[v1.DeleteForumPostRequest]) (*connect.Response[v1.DeleteForumPostResponse], error) {
+func (UnimplementedForumServiceHandler) DeletePost(context.Context, *connect.Request[v1.DeletePostRequest]) (*connect.Response[v1.DeletePostResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.DeletePost is not implemented"))
 }
 

@@ -64,7 +64,7 @@ func (s *ForumServiceServer) getRunner() *runner.Service {
 	return s.runnerSvc
 }
 
-func (s *ForumServiceServer) ListThreads(ctx context.Context, req *agentsv1.ListForumThreadsRequest) (*agentsv1.ListForumThreadsResponse, error) {
+func (s *ForumServiceServer) ListThreads(ctx context.Context, req *agentsv1.ListThreadsRequest) (*agentsv1.ListThreadsResponse, error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -73,10 +73,10 @@ func (s *ForumServiceServer) ListThreads(ctx context.Context, req *agentsv1.List
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
-	return &agentsv1.ListForumThreadsResponse{Threads: threads, NextPageToken: next, Total: total}, nil
+	return &agentsv1.ListThreadsResponse{Threads: threads, NextPageToken: next, Total: total}, nil
 }
 
-func (s *ForumServiceServer) GetThread(ctx context.Context, req *agentsv1.GetForumThreadRequest) (*agentsv1.GetForumThreadResponse, error) {
+func (s *ForumServiceServer) GetThread(ctx context.Context, req *agentsv1.GetThreadRequest) (*agentsv1.GetThreadResponse, error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -89,10 +89,10 @@ func (s *ForumServiceServer) GetThread(ctx context.Context, req *agentsv1.GetFor
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
-	return &agentsv1.GetForumThreadResponse{Thread: thread, Posts: posts, NextPostPageToken: next, PostTotal: total}, nil
+	return &agentsv1.GetThreadResponse{Thread: thread, Posts: posts, NextPostPageToken: next, PostTotal: total}, nil
 }
 
-func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.CreateForumThreadRequest) (*agentsv1.CreateForumThreadResponse, error) {
+func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.CreateThreadRequest) (*agentsv1.CreateThreadResponse, error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -137,10 +137,10 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.Cre
 		_ = repo.DeleteThread(ctx, workspaceID, threadID)
 		return nil, twirp.InternalErrorWith(err)
 	}
-	return &agentsv1.CreateForumThreadResponse{Thread: thread, FirstPost: post}, nil
+	return &agentsv1.CreateThreadResponse{Thread: thread, FirstPost: post}, nil
 }
 
-func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *agentsv1.UpdateForumThreadRequest) (*agentsv1.UpdateForumThreadResponse, error) {
+func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *agentsv1.UpdateThreadRequest) (*agentsv1.UpdateThreadResponse, error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -168,10 +168,10 @@ func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *agentsv1.Upd
 	if err := repo.UpdateThread(ctx, thread); err != nil {
 		return nil, mapForumErr(err)
 	}
-	return &agentsv1.UpdateForumThreadResponse{Thread: thread}, nil
+	return &agentsv1.UpdateThreadResponse{Thread: thread}, nil
 }
 
-func (s *ForumServiceServer) DeleteThread(ctx context.Context, req *agentsv1.DeleteForumThreadRequest) (*agentsv1.DeleteForumThreadResponse, error) {
+func (s *ForumServiceServer) DeleteThread(ctx context.Context, req *agentsv1.DeleteThreadRequest) (*agentsv1.DeleteThreadResponse, error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -179,10 +179,10 @@ func (s *ForumServiceServer) DeleteThread(ctx context.Context, req *agentsv1.Del
 	if err := repo.DeleteThread(ctx, workspaceID, req.GetId()); err != nil {
 		return nil, mapForumErr(err)
 	}
-	return &agentsv1.DeleteForumThreadResponse{}, nil
+	return &agentsv1.DeleteThreadResponse{}, nil
 }
 
-func (s *ForumServiceServer) CreatePost(ctx context.Context, req *agentsv1.CreateForumPostRequest) (*agentsv1.CreateForumPostResponse, error) {
+func (s *ForumServiceServer) CreatePost(ctx context.Context, req *agentsv1.CreatePostRequest) (*agentsv1.CreatePostResponse, error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -209,10 +209,10 @@ func (s *ForumServiceServer) CreatePost(ctx context.Context, req *agentsv1.Creat
 	if err := repo.CreatePost(ctx, post); err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
-	return &agentsv1.CreateForumPostResponse{Post: post}, nil
+	return &agentsv1.CreatePostResponse{Post: post}, nil
 }
 
-func (s *ForumServiceServer) DeletePost(ctx context.Context, req *agentsv1.DeleteForumPostRequest) (*agentsv1.DeleteForumPostResponse, error) {
+func (s *ForumServiceServer) DeletePost(ctx context.Context, req *agentsv1.DeletePostRequest) (*agentsv1.DeletePostResponse, error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -220,7 +220,7 @@ func (s *ForumServiceServer) DeletePost(ctx context.Context, req *agentsv1.Delet
 	if err := repo.DeletePost(ctx, workspaceID, req.GetThreadId(), req.GetPostId()); err != nil {
 		return nil, mapForumErr(err)
 	}
-	return &agentsv1.DeleteForumPostResponse{}, nil
+	return &agentsv1.DeletePostResponse{}, nil
 }
 
 func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agentsv1.InvokeAgentInThreadRequest) (*agentsv1.InvokeAgentInThreadResponse, error) {
