@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,6 +17,28 @@ import (
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+// telegramMaxTextBytes is the Telegram Bot API hard limit for the `text` field.
+const telegramMaxTextBytes = 4096
+
+// truncateForTelegram shortens s to at most telegramMaxTextBytes bytes,
+// appending an ellipsis when truncation occurs.
+func truncateForTelegram(s string) string {
+	const ellipsis = "…[truncated]"
+	if len(s) <= telegramMaxTextBytes {
+		return s
+	}
+	// Cut at a rune boundary.
+	cut := []rune(s)
+	maxRunes := telegramMaxTextBytes - len(ellipsis)
+	if maxRunes < 0 {
+		maxRunes = 0
+	}
+	if len(cut) > maxRunes {
+		cut = cut[:maxRunes]
+	}
+	return string(cut) + ellipsis
+}
 
 type Message struct {
 	Title string
@@ -60,7 +83,7 @@ func (s *Sender) sendTelegram(ctx context.Context, target *agentsv1.TelegramNoti
 	}
 	payload := map[string]any{
 		"chat_id": target.GetChatId(),
-		"text":    formatMessage(msg),
+		"text":    truncateForTelegram(formatMessage(msg)),
 	}
 	if target.GetParseMode() != "" {
 		payload["parse_mode"] = target.GetParseMode()
@@ -129,6 +152,11 @@ func (s *Sender) postJSON(ctx context.Context, endpoint string, payload any) err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
+		const maxBodyRead = 512
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodyRead))
+		if len(respBody) > 0 {
+			return fmt.Errorf("notify request returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+		}
 		return fmt.Errorf("notify request returned status %d", resp.StatusCode)
 	}
 	return nil
