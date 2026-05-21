@@ -91,6 +91,36 @@ func TestSendTelegramPayload(t *testing.T) {
 	}
 }
 
+func TestSendTelegramEscapesMarkdownV2Payload(t *testing.T) {
+	var payload map[string]any
+	transport := &captureTransport{}
+	sender := NewSender(&http.Client{Transport: transport})
+	err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
+		Enabled: true,
+		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
+		Telegram: &agentsv1.TelegramNotifyTarget{
+			BotToken:  "secret-token",
+			ChatId:    "chat-1",
+			ParseMode: "MarkdownV2",
+		},
+	}, Message{
+		Title: "Cron job daily-ticket: success",
+		Text:  "workspace=prod-1 status=ok.",
+	})
+	if err != nil {
+		t.Fatalf("send telegram: %v", err)
+	}
+	if err := json.Unmarshal(transport.reqBody, &payload); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if payload["text"] != `Cron job daily\-ticket: success`+"\n"+`workspace\=prod\-1 status\=ok\.` {
+		t.Fatalf("unexpected text %#v", payload["text"])
+	}
+	if payload["parse_mode"] != "MarkdownV2" {
+		t.Fatalf("unexpected parse_mode %#v", payload["parse_mode"])
+	}
+}
+
 func TestSendLarkPayload(t *testing.T) {
 	var payload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
