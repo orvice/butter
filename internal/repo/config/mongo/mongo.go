@@ -16,6 +16,7 @@ import (
 
 const (
 	agentsCollection         = "config_agents"
+	globalMCPCollection      = "config_global_mcpservers"
 	mcpServersCollection     = "config_mcpservers"
 	remoteAgentsCollection   = "config_remoteagents"
 	channelsCollection       = "config_channels"
@@ -36,6 +37,7 @@ type configDoc struct {
 // Store implements all config repository interfaces backed by MongoDB.
 type Store struct {
 	agents         *mongo.Collection
+	globalMCP      *mongo.Collection
 	mcpServers     *mongo.Collection
 	remoteAgents   *mongo.Collection
 	channels       *mongo.Collection
@@ -46,6 +48,7 @@ type Store struct {
 func New(db *mongo.Database) *Store {
 	return &Store{
 		agents:         db.Collection(agentsCollection),
+		globalMCP:      db.Collection(globalMCPCollection),
 		mcpServers:     db.Collection(mcpServersCollection),
 		remoteAgents:   db.Collection(remoteAgentsCollection),
 		channels:       db.Collection(channelsCollection),
@@ -57,7 +60,7 @@ func New(db *mongo.Database) *Store {
 // EnsureIndexes creates the (workspace_id, name) compound indexes for fast
 // per-workspace listings.
 func (s *Store) EnsureIndexes(ctx context.Context) error {
-	collections := []*mongo.Collection{s.agents, s.mcpServers, s.remoteAgents, s.channels, s.modelProviders, s.notifyGroups}
+	collections := []*mongo.Collection{s.agents, s.globalMCP, s.mcpServers, s.remoteAgents, s.channels, s.modelProviders, s.notifyGroups}
 	for _, c := range collections {
 		_, err := c.Indexes().CreateOne(ctx, mongo.IndexModel{
 			Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "name", Value: 1}},
@@ -300,6 +303,80 @@ func (s *Store) DeleteMCPServer(ctx context.Context, workspaceID, id string) err
 	}
 	if res.DeletedCount == 0 {
 		return mapError("mcp server", workspaceID, id, mongo.ErrNoDocuments)
+	}
+	return nil
+}
+
+// --- Global MCP Servers ---
+
+func (s *Store) ListGlobalMCPServers(ctx context.Context) ([]*agentsv1.MCPServer, error) {
+	docs, err := listAll(ctx, s.globalMCP)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentsv1.MCPServer, 0, len(docs))
+	for _, d := range docs {
+		m := &agentsv1.MCPServer{}
+		if err := unmarshal(d.Spec, m); err != nil {
+			return nil, fmt.Errorf("unmarshal global mcp server %q: %w", d.ID, err)
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
+func (s *Store) GetGlobalMCPServer(ctx context.Context, id string) (*agentsv1.MCPServer, error) {
+	var doc configDoc
+	err := s.globalMCP.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("global mcp server", "", id, err)
+	}
+	m := &agentsv1.MCPServer{}
+	if err := unmarshal(doc.Spec, m); err != nil {
+		return nil, fmt.Errorf("unmarshal global mcp server %q: %w", id, err)
+	}
+	return m, nil
+}
+
+func (s *Store) CreateGlobalMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	clone := proto.Clone(server).(*agentsv1.MCPServer)
+	clone.WorkspaceId = ""
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	doc := configDoc{ID: clone.GetId(), Name: clone.GetId(), Spec: spec}
+	if _, err := s.globalMCP.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("global mcp server", "", clone.GetId(), err)
+	}
+	return clone, nil
+}
+
+func (s *Store) UpdateGlobalMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	clone := proto.Clone(server).(*agentsv1.MCPServer)
+	clone.WorkspaceId = ""
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	doc := configDoc{ID: clone.GetId(), Name: clone.GetId(), Spec: spec}
+	res, err := s.globalMCP.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
+	if err != nil {
+		return nil, mapError("global mcp server", "", clone.GetId(), err)
+	}
+	if res.MatchedCount == 0 {
+		return nil, mapError("global mcp server", "", clone.GetId(), mongo.ErrNoDocuments)
+	}
+	return clone, nil
+}
+
+func (s *Store) DeleteGlobalMCPServer(ctx context.Context, id string) error {
+	res, err := s.globalMCP.DeleteOne(ctx, bson.M{"_id": id})
+	if err != nil {
+		return mapError("global mcp server", "", id, err)
+	}
+	if res.DeletedCount == 0 {
+		return mapError("global mcp server", "", id, mongo.ErrNoDocuments)
 	}
 	return nil
 }

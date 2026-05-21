@@ -15,6 +15,7 @@ import (
 type Store struct {
 	mu             sync.RWMutex
 	agents         map[string]map[string]*agentsv1.Agent
+	globalMCP      map[string]*agentsv1.MCPServer
 	mcpServers     map[string]map[string]*agentsv1.MCPServer
 	remoteAgents   map[string]map[string]*agentsv1.RemoteAgent
 	channels       map[string]map[string]*agentsv1.AgentChannel
@@ -25,6 +26,7 @@ type Store struct {
 func New() *Store {
 	return &Store{
 		agents:         make(map[string]map[string]*agentsv1.Agent),
+		globalMCP:      make(map[string]*agentsv1.MCPServer),
 		mcpServers:     make(map[string]map[string]*agentsv1.MCPServer),
 		remoteAgents:   make(map[string]map[string]*agentsv1.RemoteAgent),
 		channels:       make(map[string]map[string]*agentsv1.AgentChannel),
@@ -227,6 +229,62 @@ func (s *Store) DeleteMCPServer(_ context.Context, workspaceID, id string) error
 		return notFound("mcp server", workspaceID, id)
 	}
 	delete(bucket, id)
+	return nil
+}
+
+// --- Global MCP Servers ---
+
+func (s *Store) ListGlobalMCPServers(_ context.Context) ([]*agentsv1.MCPServer, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*agentsv1.MCPServer, 0, len(s.globalMCP))
+	for _, m := range s.globalMCP {
+		out = append(out, cloneMCP(m))
+	}
+	return out, nil
+}
+
+func (s *Store) GetGlobalMCPServer(_ context.Context, id string) (*agentsv1.MCPServer, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	m, ok := s.globalMCP[id]
+	if !ok {
+		return nil, notFound("global mcp server", "", id)
+	}
+	return cloneMCP(m), nil
+}
+
+func (s *Store) CreateGlobalMCPServer(_ context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.globalMCP[server.GetId()]; ok {
+		return nil, alreadyExists("global mcp server", "", server.GetId())
+	}
+	stored := cloneMCP(server)
+	stored.WorkspaceId = ""
+	s.globalMCP[server.GetId()] = stored
+	return cloneMCP(stored), nil
+}
+
+func (s *Store) UpdateGlobalMCPServer(_ context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.globalMCP[server.GetId()]; !ok {
+		return nil, notFound("global mcp server", "", server.GetId())
+	}
+	stored := cloneMCP(server)
+	stored.WorkspaceId = ""
+	s.globalMCP[server.GetId()] = stored
+	return cloneMCP(stored), nil
+}
+
+func (s *Store) DeleteGlobalMCPServer(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.globalMCP[id]; !ok {
+		return notFound("global mcp server", "", id)
+	}
+	delete(s.globalMCP, id)
 	return nil
 }
 

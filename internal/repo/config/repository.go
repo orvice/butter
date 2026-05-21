@@ -36,6 +36,16 @@ type MCPServerRepository interface {
 	ListMCPServersAcrossWorkspaces(ctx context.Context) ([]*agentsv1.MCPServer, error)
 }
 
+// GlobalMCPServerRepository defines CRUD operations for admin-managed MCP
+// server presets that can be installed into workspaces.
+type GlobalMCPServerRepository interface {
+	ListGlobalMCPServers(ctx context.Context) ([]*agentsv1.MCPServer, error)
+	GetGlobalMCPServer(ctx context.Context, id string) (*agentsv1.MCPServer, error)
+	CreateGlobalMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error)
+	UpdateGlobalMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error)
+	DeleteGlobalMCPServer(ctx context.Context, id string) error
+}
+
 // RemoteAgentRepository defines CRUD operations for RemoteAgent configurations.
 type RemoteAgentRepository interface {
 	ListRemoteAgents(ctx context.Context, workspaceID string) ([]*agentsv1.RemoteAgent, error)
