@@ -81,6 +81,18 @@ func (s *Sender) sendTelegram(ctx context.Context, target *agentsv1.TelegramNoti
 	if target.GetBotToken() == "" || target.GetChatId() == "" {
 		return fmt.Errorf("telegram target requires bot_token and chat_id")
 	}
+	typingPayload := map[string]any{
+		"chat_id": target.GetChatId(),
+		"action":  "typing",
+	}
+	if target.GetMessageThreadId() != 0 {
+		typingPayload["message_thread_id"] = target.GetMessageThreadId()
+	}
+	typingEndpoint := "https://api.telegram.org/bot" + target.GetBotToken() + "/sendChatAction"
+	if err := s.postJSON(ctx, typingEndpoint, typingPayload); err != nil {
+		return err
+	}
+
 	text := formatMessage(msg)
 	if isTelegramMarkdownV2(target.GetParseMode()) {
 		text = escapeTelegramMarkdownV2(text)
