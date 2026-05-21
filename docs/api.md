@@ -777,8 +777,8 @@ Probes the configured MCP transport and reports liveness + tool count.
 |-------|------|-------------|
 | `id` | string |  |
 | `name` | string |  |
-| `state` | enum | `STATE_CONFIGURED` (STDIO, no probe), `STATE_CONNECTED`, `STATE_DISCONNECTED`, `STATE_ERROR` |
-| `tool_count` | int32 | Tools exposed after applying `tool_filter` (or filter size if probing skipped) |
+| `state` | enum | `STATE_CONFIGURED`, `STATE_CONNECTED`, `STATE_DISCONNECTED`, `STATE_ERROR` |
+| `tool_count` | int32 | Tools exposed after applying `tool_filter` |
 | `detail` | string | Error / context |
 | `checked_at` | timestamp |  |
 
@@ -788,7 +788,7 @@ Probes the configured MCP transport and reports liveness + tool count.
 POST /api/agents.v1.MCPServerService/ListMCPTools
 ```
 
-Enumerates tools across configured MCP servers. STDIO transports are skipped and surfaced in `errors`.
+Enumerates tools across configured MCP servers.
 
 **Request:**
 
@@ -817,10 +817,7 @@ Enumerates tools across configured MCP servers. STDIO transports are skipped and
 |-------|------|-------------|
 | `id` | string | Unique identifier within a workspace |
 | `name` | string | Server name (required) |
-| `transport` | enum | `MCP_SERVER_TRANSPORT_STDIO`, `MCP_SERVER_TRANSPORT_STREAMABLE_HTTP`, `MCP_SERVER_TRANSPORT_SSE` |
-| `command` | string | Command for stdio transport |
-| `args` | string[] | Command arguments |
-| `env` | map\<string,string\> | Environment variables |
+| `transport` | enum | `MCP_SERVER_TRANSPORT_STREAMABLE_HTTP`, `MCP_SERVER_TRANSPORT_SSE` |
 | `url` | string | URL for HTTP/SSE transports |
 | `headers` | map\<string,string\> | HTTP headers |
 | `tool_filter` | string[] | Allowlist of exposed tools |

@@ -16,13 +16,13 @@ func TestMCPServerServiceServer_OAuthValidation(t *testing.T) {
 	store := memory.New()
 	svc := NewMCPServerServiceServer(store)
 	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{McpServer: &agentsv1.MCPServer{
-		Id:        "oauth-stdio",
-		Name:      "OAuth STDIO",
-		Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO,
+		Id:        "oauth-unspecified",
+		Name:      "OAuth Unspecified",
+		Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_UNSPECIFIED,
 		Auth:      oauthAuth("https://issuer.example.com/authorize", "https://issuer.example.com/token"),
 	}})
 	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
-		t.Fatalf("expected invalid argument for stdio oauth, got %v", err)
+		t.Fatalf("expected invalid argument for unsupported transport, got %v", err)
 	}
 
 	_, err = svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{McpServer: &agentsv1.MCPServer{

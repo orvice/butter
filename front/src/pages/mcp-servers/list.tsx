@@ -41,7 +41,6 @@ import { MCP_TRANSPORT_LABELS } from "@/lib/constants";
 import { ServerStatusBadge, ServerStatusInline } from "./status-cell";
 
 const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
-  MCP_SERVER_TRANSPORT_STDIO: Server,
   MCP_SERVER_TRANSPORT_STREAMABLE_HTTP: Cloud,
   MCP_SERVER_TRANSPORT_SSE: Radio,
   MCP_SERVER_TRANSPORT_UNSPECIFIED: Server,
@@ -84,7 +83,7 @@ export default function MCPServerListPage() {
             <div>
               <div className="font-medium">{row.name}</div>
               <div className="text-xs text-muted-foreground line-clamp-1 max-w-xs">
-                {row.url || row.command || "—"}
+                {row.url || "—"}
               </div>
             </div>
           </div>

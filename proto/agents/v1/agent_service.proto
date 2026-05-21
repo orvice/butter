@@ -51,7 +51,7 @@ service MCPServerService {
   // MCP server. Implemented in dashboard.proto.
   rpc GetMCPServerStatus(GetMCPServerStatusRequest) returns (GetMCPServerStatusResponse);
   // ListMCPTools enumerates tools exposed by the configured MCP servers.
-  // When server_id is empty, all servers are probed (skipping STDIO).
+  // When server_id is empty, all servers are probed.
   rpc ListMCPTools(ListMCPToolsRequest) returns (ListMCPToolsResponse);
   // StartMCPServerOAuth prepares a workspace-scoped OAuth2 authorization
   // flow and returns the user-facing authorization URL.

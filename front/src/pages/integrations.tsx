@@ -14,7 +14,6 @@ import {
   Globe,
   Plus,
   Radio,
-  Server,
   ShieldCheck,
   SlidersHorizontal,
   Wrench,
@@ -24,11 +23,10 @@ import type { MCPServer, MCPServerTransport, MCPTool, RemoteAgent, RemoteAgentSt
 import { MCP_TRANSPORT_LABELS } from "@/lib/constants";
 import { ServerStatusBadge, ServerStatusInline } from "./mcp-servers/status-cell";
 
-const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
-  MCP_SERVER_TRANSPORT_STDIO: Server,
+const TRANSPORT_ICON: Record<MCPServerTransport, typeof Cloud> = {
   MCP_SERVER_TRANSPORT_STREAMABLE_HTTP: Cloud,
   MCP_SERVER_TRANSPORT_SSE: Radio,
-  MCP_SERVER_TRANSPORT_UNSPECIFIED: Server,
+  MCP_SERVER_TRANSPORT_UNSPECIFIED: Cloud,
 };
 
 const REMOTE_STATE: Record<RemoteAgentState, { cls: string; label: string }> = {
@@ -61,7 +59,7 @@ function ServerRow({ server }: { server: MCPServer }) {
         <div className="min-w-0">
           <div className="truncate font-medium">{server.name}</div>
           <div className="truncate font-mono text-xs text-muted-foreground">
-            {server.url || server.command || "No endpoint configured"}
+            {server.url || "No endpoint configured"}
           </div>
         </div>
       </div>

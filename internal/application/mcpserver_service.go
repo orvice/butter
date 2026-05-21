@@ -50,21 +50,18 @@ func validateMCPServerConfig(server *agentsv1.MCPServer) error {
 	if server == nil {
 		return twirp.RequiredArgumentError("mcp_server")
 	}
-	authType := mcpoauth.AuthType(server)
-	if authType != agentsv1.MCPServerAuthType_MCP_SERVER_AUTH_TYPE_OAUTH2 {
-		return nil
-	}
-	if server.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
-		return twirp.InvalidArgumentError("mcp_server.auth.type", "oauth2 is not supported for stdio MCP servers")
-	}
 	if !isRemoteMCPTransport(server.GetTransport()) {
-		return twirp.InvalidArgumentError("mcp_server.transport", fmt.Sprintf("oauth2 requires a remote MCP transport, got %s", server.GetTransport()))
+		return twirp.InvalidArgumentError("mcp_server.transport", fmt.Sprintf("unsupported MCP transport %s", server.GetTransport()))
 	}
 	if strings.TrimSpace(server.GetUrl()) == "" {
 		return twirp.RequiredArgumentError("mcp_server.url")
 	}
 	if err := validateHTTPURL("mcp_server.url", server.GetUrl()); err != nil {
 		return err
+	}
+	authType := mcpoauth.AuthType(server)
+	if authType != agentsv1.MCPServerAuthType_MCP_SERVER_AUTH_TYPE_OAUTH2 {
+		return nil
 	}
 	oauth := server.GetAuth().GetOauth2()
 	if oauth == nil {
@@ -286,13 +283,6 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 		CheckedAt: timestamppb.New(time.Now().UTC()),
 	}
 
-	if m.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
-		status.State = agentsv1.MCPServerStatus_STATE_CONFIGURED
-		status.ToolCount = int32(len(m.GetToolFilter()))
-		status.Detail = "stdio probing not supported"
-		return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
-	}
-
 	timeout, err := internalagent.MCPTimeout(m)
 	if err != nil {
 		status.State = agentsv1.MCPServerStatus_STATE_DISCONNECTED
@@ -338,10 +328,6 @@ func (s *MCPServerServiceServer) ListMCPTools(ctx context.Context, req *agentsv1
 
 	resp := &agentsv1.ListMCPToolsResponse{Errors: map[string]string{}}
 	for _, srv := range servers {
-		if srv.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
-			resp.Errors[srv.GetId()] = "stdio probing not supported"
-			continue
-		}
 		timeout, err := internalagent.MCPTimeout(srv)
 		if err != nil {
 			resp.Errors[srv.GetId()] = err.Error()

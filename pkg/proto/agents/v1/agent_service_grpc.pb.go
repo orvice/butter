@@ -561,7 +561,7 @@ type MCPServerServiceClient interface {
 	// MCP server. Implemented in dashboard.proto.
 	GetMCPServerStatus(ctx context.Context, in *GetMCPServerStatusRequest, opts ...grpc.CallOption) (*GetMCPServerStatusResponse, error)
 	// ListMCPTools enumerates tools exposed by the configured MCP servers.
-	// When server_id is empty, all servers are probed (skipping STDIO).
+	// When server_id is empty, all servers are probed.
 	ListMCPTools(ctx context.Context, in *ListMCPToolsRequest, opts ...grpc.CallOption) (*ListMCPToolsResponse, error)
 	// StartMCPServerOAuth prepares a workspace-scoped OAuth2 authorization
 	// flow and returns the user-facing authorization URL.
@@ -707,7 +707,7 @@ type MCPServerServiceServer interface {
 	// MCP server. Implemented in dashboard.proto.
 	GetMCPServerStatus(context.Context, *GetMCPServerStatusRequest) (*GetMCPServerStatusResponse, error)
 	// ListMCPTools enumerates tools exposed by the configured MCP servers.
-	// When server_id is empty, all servers are probed (skipping STDIO).
+	// When server_id is empty, all servers are probed.
 	ListMCPTools(context.Context, *ListMCPToolsRequest) (*ListMCPToolsResponse, error)
 	// StartMCPServerOAuth prepares a workspace-scoped OAuth2 authorization
 	// flow and returns the user-facing authorization URL.

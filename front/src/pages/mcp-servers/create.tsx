@@ -22,7 +22,6 @@ const schema = z.object({
   id: z.string().min(1, "ID is required"),
   name: z.string().min(1, "Name is required"),
   transport: z.string(),
-  command: z.string().optional(),
   url: z.string().optional(),
   timeout_seconds: z.string().regex(/^\d*$/, "Timeout must be a non-negative integer").optional(),
   auth_type: z.string().optional(),
@@ -54,8 +53,7 @@ export default function MCPServerCreatePage() {
     defaultValues: {
       id: "",
       name: "",
-      transport: "MCP_SERVER_TRANSPORT_STDIO",
-      command: "",
+      transport: "MCP_SERVER_TRANSPORT_STREAMABLE_HTTP",
       url: "",
       timeout_seconds: "",
       auth_type: "MCP_SERVER_AUTH_TYPE_NONE",
@@ -85,7 +83,6 @@ export default function MCPServerCreatePage() {
         id: values.id,
         name: values.name,
         transport: values.transport as MCPServerTransport,
-        command: values.command,
         url: values.url,
         headers: remote && authType === "MCP_SERVER_AUTH_TYPE_STATIC_HEADERS" ? entriesToRecord(headers) : undefined,
         timeout_seconds: timeoutSeconds > 0 ? timeoutSeconds : undefined,
@@ -126,7 +123,6 @@ export default function MCPServerCreatePage() {
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                     <SelectContent>
-                      <SelectItem value="MCP_SERVER_TRANSPORT_STDIO">Stdio</SelectItem>
                       <SelectItem value="MCP_SERVER_TRANSPORT_STREAMABLE_HTTP">HTTP</SelectItem>
                       <SelectItem value="MCP_SERVER_TRANSPORT_SSE">SSE</SelectItem>
                     </SelectContent>
@@ -139,28 +135,23 @@ export default function MCPServerCreatePage() {
           <Card>
             <CardHeader><CardTitle>Connection</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              {transport === "MCP_SERVER_TRANSPORT_STDIO" ? (
-                <FormField control={form.control} name="command" render={({ field }) => (
-                  <FormItem><FormLabel>Command</FormLabel><FormControl><Input placeholder="npx @modelcontextprotocol/server" {...field} /></FormControl></FormItem>
+              <>
+                <FormField control={form.control} name="url" render={({ field }) => (
+                  <FormItem><FormLabel>URL</FormLabel><FormControl><Input placeholder="https://..." {...field} /></FormControl></FormItem>
                 )} />
-              ) : (
-                <>
-                  <FormField control={form.control} name="url" render={({ field }) => (
-                    <FormItem><FormLabel>URL</FormLabel><FormControl><Input placeholder="https://..." {...field} /></FormControl></FormItem>
-                  )} />
-                  <FormField control={form.control} name="auth_type" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Authentication</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="MCP_SERVER_AUTH_TYPE_NONE">None</SelectItem>
-                          <SelectItem value="MCP_SERVER_AUTH_TYPE_STATIC_HEADERS">Static headers</SelectItem>
-                          <SelectItem value="MCP_SERVER_AUTH_TYPE_OAUTH2">OAuth 2.0</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )} />
+                <FormField control={form.control} name="auth_type" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Authentication</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="MCP_SERVER_AUTH_TYPE_NONE">None</SelectItem>
+                        <SelectItem value="MCP_SERVER_AUTH_TYPE_STATIC_HEADERS">Static headers</SelectItem>
+                        <SelectItem value="MCP_SERVER_AUTH_TYPE_OAUTH2">OAuth 2.0</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
                   {authType === "MCP_SERVER_AUTH_TYPE_OAUTH2" && (
                     <div className="grid gap-4 md:grid-cols-2">
                       <FormField control={form.control} name="oauth_registration_mode" render={({ field }) => (
@@ -221,8 +212,7 @@ export default function MCPServerCreatePage() {
                       <FormMessage />
                     </FormItem>
                   )} />
-                </>
-              )}
+              </>
             </CardContent>
           </Card>
 
