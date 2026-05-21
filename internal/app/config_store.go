@@ -16,6 +16,7 @@ import (
 
 type configBackend interface {
 	configrepo.AgentRepository
+	configrepo.GlobalMCPServerRepository
 	configrepo.MCPServerRepository
 	configrepo.RemoteAgentRepository
 	configrepo.ChannelRepository
@@ -205,6 +206,28 @@ func (s *ConfigStore) UpdateMCPServer(ctx context.Context, workspaceID string, s
 
 func (s *ConfigStore) DeleteMCPServer(ctx context.Context, workspaceID, id string) error {
 	return s.current().DeleteMCPServer(ctx, workspaceID, id)
+}
+
+// --- Global MCP Servers ---
+
+func (s *ConfigStore) ListGlobalMCPServers(ctx context.Context) ([]*agentsv1.MCPServer, error) {
+	return s.current().ListGlobalMCPServers(ctx)
+}
+
+func (s *ConfigStore) GetGlobalMCPServer(ctx context.Context, id string) (*agentsv1.MCPServer, error) {
+	return s.current().GetGlobalMCPServer(ctx, id)
+}
+
+func (s *ConfigStore) CreateGlobalMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	return s.current().CreateGlobalMCPServer(ctx, server)
+}
+
+func (s *ConfigStore) UpdateGlobalMCPServer(ctx context.Context, server *agentsv1.MCPServer) (*agentsv1.MCPServer, error) {
+	return s.current().UpdateGlobalMCPServer(ctx, server)
+}
+
+func (s *ConfigStore) DeleteGlobalMCPServer(ctx context.Context, id string) error {
+	return s.current().DeleteGlobalMCPServer(ctx, id)
 }
 
 // --- Remote Agents ---

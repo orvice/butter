@@ -28,6 +28,8 @@ type MCPServerServiceServer struct {
 	httpFactory  internalagent.MCPHTTPClientFactory
 }
 
+const globalMCPPresetMetadataKey = "butter.global_mcp_preset_id"
+
 func NewMCPServerServiceServer(repo configrepo.MCPServerRepository) *MCPServerServiceServer {
 	return &MCPServerServiceServer{repo: repo}
 }
@@ -113,7 +115,7 @@ func (s *MCPServerServiceServer) ListMCPServers(ctx context.Context, _ *agentsv1
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	return &agentsv1.ListMCPServersResponse{McpServers: servers}, nil
+	return &agentsv1.ListMCPServersResponse{McpServers: redactInstalledGlobalMCPSecrets(servers)}, nil
 }
 
 func (s *MCPServerServiceServer) GetMCPServer(ctx context.Context, req *agentsv1.GetMCPServerRequest) (*agentsv1.GetMCPServerResponse, error) {
@@ -125,7 +127,37 @@ func (s *MCPServerServiceServer) GetMCPServer(ctx context.Context, req *agentsv1
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	return &agentsv1.GetMCPServerResponse{McpServer: m}, nil
+	return &agentsv1.GetMCPServerResponse{McpServer: redactInstalledGlobalMCPSecret(m)}, nil
+}
+
+func MarkInstalledGlobalMCPPreset(server *agentsv1.MCPServer, presetID string) {
+	if server == nil || strings.TrimSpace(presetID) == "" {
+		return
+	}
+	if server.Metadata == nil {
+		server.Metadata = map[string]string{}
+	}
+	server.Metadata[globalMCPPresetMetadataKey] = presetID
+}
+
+func redactInstalledGlobalMCPSecrets(servers []*agentsv1.MCPServer) []*agentsv1.MCPServer {
+	out := make([]*agentsv1.MCPServer, 0, len(servers))
+	for _, server := range servers {
+		out = append(out, redactInstalledGlobalMCPSecret(server))
+	}
+	return out
+}
+
+func redactInstalledGlobalMCPSecret(server *agentsv1.MCPServer) *agentsv1.MCPServer {
+	if server == nil || server.GetMetadata()[globalMCPPresetMetadataKey] == "" {
+		return server
+	}
+	clone := proto.Clone(server).(*agentsv1.MCPServer)
+	oauth := clone.GetAuth().GetOauth2()
+	if oauth != nil {
+		oauth.ClientSecret = ""
+	}
+	return clone
 }
 
 func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agentsv1.CreateMCPServerRequest) (*agentsv1.CreateMCPServerResponse, error) {
