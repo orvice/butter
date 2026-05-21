@@ -9,7 +9,6 @@ export type AgentType =
 
 export type MCPServerTransport =
   | "MCP_SERVER_TRANSPORT_UNSPECIFIED"
-  | "MCP_SERVER_TRANSPORT_STDIO"
   | "MCP_SERVER_TRANSPORT_STREAMABLE_HTTP"
   | "MCP_SERVER_TRANSPORT_SSE";
 
@@ -174,9 +173,6 @@ export interface MCPServer {
   id?: string;
   name: string;
   transport?: MCPServerTransport;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
   tool_filter?: string[];

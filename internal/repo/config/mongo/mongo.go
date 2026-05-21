@@ -97,6 +97,10 @@ func unmarshal(data string, m proto.Message) error {
 	return protojson.Unmarshal([]byte(data), m)
 }
 
+func unmarshalMCPServer(data string, m *agentsv1.MCPServer) error {
+	return protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal([]byte(data), m)
+}
+
 func compositeID(workspaceID, name string) string {
 	return workspaceID + ":" + name
 }
@@ -227,7 +231,7 @@ func (s *Store) ListMCPServers(ctx context.Context, workspaceID string) ([]*agen
 	out := make([]*agentsv1.MCPServer, 0, len(docs))
 	for _, d := range docs {
 		m := &agentsv1.MCPServer{}
-		if err := unmarshal(d.Spec, m); err != nil {
+		if err := unmarshalMCPServer(d.Spec, m); err != nil {
 			return nil, fmt.Errorf("unmarshal mcp server %q: %w", d.ID, err)
 		}
 		out = append(out, m)
@@ -243,7 +247,7 @@ func (s *Store) ListMCPServersAcrossWorkspaces(ctx context.Context) ([]*agentsv1
 	out := make([]*agentsv1.MCPServer, 0, len(docs))
 	for _, d := range docs {
 		m := &agentsv1.MCPServer{}
-		if err := unmarshal(d.Spec, m); err != nil {
+		if err := unmarshalMCPServer(d.Spec, m); err != nil {
 			return nil, fmt.Errorf("unmarshal mcp server %q: %w", d.ID, err)
 		}
 		out = append(out, m)
@@ -258,7 +262,7 @@ func (s *Store) GetMCPServer(ctx context.Context, workspaceID, id string) (*agen
 		return nil, mapError("mcp server", workspaceID, id, err)
 	}
 	m := &agentsv1.MCPServer{}
-	if err := unmarshal(doc.Spec, m); err != nil {
+	if err := unmarshalMCPServer(doc.Spec, m); err != nil {
 		return nil, fmt.Errorf("unmarshal mcp server %q: %w", id, err)
 	}
 	return m, nil
@@ -317,7 +321,7 @@ func (s *Store) ListGlobalMCPServers(ctx context.Context) ([]*agentsv1.MCPServer
 	out := make([]*agentsv1.MCPServer, 0, len(docs))
 	for _, d := range docs {
 		m := &agentsv1.MCPServer{}
-		if err := unmarshal(d.Spec, m); err != nil {
+		if err := unmarshalMCPServer(d.Spec, m); err != nil {
 			return nil, fmt.Errorf("unmarshal global mcp server %q: %w", d.ID, err)
 		}
 		out = append(out, m)
@@ -332,7 +336,7 @@ func (s *Store) GetGlobalMCPServer(ctx context.Context, id string) (*agentsv1.MC
 		return nil, mapError("global mcp server", "", id, err)
 	}
 	m := &agentsv1.MCPServer{}
-	if err := unmarshal(doc.Spec, m); err != nil {
+	if err := unmarshalMCPServer(doc.Spec, m); err != nil {
 		return nil, fmt.Errorf("unmarshal global mcp server %q: %w", id, err)
 	}
 	return m, nil

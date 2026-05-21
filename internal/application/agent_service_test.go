@@ -34,6 +34,15 @@ func (r *reloadTracker) ReloadChannels(context.Context) error {
 	return r.err
 }
 
+func testMCPServer(id, name string) *agentsv1.MCPServer {
+	return &agentsv1.MCPServer{
+		Id:        id,
+		Name:      name,
+		Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
+		Url:       "https://mcp.example.com/mcp",
+	}
+}
+
 func TestAgentServiceServer_CRUD(t *testing.T) {
 	store := memory.New()
 	svc := NewAgentServiceServer(store)
@@ -115,7 +124,7 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	ctx := testCtx()
 
 	created, err := svc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{
-		McpServer: &agentsv1.MCPServer{Id: "m1", Name: "mcp1"},
+		McpServer: testMCPServer("m1", "mcp1"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +134,7 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	}
 
 	_, err = svc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{
-		McpServer: &agentsv1.MCPServer{Id: "m1"},
+		McpServer: testMCPServer("m1", "mcp1 duplicate"),
 	})
 	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.AlreadyExists {
 		t.Fatalf("expected AlreadyExists, got %v", err)
@@ -147,6 +156,34 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	_, err = svc.GetMCPServer(ctx, &agentsv1.GetMCPServerRequest{Id: "m1"})
 	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.NotFound {
 		t.Fatalf("expected NotFound, got %v", err)
+	}
+}
+
+func TestMCPServerServiceServer_ValidationRejectsUnsupportedTransportAndMissingURL(t *testing.T) {
+	store := memory.New()
+	svc := NewMCPServerServiceServer(store)
+
+	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
+		McpServer: &agentsv1.MCPServer{
+			Id:        "m1",
+			Name:      "mcp1",
+			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_UNSPECIFIED,
+			Url:       "https://mcp.example.com/mcp",
+		},
+	})
+	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+		t.Fatalf("expected InvalidArgument for unsupported transport, got %v", err)
+	}
+
+	_, err = svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
+		McpServer: &agentsv1.MCPServer{
+			Id:        "m2",
+			Name:      "mcp2",
+			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
+		},
+	})
+	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+		t.Fatalf("expected InvalidArgument for missing URL, got %v", err)
 	}
 }
 
@@ -399,7 +436,7 @@ func TestMCPServerServiceServer_ReloadsRuntime(t *testing.T) {
 	svc.SetRuntime(runtime)
 
 	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
-		McpServer: &agentsv1.MCPServer{Id: "m1", Name: "mcp1"},
+		McpServer: testMCPServer("m1", "mcp1"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -415,7 +452,7 @@ func TestMCPServerServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
 	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
-		McpServer: &agentsv1.MCPServer{Id: "m1", Name: "mcp1"},
+		McpServer: testMCPServer("m1", "mcp1"),
 	})
 	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
 		t.Fatalf("expected Internal, got %v", err)

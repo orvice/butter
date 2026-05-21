@@ -270,8 +270,7 @@ type MCPProbeResult struct {
 }
 
 // ProbeMCPServer connects to the configured MCP server transport, runs the
-// MCP handshake and lists the exposed tools. STDIO transports are not yet
-// probed (would require spawning a subprocess) and return an error.
+// MCP handshake, and lists the exposed tools.
 func ProbeMCPServer(ctx context.Context, srv *agentsv1.MCPServer) (*MCPProbeResult, error) {
 	return ProbeMCPServerWithFactory(ctx, srv, nil)
 }
@@ -281,9 +280,6 @@ func ProbeMCPServer(ctx context.Context, srv *agentsv1.MCPServer) (*MCPProbeResu
 func ProbeMCPServerWithFactory(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPHTTPClientFactory) (*MCPProbeResult, error) {
 	if srv == nil {
 		return nil, fmt.Errorf("nil mcp server")
-	}
-	if srv.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
-		return nil, fmt.Errorf("stdio probing not supported")
 	}
 	transport, err := mcpTransport(ctx, srv, httpFactory)
 	if err != nil {

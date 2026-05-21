@@ -8,7 +8,6 @@ export const AGENT_TYPE_LABELS: Record<string, string> = {
 
 export const MCP_TRANSPORT_LABELS: Record<string, string> = {
   MCP_SERVER_TRANSPORT_UNSPECIFIED: "Unspecified",
-  MCP_SERVER_TRANSPORT_STDIO: "Stdio",
   MCP_SERVER_TRANSPORT_STREAMABLE_HTTP: "HTTP",
   MCP_SERVER_TRANSPORT_SSE: "SSE",
 };
