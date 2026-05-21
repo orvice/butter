@@ -143,6 +143,43 @@ func TestServiceMissingEncryptionKey(t *testing.T) {
 	}
 }
 
+func TestSanitizeReturnURLRestrictsAbsoluteURLs(t *testing.T) {
+	cfg := Config{DashboardBaseURL: "https://dashboard.example/app"}
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "relative path",
+			in:   "/mcp-servers?server_id=srv",
+			want: "/mcp-servers?server_id=srv",
+		},
+		{
+			name: "dashboard origin absolute url",
+			in:   "https://dashboard.example/mcp-servers?server_id=srv",
+			want: "https://dashboard.example/mcp-servers?server_id=srv",
+		},
+		{
+			name: "hostile absolute url",
+			in:   "https://attacker.example/capture",
+			want: "https://dashboard.example/app/mcp-servers",
+		},
+		{
+			name: "scheme-relative hostile url",
+			in:   "//attacker.example/capture",
+			want: "https://dashboard.example/app/mcp-servers",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sanitizeReturnURL(tt.in, cfg); got != tt.want {
+				t.Fatalf("sanitizeReturnURL(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestResolverInjectsBearerAndPersistsRotatedRefreshToken(t *testing.T) {
 	var sawRefreshToken string
 	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

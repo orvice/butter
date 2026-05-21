@@ -342,8 +342,13 @@ func callbackURL(cfg Config) (string, error) {
 func sanitizeReturnURL(returnURL string, cfg Config) string {
 	returnURL = strings.TrimSpace(returnURL)
 	if returnURL != "" {
-		if u, err := url.Parse(returnURL); err == nil && u.Scheme != "" && u.Host != "" {
-			return returnURL
+		if u, err := url.Parse(returnURL); err == nil {
+			if isSafeRelativeReturnURL(u) {
+				return returnURL
+			}
+			if isDashboardReturnURL(u, cfg) {
+				return returnURL
+			}
 		}
 	}
 	dashboard := strings.TrimSpace(cfg.DashboardBaseURL)
@@ -351,6 +356,25 @@ func sanitizeReturnURL(returnURL string, cfg Config) string {
 		return strings.TrimRight(dashboard, "/") + "/mcp-servers"
 	}
 	return "/mcp-servers"
+}
+
+func isSafeRelativeReturnURL(u *url.URL) bool {
+	return u.Scheme == "" && u.Host == "" && strings.HasPrefix(u.Path, "/")
+}
+
+func isDashboardReturnURL(u *url.URL, cfg Config) bool {
+	if u.Scheme == "" || u.Host == "" {
+		return false
+	}
+	dashboard := strings.TrimSpace(cfg.DashboardBaseURL)
+	if dashboard == "" {
+		return false
+	}
+	dashboardURL, err := url.Parse(dashboard)
+	if err != nil || dashboardURL.Scheme == "" || dashboardURL.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Scheme, dashboardURL.Scheme) && strings.EqualFold(u.Host, dashboardURL.Host)
 }
 
 func randomURLToken(size int) (string, error) {
