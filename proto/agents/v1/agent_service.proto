@@ -53,6 +53,15 @@ service MCPServerService {
   // ListMCPTools enumerates tools exposed by the configured MCP servers.
   // When server_id is empty, all servers are probed (skipping STDIO).
   rpc ListMCPTools(ListMCPToolsRequest) returns (ListMCPToolsResponse);
+  // StartMCPServerOAuth prepares a workspace-scoped OAuth2 authorization
+  // flow and returns the user-facing authorization URL.
+  rpc StartMCPServerOAuth(StartMCPServerOAuthRequest) returns (StartMCPServerOAuthResponse);
+  // CompleteMCPServerOAuth completes an OAuth2 authorization code callback.
+  rpc CompleteMCPServerOAuth(CompleteMCPServerOAuthRequest) returns (CompleteMCPServerOAuthResponse);
+  // GetMCPServerOAuthStatus returns non-secret OAuth connection state.
+  rpc GetMCPServerOAuthStatus(GetMCPServerOAuthStatusRequest) returns (GetMCPServerOAuthStatusResponse);
+  // DisconnectMCPServerOAuth removes local OAuth2 credentials for a server.
+  rpc DisconnectMCPServerOAuth(DisconnectMCPServerOAuthRequest) returns (DisconnectMCPServerOAuthResponse);
 }
 
 // ModelProviderService manages LLM provider configurations.
@@ -300,6 +309,62 @@ message DeleteMCPServerRequest {
 }
 
 message DeleteMCPServerResponse {}
+
+message StartMCPServerOAuthRequest {
+  string server_id = 1;
+  // Optional dashboard return URL. The server callback will redirect here
+  // after a browser-based flow when provided.
+  string return_url = 2;
+}
+
+message StartMCPServerOAuthResponse {
+  string authorization_url = 1;
+  string flow_id = 2;
+}
+
+message CompleteMCPServerOAuthRequest {
+  string flow_id = 1;
+  string code = 2;
+  string state = 3;
+}
+
+message CompleteMCPServerOAuthResponse {
+  MCPOAuthConnectionStatus status = 1;
+}
+
+message GetMCPServerOAuthStatusRequest {
+  string server_id = 1;
+}
+
+message GetMCPServerOAuthStatusResponse {
+  MCPOAuthConnectionStatus status = 1;
+}
+
+message DisconnectMCPServerOAuthRequest {
+  string server_id = 1;
+}
+
+message DisconnectMCPServerOAuthResponse {
+  MCPOAuthConnectionStatus status = 1;
+}
+
+message MCPOAuthConnectionStatus {
+  string server_id = 1;
+  MCPOAuthConnectionState state = 2;
+  string detail = 3;
+  repeated string scopes = 4;
+  google.protobuf.Timestamp connected_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  google.protobuf.Timestamp checked_at = 7;
+}
+
+enum MCPOAuthConnectionState {
+  MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED = 0;
+  MCPO_AUTH_CONNECTION_STATE_DISCONNECTED = 1;
+  MCPO_AUTH_CONNECTION_STATE_CONNECTED = 2;
+  MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED = 3;
+  MCPO_AUTH_CONNECTION_STATE_ERROR = 4;
+}
 
 // --- ModelProvider messages ---
 

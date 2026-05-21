@@ -13,6 +13,12 @@ export type MCPServerTransport =
   | "MCP_SERVER_TRANSPORT_STREAMABLE_HTTP"
   | "MCP_SERVER_TRANSPORT_SSE";
 
+export type MCPServerAuthType =
+  | "MCP_SERVER_AUTH_TYPE_UNSPECIFIED"
+  | "MCP_SERVER_AUTH_TYPE_NONE"
+  | "MCP_SERVER_AUTH_TYPE_STATIC_HEADERS"
+  | "MCP_SERVER_AUTH_TYPE_OAUTH2";
+
 export type RemoteAgentProtocol =
   | "REMOTE_AGENT_PROTOCOL_UNSPECIFIED"
   | "REMOTE_AGENT_PROTOCOL_A2A"
@@ -67,6 +73,13 @@ export type MCPServerState =
   | "STATE_CONNECTED"
   | "STATE_DISCONNECTED"
   | "STATE_ERROR";
+
+export type MCPOAuthConnectionState =
+  | "MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED"
+  | "MCPO_AUTH_CONNECTION_STATE_DISCONNECTED"
+  | "MCPO_AUTH_CONNECTION_STATE_CONNECTED"
+  | "MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED"
+  | "MCPO_AUTH_CONNECTION_STATE_ERROR";
 
 export type RemoteAgentState =
   | "STATE_UNSPECIFIED"
@@ -169,6 +182,23 @@ export interface MCPServer {
   tool_filter?: string[];
   metadata?: Record<string, string>;
   timeout_seconds?: number;
+  auth?: MCPServerAuth;
+}
+
+export interface MCPServerAuth {
+  type?: MCPServerAuthType;
+  oauth2?: MCPServerOAuth2Config;
+}
+
+export interface MCPServerOAuth2Config {
+  client_id?: string;
+  client_secret?: string;
+  scopes?: string[];
+  authorization_url?: string;
+  token_url?: string;
+  resource_metadata_url?: string;
+  authorization_server_url?: string;
+  resource?: string;
 }
 
 export interface RemoteAgent {
@@ -435,6 +465,16 @@ export interface MCPTool {
   server_id?: string;
   server_name?: string;
   allowed?: boolean;
+}
+
+export interface MCPOAuthConnectionStatus {
+  server_id?: string;
+  state?: MCPOAuthConnectionState;
+  detail?: string;
+  scopes?: string[];
+  connected_at?: string;
+  expires_at?: string;
+  checked_at?: string;
 }
 
 export interface RemoteAgentStatus {

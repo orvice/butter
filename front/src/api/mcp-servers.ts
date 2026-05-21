@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { twirpFetch } from "./client";
-import type { MCPServer, MCPServerStatus, MCPTool } from "@/types/api";
+import type { MCPOAuthConnectionStatus, MCPServer, MCPServerStatus, MCPTool } from "@/types/api";
 
 const SVC = "agents.v1.MCPServerService";
 
@@ -22,6 +22,29 @@ function updateMCPServer(mcp_server: MCPServer) {
 
 function deleteMCPServer(id: string) {
   return twirpFetch<{ id: string }, object>(SVC, "DeleteMCPServer", { id });
+}
+
+function getMCPServerOAuthStatus(serverId: string) {
+  return twirpFetch<{ server_id: string }, { status: MCPOAuthConnectionStatus }>(
+    SVC,
+    "GetMCPServerOAuthStatus",
+    { server_id: serverId },
+  );
+}
+
+function startMCPServerOAuth(serverId: string, returnUrl?: string) {
+  return twirpFetch<
+    { server_id: string; return_url?: string },
+    { authorization_url: string; flow_id: string }
+  >(SVC, "StartMCPServerOAuth", { server_id: serverId, return_url: returnUrl });
+}
+
+function disconnectMCPServerOAuth(serverId: string) {
+  return twirpFetch<{ server_id: string }, { status: MCPOAuthConnectionStatus }>(
+    SVC,
+    "DisconnectMCPServerOAuth",
+    { server_id: serverId },
+  );
 }
 
 export function useMCPServers() {
@@ -59,6 +82,37 @@ export function useDeleteMCPServer() {
   });
 }
 
+export function useMCPServerOAuthStatus(serverId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["mcp-servers", serverId, "oauth"],
+    queryFn: () => getMCPServerOAuthStatus(serverId),
+    enabled: enabled && !!serverId,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useStartMCPServerOAuth() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ serverId, returnUrl }: { serverId: string; returnUrl?: string }) =>
+      startMCPServerOAuth(serverId, returnUrl),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["mcp-servers", vars.serverId, "oauth"] });
+    },
+  });
+}
+
+export function useDisconnectMCPServerOAuth() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: disconnectMCPServerOAuth,
+    onSuccess: (_data, serverId) => {
+      qc.invalidateQueries({ queryKey: ["mcp-servers", serverId, "oauth"] });
+      qc.invalidateQueries({ queryKey: ["mcp-tools"] });
+    },
+  });
+}
+
 function getMCPServerStatus(id: string) {
   return twirpFetch<{ id: string }, { status: MCPServerStatus }>(
     SVC,
@@ -90,4 +144,3 @@ export function useMCPTools(serverId?: string) {
     refetchInterval: 60_000,
   });
 }
-

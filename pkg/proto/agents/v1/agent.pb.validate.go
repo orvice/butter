@@ -597,6 +597,35 @@ func (m *MCPServer) validate(all bool) error {
 
 	// no validation rules for TimeoutSeconds
 
+	if all {
+		switch v := interface{}(m.GetAuth()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, MCPServerValidationError{
+					field:  "Auth",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, MCPServerValidationError{
+					field:  "Auth",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetAuth()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return MCPServerValidationError{
+				field:  "Auth",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
@@ -675,6 +704,253 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = MCPServerValidationError{}
+
+// Validate checks the field values on MCPServerAuth with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *MCPServerAuth) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MCPServerAuth with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in MCPServerAuthMultiError, or
+// nil if none found.
+func (m *MCPServerAuth) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MCPServerAuth) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Type
+
+	if all {
+		switch v := interface{}(m.GetOauth2()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, MCPServerAuthValidationError{
+					field:  "Oauth2",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, MCPServerAuthValidationError{
+					field:  "Oauth2",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOauth2()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return MCPServerAuthValidationError{
+				field:  "Oauth2",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return MCPServerAuthMultiError(errors)
+	}
+
+	return nil
+}
+
+// MCPServerAuthMultiError is an error wrapping multiple validation errors
+// returned by MCPServerAuth.ValidateAll() if the designated constraints
+// aren't met.
+type MCPServerAuthMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MCPServerAuthMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MCPServerAuthMultiError) AllErrors() []error { return m }
+
+// MCPServerAuthValidationError is the validation error returned by
+// MCPServerAuth.Validate if the designated constraints aren't met.
+type MCPServerAuthValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MCPServerAuthValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MCPServerAuthValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MCPServerAuthValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MCPServerAuthValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MCPServerAuthValidationError) ErrorName() string { return "MCPServerAuthValidationError" }
+
+// Error satisfies the builtin error interface
+func (e MCPServerAuthValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMCPServerAuth.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MCPServerAuthValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MCPServerAuthValidationError{}
+
+// Validate checks the field values on MCPServerOAuth2Config with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MCPServerOAuth2Config) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MCPServerOAuth2Config with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MCPServerOAuth2ConfigMultiError, or nil if none found.
+func (m *MCPServerOAuth2Config) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MCPServerOAuth2Config) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ClientId
+
+	// no validation rules for ClientSecret
+
+	// no validation rules for AuthorizationUrl
+
+	// no validation rules for TokenUrl
+
+	// no validation rules for ResourceMetadataUrl
+
+	// no validation rules for AuthorizationServerUrl
+
+	// no validation rules for Resource
+
+	if len(errors) > 0 {
+		return MCPServerOAuth2ConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// MCPServerOAuth2ConfigMultiError is an error wrapping multiple validation
+// errors returned by MCPServerOAuth2Config.ValidateAll() if the designated
+// constraints aren't met.
+type MCPServerOAuth2ConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MCPServerOAuth2ConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MCPServerOAuth2ConfigMultiError) AllErrors() []error { return m }
+
+// MCPServerOAuth2ConfigValidationError is the validation error returned by
+// MCPServerOAuth2Config.Validate if the designated constraints aren't met.
+type MCPServerOAuth2ConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MCPServerOAuth2ConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MCPServerOAuth2ConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MCPServerOAuth2ConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MCPServerOAuth2ConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MCPServerOAuth2ConfigValidationError) ErrorName() string {
+	return "MCPServerOAuth2ConfigValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MCPServerOAuth2ConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMCPServerOAuth2Config.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MCPServerOAuth2ConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MCPServerOAuth2ConfigValidationError{}
 
 // Validate checks the field values on ContextGuardConfig with the rules
 // defined in the proto definition for this message. If any rules are

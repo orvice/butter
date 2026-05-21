@@ -27,6 +27,7 @@ type AppConfig struct {
 	HTTP           HTTPConfig     `yaml:"http"`
 	Static         StaticConfig   `yaml:"static"`
 	Artifact       ArtifactConfig `yaml:"artifact"`
+	MCPOAuth       MCPOAuthConfig `yaml:"mcp_oauth"`
 	StorageBackend string         `yaml:"storage_backend"` // "mongo" (default) or "memory"
 	GRPCPort       int            `yaml:"grpc_port"`       // daemon gRPC server port (default 9090)
 }
@@ -55,6 +56,27 @@ type ArtifactConfig struct {
 // Enabled reports whether artifact storage is configured.
 func (a ArtifactConfig) Enabled() bool {
 	return a.S3Bucket != ""
+}
+
+// MCPOAuthConfig controls the browser-based OAuth2 flow used for protected
+// remote MCP servers. Token material is always persisted server-side.
+type MCPOAuthConfig struct {
+	// CallbackBaseURL is the externally reachable base URL for this service.
+	// The OAuth redirect URI is built as:
+	//   <callback_base_url>/api/mcp/oauth/callback
+	CallbackBaseURL string `yaml:"callback_base_url"`
+
+	// DashboardBaseURL is used as the fallback redirect target after a backend
+	// callback completes and the start request did not provide return_url.
+	DashboardBaseURL string `yaml:"dashboard_base_url"`
+
+	// EncryptionKey protects stored token material. It may be raw 32-byte text,
+	// hex-encoded bytes, or base64-encoded bytes.
+	EncryptionKey string `yaml:"encryption_key"`
+
+	// AllowInsecureHTTP permits non-localhost HTTP OAuth endpoints. It is
+	// intended for development only; HTTPS is required otherwise.
+	AllowInsecureHTTP bool `yaml:"allow_insecure_http"`
 }
 
 type HTTPConfig struct {

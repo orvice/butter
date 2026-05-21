@@ -168,7 +168,7 @@ func APITokenAuthMiddleware(cfg *config.AppConfig, provider APITokenRepoProvider
 }
 
 func isPublicPath(path string) bool {
-	return path == "/ping" || path == "/api/agents.v1.AuthService/Login"
+	return path == "/ping" || path == "/api/agents.v1.AuthService/Login" || path == "/api/mcp/oauth/callback"
 }
 
 func bearerToken(c *gin.Context) (string, bool) {

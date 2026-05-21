@@ -4161,6 +4161,1131 @@ var _ interface {
 	ErrorName() string
 } = DeleteMCPServerResponseValidationError{}
 
+// Validate checks the field values on StartMCPServerOAuthRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *StartMCPServerOAuthRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StartMCPServerOAuthRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// StartMCPServerOAuthRequestMultiError, or nil if none found.
+func (m *StartMCPServerOAuthRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StartMCPServerOAuthRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ServerId
+
+	// no validation rules for ReturnUrl
+
+	if len(errors) > 0 {
+		return StartMCPServerOAuthRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// StartMCPServerOAuthRequestMultiError is an error wrapping multiple
+// validation errors returned by StartMCPServerOAuthRequest.ValidateAll() if
+// the designated constraints aren't met.
+type StartMCPServerOAuthRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StartMCPServerOAuthRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StartMCPServerOAuthRequestMultiError) AllErrors() []error { return m }
+
+// StartMCPServerOAuthRequestValidationError is the validation error returned
+// by StartMCPServerOAuthRequest.Validate if the designated constraints aren't met.
+type StartMCPServerOAuthRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e StartMCPServerOAuthRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e StartMCPServerOAuthRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e StartMCPServerOAuthRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e StartMCPServerOAuthRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e StartMCPServerOAuthRequestValidationError) ErrorName() string {
+	return "StartMCPServerOAuthRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e StartMCPServerOAuthRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStartMCPServerOAuthRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = StartMCPServerOAuthRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = StartMCPServerOAuthRequestValidationError{}
+
+// Validate checks the field values on StartMCPServerOAuthResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *StartMCPServerOAuthResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StartMCPServerOAuthResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// StartMCPServerOAuthResponseMultiError, or nil if none found.
+func (m *StartMCPServerOAuthResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StartMCPServerOAuthResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AuthorizationUrl
+
+	// no validation rules for FlowId
+
+	if len(errors) > 0 {
+		return StartMCPServerOAuthResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// StartMCPServerOAuthResponseMultiError is an error wrapping multiple
+// validation errors returned by StartMCPServerOAuthResponse.ValidateAll() if
+// the designated constraints aren't met.
+type StartMCPServerOAuthResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StartMCPServerOAuthResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StartMCPServerOAuthResponseMultiError) AllErrors() []error { return m }
+
+// StartMCPServerOAuthResponseValidationError is the validation error returned
+// by StartMCPServerOAuthResponse.Validate if the designated constraints
+// aren't met.
+type StartMCPServerOAuthResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e StartMCPServerOAuthResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e StartMCPServerOAuthResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e StartMCPServerOAuthResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e StartMCPServerOAuthResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e StartMCPServerOAuthResponseValidationError) ErrorName() string {
+	return "StartMCPServerOAuthResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e StartMCPServerOAuthResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStartMCPServerOAuthResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = StartMCPServerOAuthResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = StartMCPServerOAuthResponseValidationError{}
+
+// Validate checks the field values on CompleteMCPServerOAuthRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CompleteMCPServerOAuthRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CompleteMCPServerOAuthRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// CompleteMCPServerOAuthRequestMultiError, or nil if none found.
+func (m *CompleteMCPServerOAuthRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CompleteMCPServerOAuthRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for FlowId
+
+	// no validation rules for Code
+
+	// no validation rules for State
+
+	if len(errors) > 0 {
+		return CompleteMCPServerOAuthRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// CompleteMCPServerOAuthRequestMultiError is an error wrapping multiple
+// validation errors returned by CompleteMCPServerOAuthRequest.ValidateAll()
+// if the designated constraints aren't met.
+type CompleteMCPServerOAuthRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CompleteMCPServerOAuthRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CompleteMCPServerOAuthRequestMultiError) AllErrors() []error { return m }
+
+// CompleteMCPServerOAuthRequestValidationError is the validation error
+// returned by CompleteMCPServerOAuthRequest.Validate if the designated
+// constraints aren't met.
+type CompleteMCPServerOAuthRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CompleteMCPServerOAuthRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CompleteMCPServerOAuthRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CompleteMCPServerOAuthRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CompleteMCPServerOAuthRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CompleteMCPServerOAuthRequestValidationError) ErrorName() string {
+	return "CompleteMCPServerOAuthRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CompleteMCPServerOAuthRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCompleteMCPServerOAuthRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CompleteMCPServerOAuthRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CompleteMCPServerOAuthRequestValidationError{}
+
+// Validate checks the field values on CompleteMCPServerOAuthResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CompleteMCPServerOAuthResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CompleteMCPServerOAuthResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// CompleteMCPServerOAuthResponseMultiError, or nil if none found.
+func (m *CompleteMCPServerOAuthResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CompleteMCPServerOAuthResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetStatus()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CompleteMCPServerOAuthResponseValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CompleteMCPServerOAuthResponseValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetStatus()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CompleteMCPServerOAuthResponseValidationError{
+				field:  "Status",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CompleteMCPServerOAuthResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// CompleteMCPServerOAuthResponseMultiError is an error wrapping multiple
+// validation errors returned by CompleteMCPServerOAuthResponse.ValidateAll()
+// if the designated constraints aren't met.
+type CompleteMCPServerOAuthResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CompleteMCPServerOAuthResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CompleteMCPServerOAuthResponseMultiError) AllErrors() []error { return m }
+
+// CompleteMCPServerOAuthResponseValidationError is the validation error
+// returned by CompleteMCPServerOAuthResponse.Validate if the designated
+// constraints aren't met.
+type CompleteMCPServerOAuthResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CompleteMCPServerOAuthResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CompleteMCPServerOAuthResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CompleteMCPServerOAuthResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CompleteMCPServerOAuthResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CompleteMCPServerOAuthResponseValidationError) ErrorName() string {
+	return "CompleteMCPServerOAuthResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CompleteMCPServerOAuthResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCompleteMCPServerOAuthResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CompleteMCPServerOAuthResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CompleteMCPServerOAuthResponseValidationError{}
+
+// Validate checks the field values on GetMCPServerOAuthStatusRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetMCPServerOAuthStatusRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetMCPServerOAuthStatusRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GetMCPServerOAuthStatusRequestMultiError, or nil if none found.
+func (m *GetMCPServerOAuthStatusRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetMCPServerOAuthStatusRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ServerId
+
+	if len(errors) > 0 {
+		return GetMCPServerOAuthStatusRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetMCPServerOAuthStatusRequestMultiError is an error wrapping multiple
+// validation errors returned by GetMCPServerOAuthStatusRequest.ValidateAll()
+// if the designated constraints aren't met.
+type GetMCPServerOAuthStatusRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetMCPServerOAuthStatusRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetMCPServerOAuthStatusRequestMultiError) AllErrors() []error { return m }
+
+// GetMCPServerOAuthStatusRequestValidationError is the validation error
+// returned by GetMCPServerOAuthStatusRequest.Validate if the designated
+// constraints aren't met.
+type GetMCPServerOAuthStatusRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetMCPServerOAuthStatusRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetMCPServerOAuthStatusRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetMCPServerOAuthStatusRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetMCPServerOAuthStatusRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetMCPServerOAuthStatusRequestValidationError) ErrorName() string {
+	return "GetMCPServerOAuthStatusRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetMCPServerOAuthStatusRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetMCPServerOAuthStatusRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetMCPServerOAuthStatusRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetMCPServerOAuthStatusRequestValidationError{}
+
+// Validate checks the field values on GetMCPServerOAuthStatusResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetMCPServerOAuthStatusResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetMCPServerOAuthStatusResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GetMCPServerOAuthStatusResponseMultiError, or nil if none found.
+func (m *GetMCPServerOAuthStatusResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetMCPServerOAuthStatusResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetStatus()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetMCPServerOAuthStatusResponseValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetMCPServerOAuthStatusResponseValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetStatus()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetMCPServerOAuthStatusResponseValidationError{
+				field:  "Status",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetMCPServerOAuthStatusResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetMCPServerOAuthStatusResponseMultiError is an error wrapping multiple
+// validation errors returned by GetMCPServerOAuthStatusResponse.ValidateAll()
+// if the designated constraints aren't met.
+type GetMCPServerOAuthStatusResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetMCPServerOAuthStatusResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetMCPServerOAuthStatusResponseMultiError) AllErrors() []error { return m }
+
+// GetMCPServerOAuthStatusResponseValidationError is the validation error
+// returned by GetMCPServerOAuthStatusResponse.Validate if the designated
+// constraints aren't met.
+type GetMCPServerOAuthStatusResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetMCPServerOAuthStatusResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetMCPServerOAuthStatusResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetMCPServerOAuthStatusResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetMCPServerOAuthStatusResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetMCPServerOAuthStatusResponseValidationError) ErrorName() string {
+	return "GetMCPServerOAuthStatusResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetMCPServerOAuthStatusResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetMCPServerOAuthStatusResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetMCPServerOAuthStatusResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetMCPServerOAuthStatusResponseValidationError{}
+
+// Validate checks the field values on DisconnectMCPServerOAuthRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DisconnectMCPServerOAuthRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DisconnectMCPServerOAuthRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// DisconnectMCPServerOAuthRequestMultiError, or nil if none found.
+func (m *DisconnectMCPServerOAuthRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DisconnectMCPServerOAuthRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ServerId
+
+	if len(errors) > 0 {
+		return DisconnectMCPServerOAuthRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DisconnectMCPServerOAuthRequestMultiError is an error wrapping multiple
+// validation errors returned by DisconnectMCPServerOAuthRequest.ValidateAll()
+// if the designated constraints aren't met.
+type DisconnectMCPServerOAuthRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DisconnectMCPServerOAuthRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DisconnectMCPServerOAuthRequestMultiError) AllErrors() []error { return m }
+
+// DisconnectMCPServerOAuthRequestValidationError is the validation error
+// returned by DisconnectMCPServerOAuthRequest.Validate if the designated
+// constraints aren't met.
+type DisconnectMCPServerOAuthRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DisconnectMCPServerOAuthRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DisconnectMCPServerOAuthRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DisconnectMCPServerOAuthRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DisconnectMCPServerOAuthRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DisconnectMCPServerOAuthRequestValidationError) ErrorName() string {
+	return "DisconnectMCPServerOAuthRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DisconnectMCPServerOAuthRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDisconnectMCPServerOAuthRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DisconnectMCPServerOAuthRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DisconnectMCPServerOAuthRequestValidationError{}
+
+// Validate checks the field values on DisconnectMCPServerOAuthResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *DisconnectMCPServerOAuthResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DisconnectMCPServerOAuthResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// DisconnectMCPServerOAuthResponseMultiError, or nil if none found.
+func (m *DisconnectMCPServerOAuthResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DisconnectMCPServerOAuthResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetStatus()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DisconnectMCPServerOAuthResponseValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DisconnectMCPServerOAuthResponseValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetStatus()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DisconnectMCPServerOAuthResponseValidationError{
+				field:  "Status",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return DisconnectMCPServerOAuthResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DisconnectMCPServerOAuthResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// DisconnectMCPServerOAuthResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DisconnectMCPServerOAuthResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DisconnectMCPServerOAuthResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DisconnectMCPServerOAuthResponseMultiError) AllErrors() []error { return m }
+
+// DisconnectMCPServerOAuthResponseValidationError is the validation error
+// returned by DisconnectMCPServerOAuthResponse.Validate if the designated
+// constraints aren't met.
+type DisconnectMCPServerOAuthResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DisconnectMCPServerOAuthResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DisconnectMCPServerOAuthResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DisconnectMCPServerOAuthResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DisconnectMCPServerOAuthResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DisconnectMCPServerOAuthResponseValidationError) ErrorName() string {
+	return "DisconnectMCPServerOAuthResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DisconnectMCPServerOAuthResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDisconnectMCPServerOAuthResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DisconnectMCPServerOAuthResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DisconnectMCPServerOAuthResponseValidationError{}
+
+// Validate checks the field values on MCPOAuthConnectionStatus with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MCPOAuthConnectionStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MCPOAuthConnectionStatus with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MCPOAuthConnectionStatusMultiError, or nil if none found.
+func (m *MCPOAuthConnectionStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MCPOAuthConnectionStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ServerId
+
+	// no validation rules for State
+
+	// no validation rules for Detail
+
+	if all {
+		switch v := interface{}(m.GetConnectedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, MCPOAuthConnectionStatusValidationError{
+					field:  "ConnectedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, MCPOAuthConnectionStatusValidationError{
+					field:  "ConnectedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetConnectedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return MCPOAuthConnectionStatusValidationError{
+				field:  "ConnectedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetExpiresAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, MCPOAuthConnectionStatusValidationError{
+					field:  "ExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, MCPOAuthConnectionStatusValidationError{
+					field:  "ExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExpiresAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return MCPOAuthConnectionStatusValidationError{
+				field:  "ExpiresAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetCheckedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, MCPOAuthConnectionStatusValidationError{
+					field:  "CheckedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, MCPOAuthConnectionStatusValidationError{
+					field:  "CheckedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCheckedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return MCPOAuthConnectionStatusValidationError{
+				field:  "CheckedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return MCPOAuthConnectionStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// MCPOAuthConnectionStatusMultiError is an error wrapping multiple validation
+// errors returned by MCPOAuthConnectionStatus.ValidateAll() if the designated
+// constraints aren't met.
+type MCPOAuthConnectionStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MCPOAuthConnectionStatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MCPOAuthConnectionStatusMultiError) AllErrors() []error { return m }
+
+// MCPOAuthConnectionStatusValidationError is the validation error returned by
+// MCPOAuthConnectionStatus.Validate if the designated constraints aren't met.
+type MCPOAuthConnectionStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MCPOAuthConnectionStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MCPOAuthConnectionStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MCPOAuthConnectionStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MCPOAuthConnectionStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MCPOAuthConnectionStatusValidationError) ErrorName() string {
+	return "MCPOAuthConnectionStatusValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MCPOAuthConnectionStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMCPOAuthConnectionStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MCPOAuthConnectionStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MCPOAuthConnectionStatusValidationError{}
+
 // Validate checks the field values on ListModelProvidersRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
