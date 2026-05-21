@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -18,7 +18,7 @@ import {
   recordToEntries,
   type HeaderEntry,
 } from "./headers-editor";
-import type { MCPServerTransport } from "@/types/api";
+import type { MCPServer, MCPServerAuthType, MCPServerTransport } from "@/types/api";
 
 const schema = z.object({
   id: z.string().min(1),
@@ -27,6 +27,16 @@ const schema = z.object({
   command: z.string().optional(),
   url: z.string().optional(),
   timeout_seconds: z.string().regex(/^\d*$/, "Timeout must be a non-negative integer").optional(),
+  auth_type: z.string().optional(),
+  oauth_registration_mode: z.string().optional(),
+  oauth_client_id: z.string().optional(),
+  oauth_client_secret: z.string().optional(),
+  oauth_scopes: z.string().optional(),
+  oauth_authorization_url: z.string().optional(),
+  oauth_token_url: z.string().optional(),
+  oauth_resource_metadata_url: z.string().optional(),
+  oauth_authorization_server_url: z.string().optional(),
+  oauth_resource: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -46,10 +56,29 @@ export default function MCPServerEditPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { id: "", name: "", transport: "MCP_SERVER_TRANSPORT_STDIO", command: "", url: "", timeout_seconds: "" },
+    defaultValues: {
+      id: "",
+      name: "",
+      transport: "MCP_SERVER_TRANSPORT_STDIO",
+      command: "",
+      url: "",
+      timeout_seconds: "",
+      auth_type: "MCP_SERVER_AUTH_TYPE_NONE",
+      oauth_registration_mode: "preconfigured",
+      oauth_client_id: "",
+      oauth_client_secret: "",
+      oauth_scopes: "",
+      oauth_authorization_url: "",
+      oauth_token_url: "",
+      oauth_resource_metadata_url: "",
+      oauth_authorization_server_url: "",
+      oauth_resource: "",
+    },
   });
 
   const transport = useWatch({ control: form.control, name: "transport" });
+  const authType = useWatch({ control: form.control, name: "auth_type" }) ?? "MCP_SERVER_AUTH_TYPE_NONE";
+  const registrationMode = useWatch({ control: form.control, name: "oauth_registration_mode" }) ?? "preconfigured";
   const initialHeaders = useMemo(
     () => recordToEntries(data?.mcp_server?.headers),
     [data],
@@ -60,13 +89,31 @@ export default function MCPServerEditPage() {
   useEffect(() => {
     if (data?.mcp_server) {
       const s = data.mcp_server;
-      form.reset({ id: s.id ?? "", name: s.name, transport: s.transport ?? "MCP_SERVER_TRANSPORT_STDIO", command: s.command ?? "", url: s.url ?? "", timeout_seconds: s.timeout_seconds ? String(s.timeout_seconds) : "" });
+      form.reset({
+        id: s.id ?? "",
+        name: s.name,
+        transport: s.transport ?? "MCP_SERVER_TRANSPORT_STDIO",
+        command: s.command ?? "",
+        url: s.url ?? "",
+        timeout_seconds: s.timeout_seconds ? String(s.timeout_seconds) : "",
+        auth_type: authTypeFromServer(s),
+        oauth_registration_mode: s.auth?.oauth2?.client_id ? "preconfigured" : "dynamic",
+        oauth_client_id: s.auth?.oauth2?.client_id ?? "",
+        oauth_client_secret: s.auth?.oauth2?.client_secret ?? "",
+        oauth_scopes: s.auth?.oauth2?.scopes?.join(" ") ?? "",
+        oauth_authorization_url: s.auth?.oauth2?.authorization_url ?? "",
+        oauth_token_url: s.auth?.oauth2?.token_url ?? "",
+        oauth_resource_metadata_url: s.auth?.oauth2?.resource_metadata_url ?? "",
+        oauth_authorization_server_url: s.auth?.oauth2?.authorization_server_url ?? "",
+        oauth_resource: s.auth?.oauth2?.resource ?? "",
+      });
     }
   }, [data, form]);
 
   function onSubmit(values: FormValues) {
     const remote = isRemoteTransport(values.transport);
     const timeoutSeconds = Number(values.timeout_seconds || 0);
+    const auth = remote ? buildAuth(values) : undefined;
     updateMutation.mutate(
       {
         ...data?.mcp_server,
@@ -75,8 +122,9 @@ export default function MCPServerEditPage() {
         transport: values.transport as MCPServerTransport,
         command: values.command,
         url: values.url,
-        headers: remote ? entriesToRecord(headers) : undefined,
+        headers: remote && authType === "MCP_SERVER_AUTH_TYPE_STATIC_HEADERS" ? entriesToRecord(headers) : undefined,
         timeout_seconds: timeoutSeconds > 0 ? timeoutSeconds : undefined,
+        auth,
       },
       {
         onSuccess: () => { toast.success("MCP server updated"); navigate("/mcp-servers"); },
@@ -136,9 +184,71 @@ export default function MCPServerEditPage() {
                   <FormField control={form.control} name="url" render={({ field }) => (
                     <FormItem><FormLabel>URL</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                   )} />
+                  <FormField control={form.control} name="auth_type" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Authentication</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="MCP_SERVER_AUTH_TYPE_NONE">None</SelectItem>
+                          <SelectItem value="MCP_SERVER_AUTH_TYPE_STATIC_HEADERS">Static headers</SelectItem>
+                          <SelectItem value="MCP_SERVER_AUTH_TYPE_OAUTH2">OAuth 2.0</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )} />
+                  {authType === "MCP_SERVER_AUTH_TYPE_OAUTH2" && (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FormField control={form.control} name="oauth_registration_mode" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Client Registration</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="preconfigured">Preconfigured client</SelectItem>
+                              <SelectItem value="dynamic">Dynamic registration</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Dynamic registration is used when the authorization server advertises it.</FormDescription>
+                        </FormItem>
+                      )} />
+                      {registrationMode === "preconfigured" && (
+                        <>
+                          <FormField control={form.control} name="oauth_client_id" render={({ field }) => (
+                            <FormItem><FormLabel>Client ID</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                          )} />
+                          <FormField control={form.control} name="oauth_client_secret" render={({ field }) => (
+                            <FormItem><FormLabel>Client Secret</FormLabel><FormControl><Input type="password" autoComplete="new-password" {...field} /></FormControl></FormItem>
+                          )} />
+                        </>
+                      )}
+                      <FormField control={form.control} name="oauth_scopes" render={({ field }) => (
+                        <FormItem><FormLabel>Scopes</FormLabel><FormControl><Input placeholder="read:tools offline_access" {...field} /></FormControl></FormItem>
+                      )} />
+                      <FormField control={form.control} name="oauth_resource" render={({ field }) => (
+                        <FormItem><FormLabel>Resource</FormLabel><FormControl><Input placeholder="Defaults to the MCP URL" {...field} /></FormControl></FormItem>
+                      )} />
+                      <FormField control={form.control} name="oauth_authorization_server_url" render={({ field }) => (
+                        <FormItem><FormLabel>Authorization Server</FormLabel><FormControl><Input placeholder="https://issuer.example.com" {...field} /></FormControl></FormItem>
+                      )} />
+                      <FormField control={form.control} name="oauth_resource_metadata_url" render={({ field }) => (
+                        <FormItem><FormLabel>Resource Metadata</FormLabel><FormControl><Input placeholder="https://mcp.example.com/.well-known/oauth-protected-resource" {...field} /></FormControl></FormItem>
+                      )} />
+                      <FormField control={form.control} name="oauth_authorization_url" render={({ field }) => (
+                        <FormItem><FormLabel>Authorization URL</FormLabel><FormControl><Input placeholder="https://issuer.example.com/authorize" {...field} /></FormControl></FormItem>
+                      )} />
+                      <FormField control={form.control} name="oauth_token_url" render={({ field }) => (
+                        <FormItem><FormLabel>Token URL</FormLabel><FormControl><Input placeholder="https://issuer.example.com/token" {...field} /></FormControl></FormItem>
+                      )} />
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <FormLabel>Headers</FormLabel>
-                    <HeadersEditor value={headers} onChange={setHeadersDraft} />
+                    {authType === "MCP_SERVER_AUTH_TYPE_STATIC_HEADERS" ? (
+                      <HeadersEditor value={headers} onChange={setHeadersDraft} />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Static headers are only sent when static header auth is selected.</p>
+                    )}
                   </div>
                   <FormField control={form.control} name="timeout_seconds" render={({ field }) => (
                     <FormItem>
@@ -159,4 +269,42 @@ export default function MCPServerEditPage() {
       </Form>
     </>
   );
+}
+
+function authTypeFromServer(server: MCPServer): MCPServerAuthType {
+  if (server.auth?.type && server.auth.type !== "MCP_SERVER_AUTH_TYPE_UNSPECIFIED") {
+    return server.auth.type;
+  }
+  return server.headers && Object.keys(server.headers).length > 0
+    ? "MCP_SERVER_AUTH_TYPE_STATIC_HEADERS"
+    : "MCP_SERVER_AUTH_TYPE_NONE";
+}
+
+function buildAuth(values: FormValues) {
+  const type = (values.auth_type || "MCP_SERVER_AUTH_TYPE_NONE") as MCPServerAuthType;
+  if (type !== "MCP_SERVER_AUTH_TYPE_OAUTH2") {
+    return { type };
+  }
+  return {
+    type,
+    oauth2: {
+      client_id: values.oauth_registration_mode === "dynamic" ? undefined : clean(values.oauth_client_id),
+      client_secret: values.oauth_registration_mode === "dynamic" ? undefined : clean(values.oauth_client_secret),
+      scopes: splitScopes(values.oauth_scopes),
+      authorization_url: clean(values.oauth_authorization_url),
+      token_url: clean(values.oauth_token_url),
+      resource_metadata_url: clean(values.oauth_resource_metadata_url),
+      authorization_server_url: clean(values.oauth_authorization_server_url),
+      resource: clean(values.oauth_resource),
+    },
+  };
+}
+
+function splitScopes(value?: string): string[] {
+  return (value ?? "").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+function clean(value?: string): string | undefined {
+  const next = value?.trim();
+  return next || undefined;
 }

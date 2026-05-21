@@ -23,11 +23,23 @@ import (
 
 const defaultMCPTimeout = 5 * time.Second
 
+// MCPHTTPClientFactory creates the HTTP client used by MCP transports. A nil
+// client means the MCP SDK should use its default client.
+type MCPHTTPClientFactory interface {
+	HTTPClientForMCP(ctx context.Context, srv *agentsv1.MCPServer) (*http.Client, error)
+}
+
 // NewFromProto creates an ADK agent from an agentsv1.Agent proto config.
 // providers is the list of model provider mappings used to resolve LLM backends.
 // mcpRegistry is the shared MCP server config pool; agents reference entries by ID.
 // remoteAgentRegistry is the shared remote agent config pool; agents reference entries by ID.
 func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry) (agent.Agent, error) {
+	return NewFromProtoWithMCPHTTPClientFactory(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, nil)
+}
+
+// NewFromProtoWithMCPHTTPClientFactory creates an ADK agent with a custom MCP
+// HTTP client factory for static headers, OAuth2 bearer injection, and tests.
+func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
 	}
@@ -40,7 +52,7 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 	// Recursively build sub-agents.
 	subAgents := make([]agent.Agent, 0, len(pb.GetSubAgents()))
 	for _, sub := range pb.GetSubAgents() {
-		sa, err := NewFromProto(ctx, sub, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry)
+		sa, err := NewFromProtoWithMCPHTTPClientFactory(ctx, sub, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory)
 		if err != nil {
 			return nil, fmt.Errorf("building sub-agent %q: %w", sub.GetName(), err)
 		}
@@ -56,7 +68,7 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 
 	switch pb.GetType() {
 	case agentsv1.AgentType_AGENT_TYPE_LLM, agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED:
-		return newLLMAgent(ctx, pb, subAgents, providers)
+		return newLLMAgent(ctx, pb, subAgents, providers, httpFactory)
 	case agentsv1.AgentType_AGENT_TYPE_LOOP:
 		return newLoopAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL:
@@ -68,7 +80,7 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 	}
 }
 
-func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agent, providers []agentsv1.ModelProvider) (agent.Agent, error) {
+func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory) (agent.Agent, error) {
 	logger := log.FromContext(ctx)
 	acfg := pb.GetConfig()
 
@@ -98,7 +110,7 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agen
 		return nil, fmt.Errorf("agent %q: creating model %q: %w", pb.GetName(), acfg.GetModel(), err)
 	}
 
-	toolsets, err := buildMCPToolsets(acfg.GetMcpServers())
+	toolsets, err := buildMCPToolsets(ctx, acfg.GetMcpServers(), httpFactory)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: building MCP toolsets: %w", pb.GetName(), err)
 	}
@@ -200,14 +212,14 @@ func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) error 
 
 // buildMCPToolsets creates ADK toolsets from the agent's MCP server configs.
 // Only HTTP-based transports (streamable HTTP and SSE) are supported.
-func buildMCPToolsets(servers []*agentsv1.MCPServer) ([]tool.Toolset, error) {
+func buildMCPToolsets(ctx context.Context, servers []*agentsv1.MCPServer, httpFactory MCPHTTPClientFactory) ([]tool.Toolset, error) {
 	if len(servers) == 0 {
 		return nil, nil
 	}
 
 	toolsets := make([]tool.Toolset, 0, len(servers))
 	for _, srv := range servers {
-		transport, err := mcpTransport(srv)
+		transport, err := mcpTransport(ctx, srv, httpFactory)
 		if err != nil {
 			return nil, fmt.Errorf("mcp server %q: %w", srv.GetName(), err)
 		}
@@ -261,13 +273,19 @@ type MCPProbeResult struct {
 // MCP handshake and lists the exposed tools. STDIO transports are not yet
 // probed (would require spawning a subprocess) and return an error.
 func ProbeMCPServer(ctx context.Context, srv *agentsv1.MCPServer) (*MCPProbeResult, error) {
+	return ProbeMCPServerWithFactory(ctx, srv, nil)
+}
+
+// ProbeMCPServerWithFactory connects using the same HTTP client factory used
+// by runtime MCP toolsets.
+func ProbeMCPServerWithFactory(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPHTTPClientFactory) (*MCPProbeResult, error) {
 	if srv == nil {
 		return nil, fmt.Errorf("nil mcp server")
 	}
 	if srv.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
 		return nil, fmt.Errorf("stdio probing not supported")
 	}
-	transport, err := mcpTransport(srv)
+	transport, err := mcpTransport(ctx, srv, httpFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -312,9 +330,15 @@ func ProbeMCPServer(ctx context.Context, srv *agentsv1.MCPServer) (*MCPProbeResu
 }
 
 // mcpTransport builds an MCP transport from the proto config.
-func mcpTransport(srv *agentsv1.MCPServer) (mcp.Transport, error) {
+func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPHTTPClientFactory) (mcp.Transport, error) {
 	var httpClient *http.Client
-	if len(srv.GetHeaders()) > 0 {
+	if httpFactory != nil {
+		client, err := httpFactory.HTTPClientForMCP(ctx, srv)
+		if err != nil {
+			return nil, err
+		}
+		httpClient = client
+	} else if len(srv.GetHeaders()) > 0 {
 		httpClient = &http.Client{
 			Transport: &headerTransport{
 				base:    http.DefaultTransport,

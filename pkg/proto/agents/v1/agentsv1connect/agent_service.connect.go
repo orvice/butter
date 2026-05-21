@@ -97,6 +97,18 @@ const (
 	// MCPServerServiceListMCPToolsProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPTools RPC.
 	MCPServerServiceListMCPToolsProcedure = "/agents.v1.MCPServerService/ListMCPTools"
+	// MCPServerServiceStartMCPServerOAuthProcedure is the fully-qualified name of the
+	// MCPServerService's StartMCPServerOAuth RPC.
+	MCPServerServiceStartMCPServerOAuthProcedure = "/agents.v1.MCPServerService/StartMCPServerOAuth"
+	// MCPServerServiceCompleteMCPServerOAuthProcedure is the fully-qualified name of the
+	// MCPServerService's CompleteMCPServerOAuth RPC.
+	MCPServerServiceCompleteMCPServerOAuthProcedure = "/agents.v1.MCPServerService/CompleteMCPServerOAuth"
+	// MCPServerServiceGetMCPServerOAuthStatusProcedure is the fully-qualified name of the
+	// MCPServerService's GetMCPServerOAuthStatus RPC.
+	MCPServerServiceGetMCPServerOAuthStatusProcedure = "/agents.v1.MCPServerService/GetMCPServerOAuthStatus"
+	// MCPServerServiceDisconnectMCPServerOAuthProcedure is the fully-qualified name of the
+	// MCPServerService's DisconnectMCPServerOAuth RPC.
+	MCPServerServiceDisconnectMCPServerOAuthProcedure = "/agents.v1.MCPServerService/DisconnectMCPServerOAuth"
 	// ModelProviderServiceListModelProvidersProcedure is the fully-qualified name of the
 	// ModelProviderService's ListModelProviders RPC.
 	ModelProviderServiceListModelProvidersProcedure = "/agents.v1.ModelProviderService/ListModelProviders"
@@ -560,6 +572,15 @@ type MCPServerServiceClient interface {
 	// ListMCPTools enumerates tools exposed by the configured MCP servers.
 	// When server_id is empty, all servers are probed (skipping STDIO).
 	ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error)
+	// StartMCPServerOAuth prepares a workspace-scoped OAuth2 authorization
+	// flow and returns the user-facing authorization URL.
+	StartMCPServerOAuth(context.Context, *connect.Request[v1.StartMCPServerOAuthRequest]) (*connect.Response[v1.StartMCPServerOAuthResponse], error)
+	// CompleteMCPServerOAuth completes an OAuth2 authorization code callback.
+	CompleteMCPServerOAuth(context.Context, *connect.Request[v1.CompleteMCPServerOAuthRequest]) (*connect.Response[v1.CompleteMCPServerOAuthResponse], error)
+	// GetMCPServerOAuthStatus returns non-secret OAuth connection state.
+	GetMCPServerOAuthStatus(context.Context, *connect.Request[v1.GetMCPServerOAuthStatusRequest]) (*connect.Response[v1.GetMCPServerOAuthStatusResponse], error)
+	// DisconnectMCPServerOAuth removes local OAuth2 credentials for a server.
+	DisconnectMCPServerOAuth(context.Context, *connect.Request[v1.DisconnectMCPServerOAuthRequest]) (*connect.Response[v1.DisconnectMCPServerOAuthResponse], error)
 }
 
 // NewMCPServerServiceClient constructs a client for the agents.v1.MCPServerService service. By
@@ -615,18 +636,46 @@ func NewMCPServerServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(mCPServerServiceMethods.ByName("ListMCPTools")),
 			connect.WithClientOptions(opts...),
 		),
+		startMCPServerOAuth: connect.NewClient[v1.StartMCPServerOAuthRequest, v1.StartMCPServerOAuthResponse](
+			httpClient,
+			baseURL+MCPServerServiceStartMCPServerOAuthProcedure,
+			connect.WithSchema(mCPServerServiceMethods.ByName("StartMCPServerOAuth")),
+			connect.WithClientOptions(opts...),
+		),
+		completeMCPServerOAuth: connect.NewClient[v1.CompleteMCPServerOAuthRequest, v1.CompleteMCPServerOAuthResponse](
+			httpClient,
+			baseURL+MCPServerServiceCompleteMCPServerOAuthProcedure,
+			connect.WithSchema(mCPServerServiceMethods.ByName("CompleteMCPServerOAuth")),
+			connect.WithClientOptions(opts...),
+		),
+		getMCPServerOAuthStatus: connect.NewClient[v1.GetMCPServerOAuthStatusRequest, v1.GetMCPServerOAuthStatusResponse](
+			httpClient,
+			baseURL+MCPServerServiceGetMCPServerOAuthStatusProcedure,
+			connect.WithSchema(mCPServerServiceMethods.ByName("GetMCPServerOAuthStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		disconnectMCPServerOAuth: connect.NewClient[v1.DisconnectMCPServerOAuthRequest, v1.DisconnectMCPServerOAuthResponse](
+			httpClient,
+			baseURL+MCPServerServiceDisconnectMCPServerOAuthProcedure,
+			connect.WithSchema(mCPServerServiceMethods.ByName("DisconnectMCPServerOAuth")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // mCPServerServiceClient implements MCPServerServiceClient.
 type mCPServerServiceClient struct {
-	listMCPServers     *connect.Client[v1.ListMCPServersRequest, v1.ListMCPServersResponse]
-	getMCPServer       *connect.Client[v1.GetMCPServerRequest, v1.GetMCPServerResponse]
-	createMCPServer    *connect.Client[v1.CreateMCPServerRequest, v1.CreateMCPServerResponse]
-	updateMCPServer    *connect.Client[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse]
-	deleteMCPServer    *connect.Client[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse]
-	getMCPServerStatus *connect.Client[v1.GetMCPServerStatusRequest, v1.GetMCPServerStatusResponse]
-	listMCPTools       *connect.Client[v1.ListMCPToolsRequest, v1.ListMCPToolsResponse]
+	listMCPServers           *connect.Client[v1.ListMCPServersRequest, v1.ListMCPServersResponse]
+	getMCPServer             *connect.Client[v1.GetMCPServerRequest, v1.GetMCPServerResponse]
+	createMCPServer          *connect.Client[v1.CreateMCPServerRequest, v1.CreateMCPServerResponse]
+	updateMCPServer          *connect.Client[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse]
+	deleteMCPServer          *connect.Client[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse]
+	getMCPServerStatus       *connect.Client[v1.GetMCPServerStatusRequest, v1.GetMCPServerStatusResponse]
+	listMCPTools             *connect.Client[v1.ListMCPToolsRequest, v1.ListMCPToolsResponse]
+	startMCPServerOAuth      *connect.Client[v1.StartMCPServerOAuthRequest, v1.StartMCPServerOAuthResponse]
+	completeMCPServerOAuth   *connect.Client[v1.CompleteMCPServerOAuthRequest, v1.CompleteMCPServerOAuthResponse]
+	getMCPServerOAuthStatus  *connect.Client[v1.GetMCPServerOAuthStatusRequest, v1.GetMCPServerOAuthStatusResponse]
+	disconnectMCPServerOAuth *connect.Client[v1.DisconnectMCPServerOAuthRequest, v1.DisconnectMCPServerOAuthResponse]
 }
 
 // ListMCPServers calls agents.v1.MCPServerService.ListMCPServers.
@@ -664,6 +713,26 @@ func (c *mCPServerServiceClient) ListMCPTools(ctx context.Context, req *connect.
 	return c.listMCPTools.CallUnary(ctx, req)
 }
 
+// StartMCPServerOAuth calls agents.v1.MCPServerService.StartMCPServerOAuth.
+func (c *mCPServerServiceClient) StartMCPServerOAuth(ctx context.Context, req *connect.Request[v1.StartMCPServerOAuthRequest]) (*connect.Response[v1.StartMCPServerOAuthResponse], error) {
+	return c.startMCPServerOAuth.CallUnary(ctx, req)
+}
+
+// CompleteMCPServerOAuth calls agents.v1.MCPServerService.CompleteMCPServerOAuth.
+func (c *mCPServerServiceClient) CompleteMCPServerOAuth(ctx context.Context, req *connect.Request[v1.CompleteMCPServerOAuthRequest]) (*connect.Response[v1.CompleteMCPServerOAuthResponse], error) {
+	return c.completeMCPServerOAuth.CallUnary(ctx, req)
+}
+
+// GetMCPServerOAuthStatus calls agents.v1.MCPServerService.GetMCPServerOAuthStatus.
+func (c *mCPServerServiceClient) GetMCPServerOAuthStatus(ctx context.Context, req *connect.Request[v1.GetMCPServerOAuthStatusRequest]) (*connect.Response[v1.GetMCPServerOAuthStatusResponse], error) {
+	return c.getMCPServerOAuthStatus.CallUnary(ctx, req)
+}
+
+// DisconnectMCPServerOAuth calls agents.v1.MCPServerService.DisconnectMCPServerOAuth.
+func (c *mCPServerServiceClient) DisconnectMCPServerOAuth(ctx context.Context, req *connect.Request[v1.DisconnectMCPServerOAuthRequest]) (*connect.Response[v1.DisconnectMCPServerOAuthResponse], error) {
+	return c.disconnectMCPServerOAuth.CallUnary(ctx, req)
+}
+
 // MCPServerServiceHandler is an implementation of the agents.v1.MCPServerService service.
 type MCPServerServiceHandler interface {
 	ListMCPServers(context.Context, *connect.Request[v1.ListMCPServersRequest]) (*connect.Response[v1.ListMCPServersResponse], error)
@@ -677,6 +746,15 @@ type MCPServerServiceHandler interface {
 	// ListMCPTools enumerates tools exposed by the configured MCP servers.
 	// When server_id is empty, all servers are probed (skipping STDIO).
 	ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error)
+	// StartMCPServerOAuth prepares a workspace-scoped OAuth2 authorization
+	// flow and returns the user-facing authorization URL.
+	StartMCPServerOAuth(context.Context, *connect.Request[v1.StartMCPServerOAuthRequest]) (*connect.Response[v1.StartMCPServerOAuthResponse], error)
+	// CompleteMCPServerOAuth completes an OAuth2 authorization code callback.
+	CompleteMCPServerOAuth(context.Context, *connect.Request[v1.CompleteMCPServerOAuthRequest]) (*connect.Response[v1.CompleteMCPServerOAuthResponse], error)
+	// GetMCPServerOAuthStatus returns non-secret OAuth connection state.
+	GetMCPServerOAuthStatus(context.Context, *connect.Request[v1.GetMCPServerOAuthStatusRequest]) (*connect.Response[v1.GetMCPServerOAuthStatusResponse], error)
+	// DisconnectMCPServerOAuth removes local OAuth2 credentials for a server.
+	DisconnectMCPServerOAuth(context.Context, *connect.Request[v1.DisconnectMCPServerOAuthRequest]) (*connect.Response[v1.DisconnectMCPServerOAuthResponse], error)
 }
 
 // NewMCPServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -728,6 +806,30 @@ func NewMCPServerServiceHandler(svc MCPServerServiceHandler, opts ...connect.Han
 		connect.WithSchema(mCPServerServiceMethods.ByName("ListMCPTools")),
 		connect.WithHandlerOptions(opts...),
 	)
+	mCPServerServiceStartMCPServerOAuthHandler := connect.NewUnaryHandler(
+		MCPServerServiceStartMCPServerOAuthProcedure,
+		svc.StartMCPServerOAuth,
+		connect.WithSchema(mCPServerServiceMethods.ByName("StartMCPServerOAuth")),
+		connect.WithHandlerOptions(opts...),
+	)
+	mCPServerServiceCompleteMCPServerOAuthHandler := connect.NewUnaryHandler(
+		MCPServerServiceCompleteMCPServerOAuthProcedure,
+		svc.CompleteMCPServerOAuth,
+		connect.WithSchema(mCPServerServiceMethods.ByName("CompleteMCPServerOAuth")),
+		connect.WithHandlerOptions(opts...),
+	)
+	mCPServerServiceGetMCPServerOAuthStatusHandler := connect.NewUnaryHandler(
+		MCPServerServiceGetMCPServerOAuthStatusProcedure,
+		svc.GetMCPServerOAuthStatus,
+		connect.WithSchema(mCPServerServiceMethods.ByName("GetMCPServerOAuthStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	mCPServerServiceDisconnectMCPServerOAuthHandler := connect.NewUnaryHandler(
+		MCPServerServiceDisconnectMCPServerOAuthProcedure,
+		svc.DisconnectMCPServerOAuth,
+		connect.WithSchema(mCPServerServiceMethods.ByName("DisconnectMCPServerOAuth")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.MCPServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MCPServerServiceListMCPServersProcedure:
@@ -744,6 +846,14 @@ func NewMCPServerServiceHandler(svc MCPServerServiceHandler, opts ...connect.Han
 			mCPServerServiceGetMCPServerStatusHandler.ServeHTTP(w, r)
 		case MCPServerServiceListMCPToolsProcedure:
 			mCPServerServiceListMCPToolsHandler.ServeHTTP(w, r)
+		case MCPServerServiceStartMCPServerOAuthProcedure:
+			mCPServerServiceStartMCPServerOAuthHandler.ServeHTTP(w, r)
+		case MCPServerServiceCompleteMCPServerOAuthProcedure:
+			mCPServerServiceCompleteMCPServerOAuthHandler.ServeHTTP(w, r)
+		case MCPServerServiceGetMCPServerOAuthStatusProcedure:
+			mCPServerServiceGetMCPServerOAuthStatusHandler.ServeHTTP(w, r)
+		case MCPServerServiceDisconnectMCPServerOAuthProcedure:
+			mCPServerServiceDisconnectMCPServerOAuthHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -779,6 +889,22 @@ func (UnimplementedMCPServerServiceHandler) GetMCPServerStatus(context.Context, 
 
 func (UnimplementedMCPServerServiceHandler) ListMCPTools(context.Context, *connect.Request[v1.ListMCPToolsRequest]) (*connect.Response[v1.ListMCPToolsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.ListMCPTools is not implemented"))
+}
+
+func (UnimplementedMCPServerServiceHandler) StartMCPServerOAuth(context.Context, *connect.Request[v1.StartMCPServerOAuthRequest]) (*connect.Response[v1.StartMCPServerOAuthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.StartMCPServerOAuth is not implemented"))
+}
+
+func (UnimplementedMCPServerServiceHandler) CompleteMCPServerOAuth(context.Context, *connect.Request[v1.CompleteMCPServerOAuthRequest]) (*connect.Response[v1.CompleteMCPServerOAuthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.CompleteMCPServerOAuth is not implemented"))
+}
+
+func (UnimplementedMCPServerServiceHandler) GetMCPServerOAuthStatus(context.Context, *connect.Request[v1.GetMCPServerOAuthStatusRequest]) (*connect.Response[v1.GetMCPServerOAuthStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.GetMCPServerOAuthStatus is not implemented"))
+}
+
+func (UnimplementedMCPServerServiceHandler) DisconnectMCPServerOAuth(context.Context, *connect.Request[v1.DisconnectMCPServerOAuthRequest]) (*connect.Response[v1.DisconnectMCPServerOAuthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.DisconnectMCPServerOAuth is not implemented"))
 }
 
 // ModelProviderServiceClient is a client for the agents.v1.ModelProviderService service.

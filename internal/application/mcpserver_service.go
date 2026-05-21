@@ -2,20 +2,30 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"github.com/twitchtv/twirp"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
+	"go.orx.me/apps/butter/internal/mcpoauth"
+	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	mcpoauthrepo "go.orx.me/apps/butter/internal/repo/mcpoauth"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type MCPServerServiceServer struct {
-	repo    configrepo.MCPServerRepository
-	runtime ConfigRuntime
+	repo         configrepo.MCPServerRepository
+	runtime      ConfigRuntime
+	oauthService *mcpoauth.Service
+	httpFactory  internalagent.MCPHTTPClientFactory
 }
 
 func NewMCPServerServiceServer(repo configrepo.MCPServerRepository) *MCPServerServiceServer {
@@ -24,6 +34,74 @@ func NewMCPServerServiceServer(repo configrepo.MCPServerRepository) *MCPServerSe
 
 func (s *MCPServerServiceServer) SetRuntime(runtime ConfigRuntime) {
 	s.runtime = runtime
+}
+
+func (s *MCPServerServiceServer) SetOAuthService(service *mcpoauth.Service) {
+	s.oauthService = service
+}
+
+func (s *MCPServerServiceServer) SetMCPHTTPClientFactory(factory internalagent.MCPHTTPClientFactory) {
+	s.httpFactory = factory
+}
+
+func validateMCPServerConfig(server *agentsv1.MCPServer) error {
+	if server == nil {
+		return twirp.RequiredArgumentError("mcp_server")
+	}
+	authType := mcpoauth.AuthType(server)
+	if authType != agentsv1.MCPServerAuthType_MCP_SERVER_AUTH_TYPE_OAUTH2 {
+		return nil
+	}
+	if server.GetTransport() == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STDIO {
+		return twirp.InvalidArgumentError("mcp_server.auth.type", "oauth2 is not supported for stdio MCP servers")
+	}
+	if !isRemoteMCPTransport(server.GetTransport()) {
+		return twirp.InvalidArgumentError("mcp_server.transport", fmt.Sprintf("oauth2 requires a remote MCP transport, got %s", server.GetTransport()))
+	}
+	if strings.TrimSpace(server.GetUrl()) == "" {
+		return twirp.RequiredArgumentError("mcp_server.url")
+	}
+	if err := validateHTTPURL("mcp_server.url", server.GetUrl()); err != nil {
+		return err
+	}
+	oauth := server.GetAuth().GetOauth2()
+	if oauth == nil {
+		return twirp.RequiredArgumentError("mcp_server.auth.oauth2")
+	}
+	if strings.TrimSpace(oauth.GetClientSecret()) != "" && strings.TrimSpace(oauth.GetClientId()) == "" {
+		return twirp.InvalidArgumentError("mcp_server.auth.oauth2.client_id", "client_id is required when client_secret is set")
+	}
+	for field, value := range map[string]string{
+		"mcp_server.auth.oauth2.authorization_url":        oauth.GetAuthorizationUrl(),
+		"mcp_server.auth.oauth2.token_url":                oauth.GetTokenUrl(),
+		"mcp_server.auth.oauth2.resource_metadata_url":    oauth.GetResourceMetadataUrl(),
+		"mcp_server.auth.oauth2.authorization_server_url": oauth.GetAuthorizationServerUrl(),
+		"mcp_server.auth.oauth2.resource":                 oauth.GetResource(),
+	} {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		if err := validateHTTPURL(field, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func isRemoteMCPTransport(t agentsv1.MCPServerTransport) bool {
+	return t == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP ||
+		t == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_SSE
+}
+
+func validateHTTPURL(field, raw string) error {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return twirp.InvalidArgumentError(field, "must be an absolute http or https URL")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return twirp.InvalidArgumentError(field, "must use http or https")
+	}
+	return nil
 }
 
 func (s *MCPServerServiceServer) ListMCPServers(ctx context.Context, _ *agentsv1.ListMCPServersRequest) (*agentsv1.ListMCPServersResponse, error) {
@@ -53,6 +131,9 @@ func (s *MCPServerServiceServer) GetMCPServer(ctx context.Context, req *agentsv1
 func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agentsv1.CreateMCPServerRequest) (*agentsv1.CreateMCPServerResponse, error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateMCPServerConfig(req.GetMcpServer()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -86,6 +167,9 @@ func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agent
 func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agentsv1.UpdateMCPServerRequest) (*agentsv1.UpdateMCPServerResponse, error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateMCPServerConfig(req.GetMcpServer()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -148,6 +232,9 @@ func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agent
 		return nil, toTwirpError(err)
 	}
 	logger.Info("mcp server deleted", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
+	if s.oauthService != nil {
+		_ = s.oauthService.Disconnect(ctx, wsID, req.GetId())
+	}
 	return &agentsv1.DeleteMCPServerResponse{}, nil
 }
 
@@ -183,7 +270,7 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	result, err := internalagent.ProbeMCPServer(probeCtx, m)
+	result, err := internalagent.ProbeMCPServerWithFactory(probeCtx, m, s.mcpHTTPClientFactory())
 	if err != nil {
 		log.FromContext(ctx).Warn("mcp server probe failed",
 			"workspace_id", wsID, "id", m.GetId(), "name", m.GetName(), "err", err)
@@ -229,7 +316,7 @@ func (s *MCPServerServiceServer) ListMCPTools(ctx context.Context, req *agentsv1
 			continue
 		}
 		probeCtx, cancel := context.WithTimeout(ctx, timeout)
-		result, err := internalagent.ProbeMCPServer(probeCtx, srv)
+		result, err := internalagent.ProbeMCPServerWithFactory(probeCtx, srv, s.mcpHTTPClientFactory())
 		cancel()
 		if err != nil {
 			resp.Errors[srv.GetId()] = err.Error()
@@ -246,6 +333,146 @@ func (s *MCPServerServiceServer) ListMCPTools(ctx context.Context, req *agentsv1
 		}
 	}
 	return resp, nil
+}
+
+func (s *MCPServerServiceServer) StartMCPServerOAuth(ctx context.Context, req *agentsv1.StartMCPServerOAuthRequest) (*agentsv1.StartMCPServerOAuthResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s.oauthService == nil {
+		return nil, twirp.NewError(twirp.FailedPrecondition, "mcp oauth service is not configured")
+	}
+	if strings.TrimSpace(req.GetServerId()) == "" {
+		return nil, twirp.RequiredArgumentError("server_id")
+	}
+	srv, err := s.repo.GetMCPServer(ctx, wsID, req.GetServerId())
+	if err != nil {
+		return nil, toTwirpError(err)
+	}
+	if err := validateMCPServerConfig(srv); err != nil {
+		return nil, err
+	}
+	userID := "api"
+	if user, ok := auth.UserFromContext(ctx); ok {
+		userID = user.GetId()
+	}
+	start, err := s.oauthService.Start(ctx, wsID, userID, srv, req.GetReturnUrl())
+	if err != nil {
+		return nil, twirp.NewError(twirp.FailedPrecondition, err.Error())
+	}
+	return &agentsv1.StartMCPServerOAuthResponse{AuthorizationUrl: start.AuthorizationURL, FlowId: start.FlowID}, nil
+}
+
+func (s *MCPServerServiceServer) CompleteMCPServerOAuth(ctx context.Context, req *agentsv1.CompleteMCPServerOAuthRequest) (*agentsv1.CompleteMCPServerOAuthResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s.oauthService == nil {
+		return nil, twirp.NewError(twirp.FailedPrecondition, "mcp oauth service is not configured")
+	}
+	if strings.TrimSpace(req.GetFlowId()) == "" {
+		return nil, twirp.RequiredArgumentError("flow_id")
+	}
+	conn, err := s.oauthService.Complete(ctx, wsID, req.GetFlowId(), req.GetCode(), req.GetState())
+	if err != nil {
+		return nil, twirp.NewError(twirp.InvalidArgument, err.Error())
+	}
+	return &agentsv1.CompleteMCPServerOAuthResponse{Status: oauthStatusFromConnection(conn.ServerID, conn, nil)}, nil
+}
+
+func (s *MCPServerServiceServer) GetMCPServerOAuthStatus(ctx context.Context, req *agentsv1.GetMCPServerOAuthStatusRequest) (*agentsv1.GetMCPServerOAuthStatusResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetServerId()) == "" {
+		return nil, twirp.RequiredArgumentError("server_id")
+	}
+	srv, err := s.repo.GetMCPServer(ctx, wsID, req.GetServerId())
+	if err != nil {
+		return nil, toTwirpError(err)
+	}
+	if s.oauthService == nil {
+		return &agentsv1.GetMCPServerOAuthStatusResponse{Status: disconnectedOAuthStatus(srv.GetId(), "mcp oauth service is not configured")}, nil
+	}
+	conn, err := s.oauthService.Status(ctx, wsID, srv.GetId())
+	return &agentsv1.GetMCPServerOAuthStatusResponse{Status: oauthStatusFromConnection(srv.GetId(), conn, err)}, nil
+}
+
+func (s *MCPServerServiceServer) DisconnectMCPServerOAuth(ctx context.Context, req *agentsv1.DisconnectMCPServerOAuthRequest) (*agentsv1.DisconnectMCPServerOAuthResponse, error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetServerId()) == "" {
+		return nil, twirp.RequiredArgumentError("server_id")
+	}
+	if _, err := s.repo.GetMCPServer(ctx, wsID, req.GetServerId()); err != nil {
+		return nil, toTwirpError(err)
+	}
+	if s.oauthService != nil {
+		if err := s.oauthService.Disconnect(ctx, wsID, req.GetServerId()); err != nil {
+			return nil, twirp.InternalErrorWith(err)
+		}
+	}
+	return &agentsv1.DisconnectMCPServerOAuthResponse{Status: disconnectedOAuthStatus(req.GetServerId(), "disconnected")}, nil
+}
+
+func (s *MCPServerServiceServer) CompleteMCPServerOAuthCallback(ctx context.Context, state, code string) (string, *agentsv1.MCPOAuthConnectionStatus, error) {
+	if s.oauthService == nil {
+		return "", nil, fmt.Errorf("mcp oauth service is not configured")
+	}
+	result, err := s.oauthService.CompleteByState(ctx, state, code)
+	if err != nil {
+		return "", nil, err
+	}
+	return result.ReturnURL, oauthStatusFromConnection(result.Connection.ServerID, result.Connection, nil), nil
+}
+
+func (s *MCPServerServiceServer) mcpHTTPClientFactory() internalagent.MCPHTTPClientFactory {
+	return s.httpFactory
+}
+
+func oauthStatusFromConnection(serverID string, conn *mcpoauthrepo.Connection, err error) *agentsv1.MCPOAuthConnectionStatus {
+	if err != nil {
+		if errors.Is(err, mcpoauthrepo.ErrNotFound) {
+			return disconnectedOAuthStatus(serverID, "")
+		}
+		return &agentsv1.MCPOAuthConnectionStatus{
+			ServerId:  serverID,
+			State:     agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_ERROR,
+			Detail:    err.Error(),
+			CheckedAt: timestamppb.New(time.Now().UTC()),
+		}
+	}
+	if conn == nil {
+		return disconnectedOAuthStatus(serverID, "")
+	}
+	status := &agentsv1.MCPOAuthConnectionStatus{
+		ServerId:  conn.ServerID,
+		State:     conn.State,
+		Detail:    conn.LastError,
+		Scopes:    append([]string(nil), conn.Scopes...),
+		CheckedAt: timestamppb.New(time.Now().UTC()),
+	}
+	if !conn.ConnectedAt.IsZero() {
+		status.ConnectedAt = timestamppb.New(conn.ConnectedAt)
+	}
+	if !conn.ExpiresAt.IsZero() {
+		status.ExpiresAt = timestamppb.New(conn.ExpiresAt)
+	}
+	return status
+}
+
+func disconnectedOAuthStatus(serverID, detail string) *agentsv1.MCPOAuthConnectionStatus {
+	return &agentsv1.MCPOAuthConnectionStatus{
+		ServerId:  serverID,
+		State:     agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_DISCONNECTED,
+		Detail:    detail,
+		CheckedAt: timestamppb.New(time.Now().UTC()),
+	}
 }
 
 func (s *MCPServerServiceServer) reloadRuntime(ctx context.Context) error {

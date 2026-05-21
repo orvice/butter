@@ -57,6 +57,7 @@ type Service struct {
 	artifactSvc      artifact.Service
 	basePluginConfig adkrunner.PluginConfig
 	pluginConfig     adkrunner.PluginConfig
+	mcpHTTPFactory   internalagent.MCPHTTPClientFactory
 
 	mu              sync.Mutex
 	runners         map[string]*adkrunner.Runner // keyed by channel name
@@ -115,6 +116,12 @@ func (s *Service) deregisterCancel(id string) {
 // artifactSvc is optional; pass nil to run without artifact persistence (ADK
 // then no-ops artifact reads/writes inside agent tools).
 func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
+	return NewServiceWithMCPHTTPClientFactory(ctx, agents, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, sessionSvc, memorySvc, artifactSvc, pluginConfig, nil)
+}
+
+// NewServiceWithMCPHTTPClientFactory builds the agent registry with a shared
+// MCP HTTP client factory used by runtime toolsets.
+func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, pluginConfig adkrunner.PluginConfig, mcpHTTPFactory internalagent.MCPHTTPClientFactory) (*Service, error) {
 	logger := log.FromContext(ctx)
 	basePluginConfig := pluginConfig
 	registry := make(map[string]agent.Agent, len(agents))
@@ -135,7 +142,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 			"description", agents[i].GetDescription(),
 		)
 
-		a, err := internalagent.NewFromProto(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry)
+		a, err := internalagent.NewFromProtoWithMCPHTTPClientFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory)
 		if err != nil {
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}
@@ -164,6 +171,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 		artifactSvc:      artifactSvc,
 		basePluginConfig: basePluginConfig,
 		pluginConfig:     pluginConfig,
+		mcpHTTPFactory:   mcpHTTPFactory,
 		runners:          make(map[string]*adkrunner.Runner),
 		overriddenCache:  make(map[string]agent.Agent),
 	}
@@ -285,7 +293,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 
 	for i := range agents {
 		name := agents[i].GetName()
-		a, err := internalagent.NewFromProto(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry)
+		a, err := internalagent.NewFromProtoWithMCPHTTPClientFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory)
 		if err != nil {
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
 		}
@@ -500,7 +508,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 		// Proto-based agent: clone proto and override model.
 		clone := proto.Clone(pb).(*agentsv1.Agent)
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProto(ctx, clone, s.providers, mcpRegistry, remoteAgents, s.daemonRegistry)
+		a, err = internalagent.NewFromProtoWithMCPHTTPClientFactory(ctx, clone, s.providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory)
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)

@@ -1,10 +1,13 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
+  useDisconnectMCPServerOAuth,
   useDeleteMCPServer,
+  useMCPServerOAuthStatus,
   useMCPServers,
   useMCPTools,
+  useStartMCPServerOAuth,
 } from "@/api/mcp-servers";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
@@ -29,8 +32,11 @@ import {
   XCircle,
   Wrench,
   Filter,
+  KeyRound,
+  LogIn,
+  Unplug,
 } from "lucide-react";
-import type { MCPServer, MCPServerTransport, MCPTool } from "@/types/api";
+import type { MCPOAuthConnectionState, MCPServer, MCPServerAuthType, MCPServerTransport, MCPTool } from "@/types/api";
 import { MCP_TRANSPORT_LABELS } from "@/lib/constants";
 import { ServerStatusBadge, ServerStatusInline } from "./status-cell";
 
@@ -46,7 +52,22 @@ export default function MCPServerListPage() {
   const { data: toolsData } = useMCPTools();
   const deleteMutation = useDeleteMCPServer();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  useEffect(() => {
+    const result = searchParams.get("mcp_oauth");
+    if (!result) return;
+    if (result === "success") {
+      toast.success("OAuth connection completed");
+    } else {
+      toast.error("OAuth connection failed");
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("mcp_oauth");
+    next.delete("server_id");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const servers = data?.mcp_servers ?? [];
   const tools = toolsData?.tools ?? [];
@@ -83,6 +104,10 @@ export default function MCPServerListPage() {
       cell: (row) => <ServerStatusBadge id={row.id ?? ""} />,
     },
     {
+      header: "Auth",
+      cell: (row) => <AuthStatusCell server={row} />,
+    },
+    {
       header: "Tools",
       cell: (row) => <ServerStatusInline id={row.id ?? ""} />,
     },
@@ -103,6 +128,7 @@ export default function MCPServerListPage() {
               <DropdownMenuItem onClick={() => navigate(`/mcp-servers/${row.id}/edit`)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </DropdownMenuItem>
+              <OAuthMenuItems server={row} />
               <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => setDeleteTarget(row.id ?? null)}
@@ -196,6 +222,83 @@ export default function MCPServerListPage() {
       />
     </>
   );
+}
+
+function OAuthMenuItems({ server }: { server: MCPServer }) {
+  const startMutation = useStartMCPServerOAuth();
+  const disconnectMutation = useDisconnectMCPServerOAuth();
+  if (authType(server) !== "MCP_SERVER_AUTH_TYPE_OAUTH2" || !server.id) return null;
+  return (
+    <>
+      <DropdownMenuItem
+        disabled={startMutation.isPending}
+        onClick={() => {
+          startMutation.mutate(
+            { serverId: server.id ?? "", returnUrl: `${window.location.origin}/mcp-servers` },
+            {
+              onSuccess: (data) => {
+                window.location.assign(data.authorization_url);
+              },
+              onError: (err) => toast.error(err.message),
+            },
+          );
+        }}
+      >
+        <LogIn className="mr-2 h-4 w-4" /> Connect OAuth
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={disconnectMutation.isPending}
+        onClick={() => {
+          disconnectMutation.mutate(server.id ?? "", {
+            onSuccess: () => toast.success("OAuth connection disconnected"),
+            onError: (err) => toast.error(err.message),
+          });
+        }}
+      >
+        <Unplug className="mr-2 h-4 w-4" /> Disconnect OAuth
+      </DropdownMenuItem>
+    </>
+  );
+}
+
+const OAUTH_PALETTE: Record<MCPOAuthConnectionState, { cls: string; label: string }> = {
+  MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "OAuth" },
+  MCP_OAUTH_CONNECTION_STATE_DISCONNECTED: { cls: "bg-muted text-muted-foreground", label: "Disconnected" },
+  MCP_OAUTH_CONNECTION_STATE_CONNECTED: { cls: "bg-emerald-500/10 text-emerald-700", label: "Connected" },
+  MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED: { cls: "bg-amber-500/10 text-amber-700", label: "Reconnect" },
+  MCP_OAUTH_CONNECTION_STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
+};
+
+function AuthStatusCell({ server }: { server: MCPServer }) {
+  const type = authType(server);
+  const isOAuth = type === "MCP_SERVER_AUTH_TYPE_OAUTH2";
+  const { data, isLoading } = useMCPServerOAuthStatus(server.id ?? "", isOAuth);
+  if (type === "MCP_SERVER_AUTH_TYPE_STATIC_HEADERS") {
+    return <Badge variant="outline" className="text-xs"><KeyRound className="mr-1 h-3 w-3" /> Headers</Badge>;
+  }
+  if (!isOAuth) {
+    return <span className="text-sm text-muted-foreground">None</span>;
+  }
+  if (isLoading || !data?.status) {
+    return <Badge variant="outline" className="text-xs">OAuth</Badge>;
+  }
+  const state = (data.status.state ?? "MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED") as MCPOAuthConnectionState;
+  const palette = OAUTH_PALETTE[state];
+  return (
+    <Badge className={palette.cls}>
+      <KeyRound className="mr-1 h-3 w-3" />
+      {palette.label}
+    </Badge>
+  );
+}
+
+function authType(server: MCPServer): MCPServerAuthType {
+  if (server.auth?.type && server.auth.type !== "MCP_SERVER_AUTH_TYPE_UNSPECIFIED") {
+    return server.auth.type;
+  }
+  return server.headers && Object.keys(server.headers).length > 0
+    ? "MCP_SERVER_AUTH_TYPE_STATIC_HEADERS"
+    : "MCP_SERVER_AUTH_TYPE_NONE";
 }
 
 function ToolRow({ tool }: { tool: MCPTool }) {

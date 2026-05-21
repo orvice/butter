@@ -14,6 +14,7 @@ import (
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
+	"go.orx.me/apps/butter/internal/mcpoauth"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	apitokenmemory "go.orx.me/apps/butter/internal/repo/apitoken/memory"
 	apitokenmongo "go.orx.me/apps/butter/internal/repo/apitoken/mongo"
@@ -24,6 +25,9 @@ import (
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	invocationmongo "go.orx.me/apps/butter/internal/repo/invocation/mongo"
+	mcpoauthrepo "go.orx.me/apps/butter/internal/repo/mcpoauth"
+	mcpoauthmemory "go.orx.me/apps/butter/internal/repo/mcpoauth/memory"
+	mcpoauthmongo "go.orx.me/apps/butter/internal/repo/mcpoauth/mongo"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
@@ -36,20 +40,23 @@ import (
 
 // BootstrapResult holds the services created during bootstrap.
 type BootstrapResult struct {
-	RunnerSvc      *runner.Service
-	SessionSvc     session.Service
-	CronScheduler  *internalcron.Scheduler
-	CronRepo       internalcron.ExecutionRepo
-	CronJobRepo    internalcron.JobRepo
-	ChannelMgr     *channel.Manager
-	MongoDB        *mongo.Database
-	Redis          *redis.Client
-	AuthRepo       auth.Repository
-	APITokenRepo   apitoken.Repository
-	InvocationRepo invocation.Repository
-	WorkspaceRepo  workspacerepo.Repository
-	LangfuseHost   string
-	SessionCounter func(ctx context.Context) (int64, error)
+	RunnerSvc       *runner.Service
+	SessionSvc      session.Service
+	CronScheduler   *internalcron.Scheduler
+	CronRepo        internalcron.ExecutionRepo
+	CronJobRepo     internalcron.JobRepo
+	ChannelMgr      *channel.Manager
+	MongoDB         *mongo.Database
+	Redis           *redis.Client
+	AuthRepo        auth.Repository
+	APITokenRepo    apitoken.Repository
+	InvocationRepo  invocation.Repository
+	WorkspaceRepo   workspacerepo.Repository
+	MCPOAuthRepo    mcpoauthrepo.Repository
+	MCPOAuthSvc     *mcpoauth.Service
+	MCPAuthResolver *mcpoauth.Resolver
+	LangfuseHost    string
+	SessionCounter  func(ctx context.Context) (int64, error)
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -85,6 +92,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		tokenRepo apitoken.Repository
 		invRepo   invocation.Repository
 		wsRepo    workspacerepo.Repository
+		oauthRepo mcpoauthrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -99,10 +107,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		tokenRepo = apitokenmongo.New(db)
 		invRepo = invocationmongo.New(db)
 		wsRepo = workspacemongo.New(db)
+		oauthRepo = mcpoauthmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
 		wsRepo = workspacememory.New()
+		oauthRepo = mcpoauthmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -114,6 +124,20 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		logger.Error("failed to bootstrap default workspace", "err", err)
 		return nil, err
 	}
+	if err := oauthRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create mcp oauth indexes", "err", err)
+		return nil, err
+	}
+	oauthConfigProvider := func() mcpoauth.Config {
+		return mcpoauth.Config{
+			CallbackBaseURL:   cfg.MCPOAuth.CallbackBaseURL,
+			DashboardBaseURL:  cfg.MCPOAuth.DashboardBaseURL,
+			EncryptionKey:     cfg.MCPOAuth.EncryptionKey,
+			AllowInsecureHTTP: cfg.MCPOAuth.AllowInsecureHTTP,
+		}
+	}
+	oauthSvc := mcpoauth.NewService(oauthRepo, mcpoauth.NewMemoryFlowStore(), oauthConfigProvider)
+	mcpAuthResolver := mcpoauth.NewResolver(oauthRepo, oauthConfigProvider)
 
 	// Setup Langfuse plugin if configured.
 	pluginConfig, err := setupLangfuse(ctx, cfg)
@@ -126,7 +150,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, pluginConfig)
+	runnerSvc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, pluginConfig, mcpAuthResolver)
 	if err == nil {
 		runnerSvc.SetInvocationRecorder(invRepo)
 	}
@@ -161,19 +185,22 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	go mgr.Start(ctx)
 
 	return &BootstrapResult{
-		RunnerSvc:      runnerSvc,
-		SessionSvc:     sessionSvc,
-		CronScheduler:  cronScheduler,
-		CronRepo:       cronExecRepo,
-		CronJobRepo:    cronJobRepo,
-		ChannelMgr:     mgr,
-		MongoDB:        db,
-		Redis:          rdb,
-		AuthRepo:       authRepo,
-		APITokenRepo:   tokenRepo,
-		InvocationRepo: invRepo,
-		WorkspaceRepo:  wsRepo,
-		LangfuseHost:   cfg.Langfuse.Host,
-		SessionCounter: sessionSvc.CountSessions,
+		RunnerSvc:       runnerSvc,
+		SessionSvc:      sessionSvc,
+		CronScheduler:   cronScheduler,
+		CronRepo:        cronExecRepo,
+		CronJobRepo:     cronJobRepo,
+		ChannelMgr:      mgr,
+		MongoDB:         db,
+		Redis:           rdb,
+		AuthRepo:        authRepo,
+		APITokenRepo:    tokenRepo,
+		InvocationRepo:  invRepo,
+		WorkspaceRepo:   wsRepo,
+		MCPOAuthRepo:    oauthRepo,
+		MCPOAuthSvc:     oauthSvc,
+		MCPAuthResolver: mcpAuthResolver,
+		LangfuseHost:    cfg.Langfuse.Host,
+		SessionCounter:  sessionSvc.CountSessions,
 	}, nil
 }

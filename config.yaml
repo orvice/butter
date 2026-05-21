@@ -72,6 +72,15 @@ artifact:
   s3_bucket: ""              # e.g. "artifacts" — must match a store.s3 key
   key_prefix: "artifacts"    # object key prefix (optional)
 
+# OAuth2-protected MCP servers. Required only when you connect MCP servers
+# with auth.type = MCP_SERVER_AUTH_TYPE_OAUTH2. Generate a unique 32-byte
+# encryption key for production; the value below is a development placeholder.
+mcp_oauth:
+  callback_base_url: "http://localhost:8080"
+  dashboard_base_url: "http://localhost:5173"
+  encryption_key: "0123456789abcdef0123456789abcdef"
+  allow_insecure_http: true
+
 # Langfuse observability (optional — disabled when keys are empty)
 langfuse:
   publicKey: ""       # LANGFUSE_PUBLIC_KEY
