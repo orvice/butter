@@ -14,6 +14,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/forum"
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/service"
@@ -24,6 +25,7 @@ import (
 type Handlers struct {
 	a2aHandler             *httpHandler.A2AHandler
 	chatStreamHandler      *httpHandler.ChatStreamHandler
+	forumSvcServer         *application.ForumServiceServer
 	agentSvcServer         *application.AgentServiceServer
 	mcpSvcServer           *application.MCPServerServiceServer
 	modelProviderSvcServer *application.ModelProviderServiceServer
@@ -39,6 +41,7 @@ type Handlers struct {
 	workspaceSvcServer     *application.WorkspaceServiceServer
 	authRepo               atomic.Value // auth.Repository
 	apiTokenRepo           atomic.Value // apitoken.Repository
+	forumRepo              atomic.Value // forum.Repository
 	workspaceRepo          atomic.Value // workspace.Repository
 	configStore            *ConfigStore
 	configRuntime          *ConfigRuntime
@@ -75,6 +78,18 @@ func (h *Handlers) authRepoFromHolder() auth.Repository {
 	return repo
 }
 
+func (h *Handlers) forumRepoFromHolder() forum.Repository {
+	if h == nil {
+		return nil
+	}
+	v := h.forumRepo.Load()
+	if v == nil {
+		return nil
+	}
+	repo, _ := v.(forum.Repository)
+	return repo
+}
+
 func (h *Handlers) workspaceRepoFromHolder() workspace.Repository {
 	if h == nil {
 		return nil
@@ -97,11 +112,20 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.chatStreamHandler.SetRunnerService(result.RunnerSvc)
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
+		if h.forumSvcServer != nil {
+			h.forumSvcServer.SetRunnerService(result.RunnerSvc)
+		}
 	}
 	if result.InvocationRepo != nil {
 		h.agentSvcServer.SetInvocationRepo(result.InvocationRepo)
 		if h.dashboardSvcServer != nil {
 			h.dashboardSvcServer.SetInvocationRepo(result.InvocationRepo)
+		}
+	}
+	if result.ForumRepo != nil {
+		h.forumRepo.Store(result.ForumRepo)
+		if h.forumSvcServer != nil {
+			h.forumSvcServer.SetRepo(result.ForumRepo)
 		}
 	}
 	if result.LangfuseHost != "" {
@@ -224,6 +248,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	notifyGroupSvcServer := application.NewNotifyGroupServiceServer(configStore)
 	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
 	remoteSvcServer.SetDaemonRegistry(daemonRegistry)
+	forumSvcServer := application.NewForumServiceServer(nil)
+	forumTwirp := agentsv1.NewForumServiceServer(forumSvcServer, pathPrefix)
 	agentTwirp := agentsv1.NewAgentServiceServer(agentSvcServer, pathPrefix)
 	mcpTwirp := agentsv1.NewMCPServerServiceServer(mcpSvcServer, pathPrefix)
 	modelProviderTwirp := agentsv1.NewModelProviderServiceServer(modelProviderSvcServer, pathPrefix)
@@ -249,6 +275,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	handlers := &Handlers{
 		a2aHandler:             a2aHandler,
 		chatStreamHandler:      chatStreamHandler,
+		forumSvcServer:         forumSvcServer,
 		agentSvcServer:         agentSvcServer,
 		mcpSvcServer:           mcpSvcServer,
 		modelProviderSvcServer: modelProviderSvcServer,
@@ -281,6 +308,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		uploadHandler.Register(r)
 
 		// Mount Twirp handlers under /api prefix
+		r.Any(forumTwirp.PathPrefix()+"*path", gin.WrapH(forumTwirp))
 		r.Any(agentTwirp.PathPrefix()+"*path", gin.WrapH(agentTwirp))
 		r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
 		r.Any(modelProviderTwirp.PathPrefix()+"*path", gin.WrapH(modelProviderTwirp))

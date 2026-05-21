@@ -27,6 +27,8 @@ import RemoteAgentEditPage from "@/pages/remote-agents/edit";
 import SessionListPage from "@/pages/sessions/list";
 import SessionDetailPage from "@/pages/sessions/detail";
 import ChatPage from "@/pages/chat";
+import ForumListPage from "@/pages/forum/list";
+import ForumThreadPage from "@/pages/forum/thread";
 import CronJobListPage from "@/pages/cron/list";
 import CronJobCreatePage from "@/pages/cron/create";
 import CronJobEditPage from "@/pages/cron/edit";
@@ -77,6 +79,8 @@ export default function App() {
                   <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />
                   <Route path="integrations" element={<IntegrationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
+                  <Route path="forum" element={<ForumListPage />} />
+                  <Route path="forum/:id" element={<ForumThreadPage />} />
                   <Route path="sessions" element={<SessionListPage />} />
                   <Route path="sessions/detail" element={<SessionDetailPage />} />
                   <Route path="operations" element={<OperationsPage />} />

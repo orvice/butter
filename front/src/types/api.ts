@@ -254,6 +254,35 @@ export interface SessionDetail {
   duration?: string; // protobuf Duration as "3.5s"
 }
 
+// --- Forum ---
+
+export interface ForumThread {
+  id: string;
+  title: string;
+  body?: string;
+  created_by?: string;
+  status?: string;
+  agent_names?: string[];
+  metadata?: Record<string, string>;
+  created_at?: string;
+  updated_at?: string;
+  workspace_id?: string;
+}
+
+export interface ForumPost {
+  id: string;
+  thread_id: string;
+  body: string;
+  author_user_id?: string;
+  author_agent_name?: string;
+  author_kind?: "user" | "agent" | "system" | string;
+  invocation_id?: string;
+  parent_post_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  workspace_id?: string;
+}
+
 // --- Channels ---
 
 export interface AgentTrigger {
