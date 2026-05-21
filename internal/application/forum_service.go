@@ -137,7 +137,53 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.Cre
 		_ = repo.DeleteThread(ctx, workspaceID, threadID)
 		return nil, twirp.InternalErrorWith(err)
 	}
+	if runnerSvc := s.getRunner(); runnerSvc != nil && len(thread.GetAgentNames()) > 0 {
+		bgCtx := wsctx.WithID(context.Background(), workspaceID)
+		for _, agentName := range thread.GetAgentNames() {
+			agentName := agentName
+			go s.invokeAgentPost(bgCtx, repo, runnerSvc, thread, []*agentsv1.ForumPost{post}, agentName, userID)
+		}
+	}
 	return &agentsv1.CreateThreadResponse{Thread: thread, FirstPost: post}, nil
+}
+
+func (s *ForumServiceServer) invokeAgentPost(ctx context.Context, repo forum.Repository, runnerSvc *runner.Service, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentName, userID string) {
+	logger := log.FromContext(ctx)
+	prompt := buildForumPrompt(thread, posts, userID, "")
+	invocationID := uuid.NewString()
+	if id, err := uuid.NewV7(); err == nil {
+		invocationID = id.String()
+	}
+	ctxInfo := &agentsv1.ContextInfo{
+		Uuid:        invocationID,
+		ChannelName: forumAppName,
+		SessionId:   thread.GetId(),
+		UserId:      "forum:" + thread.GetWorkspaceId(),
+		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
+		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
+		WorkspaceId: thread.GetWorkspaceId(),
+	}
+	logger.Info("auto-invoking forum agent on thread create", "thread_id", thread.GetId(), "agent", agentName)
+	response, err := runnerSvc.Run(ctx, agentName, []*genai.Part{genai.NewPartFromText(prompt)}, "", ctxInfo, nil, nil)
+	if err != nil {
+		logger.Error("auto-invoke agent failed", "thread_id", thread.GetId(), "agent", agentName, "error", err)
+		return
+	}
+	now := timestamppb.New(time.Now().UTC())
+	agentPost := &agentsv1.ForumPost{
+		Id:              uuid.NewString(),
+		ThreadId:        thread.GetId(),
+		Body:            response,
+		AuthorAgentName: agentName,
+		AuthorKind:      forumAuthorAgent,
+		InvocationId:    invocationID,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		WorkspaceId:     thread.GetWorkspaceId(),
+	}
+	if err := repo.CreatePost(ctx, agentPost); err != nil {
+		logger.Error("failed to save agent post", "thread_id", thread.GetId(), "agent", agentName, "error", err)
+	}
 }
 
 func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *agentsv1.UpdateThreadRequest) (*agentsv1.UpdateThreadResponse, error) {
