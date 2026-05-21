@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/hooks/use-auth";
+import { ColorThemeProvider } from "@/hooks/use-color-theme";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import DashboardLayout from "@/layouts/dashboard-layout";
 import LoginPage from "@/pages/login";
@@ -55,53 +56,55 @@ export default function App() {
   return (
     <BrowserRouter>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <WorkspaceProvider>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route element={<DashboardLayout />}>
-                  <Route index element={<DashboardPage />} />
-                  <Route path="agents" element={<AgentListPage />} />
-                  <Route path="agents/create" element={<AgentCreatePage />} />
-                  <Route path="agents/:name/edit" element={<AgentEditPage />} />
-                  <Route path="mcp-servers" element={<MCPServerListPage />} />
-                  <Route path="mcp-servers/create" element={<MCPServerCreatePage />} />
-                  <Route path="mcp-servers/:id/edit" element={<MCPServerEditPage />} />
-                  <Route path="model-providers" element={<ModelProviderListPage />} />
-                  <Route path="model-providers/create" element={<ModelProviderCreatePage />} />
-                  <Route path="model-providers/:name/edit" element={<ModelProviderEditPage />} />
-                  <Route path="notify-groups" element={<NotifyGroupListPage />} />
-                  <Route path="notify-groups/create" element={<NotifyGroupCreatePage />} />
-                  <Route path="notify-groups/:name/edit" element={<NotifyGroupEditPage />} />
-                  <Route path="remote-agents" element={<RemoteAgentListPage />} />
-                  <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
-                  <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />
-                  <Route path="integrations" element={<IntegrationsPage />} />
-                  <Route path="chat" element={<ChatPage />} />
-                  <Route path="forum" element={<ForumListPage />} />
-                  <Route path="forum/:id" element={<ForumThreadPage />} />
-                  <Route path="sessions" element={<SessionListPage />} />
-                  <Route path="sessions/detail" element={<SessionDetailPage />} />
-                  <Route path="operations" element={<OperationsPage />} />
-                  <Route path="cron" element={<CronJobListPage />} />
-                  <Route path="cron/create" element={<CronJobCreatePage />} />
-                  <Route path="cron/:name/edit" element={<CronJobEditPage />} />
-                  <Route path="cron/:name/executions" element={<CronExecutionsPage />} />
-                  <Route path="daemons" element={<DaemonListPage />} />
-                  <Route path="channels" element={<ChannelListPage />} />
-                  <Route path="channels/create" element={<ChannelCreatePage />} />
-                  <Route path="channels/:name/edit" element={<ChannelEditPage />} />
-                  <Route path="api-tokens" element={<APITokenListPage />} />
-                  <Route path="profile" element={<ProfilePage />} />
-                  <Route path="users" element={<UserListPage />} />
-                  <Route path="workspaces" element={<WorkspacePage />} />
-                </Route>
-              </Routes>
-              <Toaster />
-            </WorkspaceProvider>
-          </AuthProvider>
-        </QueryClientProvider>
+        <ColorThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <WorkspaceProvider>
+                <Routes>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route element={<DashboardLayout />}>
+                    <Route index element={<DashboardPage />} />
+                    <Route path="agents" element={<AgentListPage />} />
+                    <Route path="agents/create" element={<AgentCreatePage />} />
+                    <Route path="agents/:name/edit" element={<AgentEditPage />} />
+                    <Route path="mcp-servers" element={<MCPServerListPage />} />
+                    <Route path="mcp-servers/create" element={<MCPServerCreatePage />} />
+                    <Route path="mcp-servers/:id/edit" element={<MCPServerEditPage />} />
+                    <Route path="model-providers" element={<ModelProviderListPage />} />
+                    <Route path="model-providers/create" element={<ModelProviderCreatePage />} />
+                    <Route path="model-providers/:name/edit" element={<ModelProviderEditPage />} />
+                    <Route path="notify-groups" element={<NotifyGroupListPage />} />
+                    <Route path="notify-groups/create" element={<NotifyGroupCreatePage />} />
+                    <Route path="notify-groups/:name/edit" element={<NotifyGroupEditPage />} />
+                    <Route path="remote-agents" element={<RemoteAgentListPage />} />
+                    <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
+                    <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />
+                    <Route path="integrations" element={<IntegrationsPage />} />
+                    <Route path="chat" element={<ChatPage />} />
+                    <Route path="forum" element={<ForumListPage />} />
+                    <Route path="forum/:id" element={<ForumThreadPage />} />
+                    <Route path="sessions" element={<SessionListPage />} />
+                    <Route path="sessions/detail" element={<SessionDetailPage />} />
+                    <Route path="operations" element={<OperationsPage />} />
+                    <Route path="cron" element={<CronJobListPage />} />
+                    <Route path="cron/create" element={<CronJobCreatePage />} />
+                    <Route path="cron/:name/edit" element={<CronJobEditPage />} />
+                    <Route path="cron/:name/executions" element={<CronExecutionsPage />} />
+                    <Route path="daemons" element={<DaemonListPage />} />
+                    <Route path="channels" element={<ChannelListPage />} />
+                    <Route path="channels/create" element={<ChannelCreatePage />} />
+                    <Route path="channels/:name/edit" element={<ChannelEditPage />} />
+                    <Route path="api-tokens" element={<APITokenListPage />} />
+                    <Route path="profile" element={<ProfilePage />} />
+                    <Route path="users" element={<UserListPage />} />
+                    <Route path="workspaces" element={<WorkspacePage />} />
+                  </Route>
+                </Routes>
+                <Toaster />
+              </WorkspaceProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </ColorThemeProvider>
       </ThemeProvider>
     </BrowserRouter>
   );
