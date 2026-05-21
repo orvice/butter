@@ -17,6 +17,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import type { ForumPost } from "@/types/api";
+import { MarkdownContent } from "@/components/markdown-content";
 
 function fmtDate(v?: string) {
   return v ? new Date(v).toLocaleString() : "";
@@ -117,7 +118,7 @@ export default function ForumThreadPage() {
                     </div>
                     {post.invocation_id ? <Badge variant="outline" className="font-mono text-[10px]">{post.invocation_id.slice(0, 8)}</Badge> : null}
                   </div>
-                  <div className="whitespace-pre-wrap text-sm leading-6">{post.body}</div>
+                  <MarkdownContent content={post.body ?? ""} />
                 </CardContent>
               </Card>
             );
