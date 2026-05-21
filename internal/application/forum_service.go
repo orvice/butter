@@ -289,8 +289,7 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agent
 	if agentName == "" {
 		return nil, twirp.RequiredArgumentError("agent_name")
 	}
-	thread, err := repo.GetThread(ctx, workspaceID, req.GetThreadId())
-	if err != nil {
+	if _, err := repo.GetThread(ctx, workspaceID, req.GetThreadId()); err != nil {
 		return nil, mapForumErr(err)
 	}
 	now := timestamppb.New(time.Now().UTC())
@@ -323,7 +322,7 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agent
 		invocationID = id.String()
 	}
 	processing := forum.ProcessingState{AgentName: agentName, InvocationID: invocationID, StartedAt: now}
-	thread, err = repo.CreatePostAndMarkThreadProcessing(ctx, userPost, processing)
+	thread, err := repo.CreatePostAndMarkThreadProcessing(ctx, userPost, processing)
 	if err != nil {
 		return nil, mapForumErr(err)
 	}
