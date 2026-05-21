@@ -84,7 +84,7 @@ func (s *Store) MarkState(_ context.Context, workspaceID, serverID string, state
 	conn.LastError = detail
 	conn.LastCheckedAt = at
 	conn.UpdatedAt = at
-	conn.ReauthorizationRequired = state == agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED
+	conn.ReauthorizationRequired = state == agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED
 	byServer[serverID] = conn
 	return nil
 }

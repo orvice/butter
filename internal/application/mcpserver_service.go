@@ -442,7 +442,7 @@ func oauthStatusFromConnection(serverID string, conn *mcpoauthrepo.Connection, e
 		}
 		return &agentsv1.MCPOAuthConnectionStatus{
 			ServerId:  serverID,
-			State:     agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_ERROR,
+			State:     agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_ERROR,
 			Detail:    err.Error(),
 			CheckedAt: timestamppb.New(time.Now().UTC()),
 		}
@@ -469,7 +469,7 @@ func oauthStatusFromConnection(serverID string, conn *mcpoauthrepo.Connection, e
 func disconnectedOAuthStatus(serverID, detail string) *agentsv1.MCPOAuthConnectionStatus {
 	return &agentsv1.MCPOAuthConnectionStatus{
 		ServerId:  serverID,
-		State:     agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_DISCONNECTED,
+		State:     agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_DISCONNECTED,
 		Detail:    detail,
 		CheckedAt: timestamppb.New(time.Now().UTC()),
 	}

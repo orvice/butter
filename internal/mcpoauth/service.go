@@ -253,7 +253,7 @@ func (s *Service) exchangeAndSave(ctx context.Context, flow *Flow, code string) 
 		WorkspaceID:           flow.WorkspaceID,
 		ServerID:              flow.ServerID,
 		UserID:                flow.UserID,
-		State:                 agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_CONNECTED,
+		State:                 agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_CONNECTED,
 		ClientID:              flow.ClientID,
 		EncryptedClientSecret: encryptedClientSecret,
 		AuthorizationURL:      flow.AuthURL,

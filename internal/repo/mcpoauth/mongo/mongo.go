@@ -111,7 +111,7 @@ func (s *Store) MarkState(ctx context.Context, workspaceID, serverID string, sta
 		"last_error":               detail,
 		"last_checked_at":          at,
 		"updated_at":               at,
-		"reauthorization_required": state == agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED,
+		"reauthorization_required": state == agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED,
 	}})
 	if err != nil {
 		return fmt.Errorf("mark mcp oauth state: %w", err)

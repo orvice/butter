@@ -16,7 +16,7 @@ func TestStoreWorkspaceIsolationAndDisconnect(t *testing.T) {
 	conn := &repo.Connection{
 		WorkspaceID:    "ws-a",
 		ServerID:       "srv",
-		State:          agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_CONNECTED,
+		State:          agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_CONNECTED,
 		EncryptedToken: "ciphertext",
 		ExpiresAt:      time.Now().Add(time.Hour),
 	}
@@ -53,7 +53,7 @@ func TestStoreMarkState(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 	now := time.Now().UTC()
-	err := store.MarkState(ctx, "ws", "srv", agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED, "refresh failed", now)
+	err := store.MarkState(ctx, "ws", "srv", agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED, "refresh failed", now)
 	if err != nil {
 		t.Fatalf("mark state: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestStoreMarkState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if conn.State != agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED {
+	if conn.State != agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED {
 		t.Fatalf("unexpected state %v", conn.State)
 	}
 	if !conn.ReauthorizationRequired || conn.LastError != "refresh failed" {

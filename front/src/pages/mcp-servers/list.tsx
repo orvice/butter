@@ -262,11 +262,11 @@ function OAuthMenuItems({ server }: { server: MCPServer }) {
 }
 
 const OAUTH_PALETTE: Record<MCPOAuthConnectionState, { cls: string; label: string }> = {
-  MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "OAuth" },
-  MCP_OAUTH_CONNECTION_STATE_DISCONNECTED: { cls: "bg-muted text-muted-foreground", label: "Disconnected" },
-  MCP_OAUTH_CONNECTION_STATE_CONNECTED: { cls: "bg-emerald-500/10 text-emerald-700", label: "Connected" },
-  MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED: { cls: "bg-amber-500/10 text-amber-700", label: "Reconnect" },
-  MCP_OAUTH_CONNECTION_STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
+  MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "OAuth" },
+  MCPO_AUTH_CONNECTION_STATE_DISCONNECTED: { cls: "bg-muted text-muted-foreground", label: "Disconnected" },
+  MCPO_AUTH_CONNECTION_STATE_CONNECTED: { cls: "bg-emerald-500/10 text-emerald-700", label: "Connected" },
+  MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED: { cls: "bg-amber-500/10 text-amber-700", label: "Reconnect" },
+  MCPO_AUTH_CONNECTION_STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
 };
 
 function AuthStatusCell({ server }: { server: MCPServer }) {
@@ -282,7 +282,7 @@ function AuthStatusCell({ server }: { server: MCPServer }) {
   if (isLoading || !data?.status) {
     return <Badge variant="outline" className="text-xs">OAuth</Badge>;
   }
-  const state = (data.status.state ?? "MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED") as MCPOAuthConnectionState;
+  const state = (data.status.state ?? "MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED") as MCPOAuthConnectionState;
   const palette = OAUTH_PALETTE[state];
   return (
     <Badge className={palette.cls}>

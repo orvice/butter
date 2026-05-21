@@ -104,7 +104,7 @@ func (s *persistentTokenSource) Bearer(ctx context.Context) (string, error) {
 		}
 		return "", err
 	}
-	if conn.State != agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_CONNECTED {
+	if conn.State != agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_CONNECTED {
 		return "", fmt.Errorf("mcp oauth connection requires authorization")
 	}
 	cfg := Config{}
@@ -170,7 +170,7 @@ func (s *persistentTokenSource) Bearer(ctx context.Context) (string, error) {
 	conn.LastError = ""
 	conn.LastCheckedAt = now
 	conn.UpdatedAt = now
-	conn.State = agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_CONNECTED
+	conn.State = agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_CONNECTED
 	conn.ReauthorizationRequired = false
 	if err := s.repo.Save(ctx, conn); err != nil {
 		return "", err
@@ -179,7 +179,7 @@ func (s *persistentTokenSource) Bearer(ctx context.Context) (string, error) {
 }
 
 func (s *persistentTokenSource) markReauth(ctx context.Context, detail string) error {
-	return s.repo.MarkState(ctx, s.workspaceID, s.serverID, agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED, detail, s.now())
+	return s.repo.MarkState(ctx, s.workspaceID, s.serverID, agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED, detail, s.now())
 }
 
 type oauthTransport struct {

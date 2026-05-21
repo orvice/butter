@@ -133,28 +133,28 @@ func (InvocationStatus) EnumDescriptor() ([]byte, []int) {
 type MCPOAuthConnectionState int32
 
 const (
-	MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED              MCPOAuthConnectionState = 0
-	MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_DISCONNECTED             MCPOAuthConnectionState = 1
-	MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_CONNECTED                MCPOAuthConnectionState = 2
-	MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED MCPOAuthConnectionState = 3
-	MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_ERROR                    MCPOAuthConnectionState = 4
+	MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED              MCPOAuthConnectionState = 0
+	MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_DISCONNECTED             MCPOAuthConnectionState = 1
+	MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_CONNECTED                MCPOAuthConnectionState = 2
+	MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED MCPOAuthConnectionState = 3
+	MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_ERROR                    MCPOAuthConnectionState = 4
 )
 
 // Enum value maps for MCPOAuthConnectionState.
 var (
 	MCPOAuthConnectionState_name = map[int32]string{
-		0: "MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED",
-		1: "MCP_OAUTH_CONNECTION_STATE_DISCONNECTED",
-		2: "MCP_OAUTH_CONNECTION_STATE_CONNECTED",
-		3: "MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED",
-		4: "MCP_OAUTH_CONNECTION_STATE_ERROR",
+		0: "MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED",
+		1: "MCPO_AUTH_CONNECTION_STATE_DISCONNECTED",
+		2: "MCPO_AUTH_CONNECTION_STATE_CONNECTED",
+		3: "MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED",
+		4: "MCPO_AUTH_CONNECTION_STATE_ERROR",
 	}
 	MCPOAuthConnectionState_value = map[string]int32{
-		"MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED":              0,
-		"MCP_OAUTH_CONNECTION_STATE_DISCONNECTED":             1,
-		"MCP_OAUTH_CONNECTION_STATE_CONNECTED":                2,
-		"MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED": 3,
-		"MCP_OAUTH_CONNECTION_STATE_ERROR":                    4,
+		"MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED":              0,
+		"MCPO_AUTH_CONNECTION_STATE_DISCONNECTED":             1,
+		"MCPO_AUTH_CONNECTION_STATE_CONNECTED":                2,
+		"MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED": 3,
+		"MCPO_AUTH_CONNECTION_STATE_ERROR":                    4,
 	}
 )
 
@@ -2505,7 +2505,7 @@ func (x *MCPOAuthConnectionStatus) GetState() MCPOAuthConnectionState {
 	if x != nil {
 		return x.State
 	}
-	return MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED
+	return MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED
 }
 
 func (x *MCPOAuthConnectionStatus) GetDetail() string {

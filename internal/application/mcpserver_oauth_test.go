@@ -58,7 +58,7 @@ func TestMCPServerServiceServer_OAuthStatusAndDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
-	if status.GetStatus().GetState() != agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_DISCONNECTED {
+	if status.GetStatus().GetState() != agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_DISCONNECTED {
 		t.Fatalf("expected disconnected, got %v", status.GetStatus().GetState())
 	}
 	if _, err := svc.DisconnectMCPServerOAuth(testCtx(), &agentsv1.DisconnectMCPServerOAuthRequest{ServerId: "oauth-http"}); err != nil {

@@ -2275,29 +2275,29 @@ export const InvocationStatusSchema: GenEnum<InvocationStatus> = /*@__PURE__*/
  */
 export enum MCPOAuthConnectionState {
   /**
-   * @generated from enum value: MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED = 0;
+   * @generated from enum value: MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED = 0;
    */
-  MCP_OAUTH_CONNECTION_STATE_UNSPECIFIED = 0,
+  MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED = 0,
 
   /**
-   * @generated from enum value: MCP_OAUTH_CONNECTION_STATE_DISCONNECTED = 1;
+   * @generated from enum value: MCPO_AUTH_CONNECTION_STATE_DISCONNECTED = 1;
    */
-  MCP_OAUTH_CONNECTION_STATE_DISCONNECTED = 1,
+  MCPO_AUTH_CONNECTION_STATE_DISCONNECTED = 1,
 
   /**
-   * @generated from enum value: MCP_OAUTH_CONNECTION_STATE_CONNECTED = 2;
+   * @generated from enum value: MCPO_AUTH_CONNECTION_STATE_CONNECTED = 2;
    */
-  MCP_OAUTH_CONNECTION_STATE_CONNECTED = 2,
+  MCPO_AUTH_CONNECTION_STATE_CONNECTED = 2,
 
   /**
-   * @generated from enum value: MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED = 3;
+   * @generated from enum value: MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED = 3;
    */
-  MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED = 3,
+  MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED = 3,
 
   /**
-   * @generated from enum value: MCP_OAUTH_CONNECTION_STATE_ERROR = 4;
+   * @generated from enum value: MCPO_AUTH_CONNECTION_STATE_ERROR = 4;
    */
-  MCP_OAUTH_CONNECTION_STATE_ERROR = 4,
+  MCPO_AUTH_CONNECTION_STATE_ERROR = 4,
 }
 
 /**

@@ -67,7 +67,7 @@ func TestServiceStartAndCompleteStoresEncryptedConnection(t *testing.T) {
 	if tokenRequests != 1 {
 		t.Fatalf("expected one token request, got %d", tokenRequests)
 	}
-	if conn.State != agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_CONNECTED {
+	if conn.State != agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_CONNECTED {
 		t.Fatalf("unexpected state %v", conn.State)
 	}
 	stored, err := store.Get(context.Background(), "ws-a", "srv")
@@ -221,7 +221,7 @@ func TestResolverInjectsBearerAndPersistsRotatedRefreshToken(t *testing.T) {
 	if err := store.Save(context.Background(), &repo.Connection{
 		WorkspaceID:    "ws",
 		ServerID:       "srv",
-		State:          agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_CONNECTED,
+		State:          agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_CONNECTED,
 		ClientID:       "client",
 		TokenURL:       authServer.URL,
 		EncryptedToken: encrypted,
@@ -286,7 +286,7 @@ func TestResolverMarksReauthorizationRequiredOnRefreshFailure(t *testing.T) {
 	if err := store.Save(context.Background(), &repo.Connection{
 		WorkspaceID:    "ws",
 		ServerID:       "srv",
-		State:          agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_CONNECTED,
+		State:          agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_CONNECTED,
 		ClientID:       "client",
 		TokenURL:       authServer.URL,
 		EncryptedToken: encrypted,
@@ -310,7 +310,7 @@ func TestResolverMarksReauthorizationRequiredOnRefreshFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get connection: %v", err)
 	}
-	if conn.State != agentsv1.MCPOAuthConnectionState_MCP_OAUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED {
+	if conn.State != agentsv1.MCPOAuthConnectionState_MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED {
 		t.Fatalf("expected reauth required, got %v", conn.State)
 	}
 }
