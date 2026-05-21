@@ -25,15 +25,22 @@ import (
 const (
 	forumAppName       = "forum"
 	forumStatusOpen    = "open"
+	forumStatusError   = "error"
+	forumStatusRunning = "processing"
 	forumAuthorUser    = "user"
 	forumAuthorAgent   = "agent"
+	forumAuthorSystem  = "system"
 	defaultRecentPosts = 20
 )
 
 type ForumServiceServer struct {
 	mu        sync.RWMutex
 	repo      forum.Repository
-	runnerSvc *runner.Service
+	runnerSvc forumAgentRunner
+}
+
+type forumAgentRunner interface {
+	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 }
 
 func NewForumServiceServer(repo forum.Repository) *ForumServiceServer {
@@ -58,7 +65,7 @@ func (s *ForumServiceServer) getRepo() forum.Repository {
 	return s.repo
 }
 
-func (s *ForumServiceServer) getRunner() *runner.Service {
+func (s *ForumServiceServer) getRunner() forumAgentRunner {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.runnerSvc
@@ -147,7 +154,7 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.Cre
 	return &agentsv1.CreateThreadResponse{Thread: thread, FirstPost: post}, nil
 }
 
-func (s *ForumServiceServer) invokeAgentPost(ctx context.Context, repo forum.Repository, runnerSvc *runner.Service, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentName, userID string) {
+func (s *ForumServiceServer) invokeAgentPost(ctx context.Context, repo forum.Repository, runnerSvc forumAgentRunner, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentName, userID string) {
 	logger := log.FromContext(ctx)
 	prompt := buildForumPrompt(thread, posts, userID, "")
 	invocationID := uuid.NewString()
@@ -286,6 +293,13 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agent
 	if err != nil {
 		return nil, mapForumErr(err)
 	}
+	now := timestamppb.New(time.Now().UTC())
+	userID := authorUserID(ctx)
+	message := strings.TrimSpace(req.GetMessage())
+	postBody := message
+	if postBody == "" {
+		postBody = fmt.Sprintf("@%s", agentName)
+	}
 	limit := req.GetRecentPostLimit()
 	if limit <= 0 {
 		limit = defaultRecentPosts
@@ -294,42 +308,114 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agent
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
-	prompt := buildForumPrompt(thread, posts, authorUserID(ctx), req.GetMessage())
+	userPost := &agentsv1.ForumPost{
+		Id:           uuid.NewString(),
+		ThreadId:     req.GetThreadId(),
+		Body:         postBody,
+		AuthorUserId: userID,
+		AuthorKind:   forumAuthorUser,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		WorkspaceId:  workspaceID,
+	}
 	invocationID := uuid.NewString()
 	if id, err := uuid.NewV7(); err == nil {
 		invocationID = id.String()
 	}
+	processing := forum.ProcessingState{AgentName: agentName, InvocationID: invocationID, StartedAt: now}
+	thread, err = repo.CreatePostAndMarkThreadProcessing(ctx, userPost, processing)
+	if err != nil {
+		return nil, mapForumErr(err)
+	}
+	posts = appendRecentForumPost(posts, userPost, limit)
+	logger := log.FromContext(ctx)
+	logger.Info("queued forum agent invocation", "thread_id", req.GetThreadId(), "agent", agentName, "workspace_id", workspaceID, "invocation_id", invocationID)
+	bgCtx := wsctx.WithID(context.Background(), workspaceID)
+	go s.invokeAgentForUserPost(bgCtx, repo, runnerSvc, thread, posts, agentName, userID, message, req.GetModelOverride(), invocationID)
+	return &agentsv1.InvokeAgentInThreadResponse{Post: userPost}, nil
+}
+
+func (s *ForumServiceServer) invokeAgentForUserPost(ctx context.Context, repo forum.Repository, runnerSvc forumAgentRunner, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentName, userID, message, modelOverride, invocationID string) {
+	logger := log.FromContext(ctx).With("thread_id", thread.GetId(), "agent", agentName, "invocation_id", invocationID)
+	prompt := buildForumPrompt(thread, posts, userID, message)
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        invocationID,
 		ChannelName: forumAppName,
-		SessionId:   req.GetThreadId(),
-		UserId:      "forum:" + workspaceID,
+		SessionId:   thread.GetId(),
+		UserId:      "forum:" + thread.GetWorkspaceId(),
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
 		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
-		WorkspaceId: workspaceID,
+		WorkspaceId: thread.GetWorkspaceId(),
 	}
-	logger := log.FromContext(ctx)
-	logger.Info("invoking forum agent", "thread_id", req.GetThreadId(), "agent", agentName, "workspace_id", workspaceID)
-	response, err := runnerSvc.Run(ctx, agentName, []*genai.Part{genai.NewPartFromText(prompt)}, req.GetModelOverride(), ctxInfo, nil, nil)
+	logger.Info("running queued forum agent invocation")
+	response, err := runnerSvc.Run(ctx, agentName, []*genai.Part{genai.NewPartFromText(prompt)}, modelOverride, ctxInfo, nil, nil)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		logger.Error("queued forum agent invocation failed", "error", err)
+		s.createAgentFailurePost(ctx, repo, thread, agentName, invocationID, err)
+		s.finishThreadProcessing(ctx, repo, thread.GetWorkspaceId(), thread.GetId(), forumStatusError, err.Error())
+		return
 	}
 	now := timestamppb.New(time.Now().UTC())
-	post := &agentsv1.ForumPost{
+	agentPost := &agentsv1.ForumPost{
 		Id:              uuid.NewString(),
-		ThreadId:        req.GetThreadId(),
+		ThreadId:        thread.GetId(),
 		Body:            response,
 		AuthorAgentName: agentName,
 		AuthorKind:      forumAuthorAgent,
 		InvocationId:    invocationID,
 		CreatedAt:       now,
 		UpdatedAt:       now,
-		WorkspaceId:     workspaceID,
+		WorkspaceId:     thread.GetWorkspaceId(),
+	}
+	if err := repo.CreatePost(ctx, agentPost); err != nil {
+		logger.Error("failed to save queued forum agent post", "error", err)
+		s.createAgentFailurePost(ctx, repo, thread, agentName, invocationID, err)
+		s.finishThreadProcessing(ctx, repo, thread.GetWorkspaceId(), thread.GetId(), forumStatusError, err.Error())
+		return
+	}
+	s.finishThreadProcessing(ctx, repo, thread.GetWorkspaceId(), thread.GetId(), forumStatusOpen, "")
+}
+
+func (s *ForumServiceServer) createAgentFailurePost(ctx context.Context, repo forum.Repository, thread *agentsv1.ForumThread, agentName, invocationID string, runErr error) {
+	now := timestamppb.New(time.Now().UTC())
+	post := &agentsv1.ForumPost{
+		Id:              uuid.NewString(),
+		ThreadId:        thread.GetId(),
+		Body:            fmt.Sprintf("%s failed to process this request: %s", agentName, runErr.Error()),
+		AuthorKind:      forumAuthorSystem,
+		InvocationId:    invocationID,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		WorkspaceId:     thread.GetWorkspaceId(),
+		AuthorAgentName: agentName,
 	}
 	if err := repo.CreatePost(ctx, post); err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		log.FromContext(ctx).Warn("failed to save forum agent failure post", "thread_id", thread.GetId(), "agent", agentName, "error", err)
 	}
-	return &agentsv1.InvokeAgentInThreadResponse{Post: post, Response: response}, nil
+}
+
+func (s *ForumServiceServer) finishThreadProcessing(ctx context.Context, repo forum.Repository, workspaceID, threadID, status, errText string) {
+	thread, err := repo.GetThread(ctx, workspaceID, threadID)
+	if err != nil {
+		log.FromContext(ctx).Warn("failed to load forum thread while finishing agent invocation", "thread_id", threadID, "error", err)
+		return
+	}
+	thread.Status = status
+	thread.UpdatedAt = timestamppb.New(time.Now().UTC())
+	if thread.Metadata == nil {
+		thread.Metadata = map[string]string{}
+	}
+	delete(thread.Metadata, "processing_agent")
+	delete(thread.Metadata, "processing_invocation_id")
+	delete(thread.Metadata, "processing_started_at")
+	if errText == "" {
+		delete(thread.Metadata, "processing_error")
+	} else {
+		thread.Metadata["processing_error"] = errText
+	}
+	if err := repo.UpdateThread(ctx, thread); err != nil {
+		log.FromContext(ctx).Warn("failed to update forum thread processing status", "thread_id", threadID, "error", err)
+	}
 }
 
 func (s *ForumServiceServer) requireRepoWorkspace(ctx context.Context) (forum.Repository, string, error) {
@@ -355,6 +441,8 @@ func mapForumErr(err error) error {
 	switch {
 	case errors.Is(err, forum.ErrThreadNotFound), errors.Is(err, forum.ErrPostNotFound):
 		return twirp.NotFoundError(err.Error())
+	case errors.Is(err, forum.ErrThreadProcessing):
+		return twirp.NewError(twirp.FailedPrecondition, err.Error())
 	default:
 		return twirp.InternalErrorWith(err)
 	}
@@ -369,6 +457,13 @@ func copyStringMap(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func appendRecentForumPost(posts []*agentsv1.ForumPost, post *agentsv1.ForumPost, limit int32) []*agentsv1.ForumPost {
+	if limit > 0 && int(limit) <= len(posts) {
+		posts = posts[len(posts)-int(limit)+1:]
+	}
+	return append(posts, post)
 }
 
 func buildForumPrompt(thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, currentUserID, message string) string {

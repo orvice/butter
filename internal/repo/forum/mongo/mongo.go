@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -21,12 +22,14 @@ const (
 )
 
 type Store struct {
+	db      *mongo.Database
 	threads *mongo.Collection
 	posts   *mongo.Collection
 }
 
 func New(db *mongo.Database) *Store {
 	return &Store{
+		db:      db,
 		threads: db.Collection(threadsCollection),
 		posts:   db.Collection(postsCollection),
 	}
@@ -63,6 +66,61 @@ func (s *Store) UpdateThread(ctx context.Context, thread *agentsv1.ForumThread) 
 		return forum.ErrThreadNotFound
 	}
 	return nil
+}
+
+func (s *Store) CreatePostAndMarkThreadProcessing(ctx context.Context, post *agentsv1.ForumPost, processing forum.ProcessingState) (*agentsv1.ForumThread, error) {
+	session, err := s.db.Client().StartSession()
+	if err != nil {
+		return nil, fmt.Errorf("start forum processing transaction: %w", err)
+	}
+	defer session.EndSession(ctx)
+
+	var thread *agentsv1.ForumThread
+	_, err = session.WithTransaction(ctx, func(txCtx context.Context) (any, error) {
+		update := bson.M{
+			"$set": bson.M{
+				"status":                            "processing",
+				"updated_at":                        processing.StartedAt,
+				"metadata.processing_agent":         processing.AgentName,
+				"metadata.processing_invocation_id": processing.InvocationID,
+				"metadata.processing_started_at":    processing.StartedAt.AsTime().Format(time.RFC3339),
+			},
+			"$unset": bson.M{"metadata.processing_error": ""},
+		}
+		res, err := s.threads.UpdateOne(txCtx,
+			bson.M{"_id": post.GetThreadId(), "workspace_id": post.GetWorkspaceId(), "status": bson.M{"$ne": "processing"}},
+			update,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("mark forum thread processing: %w", err)
+		}
+		if res.MatchedCount == 0 {
+			state, err := s.GetThread(txCtx, post.GetWorkspaceId(), post.GetThreadId())
+			if errors.Is(err, forum.ErrThreadNotFound) {
+				return nil, err
+			}
+			if err != nil {
+				return nil, err
+			}
+			if state.GetStatus() == "processing" {
+				return nil, forum.ErrThreadProcessing
+			}
+			return nil, forum.ErrThreadNotFound
+		}
+		if _, err := s.posts.InsertOne(txCtx, post); err != nil {
+			return nil, fmt.Errorf("insert forum processing post: %w", err)
+		}
+		var updated agentsv1.ForumThread
+		if err := s.threads.FindOne(txCtx, bson.M{"_id": post.GetThreadId(), "workspace_id": post.GetWorkspaceId()}).Decode(&updated); err != nil {
+			return nil, fmt.Errorf("get marked forum thread: %w", err)
+		}
+		thread = &updated
+		return nil, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return thread, nil
 }
 
 func (s *Store) GetThread(ctx context.Context, workspaceID, id string) (*agentsv1.ForumThread, error) {

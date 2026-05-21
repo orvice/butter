@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -42,6 +43,24 @@ func (s *Store) UpdateThread(_ context.Context, thread *agentsv1.ForumThread) er
 	}
 	s.threads[thread.GetId()] = proto.Clone(thread).(*agentsv1.ForumThread)
 	return nil
+}
+
+func (s *Store) CreatePostAndMarkThreadProcessing(_ context.Context, post *agentsv1.ForumPost, processing forum.ProcessingState) (*agentsv1.ForumThread, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	thread, ok := s.threads[post.GetThreadId()]
+	if !ok || thread.GetWorkspaceId() != post.GetWorkspaceId() {
+		return nil, forum.ErrThreadNotFound
+	}
+	if thread.GetStatus() == "processing" {
+		return nil, forum.ErrThreadProcessing
+	}
+
+	storedPost := proto.Clone(post).(*agentsv1.ForumPost)
+	s.posts[post.GetId()] = storedPost
+	markProcessing(thread, processing)
+	return proto.Clone(thread).(*agentsv1.ForumThread), nil
 }
 
 func (s *Store) GetThread(_ context.Context, workspaceID, id string) (*agentsv1.ForumThread, error) {
@@ -165,6 +184,18 @@ func (s *Store) DeleteThreadPosts(_ context.Context, workspaceID, threadID strin
 		}
 	}
 	return nil
+}
+
+func markProcessing(thread *agentsv1.ForumThread, processing forum.ProcessingState) {
+	thread.Status = "processing"
+	thread.UpdatedAt = processing.StartedAt
+	if thread.Metadata == nil {
+		thread.Metadata = map[string]string{}
+	}
+	thread.Metadata["processing_agent"] = processing.AgentName
+	thread.Metadata["processing_invocation_id"] = processing.InvocationID
+	thread.Metadata["processing_started_at"] = processing.StartedAt.AsTime().Format(time.RFC3339)
+	delete(thread.Metadata, "processing_error")
 }
 
 func paginate[T any](items []T, pageSize int32, pageToken string) ([]T, string) {
