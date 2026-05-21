@@ -329,16 +329,36 @@ POST /api/agents.v1.AuthService/UpdateProfile
 
 Updates the authenticated user's display name and avatar. Avatar URLs
 are typically produced by `POST /api/uploads/avatar` (see
-[storage.md](storage.md)); pass an empty `avatar_url` to clear it.
+[storage.md](storage.md)). When `avatar_url` is omitted the existing avatar is
+preserved; pass an explicit empty `avatar_url` to clear it.
 
 **Request:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `display_name` | string | Required, non-empty |
-| `avatar_url` | string | Optional. Empty string clears the stored avatar. |
+| `avatar_url` | optional string | Omit to preserve the stored avatar; empty string clears it. |
 
 **Response:** `{ "user": User }`
+
+#### ChangePassword
+
+```
+POST /api/agents.v1.AuthService/ChangePassword
+```
+
+Changes the authenticated user's own password. Requires a Bearer token.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `current_password` | string | Required current password |
+| `new_password` | string | Required replacement password |
+
+**Response:** `{ "user": User }`
+
+#### User Object
 
 | User | Type | Description |
 |-------|------|-------------|
@@ -630,9 +650,12 @@ Returns persisted invocation records, optionally filtered.
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `runtime` | AgentRuntime | Runtime behavior toggles |
 | `model` | string | Model identifier or alias (e.g. "flash", "gemini-2.5-pro") |
 | `instruction` | string | Agent behavior instruction |
 | `global_instruction` | string | Root-level instruction for entire agent tree |
+| `disallow_transfer_to_parent` | bool | Prevent transfer from this agent to its parent |
+| `disallow_transfer_to_peers` | bool | Prevent transfer from this agent to peer agents |
 | `mcp_servers` | MCPServer[] | Inline MCP server configs |
 | `mcp_server_ids` | string[] | References to shared MCP servers |
 | `remote_agent_ids` | string[] | References to shared remote agents |
@@ -642,6 +665,21 @@ Returns persisted invocation records, optionally filtered.
 | `input_schema_json` | string | Input JSON schema |
 | `output_schema_json` | string | Output JSON schema |
 | `max_iterations` | uint32 | Max loop iterations (LOOP type only) |
+
+#### AgentRuntime Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `streaming_mode` | enum | `STREAMING_MODE_NONE`, `STREAMING_MODE_SSE` |
+| `save_input_blobs_as_artifacts` | bool | Save input blobs as artifacts when the runner supports it |
+
+#### ContextGuardConfig Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `strategy` | enum | `CONTEXT_GUARD_STRATEGY_THRESHOLD`, `CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW` |
+| `max_turns` | int32 | Maximum conversation turns before compaction for sliding-window strategy |
+| `max_tokens` | int32 | Override context window size in tokens |
 
 #### AgentRuntimeStatus Object
 
@@ -825,6 +863,7 @@ Enumerates tools across configured MCP servers. STDIO transports are skipped and
 | `headers` | map\<string,string\> | HTTP headers |
 | `tool_filter` | string[] | Allowlist of exposed tools |
 | `metadata` | map\<string,string\> | Custom metadata |
+| `timeout_seconds` | int32 | Optional MCP client connection/probe timeout in seconds |
 | `workspace_id` | string | Owning workspace |
 
 ---
@@ -931,7 +970,7 @@ Endpoints:
 
 ### RemoteAgentService
 
-Manages remote agent configurations (A2A protocol).
+Manages remote agent configurations for A2A and daemon-backed agents.
 
 #### ListRemoteAgents
 
@@ -1163,6 +1202,57 @@ Enables the channel and reloads the channel manager. Idempotent.
 
 **Request:** `{ "name": "<channel-name>" }`
 **Response:** `{ "channel": AgentChannel }`
+
+#### AgentChannel Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Unique channel name within a workspace |
+| `agent_name` | string | Agent invoked by this channel |
+| `platform` | enum | `AGENT_CHANNEL_PLATFORM_TELEGRAM`, `AGENT_CHANNEL_PLATFORM_DISCORD` |
+| `enabled` | bool | Whether the channel poller should run |
+| `triggers` | AgentTrigger[] | Trigger rules |
+| `delivery` | AgentDelivery | Reply behavior |
+| `session` | AgentSessionBinding | Session key strategy |
+| `telegram` | TelegramChannelConfig | Telegram-specific config |
+| `discord` | DiscordChannelConfig | Discord-specific config |
+| `model` | string | Optional model override alias or name |
+| `metadata` | map\<string,string\> | Custom metadata |
+| `workspace_id` | string | Owning workspace |
+
+| AgentTrigger | Type | Description |
+|-------|------|-------------|
+| `type` | enum | `AGENT_TRIGGER_TYPE_MESSAGE`, `AGENT_TRIGGER_TYPE_COMMAND`, `AGENT_TRIGGER_TYPE_MENTION`, `AGENT_TRIGGER_TYPE_PRIVATE_CHAT` |
+| `commands` | string[] | Commands used by COMMAND triggers |
+| `prefixes` | string[] | Prefixes used by MESSAGE triggers |
+| `require_mention` | bool | Require explicit mention before invoking |
+
+| AgentDelivery | Type | Description |
+|-------|------|-------------|
+| `reply_mode` | enum | `AGENT_REPLY_MODE_REPLY`, `AGENT_REPLY_MODE_THREAD`, `AGENT_REPLY_MODE_NEW_MESSAGE` |
+| `streaming_enabled` | bool | Whether platform delivery may stream partial output |
+| `send_typing` | bool | Whether to send platform typing indicators |
+
+| AgentSessionBinding | Type | Description |
+|-------|------|-------------|
+| `scope` | enum | `AGENT_SESSION_SCOPE_USER`, `AGENT_SESSION_SCOPE_CHAT`, `AGENT_SESSION_SCOPE_THREAD`, `AGENT_SESSION_SCOPE_CUSTOM` |
+| `key_template` | string | Template used when `scope` is CUSTOM |
+
+| TelegramChannelConfig | Type | Description |
+|-------|------|-------------|
+| `bot_token` | string | Telegram bot token |
+| `webhook_url` | string | Webhook URL when webhook delivery is used |
+| `webhook_secret` | string | Webhook secret token |
+| `allowed_chat_ids` | int64[] | Allowed Telegram chat IDs |
+| `allowed_user_ids` | int64[] | Allowed Telegram user IDs |
+| `debug` | bool | Enable debug event delivery |
+
+| DiscordChannelConfig | Type | Description |
+|-------|------|-------------|
+| `bot_token` | string | Discord bot token |
+| `allowed_guild_ids` | string[] | Allowed Discord guild IDs |
+| `allowed_channel_ids` | string[] | Allowed Discord channel IDs |
+| `debug` | bool | Enable debug event delivery |
 
 ---
 
@@ -1724,6 +1814,40 @@ When `apiToken` is configured, the client must include gRPC metadata `authorizat
 |-------|------|-------------|
 | `task` | DaemonTask | Task assignment, including agent name, input, session/user ids, metadata, and capability |
 | `cancel` | CancelTask | Cancellation request by `task_id` |
+
+| DaemonInfo | Type | Description |
+|-------|------|-------------|
+| `daemon_id` | string | Daemon instance id |
+| `name` | string | Human-readable daemon name |
+| `capabilities` | string[] | Capability names this daemon can execute |
+| `labels` | map\<string,string\> | Routing labels |
+| `version` | string | Daemon client version |
+| `os` | string | OS identifier, e.g. `linux-amd64` |
+| `executors` | string[] | Executor names exposed by this daemon |
+
+| DaemonTask | Type | Description |
+|-------|------|-------------|
+| `task_id` | string | Server-assigned task id |
+| `agent_name` | string | Agent that triggered the task |
+| `input` | string | Input text |
+| `session_id` | string | Session id |
+| `user_id` | string | User id |
+| `metadata` | map\<string,string\> | Task metadata |
+| `capability` | string | Capability used to route the task |
+
+| DaemonTaskUpdate | Type | Description |
+|-------|------|-------------|
+| `task_id` | string | Task id being updated |
+| `status` | enum | `DAEMON_TASK_STATUS_ACCEPTED`, `DAEMON_TASK_STATUS_RUNNING`, `DAEMON_TASK_STATUS_COMPLETED`, `DAEMON_TASK_STATUS_FAILED`, `DAEMON_TASK_STATUS_CANCELLED` |
+| `output` | string | Partial or final output |
+| `error` | string | Error message when failed |
+| `timestamp` | timestamp | Client-side update timestamp |
+| `current_step` | string | Current progress label |
+| `progress` | int32 | Progress percentage from 0 to 100 |
+
+| CancelTask | Type | Description |
+|-------|------|-------------|
+| `task_id` | string | Task id to cancel |
 
 ---
 
