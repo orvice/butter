@@ -53,6 +53,36 @@ export async function twirpFetch<TReq, TRes>(
   return data as TRes;
 }
 
+export async function apiFetch<TRes>(path: string, init: RequestInit = {}): Promise<TRes> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...authHeaders(),
+      ...init.headers,
+    },
+  });
+
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.href = "/login";
+    throw new ApiError("unauthenticated", "Invalid or expired token");
+  }
+
+  if (res.status === 204) {
+    return undefined as TRes;
+  }
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    const message = data?.error || data?.msg || "Unknown error";
+    throw new ApiError(data?.code || "unknown", message);
+  }
+
+  return data as TRes;
+}
+
 export async function validateToken(token: string): Promise<boolean> {
   const url = `${BASE_URL}/api/agents.v1.AuthService/Me`;
   const res = await fetch(url, {
