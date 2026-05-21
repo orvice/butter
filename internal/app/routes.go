@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"net/http"
+	"net/url"
+	"strings"
 	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +13,7 @@ import (
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
+	"go.orx.me/apps/butter/internal/mcpoauth"
 	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
@@ -108,6 +112,12 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if h.dashboardSvcServer != nil {
 			h.dashboardSvcServer.SetInvocationRepo(result.InvocationRepo)
 		}
+	}
+	if result.MCPOAuthSvc != nil {
+		h.mcpSvcServer.SetOAuthService(result.MCPOAuthSvc)
+	}
+	if result.MCPAuthResolver != nil {
+		h.mcpSvcServer.SetMCPHTTPClientFactory(result.MCPAuthResolver)
 	}
 	if result.ForumRepo != nil {
 		h.forumRepo.Store(result.ForumRepo)
@@ -293,6 +303,26 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		a2aHandler.Register(r)
 		chatStreamHandler.Register(r)
 		uploadHandler.Register(r)
+		r.GET(mcpoauth.CallbackPath, func(c *gin.Context) {
+			status := "error"
+			serverID := ""
+			target := oauthCallbackFallback(cfg)
+			if oauthErr := strings.TrimSpace(c.Query("error")); oauthErr != "" {
+				c.Redirect(http.StatusFound, appendOAuthCallbackParams(target, status, serverID))
+				return
+			}
+			returnURL, oauthStatus, err := mcpSvcServer.CompleteMCPServerOAuthCallback(c.Request.Context(), c.Query("state"), c.Query("code"))
+			if returnURL != "" {
+				target = returnURL
+			}
+			if err == nil {
+				status = "success"
+				if oauthStatus != nil {
+					serverID = oauthStatus.GetServerId()
+				}
+			}
+			c.Redirect(http.StatusFound, appendOAuthCallbackParams(target, status, serverID))
+		})
 
 		// Mount Twirp handlers under /api prefix
 		r.Any(forumTwirp.PathPrefix()+"*path", gin.WrapH(forumTwirp))
@@ -312,4 +342,26 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	}
 
 	return router, handlers
+}
+
+func oauthCallbackFallback(cfg *config.AppConfig) string {
+	base := strings.TrimSpace(cfg.MCPOAuth.DashboardBaseURL)
+	if base == "" {
+		return "/mcp-servers"
+	}
+	return strings.TrimRight(base, "/") + "/mcp-servers"
+}
+
+func appendOAuthCallbackParams(raw, status, serverID string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	q := u.Query()
+	q.Set("mcp_oauth", status)
+	if serverID != "" {
+		q.Set("server_id", serverID)
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }

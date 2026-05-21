@@ -533,13 +533,17 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	MCPServerService_ListMCPServers_FullMethodName     = "/agents.v1.MCPServerService/ListMCPServers"
-	MCPServerService_GetMCPServer_FullMethodName       = "/agents.v1.MCPServerService/GetMCPServer"
-	MCPServerService_CreateMCPServer_FullMethodName    = "/agents.v1.MCPServerService/CreateMCPServer"
-	MCPServerService_UpdateMCPServer_FullMethodName    = "/agents.v1.MCPServerService/UpdateMCPServer"
-	MCPServerService_DeleteMCPServer_FullMethodName    = "/agents.v1.MCPServerService/DeleteMCPServer"
-	MCPServerService_GetMCPServerStatus_FullMethodName = "/agents.v1.MCPServerService/GetMCPServerStatus"
-	MCPServerService_ListMCPTools_FullMethodName       = "/agents.v1.MCPServerService/ListMCPTools"
+	MCPServerService_ListMCPServers_FullMethodName           = "/agents.v1.MCPServerService/ListMCPServers"
+	MCPServerService_GetMCPServer_FullMethodName             = "/agents.v1.MCPServerService/GetMCPServer"
+	MCPServerService_CreateMCPServer_FullMethodName          = "/agents.v1.MCPServerService/CreateMCPServer"
+	MCPServerService_UpdateMCPServer_FullMethodName          = "/agents.v1.MCPServerService/UpdateMCPServer"
+	MCPServerService_DeleteMCPServer_FullMethodName          = "/agents.v1.MCPServerService/DeleteMCPServer"
+	MCPServerService_GetMCPServerStatus_FullMethodName       = "/agents.v1.MCPServerService/GetMCPServerStatus"
+	MCPServerService_ListMCPTools_FullMethodName             = "/agents.v1.MCPServerService/ListMCPTools"
+	MCPServerService_StartMCPServerOAuth_FullMethodName      = "/agents.v1.MCPServerService/StartMCPServerOAuth"
+	MCPServerService_CompleteMCPServerOAuth_FullMethodName   = "/agents.v1.MCPServerService/CompleteMCPServerOAuth"
+	MCPServerService_GetMCPServerOAuthStatus_FullMethodName  = "/agents.v1.MCPServerService/GetMCPServerOAuthStatus"
+	MCPServerService_DisconnectMCPServerOAuth_FullMethodName = "/agents.v1.MCPServerService/DisconnectMCPServerOAuth"
 )
 
 // MCPServerServiceClient is the client API for MCPServerService service.
@@ -559,6 +563,15 @@ type MCPServerServiceClient interface {
 	// ListMCPTools enumerates tools exposed by the configured MCP servers.
 	// When server_id is empty, all servers are probed (skipping STDIO).
 	ListMCPTools(ctx context.Context, in *ListMCPToolsRequest, opts ...grpc.CallOption) (*ListMCPToolsResponse, error)
+	// StartMCPServerOAuth prepares a workspace-scoped OAuth2 authorization
+	// flow and returns the user-facing authorization URL.
+	StartMCPServerOAuth(ctx context.Context, in *StartMCPServerOAuthRequest, opts ...grpc.CallOption) (*StartMCPServerOAuthResponse, error)
+	// CompleteMCPServerOAuth completes an OAuth2 authorization code callback.
+	CompleteMCPServerOAuth(ctx context.Context, in *CompleteMCPServerOAuthRequest, opts ...grpc.CallOption) (*CompleteMCPServerOAuthResponse, error)
+	// GetMCPServerOAuthStatus returns non-secret OAuth connection state.
+	GetMCPServerOAuthStatus(ctx context.Context, in *GetMCPServerOAuthStatusRequest, opts ...grpc.CallOption) (*GetMCPServerOAuthStatusResponse, error)
+	// DisconnectMCPServerOAuth removes local OAuth2 credentials for a server.
+	DisconnectMCPServerOAuth(ctx context.Context, in *DisconnectMCPServerOAuthRequest, opts ...grpc.CallOption) (*DisconnectMCPServerOAuthResponse, error)
 }
 
 type mCPServerServiceClient struct {
@@ -639,6 +652,46 @@ func (c *mCPServerServiceClient) ListMCPTools(ctx context.Context, in *ListMCPTo
 	return out, nil
 }
 
+func (c *mCPServerServiceClient) StartMCPServerOAuth(ctx context.Context, in *StartMCPServerOAuthRequest, opts ...grpc.CallOption) (*StartMCPServerOAuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartMCPServerOAuthResponse)
+	err := c.cc.Invoke(ctx, MCPServerService_StartMCPServerOAuth_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mCPServerServiceClient) CompleteMCPServerOAuth(ctx context.Context, in *CompleteMCPServerOAuthRequest, opts ...grpc.CallOption) (*CompleteMCPServerOAuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteMCPServerOAuthResponse)
+	err := c.cc.Invoke(ctx, MCPServerService_CompleteMCPServerOAuth_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mCPServerServiceClient) GetMCPServerOAuthStatus(ctx context.Context, in *GetMCPServerOAuthStatusRequest, opts ...grpc.CallOption) (*GetMCPServerOAuthStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMCPServerOAuthStatusResponse)
+	err := c.cc.Invoke(ctx, MCPServerService_GetMCPServerOAuthStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mCPServerServiceClient) DisconnectMCPServerOAuth(ctx context.Context, in *DisconnectMCPServerOAuthRequest, opts ...grpc.CallOption) (*DisconnectMCPServerOAuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DisconnectMCPServerOAuthResponse)
+	err := c.cc.Invoke(ctx, MCPServerService_DisconnectMCPServerOAuth_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MCPServerServiceServer is the server API for MCPServerService service.
 // All implementations must embed UnimplementedMCPServerServiceServer
 // for forward compatibility.
@@ -656,6 +709,15 @@ type MCPServerServiceServer interface {
 	// ListMCPTools enumerates tools exposed by the configured MCP servers.
 	// When server_id is empty, all servers are probed (skipping STDIO).
 	ListMCPTools(context.Context, *ListMCPToolsRequest) (*ListMCPToolsResponse, error)
+	// StartMCPServerOAuth prepares a workspace-scoped OAuth2 authorization
+	// flow and returns the user-facing authorization URL.
+	StartMCPServerOAuth(context.Context, *StartMCPServerOAuthRequest) (*StartMCPServerOAuthResponse, error)
+	// CompleteMCPServerOAuth completes an OAuth2 authorization code callback.
+	CompleteMCPServerOAuth(context.Context, *CompleteMCPServerOAuthRequest) (*CompleteMCPServerOAuthResponse, error)
+	// GetMCPServerOAuthStatus returns non-secret OAuth connection state.
+	GetMCPServerOAuthStatus(context.Context, *GetMCPServerOAuthStatusRequest) (*GetMCPServerOAuthStatusResponse, error)
+	// DisconnectMCPServerOAuth removes local OAuth2 credentials for a server.
+	DisconnectMCPServerOAuth(context.Context, *DisconnectMCPServerOAuthRequest) (*DisconnectMCPServerOAuthResponse, error)
 	mustEmbedUnimplementedMCPServerServiceServer()
 }
 
@@ -686,6 +748,18 @@ func (UnimplementedMCPServerServiceServer) GetMCPServerStatus(context.Context, *
 }
 func (UnimplementedMCPServerServiceServer) ListMCPTools(context.Context, *ListMCPToolsRequest) (*ListMCPToolsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMCPTools not implemented")
+}
+func (UnimplementedMCPServerServiceServer) StartMCPServerOAuth(context.Context, *StartMCPServerOAuthRequest) (*StartMCPServerOAuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartMCPServerOAuth not implemented")
+}
+func (UnimplementedMCPServerServiceServer) CompleteMCPServerOAuth(context.Context, *CompleteMCPServerOAuthRequest) (*CompleteMCPServerOAuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteMCPServerOAuth not implemented")
+}
+func (UnimplementedMCPServerServiceServer) GetMCPServerOAuthStatus(context.Context, *GetMCPServerOAuthStatusRequest) (*GetMCPServerOAuthStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMCPServerOAuthStatus not implemented")
+}
+func (UnimplementedMCPServerServiceServer) DisconnectMCPServerOAuth(context.Context, *DisconnectMCPServerOAuthRequest) (*DisconnectMCPServerOAuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DisconnectMCPServerOAuth not implemented")
 }
 func (UnimplementedMCPServerServiceServer) mustEmbedUnimplementedMCPServerServiceServer() {}
 func (UnimplementedMCPServerServiceServer) testEmbeddedByValue()                          {}
@@ -834,6 +908,78 @@ func _MCPServerService_ListMCPTools_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MCPServerService_StartMCPServerOAuth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartMCPServerOAuthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MCPServerServiceServer).StartMCPServerOAuth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MCPServerService_StartMCPServerOAuth_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MCPServerServiceServer).StartMCPServerOAuth(ctx, req.(*StartMCPServerOAuthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MCPServerService_CompleteMCPServerOAuth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteMCPServerOAuthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MCPServerServiceServer).CompleteMCPServerOAuth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MCPServerService_CompleteMCPServerOAuth_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MCPServerServiceServer).CompleteMCPServerOAuth(ctx, req.(*CompleteMCPServerOAuthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MCPServerService_GetMCPServerOAuthStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMCPServerOAuthStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MCPServerServiceServer).GetMCPServerOAuthStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MCPServerService_GetMCPServerOAuthStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MCPServerServiceServer).GetMCPServerOAuthStatus(ctx, req.(*GetMCPServerOAuthStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MCPServerService_DisconnectMCPServerOAuth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisconnectMCPServerOAuthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MCPServerServiceServer).DisconnectMCPServerOAuth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MCPServerService_DisconnectMCPServerOAuth_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MCPServerServiceServer).DisconnectMCPServerOAuth(ctx, req.(*DisconnectMCPServerOAuthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MCPServerService_ServiceDesc is the grpc.ServiceDesc for MCPServerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -868,6 +1014,22 @@ var MCPServerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListMCPTools",
 			Handler:    _MCPServerService_ListMCPTools_Handler,
+		},
+		{
+			MethodName: "StartMCPServerOAuth",
+			Handler:    _MCPServerService_StartMCPServerOAuth_Handler,
+		},
+		{
+			MethodName: "CompleteMCPServerOAuth",
+			Handler:    _MCPServerService_CompleteMCPServerOAuth_Handler,
+		},
+		{
+			MethodName: "GetMCPServerOAuthStatus",
+			Handler:    _MCPServerService_GetMCPServerOAuthStatus_Handler,
+		},
+		{
+			MethodName: "DisconnectMCPServerOAuth",
+			Handler:    _MCPServerService_DisconnectMCPServerOAuth_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

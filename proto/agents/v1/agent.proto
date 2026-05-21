@@ -157,9 +157,66 @@ message MCPServer {
   // @gotags: json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"
   int32 timeout_seconds = 11;
 
+  // Authentication settings for remote MCP transports. If omitted, existing
+  // configs preserve their current behavior: static headers are sent when
+  // present, otherwise no auth is applied.
+  // @gotags: json:"auth,omitempty" yaml:"auth,omitempty"
+  MCPServerAuth auth = 12;
+
   // ID of the workspace this server config belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
+}
+
+message MCPServerAuth {
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
+  MCPServerAuthType type = 1;
+
+  // @gotags: json:"oauth2,omitempty" yaml:"oauth2,omitempty"
+  MCPServerOAuth2Config oauth2 = 2;
+}
+
+enum MCPServerAuthType {
+  MCP_SERVER_AUTH_TYPE_UNSPECIFIED = 0;
+  MCP_SERVER_AUTH_TYPE_NONE = 1;
+  MCP_SERVER_AUTH_TYPE_STATIC_HEADERS = 2;
+  MCP_SERVER_AUTH_TYPE_OAUTH2 = 3;
+}
+
+message MCPServerOAuth2Config {
+  // Optional pre-registered OAuth client ID. If omitted, the server may use
+  // dynamic registration when supported by the authorization server.
+  // @gotags: json:"client_id,omitempty" yaml:"client_id,omitempty"
+  string client_id = 1;
+
+  // Optional pre-registered OAuth client secret. Returned by the API only as
+  // part of the MCP server config today; token material is stored separately.
+  // @gotags: json:"client_secret,omitempty" yaml:"client_secret,omitempty"
+  string client_secret = 2;
+
+  // Requested OAuth scopes.
+  // @gotags: json:"scopes,omitempty" yaml:"scopes,omitempty"
+  repeated string scopes = 3;
+
+  // Optional authorization endpoint override. Discovery is used when empty.
+  // @gotags: json:"authorization_url,omitempty" yaml:"authorization_url,omitempty"
+  string authorization_url = 4;
+
+  // Optional token endpoint override. Discovery is used when empty.
+  // @gotags: json:"token_url,omitempty" yaml:"token_url,omitempty"
+  string token_url = 5;
+
+  // Optional protected resource metadata URL override.
+  // @gotags: json:"resource_metadata_url,omitempty" yaml:"resource_metadata_url,omitempty"
+  string resource_metadata_url = 6;
+
+  // Optional authorization server issuer/base URL override.
+  // @gotags: json:"authorization_server_url,omitempty" yaml:"authorization_server_url,omitempty"
+  string authorization_server_url = 7;
+
+  // Optional resource/audience value. Defaults to the MCP server URL.
+  // @gotags: json:"resource,omitempty" yaml:"resource,omitempty"
+  string resource = 8;
 }
 
 enum StreamingMode {
