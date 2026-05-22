@@ -33,6 +33,7 @@ import {
   Search,
   Bell,
   Database,
+  FolderOpen,
   RefreshCw,
   Plus,
   BookOpen,
@@ -61,6 +62,7 @@ type NavItem = {
 const PRIMARY_NAV: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Overview" },
   { to: "/agents", icon: Bot, label: "Agents", activePrefixes: ["/agents"] },
+  { to: "/agent-files", icon: FolderOpen, label: "Agent Files", activePrefixes: ["/agent-files"] },
   { to: "/chat", icon: MessageCircle, label: "Chat", activePrefixes: ["/chat"] },
   { to: "/forum", icon: MessagesSquare, label: "Forum", activePrefixes: ["/forum"] },
   {

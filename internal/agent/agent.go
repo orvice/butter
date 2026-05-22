@@ -29,6 +29,9 @@ type MCPHTTPClientFactory interface {
 	HTTPClientForMCP(ctx context.Context, srv *agentsv1.MCPServer) (*http.Client, error)
 }
 
+// ToolsetFactory creates built-in, per-agent toolsets such as agent_files.
+type ToolsetFactory func(ctx context.Context, pb *agentsv1.Agent) ([]tool.Toolset, error)
+
 // NewFromProto creates an ADK agent from an agentsv1.Agent proto config.
 // providers is the list of model provider mappings used to resolve LLM backends.
 // mcpRegistry is the shared MCP server config pool; agents reference entries by ID.
@@ -40,6 +43,12 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 // NewFromProtoWithMCPHTTPClientFactory creates an ADK agent with a custom MCP
 // HTTP client factory for static headers, OAuth2 bearer injection, and tests.
 func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory) (agent.Agent, error) {
+	return NewFromProtoWithToolsetFactory(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, nil)
+}
+
+// NewFromProtoWithToolsetFactory creates an ADK agent with custom MCP HTTP and
+// built-in toolset factories.
+func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
 	}
@@ -52,7 +61,7 @@ func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agen
 	// Recursively build sub-agents.
 	subAgents := make([]agent.Agent, 0, len(pb.GetSubAgents()))
 	for _, sub := range pb.GetSubAgents() {
-		sa, err := NewFromProtoWithMCPHTTPClientFactory(ctx, sub, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory)
+		sa, err := NewFromProtoWithToolsetFactory(ctx, sub, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory)
 		if err != nil {
 			return nil, fmt.Errorf("building sub-agent %q: %w", sub.GetName(), err)
 		}
@@ -68,7 +77,7 @@ func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agen
 
 	switch pb.GetType() {
 	case agentsv1.AgentType_AGENT_TYPE_LLM, agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED:
-		return newLLMAgent(ctx, pb, subAgents, providers, httpFactory)
+		return newLLMAgent(ctx, pb, subAgents, providers, httpFactory, toolsetFactory)
 	case agentsv1.AgentType_AGENT_TYPE_LOOP:
 		return newLoopAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL:
@@ -80,7 +89,7 @@ func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agen
 	}
 }
 
-func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory) (agent.Agent, error) {
+func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
 	logger := log.FromContext(ctx)
 	acfg := pb.GetConfig()
 
@@ -113,6 +122,13 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agen
 	toolsets, err := buildMCPToolsets(ctx, acfg.GetMcpServers(), httpFactory)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: building MCP toolsets: %w", pb.GetName(), err)
+	}
+	if toolsetFactory != nil {
+		extraToolsets, err := toolsetFactory(ctx, pb)
+		if err != nil {
+			return nil, fmt.Errorf("agent %q: building built-in toolsets: %w", pb.GetName(), err)
+		}
+		toolsets = append(toolsets, extraToolsets...)
 	}
 
 	cfg := llmagent.Config{

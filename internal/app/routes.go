@@ -35,6 +35,7 @@ type Handlers struct {
 	chatStreamHandler      *httpHandler.ChatStreamHandler
 	forumSvcServer         *application.ForumServiceServer
 	agentSvcServer         *application.AgentServiceServer
+	agentFileSvcServer     *application.AgentFileServiceServer
 	mcpSvcServer           *application.MCPServerServiceServer
 	modelProviderSvcServer *application.ModelProviderServiceServer
 	notifyGroupSvcServer   *application.NotifyGroupServiceServer
@@ -121,6 +122,10 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.MCPOAuthSvc != nil {
 		h.mcpSvcServer.SetOAuthService(result.MCPOAuthSvc)
+	}
+	if result.AgentFileRepo != nil && h.agentFileSvcServer != nil {
+		h.agentFileSvcServer.SetRepo(result.AgentFileRepo)
+		h.agentFileSvcServer.SetMaxFileBytes(result.AgentFileMaxBytes)
 	}
 	if result.MCPAuthResolver != nil {
 		h.mcpSvcServer.SetMCPHTTPClientFactory(result.MCPAuthResolver)
@@ -246,6 +251,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 
 	pathPrefix := twirp.WithServerPathPrefix("/api")
 	agentSvcServer := application.NewAgentServiceServer(configStore)
+	agentFileSvcServer := application.NewAgentFileServiceServer(nil)
 	mcpSvcServer := application.NewMCPServerServiceServer(configStore)
 	modelProviderSvcServer := application.NewModelProviderServiceServer(configStore)
 	notifyGroupSvcServer := application.NewNotifyGroupServiceServer(configStore)
@@ -254,6 +260,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	forumSvcServer := application.NewForumServiceServer(nil)
 	forumTwirp := agentsv1.NewForumServiceServer(forumSvcServer, pathPrefix)
 	agentTwirp := agentsv1.NewAgentServiceServer(agentSvcServer, pathPrefix)
+	agentFileTwirp := agentsv1.NewAgentFileServiceServer(agentFileSvcServer, pathPrefix)
 	mcpTwirp := agentsv1.NewMCPServerServiceServer(mcpSvcServer, pathPrefix)
 	modelProviderTwirp := agentsv1.NewModelProviderServiceServer(modelProviderSvcServer, pathPrefix)
 	notifyGroupTwirp := agentsv1.NewNotifyGroupServiceServer(notifyGroupSvcServer, pathPrefix)
@@ -280,6 +287,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		chatStreamHandler:      chatStreamHandler,
 		forumSvcServer:         forumSvcServer,
 		agentSvcServer:         agentSvcServer,
+		agentFileSvcServer:     agentFileSvcServer,
 		mcpSvcServer:           mcpSvcServer,
 		modelProviderSvcServer: modelProviderSvcServer,
 		notifyGroupSvcServer:   notifyGroupSvcServer,
@@ -335,6 +343,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		// Mount Twirp handlers under /api prefix
 		r.Any(forumTwirp.PathPrefix()+"*path", gin.WrapH(forumTwirp))
 		r.Any(agentTwirp.PathPrefix()+"*path", gin.WrapH(agentTwirp))
+		r.Any(agentFileTwirp.PathPrefix()+"*path", gin.WrapH(agentFileTwirp))
 		r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
 		r.Any(modelProviderTwirp.PathPrefix()+"*path", gin.WrapH(modelProviderTwirp))
 		r.Any(notifyGroupTwirp.PathPrefix()+"*path", gin.WrapH(notifyGroupTwirp))

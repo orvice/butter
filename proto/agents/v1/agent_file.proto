@@ -1,0 +1,175 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// AgentFileSpace is a workspace-owned collection of files that agents can mount.
+message AgentFileSpace {
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 2 [(validate.rules).string.min_len = 1];
+  // @gotags: json:"description,omitempty" yaml:"description,omitempty" bson:"description,omitempty"
+  string description = 3;
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty" bson:"metadata,omitempty"
+  map<string, string> metadata = 4;
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 5;
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 6;
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// AgentFile stores metadata for a text file inside an AgentFileSpace. File
+// content is stored separately by the repository backend.
+message AgentFile {
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+  // @gotags: json:"space_id,omitempty" yaml:"space_id,omitempty" bson:"space_id,omitempty"
+  string space_id = 2;
+  // Absolute path within the file space, e.g. "/notes/todo.md".
+  // @gotags: json:"path,omitempty" yaml:"path,omitempty" bson:"path,omitempty"
+  string path = 3 [(validate.rules).string.min_len = 1];
+  // @gotags: json:"content_type,omitempty" yaml:"content_type,omitempty" bson:"content_type,omitempty"
+  string content_type = 4;
+  // @gotags: json:"size_bytes,omitempty" yaml:"size_bytes,omitempty" bson:"size_bytes,omitempty"
+  int64 size_bytes = 5;
+  // Monotonic content version. Each write creates the next version.
+  // @gotags: json:"version,omitempty" yaml:"version,omitempty" bson:"version,omitempty"
+  int64 version = 6;
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty" bson:"metadata,omitempty"
+  map<string, string> metadata = 7;
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 8;
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 9;
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+enum AgentFileMountPermission {
+  AGENT_FILE_MOUNT_PERMISSION_UNSPECIFIED = 0;
+  AGENT_FILE_MOUNT_PERMISSION_READ = 1;
+  AGENT_FILE_MOUNT_PERMISSION_READ_WRITE = 2;
+  AGENT_FILE_MOUNT_PERMISSION_READ_WRITE_DELETE = 3;
+}
+
+// AgentFileMount grants an agent access to a file space under a virtual path.
+message AgentFileMount {
+  // @gotags: json:"space_id,omitempty" yaml:"space_id,omitempty"
+  string space_id = 1 [(validate.rules).string.min_len = 1];
+  // Virtual root exposed to the agent, e.g. "/docs".
+  // @gotags: json:"mount_path,omitempty" yaml:"mount_path,omitempty"
+  string mount_path = 2;
+  // @gotags: json:"permission,omitempty" yaml:"permission,omitempty"
+  AgentFileMountPermission permission = 3;
+}
+
+service AgentFileService {
+  rpc ListAgentFileSpaces(ListAgentFileSpacesRequest) returns (ListAgentFileSpacesResponse);
+  rpc GetAgentFileSpace(GetAgentFileSpaceRequest) returns (GetAgentFileSpaceResponse);
+  rpc CreateAgentFileSpace(CreateAgentFileSpaceRequest) returns (CreateAgentFileSpaceResponse);
+  rpc UpdateAgentFileSpace(UpdateAgentFileSpaceRequest) returns (UpdateAgentFileSpaceResponse);
+  rpc DeleteAgentFileSpace(DeleteAgentFileSpaceRequest) returns (DeleteAgentFileSpaceResponse);
+
+  rpc ListAgentFiles(ListAgentFilesRequest) returns (ListAgentFilesResponse);
+  rpc GetAgentFile(GetAgentFileRequest) returns (GetAgentFileResponse);
+  rpc WriteAgentFile(WriteAgentFileRequest) returns (WriteAgentFileResponse);
+  rpc DeleteAgentFile(DeleteAgentFileRequest) returns (DeleteAgentFileResponse);
+  rpc SearchAgentFiles(SearchAgentFilesRequest) returns (SearchAgentFilesResponse);
+}
+
+message ListAgentFileSpacesRequest {}
+
+message ListAgentFileSpacesResponse {
+  repeated AgentFileSpace spaces = 1;
+}
+
+message GetAgentFileSpaceRequest {
+  string id = 1;
+}
+
+message GetAgentFileSpaceResponse {
+  AgentFileSpace space = 1;
+}
+
+message CreateAgentFileSpaceRequest {
+  AgentFileSpace space = 1;
+}
+
+message CreateAgentFileSpaceResponse {
+  AgentFileSpace space = 1;
+}
+
+message UpdateAgentFileSpaceRequest {
+  AgentFileSpace space = 1;
+}
+
+message UpdateAgentFileSpaceResponse {
+  AgentFileSpace space = 1;
+}
+
+message DeleteAgentFileSpaceRequest {
+  string id = 1;
+}
+
+message DeleteAgentFileSpaceResponse {}
+
+message ListAgentFilesRequest {
+  string space_id = 1;
+  string path_prefix = 2;
+}
+
+message ListAgentFilesResponse {
+  repeated AgentFile files = 1;
+}
+
+message GetAgentFileRequest {
+  string space_id = 1;
+  string path = 2;
+  int64 version = 3;
+}
+
+message GetAgentFileResponse {
+  AgentFile file = 1;
+  string content = 2;
+}
+
+message WriteAgentFileRequest {
+  string space_id = 1;
+  string path = 2;
+  string content = 3;
+  string content_type = 4;
+  map<string, string> metadata = 5;
+}
+
+message WriteAgentFileResponse {
+  AgentFile file = 1;
+}
+
+message DeleteAgentFileRequest {
+  string space_id = 1;
+  string path = 2;
+}
+
+message DeleteAgentFileResponse {}
+
+message SearchAgentFilesRequest {
+  string space_id = 1;
+  string query = 2;
+  int32 limit = 3;
+}
+
+message SearchAgentFilesResponse {
+  repeated AgentFileSearchResult results = 1;
+}
+
+message AgentFileSearchResult {
+  AgentFile file = 1;
+  repeated string snippets = 2;
+}

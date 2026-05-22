@@ -35,8 +35,15 @@ import { AGENT_TYPE_LABELS } from "@/lib/constants";
 import { useTheme } from "next-themes";
 import { AgentModelSelect } from "./model-select";
 import { AgentIconUpload } from "./icon-upload";
+import { AgentFileMountsField } from "./file-mounts-field";
 import { agentIconUrl } from "./icon-utils";
-import type { Agent, AgentType } from "@/types/api";
+import type { Agent, AgentFileMount, AgentFileMountPermission, AgentType } from "@/types/api";
+
+const MOUNT_PERMISSIONS = [
+  "AGENT_FILE_MOUNT_PERMISSION_READ",
+  "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE",
+  "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE_DELETE",
+] as const satisfies readonly AgentFileMountPermission[];
 
 const agentSchema = z.object({
   name: z.string().min(1),
@@ -46,10 +53,29 @@ const agentSchema = z.object({
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
+  file_mounts: z.array(z.object({
+    space_id: z.string().min(1),
+    mount_path: z.string().optional(),
+    permission: z.enum(MOUNT_PERMISSIONS).optional(),
+  })).optional(),
   icon_url: z.string().optional(),
 });
 
 type AgentFormValues = z.infer<typeof agentSchema>;
+
+function toAgentFileMountFormValues(mounts?: AgentFileMount[]): AgentFormValues["file_mounts"] {
+  return (mounts ?? [])
+    .filter((mount) => mount.space_id)
+    .map((mount) => ({
+      space_id: mount.space_id,
+      mount_path: mount.mount_path,
+      permission:
+        mount.permission === "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE" ||
+        mount.permission === "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE_DELETE"
+          ? mount.permission
+          : "AGENT_FILE_MOUNT_PERMISSION_READ",
+    }));
+}
 
 function mergeAgentIconMetadata(metadata: Agent["metadata"] | undefined, iconUrl: string | undefined) {
   const next = { ...(metadata ?? {}) };
@@ -73,7 +99,17 @@ export default function AgentEditPage() {
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
-    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "", mcp_server_ids: [], icon_url: "" },
+    defaultValues: {
+      name: "",
+      description: "",
+      type: "AGENT_TYPE_LLM",
+      enable_a2a: false,
+      model: "",
+      instruction: "",
+      mcp_server_ids: [],
+      file_mounts: [],
+      icon_url: "",
+    },
   });
   const agentName = useWatch({ control: form.control, name: "name" });
   const iconUrl = useWatch({ control: form.control, name: "icon_url" });
@@ -89,6 +125,7 @@ export default function AgentEditPage() {
         model: a.config?.model ?? "",
         instruction: a.config?.instruction ?? "",
         mcp_server_ids: a.config?.mcp_server_ids ?? [],
+        file_mounts: toAgentFileMountFormValues(a.config?.file_mounts),
         icon_url: agentIconUrl(a),
       });
     }
@@ -107,6 +144,7 @@ export default function AgentEditPage() {
         model: values.model,
         instruction: values.instruction,
         mcp_server_ids: values.mcp_server_ids ?? [],
+        file_mounts: values.file_mounts ?? [],
       },
     };
     submitUpdate(agent);
@@ -138,7 +176,13 @@ export default function AgentEditPage() {
         type: values.type as AgentType,
         enable_a2a: values.enable_a2a,
         metadata: mergeAgentIconMetadata(data?.agent?.metadata, values.icon_url),
-        config: { ...data?.agent?.config, model: values.model, instruction: values.instruction, mcp_server_ids: values.mcp_server_ids ?? [] },
+        config: {
+          ...data?.agent?.config,
+          model: values.model,
+          instruction: values.instruction,
+          mcp_server_ids: values.mcp_server_ids ?? [],
+          file_mounts: values.file_mounts ?? [],
+        },
       };
       setJsonValue(JSON.stringify(agent, null, 2));
     } else if (tab === "form") {
@@ -152,6 +196,7 @@ export default function AgentEditPage() {
           model: agent.config?.model ?? "",
           instruction: agent.config?.instruction ?? "",
           mcp_server_ids: agent.config?.mcp_server_ids ?? [],
+          file_mounts: toAgentFileMountFormValues(agent.config?.file_mounts),
           icon_url: agentIconUrl(agent),
         });
       } catch { /* keep current form values if JSON is invalid */ }
@@ -302,6 +347,20 @@ export default function AgentEditPage() {
                       </FormItem>
                     );
                   }} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>Agent Files</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Mount workspace file spaces into this agent's built-in agent_files tools.
+                  </p>
+                  <FormField control={form.control} name="file_mounts" render={({ field }) => (
+                    <FormItem>
+                      <AgentFileMountsField value={field.value} onChange={field.onChange} />
+                    </FormItem>
+                  )} />
                 </CardContent>
               </Card>
 

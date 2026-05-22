@@ -1060,7 +1060,7 @@ func (s *aPITokenServiceServer) serveRevokeAPITokenProtobuf(ctx context.Context,
 }
 
 func (s *aPITokenServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor2, 0
+	return twirpFileDescriptor3, 0
 }
 
 func (s *aPITokenServiceServer) ProtocGenTwirpVersion() string {
@@ -1074,7 +1074,7 @@ func (s *aPITokenServiceServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "agents.v1", "APITokenService")
 }
 
-var twirpFileDescriptor2 = []byte{
+var twirpFileDescriptor3 = []byte{
 	// 477 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x53, 0xcf, 0x6f, 0xd3, 0x30,
 	0x18, 0x55, 0xb2, 0xae, 0x5b, 0xbf, 0x8e, 0x81, 0x0c, 0xed, 0x42, 0x38, 0x2c, 0xcb, 0xa9, 0x08,
