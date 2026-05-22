@@ -1,11 +1,13 @@
 # Object Storage, Static Assets & Artifacts
 
 Butter can persist user-uploaded public assets (avatars, static files) and
-private ADK artifacts in S3-compatible object stores. Storage is delegated to the
+private ADK artifacts in S3-compatible object stores. It can also persist
+workspace-scoped Agent Files: text file spaces that agents mount through the
+built-in `agent_files` toolset. Storage is delegated to the
 [`butterfly.orx.me/core/store/s3`](https://butterfly.orz.ee/stores/s3.html)
-helper bundled with the Butterfly core framework, so any service that the
-core supports (AWS S3, MinIO, Cloudflare R2, Backblaze B2, etc.) works out
-of the box.
+helper bundled with the Butterfly core framework, so any service that the core
+supports (AWS S3, MinIO, Cloudflare R2, Backblaze B2, etc.) works out of the
+box.
 
 ## 1. Configure the S3 client
 
@@ -99,7 +101,46 @@ through a CDN URL by Butter and may contain user-specific or model-generated
 content. If `artifact.s3_bucket` is empty or the named S3 client is not
 registered, Butter runs without artifact persistence.
 
-## 4. Upload endpoints
+## 4. Enable Agent Files
+
+Agent Files are workspace-owned text file spaces. Agents opt in by mounting
+specific spaces in `Agent.config.file_mounts`; the runtime then exposes
+`agent_files_*` tools for listing, reading, writing, appending, deleting, and
+searching only those mounted paths.
+
+```yaml
+agent_files:
+  s3_bucket: "agent-files"        # must match a store.s3.<key>
+  key_prefix: "agent-files"       # optional object key prefix
+  max_file_bytes: 262144          # 256 KiB default
+```
+
+| Field | Description |
+|-------|-------------|
+| `s3_bucket` | The `store.s3.<name>` entry to use for file contents. Empty falls back to in-memory content storage. |
+| `key_prefix` | Prepended to every Agent Files object key. |
+| `max_file_bytes` | Maximum UTF-8 text size accepted by write/append tools. Default 256 KiB. |
+
+Metadata for file spaces and files is stored in MongoDB when
+`storage_backend: mongo`; file contents are versioned in S3. In memory mode,
+both metadata and contents are process-local.
+
+Agent mount example:
+
+```yaml
+agents:
+  - name: research-agent
+    config:
+      file_mounts:
+        - space_id: product-docs
+          mount_path: /docs
+          permission: AGENT_FILE_MOUNT_PERMISSION_READ
+        - space_id: research-notes
+          mount_path: /notes
+          permission: AGENT_FILE_MOUNT_PERMISSION_READ_WRITE
+```
+
+## 5. Upload endpoints
 
 All endpoints sit behind the standard auth middleware (dashboard Bearer session,
 root token, or workspace-bound API token; user/root-token callers should include
@@ -150,7 +191,7 @@ General-purpose static asset upload. Multipart form:
 Returns the same shape as `/avatar`. Asset is placed at
 `<key_prefix>/static/<name>`.
 
-## 5. Storing avatar URLs
+## 6. Storing avatar URLs
 
 - **User avatars** are persisted on `User.avatar_url`. After a successful
   `POST /api/uploads/avatar` the dashboard automatically calls
@@ -164,7 +205,7 @@ Returns the same shape as `/avatar`. Asset is placed at
 Keys include a timestamp + random suffix, so each upload produces a new
 cacheable URL — overwriting an old avatar is safe.
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Symptom | Likely cause |
 |---------|--------------|
@@ -172,5 +213,7 @@ cacheable URL — overwriting an old avatar is safe.
 | `500 ... s3 client "xxx" is not configured` | The named client failed to initialize at startup — check core logs. |
 | `artifact service disabled (artifact.s3_bucket not set)` | Artifact persistence is intentionally disabled. |
 | `artifact service disabled: s3 client not registered` | `artifact.s3_bucket` does not match an initialized `store.s3.<key>`. |
+| `agent files content store using memory` | `agent_files.s3_bucket` is empty; file contents will not survive process restart. |
+| `agent files content store falling back to memory` | `agent_files.s3_bucket` does not match an initialized `store.s3.<key>`. |
 | `413 payload exceeds max size` | Body larger than `static.max_upload_bytes`. Bump the limit or shrink the asset. |
 | `415 unsupported content type` | Avatar endpoint only accepts PNG / JPEG / GIF / WebP. |

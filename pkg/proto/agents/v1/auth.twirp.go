@@ -2744,7 +2744,7 @@ func (s *authServiceServer) serveChangePasswordProtobuf(ctx context.Context, res
 }
 
 func (s *authServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor4, 0
+	return twirpFileDescriptor5, 0
 }
 
 func (s *authServiceServer) ProtocGenTwirpVersion() string {
@@ -2758,7 +2758,7 @@ func (s *authServiceServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "agents.v1", "AuthService")
 }
 
-var twirpFileDescriptor4 = []byte{
+var twirpFileDescriptor5 = []byte{
 	// 844 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0x51, 0x8f, 0xda, 0x46,
 	0x10, 0xae, 0x39, 0xb8, 0xc0, 0x38, 0x77, 0x90, 0x15, 0x17, 0x7c, 0x6e, 0xa3, 0x70, 0xbe, 0x46,

@@ -348,6 +348,40 @@ func (m *AgentConfig) validate(all bool) error {
 		}
 	}
 
+	for idx, item := range m.GetFileMounts() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  fmt.Sprintf("FileMounts[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, AgentConfigValidationError{
+						field:  fmt.Sprintf("FileMounts[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return AgentConfigValidationError{
+					field:  fmt.Sprintf("FileMounts[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
 	// no validation rules for Model
 
 	// no validation rules for Instruction

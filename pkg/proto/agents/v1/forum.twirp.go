@@ -2457,7 +2457,7 @@ func (s *forumServiceServer) serveInvokeAgentInThreadProtobuf(ctx context.Contex
 }
 
 func (s *forumServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor7, 0
+	return twirpFileDescriptor8, 0
 }
 
 func (s *forumServiceServer) ProtocGenTwirpVersion() string {
@@ -2471,7 +2471,7 @@ func (s *forumServiceServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "agents.v1", "ForumService")
 }
 
-var twirpFileDescriptor7 = []byte{
+var twirpFileDescriptor8 = []byte{
 	// 1131 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xcb, 0x72, 0xe3, 0x44,
 	0x14, 0x2d, 0xf9, 0x15, 0xeb, 0xda, 0x49, 0x26, 0x1d, 0x13, 0x54, 0xca, 0x64, 0x12, 0xc4, 0x24,

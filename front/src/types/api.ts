@@ -127,6 +127,12 @@ export type ContextGuardStrategy =
   | "CONTEXT_GUARD_STRATEGY_THRESHOLD"
   | "CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW";
 
+export type AgentFileMountPermission =
+  | "AGENT_FILE_MOUNT_PERMISSION_UNSPECIFIED"
+  | "AGENT_FILE_MOUNT_PERMISSION_READ"
+  | "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE"
+  | "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE_DELETE";
+
 // --- Models ---
 
 export interface ContextGuardConfig {
@@ -146,6 +152,7 @@ export interface AgentConfig {
   context_guard?: ContextGuardConfig;
   mcp_server_ids?: string[];
   remote_agent_ids?: string[];
+  file_mounts?: AgentFileMount[];
   model?: string;
   instruction?: string;
   global_instruction?: string;
@@ -167,6 +174,20 @@ export interface Agent {
   config?: AgentConfig;
   type?: AgentType;
   enable_a2a?: boolean;
+}
+
+export interface AgentFileSpace {
+  id?: string;
+  name: string;
+  description?: string;
+  metadata?: Record<string, string>;
+  workspace_id?: string;
+}
+
+export interface AgentFileMount {
+  space_id: string;
+  mount_path?: string;
+  permission?: AgentFileMountPermission;
 }
 
 export interface MCPServer {

@@ -2748,7 +2748,7 @@ func (s *workspaceServiceServer) serveRemoveWorkspaceMemberProtobuf(ctx context.
 }
 
 func (s *workspaceServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor3, 0
+	return twirpFileDescriptor4, 0
 }
 
 func (s *workspaceServiceServer) ProtocGenTwirpVersion() string {
@@ -2762,7 +2762,7 @@ func (s *workspaceServiceServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "agents.v1", "WorkspaceService")
 }
 
-var twirpFileDescriptor3 = []byte{
+var twirpFileDescriptor4 = []byte{
 	// 738 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0xcf, 0x6e, 0xd3, 0x4e,
 	0x10, 0x96, 0xd3, 0xfc, 0x52, 0x65, 0x52, 0xb5, 0xd5, 0xfe, 0xda, 0x26, 0x75, 0x5b, 0x9a, 0xae,

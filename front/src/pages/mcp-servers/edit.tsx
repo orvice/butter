@@ -74,7 +74,6 @@ export default function MCPServerEditPage() {
     },
   });
 
-  const transport = useWatch({ control: form.control, name: "transport" });
   const authType = useWatch({ control: form.control, name: "auth_type" }) ?? "MCP_SERVER_AUTH_TYPE_NONE";
   const registrationMode = useWatch({ control: form.control, name: "oauth_registration_mode" }) ?? "preconfigured";
   const initialHeaders = useMemo(

@@ -72,6 +72,14 @@ artifact:
   s3_bucket: ""              # e.g. "artifacts" — must match a store.s3 key
   key_prefix: "artifacts"    # object key prefix (optional)
 
+# Agent Files. Workspace-owned text file spaces that agents can mount through
+# config.file_mounts. Contents use S3 when configured; otherwise they are kept
+# in memory for local development.
+agent_files:
+  s3_bucket: ""              # e.g. "agent-files" — must match a store.s3 key
+  key_prefix: "agent-files"
+  max_file_bytes: 262144     # 256 KiB; 0 = use default
+
 # OAuth2-protected MCP servers. Required only when you connect MCP servers
 # with auth.type = MCP_SERVER_AUTH_TYPE_OAUTH2. Generate a unique 32-byte
 # encryption key for production; the value below is a development placeholder.
@@ -163,6 +171,11 @@ agents:
       include_contents: 1  # LLM_INCLUDE_CONTENTS_DEFAULT
       # Reference shared MCP servers by ID:
       # mcp_server_ids: ["search-api", "sse-tools"]
+      # Mount Agent File spaces by ID:
+      # file_mounts:
+      #   - space_id: "product-docs"
+      #     mount_path: "/docs"
+      #     permission: 1  # AGENT_FILE_MOUNT_PERMISSION_READ
       # Or define inline MCP servers:
       # mcp_servers:
       #   - name: "My MCP Server"

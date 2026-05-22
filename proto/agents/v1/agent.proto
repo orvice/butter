@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package agents.v1;
 
+import "agents/v1/agent_file.proto";
 import "validate/validate.proto";
 
 option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
@@ -70,6 +71,10 @@ message AgentConfig {
   // IDs referencing top-level shared remote agent configs.
   // @gotags: json:"remote_agent_ids,omitempty" yaml:"remote_agent_ids,omitempty"
   repeated string remote_agent_ids = 5;
+
+  // File spaces mounted into this agent's built-in agent_files toolset.
+  // @gotags: json:"file_mounts,omitempty" yaml:"file_mounts,omitempty"
+  repeated AgentFileMount file_mounts = 6;
 
   // --- LLM agent fields (used when type is LLM or UNSPECIFIED) ---
 

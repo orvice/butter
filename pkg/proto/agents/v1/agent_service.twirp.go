@@ -3307,7 +3307,7 @@ func (s *agentServiceServer) serveCancelAgentInvocationProtobuf(ctx context.Cont
 }
 
 func (s *agentServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 0
+	return twirpFileDescriptor2, 0
 }
 
 func (s *agentServiceServer) ProtocGenTwirpVersion() string {
@@ -6601,7 +6601,7 @@ func (s *mCPServerServiceServer) serveDisconnectMCPServerOAuthProtobuf(ctx conte
 }
 
 func (s *mCPServerServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 1
+	return twirpFileDescriptor2, 1
 }
 
 func (s *mCPServerServiceServer) ProtocGenTwirpVersion() string {
@@ -8212,7 +8212,7 @@ func (s *modelProviderServiceServer) serveDeleteModelProviderProtobuf(ctx contex
 }
 
 func (s *modelProviderServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 2
+	return twirpFileDescriptor2, 2
 }
 
 func (s *modelProviderServiceServer) ProtocGenTwirpVersion() string {
@@ -9823,7 +9823,7 @@ func (s *notifyGroupServiceServer) serveDeleteNotifyGroupProtobuf(ctx context.Co
 }
 
 func (s *notifyGroupServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 3
+	return twirpFileDescriptor2, 3
 }
 
 func (s *notifyGroupServiceServer) ProtocGenTwirpVersion() string {
@@ -11715,7 +11715,7 @@ func (s *remoteAgentServiceServer) serveGetRemoteAgentStatusProtobuf(ctx context
 }
 
 func (s *remoteAgentServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 4
+	return twirpFileDescriptor2, 4
 }
 
 func (s *remoteAgentServiceServer) ProtocGenTwirpVersion() string {
@@ -14448,7 +14448,7 @@ func (s *channelServiceServer) serveResumeChannelProtobuf(ctx context.Context, r
 }
 
 func (s *channelServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 5
+	return twirpFileDescriptor2, 5
 }
 
 func (s *channelServiceServer) ProtocGenTwirpVersion() string {
@@ -16063,7 +16063,7 @@ func (s *sessionServiceServer) serveReplySessionProtobuf(ctx context.Context, re
 }
 
 func (s *sessionServiceServer) ServiceDescriptor() ([]byte, int) {
-	return twirpFileDescriptor1, 6
+	return twirpFileDescriptor2, 6
 }
 
 func (s *sessionServiceServer) ProtocGenTwirpVersion() string {
@@ -16077,7 +16077,7 @@ func (s *sessionServiceServer) PathPrefix() string {
 	return baseServicePath(s.pathPrefix, "agents.v1", "SessionService")
 }
 
-var twirpFileDescriptor1 = []byte{
+var twirpFileDescriptor2 = []byte{
 	// 3363 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x5b, 0x4b, 0x73, 0x1b, 0xc7,
 	0xb5, 0xbe, 0x00, 0x49, 0x90, 0x3c, 0x20, 0x29, 0xb0, 0xf9, 0x02, 0x41, 0x52, 0xa4, 0x46, 0x2f,

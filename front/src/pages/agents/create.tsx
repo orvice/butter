@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AgentModelSelect } from "./model-select";
 import { AgentIconUpload } from "./icon-upload";
+import { AgentFileMountsField } from "./file-mounts-field";
 import {
   Form,
   FormControl,
@@ -29,7 +30,13 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import type { AgentType } from "@/types/api";
+import type { AgentFileMountPermission, AgentType } from "@/types/api";
+
+const MOUNT_PERMISSIONS = [
+  "AGENT_FILE_MOUNT_PERMISSION_READ",
+  "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE",
+  "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE_DELETE",
+] as const satisfies readonly AgentFileMountPermission[];
 
 const agentSchema = z.object({
   name: z.string().min(1, "Name is required").refine((v) => v !== "user", "Name cannot be 'user'"),
@@ -39,6 +46,11 @@ const agentSchema = z.object({
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
+  file_mounts: z.array(z.object({
+    space_id: z.string().min(1),
+    mount_path: z.string().optional(),
+    permission: z.enum(MOUNT_PERMISSIONS).optional(),
+  })).optional(),
   icon_url: z.string().optional(),
 });
 
@@ -51,7 +63,17 @@ export default function AgentCreatePage() {
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
-    defaultValues: { name: "", description: "", type: "AGENT_TYPE_LLM", enable_a2a: false, model: "", instruction: "", mcp_server_ids: [], icon_url: "" },
+    defaultValues: {
+      name: "",
+      description: "",
+      type: "AGENT_TYPE_LLM",
+      enable_a2a: false,
+      model: "",
+      instruction: "",
+      mcp_server_ids: [],
+      file_mounts: [],
+      icon_url: "",
+    },
   });
   const agentName = useWatch({ control: form.control, name: "name" });
   const iconUrl = useWatch({ control: form.control, name: "icon_url" });
@@ -68,6 +90,7 @@ export default function AgentCreatePage() {
           model: values.model,
           instruction: values.instruction,
           mcp_server_ids: values.mcp_server_ids ?? [],
+          file_mounts: values.file_mounts ?? [],
         },
       },
       {
@@ -220,6 +243,21 @@ export default function AgentCreatePage() {
                   </FormItem>
                 );
               }} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Agent Files</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Mount workspace file spaces into this agent's built-in agent_files tools.
+              </p>
+              <FormField control={form.control} name="file_mounts" render={({ field }) => (
+                <FormItem>
+                  <AgentFileMountsField value={field.value} onChange={field.onChange} />
+                  <FormMessage />
+                </FormItem>
+              )} />
             </CardContent>
           </Card>
 

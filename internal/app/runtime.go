@@ -13,6 +13,7 @@ import (
 	adkrunner "google.golang.org/adk/runner"
 
 	"go.orx.me/apps/butter/internal/config"
+	"go.orx.me/apps/butter/internal/repo/agentfile"
 	"go.orx.me/apps/butter/pkg/adkutils"
 )
 
@@ -92,6 +93,28 @@ func setupArtifactService(ctx context.Context, cfg *config.AppConfig) artifact.S
 		"key_prefix", cfg.Artifact.KeyPrefix,
 	)
 	return adkutils.NewS3ArtifactService(bucket, client, opts...)
+}
+
+func setupAgentFileContentStore(ctx context.Context, cfg *config.AppConfig) agentfile.ContentStore {
+	logger := log.FromContext(ctx)
+	if cfg.AgentFiles.S3Bucket == "" {
+		logger.Info("agent files content store using memory (agent_files.s3_bucket not set)")
+		return agentfile.NewMemoryContentStore()
+	}
+	client := s3.GetClient(cfg.AgentFiles.S3Bucket)
+	bucket := s3.GetBucket(cfg.AgentFiles.S3Bucket)
+	if client == nil || bucket == "" {
+		logger.Warn("agent files content store falling back to memory: s3 client not registered",
+			"store_key", cfg.AgentFiles.S3Bucket,
+		)
+		return agentfile.NewMemoryContentStore()
+	}
+	logger.Info("agent files content store enabled",
+		"store_key", cfg.AgentFiles.S3Bucket,
+		"bucket", bucket,
+		"key_prefix", cfg.AgentFiles.KeyPrefix,
+	)
+	return agentfile.NewS3ContentStore(bucket, client, cfg.AgentFiles.KeyPrefix)
 }
 
 // setupLangfuse initializes the Langfuse plugin if configured.

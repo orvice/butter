@@ -24,12 +24,13 @@ type AppConfig struct {
 	RedisAddr     string `yaml:"redis_addr"`
 	RedisPassword string `yaml:"redis_password"`
 
-	HTTP           HTTPConfig     `yaml:"http"`
-	Static         StaticConfig   `yaml:"static"`
-	Artifact       ArtifactConfig `yaml:"artifact"`
-	MCPOAuth       MCPOAuthConfig `yaml:"mcp_oauth"`
-	StorageBackend string         `yaml:"storage_backend"` // "mongo" (default) or "memory"
-	GRPCPort       int            `yaml:"grpc_port"`       // daemon gRPC server port (default 9090)
+	HTTP           HTTPConfig       `yaml:"http"`
+	Static         StaticConfig     `yaml:"static"`
+	Artifact       ArtifactConfig   `yaml:"artifact"`
+	AgentFiles     AgentFilesConfig `yaml:"agent_files"`
+	MCPOAuth       MCPOAuthConfig   `yaml:"mcp_oauth"`
+	StorageBackend string           `yaml:"storage_backend"` // "mongo" (default) or "memory"
+	GRPCPort       int              `yaml:"grpc_port"`       // daemon gRPC server port (default 9090)
 }
 
 // ArtifactConfig configures the S3-backed ADK artifact service. Artifacts are
@@ -56,6 +57,28 @@ type ArtifactConfig struct {
 // Enabled reports whether artifact storage is configured.
 func (a ArtifactConfig) Enabled() bool {
 	return a.S3Bucket != ""
+}
+
+// AgentFilesConfig configures the workspace-scoped text file spaces that
+// agents can mount through the built-in agent_files toolset.
+type AgentFilesConfig struct {
+	// S3Bucket is the key under `store.s3` to use for file contents. Metadata
+	// is stored in MongoDB when storage_backend is mongo. If empty, file
+	// contents fall back to in-memory storage for local development.
+	S3Bucket string `yaml:"s3_bucket"`
+
+	// KeyPrefix is prepended to every object key.
+	KeyPrefix string `yaml:"key_prefix"`
+
+	// MaxFileBytes caps one text file write. 0 means use the default 256 KiB.
+	MaxFileBytes int64 `yaml:"max_file_bytes"`
+}
+
+func (a AgentFilesConfig) EffectiveMaxFileBytes() int64 {
+	if a.MaxFileBytes <= 0 {
+		return 256 * 1024
+	}
+	return a.MaxFileBytes
 }
 
 // MCPOAuthConfig controls the browser-based OAuth2 flow used for protected

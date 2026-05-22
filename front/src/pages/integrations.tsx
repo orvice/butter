@@ -14,6 +14,7 @@ import {
   Globe,
   Plus,
   Radio,
+  Server,
   ShieldCheck,
   SlidersHorizontal,
   Wrench,

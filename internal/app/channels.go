@@ -15,6 +15,9 @@ import (
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/mcpoauth"
+	"go.orx.me/apps/butter/internal/repo/agentfile"
+	agentfilememory "go.orx.me/apps/butter/internal/repo/agentfile/memory"
+	agentfilemongo "go.orx.me/apps/butter/internal/repo/agentfile/mongo"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	apitokenmemory "go.orx.me/apps/butter/internal/repo/apitoken/memory"
 	apitokenmongo "go.orx.me/apps/butter/internal/repo/apitoken/mongo"
@@ -59,6 +62,7 @@ type BootstrapResult struct {
 	MCPOAuthRepo    mcpoauthrepo.Repository
 	MCPOAuthSvc     *mcpoauth.Service
 	MCPAuthResolver *mcpoauth.Resolver
+	AgentFileRepo   agentfile.Repository
 	LangfuseHost    string
 	SessionCounter  func(ctx context.Context) (int64, error)
 }
@@ -98,6 +102,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		forumRepo forum.Repository
 		wsRepo    workspacerepo.Repository
 		oauthRepo mcpoauthrepo.Repository
+		fileRepo  agentfile.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -114,12 +119,14 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		forumRepo = forummongo.New(db)
 		wsRepo = workspacemongo.New(db)
 		oauthRepo = mcpoauthmongo.New(db)
+		fileRepo = agentfilemongo.New(db, setupAgentFileContentStore(ctx, cfg))
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
 		forumRepo = forummemory.New()
 		wsRepo = workspacememory.New()
 		oauthRepo = mcpoauthmemory.New()
+		fileRepo = agentfilememory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -139,6 +146,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := oauthRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create mcp oauth indexes", "err", err)
+		return nil, err
+	}
+	if err := fileRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create agent file indexes", "err", err)
 		return nil, err
 	}
 	oauthConfigProvider := func() mcpoauth.Config {
@@ -163,7 +174,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, pluginConfig, mcpAuthResolver)
+	runnerSvc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, fileRepo, cfg.AgentFiles.EffectiveMaxFileBytes(), pluginConfig, mcpAuthResolver)
 	if err == nil {
 		runnerSvc.SetInvocationRecorder(invRepo)
 	}
@@ -214,6 +225,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		MCPOAuthRepo:    oauthRepo,
 		MCPOAuthSvc:     oauthSvc,
 		MCPAuthResolver: mcpAuthResolver,
+		AgentFileRepo:   fileRepo,
 		LangfuseHost:    cfg.Langfuse.Host,
 		SessionCounter:  sessionSvc.CountSessions,
 	}, nil

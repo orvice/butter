@@ -637,11 +637,41 @@ Returns persisted invocation records, optionally filtered.
 | `mcp_server_ids` | string[] | References to shared MCP servers |
 | `remote_agent_ids` | string[] | References to shared remote agents |
 | `context_guard` | ContextGuardConfig | Context window management |
+| `file_mounts` | AgentFileMount[] | Agent Files spaces mounted into the built-in `agent_files_*` tools |
 | `include_contents` | enum | `LLM_INCLUDE_CONTENTS_DEFAULT`, `LLM_INCLUDE_CONTENTS_NONE` |
 | `output_key` | string | Session state key for output |
 | `input_schema_json` | string | Input JSON schema |
 | `output_schema_json` | string | Output JSON schema |
 | `max_iterations` | uint32 | Max loop iterations (LOOP type only) |
+
+#### AgentFileMount Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `space_id` | string | Agent Files space to mount |
+| `mount_path` | string | Virtual path exposed to the agent, such as `/docs` |
+| `permission` | enum | `AGENT_FILE_MOUNT_PERMISSION_READ`, `AGENT_FILE_MOUNT_PERMISSION_READ_WRITE`, or `AGENT_FILE_MOUNT_PERMISSION_READ_WRITE_DELETE` |
+
+### AgentFileService
+
+Manages workspace-scoped Agent Files spaces and text files. Agents can only use
+spaces mounted in `Agent.config.file_mounts`; direct service calls still require
+the caller's workspace via `X-Workspace-ID`.
+
+Endpoints:
+
+| Method | Path |
+|--------|------|
+| `ListAgentFileSpaces` | `POST /api/agents.v1.AgentFileService/ListAgentFileSpaces` |
+| `GetAgentFileSpace` | `POST /api/agents.v1.AgentFileService/GetAgentFileSpace` |
+| `CreateAgentFileSpace` | `POST /api/agents.v1.AgentFileService/CreateAgentFileSpace` |
+| `UpdateAgentFileSpace` | `POST /api/agents.v1.AgentFileService/UpdateAgentFileSpace` |
+| `DeleteAgentFileSpace` | `POST /api/agents.v1.AgentFileService/DeleteAgentFileSpace` |
+| `ListAgentFiles` | `POST /api/agents.v1.AgentFileService/ListAgentFiles` |
+| `GetAgentFile` | `POST /api/agents.v1.AgentFileService/GetAgentFile` |
+| `WriteAgentFile` | `POST /api/agents.v1.AgentFileService/WriteAgentFile` |
+| `DeleteAgentFile` | `POST /api/agents.v1.AgentFileService/DeleteAgentFile` |
+| `SearchAgentFiles` | `POST /api/agents.v1.AgentFileService/SearchAgentFiles` |
 
 #### AgentRuntimeStatus Object
 
