@@ -38,6 +38,7 @@ import {
   BookOpen,
   LifeBuoy,
   Settings2,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import type { ComponentHealth } from "@/types/api";
@@ -89,7 +90,17 @@ const SECONDARY_NAV: NavItem[] = [
   { to: "/notify-groups", icon: Bell, label: "Notify Groups", activePrefixes: ["/notify-groups"] },
   { to: "/api-tokens", icon: KeyRound, label: "API Tokens", activePrefixes: ["/api-tokens"] },
   { to: "/profile", icon: UserCircle, label: "Profile", activePrefixes: ["/profile"] },
-  { to: "/users", icon: Users, label: "Users", activePrefixes: ["/users"], adminOnly: true },
+];
+
+const ADMIN_NAV: NavItem[] = [
+  { to: "/admin/users", icon: Users, label: "Users", activePrefixes: ["/admin/users"], adminOnly: true },
+  {
+    to: "/admin/global-mcp-servers",
+    icon: ShieldCheck,
+    label: "Global MCP",
+    activePrefixes: ["/admin/global-mcp-servers"],
+    adminOnly: true,
+  },
 ];
 
 type StatusBucket = "healthy" | "degraded" | "down" | "unknown";
@@ -222,6 +233,14 @@ function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
         </div>
         <NavList items={SECONDARY_NAV} isAdmin={isAdmin} />
       </div>
+      {isAdmin ? (
+        <div className="border-t pt-4">
+          <div className="px-3 pb-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            Admin
+          </div>
+          <NavList items={ADMIN_NAV} isAdmin={isAdmin} />
+        </div>
+      ) : null}
       <div className="border-t pt-4">
         <a
           className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"

@@ -40,6 +40,7 @@ import ChannelCreatePage from "@/pages/channels/create";
 import ChannelEditPage from "@/pages/channels/edit";
 import APITokenListPage from "@/pages/api-tokens/list";
 import UserListPage from "@/pages/users/list";
+import AdminGlobalMCPServersPage from "@/pages/admin/global-mcp-servers";
 import ProfilePage from "@/pages/profile";
 import WorkspacePage from "@/pages/workspaces";
 
@@ -97,6 +98,8 @@ export default function App() {
                     <Route path="api-tokens" element={<APITokenListPage />} />
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="users" element={<UserListPage />} />
+                    <Route path="admin/users" element={<UserListPage />} />
+                    <Route path="admin/global-mcp-servers" element={<AdminGlobalMCPServersPage />} />
                     <Route path="workspaces" element={<WorkspacePage />} />
                   </Route>
                 </Routes>
