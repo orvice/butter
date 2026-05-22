@@ -125,6 +125,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.AgentFileRepo != nil && h.agentFileSvcServer != nil {
 		h.agentFileSvcServer.SetRepo(result.AgentFileRepo)
+		h.agentFileSvcServer.SetMaxFileBytes(result.AgentFileMaxBytes)
 	}
 	if result.MCPAuthResolver != nil {
 		h.mcpSvcServer.SetMCPHTTPClientFactory(result.MCPAuthResolver)

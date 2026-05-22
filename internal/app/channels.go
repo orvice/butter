@@ -46,25 +46,26 @@ import (
 
 // BootstrapResult holds the services created during bootstrap.
 type BootstrapResult struct {
-	RunnerSvc       *runner.Service
-	SessionSvc      session.Service
-	CronScheduler   *internalcron.Scheduler
-	CronRepo        internalcron.ExecutionRepo
-	CronJobRepo     internalcron.JobRepo
-	ChannelMgr      *channel.Manager
-	MongoDB         *mongo.Database
-	Redis           *redis.Client
-	AuthRepo        auth.Repository
-	APITokenRepo    apitoken.Repository
-	InvocationRepo  invocation.Repository
-	ForumRepo       forum.Repository
-	WorkspaceRepo   workspacerepo.Repository
-	MCPOAuthRepo    mcpoauthrepo.Repository
-	MCPOAuthSvc     *mcpoauth.Service
-	MCPAuthResolver *mcpoauth.Resolver
-	AgentFileRepo   agentfile.Repository
-	LangfuseHost    string
-	SessionCounter  func(ctx context.Context) (int64, error)
+	RunnerSvc         *runner.Service
+	SessionSvc        session.Service
+	CronScheduler     *internalcron.Scheduler
+	CronRepo          internalcron.ExecutionRepo
+	CronJobRepo       internalcron.JobRepo
+	ChannelMgr        *channel.Manager
+	MongoDB           *mongo.Database
+	Redis             *redis.Client
+	AuthRepo          auth.Repository
+	APITokenRepo      apitoken.Repository
+	InvocationRepo    invocation.Repository
+	ForumRepo         forum.Repository
+	WorkspaceRepo     workspacerepo.Repository
+	MCPOAuthRepo      mcpoauthrepo.Repository
+	MCPOAuthSvc       *mcpoauth.Service
+	MCPAuthResolver   *mcpoauth.Resolver
+	AgentFileRepo     agentfile.Repository
+	AgentFileMaxBytes int64
+	LangfuseHost      string
+	SessionCounter    func(ctx context.Context) (int64, error)
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -209,24 +210,25 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	go mgr.Start(ctx)
 
 	return &BootstrapResult{
-		RunnerSvc:       runnerSvc,
-		SessionSvc:      sessionSvc,
-		CronScheduler:   cronScheduler,
-		CronRepo:        cronExecRepo,
-		CronJobRepo:     cronJobRepo,
-		ChannelMgr:      mgr,
-		MongoDB:         db,
-		Redis:           rdb,
-		AuthRepo:        authRepo,
-		APITokenRepo:    tokenRepo,
-		InvocationRepo:  invRepo,
-		ForumRepo:       forumRepo,
-		WorkspaceRepo:   wsRepo,
-		MCPOAuthRepo:    oauthRepo,
-		MCPOAuthSvc:     oauthSvc,
-		MCPAuthResolver: mcpAuthResolver,
-		AgentFileRepo:   fileRepo,
-		LangfuseHost:    cfg.Langfuse.Host,
-		SessionCounter:  sessionSvc.CountSessions,
+		RunnerSvc:         runnerSvc,
+		SessionSvc:        sessionSvc,
+		CronScheduler:     cronScheduler,
+		CronRepo:          cronExecRepo,
+		CronJobRepo:       cronJobRepo,
+		ChannelMgr:        mgr,
+		MongoDB:           db,
+		Redis:             rdb,
+		AuthRepo:          authRepo,
+		APITokenRepo:      tokenRepo,
+		InvocationRepo:    invRepo,
+		ForumRepo:         forumRepo,
+		WorkspaceRepo:     wsRepo,
+		MCPOAuthRepo:      oauthRepo,
+		MCPOAuthSvc:       oauthSvc,
+		MCPAuthResolver:   mcpAuthResolver,
+		AgentFileRepo:     fileRepo,
+		AgentFileMaxBytes: cfg.AgentFiles.EffectiveMaxFileBytes(),
+		LangfuseHost:      cfg.Langfuse.Host,
+		SessionCounter:    sessionSvc.CountSessions,
 	}, nil
 }

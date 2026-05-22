@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 
 	"butterfly.orx.me/core/log"
@@ -13,15 +14,23 @@ import (
 )
 
 type AgentFileServiceServer struct {
-	repo agentfile.Repository
+	repo         agentfile.Repository
+	maxFileBytes int64
 }
 
 func NewAgentFileServiceServer(repo agentfile.Repository) *AgentFileServiceServer {
-	return &AgentFileServiceServer{repo: repo}
+	return &AgentFileServiceServer{repo: repo, maxFileBytes: defaultAgentFileMaxBytes}
 }
 
 func (s *AgentFileServiceServer) SetRepo(repo agentfile.Repository) {
 	s.repo = repo
+}
+
+func (s *AgentFileServiceServer) SetMaxFileBytes(max int64) {
+	if max <= 0 {
+		max = defaultAgentFileMaxBytes
+	}
+	s.maxFileBytes = max
 }
 
 func (s *AgentFileServiceServer) requireRepo() (agentfile.Repository, error) {
@@ -186,6 +195,9 @@ func (s *AgentFileServiceServer) WriteAgentFile(ctx context.Context, req *agents
 	if req.GetPath() == "" {
 		return nil, twirp.RequiredArgumentError("path")
 	}
+	if max := s.maxFileBytes; max > 0 && int64(len([]byte(req.GetContent()))) > max {
+		return nil, twirp.InvalidArgumentError("content", fmt.Sprintf("content exceeds max file size of %d bytes", max))
+	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -255,3 +267,5 @@ func toAgentFileTwirpError(err error) twirp.Error {
 	}
 	return twirp.InternalErrorWith(err)
 }
+
+const defaultAgentFileMaxBytes int64 = 256 * 1024

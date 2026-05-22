@@ -119,7 +119,7 @@ agent_files:
 |-------|-------------|
 | `s3_bucket` | The `store.s3.<name>` entry to use for file contents. Empty falls back to in-memory content storage. |
 | `key_prefix` | Prepended to every Agent Files object key. |
-| `max_file_bytes` | Maximum UTF-8 text size accepted by write/append tools. Default 256 KiB. |
+| `max_file_bytes` | Maximum UTF-8 text size accepted by write/append tools and direct `WriteAgentFile` API calls. Default 256 KiB. |
 
 Metadata for file spaces and files is stored in MongoDB when
 `storage_backend: mongo`; file contents are versioned in S3. In memory mode,
