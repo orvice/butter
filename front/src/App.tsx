@@ -13,6 +13,7 @@ import OperationsPage from "@/pages/operations";
 import AgentListPage from "@/pages/agents/list";
 import AgentCreatePage from "@/pages/agents/create";
 import AgentEditPage from "@/pages/agents/edit";
+import AgentFilesPage from "@/pages/agent-files/list";
 import MCPServerListPage from "@/pages/mcp-servers/list";
 import MCPServerCreatePage from "@/pages/mcp-servers/create";
 import MCPServerEditPage from "@/pages/mcp-servers/edit";
@@ -67,6 +68,7 @@ export default function App() {
                     <Route path="agents" element={<AgentListPage />} />
                     <Route path="agents/create" element={<AgentCreatePage />} />
                     <Route path="agents/:name/edit" element={<AgentEditPage />} />
+                    <Route path="agent-files" element={<AgentFilesPage />} />
                     <Route path="mcp-servers" element={<MCPServerListPage />} />
                     <Route path="mcp-servers/create" element={<MCPServerCreatePage />} />
                     <Route path="mcp-servers/:id/edit" element={<MCPServerEditPage />} />

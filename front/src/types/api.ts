@@ -181,7 +181,27 @@ export interface AgentFileSpace {
   name: string;
   description?: string;
   metadata?: Record<string, string>;
+  created_at?: string;
+  updated_at?: string;
   workspace_id?: string;
+}
+
+export interface AgentFile {
+  id?: string;
+  space_id?: string;
+  path: string;
+  content_type?: string;
+  size_bytes?: number | string;
+  version?: number | string;
+  metadata?: Record<string, string>;
+  created_at?: string;
+  updated_at?: string;
+  workspace_id?: string;
+}
+
+export interface AgentFileSearchResult {
+  file?: AgentFile;
+  snippets?: string[];
 }
 
 export interface AgentFileMount {
