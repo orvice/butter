@@ -175,7 +175,28 @@ type AuthConfig struct {
 	// Intended for local development only — production deployments must
 	// leave this false so a misconfigured bootstrap fails closed instead of
 	// silently exposing all data.
-	AllowUnauthenticated bool `yaml:"allow_unauthenticated"`
+	AllowUnauthenticated bool                           `yaml:"allow_unauthenticated"`
+	OAuthProviders       map[string]OAuthProviderConfig `yaml:"oauth_providers"`
+}
+
+// OAuthProviderConfig holds the client credentials and OAuth endpoints for a
+// single third-party login provider. Only providers whose ClientID and
+// ClientSecret are set are exposed via ListOAuthProviders; the rest are
+// effectively disabled.
+type OAuthProviderConfig struct {
+	ClientID     string   `yaml:"client_id"`
+	ClientSecret string   `yaml:"client_secret"`
+	RedirectURL  string   `yaml:"redirect_url"`
+	Scopes       []string `yaml:"scopes"`
+	// DisplayName is shown on the login page (e.g. "GitHub"). Defaults to a
+	// titlecase version of the provider key when empty.
+	DisplayName string `yaml:"display_name"`
+}
+
+// Enabled reports whether the provider has the minimum credentials needed
+// to participate in the OAuth flow.
+func (c OAuthProviderConfig) Enabled() bool {
+	return c.ClientID != "" && c.ClientSecret != ""
 }
 
 func (c AuthConfig) EffectiveSessionTTL() time.Duration {

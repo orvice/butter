@@ -177,6 +177,14 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.authSvcServer.SetRepo(result.AuthRepo)
 		}
 	}
+	if h.authSvcServer != nil {
+		if result.OAuthStateRepo != nil {
+			h.authSvcServer.SetOAuthStateRepo(result.OAuthStateRepo)
+		}
+		if result.OAuthProviders != nil {
+			h.authSvcServer.SetProviderRegistry(result.OAuthProviders)
+		}
+	}
 	if result.WorkspaceRepo != nil {
 		h.workspaceRepo.Store(result.WorkspaceRepo)
 		if h.workspaceSvcServer != nil {

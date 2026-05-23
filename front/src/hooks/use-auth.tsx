@@ -3,7 +3,14 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { Workspace } from "@/gen/agents/v1/workspace_pb";
 import { TOKEN_KEY } from "@/lib/constants";
-import { isAdmin as checkAdmin, login as loginRequest, logout as logoutRequest, me as meRequest, type AuthUser } from "@/api/auth";
+import {
+  isAdmin as checkAdmin,
+  login as loginRequest,
+  logout as logoutRequest,
+  me as meRequest,
+  type AuthUser,
+  type LoginResponse,
+} from "@/api/auth";
 
 interface AuthContextValue {
   token: string | null;
@@ -13,6 +20,7 @@ interface AuthContextValue {
   isLoading: boolean;
   isAdmin: boolean;
   login: (username: string, password: string) => Promise<boolean>;
+  applyLoginResponse: (response: LoginResponse) => void;
   logout: () => void;
   refreshUser: (user: AuthUser) => void;
 }
@@ -69,6 +77,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [token, user?.id]);
 
+  const applyLoginResponse = useCallback((res: LoginResponse) => {
+    if (!res.token) return;
+    localStorage.setItem(TOKEN_KEY, res.token);
+    setToken(res.token);
+    setUser(res.user ?? null);
+    setLoginWorkspaces(res.workspaces ?? []);
+  }, []);
+
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
@@ -113,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAdmin: checkAdmin(user),
         login,
+        applyLoginResponse,
         logout,
         refreshUser,
       }}
