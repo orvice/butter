@@ -106,15 +106,22 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 		if apiTokenRepo != nil {
 			stored, err := apiTokenRepo.Lookup(c.Request.Context(), hashSecret(token))
 			if err == nil {
-				go touchAPIToken(apiTokenRepo, stored.GetId())
-				ctx := c.Request.Context()
-				// API tokens are workspace-scoped: bind the request to the
-				// token's workspace and ignore any caller-supplied header.
-				if ws := stored.GetWorkspaceId(); ws != "" {
-					ctx = wsctx.WithID(ctx, ws)
-				} else {
-					ctx = applyWorkspaceHeader(ctx, c, workspaceRepo, "", true)
+				// API tokens are workspace-scoped by design. A stored token
+				// without a workspace_id signals data corruption or a
+				// creation-time bug; previously such a token would silently
+				// fall back to applyWorkspaceHeader with admin=true and let
+				// the caller pick any workspace via the header. Reject it
+				// instead so the invariant is enforced defensively.
+				if strings.TrimSpace(stored.GetWorkspaceId()) == "" {
+					log.FromContext(c.Request.Context()).Warn(
+						"api token has no workspace binding; rejecting",
+						"token_id", stored.GetId(),
+					)
+					unauthorized(c)
+					return
 				}
+				go touchAPIToken(apiTokenRepo, stored.GetId())
+				ctx := wsctx.WithID(c.Request.Context(), stored.GetWorkspaceId())
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 				return

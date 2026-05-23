@@ -48,6 +48,40 @@ func TestNewSenderUsesDefaultTimeout(t *testing.T) {
 	}
 }
 
+func TestSendTelegramRejectsMalformedBotToken(t *testing.T) {
+	cases := []struct {
+		name  string
+		token string
+	}{
+		{"missing colon", "abcdefgh"},
+		{"newline injection", "123:abc\nHost: evil"},
+		{"slash injection", "123:abc/extra"},
+		{"empty bot id", ":abc"},
+		{"empty secret", "123:"},
+		{"space in secret", "123:abc def"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			transport := &captureTransport{}
+			sender := NewSender(&http.Client{Transport: transport})
+			err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
+				Enabled: true,
+				Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
+				Telegram: &agentsv1.TelegramNotifyTarget{
+					BotToken: tc.token,
+					ChatId:   "chat-1",
+				},
+			}, Message{Text: "hi"})
+			if err == nil {
+				t.Fatalf("expected error for token %q, got nil", tc.token)
+			}
+			if len(transport.reqs) != 0 {
+				t.Fatalf("expected no HTTP requests for malformed token, got %d", len(transport.reqs))
+			}
+		})
+	}
+}
+
 func TestSendTelegramPayload(t *testing.T) {
 	var payload map[string]any
 	transport := &captureTransport{}
@@ -56,7 +90,7 @@ func TestSendTelegramPayload(t *testing.T) {
 		Enabled: true,
 		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
 		Telegram: &agentsv1.TelegramNotifyTarget{
-			BotToken:        "secret-token",
+			BotToken:        "123456:secret-token",
 			ChatId:          "chat-1",
 			ParseMode:       "Markdown",
 			MessageThreadId: 7,
@@ -71,7 +105,7 @@ func TestSendTelegramPayload(t *testing.T) {
 	if transport.reqs[0].Method != http.MethodPost {
 		t.Fatalf("expected POST, got %s", transport.reqs[0].Method)
 	}
-	if transport.reqs[0].URL.String() != "https://api.telegram.org/botsecret-token/sendChatAction" {
+	if transport.reqs[0].URL.String() != "https://api.telegram.org/bot123456:secret-token/sendChatAction" {
 		t.Fatalf("unexpected telegram typing URL %s", transport.reqs[0].URL.String())
 	}
 	if got := transport.reqs[0].Header.Get("Content-Type"); got != "application/json" {
@@ -90,7 +124,7 @@ func TestSendTelegramPayload(t *testing.T) {
 		t.Fatalf("unexpected typing message_thread_id %#v", payload["message_thread_id"])
 	}
 
-	if transport.reqs[1].URL.String() != "https://api.telegram.org/botsecret-token/sendMessage" {
+	if transport.reqs[1].URL.String() != "https://api.telegram.org/bot123456:secret-token/sendMessage" {
 		t.Fatalf("unexpected telegram message URL %s", transport.reqs[1].URL.String())
 	}
 	if got := transport.reqs[1].Header.Get("Content-Type"); got != "application/json" {
@@ -121,7 +155,7 @@ func TestSendTelegramEscapesMarkdownV2Payload(t *testing.T) {
 		Enabled: true,
 		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
 		Telegram: &agentsv1.TelegramNotifyTarget{
-			BotToken:  "secret-token",
+			BotToken:  "123456:secret-token",
 			ChatId:    "chat-1",
 			ParseMode: "MarkdownV2",
 		},
@@ -224,7 +258,7 @@ func TestTelegramMessageTruncation(t *testing.T) {
 		Enabled: true,
 		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
 		Telegram: &agentsv1.TelegramNotifyTarget{
-			BotToken: "tok",
+			BotToken: "123:tok",
 			ChatId:   "chat",
 		},
 	}, Message{Text: longText})

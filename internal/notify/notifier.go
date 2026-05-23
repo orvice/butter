@@ -11,12 +11,19 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+// telegramBotTokenPattern matches the canonical Telegram Bot API token
+// format `<bot_id>:<secret>`. We validate before interpolating the token
+// into the API URL so a malformed value cannot inject path segments,
+// query strings, or CRLF.
+var telegramBotTokenPattern = regexp.MustCompile(`^[0-9]+:[A-Za-z0-9_-]+$`)
 
 // telegramMaxTextBytes is the Telegram Bot API hard limit for the `text` field.
 const telegramMaxTextBytes = 4096
@@ -80,6 +87,9 @@ func (s *Sender) Send(ctx context.Context, target *agentsv1.NotifyTarget, msg Me
 func (s *Sender) sendTelegram(ctx context.Context, target *agentsv1.TelegramNotifyTarget, msg Message) error {
 	if target.GetBotToken() == "" || target.GetChatId() == "" {
 		return fmt.Errorf("telegram target requires bot_token and chat_id")
+	}
+	if !telegramBotTokenPattern.MatchString(target.GetBotToken()) {
+		return fmt.Errorf("telegram bot_token does not match expected format <bot_id>:<secret>")
 	}
 	typingPayload := map[string]any{
 		"chat_id": target.GetChatId(),

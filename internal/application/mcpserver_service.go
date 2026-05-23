@@ -145,14 +145,25 @@ func redactInstalledGlobalMCPSecrets(servers []*agentsv1.MCPServer) []*agentsv1.
 	return out
 }
 
+// redactedHeaderValue replaces secret-bearing header values returned to
+// installed-preset consumers. Header keys are kept so users can still see
+// which headers the preset configures.
+const redactedHeaderValue = "***"
+
 func redactInstalledGlobalMCPSecret(server *agentsv1.MCPServer) *agentsv1.MCPServer {
 	if server == nil || server.GetMetadata()[globalMCPPresetMetadataKey] == "" {
 		return server
 	}
 	clone := proto.Clone(server).(*agentsv1.MCPServer)
-	oauth := clone.GetAuth().GetOauth2()
-	if oauth != nil {
+	if oauth := clone.GetAuth().GetOauth2(); oauth != nil {
 		oauth.ClientSecret = ""
+	}
+	// STATIC_HEADERS auth puts secrets directly in the headers map (e.g.
+	// "Authorization: Bearer …"). The OAuth2 client_secret was already
+	// covered above; mask the headers map too so installed presets do not
+	// leak whatever the admin set on the global record.
+	for k := range clone.Headers {
+		clone.Headers[k] = redactedHeaderValue
 	}
 	return clone
 }
