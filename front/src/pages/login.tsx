@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeControls } from "@/components/theme-controls";
+import { OAuthProviderIcon } from "@/components/oauth-provider-icon";
 import { Sparkles } from "lucide-react";
 
 export default function LoginPage() {
@@ -118,20 +119,22 @@ export default function LoginPage() {
                 </div>
               </div>
               <div className="grid gap-2">
-                {oauthProviders.map((p) => (
-                  <Button
-                    key={p.name}
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => handleOAuth(p.name)}
-                    disabled={!!oauthLoading || loading}
-                  >
-                    {oauthLoading === p.name
-                      ? `Redirecting to ${p.display_name ?? p.displayName ?? p.name}…`
-                      : `Sign in with ${p.display_name ?? p.displayName ?? p.name}`}
-                  </Button>
-                ))}
+                {oauthProviders.map((p) => {
+                  const label = p.display_name ?? p.displayName ?? p.name;
+                  return (
+                    <Button
+                      key={p.name}
+                      type="button"
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => handleOAuth(p.name)}
+                      disabled={!!oauthLoading || loading}
+                    >
+                      <OAuthProviderIcon provider={p.name} className="h-4 w-4 shrink-0" />
+                      {oauthLoading === p.name ? `Redirecting to ${label}…` : `Sign in with ${label}`}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
           )}

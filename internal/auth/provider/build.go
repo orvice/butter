@@ -40,6 +40,14 @@ func buildProvider(name string, cfg config.OAuthProviderConfig) Provider {
 			Scopes:       cfg.Scopes,
 			DisplayName:  cfg.DisplayName,
 		})
+	case "google":
+		return NewGoogle(GoogleConfig{
+			ClientID:     cfg.ClientID,
+			ClientSecret: cfg.ClientSecret,
+			RedirectURL:  cfg.RedirectURL,
+			Scopes:       cfg.Scopes,
+			DisplayName:  cfg.DisplayName,
+		})
 	default:
 		return nil
 	}
