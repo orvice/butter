@@ -85,7 +85,7 @@ func (s *AuthServiceServer) BeginOAuthFlow(ctx context.Context, req *agentsv1.Be
 	}, nil
 }
 
-func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1.CompleteOAuthFlowRequest) (*agentsv1.LoginResponse, error) {
+func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1.CompleteOAuthFlowRequest) (*agentsv1.CompleteOAuthFlowResponse, error) {
 	logger := log.FromContext(ctx)
 	if s.repo == nil {
 		return nil, twirp.NewError(twirp.FailedPrecondition, "auth store not available")
@@ -164,7 +164,7 @@ func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1
 		"session_id", session.ID,
 		"workspace_count", len(workspaces),
 	)
-	return &agentsv1.LoginResponse{
+	return &agentsv1.CompleteOAuthFlowResponse{
 		Token:      secret,
 		User:       user,
 		ExpiresAt:  timestamppb.New(expiresAt),

@@ -94,8 +94,8 @@ type AuthServiceClient interface {
 	// opaque state token. The client redirects the user to authorize_url.
 	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
 	// CompleteOAuthFlow is public and exchanges the provider's authorization
-	// code for a session token. Behaves like Login.
-	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.LoginResponse], error)
+	// code for a session token. The response mirrors LoginResponse.
+	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the agents.v1.AuthService service. By default, it
@@ -175,7 +175,7 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("BeginOAuthFlow")),
 			connect.WithClientOptions(opts...),
 		),
-		completeOAuthFlow: connect.NewClient[v1.CompleteOAuthFlowRequest, v1.LoginResponse](
+		completeOAuthFlow: connect.NewClient[v1.CompleteOAuthFlowRequest, v1.CompleteOAuthFlowResponse](
 			httpClient,
 			baseURL+AuthServiceCompleteOAuthFlowProcedure,
 			connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
@@ -197,7 +197,7 @@ type authServiceClient struct {
 	changePassword     *connect.Client[v1.ChangePasswordRequest, v1.ChangePasswordResponse]
 	listOAuthProviders *connect.Client[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse]
 	beginOAuthFlow     *connect.Client[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse]
-	completeOAuthFlow  *connect.Client[v1.CompleteOAuthFlowRequest, v1.LoginResponse]
+	completeOAuthFlow  *connect.Client[v1.CompleteOAuthFlowRequest, v1.CompleteOAuthFlowResponse]
 }
 
 // Login calls agents.v1.AuthService.Login.
@@ -256,7 +256,7 @@ func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, req *connect.Req
 }
 
 // CompleteOAuthFlow calls agents.v1.AuthService.CompleteOAuthFlow.
-func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, req *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.LoginResponse], error) {
+func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, req *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error) {
 	return c.completeOAuthFlow.CallUnary(ctx, req)
 }
 
@@ -288,8 +288,8 @@ type AuthServiceHandler interface {
 	// opaque state token. The client redirects the user to authorize_url.
 	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
 	// CompleteOAuthFlow is public and exchanges the provider's authorization
-	// code for a session token. Behaves like Login.
-	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.LoginResponse], error)
+	// code for a session token. The response mirrors LoginResponse.
+	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -450,6 +450,6 @@ func (UnimplementedAuthServiceHandler) BeginOAuthFlow(context.Context, *connect.
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.BeginOAuthFlow is not implemented"))
 }
 
-func (UnimplementedAuthServiceHandler) CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.LoginResponse], error) {
+func (UnimplementedAuthServiceHandler) CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.CompleteOAuthFlow is not implemented"))
 }

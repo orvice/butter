@@ -83,8 +83,13 @@ export function beginOAuthFlow(provider: string, redirectUri: string) {
   );
 }
 
+// CompleteOAuthFlowResponse has the same shape as LoginResponse; buf STANDARD
+// lint requires a dedicated type per RPC, but the frontend treats them the
+// same way.
+export type CompleteOAuthFlowResponse = LoginResponse;
+
 export function completeOAuthFlow(provider: string, code: string, state: string) {
-  return twirpFetch<{ provider: string; code: string; state: string }, LoginResponse>(
+  return twirpFetch<{ provider: string; code: string; state: string }, CompleteOAuthFlowResponse>(
     SVC,
     "CompleteOAuthFlow",
     { provider, code, state },

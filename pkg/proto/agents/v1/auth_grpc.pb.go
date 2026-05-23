@@ -65,8 +65,8 @@ type AuthServiceClient interface {
 	// opaque state token. The client redirects the user to authorize_url.
 	BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error)
 	// CompleteOAuthFlow is public and exchanges the provider's authorization
-	// code for a session token. Behaves like Login.
-	CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	// code for a session token. The response mirrors LoginResponse.
+	CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*CompleteOAuthFlowResponse, error)
 }
 
 type authServiceClient struct {
@@ -187,9 +187,9 @@ func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, in *BeginOAuthFl
 	return out, nil
 }
 
-func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*CompleteOAuthFlowResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LoginResponse)
+	out := new(CompleteOAuthFlowResponse)
 	err := c.cc.Invoke(ctx, AuthService_CompleteOAuthFlow_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -229,8 +229,8 @@ type AuthServiceServer interface {
 	// opaque state token. The client redirects the user to authorize_url.
 	BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error)
 	// CompleteOAuthFlow is public and exchanges the provider's authorization
-	// code for a session token. Behaves like Login.
-	CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*LoginResponse, error)
+	// code for a session token. The response mirrors LoginResponse.
+	CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*CompleteOAuthFlowResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -274,7 +274,7 @@ func (UnimplementedAuthServiceServer) ListOAuthProviders(context.Context, *ListO
 func (UnimplementedAuthServiceServer) BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method BeginOAuthFlow not implemented")
 }
-func (UnimplementedAuthServiceServer) CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+func (UnimplementedAuthServiceServer) CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*CompleteOAuthFlowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompleteOAuthFlow not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}

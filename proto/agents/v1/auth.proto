@@ -36,8 +36,8 @@ service AuthService {
   // opaque state token. The client redirects the user to authorize_url.
   rpc BeginOAuthFlow(BeginOAuthFlowRequest) returns (BeginOAuthFlowResponse);
   // CompleteOAuthFlow is public and exchanges the provider's authorization
-  // code for a session token. Behaves like Login.
-  rpc CompleteOAuthFlow(CompleteOAuthFlowRequest) returns (LoginResponse);
+  // code for a session token. The response mirrors LoginResponse.
+  rpc CompleteOAuthFlow(CompleteOAuthFlowRequest) returns (CompleteOAuthFlowResponse);
 }
 
 message User {
@@ -177,4 +177,13 @@ message CompleteOAuthFlowRequest {
   string provider = 1 [(validate.rules).string.min_len = 1];
   string code = 2 [(validate.rules).string.min_len = 1];
   string state = 3 [(validate.rules).string.min_len = 1];
+}
+
+// CompleteOAuthFlowResponse mirrors LoginResponse — duplicated rather than
+// shared so each RPC has a dedicated response type (buf STANDARD lint).
+message CompleteOAuthFlowResponse {
+  string token = 1;
+  User user = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  repeated Workspace workspaces = 4;
 }
