@@ -116,7 +116,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	switch backend := strings.ToLower(strings.TrimSpace(cfg.StorageBackend)); backend {
 	case "", "mongo":
 		tokenRepo = apitokenmongo.New(db)
-		invRepo = invocationmongo.New(db)
+		invMongo := invocationmongo.New(db)
+		if err := invMongo.EnsureIndexes(ctx); err != nil {
+			logger.Error("failed to create invocation indexes", "err", err)
+			return nil, err
+		}
+		invRepo = invMongo
 		forumRepo = forummongo.New(db)
 		wsRepo = workspacemongo.New(db)
 		oauthRepo = mcpoauthmongo.New(db)
