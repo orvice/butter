@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"butterfly.orx.me/core/log"
 
@@ -10,6 +11,17 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 )
+
+// validateModelProviderBaseURL rejects ModelProvider base_url values that
+// aren't absolute http(s) URLs. base_url is optional (OpenAI itself doesn't
+// need one) so an empty value is allowed.
+func validateModelProviderBaseURL(mp *agentsv1.ModelProvider) error {
+	raw := strings.TrimSpace(mp.GetBaseUrl())
+	if raw == "" {
+		return nil
+	}
+	return validateHTTPURL("base_url", raw)
+}
 
 type ModelProviderServiceServer struct {
 	repo    configrepo.ModelProviderRepository
@@ -53,6 +65,9 @@ func (s *ModelProviderServiceServer) CreateModelProvider(ctx context.Context, re
 	if err != nil {
 		return nil, err
 	}
+	if err := validateModelProviderBaseURL(req.GetModelProvider()); err != nil {
+		return nil, err
+	}
 	logger := log.FromContext(ctx)
 	logger.Info("creating model provider", "workspace_id", wsID, "name", req.GetModelProvider().GetName())
 	provider, err := mutateWithRuntime(
@@ -80,6 +95,9 @@ func (s *ModelProviderServiceServer) CreateModelProvider(ctx context.Context, re
 func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, req *agentsv1.UpdateModelProviderRequest) (*agentsv1.UpdateModelProviderResponse, error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateModelProviderBaseURL(req.GetModelProvider()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
