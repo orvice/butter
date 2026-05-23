@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 
 	"butterfly.orx.me/core/log"
 	"github.com/twitchtv/twirp"
@@ -10,6 +11,17 @@ import (
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+// cronJobMutationError maps scheduler errors to typed twirp errors so that
+// validation failures (e.g. agent does not exist in workspace) surface as
+// InvalidArgument instead of being swallowed by toTwirpError's catch-all
+// InternalErrorWith.
+func cronJobMutationError(err error) error {
+	if errors.Is(err, cron.ErrAgentNotInWorkspace) {
+		return twirp.InvalidArgumentError("agent_name", err.Error())
+	}
+	return toTwirpError(err)
+}
 
 // CronJobServiceServer implements the CronJobService Twirp interface.
 type CronJobServiceServer struct {
@@ -84,7 +96,7 @@ func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.
 	logger.Info("creating cron job", "workspace_id", wsID, "name", job.GetName(), "schedule", job.GetSchedule())
 	if err := s.scheduler.AddJob(ctx, job); err != nil {
 		logger.Error("create cron job failed", "workspace_id", wsID, "name", job.GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, cronJobMutationError(err)
 	}
 	logger.Info("cron job created", "workspace_id", wsID, "name", job.GetName())
 	return &agentsv1.CreateCronJobResponse{CronJob: job}, nil
@@ -104,7 +116,7 @@ func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.
 	logger.Info("updating cron job", "workspace_id", wsID, "name", job.GetName(), "schedule", job.GetSchedule())
 	if err := s.scheduler.UpdateJob(ctx, job); err != nil {
 		logger.Error("update cron job failed", "workspace_id", wsID, "name", job.GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, cronJobMutationError(err)
 	}
 	logger.Info("cron job updated", "workspace_id", wsID, "name", job.GetName())
 	return &agentsv1.UpdateCronJobResponse{CronJob: job}, nil

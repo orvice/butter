@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -22,6 +23,13 @@ import (
 )
 
 var notifyTargetTimeout = 10 * time.Second
+
+// ErrAgentNotInWorkspace is returned when a cron job references an agent
+// that does not exist in the job's workspace. The application layer maps
+// this to twirp.InvalidArgument so callers see "this agent doesn't belong
+// to your workspace" instead of a generic internal error, and the job is
+// never persisted in the first place.
+var ErrAgentNotInWorkspace = errors.New("cron job agent not found in workspace")
 
 // Scheduler manages cron-based agent execution.
 type Scheduler struct {
@@ -89,6 +97,9 @@ func (s *Scheduler) Stop() context.Context {
 
 // AddJob persists and schedules a new cron job. Job.WorkspaceId must be set.
 func (s *Scheduler) AddJob(ctx context.Context, job *agentsv1.CronJob) error {
+	if err := s.validateAgentScope(job); err != nil {
+		return err
+	}
 	if err := s.jobRepo.Create(ctx, job); err != nil {
 		return err
 	}
@@ -97,11 +108,29 @@ func (s *Scheduler) AddJob(ctx context.Context, job *agentsv1.CronJob) error {
 
 // UpdateJob updates a persisted cron job and reschedules it.
 func (s *Scheduler) UpdateJob(ctx context.Context, job *agentsv1.CronJob) error {
+	if err := s.validateAgentScope(job); err != nil {
+		return err
+	}
 	if err := s.jobRepo.Update(ctx, job); err != nil {
 		return err
 	}
 	s.unregisterJob(job.GetWorkspaceId(), job.GetName())
 	return s.registerJob(job)
+}
+
+// validateAgentScope checks that the cron job's target agent exists inside
+// the job's workspace. Called from AddJob/UpdateJob before persistence so a
+// caller in workspace A cannot leave a database record referencing
+// workspace B's agent, and so the user gets a typed error instead of a
+// silent registration failure after the row is already written.
+func (s *Scheduler) validateAgentScope(job *agentsv1.CronJob) error {
+	if s.runner == nil {
+		return nil
+	}
+	if !s.runner.HasAgentInWorkspace(job.GetWorkspaceId(), job.GetAgentName()) {
+		return fmt.Errorf("%w: agent %q in workspace %q", ErrAgentNotInWorkspace, job.GetAgentName(), job.GetWorkspaceId())
+	}
+	return nil
 }
 
 // RemoveJob removes a cron job from persistence and unschedules it.
