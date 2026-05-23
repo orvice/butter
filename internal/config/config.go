@@ -170,6 +170,12 @@ type AuthConfig struct {
 	InitialAdminUsername string        `yaml:"initial_admin_username"`
 	InitialAdminPassword string        `yaml:"initial_admin_password"`
 	SessionTTL           time.Duration `yaml:"session_ttl"`
+	// AllowUnauthenticated lets the AuthMiddleware grant admin to every
+	// request when no api_token, auth repo, or api-token repo is wired.
+	// Intended for local development only — production deployments must
+	// leave this false so a misconfigured bootstrap fails closed instead of
+	// silently exposing all data.
+	AllowUnauthenticated bool `yaml:"allow_unauthenticated"`
 }
 
 func (c AuthConfig) EffectiveSessionTTL() time.Duration {

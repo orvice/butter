@@ -14,7 +14,7 @@ import (
 )
 
 func newTestConfig(agents ...agentsv1.Agent) *config.AppConfig {
-	return &config.AppConfig{Agents: agents}
+	return &config.AppConfig{Agents: agents, Auth: config.AuthConfig{AllowUnauthenticated: true}}
 }
 
 func setupTestRouter(cfg *config.AppConfig) *gin.Engine {

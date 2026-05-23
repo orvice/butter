@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -19,6 +20,11 @@ import (
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 )
+
+// unauthenticatedFallbackWarn ensures the loud "no auth wired" warning is
+// emitted at most once per process; gating it lets us keep the message
+// visible without spamming the logs on every request.
+var unauthenticatedFallbackWarn sync.Once
 
 // WorkspaceRepoProvider returns the active workspace repository, if wired.
 type WorkspaceRepoProvider func() workspace.Repository
@@ -43,6 +49,7 @@ type AuthRepoProvider func() auth.Repository
 // and writes.
 func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTokenProvider APITokenRepoProvider, workspaceProvider WorkspaceRepoProvider) gin.HandlerFunc {
 	rootToken := strings.TrimSpace(cfg.APIToken)
+	allowUnauthenticated := cfg.Auth.AllowUnauthenticated
 
 	return func(c *gin.Context) {
 		if isPublicPath(c.Request.URL.Path) {
@@ -63,8 +70,24 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 			workspaceRepo = workspaceProvider()
 		}
 
-		// Legacy/dev behavior before bootstrap wires repositories.
+		// Dev/legacy bootstrap path. Without any auth wiring we previously
+		// granted admin to every request; that silently opens the dashboard
+		// when a production deployment misconfigures auth, so the path is
+		// now opt-in via auth.allow_unauthenticated.
 		if rootToken == "" && authRepo == nil && apiTokenRepo == nil {
+			if !allowUnauthenticated {
+				log.FromContext(c.Request.Context()).Warn(
+					"auth not configured and allow_unauthenticated=false; rejecting request",
+					"path", c.Request.URL.Path,
+				)
+				unauthorized(c)
+				return
+			}
+			unauthenticatedFallbackWarn.Do(func() {
+				log.FromContext(c.Request.Context()).Warn(
+					"AUTH DISABLED: auth.allow_unauthenticated is true and no auth is wired; every request is granted admin. Do not run this configuration in production.",
+				)
+			})
 			ctx := auth.WithAdmin(c.Request.Context())
 			c.Request = c.Request.WithContext(applyWorkspaceHeader(ctx, c, workspaceRepo, "", true))
 			c.Next()
