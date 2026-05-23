@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"github.com/twitchtv/twirp"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
@@ -63,6 +64,9 @@ func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *a
 	if err != nil {
 		return nil, err
 	}
+	if err := validateRemoteAgentURL(req.GetRemoteAgent()); err != nil {
+		return nil, err
+	}
 	logger := log.FromContext(ctx)
 	logger.Info("creating remote agent",
 		"workspace_id", wsID,
@@ -94,6 +98,9 @@ func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *a
 func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *agentsv1.UpdateRemoteAgentRequest) (*agentsv1.UpdateRemoteAgentResponse, error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateRemoteAgentURL(req.GetRemoteAgent()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -222,6 +229,24 @@ func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req
 		status.Detail = fmt.Sprintf("protocol %s not probed", ra.GetProtocol().String())
 		return &agentsv1.GetRemoteAgentStatusResponse{Status: status}, nil
 	}
+}
+
+// validateRemoteAgentURL enforces an absolute http(s) URL on the A2A
+// endpoint to prevent SSRF via arbitrary schemes or empty hosts. DAEMON
+// protocol agents ignore the URL field, but if a value is supplied we still
+// require it to be a valid URL so misconfigurations fail loudly.
+func validateRemoteAgentURL(ra *agentsv1.RemoteAgent) error {
+	raw := strings.TrimSpace(ra.GetUrl())
+	if ra.GetProtocol() == agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_A2A {
+		if raw == "" {
+			return twirp.RequiredArgumentError("url")
+		}
+		return validateHTTPURL("url", raw)
+	}
+	if raw == "" {
+		return nil
+	}
+	return validateHTTPURL("url", raw)
 }
 
 func probeA2AAgent(ctx context.Context, baseURL string) (agentsv1.RemoteAgentStatus_State, string) {
