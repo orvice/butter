@@ -66,6 +66,7 @@ func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
 		StorageBackend: "mongo",
 		MongoURI:       mongoURI,
 		MongoDB:        "butter_twirp_" + uuid.NewString(),
+		Auth:           config.AuthConfig{AllowUnauthenticated: true},
 	}
 
 	routerFn, handlers := SetupRoutes(cfg, daemon.NewRegistry())

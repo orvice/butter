@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"butterfly.orx.me/core/log"
 	"github.com/gin-gonic/gin"
 	"github.com/twitchtv/twirp"
 
@@ -459,6 +460,9 @@ func registerGlobalMCPServerRoutes(r *gin.Engine, handlers *Handlers, mcpSvc *ap
 				c.JSON(http.StatusForbidden, gin.H{"error": "admin role required for cross-workspace install"})
 				return
 			}
+			if requestedWorkspaceID != workspaceID {
+				auditAdminCrossWorkspaceInstall(c, workspaceID, requestedWorkspaceID, c.Param("id"))
+			}
 			workspaceID = requestedWorkspaceID
 		}
 		preset, err := handlers.globalMCPServerRepo.GetGlobalMCPServer(c.Request.Context(), c.Param("id"))
@@ -485,6 +489,26 @@ func requireAdmin(c *gin.Context) bool {
 	}
 	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin role required"})
 	return false
+}
+
+// auditAdminCrossWorkspaceInstall emits a structured audit log entry when an
+// admin installs a global MCP preset into a workspace whose context they did
+// not explicitly enter. Cross-workspace installs are intentionally allowed
+// for ops/automation, but they need a paper trail because a compromised
+// admin can use this path to plant SSRF-capable MCP servers in any tenant.
+func auditAdminCrossWorkspaceInstall(c *gin.Context, contextWorkspaceID, targetWorkspaceID, presetID string) {
+	ctx := c.Request.Context()
+	logger := log.FromContext(ctx).With("audit", "admin_cross_workspace_install")
+	fields := []any{
+		"preset_id", presetID,
+		"context_workspace_id", contextWorkspaceID,
+		"target_workspace_id", targetWorkspaceID,
+		"remote_addr", c.ClientIP(),
+	}
+	if user, ok := auth.UserFromContext(ctx); ok {
+		fields = append(fields, "user_id", user.GetId(), "user_role", user.GetRole())
+	}
+	logger.Warn("admin installed global MCP preset into another workspace", fields...)
 }
 
 func installWorkspaceID(c *gin.Context) (string, bool) {

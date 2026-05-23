@@ -23,14 +23,29 @@ func setupAuthRouter(cfg *config.AppConfig) *gin.Engine {
 	return r
 }
 
-func TestAPITokenAuthMiddleware_Disabled(t *testing.T) {
+func TestAPITokenAuthMiddleware_NoAuthConfiguredRejects(t *testing.T) {
+	// Default: no api_token, no repos, allow_unauthenticated=false → reject.
 	r := setupAuthRouter(&config.AppConfig{})
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/protected", nil)
 	r.ServeHTTP(w, req)
 
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when no auth is configured, got %d", w.Code)
+	}
+}
+
+func TestAPITokenAuthMiddleware_AllowUnauthenticated(t *testing.T) {
+	// Explicit opt-in: dev fallback grants admin to every request.
+	r := setupAuthRouter(&config.AppConfig{
+		Auth: config.AuthConfig{AllowUnauthenticated: true},
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/protected", nil)
+	r.ServeHTTP(w, req)
+
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf("expected 200 when allow_unauthenticated=true, got %d", w.Code)
 	}
 }
 

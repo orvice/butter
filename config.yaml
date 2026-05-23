@@ -14,6 +14,10 @@ auth:
   initial_admin_username: "admin"
   initial_admin_password: "change-me"
   session_ttl: 168h
+  # Local-dev only. When true, requests are admin-equivalent if no
+  # apiToken/auth-repo/api-token-repo is wired. Production deployments
+  # must leave this false so a misconfigured bootstrap fails closed.
+  allow_unauthenticated: false
   # Third-party OAuth login providers. Each entry requires client_id and
   # client_secret; providers with empty credentials are skipped at startup
   # and are not exposed via ListOAuthProviders. redirect_url must match the
