@@ -15,8 +15,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"go.orx.me/apps/butter/internal/auth/provider"
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -28,6 +30,8 @@ type AuthServiceServer struct {
 	repo       auth.Repository
 	wsRepo     workspacerepo.Repository
 	sessionTTL time.Duration
+	providers  *provider.Registry
+	stateRepo  oauthstate.Repository
 }
 
 func NewAuthServiceServer(repo auth.Repository, sessionTTL time.Duration) *AuthServiceServer {

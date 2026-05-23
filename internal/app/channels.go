@@ -12,6 +12,7 @@ import (
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/application"
+	"go.orx.me/apps/butter/internal/auth/provider"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/mcpoauth"
@@ -34,6 +35,9 @@ import (
 	mcpoauthrepo "go.orx.me/apps/butter/internal/repo/mcpoauth"
 	mcpoauthmemory "go.orx.me/apps/butter/internal/repo/mcpoauth/memory"
 	mcpoauthmongo "go.orx.me/apps/butter/internal/repo/mcpoauth/mongo"
+	"go.orx.me/apps/butter/internal/repo/oauthstate"
+	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
+	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
@@ -55,6 +59,8 @@ type BootstrapResult struct {
 	MongoDB           *mongo.Database
 	Redis             *redis.Client
 	AuthRepo          auth.Repository
+	OAuthStateRepo    oauthstate.Repository
+	OAuthProviders    *provider.Registry
 	APITokenRepo      apitoken.Repository
 	InvocationRepo    invocation.Repository
 	ForumRepo         forum.Repository
@@ -97,13 +103,14 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 
 	// Pick auth, API token + invocation repository backends.
 	var (
-		authRepo  auth.Repository
-		tokenRepo apitoken.Repository
-		invRepo   invocation.Repository
-		forumRepo forum.Repository
-		wsRepo    workspacerepo.Repository
-		oauthRepo mcpoauthrepo.Repository
-		fileRepo  agentfile.Repository
+		authRepo       auth.Repository
+		tokenRepo      apitoken.Repository
+		invRepo        invocation.Repository
+		forumRepo      forum.Repository
+		wsRepo         workspacerepo.Repository
+		oauthRepo      mcpoauthrepo.Repository
+		fileRepo       agentfile.Repository
+		oauthStateRepo oauthstate.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -126,6 +133,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		wsRepo = workspacemongo.New(db)
 		oauthRepo = mcpoauthmongo.New(db)
 		fileRepo = agentfilemongo.New(db, setupAgentFileContentStore(ctx, cfg))
+		oauthStateRepo = oauthstatemongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -133,6 +141,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		wsRepo = workspacememory.New()
 		oauthRepo = mcpoauthmemory.New()
 		fileRepo = agentfilememory.New()
+		oauthStateRepo = oauthstatememory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -157,6 +166,14 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	if err := fileRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create agent file indexes", "err", err)
 		return nil, err
+	}
+	if err := oauthStateRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create oauth state indexes", "err", err)
+		return nil, err
+	}
+	oauthProviders := provider.BuildRegistry(cfg.Auth)
+	if oauthProviders != nil {
+		logger.Info("oauth login providers configured", "count", len(oauthProviders.List()))
 	}
 	oauthConfigProvider := func() mcpoauth.Config {
 		return mcpoauth.Config{
@@ -224,6 +241,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		MongoDB:           db,
 		Redis:             rdb,
 		AuthRepo:          authRepo,
+		OAuthStateRepo:    oauthStateRepo,
+		OAuthProviders:    oauthProviders,
 		APITokenRepo:      tokenRepo,
 		InvocationRepo:    invRepo,
 		ForumRepo:         forumRepo,

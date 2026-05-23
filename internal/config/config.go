@@ -167,9 +167,30 @@ func (s StaticConfig) PublicURL(key string) string {
 }
 
 type AuthConfig struct {
-	InitialAdminUsername string        `yaml:"initial_admin_username"`
-	InitialAdminPassword string        `yaml:"initial_admin_password"`
-	SessionTTL           time.Duration `yaml:"session_ttl"`
+	InitialAdminUsername string                         `yaml:"initial_admin_username"`
+	InitialAdminPassword string                         `yaml:"initial_admin_password"`
+	SessionTTL           time.Duration                  `yaml:"session_ttl"`
+	OAuthProviders       map[string]OAuthProviderConfig `yaml:"oauth_providers"`
+}
+
+// OAuthProviderConfig holds the client credentials and OAuth endpoints for a
+// single third-party login provider. Only providers whose ClientID and
+// ClientSecret are set are exposed via ListOAuthProviders; the rest are
+// effectively disabled.
+type OAuthProviderConfig struct {
+	ClientID     string   `yaml:"client_id"`
+	ClientSecret string   `yaml:"client_secret"`
+	RedirectURL  string   `yaml:"redirect_url"`
+	Scopes       []string `yaml:"scopes"`
+	// DisplayName is shown on the login page (e.g. "GitHub"). Defaults to a
+	// titlecase version of the provider key when empty.
+	DisplayName string `yaml:"display_name"`
+}
+
+// Enabled reports whether the provider has the minimum credentials needed
+// to participate in the OAuth flow.
+func (c OAuthProviderConfig) Enabled() bool {
+	return c.ClientID != "" && c.ClientSecret != ""
 }
 
 func (c AuthConfig) EffectiveSessionTTL() time.Duration {

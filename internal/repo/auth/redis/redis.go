@@ -83,6 +83,10 @@ func (s *Store) FindUserByID(ctx context.Context, id string) (*agentsv1.User, st
 	return s.users.FindUserByID(ctx, id)
 }
 
+func (s *Store) FindUserByExternalID(ctx context.Context, provider, externalID string) (*agentsv1.User, error) {
+	return s.users.FindUserByExternalID(ctx, provider, externalID)
+}
+
 func (s *Store) GetUser(ctx context.Context, id string) (*agentsv1.User, error) {
 	return s.users.GetUser(ctx, id)
 }

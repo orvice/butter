@@ -7,6 +7,7 @@ import { ColorThemeProvider } from "@/hooks/use-color-theme";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import DashboardLayout from "@/layouts/dashboard-layout";
 import LoginPage from "@/pages/login";
+import OAuthCallbackPage from "@/pages/auth-oauth-callback";
 import DashboardPage from "@/pages/dashboard";
 import IntegrationsPage from "@/pages/integrations";
 import OperationsPage from "@/pages/operations";
@@ -64,6 +65,7 @@ export default function App() {
               <WorkspaceProvider>
                 <Routes>
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/auth/oauth/callback/:provider" element={<OAuthCallbackPage />} />
                   <Route element={<DashboardLayout />}>
                     <Route index element={<DashboardPage />} />
                     <Route path="agents" element={<AgentListPage />} />
