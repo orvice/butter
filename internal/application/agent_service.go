@@ -22,6 +22,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// maxInvokeAgentInputBytes caps the size of a single InvokeAgent input to
+// protect the runner and session storage from oversized requests.
+const maxInvokeAgentInputBytes = 1 << 20 // 1 MiB
+
 type AgentServiceServer struct {
 	repo      configrepo.AgentRepository
 	runtime   ConfigRuntime
@@ -225,6 +229,10 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.Invo
 	}
 	if req.GetInput() == "" {
 		return nil, twirp.RequiredArgumentError("input")
+	}
+	if len(req.GetInput()) > maxInvokeAgentInputBytes {
+		return nil, twirp.InvalidArgumentError("input",
+			"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
 	}
 
 	appName := req.GetAppName()

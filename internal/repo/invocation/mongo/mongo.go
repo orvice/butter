@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -20,19 +21,39 @@ const collectionName = "invocations"
 
 // Store is a MongoDB-backed implementation of invocation.Repository.
 //
-// Records are encoded as protojson under the `spec` field; pagination is a
-// simple offset cursor base64-encoded into page_token.
+// Records keep the canonical protojson payload in `spec` and denormalize the
+// indexable identifiers (workspace_id, agent_name, session_id, started_at)
+// into top-level fields so List queries can do exact-match BSON filters
+// instead of regex scans over the JSON blob.
 type Store struct {
 	coll *mongo.Collection
 }
 
 type doc struct {
-	ID   string `bson:"_id"`
-	Spec string `bson:"spec"`
+	ID          string    `bson:"_id"`
+	WorkspaceID string    `bson:"workspace_id,omitempty"`
+	AgentName   string    `bson:"agent_name,omitempty"`
+	SessionID   string    `bson:"session_id,omitempty"`
+	StartedAt   time.Time `bson:"started_at,omitempty"`
+	Spec        string    `bson:"spec"`
 }
 
 func New(db *mongo.Database) *Store {
 	return &Store{coll: db.Collection(collectionName)}
+}
+
+// EnsureIndexes creates the indexes used by List and ListRecent queries.
+func (s *Store) EnsureIndexes(ctx context.Context) error {
+	_, err := s.coll.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "started_at", Value: -1}}},
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "agent_name", Value: 1}, {Key: "started_at", Value: -1}}},
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "session_id", Value: 1}, {Key: "started_at", Value: -1}}},
+		{Keys: bson.D{{Key: "started_at", Value: -1}}},
+	})
+	if err != nil {
+		return fmt.Errorf("create invocation indexes: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
@@ -40,7 +61,17 @@ func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 	if err != nil {
 		return fmt.Errorf("marshal invocation: %w", err)
 	}
-	_, err = s.coll.ReplaceOne(ctx, bson.M{"_id": inv.GetId()}, doc{ID: inv.GetId(), Spec: string(b)}, options.Replace().SetUpsert(true))
+	d := doc{
+		ID:          inv.GetId(),
+		WorkspaceID: inv.GetWorkspaceId(),
+		AgentName:   inv.GetAgentName(),
+		SessionID:   inv.GetSessionId(),
+		Spec:        string(b),
+	}
+	if ts := inv.GetStartedAt(); ts != nil {
+		d.StartedAt = ts.AsTime()
+	}
+	_, err = s.coll.ReplaceOne(ctx, bson.M{"_id": inv.GetId()}, d, options.Replace().SetUpsert(true))
 	if err != nil {
 		return fmt.Errorf("upsert invocation: %w", err)
 	}
@@ -60,24 +91,15 @@ func (s *Store) Get(ctx context.Context, id string) (*agentsv1.Invocation, error
 }
 
 func (s *Store) List(ctx context.Context, filter invocation.ListFilter, pageSize int32, pageToken string) ([]*agentsv1.Invocation, string, int32, error) {
-	clauses := make([]bson.M, 0, 3)
+	q := bson.M{}
 	if filter.WorkspaceID != "" {
-		clauses = append(clauses, bson.M{"spec": bson.M{"$regex": fmt.Sprintf(`"workspaceId":\s*"%s"`, regexEscape(filter.WorkspaceID))}})
+		q["workspace_id"] = filter.WorkspaceID
 	}
 	if filter.AgentName != "" {
-		clauses = append(clauses, bson.M{"spec": bson.M{"$regex": fmt.Sprintf(`"agentName":\s*"%s"`, regexEscape(filter.AgentName))}})
+		q["agent_name"] = filter.AgentName
 	}
 	if filter.SessionID != "" {
-		clauses = append(clauses, bson.M{"spec": bson.M{"$regex": fmt.Sprintf(`"sessionId":\s*"%s"`, regexEscape(filter.SessionID))}})
-	}
-	q := bson.M{}
-	switch len(clauses) {
-	case 0:
-		// no filter
-	case 1:
-		q = clauses[0]
-	default:
-		q = bson.M{"$and": clauses}
+		q["session_id"] = filter.SessionID
 	}
 
 	total, err := s.coll.CountDocuments(ctx, q)
@@ -91,7 +113,7 @@ func (s *Store) List(ctx context.Context, filter invocation.ListFilter, pageSize
 	offset := decodeToken(pageToken)
 
 	opts := options.Find().
-		SetSort(bson.M{"spec": -1}).
+		SetSort(bson.D{{Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}).
 		SetSkip(int64(offset)).
 		SetLimit(int64(pageSize))
 
@@ -123,7 +145,7 @@ func (s *Store) ListRecent(ctx context.Context, limit int32, pageToken string) (
 	offset := decodeToken(pageToken)
 
 	opts := options.Find().
-		SetSort(bson.M{"spec": -1}).
+		SetSort(bson.D{{Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}).
 		SetSkip(int64(offset)).
 		SetLimit(int64(limit))
 
@@ -185,18 +207,4 @@ func decodeToken(token string) int {
 
 func encodeToken(offset int) string {
 	return base64.StdEncoding.EncodeToString([]byte(strconv.Itoa(offset)))
-}
-
-// regexEscape escapes characters that are special in MongoDB $regex patterns.
-func regexEscape(s string) string {
-	var out []byte
-	for _, b := range []byte(s) {
-		switch b {
-		case '.', '+', '*', '?', '(', ')', '|', '[', ']', '{', '}', '^', '$', '\\':
-			out = append(out, '\\', b)
-		default:
-			out = append(out, b)
-		}
-	}
-	return string(out)
 }
