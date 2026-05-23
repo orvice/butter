@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
@@ -78,12 +78,18 @@ export default function CronJobCreatePage() {
           <BreadcrumbItem>Create</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Create Cron Job</h2>
+      <div className="mb-6 space-y-1">
+        <h2 className="text-2xl font-bold">Create Cron Job</h2>
+        <p className="text-sm text-muted-foreground">Schedule an agent run, define the prompt, and choose where the result is delivered.</p>
+      </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
-            <CardHeader><CardTitle>Basic Info</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Basic Info</CardTitle>
+              <CardDescription>Pick the schedule, target agent, input, and timezone for automatic runs.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <FormField control={form.control} name="name" render={({ field }) => (
                 <FormItem><FormLabel>Name</FormLabel><FormControl><Input placeholder="daily-summary" {...field} /></FormControl><FormMessage /></FormItem>
@@ -127,7 +133,10 @@ export default function CronJobCreatePage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Delivery</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Delivery</CardTitle>
+              <CardDescription>Choose whether results stay in logs or are sent to a webhook, channel, or notify group.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <FormField control={form.control} name="delivery_type" render={({ field }) => (
                 <FormItem>
@@ -176,7 +185,7 @@ export default function CronJobCreatePage() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-3">
+          <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <Button type="button" variant="outline" onClick={() => navigate("/cron")}>Cancel</Button>
             <Button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Creating..." : "Create"}</Button>
           </div>

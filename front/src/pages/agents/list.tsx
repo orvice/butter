@@ -258,7 +258,9 @@ export default function AgentListPage() {
         columns={columns}
         data={agents}
         isLoading={isLoading}
-        emptyMessage="No agents yet. Deploy your first agent to get started."
+        emptyMessage="No agents yet"
+        emptyDescription="Deploy your first agent to start handling chat, scheduled tasks, or tool workflows."
+        emptyAction={<Button onClick={() => navigate("/agents/create")}><Plus className="mr-2 h-4 w-4" />Deploy Agent</Button>}
       />
 
       <div className="mt-2 text-xs text-muted-foreground">

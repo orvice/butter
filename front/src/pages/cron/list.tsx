@@ -190,7 +190,9 @@ export default function CronJobListPage() {
         columns={columns}
         data={data?.cron_jobs}
         isLoading={isLoading}
-        emptyMessage="No cron jobs yet."
+        emptyMessage="No cron jobs yet"
+        emptyDescription="Create a schedule to run an agent automatically and deliver the result."
+        emptyAction={<Button onClick={() => navigate("/cron/create")}><Play className="mr-2 h-4 w-4" />Add Schedule</Button>}
       />
       <DeleteDialog
         open={!!deleteTarget}

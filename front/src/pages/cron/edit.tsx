@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
@@ -114,12 +114,18 @@ export default function CronJobEditPage() {
           <BreadcrumbItem>{name}</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Edit Cron Job</h2>
+      <div className="mb-6 space-y-1">
+        <h2 className="text-2xl font-bold">Edit Cron Job</h2>
+        <p className="text-sm text-muted-foreground">Review schedule, agent input, and delivery settings before the next automatic run.</p>
+      </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
-            <CardHeader><CardTitle>Basic Info</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Basic Info</CardTitle>
+              <CardDescription>Update when the job runs, which agent it invokes, and the message it sends.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <FormField control={form.control} name="name" render={({ field }) => (
                 <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} disabled /></FormControl></FormItem>
@@ -161,7 +167,10 @@ export default function CronJobEditPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Delivery</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Delivery</CardTitle>
+              <CardDescription>Choose where execution results are written or sent after each run.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <FormField control={form.control} name="delivery_type" render={({ field }) => (
                 <FormItem>
@@ -209,7 +218,7 @@ export default function CronJobEditPage() {
               )}
             </CardContent>
           </Card>
-          <div className="flex gap-3">
+          <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <Button type="button" variant="outline" onClick={() => navigate("/cron")}>Cancel</Button>
             <Button type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? "Saving..." : "Save"}</Button>
           </div>

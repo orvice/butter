@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAgents } from "@/api/agents";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -158,7 +158,10 @@ export default function ChannelForm({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         <Card>
-          <CardHeader><CardTitle>Channel</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Channel</CardTitle>
+            <CardDescription>Bind an agent to a platform and optionally override its model for this channel.</CardDescription>
+          </CardHeader>
           <CardContent className="space-y-4">
             <FormField control={form.control} name="name" render={({ field }) => (
               <FormItem>
@@ -211,7 +214,10 @@ export default function ChannelForm({
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Platform Settings</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Platform Settings</CardTitle>
+            <CardDescription>Configure bot credentials and restrict which chats or channels can trigger it.</CardDescription>
+          </CardHeader>
           <CardContent className="space-y-4">
             <FormField control={form.control} name="bot_token" render={({ field }) => (
               <FormItem>
@@ -241,7 +247,10 @@ export default function ChannelForm({
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Triggers</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Triggers</CardTitle>
+            <CardDescription>Control whether the channel reacts to every message, commands, or private chats only.</CardDescription>
+          </CardHeader>
           <CardContent className="space-y-4">
             <FormField control={form.control} name="trigger_type" render={({ field }) => (
               <FormItem>
@@ -270,7 +279,7 @@ export default function ChannelForm({
           </CardContent>
         </Card>
 
-        <div className="flex gap-3">
+        <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
           <Button type="submit" disabled={loading}>{loading ? "Saving..." : submitLabel}</Button>
         </div>

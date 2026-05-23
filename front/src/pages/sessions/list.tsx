@@ -223,7 +223,8 @@ export default function SessionListPage() {
         columns={columns}
         data={sessions}
         isLoading={isLoading}
-        emptyMessage="No sessions match the current filters."
+        emptyMessage="No sessions match the current filters"
+        emptyDescription="Adjust the channel, user, or date filters to find stored ADK sessions."
       />
 
       <div className="mt-3 flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
