@@ -28,6 +28,9 @@ const (
 	AuthService_SetUserDisabled_FullMethodName    = "/agents.v1.AuthService/SetUserDisabled"
 	AuthService_UpdateProfile_FullMethodName      = "/agents.v1.AuthService/UpdateProfile"
 	AuthService_ChangePassword_FullMethodName     = "/agents.v1.AuthService/ChangePassword"
+	AuthService_ListOAuthProviders_FullMethodName = "/agents.v1.AuthService/ListOAuthProviders"
+	AuthService_BeginOAuthFlow_FullMethodName     = "/agents.v1.AuthService/BeginOAuthFlow"
+	AuthService_CompleteOAuthFlow_FullMethodName  = "/agents.v1.AuthService/CompleteOAuthFlow"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -54,6 +57,16 @@ type AuthServiceClient interface {
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*UpdateProfileResponse, error)
 	// ChangePassword changes the authenticated user's password.
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error)
+	// ListOAuthProviders is public and returns the OAuth providers configured
+	// on the server. Frontends use it to decide which "Sign in with X" buttons
+	// to render on the login page.
+	ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error)
+	// BeginOAuthFlow is public and returns the provider authorize URL plus an
+	// opaque state token. The client redirects the user to authorize_url.
+	BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error)
+	// CompleteOAuthFlow is public and exchanges the provider's authorization
+	// code for a session token. Behaves like Login.
+	CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 }
 
 type authServiceClient struct {
@@ -154,6 +167,36 @@ func (c *authServiceClient) ChangePassword(ctx context.Context, in *ChangePasswo
 	return out, nil
 }
 
+func (c *authServiceClient) ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOAuthProvidersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListOAuthProviders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BeginOAuthFlowResponse)
+	err := c.cc.Invoke(ctx, AuthService_BeginOAuthFlow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, AuthService_CompleteOAuthFlow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -178,6 +221,16 @@ type AuthServiceServer interface {
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*UpdateProfileResponse, error)
 	// ChangePassword changes the authenticated user's password.
 	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
+	// ListOAuthProviders is public and returns the OAuth providers configured
+	// on the server. Frontends use it to decide which "Sign in with X" buttons
+	// to render on the login page.
+	ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error)
+	// BeginOAuthFlow is public and returns the provider authorize URL plus an
+	// opaque state token. The client redirects the user to authorize_url.
+	BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error)
+	// CompleteOAuthFlow is public and exchanges the provider's authorization
+	// code for a session token. Behaves like Login.
+	CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*LoginResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -214,6 +267,15 @@ func (UnimplementedAuthServiceServer) UpdateProfile(context.Context, *UpdateProf
 }
 func (UnimplementedAuthServiceServer) ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ChangePassword not implemented")
+}
+func (UnimplementedAuthServiceServer) ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOAuthProviders not implemented")
+}
+func (UnimplementedAuthServiceServer) BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BeginOAuthFlow not implemented")
+}
+func (UnimplementedAuthServiceServer) CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteOAuthFlow not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -398,6 +460,60 @@ func _AuthService_ChangePassword_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListOAuthProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOAuthProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListOAuthProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListOAuthProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListOAuthProviders(ctx, req.(*ListOAuthProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_BeginOAuthFlow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginOAuthFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).BeginOAuthFlow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_BeginOAuthFlow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).BeginOAuthFlow(ctx, req.(*BeginOAuthFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CompleteOAuthFlow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteOAuthFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CompleteOAuthFlow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_CompleteOAuthFlow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CompleteOAuthFlow(ctx, req.(*CompleteOAuthFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -440,6 +556,18 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ChangePassword",
 			Handler:    _AuthService_ChangePassword_Handler,
+		},
+		{
+			MethodName: "ListOAuthProviders",
+			Handler:    _AuthService_ListOAuthProviders_Handler,
+		},
+		{
+			MethodName: "BeginOAuthFlow",
+			Handler:    _AuthService_BeginOAuthFlow_Handler,
+		},
+		{
+			MethodName: "CompleteOAuthFlow",
+			Handler:    _AuthService_CompleteOAuthFlow_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

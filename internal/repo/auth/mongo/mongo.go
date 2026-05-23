@@ -25,7 +25,10 @@ type userDoc struct {
 	Username     string    `bson:"username"`
 	DisplayName  string    `bson:"display_name,omitempty"`
 	AvatarURL    string    `bson:"avatar_url,omitempty"`
-	PasswordHash string    `bson:"password_hash"`
+	Email        string    `bson:"email,omitempty"`
+	Provider     string    `bson:"provider,omitempty"`
+	ExternalID   string    `bson:"external_id,omitempty"`
+	PasswordHash string    `bson:"password_hash,omitempty"`
 	Role         string    `bson:"role,omitempty"`
 	Disabled     bool      `bson:"disabled,omitempty"`
 	CreatedAt    time.Time `bson:"created_at"`
@@ -79,6 +82,14 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 		return fmt.Errorf("create auth_sessions expires_at ttl index: %w", err)
 	}
 
+	_, err = s.users.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "provider", Value: 1}, {Key: "external_id", Value: 1}},
+		Options: options.Index().SetUnique(true).SetSparse(true),
+	})
+	if err != nil {
+		return fmt.Errorf("create users provider+external_id index: %w", err)
+	}
+
 	return nil
 }
 
@@ -117,6 +128,9 @@ func (s *Store) CreateUser(ctx context.Context, user *agentsv1.User, passwordHas
 		Username:     user.GetUsername(),
 		DisplayName:  user.GetDisplayName(),
 		AvatarURL:    user.GetAvatarUrl(),
+		Email:        user.GetEmail(),
+		Provider:     user.GetProvider(),
+		ExternalID:   user.GetExternalId(),
 		PasswordHash: passwordHash,
 		Role:         user.GetRole(),
 		Disabled:     user.GetDisabled(),
@@ -130,6 +144,24 @@ func (s *Store) CreateUser(ctx context.Context, user *agentsv1.User, passwordHas
 		return fmt.Errorf("insert user: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) FindUserByExternalID(ctx context.Context, provider, externalID string) (*agentsv1.User, error) {
+	if provider == "" || externalID == "" {
+		return nil, auth.ErrUserNotFound
+	}
+	var doc userDoc
+	err := s.users.FindOne(ctx, bson.M{
+		"provider":    provider,
+		"external_id": externalID,
+	}).Decode(&doc)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, auth.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("find user by external id: %w", err)
+	}
+	return userToProto(&doc), nil
 }
 
 func (s *Store) UpdateUserProfile(ctx context.Context, id string, displayName string, avatarURL *string, updatedAt time.Time) (*agentsv1.User, error) {
@@ -275,6 +307,9 @@ func userToProto(doc *userDoc) *agentsv1.User {
 		Username:    doc.Username,
 		DisplayName: doc.DisplayName,
 		AvatarUrl:   doc.AvatarURL,
+		Email:       doc.Email,
+		Provider:    doc.Provider,
+		ExternalId:  doc.ExternalID,
 		Role:        doc.Role,
 		Disabled:    doc.Disabled,
 		CreatedAt:   timestamppb.New(doc.CreatedAt),

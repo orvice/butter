@@ -55,6 +55,15 @@ const (
 	// AuthServiceChangePasswordProcedure is the fully-qualified name of the AuthService's
 	// ChangePassword RPC.
 	AuthServiceChangePasswordProcedure = "/agents.v1.AuthService/ChangePassword"
+	// AuthServiceListOAuthProvidersProcedure is the fully-qualified name of the AuthService's
+	// ListOAuthProviders RPC.
+	AuthServiceListOAuthProvidersProcedure = "/agents.v1.AuthService/ListOAuthProviders"
+	// AuthServiceBeginOAuthFlowProcedure is the fully-qualified name of the AuthService's
+	// BeginOAuthFlow RPC.
+	AuthServiceBeginOAuthFlowProcedure = "/agents.v1.AuthService/BeginOAuthFlow"
+	// AuthServiceCompleteOAuthFlowProcedure is the fully-qualified name of the AuthService's
+	// CompleteOAuthFlow RPC.
+	AuthServiceCompleteOAuthFlowProcedure = "/agents.v1.AuthService/CompleteOAuthFlow"
 )
 
 // AuthServiceClient is a client for the agents.v1.AuthService service.
@@ -77,6 +86,16 @@ type AuthServiceClient interface {
 	UpdateProfile(context.Context, *connect.Request[v1.UpdateProfileRequest]) (*connect.Response[v1.UpdateProfileResponse], error)
 	// ChangePassword changes the authenticated user's password.
 	ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error)
+	// ListOAuthProviders is public and returns the OAuth providers configured
+	// on the server. Frontends use it to decide which "Sign in with X" buttons
+	// to render on the login page.
+	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
+	// BeginOAuthFlow is public and returns the provider authorize URL plus an
+	// opaque state token. The client redirects the user to authorize_url.
+	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
+	// CompleteOAuthFlow is public and exchanges the provider's authorization
+	// code for a session token. Behaves like Login.
+	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.LoginResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the agents.v1.AuthService service. By default, it
@@ -144,6 +163,24 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("ChangePassword")),
 			connect.WithClientOptions(opts...),
 		),
+		listOAuthProviders: connect.NewClient[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse](
+			httpClient,
+			baseURL+AuthServiceListOAuthProvidersProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ListOAuthProviders")),
+			connect.WithClientOptions(opts...),
+		),
+		beginOAuthFlow: connect.NewClient[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse](
+			httpClient,
+			baseURL+AuthServiceBeginOAuthFlowProcedure,
+			connect.WithSchema(authServiceMethods.ByName("BeginOAuthFlow")),
+			connect.WithClientOptions(opts...),
+		),
+		completeOAuthFlow: connect.NewClient[v1.CompleteOAuthFlowRequest, v1.LoginResponse](
+			httpClient,
+			baseURL+AuthServiceCompleteOAuthFlowProcedure,
+			connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -158,6 +195,9 @@ type authServiceClient struct {
 	setUserDisabled    *connect.Client[v1.SetUserDisabledRequest, v1.SetUserDisabledResponse]
 	updateProfile      *connect.Client[v1.UpdateProfileRequest, v1.UpdateProfileResponse]
 	changePassword     *connect.Client[v1.ChangePasswordRequest, v1.ChangePasswordResponse]
+	listOAuthProviders *connect.Client[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse]
+	beginOAuthFlow     *connect.Client[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse]
+	completeOAuthFlow  *connect.Client[v1.CompleteOAuthFlowRequest, v1.LoginResponse]
 }
 
 // Login calls agents.v1.AuthService.Login.
@@ -205,6 +245,21 @@ func (c *authServiceClient) ChangePassword(ctx context.Context, req *connect.Req
 	return c.changePassword.CallUnary(ctx, req)
 }
 
+// ListOAuthProviders calls agents.v1.AuthService.ListOAuthProviders.
+func (c *authServiceClient) ListOAuthProviders(ctx context.Context, req *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error) {
+	return c.listOAuthProviders.CallUnary(ctx, req)
+}
+
+// BeginOAuthFlow calls agents.v1.AuthService.BeginOAuthFlow.
+func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, req *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error) {
+	return c.beginOAuthFlow.CallUnary(ctx, req)
+}
+
+// CompleteOAuthFlow calls agents.v1.AuthService.CompleteOAuthFlow.
+func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, req *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.LoginResponse], error) {
+	return c.completeOAuthFlow.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the agents.v1.AuthService service.
 type AuthServiceHandler interface {
 	// Login is public and exchanges username/password for a session token.
@@ -225,6 +280,16 @@ type AuthServiceHandler interface {
 	UpdateProfile(context.Context, *connect.Request[v1.UpdateProfileRequest]) (*connect.Response[v1.UpdateProfileResponse], error)
 	// ChangePassword changes the authenticated user's password.
 	ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error)
+	// ListOAuthProviders is public and returns the OAuth providers configured
+	// on the server. Frontends use it to decide which "Sign in with X" buttons
+	// to render on the login page.
+	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
+	// BeginOAuthFlow is public and returns the provider authorize URL plus an
+	// opaque state token. The client redirects the user to authorize_url.
+	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
+	// CompleteOAuthFlow is public and exchanges the provider's authorization
+	// code for a session token. Behaves like Login.
+	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.LoginResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -288,6 +353,24 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("ChangePassword")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceListOAuthProvidersHandler := connect.NewUnaryHandler(
+		AuthServiceListOAuthProvidersProcedure,
+		svc.ListOAuthProviders,
+		connect.WithSchema(authServiceMethods.ByName("ListOAuthProviders")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceBeginOAuthFlowHandler := connect.NewUnaryHandler(
+		AuthServiceBeginOAuthFlowProcedure,
+		svc.BeginOAuthFlow,
+		connect.WithSchema(authServiceMethods.ByName("BeginOAuthFlow")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceCompleteOAuthFlowHandler := connect.NewUnaryHandler(
+		AuthServiceCompleteOAuthFlowProcedure,
+		svc.CompleteOAuthFlow,
+		connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceLoginProcedure:
@@ -308,6 +391,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceUpdateProfileHandler.ServeHTTP(w, r)
 		case AuthServiceChangePasswordProcedure:
 			authServiceChangePasswordHandler.ServeHTTP(w, r)
+		case AuthServiceListOAuthProvidersProcedure:
+			authServiceListOAuthProvidersHandler.ServeHTTP(w, r)
+		case AuthServiceBeginOAuthFlowProcedure:
+			authServiceBeginOAuthFlowHandler.ServeHTTP(w, r)
+		case AuthServiceCompleteOAuthFlowProcedure:
+			authServiceCompleteOAuthFlowHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -351,4 +440,16 @@ func (UnimplementedAuthServiceHandler) UpdateProfile(context.Context, *connect.R
 
 func (UnimplementedAuthServiceHandler) ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.ChangePassword is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.ListOAuthProviders is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.BeginOAuthFlow is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.LoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.CompleteOAuthFlow is not implemented"))
 }

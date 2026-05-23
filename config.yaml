@@ -14,6 +14,17 @@ auth:
   initial_admin_username: "admin"
   initial_admin_password: "change-me"
   session_ttl: 168h
+  # Third-party OAuth login providers. Each entry requires client_id and
+  # client_secret; providers with empty credentials are skipped at startup
+  # and are not exposed via ListOAuthProviders. redirect_url must match the
+  # callback URL registered with the provider's OAuth app.
+  oauth_providers: {}
+  #   github:
+  #     client_id: "${GITHUB_OAUTH_CLIENT_ID}"
+  #     client_secret: "${GITHUB_OAUTH_CLIENT_SECRET}"
+  #     redirect_url: "https://dashboard.example.com/auth/oauth/callback/github"
+  #     scopes: ["read:user", "user:email"]
+  #     display_name: "GitHub"
 
 # MongoDB for ADK session persistence, dashboard users, and runtime repositories
 mongo_uri: "mongodb://localhost:27017"

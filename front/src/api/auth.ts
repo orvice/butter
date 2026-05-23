@@ -53,10 +53,42 @@ export interface ChangePasswordInput {
   new_password: string;
 }
 
+export interface OAuthProviderInfo {
+  name: string;
+  display_name?: string;
+  displayName?: string;
+}
+
+export interface BeginOAuthFlowResponse {
+  authorize_url?: string;
+  authorizeUrl?: string;
+  state: string;
+}
+
 const SVC = "agents.v1.AuthService";
 
 export function login(username: string, password: string) {
   return twirpFetch<{ username: string; password: string }, LoginResponse>(SVC, "Login", { username, password });
+}
+
+export function listOAuthProviders() {
+  return twirpFetch<object, { providers?: OAuthProviderInfo[] }>(SVC, "ListOAuthProviders", {});
+}
+
+export function beginOAuthFlow(provider: string, redirectUri: string) {
+  return twirpFetch<{ provider: string; redirect_uri: string }, BeginOAuthFlowResponse>(
+    SVC,
+    "BeginOAuthFlow",
+    { provider, redirect_uri: redirectUri },
+  );
+}
+
+export function completeOAuthFlow(provider: string, code: string, state: string) {
+  return twirpFetch<{ provider: string; code: string; state: string }, LoginResponse>(
+    SVC,
+    "CompleteOAuthFlow",
+    { provider, code, state },
+  );
 }
 
 export function me() {

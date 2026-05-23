@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/auth.proto.
  */
 export const file_agents_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChRhZ2VudHMvdjEvYXV0aC5wcm90bxIJYWdlbnRzLnYxIs4BCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmF2YXRhcl91cmwYCCABKAkiRAoMTG9naW5SZXF1ZXN0EhkKCHVzZXJuYW1lGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIpcBCg1Mb2dpblJlc3BvbnNlEg0KBXRva2VuGAEgASgJEh0KBHVzZXIYAiABKAsyDy5hZ2VudHMudjEuVXNlchIuCgpleHBpcmVzX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgp3b3Jrc3BhY2VzGAQgAygLMhQuYWdlbnRzLnYxLldvcmtzcGFjZSILCglNZVJlcXVlc3QiKwoKTWVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSISChBMaXN0VXNlcnNSZXF1ZXN0IjMKEUxpc3RVc2Vyc1Jlc3BvbnNlEh4KBXVzZXJzGAEgAygLMg8uYWdlbnRzLnYxLlVzZXIifwoRQ3JlYXRlVXNlclJlcXVlc3QSGQoIdXNlcm5hbWUYASABKAlCB/pCBHICEAESGQoIcGFzc3dvcmQYAiABKAlCB/pCBHICEAESFAoMZGlzcGxheV9uYW1lGAMgASgJEgwKBHJvbGUYBCABKAkSEAoIZGlzYWJsZWQYBSABKAgiMwoSQ3JlYXRlVXNlclJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJLChlVcGRhdGVVc2VyUGFzc3dvcmRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIjsKGlVwZGF0ZVVzZXJQYXNzd29yZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciI/ChZTZXRVc2VyRGlzYWJsZWRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhAKCGRpc2FibGVkGAIgASgIIjgKF1NldFVzZXJEaXNhYmxlZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJdChRVcGRhdGVQcm9maWxlUmVxdWVzdBIdCgxkaXNwbGF5X25hbWUYASABKAlCB/pCBHICEAESFwoKYXZhdGFyX3VybBgCIAEoCUgAiAEBQg0KC19hdmF0YXJfdXJsIjYKFVVwZGF0ZVByb2ZpbGVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiWQoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EiEKEGN1cnJlbnRfcGFzc3dvcmQYASABKAlCB/pCBHICEAESHQoMbmV3X3Bhc3N3b3JkGAIgASgJQgf6QgRyAhABIjcKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USHQoEdXNlchgBIAEoCzIPLmFnZW50cy52MS5Vc2VyMrYFCgtBdXRoU2VydmljZRI6CgVMb2dpbhIXLmFnZW50cy52MS5Mb2dpblJlcXVlc3QaGC5hZ2VudHMudjEuTG9naW5SZXNwb25zZRIxCgJNZRIULmFnZW50cy52MS5NZVJlcXVlc3QaFS5hZ2VudHMudjEuTWVSZXNwb25zZRI9CgZMb2dvdXQSGC5hZ2VudHMudjEuTG9nb3V0UmVxdWVzdBoZLmFnZW50cy52MS5Mb2dvdXRSZXNwb25zZRJGCglMaXN0VXNlcnMSGy5hZ2VudHMudjEuTGlzdFVzZXJzUmVxdWVzdBocLmFnZW50cy52MS5MaXN0VXNlcnNSZXNwb25zZRJJCgpDcmVhdGVVc2VyEhwuYWdlbnRzLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0Gh0uYWdlbnRzLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJhChJVcGRhdGVVc2VyUGFzc3dvcmQSJC5hZ2VudHMudjEuVXBkYXRlVXNlclBhc3N3b3JkUmVxdWVzdBolLmFnZW50cy52MS5VcGRhdGVVc2VyUGFzc3dvcmRSZXNwb25zZRJYCg9TZXRVc2VyRGlzYWJsZWQSIS5hZ2VudHMudjEuU2V0VXNlckRpc2FibGVkUmVxdWVzdBoiLmFnZW50cy52MS5TZXRVc2VyRGlzYWJsZWRSZXNwb25zZRJSCg1VcGRhdGVQcm9maWxlEh8uYWdlbnRzLnYxLlVwZGF0ZVByb2ZpbGVSZXF1ZXN0GiAuYWdlbnRzLnYxLlVwZGF0ZVByb2ZpbGVSZXNwb25zZRJVCg5DaGFuZ2VQYXNzd29yZBIgLmFnZW50cy52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaIS5hZ2VudHMudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_agents_v1_workspace, file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChRhZ2VudHMvdjEvYXV0aC5wcm90bxIJYWdlbnRzLnYxIoQCCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmF2YXRhcl91cmwYCCABKAkSDQoFZW1haWwYCSABKAkSEAoIcHJvdmlkZXIYCiABKAkSEwoLZXh0ZXJuYWxfaWQYCyABKAkiRAoMTG9naW5SZXF1ZXN0EhkKCHVzZXJuYW1lGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIpcBCg1Mb2dpblJlc3BvbnNlEg0KBXRva2VuGAEgASgJEh0KBHVzZXIYAiABKAsyDy5hZ2VudHMudjEuVXNlchIuCgpleHBpcmVzX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgp3b3Jrc3BhY2VzGAQgAygLMhQuYWdlbnRzLnYxLldvcmtzcGFjZSILCglNZVJlcXVlc3QiKwoKTWVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSISChBMaXN0VXNlcnNSZXF1ZXN0IjMKEUxpc3RVc2Vyc1Jlc3BvbnNlEh4KBXVzZXJzGAEgAygLMg8uYWdlbnRzLnYxLlVzZXIifwoRQ3JlYXRlVXNlclJlcXVlc3QSGQoIdXNlcm5hbWUYASABKAlCB/pCBHICEAESGQoIcGFzc3dvcmQYAiABKAlCB/pCBHICEAESFAoMZGlzcGxheV9uYW1lGAMgASgJEgwKBHJvbGUYBCABKAkSEAoIZGlzYWJsZWQYBSABKAgiMwoSQ3JlYXRlVXNlclJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJLChlVcGRhdGVVc2VyUGFzc3dvcmRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIjsKGlVwZGF0ZVVzZXJQYXNzd29yZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciI/ChZTZXRVc2VyRGlzYWJsZWRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhAKCGRpc2FibGVkGAIgASgIIjgKF1NldFVzZXJEaXNhYmxlZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJdChRVcGRhdGVQcm9maWxlUmVxdWVzdBIdCgxkaXNwbGF5X25hbWUYASABKAlCB/pCBHICEAESFwoKYXZhdGFyX3VybBgCIAEoCUgAiAEBQg0KC19hdmF0YXJfdXJsIjYKFVVwZGF0ZVByb2ZpbGVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiWQoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EiEKEGN1cnJlbnRfcGFzc3dvcmQYASABKAlCB/pCBHICEAESHQoMbmV3X3Bhc3N3b3JkGAIgASgJQgf6QgRyAhABIjcKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USHQoEdXNlchgBIAEoCzIPLmFnZW50cy52MS5Vc2VyIjMKDU9BdXRoUHJvdmlkZXISDAoEbmFtZRgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkiGwoZTGlzdE9BdXRoUHJvdmlkZXJzUmVxdWVzdCJJChpMaXN0T0F1dGhQcm92aWRlcnNSZXNwb25zZRIrCglwcm92aWRlcnMYASADKAsyGC5hZ2VudHMudjEuT0F1dGhQcm92aWRlciJIChVCZWdpbk9BdXRoRmxvd1JlcXVlc3QSGQoIcHJvdmlkZXIYASABKAlCB/pCBHICEAESFAoMcmVkaXJlY3RfdXJpGAIgASgJIj4KFkJlZ2luT0F1dGhGbG93UmVzcG9uc2USFQoNYXV0aG9yaXplX3VybBgBIAEoCRINCgVzdGF0ZRgCIAEoCSJkChhDb21wbGV0ZU9BdXRoRmxvd1JlcXVlc3QSGQoIcHJvdmlkZXIYASABKAlCB/pCBHICEAESFQoEY29kZRgCIAEoCUIH+kIEcgIQARIWCgVzdGF0ZRgDIAEoCUIH+kIEcgIQATLEBwoLQXV0aFNlcnZpY2USOgoFTG9naW4SFy5hZ2VudHMudjEuTG9naW5SZXF1ZXN0GhguYWdlbnRzLnYxLkxvZ2luUmVzcG9uc2USMQoCTWUSFC5hZ2VudHMudjEuTWVSZXF1ZXN0GhUuYWdlbnRzLnYxLk1lUmVzcG9uc2USPQoGTG9nb3V0EhguYWdlbnRzLnYxLkxvZ291dFJlcXVlc3QaGS5hZ2VudHMudjEuTG9nb3V0UmVzcG9uc2USRgoJTGlzdFVzZXJzEhsuYWdlbnRzLnYxLkxpc3RVc2Vyc1JlcXVlc3QaHC5hZ2VudHMudjEuTGlzdFVzZXJzUmVzcG9uc2USSQoKQ3JlYXRlVXNlchIcLmFnZW50cy52MS5DcmVhdGVVc2VyUmVxdWVzdBodLmFnZW50cy52MS5DcmVhdGVVc2VyUmVzcG9uc2USYQoSVXBkYXRlVXNlclBhc3N3b3JkEiQuYWdlbnRzLnYxLlVwZGF0ZVVzZXJQYXNzd29yZFJlcXVlc3QaJS5hZ2VudHMudjEuVXBkYXRlVXNlclBhc3N3b3JkUmVzcG9uc2USWAoPU2V0VXNlckRpc2FibGVkEiEuYWdlbnRzLnYxLlNldFVzZXJEaXNhYmxlZFJlcXVlc3QaIi5hZ2VudHMudjEuU2V0VXNlckRpc2FibGVkUmVzcG9uc2USUgoNVXBkYXRlUHJvZmlsZRIfLmFnZW50cy52MS5VcGRhdGVQcm9maWxlUmVxdWVzdBogLmFnZW50cy52MS5VcGRhdGVQcm9maWxlUmVzcG9uc2USVQoOQ2hhbmdlUGFzc3dvcmQSIC5hZ2VudHMudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0GiEuYWdlbnRzLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USYQoSTGlzdE9BdXRoUHJvdmlkZXJzEiQuYWdlbnRzLnYxLkxpc3RPQXV0aFByb3ZpZGVyc1JlcXVlc3QaJS5hZ2VudHMudjEuTGlzdE9BdXRoUHJvdmlkZXJzUmVzcG9uc2USVQoOQmVnaW5PQXV0aEZsb3cSIC5hZ2VudHMudjEuQmVnaW5PQXV0aEZsb3dSZXF1ZXN0GiEuYWdlbnRzLnYxLkJlZ2luT0F1dGhGbG93UmVzcG9uc2USUgoRQ29tcGxldGVPQXV0aEZsb3cSIy5hZ2VudHMudjEuQ29tcGxldGVPQXV0aEZsb3dSZXF1ZXN0GhguYWdlbnRzLnYxLkxvZ2luUmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_agents_v1_workspace, file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * @generated from message agents.v1.User
@@ -76,6 +76,29 @@ export type User = Message<"agents.v1.User"> & {
    * @generated from field: string avatar_url = 8;
    */
   avatarUrl: string;
+
+  /**
+   * @gotags: json:"email,omitempty" yaml:"email,omitempty" bson:"email,omitempty"
+   *
+   * @generated from field: string email = 9;
+   */
+  email: string;
+
+  /**
+   * OAuth provider name (e.g. "github"). Empty for password users.
+   * @gotags: json:"provider,omitempty" yaml:"provider,omitempty" bson:"provider,omitempty"
+   *
+   * @generated from field: string provider = 10;
+   */
+  provider: string;
+
+  /**
+   * External (provider-issued) account ID. Stable across email changes.
+   * @gotags: json:"external_id,omitempty" yaml:"external_id,omitempty" bson:"external_id,omitempty"
+   *
+   * @generated from field: string external_id = 11;
+   */
+  externalId: string;
 };
 
 /**
@@ -443,6 +466,136 @@ export const ChangePasswordResponseSchema: GenMessage<ChangePasswordResponse> = 
   messageDesc(file_agents_v1_auth, 18);
 
 /**
+ * @generated from message agents.v1.OAuthProvider
+ */
+export type OAuthProvider = Message<"agents.v1.OAuthProvider"> & {
+  /**
+   * Provider key (e.g. "github"). Used as the value for BeginOAuthFlow.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Human-readable label, e.g. "GitHub".
+   *
+   * @generated from field: string display_name = 2;
+   */
+  displayName: string;
+};
+
+/**
+ * Describes the message agents.v1.OAuthProvider.
+ * Use `create(OAuthProviderSchema)` to create a new message.
+ */
+export const OAuthProviderSchema: GenMessage<OAuthProvider> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 19);
+
+/**
+ * @generated from message agents.v1.ListOAuthProvidersRequest
+ */
+export type ListOAuthProvidersRequest = Message<"agents.v1.ListOAuthProvidersRequest"> & {
+};
+
+/**
+ * Describes the message agents.v1.ListOAuthProvidersRequest.
+ * Use `create(ListOAuthProvidersRequestSchema)` to create a new message.
+ */
+export const ListOAuthProvidersRequestSchema: GenMessage<ListOAuthProvidersRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 20);
+
+/**
+ * @generated from message agents.v1.ListOAuthProvidersResponse
+ */
+export type ListOAuthProvidersResponse = Message<"agents.v1.ListOAuthProvidersResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.OAuthProvider providers = 1;
+   */
+  providers: OAuthProvider[];
+};
+
+/**
+ * Describes the message agents.v1.ListOAuthProvidersResponse.
+ * Use `create(ListOAuthProvidersResponseSchema)` to create a new message.
+ */
+export const ListOAuthProvidersResponseSchema: GenMessage<ListOAuthProvidersResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 21);
+
+/**
+ * @generated from message agents.v1.BeginOAuthFlowRequest
+ */
+export type BeginOAuthFlowRequest = Message<"agents.v1.BeginOAuthFlowRequest"> & {
+  /**
+   * @generated from field: string provider = 1;
+   */
+  provider: string;
+
+  /**
+   * Where the browser should land after a successful login. The backend
+   * returns this as part of the state so CompleteOAuthFlow can echo it back.
+   *
+   * @generated from field: string redirect_uri = 2;
+   */
+  redirectUri: string;
+};
+
+/**
+ * Describes the message agents.v1.BeginOAuthFlowRequest.
+ * Use `create(BeginOAuthFlowRequestSchema)` to create a new message.
+ */
+export const BeginOAuthFlowRequestSchema: GenMessage<BeginOAuthFlowRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 22);
+
+/**
+ * @generated from message agents.v1.BeginOAuthFlowResponse
+ */
+export type BeginOAuthFlowResponse = Message<"agents.v1.BeginOAuthFlowResponse"> & {
+  /**
+   * @generated from field: string authorize_url = 1;
+   */
+  authorizeUrl: string;
+
+  /**
+   * @generated from field: string state = 2;
+   */
+  state: string;
+};
+
+/**
+ * Describes the message agents.v1.BeginOAuthFlowResponse.
+ * Use `create(BeginOAuthFlowResponseSchema)` to create a new message.
+ */
+export const BeginOAuthFlowResponseSchema: GenMessage<BeginOAuthFlowResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 23);
+
+/**
+ * @generated from message agents.v1.CompleteOAuthFlowRequest
+ */
+export type CompleteOAuthFlowRequest = Message<"agents.v1.CompleteOAuthFlowRequest"> & {
+  /**
+   * @generated from field: string provider = 1;
+   */
+  provider: string;
+
+  /**
+   * @generated from field: string code = 2;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string state = 3;
+   */
+  state: string;
+};
+
+/**
+ * Describes the message agents.v1.CompleteOAuthFlowRequest.
+ * Use `create(CompleteOAuthFlowRequestSchema)` to create a new message.
+ */
+export const CompleteOAuthFlowRequestSchema: GenMessage<CompleteOAuthFlowRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 24);
+
+/**
  * AuthService manages dashboard user authentication.
  *
  * @generated from service agents.v1.AuthService
@@ -537,6 +690,40 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof ChangePasswordRequestSchema;
     output: typeof ChangePasswordResponseSchema;
+  },
+  /**
+   * ListOAuthProviders is public and returns the OAuth providers configured
+   * on the server. Frontends use it to decide which "Sign in with X" buttons
+   * to render on the login page.
+   *
+   * @generated from rpc agents.v1.AuthService.ListOAuthProviders
+   */
+  listOAuthProviders: {
+    methodKind: "unary";
+    input: typeof ListOAuthProvidersRequestSchema;
+    output: typeof ListOAuthProvidersResponseSchema;
+  },
+  /**
+   * BeginOAuthFlow is public and returns the provider authorize URL plus an
+   * opaque state token. The client redirects the user to authorize_url.
+   *
+   * @generated from rpc agents.v1.AuthService.BeginOAuthFlow
+   */
+  beginOAuthFlow: {
+    methodKind: "unary";
+    input: typeof BeginOAuthFlowRequestSchema;
+    output: typeof BeginOAuthFlowResponseSchema;
+  },
+  /**
+   * CompleteOAuthFlow is public and exchanges the provider's authorization
+   * code for a session token. Behaves like Login.
+   *
+   * @generated from rpc agents.v1.AuthService.CompleteOAuthFlow
+   */
+  completeOAuthFlow: {
+    methodKind: "unary";
+    input: typeof CompleteOAuthFlowRequestSchema;
+    output: typeof LoginResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_auth, 0);

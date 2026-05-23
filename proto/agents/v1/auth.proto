@@ -28,6 +28,16 @@ service AuthService {
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
   // ChangePassword changes the authenticated user's password.
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+  // ListOAuthProviders is public and returns the OAuth providers configured
+  // on the server. Frontends use it to decide which "Sign in with X" buttons
+  // to render on the login page.
+  rpc ListOAuthProviders(ListOAuthProvidersRequest) returns (ListOAuthProvidersResponse);
+  // BeginOAuthFlow is public and returns the provider authorize URL plus an
+  // opaque state token. The client redirects the user to authorize_url.
+  rpc BeginOAuthFlow(BeginOAuthFlowRequest) returns (BeginOAuthFlowResponse);
+  // CompleteOAuthFlow is public and exchanges the provider's authorization
+  // code for a session token. Behaves like Login.
+  rpc CompleteOAuthFlow(CompleteOAuthFlowRequest) returns (LoginResponse);
 }
 
 message User {
@@ -47,6 +57,14 @@ message User {
   google.protobuf.Timestamp updated_at = 7;
   // @gotags: json:"avatar_url,omitempty" yaml:"avatar_url,omitempty" bson:"avatar_url,omitempty"
   string avatar_url = 8;
+  // @gotags: json:"email,omitempty" yaml:"email,omitempty" bson:"email,omitempty"
+  string email = 9;
+  // OAuth provider name (e.g. "github"). Empty for password users.
+  // @gotags: json:"provider,omitempty" yaml:"provider,omitempty" bson:"provider,omitempty"
+  string provider = 10;
+  // External (provider-issued) account ID. Stable across email changes.
+  // @gotags: json:"external_id,omitempty" yaml:"external_id,omitempty" bson:"external_id,omitempty"
+  string external_id = 11;
 }
 
 message LoginRequest {
@@ -128,4 +146,35 @@ message ChangePasswordRequest {
 
 message ChangePasswordResponse {
   User user = 1;
+}
+
+message OAuthProvider {
+  // Provider key (e.g. "github"). Used as the value for BeginOAuthFlow.
+  string name = 1;
+  // Human-readable label, e.g. "GitHub".
+  string display_name = 2;
+}
+
+message ListOAuthProvidersRequest {}
+
+message ListOAuthProvidersResponse {
+  repeated OAuthProvider providers = 1;
+}
+
+message BeginOAuthFlowRequest {
+  string provider = 1 [(validate.rules).string.min_len = 1];
+  // Where the browser should land after a successful login. The backend
+  // returns this as part of the state so CompleteOAuthFlow can echo it back.
+  string redirect_uri = 2;
+}
+
+message BeginOAuthFlowResponse {
+  string authorize_url = 1;
+  string state = 2;
+}
+
+message CompleteOAuthFlowRequest {
+  string provider = 1 [(validate.rules).string.min_len = 1];
+  string code = 2 [(validate.rules).string.min_len = 1];
+  string state = 3 [(validate.rules).string.min_len = 1];
 }

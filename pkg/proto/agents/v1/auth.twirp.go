@@ -54,6 +54,19 @@ type AuthService interface {
 
 	// ChangePassword changes the authenticated user's password.
 	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
+
+	// ListOAuthProviders is public and returns the OAuth providers configured
+	// on the server. Frontends use it to decide which "Sign in with X" buttons
+	// to render on the login page.
+	ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error)
+
+	// BeginOAuthFlow is public and returns the provider authorize URL plus an
+	// opaque state token. The client redirects the user to authorize_url.
+	BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error)
+
+	// CompleteOAuthFlow is public and exchanges the provider's authorization
+	// code for a session token. Behaves like Login.
+	CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*LoginResponse, error)
 }
 
 // ===========================
@@ -62,7 +75,7 @@ type AuthService interface {
 
 type authServiceProtobufClient struct {
 	client      HTTPClient
-	urls        [9]string
+	urls        [12]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -90,7 +103,7 @@ func NewAuthServiceProtobufClient(baseURL string, client HTTPClient, opts ...twi
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "agents.v1", "AuthService")
-	urls := [9]string{
+	urls := [12]string{
 		serviceURL + "Login",
 		serviceURL + "Me",
 		serviceURL + "Logout",
@@ -100,6 +113,9 @@ func NewAuthServiceProtobufClient(baseURL string, client HTTPClient, opts ...twi
 		serviceURL + "SetUserDisabled",
 		serviceURL + "UpdateProfile",
 		serviceURL + "ChangePassword",
+		serviceURL + "ListOAuthProviders",
+		serviceURL + "BeginOAuthFlow",
+		serviceURL + "CompleteOAuthFlow",
 	}
 
 	return &authServiceProtobufClient{
@@ -524,13 +540,151 @@ func (c *authServiceProtobufClient) callChangePassword(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *authServiceProtobufClient) ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "AuthService")
+	ctx = ctxsetters.WithMethodName(ctx, "ListOAuthProviders")
+	caller := c.callListOAuthProviders
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListOAuthProvidersRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListOAuthProvidersRequest) when calling interceptor")
+					}
+					return c.callListOAuthProviders(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListOAuthProvidersResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListOAuthProvidersResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *authServiceProtobufClient) callListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+	out := new(ListOAuthProvidersResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[9], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *authServiceProtobufClient) BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "AuthService")
+	ctx = ctxsetters.WithMethodName(ctx, "BeginOAuthFlow")
+	caller := c.callBeginOAuthFlow
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*BeginOAuthFlowRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*BeginOAuthFlowRequest) when calling interceptor")
+					}
+					return c.callBeginOAuthFlow(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*BeginOAuthFlowResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*BeginOAuthFlowResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *authServiceProtobufClient) callBeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+	out := new(BeginOAuthFlowResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[10], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *authServiceProtobufClient) CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "AuthService")
+	ctx = ctxsetters.WithMethodName(ctx, "CompleteOAuthFlow")
+	caller := c.callCompleteOAuthFlow
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CompleteOAuthFlowRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CompleteOAuthFlowRequest) when calling interceptor")
+					}
+					return c.callCompleteOAuthFlow(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*LoginResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*LoginResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *authServiceProtobufClient) callCompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+	out := new(LoginResponse)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[11], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
 // =======================
 // AuthService JSON Client
 // =======================
 
 type authServiceJSONClient struct {
 	client      HTTPClient
-	urls        [9]string
+	urls        [12]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -558,7 +712,7 @@ func NewAuthServiceJSONClient(baseURL string, client HTTPClient, opts ...twirp.C
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(pathPrefix, "agents.v1", "AuthService")
-	urls := [9]string{
+	urls := [12]string{
 		serviceURL + "Login",
 		serviceURL + "Me",
 		serviceURL + "Logout",
@@ -568,6 +722,9 @@ func NewAuthServiceJSONClient(baseURL string, client HTTPClient, opts ...twirp.C
 		serviceURL + "SetUserDisabled",
 		serviceURL + "UpdateProfile",
 		serviceURL + "ChangePassword",
+		serviceURL + "ListOAuthProviders",
+		serviceURL + "BeginOAuthFlow",
+		serviceURL + "CompleteOAuthFlow",
 	}
 
 	return &authServiceJSONClient{
@@ -992,6 +1149,144 @@ func (c *authServiceJSONClient) callChangePassword(ctx context.Context, in *Chan
 	return out, nil
 }
 
+func (c *authServiceJSONClient) ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "AuthService")
+	ctx = ctxsetters.WithMethodName(ctx, "ListOAuthProviders")
+	caller := c.callListOAuthProviders
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListOAuthProvidersRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListOAuthProvidersRequest) when calling interceptor")
+					}
+					return c.callListOAuthProviders(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListOAuthProvidersResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListOAuthProvidersResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *authServiceJSONClient) callListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+	out := new(ListOAuthProvidersResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[9], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *authServiceJSONClient) BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "AuthService")
+	ctx = ctxsetters.WithMethodName(ctx, "BeginOAuthFlow")
+	caller := c.callBeginOAuthFlow
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*BeginOAuthFlowRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*BeginOAuthFlowRequest) when calling interceptor")
+					}
+					return c.callBeginOAuthFlow(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*BeginOAuthFlowResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*BeginOAuthFlowResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *authServiceJSONClient) callBeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+	out := new(BeginOAuthFlowResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[10], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *authServiceJSONClient) CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "agents.v1")
+	ctx = ctxsetters.WithServiceName(ctx, "AuthService")
+	ctx = ctxsetters.WithMethodName(ctx, "CompleteOAuthFlow")
+	caller := c.callCompleteOAuthFlow
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CompleteOAuthFlowRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CompleteOAuthFlowRequest) when calling interceptor")
+					}
+					return c.callCompleteOAuthFlow(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*LoginResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*LoginResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *authServiceJSONClient) callCompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+	out := new(LoginResponse)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[11], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
 // ==========================
 // AuthService Server Handler
 // ==========================
@@ -1115,6 +1410,15 @@ func (s *authServiceServer) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 		return
 	case "ChangePassword":
 		s.serveChangePassword(ctx, resp, req)
+		return
+	case "ListOAuthProviders":
+		s.serveListOAuthProviders(ctx, resp, req)
+		return
+	case "BeginOAuthFlow":
+		s.serveBeginOAuthFlow(ctx, resp, req)
+		return
+	case "CompleteOAuthFlow":
+		s.serveCompleteOAuthFlow(ctx, resp, req)
 		return
 	default:
 		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
@@ -2743,6 +3047,546 @@ func (s *authServiceServer) serveChangePasswordProtobuf(ctx context.Context, res
 	callResponseSent(ctx, s.hooks)
 }
 
+func (s *authServiceServer) serveListOAuthProviders(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveListOAuthProvidersJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveListOAuthProvidersProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *authServiceServer) serveListOAuthProvidersJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListOAuthProviders")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(ListOAuthProvidersRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.AuthService.ListOAuthProviders
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListOAuthProvidersRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListOAuthProvidersRequest) when calling interceptor")
+					}
+					return s.AuthService.ListOAuthProviders(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListOAuthProvidersResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListOAuthProvidersResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *ListOAuthProvidersResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListOAuthProvidersResponse and nil error while calling ListOAuthProviders. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *authServiceServer) serveListOAuthProvidersProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListOAuthProviders")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(ListOAuthProvidersRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.AuthService.ListOAuthProviders
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*ListOAuthProvidersRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*ListOAuthProvidersRequest) when calling interceptor")
+					}
+					return s.AuthService.ListOAuthProviders(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*ListOAuthProvidersResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*ListOAuthProvidersResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *ListOAuthProvidersResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ListOAuthProvidersResponse and nil error while calling ListOAuthProviders. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *authServiceServer) serveBeginOAuthFlow(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveBeginOAuthFlowJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveBeginOAuthFlowProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *authServiceServer) serveBeginOAuthFlowJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "BeginOAuthFlow")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(BeginOAuthFlowRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.AuthService.BeginOAuthFlow
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*BeginOAuthFlowRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*BeginOAuthFlowRequest) when calling interceptor")
+					}
+					return s.AuthService.BeginOAuthFlow(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*BeginOAuthFlowResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*BeginOAuthFlowResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *BeginOAuthFlowResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *BeginOAuthFlowResponse and nil error while calling BeginOAuthFlow. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *authServiceServer) serveBeginOAuthFlowProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "BeginOAuthFlow")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(BeginOAuthFlowRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.AuthService.BeginOAuthFlow
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*BeginOAuthFlowRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*BeginOAuthFlowRequest) when calling interceptor")
+					}
+					return s.AuthService.BeginOAuthFlow(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*BeginOAuthFlowResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*BeginOAuthFlowResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *BeginOAuthFlowResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *BeginOAuthFlowResponse and nil error while calling BeginOAuthFlow. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *authServiceServer) serveCompleteOAuthFlow(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveCompleteOAuthFlowJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveCompleteOAuthFlowProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *authServiceServer) serveCompleteOAuthFlowJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "CompleteOAuthFlow")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	d := json.NewDecoder(req.Body)
+	rawReqBody := json.RawMessage{}
+	if err := d.Decode(&rawReqBody); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+	reqContent := new(CompleteOAuthFlowRequest)
+	unmarshaler := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err = unmarshaler.Unmarshal(rawReqBody, reqContent); err != nil {
+		s.handleRequestBodyError(ctx, resp, "the json request could not be decoded", err)
+		return
+	}
+
+	handler := s.AuthService.CompleteOAuthFlow
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CompleteOAuthFlowRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CompleteOAuthFlowRequest) when calling interceptor")
+					}
+					return s.AuthService.CompleteOAuthFlow(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*LoginResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*LoginResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *LoginResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *LoginResponse and nil error while calling CompleteOAuthFlow. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	marshaler := &protojson.MarshalOptions{UseProtoNames: !s.jsonCamelCase, EmitUnpopulated: !s.jsonSkipDefaults}
+	respBytes, err := marshaler.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *authServiceServer) serveCompleteOAuthFlowProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "CompleteOAuthFlow")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := io.ReadAll(req.Body)
+	if err != nil {
+		s.handleRequestBodyError(ctx, resp, "failed to read request body", err)
+		return
+	}
+	reqContent := new(CompleteOAuthFlowRequest)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.AuthService.CompleteOAuthFlow
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *CompleteOAuthFlowRequest) (*LoginResponse, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*CompleteOAuthFlowRequest)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*CompleteOAuthFlowRequest) when calling interceptor")
+					}
+					return s.AuthService.CompleteOAuthFlow(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*LoginResponse)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*LoginResponse) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *LoginResponse
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *LoginResponse and nil error while calling CompleteOAuthFlow. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
 func (s *authServiceServer) ServiceDescriptor() ([]byte, int) {
 	return twirpFileDescriptor5, 0
 }
@@ -2759,58 +3603,73 @@ func (s *authServiceServer) PathPrefix() string {
 }
 
 var twirpFileDescriptor5 = []byte{
-	// 844 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0x51, 0x8f, 0xda, 0x46,
-	0x10, 0xae, 0x39, 0xb8, 0xc0, 0x38, 0x77, 0x90, 0x15, 0x17, 0x7c, 0x6e, 0xa3, 0x70, 0xbe, 0x46,
-	0x42, 0x7d, 0xb0, 0x05, 0xcd, 0x4b, 0xd2, 0xa6, 0x12, 0xa4, 0xaa, 0x5a, 0x29, 0x57, 0x45, 0xa4,
-	0xa8, 0xd7, 0xbe, 0xa0, 0x05, 0xef, 0x71, 0xd6, 0x19, 0xdb, 0xdd, 0x5d, 0xc3, 0xf5, 0x1f, 0xf4,
-	0x37, 0xf4, 0x57, 0xf4, 0xa9, 0x2f, 0xfd, 0x67, 0x7d, 0xaa, 0xbc, 0x5e, 0x9b, 0xc5, 0xc0, 0x51,
-	0xa4, 0xf6, 0xcd, 0x3b, 0xf3, 0xcd, 0xb7, 0xdf, 0xcc, 0xec, 0x8c, 0x0c, 0x4d, 0x3c, 0x23, 0x01,
-	0x67, 0xce, 0xa2, 0xeb, 0xe0, 0x98, 0xdf, 0xda, 0x11, 0x0d, 0x79, 0x88, 0x6a, 0xa9, 0xd5, 0x5e,
-	0x74, 0xcd, 0xf3, 0x15, 0x60, 0x19, 0xd2, 0x3b, 0x16, 0xe1, 0x29, 0x49, 0x51, 0xe6, 0xf3, 0x59,
-	0x18, 0xce, 0x7c, 0xe2, 0x88, 0xd3, 0x24, 0xbe, 0x71, 0xb8, 0x37, 0x27, 0x8c, 0xe3, 0x79, 0x24,
-	0x01, 0xad, 0x05, 0xf6, 0x3d, 0x17, 0x73, 0xe2, 0x64, 0x1f, 0xa9, 0xc3, 0xfa, 0xbd, 0x04, 0xe5,
-	0x11, 0x23, 0x14, 0x9d, 0x42, 0xc9, 0x73, 0x0d, 0xad, 0xad, 0x75, 0x6a, 0xc3, 0x92, 0xe7, 0x22,
-	0x13, 0xaa, 0x31, 0x23, 0x34, 0xc0, 0x73, 0x62, 0x94, 0x84, 0x35, 0x3f, 0xa3, 0x0b, 0x78, 0xec,
-	0x7a, 0x2c, 0xf2, 0xf1, 0xaf, 0x63, 0xe1, 0x3f, 0x12, 0x7e, 0x5d, 0xda, 0xbe, 0x4f, 0x20, 0x08,
-	0xca, 0x34, 0xf4, 0x89, 0x51, 0x16, 0x2e, 0xf1, 0x9d, 0x50, 0xba, 0x1e, 0xc3, 0x13, 0x9f, 0xb8,
-	0x46, 0xa5, 0xad, 0x75, 0xaa, 0xc3, 0xfc, 0x8c, 0x5e, 0x01, 0x4c, 0x29, 0xc1, 0x9c, 0xb8, 0x63,
-	0xcc, 0x8d, 0xe3, 0xb6, 0xd6, 0xd1, 0x7b, 0xa6, 0x9d, 0xa6, 0x65, 0x67, 0x69, 0xd9, 0x3f, 0x64,
-	0x69, 0x0d, 0x6b, 0x12, 0xdd, 0xe7, 0x49, 0x68, 0x1c, 0xb9, 0x59, 0xe8, 0xa3, 0xfd, 0xa1, 0x12,
-	0xdd, 0xe7, 0xe8, 0x19, 0x00, 0x5e, 0x60, 0x8e, 0xe9, 0x38, 0xa6, 0xbe, 0x51, 0x15, 0x5a, 0x6b,
-	0xa9, 0x65, 0x44, 0x7d, 0xeb, 0x1a, 0x1e, 0xbf, 0x0b, 0x67, 0x5e, 0x30, 0x24, 0xbf, 0xc4, 0x84,
-	0x71, 0x74, 0xa9, 0xd4, 0x44, 0x54, 0x6a, 0xf0, 0xe8, 0xef, 0x41, 0x99, 0x96, 0x1a, 0x9a, 0x52,
-	0x9c, 0x4b, 0xa8, 0x46, 0x98, 0xb1, 0x65, 0x48, 0xdd, 0xb4, 0x70, 0x0a, 0x28, 0x73, 0x58, 0x7f,
-	0x69, 0x70, 0x22, 0xa9, 0x59, 0x14, 0x06, 0x8c, 0xa0, 0x26, 0x54, 0x78, 0x78, 0x47, 0x02, 0xd9,
-	0x82, 0xf4, 0x80, 0x2e, 0xa1, 0x9c, 0x10, 0x0b, 0x22, 0xbd, 0x57, 0xb7, 0xf3, 0xd7, 0x60, 0x27,
-	0x4d, 0x1b, 0x0a, 0x67, 0x52, 0x00, 0x72, 0x1f, 0x79, 0x94, 0xb0, 0xa4, 0x00, 0x47, 0xfb, 0x0b,
-	0x20, 0xd1, 0x7d, 0x8e, 0x5e, 0x02, 0xe4, 0x6f, 0x89, 0x19, 0xe5, 0xf6, 0x51, 0x47, 0xef, 0x35,
-	0x95, 0x5b, 0x7e, 0xcc, 0x9c, 0x43, 0x05, 0x67, 0xe9, 0x50, 0xbb, 0x22, 0xb2, 0x28, 0x56, 0x17,
-	0x20, 0x39, 0xc8, 0x34, 0x32, 0xc1, 0xda, 0x03, 0x82, 0xad, 0xba, 0x48, 0x3e, 0x8c, 0x79, 0xc6,
-	0xd1, 0x80, 0xd3, 0xcc, 0x90, 0xf2, 0x58, 0x08, 0x1a, 0xef, 0x3c, 0xc6, 0x93, 0x20, 0x96, 0xa1,
-	0x5e, 0xc3, 0x13, 0xc5, 0x26, 0x2f, 0x7c, 0x01, 0x95, 0x84, 0x93, 0x19, 0x9a, 0x10, 0xbf, 0x71,
-	0x63, 0xea, 0xb5, 0xfe, 0xd0, 0xe0, 0xc9, 0x5b, 0xf1, 0x64, 0x84, 0xf5, 0xbf, 0x6e, 0xe8, 0xff,
-	0x30, 0x12, 0xd6, 0x2b, 0x40, 0xaa, 0xe2, 0x43, 0x0a, 0xfc, 0x13, 0x9c, 0x8f, 0xc4, 0x23, 0x4f,
-	0x6c, 0xef, 0xa5, 0xc6, 0x2c, 0xe9, 0xd6, 0x6a, 0xd2, 0x57, 0x99, 0x24, 0x23, 0xff, 0xaf, 0x5e,
-	0x6e, 0x1f, 0xcc, 0x6d, 0xd4, 0x87, 0xa8, 0xbb, 0x82, 0xa7, 0x1f, 0x88, 0x68, 0xe3, 0xd7, 0x32,
-	0xd7, 0xbd, 0xd2, 0xd4, 0x3a, 0x95, 0x0a, 0x75, 0xfa, 0x0a, 0x5a, 0x1b, 0x74, 0x87, 0xc8, 0x89,
-	0xa1, 0x99, 0x66, 0xf4, 0x9e, 0x86, 0x37, 0x9e, 0x9f, 0x3d, 0x6c, 0xf4, 0x59, 0xa1, 0xa5, 0x05,
-	0x59, 0x6b, 0xbd, 0xb5, 0xd6, 0x16, 0x89, 0x28, 0xde, 0xb7, 0x1f, 0x29, 0xab, 0xe4, 0x37, 0x4d,
-	0x1b, 0x9c, 0x80, 0x3e, 0x5e, 0x81, 0xac, 0x2f, 0xe1, 0xac, 0x70, 0xed, 0x21, 0xa2, 0x97, 0x70,
-	0xf6, 0xf6, 0x16, 0x07, 0x33, 0x52, 0xec, 0x6e, 0x0f, 0x1a, 0xd3, 0x98, 0x52, 0x12, 0xf0, 0x71,
-	0xde, 0xcc, 0x82, 0xf2, 0xba, 0x04, 0x64, 0xa1, 0x49, 0xa6, 0x01, 0x59, 0x8e, 0x77, 0x35, 0x5f,
-	0x0f, 0xc8, 0x32, 0xc3, 0x5a, 0x6f, 0xe0, 0x69, 0xf1, 0xe2, 0x03, 0x74, 0xf7, 0xfe, 0xac, 0x80,
-	0xde, 0x8f, 0xf9, 0xed, 0x07, 0x42, 0x17, 0xde, 0x94, 0xa0, 0xd7, 0x50, 0x11, 0x7b, 0x10, 0xb5,
-	0x14, 0xbc, 0xba, 0x74, 0x4d, 0x63, 0xd3, 0x21, 0x2f, 0xec, 0x42, 0xe9, 0x8a, 0x20, 0x75, 0x5d,
-	0xe5, 0x5b, 0xc9, 0x3c, 0x2b, 0x58, 0x65, 0xc8, 0x1b, 0x38, 0x4e, 0x17, 0x0d, 0x2a, 0xd0, 0xae,
-	0x96, 0x91, 0x79, 0xbe, 0xc5, 0x23, 0xc3, 0xbf, 0x81, 0x5a, 0xbe, 0x81, 0xd0, 0xc7, 0x2a, 0xae,
-	0xb0, 0xab, 0xcc, 0x4f, 0xb6, 0x3b, 0x25, 0xcf, 0x77, 0x00, 0xab, 0xd1, 0x46, 0x2a, 0x76, 0x63,
-	0x47, 0x99, 0xcf, 0x76, 0x78, 0x25, 0x15, 0x06, 0xb4, 0x39, 0x8f, 0xe8, 0x53, 0xb5, 0xfa, 0xbb,
-	0x36, 0x81, 0xf9, 0x62, 0x0f, 0x4a, 0x5e, 0x71, 0x0d, 0xf5, 0xc2, 0x80, 0xa1, 0x0b, 0x25, 0x72,
-	0xfb, 0x2c, 0x9b, 0xd6, 0x43, 0x10, 0xc9, 0x3c, 0x84, 0x93, 0xb5, 0x19, 0x40, 0xcf, 0x37, 0x14,
-	0xad, 0x0f, 0xa5, 0xd9, 0xde, 0x0d, 0x90, 0x9c, 0x23, 0x38, 0x5d, 0x7f, 0xa0, 0x48, 0x8d, 0xd9,
-	0x3a, 0x34, 0xe6, 0xc5, 0x03, 0x88, 0x94, 0x76, 0xf0, 0xf2, 0xe7, 0xde, 0x2c, 0xb4, 0x43, 0x7a,
-	0x6f, 0xcf, 0x89, 0x83, 0xa3, 0x88, 0x39, 0x93, 0x98, 0x73, 0x42, 0x9d, 0xe8, 0x6e, 0x96, 0xfe,
-	0x77, 0x39, 0xf9, 0xff, 0xd9, 0x17, 0xe9, 0xd7, 0xa2, 0x3b, 0x39, 0x16, 0x9e, 0xcf, 0xff, 0x09,
-	0x00, 0x00, 0xff, 0xff, 0xe4, 0x3c, 0xdb, 0xeb, 0xdd, 0x09, 0x00, 0x00,
+	// 1081 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xdd, 0x6e, 0xe3, 0x44,
+	0x14, 0xc6, 0x69, 0xfa, 0x93, 0x93, 0xfe, 0x8e, 0xfa, 0xe3, 0xba, 0x54, 0x6d, 0x5d, 0x56, 0xaa,
+	0xb8, 0x48, 0xd4, 0xb0, 0x42, 0xda, 0x85, 0x45, 0x6a, 0x8b, 0x2a, 0x56, 0xda, 0x42, 0xe5, 0x6e,
+	0xc4, 0xc2, 0x4d, 0x34, 0x8d, 0xcf, 0xa6, 0x56, 0x1d, 0xdb, 0x8c, 0xc7, 0x49, 0x81, 0x17, 0xe0,
+	0x71, 0xb8, 0xe7, 0x96, 0xd7, 0xe1, 0x05, 0xb8, 0x42, 0x1e, 0xcf, 0x38, 0x63, 0x27, 0x69, 0x09,
+	0x62, 0xef, 0x3c, 0xe7, 0x7c, 0xe7, 0xcc, 0x39, 0xdf, 0xcc, 0x7c, 0x27, 0x81, 0x4d, 0xda, 0xc3,
+	0x80, 0xc7, 0xcd, 0xc1, 0x69, 0x93, 0x26, 0xfc, 0xae, 0x11, 0xb1, 0x90, 0x87, 0xa4, 0x96, 0x59,
+	0x1b, 0x83, 0x53, 0x6b, 0x77, 0x04, 0x18, 0x86, 0xec, 0x3e, 0x8e, 0x68, 0x17, 0x33, 0x94, 0x75,
+	0xd0, 0x0b, 0xc3, 0x9e, 0x8f, 0x4d, 0xb1, 0xba, 0x4d, 0xde, 0x37, 0xb9, 0xd7, 0xc7, 0x98, 0xd3,
+	0x7e, 0x24, 0x01, 0x3b, 0x03, 0xea, 0x7b, 0x2e, 0xe5, 0xd8, 0x54, 0x1f, 0x99, 0xc3, 0xfe, 0xab,
+	0x02, 0xd5, 0x76, 0x8c, 0x8c, 0xac, 0x42, 0xc5, 0x73, 0x4d, 0xe3, 0xd0, 0x38, 0xa9, 0x39, 0x15,
+	0xcf, 0x25, 0x16, 0x2c, 0x25, 0x31, 0xb2, 0x80, 0xf6, 0xd1, 0xac, 0x08, 0x6b, 0xbe, 0x26, 0x47,
+	0xb0, 0xec, 0x7a, 0x71, 0xe4, 0xd3, 0x9f, 0x3b, 0xc2, 0x3f, 0x27, 0xfc, 0x75, 0x69, 0xfb, 0x36,
+	0x85, 0x10, 0xa8, 0xb2, 0xd0, 0x47, 0xb3, 0x2a, 0x5c, 0xe2, 0x3b, 0x4d, 0xe9, 0x7a, 0x31, 0xbd,
+	0xf5, 0xd1, 0x35, 0xe7, 0x0f, 0x8d, 0x93, 0x25, 0x27, 0x5f, 0x93, 0x17, 0x00, 0x5d, 0x86, 0x94,
+	0xa3, 0xdb, 0xa1, 0xdc, 0x5c, 0x38, 0x34, 0x4e, 0xea, 0x2d, 0xab, 0x91, 0xb5, 0xd5, 0x50, 0x6d,
+	0x35, 0xde, 0xaa, 0xb6, 0x9c, 0x9a, 0x44, 0x9f, 0xf1, 0x34, 0x34, 0x89, 0x5c, 0x15, 0xba, 0xf8,
+	0x74, 0xa8, 0x44, 0x9f, 0x71, 0xb2, 0x0f, 0x40, 0x07, 0x94, 0x53, 0xd6, 0x49, 0x98, 0x6f, 0x2e,
+	0x89, 0x5a, 0x6b, 0x99, 0xa5, 0xcd, 0x7c, 0xb2, 0x09, 0xf3, 0xd8, 0xa7, 0x9e, 0x6f, 0xd6, 0x84,
+	0x27, 0x5b, 0xa4, 0x6d, 0x44, 0x2c, 0x1c, 0x78, 0x2e, 0x32, 0x13, 0x32, 0x66, 0xd4, 0x9a, 0x1c,
+	0x40, 0x1d, 0x1f, 0x78, 0x4a, 0x93, 0xdf, 0xf1, 0x5c, 0xb3, 0x2e, 0xdc, 0xa0, 0x4c, 0xaf, 0x5d,
+	0xfb, 0x1d, 0x2c, 0xbf, 0x09, 0x7b, 0x5e, 0xe0, 0xe0, 0x4f, 0x09, 0xc6, 0x9c, 0x1c, 0x6b, 0x34,
+	0x0b, 0xf2, 0xcf, 0x17, 0xff, 0x3e, 0xaf, 0xb2, 0xca, 0xba, 0xa1, 0xf1, 0x7d, 0x0c, 0x4b, 0x11,
+	0x8d, 0xe3, 0x61, 0xc8, 0xdc, 0xec, 0x2c, 0x34, 0x90, 0x72, 0xd8, 0x7f, 0x18, 0xb0, 0x22, 0x53,
+	0xc7, 0x51, 0x18, 0xc4, 0x98, 0x96, 0xcf, 0xc3, 0x7b, 0x0c, 0xe4, 0xa9, 0x66, 0x0b, 0x72, 0x0c,
+	0xd5, 0x34, 0xb1, 0x48, 0x54, 0x6f, 0xad, 0x35, 0xf2, 0x0b, 0xd6, 0x48, 0xef, 0x81, 0x23, 0x9c,
+	0x29, 0xa7, 0xf8, 0x10, 0x79, 0x0c, 0xe3, 0x94, 0xd3, 0xb9, 0xa7, 0x39, 0x95, 0xe8, 0x33, 0x4e,
+	0x9e, 0x03, 0xe4, 0xd7, 0x33, 0x36, 0xab, 0x87, 0x73, 0x27, 0xf5, 0xd6, 0xa6, 0xb6, 0xcb, 0xf7,
+	0xca, 0xe9, 0x68, 0x38, 0xbb, 0x0e, 0xb5, 0x2b, 0x94, 0xa4, 0xd8, 0xa7, 0x00, 0xe9, 0x42, 0xb6,
+	0xa1, 0x0a, 0x36, 0x1e, 0x29, 0xd8, 0x5e, 0x13, 0xcd, 0x87, 0x09, 0x57, 0x39, 0xd6, 0x61, 0x55,
+	0x19, 0xb2, 0x3c, 0x36, 0x81, 0xf5, 0x37, 0x5e, 0xcc, 0xd3, 0xa0, 0x58, 0xa1, 0x5e, 0xc2, 0x86,
+	0x66, 0x93, 0x1b, 0x3e, 0x83, 0xf9, 0x34, 0x67, 0x6c, 0x1a, 0xa2, 0xf8, 0xb1, 0x1d, 0x33, 0xaf,
+	0xfd, 0xbb, 0x01, 0x1b, 0x17, 0xe2, 0x16, 0x0a, 0xeb, 0xff, 0x7d, 0xa0, 0x1f, 0xe0, 0x95, 0xd9,
+	0x2f, 0x80, 0xe8, 0x15, 0xcf, 0x42, 0xf0, 0x0f, 0xb0, 0xdb, 0x16, 0xef, 0x26, 0xb5, 0x5d, 0xcb,
+	0x1a, 0x55, 0xd3, 0x3b, 0x23, 0xf1, 0x18, 0x75, 0x92, 0xaa, 0xc8, 0xbf, 0xba, 0xb9, 0x67, 0x60,
+	0x4d, 0x4a, 0x3d, 0x4b, 0x75, 0x57, 0xb0, 0x7d, 0x83, 0xe2, 0x18, 0xbf, 0x96, 0xbd, 0x3e, 0x59,
+	0x9a, 0xce, 0x53, 0xa5, 0xc4, 0xd3, 0x57, 0xb0, 0x33, 0x96, 0x6e, 0x96, 0x72, 0x12, 0xd8, 0xcc,
+	0x3a, 0xba, 0x66, 0xe1, 0x7b, 0xcf, 0x57, 0x17, 0x9b, 0x7c, 0x5a, 0x3a, 0xd2, 0x52, 0x59, 0x85,
+	0xb3, 0xb5, 0x0b, 0xda, 0x24, 0xc8, 0xfb, 0xe6, 0x23, 0x4d, 0x9d, 0x7e, 0x33, 0x8c, 0xf3, 0x15,
+	0xa8, 0x77, 0x46, 0x20, 0xfb, 0x4b, 0xd8, 0x2a, 0x6d, 0x3b, 0x4b, 0xd1, 0x43, 0xd8, 0xba, 0xb8,
+	0xa3, 0x41, 0x0f, 0xcb, 0xa7, 0xdb, 0x82, 0xf5, 0x6e, 0xc2, 0x18, 0x06, 0xbc, 0x93, 0x1f, 0x66,
+	0xa9, 0xf2, 0x35, 0x09, 0x50, 0xa1, 0x69, 0xa7, 0x01, 0x0e, 0x3b, 0xd3, 0x0e, 0xbf, 0x1e, 0xe0,
+	0x50, 0x61, 0xed, 0x57, 0xb0, 0x5d, 0xde, 0x78, 0x96, 0xba, 0x2f, 0x61, 0xe5, 0xbb, 0xb3, 0x84,
+	0xdf, 0x5d, 0x2b, 0x11, 0x26, 0x50, 0x1d, 0xb1, 0xeb, 0x54, 0x27, 0x8e, 0xac, 0xca, 0xd8, 0x63,
+	0xb2, 0xf7, 0x60, 0x37, 0xd5, 0x82, 0x42, 0xae, 0x5c, 0x28, 0xde, 0x82, 0x35, 0xc9, 0x29, 0xeb,
+	0xfc, 0x1c, 0x6a, 0x6a, 0x04, 0x28, 0xd5, 0x30, 0xb5, 0x62, 0x0b, 0x51, 0xce, 0x08, 0x6a, 0x77,
+	0x60, 0xeb, 0x1c, 0x7b, 0x5e, 0x20, 0x00, 0x97, 0x7e, 0x38, 0xd4, 0x54, 0x24, 0x9f, 0x31, 0x65,
+	0x15, 0xc9, 0x87, 0xcd, 0x11, 0x2c, 0x33, 0x74, 0x3d, 0x86, 0x5d, 0xde, 0x49, 0x98, 0xa7, 0x7a,
+	0x52, 0xb6, 0x36, 0xf3, 0xec, 0x1b, 0xd8, 0x2e, 0x6f, 0x90, 0x53, 0xbb, 0x92, 0xfe, 0xcc, 0x08,
+	0x99, 0xf7, 0x0b, 0x8a, 0x1b, 0x96, 0xb1, 0xb5, 0x9c, 0x1b, 0xe5, 0x00, 0x8c, 0x39, 0xe5, 0x8a,
+	0xae, 0x6c, 0x61, 0xff, 0x0a, 0xe6, 0x45, 0xd8, 0x8f, 0x7c, 0xe4, 0xf8, 0xdf, 0x0a, 0xdf, 0x83,
+	0x6a, 0x37, 0x74, 0xb1, 0x7c, 0x29, 0x84, 0x91, 0xec, 0xab, 0x3d, 0xe7, 0x8a, 0xde, 0xcc, 0xda,
+	0xfa, 0x73, 0x11, 0xea, 0xe9, 0xa6, 0x37, 0xc8, 0x06, 0x5e, 0x17, 0xc9, 0x4b, 0x98, 0x17, 0x53,
+	0x8f, 0xec, 0x68, 0x84, 0xeb, 0x23, 0xd6, 0x32, 0xc7, 0x1d, 0x92, 0x83, 0x53, 0xa8, 0x5c, 0x21,
+	0xd1, 0x87, 0x53, 0x3e, 0x83, 0xac, 0xad, 0x92, 0x55, 0x86, 0xbc, 0x82, 0x85, 0x6c, 0xac, 0x90,
+	0x52, 0xda, 0xd1, 0xe8, 0xb1, 0x76, 0x27, 0x78, 0x64, 0xf8, 0x25, 0xd4, 0xf2, 0x79, 0x43, 0xf6,
+	0x74, 0x5c, 0x69, 0x32, 0x59, 0x1f, 0x4f, 0x76, 0xca, 0x3c, 0xaf, 0x01, 0x46, 0x42, 0x4e, 0x74,
+	0xec, 0xd8, 0x44, 0xb2, 0xf6, 0xa7, 0x78, 0x65, 0x2a, 0x0a, 0x64, 0x5c, 0x7d, 0xc9, 0x27, 0xfa,
+	0x5b, 0x9b, 0xa6, 0xfb, 0xd6, 0xb3, 0x27, 0x50, 0x72, 0x8b, 0x77, 0xb0, 0x56, 0x92, 0x53, 0x72,
+	0xa4, 0x45, 0x4e, 0x56, 0x6e, 0xcb, 0x7e, 0x0c, 0x22, 0x33, 0x3b, 0xb0, 0x52, 0x50, 0x3c, 0x72,
+	0x30, 0x56, 0x51, 0x51, 0x82, 0xad, 0xc3, 0xe9, 0x00, 0x99, 0xb3, 0x0d, 0xab, 0x45, 0x39, 0x22,
+	0x7a, 0xcc, 0x44, 0x89, 0xb4, 0x8e, 0x1e, 0x41, 0x8c, 0x78, 0x1e, 0x57, 0x90, 0x02, 0xcf, 0x53,
+	0xd5, 0xa7, 0xc0, 0xf3, 0x23, 0x32, 0xd4, 0x86, 0xd5, 0xe2, 0x6b, 0x2f, 0x54, 0x3e, 0x51, 0x69,
+	0x0a, 0x95, 0x4f, 0x91, 0x0a, 0x07, 0x36, 0xc6, 0xde, 0x3b, 0x39, 0xd6, 0x3b, 0x9e, 0xa2, 0x06,
+	0xd3, 0x9f, 0xde, 0xf9, 0xf3, 0x1f, 0x5b, 0xbd, 0xb0, 0x11, 0xb2, 0x87, 0x46, 0x1f, 0x9b, 0x34,
+	0x8a, 0xe2, 0xe6, 0x6d, 0xc2, 0x39, 0xb2, 0x66, 0x74, 0xdf, 0xcb, 0xfe, 0xc6, 0x34, 0xf3, 0xbf,
+	0x3b, 0x5f, 0x64, 0x5f, 0x83, 0xd3, 0xdb, 0x05, 0xe1, 0xf9, 0xec, 0x9f, 0x00, 0x00, 0x00, 0xff,
+	0xff, 0x71, 0xdf, 0x37, 0x66, 0x2c, 0x0d, 0x00, 0x00,
 }

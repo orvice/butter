@@ -38,6 +38,9 @@ type Repository interface {
 	SetUserDisabled(ctx context.Context, id string, disabled bool, updatedAt time.Time) (*agentsv1.User, error)
 	FindUserByUsername(ctx context.Context, username string) (*agentsv1.User, string, error)
 	FindUserByID(ctx context.Context, id string) (*agentsv1.User, string, error)
+	// FindUserByExternalID looks up a user previously created via OAuth by
+	// (provider, externalID). Returns ErrUserNotFound when the pair is unknown.
+	FindUserByExternalID(ctx context.Context, provider, externalID string) (*agentsv1.User, error)
 	GetUser(ctx context.Context, id string) (*agentsv1.User, error)
 	CreateSession(ctx context.Context, session *Session) error
 	LookupSession(ctx context.Context, tokenHash string, now time.Time) (*Session, *agentsv1.User, error)
