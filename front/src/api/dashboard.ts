@@ -10,11 +10,11 @@ import type {
 
 const SVC = "agents.v1.DashboardService";
 
-function getOverview() {
+function getOverview(environment?: string) {
   return twirpFetch<{ environment?: string }, GetOverviewResponse>(
     SVC,
     "GetOverview",
-    {},
+    { environment },
   );
 }
 
@@ -32,11 +32,11 @@ function getCronTimeseries(range: CronTimeseriesRange, jobName?: string) {
   >(SVC, "GetCronExecutionTimeseries", { range, job_name: jobName });
 }
 
-export function useOverview() {
+export function useOverview(environment?: string) {
   const workspaceId = localStorage.getItem(WORKSPACE_KEY);
   return useQuery({
-    queryKey: ["dashboard", "overview", workspaceId],
-    queryFn: getOverview,
+    queryKey: ["dashboard", "overview", workspaceId, environment ?? ""],
+    queryFn: () => getOverview(environment),
     enabled: !!workspaceId,
     refetchInterval: 30_000,
   });

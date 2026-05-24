@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useCronExecutions, useCronJobs, useRunCronJobNow } from "@/api/cron";
+import { useChannels } from "@/api/channels";
 import { useSession, useSessions } from "@/api/sessions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -61,6 +62,15 @@ function lastExecMap(executions: CronExecution[]) {
     }
   }
   return map;
+}
+
+async function copyText(text: string, successMessage: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(successMessage);
+  } catch {
+    toast.error("Copy failed");
+  }
 }
 
 function CronRow({ job, execution }: { job: CronJob; execution?: CronExecution }) {
@@ -146,6 +156,8 @@ function SessionDetailPanel({ session }: { session?: SessionInfo }) {
   const detail = data?.session_detail;
   const memory = detail?.session.state ?? session?.state ?? {};
   const events = detail?.events ?? [];
+  const sessionJson = JSON.stringify(detail ?? session ?? {}, null, 2);
+  const memoryJson = JSON.stringify(memory, null, 2);
 
   return (
     <Card className="border-t-4 border-t-primary xl:sticky xl:top-24">
@@ -154,7 +166,13 @@ function SessionDetailPanel({ session }: { session?: SessionInfo }) {
           <CardTitle>Session Detail</CardTitle>
           <CardDescription className="font-mono">{session?.session_id ?? "No session selected"}</CardDescription>
         </div>
-        <Button size="icon-sm" variant="ghost" aria-label="Copy session JSON">
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Copy session JSON"
+          disabled={!session}
+          onClick={() => void copyText(sessionJson, "Session JSON copied")}
+        >
           <Copy className="h-4 w-4" />
         </Button>
       </CardHeader>
@@ -184,7 +202,7 @@ function SessionDetailPanel({ session }: { session?: SessionInfo }) {
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <h4 className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Memory Context</h4>
-                <Button size="sm" variant="ghost">Copy JSON</Button>
+                <Button size="sm" variant="ghost" onClick={() => void copyText(memoryJson, "Memory JSON copied")}>Copy JSON</Button>
               </div>
               <pre className="max-h-64 overflow-auto rounded-lg bg-[#111827] p-4 text-[13px] leading-6 text-gray-200">
                 {JSON.stringify(memory, null, 2)}
@@ -219,12 +237,26 @@ function SessionDetailPanel({ session }: { session?: SessionInfo }) {
 export default function OperationsPage() {
   const navigate = useNavigate();
   const [selectedSession, setSelectedSession] = useState<SessionInfo | undefined>();
+  const [sessionFilterDraft, setSessionFilterDraft] = useState({ appName: "", userId: "" });
+  const [sessionFilters, setSessionFilters] = useState({ appName: "", userId: "" });
   const { data: jobsData, isLoading: loadingJobs } = useCronJobs();
   const { data: execData } = useCronExecutions(undefined, 200);
-  const { data: sessionData, isLoading: loadingSessions } = useSessions({ page_size: 50 });
+  const { data: channelData } = useChannels();
+  const { data: sessionData, isLoading: loadingSessions } = useSessions({
+    app_name: sessionFilters.appName || undefined,
+    user_id: sessionFilters.userId || undefined,
+    page_size: 50,
+  });
 
   const jobs = jobsData?.cron_jobs ?? [];
   const sessions = sessionData?.sessions ?? [];
+  const channelNames = Array.from(
+    new Set(
+      (channelData?.channels ?? [])
+        .map((channel) => channel.name)
+        .filter((name) => name && !["api", "telegram", "web-chat"].includes(name)),
+    ),
+  );
   const executionByJob = useMemo(() => lastExecMap(execData?.executions ?? []), [execData?.executions]);
   const currentSession = selectedSession ?? sessions[0];
 
@@ -293,18 +325,43 @@ export default function OperationsPage() {
                 <CardDescription>Inspect session turns, memory, and trace context.</CardDescription>
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
-                <Select defaultValue="all">
+                <Select
+                  value={sessionFilterDraft.appName || "__all__"}
+                  onValueChange={(value) =>
+                    setSessionFilterDraft((current) => ({
+                      ...current,
+                      appName: !value || value === "__all__" ? "" : value,
+                    }))
+                  }
+                >
                   <SelectTrigger className="w-full sm:w-36">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Channels</SelectItem>
+                    <SelectItem value="__all__">All Channels</SelectItem>
                     <SelectItem value="api">API</SelectItem>
+                    <SelectItem value="web-chat">Web Chat</SelectItem>
                     <SelectItem value="telegram">Telegram</SelectItem>
+                    {channelNames.map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Input placeholder="User ID..." />
-                <Button variant="outline">
+                <Input
+                  placeholder="User ID..."
+                  value={sessionFilterDraft.userId}
+                  onChange={(event) => setSessionFilterDraft((current) => ({ ...current, userId: event.target.value }))}
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedSession(undefined);
+                    setSessionFilters({
+                      appName: sessionFilterDraft.appName,
+                      userId: sessionFilterDraft.userId.trim(),
+                    });
+                  }}
+                >
                   <Filter className="mr-2 h-4 w-4" />
                   Apply
                 </Button>

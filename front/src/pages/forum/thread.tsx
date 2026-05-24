@@ -1,11 +1,22 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Bot, Loader2, Send, User } from "lucide-react";
+import { Bot, Loader2, Pencil, Send, Trash2, User } from "lucide-react";
 import { useAgents } from "@/api/agents";
-import { useCreateForumPost, useForumThread, useInvokeAgentInThread } from "@/api/forum";
+import {
+  useCreateForumPost,
+  useDeleteForumPost,
+  useDeleteForumThread,
+  useForumThread,
+  useInvokeAgentInThread,
+  useUpdateForumThread,
+} from "@/api/forum";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DeleteDialog } from "@/components/delete-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,13 +42,22 @@ function authorLabel(post: ForumPost) {
 
 export default function ForumThreadPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const { data, isLoading } = useForumThread(id);
   const { data: agentsData } = useAgents({ page_size: 200 });
   const createPost = useCreateForumPost();
+  const updateThread = useUpdateForumThread();
+  const deleteThread = useDeleteForumThread();
+  const deletePost = useDeleteForumPost();
   const invokeAgent = useInvokeAgentInThread();
   const [body, setBody] = useState("");
   const [agentMessage, setAgentMessage] = useState("");
   const [agentName, setAgentName] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [deleteThreadOpen, setDeleteThreadOpen] = useState(false);
+  const [deletePostTarget, setDeletePostTarget] = useState<ForumPost | null>(null);
 
   const thread = data?.thread;
   const posts = data?.posts ?? [];
@@ -78,6 +98,48 @@ export default function ForumThreadPage() {
     }
   }
 
+  function openEditDialog() {
+    if (!thread) return;
+    setEditTitle(thread.title ?? "");
+    setEditBody(thread.body ?? "");
+    setEditOpen(true);
+  }
+
+  async function handleUpdateThread() {
+    if (!thread) return;
+    const cleanTitle = editTitle.trim();
+    const cleanBody = editBody.trim();
+    if (!cleanTitle || !cleanBody) {
+      toast.error("Title and body are required");
+      return;
+    }
+    try {
+      await updateThread.mutateAsync({
+        id: thread.id,
+        title: cleanTitle,
+        body: cleanBody,
+        status: thread.status,
+        agent_names: thread.agent_names ?? [],
+        metadata: thread.metadata ?? {},
+      });
+      setEditOpen(false);
+      toast.success("Thread updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update thread");
+    }
+  }
+
+  async function handleDeleteThread() {
+    if (!thread) return;
+    try {
+      await deleteThread.mutateAsync(thread.id);
+      toast.success("Thread deleted");
+      navigate("/forum");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete thread");
+    }
+  }
+
   if (isLoading) return <Skeleton className="h-96 w-full" />;
   if (!thread) return <p className="text-sm text-muted-foreground">Thread not found.</p>;
 
@@ -106,6 +168,14 @@ export default function ForumThreadPage() {
             </Badge>
           ) : null}
           <Badge>{thread.status || "open"}</Badge>
+          <Button size="sm" variant="outline" onClick={openEditDialog} disabled={updateThread.isPending}>
+            <Pencil className="mr-1 h-3.5 w-3.5" />
+            Edit
+          </Button>
+          <Button size="sm" variant="destructive" onClick={() => setDeleteThreadOpen(true)} disabled={deleteThread.isPending}>
+            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -128,7 +198,18 @@ export default function ForumThreadPage() {
                         <div className="text-xs text-muted-foreground">{fmtDate(post.created_at)}</div>
                       </div>
                     </div>
-                    {post.invocation_id ? <Badge variant="outline" className="font-mono text-[10px]">{post.invocation_id.slice(0, 8)}</Badge> : null}
+                    <div className="flex items-center gap-2">
+                      {post.invocation_id ? <Badge variant="outline" className="font-mono text-[10px]">{post.invocation_id.slice(0, 8)}</Badge> : null}
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Delete post"
+                        disabled={deletePost.isPending}
+                        onClick={() => setDeletePostTarget(post)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <MarkdownContent content={post.body ?? ""} />
                 </CardContent>
@@ -183,6 +264,60 @@ export default function ForumThreadPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit thread</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="thread-title">Title</Label>
+              <Input id="thread-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="thread-body">Body</Label>
+              <Textarea id="thread-body" value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={6} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={updateThread.isPending}>Cancel</Button>
+            <Button onClick={handleUpdateThread} disabled={updateThread.isPending}>
+              {updateThread.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <DeleteDialog
+        open={deleteThreadOpen}
+        onOpenChange={setDeleteThreadOpen}
+        title="Delete thread"
+        description={`Delete "${thread.title}"? This cannot be undone.`}
+        loading={deleteThread.isPending}
+        onConfirm={handleDeleteThread}
+      />
+
+      <DeleteDialog
+        open={!!deletePostTarget}
+        onOpenChange={(open) => !open && setDeletePostTarget(null)}
+        title="Delete post"
+        description="Delete this forum post? This cannot be undone."
+        loading={deletePost.isPending}
+        onConfirm={() => {
+          if (!deletePostTarget) return;
+          deletePost.mutate(
+            { threadId: id, postId: deletePostTarget.id },
+            {
+              onSuccess: () => {
+                toast.success("Post deleted");
+                setDeletePostTarget(null);
+              },
+              onError: (err) => toast.error(err.message),
+            },
+          );
+        }}
+      />
     </>
   );
 }

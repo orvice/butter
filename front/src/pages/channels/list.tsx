@@ -32,6 +32,15 @@ const PLATFORM_LABEL: Record<string, string> = {
   AGENT_CHANNEL_PLATFORM_DISCORD: "Discord Gateway",
 };
 
+async function copyText(text: string, message: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(message);
+  } catch {
+    toast.error("Copy failed");
+  }
+}
+
 function maskToken(token: string | undefined): string {
   if (!token) return "—";
   return "•".repeat(Math.min(token.length, 32));
@@ -96,7 +105,13 @@ function ChannelCard({ channel }: { channel: AgentChannel }) {
           <div className="text-xs text-muted-foreground">Bot Token</div>
           <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2">
             <span className="break-all font-mono text-sm">{maskToken(botToken)}</span>
-            <Button size="icon-xs" variant="ghost" aria-label="Copy token">
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label="Copy token"
+              disabled={!botToken}
+              onClick={() => botToken && void copyText(botToken, "Bot token copied")}
+            >
               <Copy className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -201,12 +216,18 @@ export default function ChannelListPage() {
               </Badge>
             </div>
             <div className="relative rounded-lg bg-[#111827] p-4 font-mono text-[13px] text-gray-300">
-              <Button size="icon-sm" variant="ghost" className="absolute right-3 top-3 text-gray-400 hover:bg-gray-800 hover:text-white" aria-label="Copy endpoint">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="absolute right-3 top-3 text-gray-400 hover:bg-gray-800 hover:text-white"
+                aria-label="Copy endpoint"
+                onClick={() => void copyText("/api/agents.v1.AgentService/InvokeAgent", "Endpoint copied")}
+              >
                 <Copy className="h-4 w-4" />
               </Button>
               <span className="mr-4 text-gray-500">1</span>
               <span className="text-emerald-400">POST</span>
-              <span className="ml-2 text-white">/twirp/agents.v1.AgentService/InvokeAgent</span>
+              <span className="ml-2 text-white">/api/agents.v1.AgentService/InvokeAgent</span>
             </div>
           </div>
 

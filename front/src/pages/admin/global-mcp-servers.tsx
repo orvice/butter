@@ -4,8 +4,10 @@ import {
   useCreateGlobalMCPServer,
   useDeleteGlobalMCPServer,
   useGlobalMCPServers,
+  useInstallGlobalMCPServer,
   useUpdateGlobalMCPServer,
 } from "@/api/global-mcp-servers";
+import { useWorkspace } from "@/hooks/use-workspace";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -96,9 +98,11 @@ const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
 
 export default function AdminGlobalMCPServersPage() {
   const { data, isLoading } = useGlobalMCPServers();
+  const { selectedWorkspaceId } = useWorkspace();
   const createMutation = useCreateGlobalMCPServer();
   const updateMutation = useUpdateGlobalMCPServer();
   const deleteMutation = useDeleteGlobalMCPServer();
+  const installMutation = useInstallGlobalMCPServer();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MCPServer | null>(null);
   const [form, setForm] = useState<FormValues>(EMPTY_FORM);
@@ -143,6 +147,24 @@ export default function AdminGlobalMCPServersPage() {
       header: "",
       cell: (row) => (
         <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!row.id || !selectedWorkspaceId || installMutation.isPending}
+            onClick={() => {
+              if (!row.id) return;
+              installMutation.mutate(
+                { id: row.id, workspaceId: selectedWorkspaceId },
+                {
+                  onSuccess: () => toast.success(`${row.name} installed to workspace`),
+                  onError: (err) => toast.error(err.message),
+                },
+              );
+            }}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Install
+          </Button>
           <Button variant="ghost" size="icon-sm" aria-label={`Edit ${row.name}`} onClick={() => startEdit(row)}>
             <Pencil className="h-4 w-4" />
           </Button>
