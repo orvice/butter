@@ -35,6 +35,19 @@ interface CreateThreadResponse {
   first_post?: ForumPost;
 }
 
+export interface UpdateThreadParams {
+  id: string;
+  title?: string;
+  body?: string;
+  status?: string;
+  agent_names?: string[];
+  metadata?: Record<string, string>;
+}
+
+interface UpdateThreadResponse {
+  thread: ForumThread;
+}
+
 interface CreatePostParams {
   thread_id: string;
   body: string;
@@ -71,6 +84,10 @@ export function getForumThread(id: string) {
 
 export function createForumThread(params: CreateThreadParams) {
   return twirpFetch<CreateThreadParams, CreateThreadResponse>(SVC, "CreateThread", params);
+}
+
+export function updateForumThread(params: UpdateThreadParams) {
+  return twirpFetch<UpdateThreadParams, UpdateThreadResponse>(SVC, "UpdateThread", params);
 }
 
 export function createForumPost(params: CreatePostParams) {
@@ -126,6 +143,40 @@ export function useCreateForumPost() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["forum", "threads"] });
       qc.invalidateQueries({ queryKey: ["forum", "thread", vars.thread_id] });
+    },
+  });
+}
+
+export function useUpdateForumThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateForumThread,
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      if (data.thread?.id) qc.invalidateQueries({ queryKey: ["forum", "thread", data.thread.id] });
+    },
+  });
+}
+
+export function useDeleteForumThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteForumThread,
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      qc.removeQueries({ queryKey: ["forum", "thread", id] });
+    },
+  });
+}
+
+export function useDeleteForumPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ threadId, postId }: { threadId: string; postId: string }) =>
+      deleteForumPost(threadId, postId),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      qc.invalidateQueries({ queryKey: ["forum", "thread", vars.threadId] });
     },
   });
 }

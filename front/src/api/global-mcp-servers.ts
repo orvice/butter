@@ -28,6 +28,13 @@ function deleteGlobalMCPServer(id: string) {
   });
 }
 
+function installGlobalMCPServer({ id, workspaceId }: { id: string; workspaceId?: string }) {
+  return apiFetch<{ mcp_server: MCPServer }>(`/api/global-mcp-servers/${encodeURIComponent(id)}/install`, {
+    method: "POST",
+    body: JSON.stringify(workspaceId ? { workspace_id: workspaceId } : {}),
+  });
+}
+
 export function useGlobalMCPServers() {
   return useQuery({ queryKey: QUERY_KEY, queryFn: listGlobalMCPServers });
 }
@@ -53,5 +60,16 @@ export function useDeleteGlobalMCPServer() {
   return useMutation({
     mutationFn: deleteGlobalMCPServer,
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
+export function useInstallGlobalMCPServer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: installGlobalMCPServer,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mcp-servers"] });
+      qc.invalidateQueries({ queryKey: ["mcp-tools"] });
+    },
   });
 }

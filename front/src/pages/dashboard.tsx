@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useOverview, useActivityFeed, useCronTimeseries } from "@/api/dashboard";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +35,8 @@ import type {
   ComponentHealth,
   CronTimeseriesRange,
 } from "@/types/api";
+
+type DashboardEnvironment = "production" | "staging" | "development";
 
 const STATUS_COLORS: Record<string, string> = {
   STATUS_HEALTHY: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
@@ -106,7 +109,8 @@ function ActivityRow({ event }: { event: ActivityEvent }) {
 
 export default function DashboardPage() {
   const [range, setRange] = useState<CronTimeseriesRange>("RANGE_1D");
-  const { data: overviewData, isLoading: loadingOverview } = useOverview();
+  const [environment, setEnvironment] = useState<DashboardEnvironment>("production");
+  const { data: overviewData, isLoading: loadingOverview } = useOverview(environment);
   const { data: activity } = useActivityFeed(20);
   const { data: timeseries } = useCronTimeseries(range);
 
@@ -120,6 +124,26 @@ export default function DashboardPage() {
     success: b.success ?? 0,
     error: b.error ?? 0,
   }));
+  const handshakeJson = handshake?.daemon_id
+    ? formatJsonWithLineNumbers({
+        event: "daemon.connect",
+        daemon_id: handshake.daemon_id,
+        name: handshake.name,
+        os: handshake.os,
+        capabilities: handshake.capabilities,
+        connected_at: handshake.connected_at,
+      })
+    : "";
+
+  async function copyHandshake() {
+    if (!handshakeJson) return;
+    try {
+      await navigator.clipboard.writeText(handshakeJson);
+      toast.success("Handshake JSON copied");
+    } catch {
+      toast.error("Copy failed");
+    }
+  }
 
   if (loadingOverview) {
     return (
@@ -140,7 +164,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Environment</span>
-          <Select defaultValue="production">
+          <Select value={environment} onValueChange={(value) => setEnvironment(value as DashboardEnvironment)}>
             <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
@@ -228,7 +252,13 @@ export default function DashboardPage() {
             <Terminal className="h-4 w-4 text-gray-400" />
             Latest Daemon Handshake
           </CardTitle>
-          <Button size="sm" variant="ghost" className="text-gray-400 hover:bg-gray-800 hover:text-white">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-gray-400 hover:bg-gray-800 hover:text-white"
+            disabled={!handshakeJson}
+            onClick={() => void copyHandshake()}
+          >
             <Copy className="mr-1 h-3 w-3" />
             Copy
           </Button>
@@ -236,14 +266,7 @@ export default function DashboardPage() {
         <CardContent className="pt-5">
           {handshake?.daemon_id ? (
             <pre className="overflow-x-auto text-[13px] leading-6 text-gray-300">
-              {formatJsonWithLineNumbers({
-                event: "daemon.connect",
-                daemon_id: handshake.daemon_id,
-                name: handshake.name,
-                os: handshake.os,
-                capabilities: handshake.capabilities,
-                connected_at: handshake.connected_at,
-              })}
+              {handshakeJson}
             </pre>
           ) : (
             <p className="text-sm text-gray-400">No daemons have connected yet.</p>
