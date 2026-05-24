@@ -41,7 +41,7 @@ export default function ForumThreadPage() {
 
   const thread = data?.thread;
   const posts = data?.posts ?? [];
-  const agents = agentsData?.agents ?? [];
+  const agents = useMemo(() => agentsData?.agents ?? [], [agentsData?.agents]);
   const defaultAgent = useMemo(() => thread?.agent_names?.[0] || agents[0]?.name || "", [thread, agents]);
   const selectedAgent = agentName || defaultAgent;
   const isProcessing = thread?.status === "processing";

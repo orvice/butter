@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   FilePlus2,
@@ -82,7 +82,13 @@ export default function AgentFilesPage() {
   const deleteFile = useDeleteAgentFile();
 
   const spaces = useMemo(() => spacesData?.spaces ?? [], [spacesData?.spaces]);
-  const [selectedSpaceId, setSelectedSpaceId] = useState("");
+  const [explicitSpaceId, setExplicitSpaceId] = useState("");
+  const selectedSpaceId = useMemo(() => {
+    if (explicitSpaceId && spaces.some((space) => space.id === explicitSpaceId)) {
+      return explicitSpaceId;
+    }
+    return spaces[0]?.id ?? "";
+  }, [explicitSpaceId, spaces]);
   const selectedSpace = spaces.find((space) => space.id === selectedSpaceId);
   const [pathPrefix, setPathPrefix] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -92,6 +98,7 @@ export default function AgentFilesPage() {
   const [spaceForm, setSpaceForm] = useState<SpaceFormState>({ id: "", name: "", description: "" });
   const [fileDialogOpen, setFileDialogOpen] = useState(false);
   const [fileForm, setFileForm] = useState<FileFormState>({ path: "", content: "" });
+  const [fileFormDirty, setFileFormDirty] = useState(false);
   const [deleteSpaceTarget, setDeleteSpaceTarget] = useState<AgentFileSpace | null>(null);
   const [deleteFileTarget, setDeleteFileTarget] = useState<AgentFile | null>(null);
 
@@ -106,25 +113,10 @@ export default function AgentFilesPage() {
   const searchResults = searchData?.results ?? [];
   const activeFile = activeFileData?.file;
   const activeContent = activeFileData?.content ?? "";
-
-  useEffect(() => {
-    if (!selectedSpaceId && spaces[0]?.id) {
-      setSelectedSpaceId(spaces[0].id);
-    }
-    if (selectedSpaceId && spaces.length > 0 && !spaces.some((space) => space.id === selectedSpaceId)) {
-      setSelectedSpaceId(spaces[0]?.id ?? "");
-      setSelectedPath("");
-    }
-  }, [selectedSpaceId, spaces]);
-
-  useEffect(() => {
-    if (activeFileData && selectedPath) {
-      setFileForm({
-        path: activeFileData.file?.path ?? selectedPath,
-        content: activeContent,
-      });
-    }
-  }, [activeContent, activeFileData, selectedPath]);
+  const displayedFileForm =
+    selectedPath && activeFileData && !fileFormDirty
+      ? { path: activeFileData.file?.path ?? selectedPath, content: activeContent }
+      : fileForm;
 
   function openCreateSpaceDialog() {
     setEditingSpace(null);
@@ -155,7 +147,7 @@ export default function AgentFilesPage() {
         toast.success(editingSpace ? "File space updated" : "File space created");
         setSpaceDialogOpen(false);
         if (!selectedSpaceId && res.space?.id) {
-          setSelectedSpaceId(res.space.id);
+          setExplicitSpaceId(res.space.id);
         }
       },
       onError: (error) => toast.error(error.message),
@@ -169,17 +161,20 @@ export default function AgentFilesPage() {
     }
     setSelectedPath("");
     setFileForm({ path: "", content: "" });
+    setFileFormDirty(false);
     setFileDialogOpen(true);
   }
 
   function openEditFile(file: AgentFile) {
     setSelectedPath(file.path);
+    setFileForm({ path: file.path, content: "" });
+    setFileFormDirty(false);
     setFileDialogOpen(true);
   }
 
   function saveFile() {
     if (!selectedSpaceId) return;
-    const path = normalizedPath(fileForm.path);
+    const path = normalizedPath(displayedFileForm.path);
     if (!path) {
       toast.error("File path is required");
       return;
@@ -188,7 +183,7 @@ export default function AgentFilesPage() {
       {
         spaceId: selectedSpaceId,
         path,
-        content: fileForm.content,
+        content: displayedFileForm.content,
         contentType: "text/plain; charset=utf-8",
       },
       {
@@ -208,7 +203,7 @@ export default function AgentFilesPage() {
       onSuccess: () => {
         toast.success("File space deleted");
         if (selectedSpaceId === deleteSpaceTarget.id) {
-          setSelectedSpaceId("");
+          setExplicitSpaceId("");
           setSelectedPath("");
         }
         setDeleteSpaceTarget(null);
@@ -269,7 +264,7 @@ export default function AgentFilesPage() {
                     key={space.id}
                     type="button"
                     onClick={() => {
-                      setSelectedSpaceId(space.id ?? "");
+                      setExplicitSpaceId(space.id ?? "");
                       setSelectedPath("");
                     }}
                     className={`w-full rounded-md border p-3 text-left transition-colors ${
@@ -474,8 +469,11 @@ export default function AgentFilesPage() {
               <Label htmlFor="file-path">Path</Label>
               <Input
                 id="file-path"
-                value={fileForm.path}
-                onChange={(event) => setFileForm((prev) => ({ ...prev, path: event.target.value }))}
+                value={displayedFileForm.path}
+                onChange={(event) => {
+                  setFileFormDirty(true);
+                  setFileForm((prev) => ({ ...prev, path: event.target.value }));
+                }}
                 placeholder="/notes/todo.md"
               />
             </div>
@@ -485,8 +483,11 @@ export default function AgentFilesPage() {
                 <Textarea
                   id="file-content"
                   className="min-h-80 font-mono text-sm"
-                  value={fileForm.content}
-                  onChange={(event) => setFileForm((prev) => ({ ...prev, content: event.target.value }))}
+                  value={displayedFileForm.content}
+                  onChange={(event) => {
+                    setFileFormDirty(true);
+                    setFileForm((prev) => ({ ...prev, content: event.target.value }));
+                  }}
                   placeholder="# Notes"
                 />
               </div>
