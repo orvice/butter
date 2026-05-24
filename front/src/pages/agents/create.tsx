@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AgentModelSelect } from "./model-select";
@@ -109,12 +109,18 @@ export default function AgentCreatePage() {
           <BreadcrumbItem>Create</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Create Agent</h2>
+      <div className="mb-6 space-y-1">
+        <h2 className="text-2xl font-bold">Create Agent</h2>
+        <p className="text-sm text-muted-foreground">Start with identity and model settings, then optionally connect tools and file spaces.</p>
+      </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
-            <CardHeader><CardTitle>Basic Info</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Basic Info</CardTitle>
+              <CardDescription>Name and describe how this agent appears across the workspace.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <FormField control={form.control} name="name" render={({ field }) => (
                 <FormItem>
@@ -155,7 +161,10 @@ export default function AgentCreatePage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Icon</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Icon</CardTitle>
+              <CardDescription>Upload or link an avatar so the agent is easier to recognize in lists and chat.</CardDescription>
+            </CardHeader>
             <CardContent>
               <AgentIconUpload
                 agentName={agentName}
@@ -166,7 +175,10 @@ export default function AgentCreatePage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Model Configuration</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Model Configuration</CardTitle>
+              <CardDescription>Pick the model and instruction the agent will use for LLM responses.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <FormField control={form.control} name="model" render={({ field }) => (
                 <FormItem>
@@ -189,7 +201,10 @@ export default function AgentCreatePage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>MCP Servers</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>MCP Servers</CardTitle>
+              <CardDescription>Optional tools the agent can call during runs.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Select shared MCP servers this agent can use. Leave empty to disable shared MCP tools.
@@ -247,7 +262,10 @@ export default function AgentCreatePage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Agent Files</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Agent Files</CardTitle>
+              <CardDescription>Mount file spaces only when the agent needs persistent workspace files.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Mount workspace file spaces into this agent's built-in agent_files tools.
@@ -261,7 +279,7 @@ export default function AgentCreatePage() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-3">
+          <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <Button type="button" variant="outline" onClick={() => navigate("/agents")}>Cancel</Button>
             <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? "Creating..." : "Create Agent"}

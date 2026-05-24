@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { useCreateMCPServer } from "@/api/mcp-servers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
@@ -103,12 +103,18 @@ export default function MCPServerCreatePage() {
           <BreadcrumbItem>Create</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Create MCP Server</h2>
+      <div className="mb-6 space-y-1">
+        <h2 className="text-2xl font-bold">Create MCP Server</h2>
+        <p className="text-sm text-muted-foreground">Connect an HTTP or SSE MCP endpoint, then choose the authentication method it requires.</p>
+      </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
-            <CardHeader><CardTitle>Basic Info</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Basic Info</CardTitle>
+              <CardDescription>Use a stable ID for references and a readable name for operators.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <FormField control={form.control} name="id" render={({ field }) => (
                 <FormItem><FormLabel>ID</FormLabel><FormControl><Input placeholder="my-mcp-server" {...field} /></FormControl><FormMessage /></FormItem>
@@ -132,7 +138,10 @@ export default function MCPServerCreatePage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Connection</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Connection</CardTitle>
+              <CardDescription>Provide the endpoint, auth details, and timeout used when agents call tools.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <>
                 <FormField control={form.control} name="url" render={({ field }) => (
@@ -215,7 +224,7 @@ export default function MCPServerCreatePage() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-3">
+          <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <Button type="button" variant="outline" onClick={() => navigate("/mcp-servers")}>Cancel</Button>
             <Button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Creating..." : "Create"}</Button>
           </div>

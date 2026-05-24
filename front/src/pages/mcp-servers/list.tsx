@@ -159,7 +159,9 @@ export default function MCPServerListPage() {
         columns={columns}
         data={servers}
         isLoading={isLoading}
-        emptyMessage="No MCP servers configured. Add a server to expose its tools to agents."
+        emptyMessage="No MCP servers configured"
+        emptyDescription="Add a server to expose tools and resources that agents can call."
+        emptyAction={<Button onClick={() => navigate("/mcp-servers/create")}><Server className="mr-2 h-4 w-4" />Add Server</Button>}
       />
 
       {/* Tool filter / aggregated view */}

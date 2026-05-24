@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -215,7 +215,10 @@ export default function AgentEditPage() {
           <BreadcrumbItem>{name}</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Edit Agent</h2>
+      <div className="mb-6 space-y-1">
+        <h2 className="text-2xl font-bold">Edit Agent</h2>
+        <p className="text-sm text-muted-foreground">Use the guided form for common settings or JSON mode for advanced agent topology.</p>
+      </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-4">
@@ -227,7 +230,10 @@ export default function AgentEditPage() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-6">
               <Card>
-                <CardHeader><CardTitle>Basic Info</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle>Basic Info</CardTitle>
+                  <CardDescription>Update the visible description and orchestration type.</CardDescription>
+                </CardHeader>
                 <CardContent className="space-y-4">
                   <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem>
@@ -265,7 +271,10 @@ export default function AgentEditPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>Icon</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle>Icon</CardTitle>
+                  <CardDescription>Keep the agent visually identifiable in chat, sessions, and lists.</CardDescription>
+                </CardHeader>
                 <CardContent>
                   <AgentIconUpload
                     agentName={agentName}
@@ -276,7 +285,10 @@ export default function AgentEditPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>Model Configuration</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle>Model Configuration</CardTitle>
+                  <CardDescription>Adjust the model alias and system instruction used for LLM responses.</CardDescription>
+                </CardHeader>
                 <CardContent className="space-y-4">
                   <FormField control={form.control} name="model" render={({ field }) => (
                     <FormItem>
@@ -297,7 +309,10 @@ export default function AgentEditPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>MCP Servers</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle>MCP Servers</CardTitle>
+                  <CardDescription>Shared tool servers available to this agent. Inline servers remain in JSON mode.</CardDescription>
+                </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground">
                     Select shared MCP servers this agent can use. Inline MCP servers can still be managed in JSON mode.
@@ -351,7 +366,10 @@ export default function AgentEditPage() {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle>Agent Files</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle>Agent Files</CardTitle>
+                  <CardDescription>Review file-space mounts and permissions before saving.</CardDescription>
+                </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground">
                     Mount workspace file spaces into this agent's built-in agent_files tools.
@@ -392,7 +410,7 @@ export default function AgentEditPage() {
                 </Card>
               )}
 
-              <div className="flex gap-3">
+              <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                 <Button type="button" variant="outline" onClick={() => navigate("/agents")}>Cancel</Button>
                 <Button type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? "Saving..." : "Save"}
@@ -415,7 +433,7 @@ export default function AgentEditPage() {
               />
             </CardContent>
           </Card>
-          <div className="mt-6 flex gap-3">
+          <div className="sticky bottom-0 z-10 mt-6 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <Button type="button" variant="outline" onClick={() => navigate("/agents")}>Cancel</Button>
             <Button onClick={onJsonSubmit} disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "Saving..." : "Save"}

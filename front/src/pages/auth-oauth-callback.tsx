@@ -10,25 +10,21 @@ export default function OAuthCallbackPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const { applyLoginResponse } = useAuth();
-  const [error, setError] = useState<string>("");
+  const errParam = params.get("error");
+  const code = params.get("code") ?? "";
+  const state = params.get("state") ?? "";
+  const callbackError = errParam
+    ? `${errParam}: ${params.get("error_description") ?? "authorization rejected"}`
+    : !provider || !code || !state
+      ? "Missing provider, code, or state in callback URL."
+      : "";
+  const [error, setError] = useState<string>(callbackError);
   const consumed = useRef(false);
 
   useEffect(() => {
+    if (callbackError) return;
     if (consumed.current) return;
     consumed.current = true;
-
-    const code = params.get("code") ?? "";
-    const state = params.get("state") ?? "";
-    const errParam = params.get("error");
-
-    if (errParam) {
-      setError(`${errParam}: ${params.get("error_description") ?? "authorization rejected"}`);
-      return;
-    }
-    if (!provider || !code || !state) {
-      setError("Missing provider, code, or state in callback URL.");
-      return;
-    }
 
     completeOAuthFlow(provider, code, state)
       .then((res) => {
@@ -42,7 +38,7 @@ export default function OAuthCallbackPage() {
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : "OAuth login failed.");
       });
-  }, [provider, params, applyLoginResponse, navigate]);
+  }, [provider, code, state, callbackError, applyLoginResponse, navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
