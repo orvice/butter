@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/adk/model"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
 
@@ -43,15 +44,12 @@ func TestChatStreamRequiresWorkspaceForNonAdmin(t *testing.T) {
 }
 
 func TestEventTextPartsReturnsPartialTextDeltas(t *testing.T) {
-	evt := &session.Event{
-		Partial: true,
-		Content: &genai.Content{Parts: []*genai.Part{
-			{Text: "Hel"},
-			{Text: "thinking", Thought: true},
-			{Text: "lo"},
-			{FunctionCall: &genai.FunctionCall{Name: "tool"}},
-		}},
-	}
+	evt := testEvent(true, []*genai.Part{
+		{Text: "Hel"},
+		{Text: "thinking", Thought: true},
+		{Text: "lo"},
+		{FunctionCall: &genai.FunctionCall{Name: "tool"}},
+	})
 
 	got := eventTextParts(evt)
 	want := []string{"Hel", "lo"}
@@ -61,12 +59,56 @@ func TestEventTextPartsReturnsPartialTextDeltas(t *testing.T) {
 }
 
 func TestEventTextPartsIgnoresNonPartialEvents(t *testing.T) {
-	evt := &session.Event{
-		Partial: false,
-		Content: &genai.Content{Parts: []*genai.Part{{Text: "final"}}},
-	}
+	evt := testEvent(false, []*genai.Part{{Text: "final"}})
 
 	if got := eventTextParts(evt); got != nil {
 		t.Fatalf("eventTextParts() = %#v, want nil", got)
+	}
+}
+
+func TestEventHasOnlyTextParts(t *testing.T) {
+	tests := []struct {
+		name string
+		evt  *session.Event
+		want bool
+	}{
+		{
+			name: "text only",
+			evt: testEvent(true, []*genai.Part{
+				{Text: "Hel"},
+				{Text: "lo"},
+			}),
+			want: true,
+		},
+		{
+			name: "text plus tool call",
+			evt: testEvent(true, []*genai.Part{
+				{Text: "Checking"},
+				{FunctionCall: &genai.FunctionCall{Name: "lookup"}},
+			}),
+			want: false,
+		},
+		{
+			name: "empty content",
+			evt:  testEvent(true, nil),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := eventHasOnlyTextParts(tt.evt); got != tt.want {
+				t.Fatalf("eventHasOnlyTextParts() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func testEvent(partial bool, parts []*genai.Part) *session.Event {
+	return &session.Event{
+		LLMResponse: model.LLMResponse{
+			Partial: partial,
+			Content: &genai.Content{Parts: parts, Role: genai.RoleModel},
+		},
 	}
 }
