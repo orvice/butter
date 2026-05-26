@@ -33,15 +33,17 @@ export interface ChatStreamPayload {
   session_id?: string;
   agent_name?: string;
   response?: string;
+  text_delta?: string;
   error?: string;
   event?: ChatStreamRunEvent;
 }
 
-export type ChatStreamEvent = "invocation_started" | "agent_event" | "final" | "error" | string;
+export type ChatStreamEvent = "invocation_started" | "agent_event" | "text_delta" | "final" | "error" | string;
 
 export interface ChatStreamHandlers {
   onStarted?: (payload: ChatStreamPayload) => void;
   onAgentEvent?: (payload: ChatStreamPayload) => void;
+  onTextDelta?: (payload: ChatStreamPayload) => void;
   onFinal?: (payload: ChatStreamPayload) => void;
   onError?: (payload: ChatStreamPayload) => void;
 }
@@ -105,6 +107,7 @@ export async function streamChat(
       const { event, data } = parsed;
       if (event === "invocation_started") handlers.onStarted?.(data);
       else if (event === "agent_event") handlers.onAgentEvent?.(data);
+      else if (event === "text_delta") handlers.onTextDelta?.(data);
       else if (event === "final") {
         finalPayload = data;
         handlers.onFinal?.(data);

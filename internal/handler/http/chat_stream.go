@@ -60,6 +60,7 @@ type chatStreamPayload struct {
 	SessionID    string              `json:"session_id,omitempty"`
 	AgentName    string              `json:"agent_name,omitempty"`
 	Response     string              `json:"response,omitempty"`
+	TextDelta    string              `json:"text_delta,omitempty"`
 	Error        string              `json:"error,omitempty"`
 	Event        *chatStreamRunEvent `json:"event,omitempty"`
 }
@@ -165,7 +166,19 @@ func (h *ChatStreamHandler) Stream(c *gin.Context) {
 	go func() {
 		defer close(messages)
 		parts := []*genai.Part{genai.NewPartFromText(req.Message)}
-		response, err := svc.Run(reqCtx, req.AgentName, parts, req.ModelOverride, ctxInfo, func(evt *session.Event) {
+		response, err := svc.RunSSE(reqCtx, req.AgentName, parts, req.ModelOverride, ctxInfo, func(evt *session.Event) {
+			textParts := eventTextParts(evt)
+			for _, text := range textParts {
+				_ = send("text_delta", chatStreamPayload{
+					InvocationID: invocationID,
+					SessionID:    sessionID,
+					AgentName:    req.AgentName,
+					TextDelta:    text,
+				})
+			}
+			if len(textParts) > 0 && eventHasOnlyTextParts(evt) {
+				return
+			}
 			_ = send("agent_event", chatStreamPayload{
 				InvocationID: invocationID,
 				SessionID:    sessionID,
@@ -229,6 +242,38 @@ func eventToChatStreamRunEvent(evt *session.Event) *chatStreamRunEvent {
 		if data, err := json.Marshal(evt.Content); err == nil {
 			out.ContentJSON = string(data)
 		}
+	}
+	return out
+}
+
+func eventHasOnlyTextParts(evt *session.Event) bool {
+	if evt == nil || evt.Content == nil || len(evt.Content.Parts) == 0 {
+		return false
+	}
+	for _, part := range evt.Content.Parts {
+		if part == nil {
+			continue
+		}
+		if part.Text == "" && part.Thought == false {
+			return false
+		}
+		if part.FunctionCall != nil || part.FunctionResponse != nil || part.CodeExecutionResult != nil || part.ExecutableCode != nil || part.InlineData != nil || part.FileData != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func eventTextParts(evt *session.Event) []string {
+	if evt == nil || !evt.Partial || evt.Content == nil {
+		return nil
+	}
+	out := make([]string, 0, len(evt.Content.Parts))
+	for _, part := range evt.Content.Parts {
+		if part == nil || part.Text == "" || part.Thought {
+			continue
+		}
+		out = append(out, part.Text)
 	}
 	return out
 }

@@ -109,6 +109,11 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
               setStreamingEvents((prev) => [...prev, event]);
             }
           },
+          onTextDelta: (payload) => {
+            if (payload.text_delta) {
+              setStreamingResponse((prev) => prev + payload.text_delta);
+            }
+          },
           onFinal: (payload) => {
             setStreamingResponse(payload.response ?? "");
           },

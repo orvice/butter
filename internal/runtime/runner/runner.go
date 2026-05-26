@@ -598,6 +598,15 @@ type EventCallback func(evt *session.Event)
 // If onEvent is non-nil, it is called for each non-final event.
 // If onCompaction is non-nil, it is called when context compaction is detected.
 func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (output string, runErr error) {
+	return s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{})
+}
+
+// RunSSE executes an agent with ADK server-sent-event streaming enabled.
+func (s *Service) RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (output string, runErr error) {
+	return s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{StreamingMode: agent.StreamingModeSSE})
+}
+
+func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback, runConfig agent.RunConfig) (output string, runErr error) {
 	channelName := ctxInfo.GetChannelName()
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
@@ -711,7 +720,7 @@ func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part
 
 	var result strings.Builder
 	eventCount := 0
-	for evt, err := range r.Run(ctx, userID, sessionID, msg, agent.RunConfig{}) {
+	for evt, err := range r.Run(ctx, userID, sessionID, msg, runConfig) {
 		if err != nil {
 			logger.Error("ADK runner event error",
 				"event_count", eventCount,
