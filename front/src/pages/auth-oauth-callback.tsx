@@ -41,7 +41,7 @@ export default function OAuthCallbackPage() {
   }, [provider, code, state, callbackError, applyLoginResponse, navigate]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>Signing you in…</CardTitle>
@@ -56,7 +56,7 @@ export default function OAuthCallbackPage() {
               </Button>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Hang tight — you’ll be redirected shortly.</p>
+            <p className="text-sm text-muted-foreground">Hang tight, you'll be redirected shortly.</p>
           )}
         </CardContent>
       </Card>

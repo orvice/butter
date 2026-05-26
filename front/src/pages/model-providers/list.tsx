@@ -40,7 +40,7 @@ export default function ModelProviderListPage() {
     },
     {
       header: "Type",
-      cell: (row) => <Badge variant="outline" className="font-mono text-[10px]">{row.type || "—"}</Badge>,
+      cell: (row) => <Badge variant="outline" className="font-mono text-[10px]">{row.type || "-"}</Badge>,
     },
     {
       header: "Models",
@@ -54,13 +54,13 @@ export default function ModelProviderListPage() {
           {(row.models?.length ?? 0) > 4 && (
             <Badge variant="outline" className="text-[10px]">+{(row.models?.length ?? 0) - 4}</Badge>
           )}
-          {(row.models?.length ?? 0) === 0 && <span className="text-sm text-muted-foreground">—</span>}
+          {(row.models?.length ?? 0) === 0 && <span className="text-sm text-muted-foreground">-</span>}
         </div>
       ),
     },
     {
       header: "API Key",
-      cell: (row) => row.api_key ? <Badge variant="outline" className="text-[10px]">Configured</Badge> : <span className="text-sm text-muted-foreground">—</span>,
+      cell: (row) => row.api_key ? <Badge variant="outline" className="text-[10px]">Configured</Badge> : <span className="text-sm text-muted-foreground">-</span>,
     },
     {
       header: "",

@@ -87,7 +87,7 @@ export default function SessionListPage() {
           <span className="text-xs text-muted-foreground">
             {new Date(row.last_update_time).toLocaleString()}
           </span>
-        ) : "—",
+        ) : "-",
     },
     { header: "Turns", cell: (row) => row.turn_count ?? 0 },
     {

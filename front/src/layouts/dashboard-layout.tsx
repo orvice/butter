@@ -7,11 +7,11 @@ import { useOverview } from "@/api/dashboard";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ThemeControls } from "@/components/theme-controls";
+import { BrandMark } from "@/components/brand-mark";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   LayoutDashboard,
@@ -40,7 +40,6 @@ import {
   LifeBuoy,
   Settings2,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import type { ComponentHealth } from "@/types/api";
 import {
@@ -181,15 +180,10 @@ function WorkspaceSwitcher() {
 
 function Brand() {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-primary/40 bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
-        <Sparkles className="h-4.5 w-4.5" />
-      </div>
-      <div>
-        <div className="text-lg font-black leading-tight text-foreground">Butter</div>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">Smooth Agent Ops</div>
-      </div>
-    </div>
+    <Link to="/" className="flex items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
+      <BrandMark size={34} />
+      <span className="text-base font-semibold leading-none tracking-tight text-foreground">Butter</span>
+    </Link>
   );
 }
 
@@ -383,7 +377,7 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-[100dvh] bg-background">
       <aside className="hidden w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
         <div className="flex items-center gap-2 border-b px-6 py-5">
           <Brand />
@@ -444,7 +438,6 @@ export default function DashboardLayout() {
           <div className="flex flex-wrap items-center gap-2">
             <WorkspaceSwitcher />
             <StatusPill />
-            <Badge variant="outline" className="hidden text-xs sm:inline-flex">Production</Badge>
             <Button variant="ghost" size="icon" aria-label="Storage status">
               <Database className="h-4 w-4" />
             </Button>

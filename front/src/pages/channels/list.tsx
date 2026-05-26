@@ -42,7 +42,7 @@ async function copyText(text: string, message: string) {
 }
 
 function maskToken(token: string | undefined): string {
-  if (!token) return "—";
+  if (!token) return "-";
   return "•".repeat(Math.min(token.length, 32));
 }
 

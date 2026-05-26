@@ -12,7 +12,7 @@ import {
 import { MemoryStick, Brain, Clock, User, MessageSquare, ExternalLink } from "lucide-react";
 
 function fmtDuration(d?: string): string {
-  if (!d) return "—";
+  if (!d) return "-";
   // Protobuf Duration over JSON is something like "12.345s"
   const m = /^(-?\d+(?:\.\d+)?)s$/.exec(d);
   if (!m) return d;
