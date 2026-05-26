@@ -58,7 +58,7 @@ const STATE_BADGE: Record<string, { variant: "default" | "secondary" | "outline"
 };
 
 function timeAgo(ts?: string): string {
-  if (!ts) return "—";
+  if (!ts) return "-";
   const d = Date.now() - new Date(ts).getTime();
   if (d < 60_000) return `${Math.max(1, Math.floor(d / 1000))}s ago`;
   if (d < 3600_000) return `${Math.floor(d / 60_000)}m ago`;

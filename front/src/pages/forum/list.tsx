@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function fmtDate(v?: string) {
-  return v ? new Date(v).toLocaleString() : "—";
+  return v ? new Date(v).toLocaleString() : "-";
 }
 
 export default function ForumListPage() {

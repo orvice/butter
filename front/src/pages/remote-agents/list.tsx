@@ -63,7 +63,7 @@ export default function RemoteAgentListPage() {
             <div>
               <div className="font-medium">{row.name}</div>
               <div className="text-xs text-muted-foreground line-clamp-1 max-w-md">
-                {isDaemon ? `Cap: ${row.daemon_capability ?? "—"}` : row.url}
+                {isDaemon ? `Cap: ${row.daemon_capability ?? "-"}` : row.url}
               </div>
             </div>
           </div>
@@ -92,7 +92,7 @@ export default function RemoteAgentListPage() {
         row.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON" ? (
           <ShieldCheck className="h-4 w-4 text-emerald-700" />
         ) : (
-          <span className="text-xs text-muted-foreground">—</span>
+          <span className="text-xs text-muted-foreground">-</span>
         ),
     },
     {

@@ -30,5 +30,5 @@ export function ServerStatusInline({ id }: { id: string }) {
   if (state === "STATE_CONNECTED") {
     return <span className="text-sm">{count}</span>;
   }
-  return <span className="text-sm text-muted-foreground">—</span>;
+  return <span className="text-sm text-muted-foreground">-</span>;
 }

@@ -49,7 +49,7 @@ export default function APITokenListPage() {
     { header: "Name", accessorKey: "name" },
     {
       header: "Prefix",
-      cell: (t) => <span className="font-mono text-xs">{t.prefix ?? "—"}…</span>,
+      cell: (t) => <span className="font-mono text-xs">{t.prefix ?? "-"}…</span>,
     },
     {
       header: "Created",

@@ -344,7 +344,7 @@ export function ScheduleBuilder({ value, onChange }: ScheduleBuilderProps) {
               {describe(simple)}
             </div>
             <div className="mt-1 font-mono text-xs">
-              {invalid ? <span className="text-destructive">—</span> : preview}
+              {invalid ? <span className="text-destructive">invalid</span> : preview}
             </div>
           </div>
         </TabsContent>

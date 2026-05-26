@@ -83,7 +83,7 @@ export default function MCPServerListPage() {
             <div>
               <div className="font-medium">{row.name}</div>
               <div className="text-xs text-muted-foreground line-clamp-1 max-w-xs">
-                {row.url || "—"}
+                {row.url || "-"}
               </div>
             </div>
           </div>
@@ -187,7 +187,7 @@ export default function MCPServerListPage() {
                 >
                   <XCircle className="h-3.5 w-3.5" />
                   <span className="font-mono">{id}</span>
-                  <span>—</span>
+                  <span>:</span>
                   <span>{err}</span>
                 </div>
               ))}

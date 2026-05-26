@@ -45,7 +45,7 @@ const DELIVERY_META: Record<
 };
 
 function timeAgo(ts?: string): string {
-  if (!ts) return "—";
+  if (!ts) return "-";
   const d = Date.now() - new Date(ts).getTime();
   if (d < 60_000) return `${Math.max(1, Math.floor(d / 1000))}s ago`;
   if (d < 3600_000) return `${Math.floor(d / 60_000)}m ago`;
@@ -117,7 +117,7 @@ export default function CronJobListPage() {
       header: "Last Execution",
       cell: (row) => {
         const exec = lastExecByJob.get(row.name);
-        if (!exec) return <span className="text-xs text-muted-foreground">—</span>;
+        if (!exec) return <span className="text-xs text-muted-foreground">-</span>;
         const ok = exec.status === "CRON_EXECUTION_STATUS_SUCCESS";
         return (
           <div className="flex items-center gap-2">
