@@ -81,6 +81,21 @@ go run ./cmd/butter-daemon -config daemon.yaml
 The daemon connects back to the server's daemon gRPC endpoint and uses the root
 `apiToken` as authorization metadata.
 
+## ACP Adapter
+
+Expose a Butter agent to Agent Client Protocol clients over stdio with:
+
+```bash
+BUTTER_SERVER_URL=http://127.0.0.1:8080 \
+BUTTER_WORKSPACE_ID=<workspace-id> \
+BUTTER_API_TOKEN=<token> \
+BUTTER_AGENT_NAME=<agent-name> \
+go run ./cmd/butter-acp
+```
+
+The same values can be passed as `-server`, `-workspace`, `-token`, and
+`-agent` flags.
+
 ## Development
 
 Run tests:
