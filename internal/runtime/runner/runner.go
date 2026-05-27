@@ -512,16 +512,26 @@ func (s *Service) GetSession(ctx context.Context, channelName, sessionID, userID
 
 // buildOverriddenAgent creates (or returns cached) an agent with its model replaced.
 func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOverride string) (agent.Agent, error) {
+	logger := log.FromContext(ctx)
 	cacheKey := agentName + ":" + modelOverride
 	s.mu.Lock()
 	if cached, ok := s.overriddenCache[cacheKey]; ok {
 		s.mu.Unlock()
+		logger.Debug("using cached model-overridden agent",
+			"agent", agentName,
+			"model_override", modelOverride,
+		)
 		return cached, nil
 	}
 	s.mu.Unlock()
 
 	// Resolve the model alias to get the actual model name.
 	resolvedName, _ := internalagent.ResolveModelAlias(modelOverride, s.providers)
+	logger.Info("building model-overridden agent",
+		"agent", agentName,
+		"model_override", modelOverride,
+		"resolved_model", resolvedName,
+	)
 
 	var a agent.Agent
 	var err error
@@ -555,6 +565,11 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	s.overriddenCache[cacheKey] = a
 	s.mu.Unlock()
 
+	logger.Info("model-overridden agent cached",
+		"agent", agentName,
+		"model_override", modelOverride,
+		"resolved_model", resolvedName,
+	)
 	return a, nil
 }
 
@@ -566,6 +581,7 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName,
 
 	key := channelName + ":" + agentName + ":" + modelOverride
 	if r, ok := s.runners[key]; ok {
+		logger.Debug("using cached ADK runner", "channel", channelName, "agent", agentName, "model_override", modelOverride)
 		return r, nil
 	}
 
@@ -607,6 +623,7 @@ func (s *Service) RunSSE(ctx context.Context, agentName string, parts []*genai.P
 }
 
 func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback, runConfig agent.RunConfig) (output string, runErr error) {
+	startedAt := time.Now()
 	channelName := ctxInfo.GetChannelName()
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
@@ -630,6 +647,9 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		"session_id", sessionID,
 		"user_id", userID,
 		"source", ctxInfo.GetSource().String(),
+		"workspace_id", ctxInfo.GetWorkspaceId(),
+		"channel_type", ctxInfo.GetChannelType(),
+		"chat_type", ctxInfo.GetChatType().String(),
 	)
 	ctx = log.WithLogger(ctx, logger)
 	ctx = agentfiletool.WithRuntimeContext(ctx, agentfiletool.RuntimeContext{
@@ -648,7 +668,10 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		"inline_data_parts", inputSummary.inlineDataParts,
 		"file_data_parts", inputSummary.fileDataParts,
 		"function_response_parts", inputSummary.functionResponseParts,
+		"input_text_len", len(joinTextParts(parts)),
 		"model_override", modelOverride,
+		"streaming_mode", runConfig.StreamingMode,
+		"metadata_keys", len(ctxInfo.GetMetadata()),
 	)
 
 	s.mu.Lock()
@@ -671,8 +694,13 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			agentWS = agentProto.GetWorkspaceId()
 		}
 		if agentWS != wsID {
+			logger.Warn("agent workspace scope rejected",
+				"agent_workspace_id", agentWS,
+				"requested_workspace_id", wsID,
+			)
 			return "", fmt.Errorf("agent %q not available in workspace %q", agentName, wsID)
 		}
+		logger.Debug("agent workspace scope accepted", "workspace_id", wsID)
 	}
 
 	// If model override is set, rebuild the agent with the overridden model.
@@ -696,12 +724,13 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	)
 
 	// Ensure session exists; create one if not found.
+	logger.Debug("checking ADK session")
 	if _, err := s.sessionSvc.Get(ctx, &session.GetRequest{
 		AppName:   channelName,
 		UserID:    userID,
 		SessionID: sessionID,
 	}); err != nil {
-		logger.Info("session not found, creating new session")
+		logger.Info("session not found, creating new session", "err", err)
 		if _, err := s.sessionSvc.Create(ctx, &session.CreateRequest{
 			AppName:   channelName,
 			UserID:    userID,
@@ -709,6 +738,9 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		}); err != nil {
 			return "", fmt.Errorf("creating session: %w", err)
 		}
+		logger.Info("ADK session created")
+	} else {
+		logger.Debug("ADK session found")
 	}
 
 	// Store compaction callback in context for the notifier plugin.
@@ -760,9 +792,10 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		}
 	}
 
-	logger.Debug("ADK runner completed",
+	logger.Info("ADK runner completed",
 		"event_count", eventCount,
 		"response_len", result.Len(),
+		"duration", time.Since(startedAt),
 	)
 
 	return result.String(), nil

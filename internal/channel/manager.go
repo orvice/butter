@@ -84,7 +84,11 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 
 	for _, ch := range channels {
 		if !ch.GetEnabled() {
-			logger.Info("skipping disabled channel", "channel", ch.GetName())
+			logger.Info("skipping disabled channel",
+				"channel", ch.GetName(),
+				"workspace", ch.GetWorkspaceId(),
+				"platform", ch.GetPlatform().String(),
+			)
 			continue
 		}
 
@@ -96,7 +100,10 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 		switch ch.GetPlatform() {
 		case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM:
 			if ch.GetTelegram().GetBotToken() == "" {
-				logger.Warn("skipping telegram channel with empty bot token", "channel", ch.GetName())
+				logger.Warn("skipping telegram channel with empty bot token",
+					"channel", ch.GetName(),
+					"workspace", ch.GetWorkspaceId(),
+				)
 				continue
 			}
 
@@ -104,7 +111,10 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 				"channel", ch.GetName(),
 				"workspace", ch.GetWorkspaceId(),
 				"default_agent", ch.GetAgentName(),
+				"default_model", ch.GetModel(),
+				"trigger_count", len(ch.GetTriggers()),
 				"available_agents", agentNames,
+				"available_agent_count", len(agentNames),
 			)
 			p, err := m.telegramFactory(ch, m.runnerSvc, m.rdb, agentNames, m.modelNames)
 			if err != nil {
@@ -114,7 +124,10 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 
 		case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD:
 			if ch.GetDiscord().GetBotToken() == "" {
-				logger.Warn("skipping discord channel with empty bot token", "channel", ch.GetName())
+				logger.Warn("skipping discord channel with empty bot token",
+					"channel", ch.GetName(),
+					"workspace", ch.GetWorkspaceId(),
+				)
 				continue
 			}
 
@@ -122,7 +135,10 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 				"channel", ch.GetName(),
 				"workspace", ch.GetWorkspaceId(),
 				"default_agent", ch.GetAgentName(),
+				"default_model", ch.GetModel(),
+				"trigger_count", len(ch.GetTriggers()),
 				"available_agents", agentNames,
+				"available_agent_count", len(agentNames),
 			)
 			p, err := m.discordFactory(ch, m.runnerSvc, m.rdb, agentNames, m.modelNames)
 			if err != nil {
@@ -131,7 +147,11 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 			pollers = append(pollers, p)
 
 		default:
-			logger.Debug("skipping channel with unsupported platform", "channel", ch.GetName(), "platform", ch.GetPlatform().String())
+			logger.Debug("skipping channel with unsupported platform",
+				"channel", ch.GetName(),
+				"workspace", ch.GetWorkspaceId(),
+				"platform", ch.GetPlatform().String(),
+			)
 		}
 	}
 
