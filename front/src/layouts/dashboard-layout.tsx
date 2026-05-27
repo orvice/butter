@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLayoutDensity } from "@/hooks/use-layout-density";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Bot,
@@ -181,7 +183,7 @@ function WorkspaceSwitcher() {
 function Brand() {
   return (
     <Link to="/" className="flex items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
-      <BrandMark size={34} />
+      <BrandMark size={30} />
       <span className="text-base font-semibold leading-none tracking-tight text-foreground">Butter</span>
     </Link>
   );
@@ -194,8 +196,9 @@ function isActiveNav(item: NavItem, pathname: string) {
 
 function NavList({ items, isAdmin }: { items: NavItem[]; isAdmin: boolean }) {
   const location = useLocation();
+  const { isCompact } = useLayoutDensity();
   return (
-    <div className="space-y-1">
+    <div className={cn(isCompact ? "space-y-0.5" : "space-y-1")}>
       {items
         .filter((item) => !item.adminOnly || isAdmin)
         .map(({ to, icon: Icon, label, activePrefixes, adminOnly }) => {
@@ -204,13 +207,13 @@ function NavList({ items, isAdmin }: { items: NavItem[]; isAdmin: boolean }) {
             <Link
               key={to}
               to={to}
-              className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm transition-colors ${
+              className={`flex items-center gap-3 rounded-md border-l-2 px-3 text-sm transition-colors ${isCompact ? "py-1.5" : "py-2.5"} ${
                 active
                   ? "border-primary bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_18%,transparent)]"
                   : "border-transparent text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
               }`}
             >
-              <Icon className="h-5 w-5 shrink-0 stroke-[1.7]" />
+              <Icon className={cn("shrink-0 stroke-[1.7]", isCompact ? "h-4 w-4" : "h-5 w-5")} />
               <span>{label}</span>
             </Link>
           );
@@ -220,24 +223,25 @@ function NavList({ items, isAdmin }: { items: NavItem[]; isAdmin: boolean }) {
 }
 
 function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
+  const { isCompact } = useLayoutDensity();
   return (
-    <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-3">
+    <nav className={cn("flex-1 overflow-y-auto px-3", isCompact ? "space-y-3 py-2" : "space-y-5 py-3")}>
       <NavList items={PRIMARY_NAV} isAdmin={isAdmin} />
-      <div className="border-t pt-4">
+      <div className={cn("border-t", isCompact ? "pt-3" : "pt-4")}>
         <div className="px-3 pb-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           Settings
         </div>
         <NavList items={SECONDARY_NAV} isAdmin={isAdmin} />
       </div>
       {isAdmin ? (
-        <div className="border-t pt-4">
+        <div className={cn("border-t", isCompact ? "pt-3" : "pt-4")}>
           <div className="px-3 pb-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             Admin
           </div>
           <NavList items={ADMIN_NAV} isAdmin={isAdmin} />
         </div>
       ) : null}
-      <div className="border-t pt-4">
+      <div className={cn("border-t", isCompact ? "pt-3" : "pt-4")}>
         <a
           className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
           href="https://github.com/orvice/butter"
@@ -370,6 +374,7 @@ function UserAvatarLink({ user }: { user: AuthUser | null }) {
 export default function DashboardLayout() {
   const { isAuthenticated, isAdmin, logout, user } = useAuth();
   const { selectedWorkspaceId, workspaces, isLoading: isWorkspaceLoading } = useWorkspace();
+  const { isCompact } = useLayoutDensity();
   const navigate = useNavigate();
 
   if (!isAuthenticated) {
@@ -378,11 +383,11 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex min-h-[100dvh] bg-background">
-      <aside className="hidden w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-        <div className="flex items-center gap-2 border-b px-6 py-5">
+      <aside className={cn("hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex", isCompact ? "w-[228px]" : "w-[260px]")}>
+        <div className={cn("flex items-center gap-2 border-b px-5", isCompact ? "py-3" : "py-5")}>
           <Brand />
         </div>
-        <div className="px-4 py-4">
+        <div className={cn("px-4", isCompact ? "py-3" : "py-4")}>
           <Button className="w-full" onClick={() => navigate("/agents/create")}>
             <Plus className="mr-2 h-4 w-4" />
             Deploy Agent
@@ -390,8 +395,8 @@ export default function DashboardLayout() {
         </div>
         <SidebarNav isAdmin={isAdmin} />
         <Separator />
-        <div className="flex items-center justify-between p-4">
-          <ThemeControls />
+        <div className={cn("flex items-center justify-between gap-2 border-t", isCompact ? "p-3" : "p-4")}>
+          <ThemeControls className="min-w-0" />
           <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
@@ -399,7 +404,7 @@ export default function DashboardLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="sticky top-0 z-10 flex min-h-16 flex-wrap items-center justify-between gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur sm:px-8">
+        <header className={cn("sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur", isCompact ? "min-h-12 sm:px-5" : "min-h-16 sm:px-8")}>
           <div className="flex items-center gap-2 md:hidden">
             <Sheet>
               <SheetTrigger render={<Button variant="ghost" size="icon" aria-label="Open navigation" />}>
@@ -419,8 +424,8 @@ export default function DashboardLayout() {
                 </div>
                 <SidebarNav isAdmin={isAdmin} />
                 <Separator />
-                <div className="flex items-center justify-between p-3">
-                  <ThemeControls />
+                <div className="flex items-center justify-between gap-2 border-t p-3">
+                  <ThemeControls className="min-w-0" />
                   <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
                     <LogOut className="h-4 w-4" />
                   </Button>
@@ -450,7 +455,7 @@ export default function DashboardLayout() {
             <UserAvatarLink user={user} />
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 sm:p-8">
+        <main className={cn("flex-1 overflow-auto p-4", isCompact ? "sm:p-5" : "sm:p-8")}>
           {selectedWorkspaceId ? (
             <Outlet />
           ) : isWorkspaceLoading ? (
