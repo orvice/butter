@@ -1,12 +1,14 @@
 import { useTheme } from "next-themes";
-import { Moon, Palette, Sun } from "lucide-react";
+import { Maximize2, Minimize2, Moon, Palette, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useColorTheme, type ColorThemeId } from "@/hooks/use-color-theme";
+import { useLayoutDensity } from "@/hooks/use-layout-density";
 
 export function ThemeControls({ className = "" }: { className?: string }) {
   const { resolvedTheme, theme, setTheme } = useTheme();
   const { colorTheme, setColorTheme, themes } = useColorTheme();
+  const { isCompact, toggleDensity } = useLayoutDensity();
   const isDark = (theme === "system" ? resolvedTheme : theme) === "dark";
   const selectedTheme = themes.find((item) => item.id === colorTheme) ?? themes[0];
 
@@ -39,6 +41,15 @@ export function ThemeControls({ className = "" }: { className?: string }) {
           ))}
         </SelectContent>
       </Select>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={toggleDensity}
+        aria-label={isCompact ? "Use comfortable layout" : "Use compact layout"}
+        title={isCompact ? "Comfortable layout" : "Compact layout"}
+      >
+        {isCompact ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+      </Button>
       <Button
         variant="ghost"
         size="icon"

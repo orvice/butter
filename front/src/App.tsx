@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ColorThemeProvider } from "@/hooks/use-color-theme";
+import { LayoutDensityProvider } from "@/hooks/use-layout-density";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import DashboardLayout from "@/layouts/dashboard-layout";
 import LoginPage from "@/pages/login";
@@ -60,10 +61,11 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <ColorThemeProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <WorkspaceProvider>
-                <Routes>
+          <LayoutDensityProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <WorkspaceProvider>
+                  <Routes>
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/auth/oauth/callback/:provider" element={<OAuthCallbackPage />} />
                   <Route element={<DashboardLayout />}>
@@ -106,11 +108,12 @@ export default function App() {
                     <Route path="admin/global-mcp-servers" element={<AdminGlobalMCPServersPage />} />
                     <Route path="workspaces" element={<WorkspacePage />} />
                   </Route>
-                </Routes>
-                <Toaster />
-              </WorkspaceProvider>
-            </AuthProvider>
-          </QueryClientProvider>
+                  </Routes>
+                  <Toaster />
+                </WorkspaceProvider>
+              </AuthProvider>
+            </QueryClientProvider>
+          </LayoutDensityProvider>
         </ColorThemeProvider>
       </ThemeProvider>
     </BrowserRouter>
