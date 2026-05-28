@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"butterfly.orx.me/core/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -104,8 +105,16 @@ func (s *s3ArtifactService) Save(ctx context.Context, req *artifact.SaveRequest)
 		return nil, fmt.Errorf("request validation failed: %w", err)
 	}
 
+	logger := log.FromContext(ctx)
 	version := req.Version
 	if version == 0 {
+		logger.Debug("resolving next artifact version",
+			"bucket", s.bucket,
+			"app_name", req.AppName,
+			"user_id", req.UserID,
+			"session_id", req.SessionID,
+			"file_name", req.FileName,
+		)
 		resp, err := s.versions(ctx, &artifact.VersionsRequest{
 			AppName: req.AppName, UserID: req.UserID, SessionID: req.SessionID, FileName: req.FileName,
 		})
@@ -120,6 +129,13 @@ func (s *s3ArtifactService) Save(ctx context.Context, req *artifact.SaveRequest)
 
 	body, contentType := partBody(req.Part)
 	key := s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
+	logger.Info("saving artifact to s3",
+		"bucket", s.bucket,
+		"key", key,
+		"version", version,
+		"content_type", contentType,
+		"size_bytes", len(body),
+	)
 	if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
@@ -129,6 +145,12 @@ func (s *s3ArtifactService) Save(ctx context.Context, req *artifact.SaveRequest)
 		return nil, fmt.Errorf("failed to put artifact %q: %w", key, err)
 	}
 
+	logger.Debug("artifact saved to s3",
+		"bucket", s.bucket,
+		"key", key,
+		"version", version,
+		"size_bytes", len(body),
+	)
 	return &artifact.SaveResponse{Version: version}, nil
 }
 
@@ -145,12 +167,18 @@ func (s *s3ArtifactService) Load(ctx context.Context, req *artifact.LoadRequest)
 		return nil, fmt.Errorf("request validation failed: %w", err)
 	}
 
+	logger := log.FromContext(ctx)
 	version, err := s.resolveVersion(ctx, req.AppName, req.UserID, req.SessionID, req.FileName, req.Version)
 	if err != nil {
 		return nil, err
 	}
 
 	key := s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
+	logger.Debug("loading artifact from s3",
+		"bucket", s.bucket,
+		"key", key,
+		"version", version,
+	)
 	resp, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
@@ -172,6 +200,13 @@ func (s *s3ArtifactService) Load(ctx context.Context, req *artifact.LoadRequest)
 		return nil, fmt.Errorf("failed to read artifact %q: %w", key, err)
 	}
 
+	logger.Debug("artifact loaded from s3",
+		"bucket", s.bucket,
+		"key", key,
+		"version", version,
+		"content_type", aws.ToString(resp.ContentType),
+		"size_bytes", len(data),
+	)
 	return &artifact.LoadResponse{Part: genai.NewPartFromBytes(data, aws.ToString(resp.ContentType))}, nil
 }
 
@@ -181,17 +216,35 @@ func (s *s3ArtifactService) Delete(ctx context.Context, req *artifact.DeleteRequ
 		return fmt.Errorf("request validation failed: %w", err)
 	}
 
+	logger := log.FromContext(ctx)
 	if req.Version != 0 {
 		key := s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, req.Version)
+		logger.Info("deleting artifact version from s3",
+			"bucket", s.bucket,
+			"key", key,
+			"version", req.Version,
+		)
 		if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket: aws.String(s.bucket),
 			Key:    aws.String(key),
 		}); err != nil {
 			return fmt.Errorf("failed to delete artifact %q: %w", key, err)
 		}
+		logger.Debug("artifact version deleted from s3",
+			"bucket", s.bucket,
+			"key", key,
+			"version", req.Version,
+		)
 		return nil
 	}
 
+	logger.Info("deleting all artifact versions from s3",
+		"bucket", s.bucket,
+		"app_name", req.AppName,
+		"user_id", req.UserID,
+		"session_id", req.SessionID,
+		"file_name", req.FileName,
+	)
 	resp, err := s.versions(ctx, &artifact.VersionsRequest{
 		AppName: req.AppName, UserID: req.UserID, SessionID: req.SessionID, FileName: req.FileName,
 	})
@@ -199,6 +252,13 @@ func (s *s3ArtifactService) Delete(ctx context.Context, req *artifact.DeleteRequ
 		return fmt.Errorf("failed to list artifact versions for delete: %w", err)
 	}
 	if len(resp.Versions) == 0 {
+		logger.Debug("no artifact versions to delete",
+			"bucket", s.bucket,
+			"app_name", req.AppName,
+			"user_id", req.UserID,
+			"session_id", req.SessionID,
+			"file_name", req.FileName,
+		)
 		return nil
 	}
 
@@ -210,6 +270,10 @@ func (s *s3ArtifactService) Delete(ctx context.Context, req *artifact.DeleteRequ
 	g, gctx := errgroup.WithContext(ctx)
 	for chunk := range slices.Chunk(keys, 1000) {
 		chunk := slices.Clone(chunk)
+		logger.Debug("deleting artifact version batch from s3",
+			"bucket", s.bucket,
+			"count", len(chunk),
+		)
 		g.Go(func() error {
 			objects := make([]types.ObjectIdentifier, 0, len(chunk))
 			for _, key := range chunk {
@@ -229,7 +293,14 @@ func (s *s3ArtifactService) Delete(ctx context.Context, req *artifact.DeleteRequ
 		})
 	}
 
-	return g.Wait()
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	logger.Info("deleted artifact versions from s3",
+		"bucket", s.bucket,
+		"count", len(keys),
+	)
+	return nil
 }
 
 // List implements artifact.Service.
@@ -238,6 +309,13 @@ func (s *s3ArtifactService) List(ctx context.Context, req *artifact.ListRequest)
 		return nil, fmt.Errorf("request validation failed: %w", err)
 	}
 
+	logger := log.FromContext(ctx)
+	logger.Debug("listing artifacts from s3",
+		"bucket", s.bucket,
+		"app_name", req.AppName,
+		"user_id", req.UserID,
+		"session_id", req.SessionID,
+	)
 	filenames := map[string]bool{}
 	if err := s.fetchFilenames(ctx, s.buildSessionPrefix(req.AppName, req.UserID, req.SessionID), filenames); err != nil {
 		return nil, fmt.Errorf("failed to list session artifacts: %w", err)
@@ -248,6 +326,10 @@ func (s *s3ArtifactService) List(ctx context.Context, req *artifact.ListRequest)
 
 	result := slices.Collect(maps.Keys(filenames))
 	sort.Strings(result)
+	logger.Debug("artifacts listed from s3",
+		"bucket", s.bucket,
+		"count", len(result),
+	)
 	return &artifact.ListResponse{FileNames: result}, nil
 }
 
@@ -279,7 +361,12 @@ func (s *s3ArtifactService) versions(ctx context.Context, req *artifact.Versions
 		return nil, fmt.Errorf("request validation failed: %w", err)
 	}
 
+	logger := log.FromContext(ctx)
 	prefix := s.buildArtifactPrefix(req.AppName, req.UserID, req.SessionID, req.FileName)
+	logger.Debug("listing artifact versions from s3",
+		"bucket", s.bucket,
+		"prefix", prefix,
+	)
 	versions := []int64{}
 	if err := s.listKeys(ctx, prefix, func(key string) error {
 		segments := strings.Split(key, "/")
@@ -296,10 +383,16 @@ func (s *s3ArtifactService) versions(ctx context.Context, req *artifact.Versions
 		return nil, err
 	}
 	sort.Slice(versions, func(i, j int) bool { return versions[i] < versions[j] })
+	logger.Debug("artifact versions listed from s3",
+		"bucket", s.bucket,
+		"prefix", prefix,
+		"count", len(versions),
+	)
 	return &artifact.VersionsResponse{Versions: versions}, nil
 }
 
 func (s *s3ArtifactService) listKeys(ctx context.Context, prefix string, visit func(string) error) error {
+	logger := log.FromContext(ctx)
 	var continuationToken *string
 	for {
 		resp, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
@@ -310,6 +403,12 @@ func (s *s3ArtifactService) listKeys(ctx context.Context, prefix string, visit f
 		if err != nil {
 			return fmt.Errorf("failed to list objects with prefix %q: %w", prefix, err)
 		}
+		logger.Debug("listed s3 objects page",
+			"bucket", s.bucket,
+			"prefix", prefix,
+			"count", len(resp.Contents),
+			"is_truncated", aws.ToBool(resp.IsTruncated),
+		)
 		for _, obj := range resp.Contents {
 			if obj.Key == nil {
 				continue
@@ -329,6 +428,14 @@ func (s *s3ArtifactService) resolveVersion(ctx context.Context, appName, userID,
 	if version != 0 {
 		return version, nil
 	}
+	logger := log.FromContext(ctx)
+	logger.Debug("resolving latest artifact version",
+		"bucket", s.bucket,
+		"app_name", appName,
+		"user_id", userID,
+		"session_id", sessionID,
+		"file_name", fileName,
+	)
 	resp, err := s.versions(ctx, &artifact.VersionsRequest{
 		AppName: appName, UserID: userID, SessionID: sessionID, FileName: fileName,
 	})
@@ -338,7 +445,16 @@ func (s *s3ArtifactService) resolveVersion(ctx context.Context, appName, userID,
 	if len(resp.Versions) == 0 {
 		return 0, fmt.Errorf("artifact not found: %w", fs.ErrNotExist)
 	}
-	return slices.Max(resp.Versions), nil
+	resolved := slices.Max(resp.Versions)
+	logger.Debug("resolved latest artifact version",
+		"bucket", s.bucket,
+		"app_name", appName,
+		"user_id", userID,
+		"session_id", sessionID,
+		"file_name", fileName,
+		"version", resolved,
+	)
+	return resolved, nil
 }
 
 // GetArtifactVersion implements artifact.Service.
@@ -347,12 +463,18 @@ func (s *s3ArtifactService) GetArtifactVersion(ctx context.Context, req *artifac
 		return nil, fmt.Errorf("request validation failed: %w", err)
 	}
 
+	logger := log.FromContext(ctx)
 	version, err := s.resolveVersion(ctx, req.AppName, req.UserID, req.SessionID, req.FileName, req.Version)
 	if err != nil {
 		return nil, err
 	}
 
 	key := s.buildArtifactKey(req.AppName, req.UserID, req.SessionID, req.FileName, version)
+	logger.Debug("loading artifact metadata from s3",
+		"bucket", s.bucket,
+		"key", key,
+		"version", version,
+	)
 	resp, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
@@ -374,6 +496,13 @@ func (s *s3ArtifactService) GetArtifactVersion(ctx context.Context, req *artifac
 		createTime = float64(resp.LastModified.Unix())
 	}
 
+	logger.Debug("artifact metadata loaded from s3",
+		"bucket", s.bucket,
+		"key", key,
+		"version", version,
+		"content_type", aws.ToString(resp.ContentType),
+		"metadata_count", len(resp.Metadata),
+	)
 	return &artifact.GetArtifactVersionResponse{
 		ArtifactVersion: &artifact.ArtifactVersion{
 			Version:        version,
