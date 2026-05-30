@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -81,6 +82,9 @@ func (s *Store) ListThreads(_ context.Context, filter forum.ThreadListFilter, pa
 			continue
 		}
 		if filter.Status != "" && thread.GetStatus() != filter.Status {
+			continue
+		}
+		if filter.Label != "" && !slices.Contains(thread.GetLabels(), filter.Label) {
 			continue
 		}
 		items = append(items, proto.Clone(thread).(*agentsv1.ForumThread))

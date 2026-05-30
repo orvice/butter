@@ -38,6 +38,8 @@ message ForumThread {
   google.protobuf.Timestamp created_at = 8;
   // @gotags: bson:"updated_at,omitempty"
   google.protobuf.Timestamp updated_at = 9;
+  // @gotags: bson:"labels,omitempty"
+  repeated string labels = 10;
   // @gotags: bson:"workspace_id,omitempty"
   string workspace_id = 100;
 }
@@ -71,6 +73,7 @@ message ListThreadsRequest {
   string status = 1;
   int32 page_size = 2;
   string page_token = 3;
+  string label = 4;
 }
 
 message ListThreadsResponse {
@@ -97,6 +100,7 @@ message CreateThreadRequest {
   string body = 2;
   repeated string agent_names = 3;
   map<string, string> metadata = 4;
+  repeated string labels = 5;
 }
 
 message CreateThreadResponse {
@@ -111,6 +115,7 @@ message UpdateThreadRequest {
   string status = 4;
   repeated string agent_names = 5;
   map<string, string> metadata = 6;
+  repeated string labels = 7;
 }
 
 message UpdateThreadResponse {

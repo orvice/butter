@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Bot, Loader2, Pencil, Send, Trash2, User } from "lucide-react";
+import { Bot, Loader2, Pencil, Send, Tag, Trash2, User } from "lucide-react";
 import { useAgents } from "@/api/agents";
 import {
   useCreateForumPost,
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import type { ForumPost } from "@/types/api";
 import { MarkdownContent } from "@/components/markdown-content";
+import { parseLabels } from "@/lib/labels";
 
 function fmtDate(v?: string) {
   return v ? new Date(v).toLocaleString() : "";
@@ -56,6 +57,7 @@ export default function ForumThreadPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [editLabels, setEditLabels] = useState("");
   const [deleteThreadOpen, setDeleteThreadOpen] = useState(false);
   const [deletePostTarget, setDeletePostTarget] = useState<ForumPost | null>(null);
 
@@ -102,6 +104,7 @@ export default function ForumThreadPage() {
     if (!thread) return;
     setEditTitle(thread.title ?? "");
     setEditBody(thread.body ?? "");
+    setEditLabels((thread.labels ?? []).join(", "));
     setEditOpen(true);
   }
 
@@ -120,6 +123,7 @@ export default function ForumThreadPage() {
         body: cleanBody,
         status: thread.status,
         agent_names: thread.agent_names ?? [],
+        labels: parseLabels(editLabels),
         metadata: thread.metadata ?? {},
       });
       setEditOpen(false);
@@ -159,6 +163,15 @@ export default function ForumThreadPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">{thread.title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">Updated {fmtDate(thread.updated_at)}</p>
+          {thread.labels?.length ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {thread.labels.map((label) => (
+                <Badge key={label} variant="outline" className="gap-1 text-xs font-normal">
+                  <Tag className="h-3 w-3" /> {label}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {isProcessing ? (
@@ -278,6 +291,10 @@ export default function ForumThreadPage() {
             <div className="space-y-2">
               <Label htmlFor="thread-body">Body</Label>
               <Textarea id="thread-body" value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={6} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="thread-labels">Labels</Label>
+              <Input id="thread-labels" value={editLabels} onChange={(e) => setEditLabels(e.target.value)} placeholder="Comma-separated, e.g. bug, question" />
             </div>
           </div>
           <DialogFooter>

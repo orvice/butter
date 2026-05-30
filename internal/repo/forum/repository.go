@@ -17,6 +17,7 @@ var (
 type ThreadListFilter struct {
 	WorkspaceID string
 	Status      string
+	Label       string
 }
 
 type PostListFilter struct {

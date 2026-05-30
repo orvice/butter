@@ -6,6 +6,7 @@ const SVC = "agents.v1.ForumService";
 
 interface ListThreadsParams {
   status?: string;
+  label?: string;
   page_size?: number;
   page_token?: string;
 }
@@ -27,6 +28,7 @@ interface CreateThreadParams {
   title: string;
   body: string;
   agent_names?: string[];
+  labels?: string[];
   metadata?: Record<string, string>;
 }
 
@@ -41,6 +43,7 @@ export interface UpdateThreadParams {
   body?: string;
   status?: string;
   agent_names?: string[];
+  labels?: string[];
   metadata?: Record<string, string>;
 }
 

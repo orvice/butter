@@ -409,6 +409,8 @@ func (m *ListThreadsRequest) validate(all bool) error {
 
 	// no validation rules for PageToken
 
+	// no validation rules for Label
+
 	if len(errors) > 0 {
 		return ListThreadsRequestMultiError(errors)
 	}
