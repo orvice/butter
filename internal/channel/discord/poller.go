@@ -102,6 +102,7 @@ func (p *Poller) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageC
 		"guild_id", m.GuildID,
 		"author_id", m.Author.ID,
 		"text_len", len(m.Content),
+		"attachment_count", len(m.Attachments),
 	)
 
 	if !p.isAllowed(m) {
@@ -109,6 +110,8 @@ func (p *Poller) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageC
 			"channel", p.channelName,
 			"channel_id", m.ChannelID,
 			"guild_id", m.GuildID,
+			"allowed_guild_count", len(p.discordCfg.GetAllowedGuildIds()),
+			"allowed_channel_count", len(p.discordCfg.GetAllowedChannelIds()),
 		)
 		return
 	}
@@ -117,6 +120,9 @@ func (p *Poller) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageC
 		logger.Debug("message did not match any trigger",
 			"channel", p.channelName,
 			"channel_id", m.ChannelID,
+			"guild_id", m.GuildID,
+			"trigger_count", len(p.channelCfg.GetTriggers()),
+			"is_command", strings.HasPrefix(m.Content, "/"),
 		)
 		return
 	}
@@ -124,6 +130,12 @@ func (p *Poller) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageC
 	text := m.Content
 	hasImages := hasImageAttachments(m)
 	if text == "" && !hasImages {
+		logger.Debug("ignoring discord message without text or images",
+			"channel", p.channelName,
+			"channel_id", m.ChannelID,
+			"guild_id", m.GuildID,
+			"attachment_count", len(m.Attachments),
+		)
 		return
 	}
 
@@ -304,7 +316,9 @@ func (p *Poller) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate)
 		"session_id", sessionID,
 		"user_id", userID,
 		"channel_id", m.ChannelID,
+		"guild_id", m.GuildID,
 		"text_len", len(m.Content),
+		"attachment_count", len(m.Attachments),
 	)
 
 	// Send typing indicator.
@@ -320,7 +334,8 @@ func (p *Poller) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate)
 
 	// Build event callback for debug mode.
 	var onEvent runner.EventCallback
-	if IsDebugActive(p.ctx, p.debugToggle, p.channelName, sessionID, p.discordCfg) {
+	debugActive := IsDebugActive(p.ctx, p.debugToggle, p.channelName, sessionID, p.discordCfg)
+	if debugActive {
 		onEvent = func(evt *session.Event) {
 			text := FormatDebugEvent(evt)
 			if text == "" {
@@ -370,11 +385,25 @@ func (p *Poller) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate)
 	// Build multimodal input parts from message (text + optional image attachments).
 	parts := buildMessageParts(p.ctx, m)
 	if len(parts) == 0 {
-		logger.Debug("no input parts to send", "channel", p.channelName)
+		logger.Debug("no input parts to send",
+			"channel", p.channelName,
+			"channel_id", m.ChannelID,
+			"guild_id", m.GuildID,
+		)
 		return
 	}
 
 	modelOverride := p.getActiveModel(sessionID)
+	logger.Debug("discord message parts ready",
+		"channel", p.channelName,
+		"agent", agentName,
+		"session_id", sessionID,
+		"parts_count", len(parts),
+		"debug_active", debugActive,
+		"model_override", modelOverride,
+		"context_uuid", ctxInfo.GetUuid(),
+		"metadata_keys", len(ctxInfo.GetMetadata()),
+	)
 	response, err := p.runner.Run(p.ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",

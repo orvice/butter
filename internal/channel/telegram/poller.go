@@ -93,15 +93,20 @@ func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 		"channel", p.channelName,
 		"update_id", update.ID,
 		"chat_id", msg.Chat.ID,
+		"chat_type", string(msg.Chat.Type),
 		"from_id", userIDFromMsg(msg),
 		"text_len", len(msg.Text),
+		"photo_count", len(msg.Photo),
 	)
 
 	if !p.isAllowed(msg) {
 		logger.Debug("message rejected by allowlist",
 			"channel", p.channelName,
 			"chat_id", msg.Chat.ID,
+			"chat_type", string(msg.Chat.Type),
 			"from_id", userIDFromMsg(msg),
+			"allowed_chat_count", len(p.telegramCfg.GetAllowedChatIds()),
+			"allowed_user_count", len(p.telegramCfg.GetAllowedUserIds()),
 		)
 		return
 	}
@@ -110,6 +115,9 @@ func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 		logger.Debug("message did not match any trigger",
 			"channel", p.channelName,
 			"chat_id", msg.Chat.ID,
+			"chat_type", string(msg.Chat.Type),
+			"trigger_count", len(p.channelCfg.GetTriggers()),
+			"is_command", strings.HasPrefix(msg.Text, "/"),
 		)
 		return
 	}
@@ -117,7 +125,11 @@ func (p *Poller) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 	text := msg.Text
 	hasPhoto := len(msg.Photo) > 0
 	if text == "" && !hasPhoto {
-		logger.Debug("ignoring non-text message", "channel", p.channelName)
+		logger.Debug("ignoring non-text message",
+			"channel", p.channelName,
+			"chat_id", msg.Chat.ID,
+			"from_id", userIDFromMsg(msg),
+		)
 		return
 	}
 
@@ -279,7 +291,9 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 		"session_id", sessionID,
 		"user_id", userID,
 		"chat_id", msg.Chat.ID,
+		"chat_type", string(msg.Chat.Type),
 		"text_len", len(msg.Text),
+		"photo_count", len(msg.Photo),
 	)
 
 	// Send typing indicator.
@@ -298,7 +312,8 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 
 	// Build event callback for debug mode.
 	var onEvent runner.EventCallback
-	if IsDebugActive(ctx, p.debugToggle, p.channelName, sessionID, p.telegramCfg) {
+	debugActive := IsDebugActive(ctx, p.debugToggle, p.channelName, sessionID, p.telegramCfg)
+	if debugActive {
 		onEvent = func(evt *session.Event) {
 			text := FormatDebugEvent(evt)
 			if text == "" {
@@ -364,6 +379,16 @@ func (p *Poller) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 	}
 
 	modelOverride := p.getActiveModel(ctx, sessionID)
+	logger.Debug("telegram message parts ready",
+		"channel", p.channelName,
+		"agent", agentName,
+		"session_id", sessionID,
+		"parts_count", len(parts),
+		"debug_active", debugActive,
+		"model_override", modelOverride,
+		"context_uuid", ctxInfo.GetUuid(),
+		"metadata_keys", len(ctxInfo.GetMetadata()),
+	)
 	response, err := p.runner.Run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",

@@ -162,7 +162,11 @@ func (s *Scheduler) registerJob(job *agentsv1.CronJob) error {
 	logger := log.FromContext(s.ctx)
 
 	if !job.GetEnabled() {
-		logger.Info("skipping disabled cron job", "job", job.GetName())
+		logger.Info("skipping disabled cron job",
+			"job", job.GetName(),
+			"workspace_id", job.GetWorkspaceId(),
+			"agent", job.GetAgentName(),
+		)
 		return nil
 	}
 
@@ -202,9 +206,11 @@ func (s *Scheduler) registerJob(job *agentsv1.CronJob) error {
 
 	logger.Info("registered cron job",
 		"job", job.GetName(),
+		"workspace_id", job.GetWorkspaceId(),
 		"schedule", job.GetSchedule(),
 		"agent", job.GetAgentName(),
 		"timezone", job.GetTimezone(),
+		"delivery_type", job.GetDelivery().GetType().String(),
 	)
 	return nil
 }
@@ -261,7 +267,10 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 	logger.Info("executing cron job",
 		"job", job.GetName(),
 		"agent", job.GetAgentName(),
+		"workspace_id", job.GetWorkspaceId(),
 		"exec_id", execID,
+		"input_len", len(input),
+		"delivery_type", job.GetDelivery().GetType().String(),
 	)
 
 	parts := []*genai.Part{genai.NewPartFromText(input)}
@@ -286,6 +295,7 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 		exec.Output = err.Error()
 		logger.Error("cron job execution failed",
 			"job", job.GetName(),
+			"workspace_id", job.GetWorkspaceId(),
 			"exec_id", execID,
 			"duration", finishTime.Sub(startTime),
 			"err", err,
@@ -293,6 +303,7 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 	} else {
 		logger.Info("cron job execution succeeded",
 			"job", job.GetName(),
+			"workspace_id", job.GetWorkspaceId(),
 			"exec_id", execID,
 			"duration", finishTime.Sub(startTime),
 			"output_len", len(output),
@@ -314,6 +325,13 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 }
 
 func (s *Scheduler) deliver(job *agentsv1.CronJob, exec *agentsv1.CronExecution) {
+	log.FromContext(s.ctx).Debug("delivering cron job result",
+		"job", job.GetName(),
+		"workspace_id", job.GetWorkspaceId(),
+		"exec_id", exec.GetId(),
+		"status", exec.GetStatus().String(),
+		"delivery_type", job.GetDelivery().GetType().String(),
+	)
 	delivery := job.GetDelivery()
 	if delivery == nil {
 		s.deliverLog(job, exec)
@@ -336,6 +354,8 @@ func (s *Scheduler) deliverLog(job *agentsv1.CronJob, exec *agentsv1.CronExecuti
 	logger := log.FromContext(s.ctx)
 	logger.Info("cron job result",
 		"job", job.GetName(),
+		"workspace_id", job.GetWorkspaceId(),
+		"exec_id", exec.GetId(),
 		"status", exec.GetStatus().String(),
 		"output", exec.GetOutput(),
 		"executed_at", exec.GetStartedAt().AsTime().Format(time.RFC3339),
@@ -346,7 +366,7 @@ func (s *Scheduler) deliverWebhook(job *agentsv1.CronJob, exec *agentsv1.CronExe
 	logger := log.FromContext(s.ctx)
 	url := job.GetDelivery().GetWebhookUrl()
 	if url == "" {
-		logger.Error("webhook delivery configured but no webhook_url set", "job", job.GetName())
+		logger.Error("webhook delivery configured but no webhook_url set", "job", job.GetName(), "workspace_id", job.GetWorkspaceId(), "exec_id", exec.GetId())
 		return
 	}
 
@@ -364,13 +384,19 @@ func (s *Scheduler) deliverWebhook(job *agentsv1.CronJob, exec *agentsv1.CronExe
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		logger.Error("failed to marshal webhook payload", "job", job.GetName(), "err", err)
+		logger.Error("failed to marshal webhook payload", "job", job.GetName(), "workspace_id", job.GetWorkspaceId(), "exec_id", exec.GetId(), "err", err)
 		return
 	}
 
+	logger.Debug("sending cron webhook delivery",
+		"job", job.GetName(),
+		"workspace_id", job.GetWorkspaceId(),
+		"exec_id", exec.GetId(),
+		"payload_len", len(body),
+	)
 	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
-		logger.Error("webhook delivery failed", "job", job.GetName(), "url", url, "err", err)
+		logger.Error("webhook delivery failed", "job", job.GetName(), "workspace_id", job.GetWorkspaceId(), "exec_id", exec.GetId(), "url", url, "err", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -378,10 +404,19 @@ func (s *Scheduler) deliverWebhook(job *agentsv1.CronJob, exec *agentsv1.CronExe
 	if resp.StatusCode >= 300 {
 		logger.Error("webhook delivery returned non-success status",
 			"job", job.GetName(),
+			"workspace_id", job.GetWorkspaceId(),
+			"exec_id", exec.GetId(),
 			"url", url,
 			"status_code", resp.StatusCode,
 		)
+		return
 	}
+	logger.Info("webhook delivery succeeded",
+		"job", job.GetName(),
+		"workspace_id", job.GetWorkspaceId(),
+		"exec_id", exec.GetId(),
+		"status_code", resp.StatusCode,
+	)
 }
 
 func (s *Scheduler) deliverChannel(_ *agentsv1.CronJob, _ *agentsv1.CronExecution) {
