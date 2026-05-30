@@ -38,6 +38,7 @@ type Repository interface {
 	CreatePostAndMarkThreadProcessing(ctx context.Context, post *agentsv1.ForumPost, processing ProcessingState) (*agentsv1.ForumThread, error)
 	GetThread(ctx context.Context, workspaceID, id string) (*agentsv1.ForumThread, error)
 	ListThreads(ctx context.Context, filter ThreadListFilter, pageSize int32, pageToken string) ([]*agentsv1.ForumThread, string, int32, error)
+	ListThreadLabels(ctx context.Context, workspaceID string) ([]string, error)
 	DeleteThread(ctx context.Context, workspaceID, id string) error
 
 	CreatePost(ctx context.Context, post *agentsv1.ForumPost) error

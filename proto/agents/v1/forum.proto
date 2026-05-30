@@ -10,6 +10,7 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 // agents can participate together.
 service ForumService {
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+  rpc ListThreadLabels(ListThreadLabelsRequest) returns (ListThreadLabelsResponse);
   rpc GetThread(GetThreadRequest) returns (GetThreadResponse);
   rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
   rpc UpdateThread(UpdateThreadRequest) returns (UpdateThreadResponse);
@@ -80,6 +81,12 @@ message ListThreadsResponse {
   repeated ForumThread threads = 1;
   string next_page_token = 2;
   int32 total = 3;
+}
+
+message ListThreadLabelsRequest {}
+
+message ListThreadLabelsResponse {
+  repeated string labels = 1;
 }
 
 message GetThreadRequest {

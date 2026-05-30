@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -166,6 +167,15 @@ func (s *Store) ListThreads(ctx context.Context, filter forum.ThreadListFilter, 
 		next = encodeToken(offset + len(out))
 	}
 	return out, next, int32(total), nil
+}
+
+func (s *Store) ListThreadLabels(ctx context.Context, workspaceID string) ([]string, error) {
+	var labels []string
+	if err := s.threads.Distinct(ctx, "labels", bson.M{"workspace_id": workspaceID}).Decode(&labels); err != nil {
+		return nil, fmt.Errorf("list forum thread labels: %w", err)
+	}
+	sort.Strings(labels)
+	return labels, nil
 }
 
 func (s *Store) DeleteThread(ctx context.Context, workspaceID, id string) error {

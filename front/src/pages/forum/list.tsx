@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { MessageSquarePlus, Bot, Clock, Tag } from "lucide-react";
-import { useForumThreads, useCreateForumThread } from "@/api/forum";
+import { useForumThreads, useForumThreadLabels, useCreateForumThread } from "@/api/forum";
 import { useAgents } from "@/api/agents";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,9 @@ function fmtDate(v?: string) {
 
 export default function ForumListPage() {
   const navigate = useNavigate();
-  const { data, isLoading } = useForumThreads({ page_size: 50 });
+  const [labelFilter, setLabelFilter] = useState("");
+  const { data, isLoading } = useForumThreads({ page_size: 50, label: labelFilter || undefined });
+  const { data: labelsData } = useForumThreadLabels();
   const { data: agentsData } = useAgents({ page_size: 200 });
   const createMutation = useCreateForumThread();
   const [open, setOpen] = useState(false);
@@ -30,7 +32,6 @@ export default function ForumListPage() {
   const [body, setBody] = useState("");
   const [agentName, setAgentName] = useState("");
   const [labelsInput, setLabelsInput] = useState("");
-  const [labelFilter, setLabelFilter] = useState("");
 
   async function handleCreate() {
     const cleanTitle = title.trim();
@@ -58,14 +59,9 @@ export default function ForumListPage() {
     }
   }
 
-  const allThreads = useMemo(() => data?.threads ?? [], [data?.threads]);
+  const threads = data?.threads ?? [];
   const agents = agentsData?.agents ?? [];
-  const allLabels = useMemo(() => {
-    const set = new Set<string>();
-    for (const thread of allThreads) for (const label of thread.labels ?? []) set.add(label);
-    return Array.from(set).sort();
-  }, [allThreads]);
-  const threads = labelFilter ? allThreads.filter((t) => t.labels?.includes(labelFilter)) : allThreads;
+  const allLabels = labelsData?.labels ?? [];
 
   return (
     <>
@@ -102,7 +98,9 @@ export default function ForumListPage() {
       ) : threads.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            No forum threads yet. Create one to start a shared discussion.
+            {labelFilter
+              ? `No threads labeled "${labelFilter}".`
+              : "No forum threads yet. Create one to start a shared discussion."}
           </CardContent>
         </Card>
       ) : (

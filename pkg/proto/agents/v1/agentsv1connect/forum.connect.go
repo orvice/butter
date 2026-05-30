@@ -36,6 +36,9 @@ const (
 	// ForumServiceListThreadsProcedure is the fully-qualified name of the ForumService's ListThreads
 	// RPC.
 	ForumServiceListThreadsProcedure = "/agents.v1.ForumService/ListThreads"
+	// ForumServiceListThreadLabelsProcedure is the fully-qualified name of the ForumService's
+	// ListThreadLabels RPC.
+	ForumServiceListThreadLabelsProcedure = "/agents.v1.ForumService/ListThreadLabels"
 	// ForumServiceGetThreadProcedure is the fully-qualified name of the ForumService's GetThread RPC.
 	ForumServiceGetThreadProcedure = "/agents.v1.ForumService/GetThread"
 	// ForumServiceCreateThreadProcedure is the fully-qualified name of the ForumService's CreateThread
@@ -59,6 +62,7 @@ const (
 // ForumServiceClient is a client for the agents.v1.ForumService service.
 type ForumServiceClient interface {
 	ListThreads(context.Context, *connect.Request[v1.ListThreadsRequest]) (*connect.Response[v1.ListThreadsResponse], error)
+	ListThreadLabels(context.Context, *connect.Request[v1.ListThreadLabelsRequest]) (*connect.Response[v1.ListThreadLabelsResponse], error)
 	GetThread(context.Context, *connect.Request[v1.GetThreadRequest]) (*connect.Response[v1.GetThreadResponse], error)
 	CreateThread(context.Context, *connect.Request[v1.CreateThreadRequest]) (*connect.Response[v1.CreateThreadResponse], error)
 	UpdateThread(context.Context, *connect.Request[v1.UpdateThreadRequest]) (*connect.Response[v1.UpdateThreadResponse], error)
@@ -83,6 +87,12 @@ func NewForumServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			httpClient,
 			baseURL+ForumServiceListThreadsProcedure,
 			connect.WithSchema(forumServiceMethods.ByName("ListThreads")),
+			connect.WithClientOptions(opts...),
+		),
+		listThreadLabels: connect.NewClient[v1.ListThreadLabelsRequest, v1.ListThreadLabelsResponse](
+			httpClient,
+			baseURL+ForumServiceListThreadLabelsProcedure,
+			connect.WithSchema(forumServiceMethods.ByName("ListThreadLabels")),
 			connect.WithClientOptions(opts...),
 		),
 		getThread: connect.NewClient[v1.GetThreadRequest, v1.GetThreadResponse](
@@ -133,6 +143,7 @@ func NewForumServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 // forumServiceClient implements ForumServiceClient.
 type forumServiceClient struct {
 	listThreads         *connect.Client[v1.ListThreadsRequest, v1.ListThreadsResponse]
+	listThreadLabels    *connect.Client[v1.ListThreadLabelsRequest, v1.ListThreadLabelsResponse]
 	getThread           *connect.Client[v1.GetThreadRequest, v1.GetThreadResponse]
 	createThread        *connect.Client[v1.CreateThreadRequest, v1.CreateThreadResponse]
 	updateThread        *connect.Client[v1.UpdateThreadRequest, v1.UpdateThreadResponse]
@@ -145,6 +156,11 @@ type forumServiceClient struct {
 // ListThreads calls agents.v1.ForumService.ListThreads.
 func (c *forumServiceClient) ListThreads(ctx context.Context, req *connect.Request[v1.ListThreadsRequest]) (*connect.Response[v1.ListThreadsResponse], error) {
 	return c.listThreads.CallUnary(ctx, req)
+}
+
+// ListThreadLabels calls agents.v1.ForumService.ListThreadLabels.
+func (c *forumServiceClient) ListThreadLabels(ctx context.Context, req *connect.Request[v1.ListThreadLabelsRequest]) (*connect.Response[v1.ListThreadLabelsResponse], error) {
+	return c.listThreadLabels.CallUnary(ctx, req)
 }
 
 // GetThread calls agents.v1.ForumService.GetThread.
@@ -185,6 +201,7 @@ func (c *forumServiceClient) InvokeAgentInThread(ctx context.Context, req *conne
 // ForumServiceHandler is an implementation of the agents.v1.ForumService service.
 type ForumServiceHandler interface {
 	ListThreads(context.Context, *connect.Request[v1.ListThreadsRequest]) (*connect.Response[v1.ListThreadsResponse], error)
+	ListThreadLabels(context.Context, *connect.Request[v1.ListThreadLabelsRequest]) (*connect.Response[v1.ListThreadLabelsResponse], error)
 	GetThread(context.Context, *connect.Request[v1.GetThreadRequest]) (*connect.Response[v1.GetThreadResponse], error)
 	CreateThread(context.Context, *connect.Request[v1.CreateThreadRequest]) (*connect.Response[v1.CreateThreadResponse], error)
 	UpdateThread(context.Context, *connect.Request[v1.UpdateThreadRequest]) (*connect.Response[v1.UpdateThreadResponse], error)
@@ -205,6 +222,12 @@ func NewForumServiceHandler(svc ForumServiceHandler, opts ...connect.HandlerOpti
 		ForumServiceListThreadsProcedure,
 		svc.ListThreads,
 		connect.WithSchema(forumServiceMethods.ByName("ListThreads")),
+		connect.WithHandlerOptions(opts...),
+	)
+	forumServiceListThreadLabelsHandler := connect.NewUnaryHandler(
+		ForumServiceListThreadLabelsProcedure,
+		svc.ListThreadLabels,
+		connect.WithSchema(forumServiceMethods.ByName("ListThreadLabels")),
 		connect.WithHandlerOptions(opts...),
 	)
 	forumServiceGetThreadHandler := connect.NewUnaryHandler(
@@ -253,6 +276,8 @@ func NewForumServiceHandler(svc ForumServiceHandler, opts ...connect.HandlerOpti
 		switch r.URL.Path {
 		case ForumServiceListThreadsProcedure:
 			forumServiceListThreadsHandler.ServeHTTP(w, r)
+		case ForumServiceListThreadLabelsProcedure:
+			forumServiceListThreadLabelsHandler.ServeHTTP(w, r)
 		case ForumServiceGetThreadProcedure:
 			forumServiceGetThreadHandler.ServeHTTP(w, r)
 		case ForumServiceCreateThreadProcedure:
@@ -278,6 +303,10 @@ type UnimplementedForumServiceHandler struct{}
 
 func (UnimplementedForumServiceHandler) ListThreads(context.Context, *connect.Request[v1.ListThreadsRequest]) (*connect.Response[v1.ListThreadsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.ListThreads is not implemented"))
+}
+
+func (UnimplementedForumServiceHandler) ListThreadLabels(context.Context, *connect.Request[v1.ListThreadLabelsRequest]) (*connect.Response[v1.ListThreadLabelsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ForumService.ListThreadLabels is not implemented"))
 }
 
 func (UnimplementedForumServiceHandler) GetThread(context.Context, *connect.Request[v1.GetThreadRequest]) (*connect.Response[v1.GetThreadResponse], error) {

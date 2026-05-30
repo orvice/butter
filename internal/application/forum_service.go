@@ -83,6 +83,18 @@ func (s *ForumServiceServer) ListThreads(ctx context.Context, req *agentsv1.List
 	return &agentsv1.ListThreadsResponse{Threads: threads, NextPageToken: next, Total: total}, nil
 }
 
+func (s *ForumServiceServer) ListThreadLabels(ctx context.Context, _ *agentsv1.ListThreadLabelsRequest) (*agentsv1.ListThreadLabelsResponse, error) {
+	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	labels, err := repo.ListThreadLabels(ctx, workspaceID)
+	if err != nil {
+		return nil, twirp.InternalErrorWith(err)
+	}
+	return &agentsv1.ListThreadLabelsResponse{Labels: labels}, nil
+}
+
 func (s *ForumServiceServer) GetThread(ctx context.Context, req *agentsv1.GetThreadRequest) (*agentsv1.GetThreadResponse, error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {

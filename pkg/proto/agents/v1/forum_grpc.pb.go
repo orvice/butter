@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	ForumService_ListThreads_FullMethodName         = "/agents.v1.ForumService/ListThreads"
+	ForumService_ListThreadLabels_FullMethodName    = "/agents.v1.ForumService/ListThreadLabels"
 	ForumService_GetThread_FullMethodName           = "/agents.v1.ForumService/GetThread"
 	ForumService_CreateThread_FullMethodName        = "/agents.v1.ForumService/CreateThread"
 	ForumService_UpdateThread_FullMethodName        = "/agents.v1.ForumService/UpdateThread"
@@ -37,6 +38,7 @@ const (
 // agents can participate together.
 type ForumServiceClient interface {
 	ListThreads(ctx context.Context, in *ListThreadsRequest, opts ...grpc.CallOption) (*ListThreadsResponse, error)
+	ListThreadLabels(ctx context.Context, in *ListThreadLabelsRequest, opts ...grpc.CallOption) (*ListThreadLabelsResponse, error)
 	GetThread(ctx context.Context, in *GetThreadRequest, opts ...grpc.CallOption) (*GetThreadResponse, error)
 	CreateThread(ctx context.Context, in *CreateThreadRequest, opts ...grpc.CallOption) (*CreateThreadResponse, error)
 	UpdateThread(ctx context.Context, in *UpdateThreadRequest, opts ...grpc.CallOption) (*UpdateThreadResponse, error)
@@ -58,6 +60,16 @@ func (c *forumServiceClient) ListThreads(ctx context.Context, in *ListThreadsReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListThreadsResponse)
 	err := c.cc.Invoke(ctx, ForumService_ListThreads_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *forumServiceClient) ListThreadLabels(ctx context.Context, in *ListThreadLabelsRequest, opts ...grpc.CallOption) (*ListThreadLabelsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListThreadLabelsResponse)
+	err := c.cc.Invoke(ctx, ForumService_ListThreadLabels_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +154,7 @@ func (c *forumServiceClient) InvokeAgentInThread(ctx context.Context, in *Invoke
 // agents can participate together.
 type ForumServiceServer interface {
 	ListThreads(context.Context, *ListThreadsRequest) (*ListThreadsResponse, error)
+	ListThreadLabels(context.Context, *ListThreadLabelsRequest) (*ListThreadLabelsResponse, error)
 	GetThread(context.Context, *GetThreadRequest) (*GetThreadResponse, error)
 	CreateThread(context.Context, *CreateThreadRequest) (*CreateThreadResponse, error)
 	UpdateThread(context.Context, *UpdateThreadRequest) (*UpdateThreadResponse, error)
@@ -161,6 +174,9 @@ type UnimplementedForumServiceServer struct{}
 
 func (UnimplementedForumServiceServer) ListThreads(context.Context, *ListThreadsRequest) (*ListThreadsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListThreads not implemented")
+}
+func (UnimplementedForumServiceServer) ListThreadLabels(context.Context, *ListThreadLabelsRequest) (*ListThreadLabelsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListThreadLabels not implemented")
 }
 func (UnimplementedForumServiceServer) GetThread(context.Context, *GetThreadRequest) (*GetThreadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetThread not implemented")
@@ -218,6 +234,24 @@ func _ForumService_ListThreads_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ForumServiceServer).ListThreads(ctx, req.(*ListThreadsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ForumService_ListThreadLabels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListThreadLabelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ForumServiceServer).ListThreadLabels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ForumService_ListThreadLabels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ForumServiceServer).ListThreadLabels(ctx, req.(*ListThreadLabelsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -358,6 +392,10 @@ var ForumService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListThreads",
 			Handler:    _ForumService_ListThreads_Handler,
+		},
+		{
+			MethodName: "ListThreadLabels",
+			Handler:    _ForumService_ListThreadLabels_Handler,
 		},
 		{
 			MethodName: "GetThread",

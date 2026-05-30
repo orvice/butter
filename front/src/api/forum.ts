@@ -17,6 +17,10 @@ interface ListThreadsResponse {
   total?: number;
 }
 
+interface ListThreadLabelsResponse {
+  labels?: string[];
+}
+
 interface GetThreadResponse {
   thread?: ForumThread;
   posts?: ForumPost[];
@@ -78,6 +82,10 @@ export function listForumThreads(params: ListThreadsParams = {}) {
   return twirpFetch<ListThreadsParams, ListThreadsResponse>(SVC, "ListThreads", params);
 }
 
+export function listForumThreadLabels() {
+  return twirpFetch<object, ListThreadLabelsResponse>(SVC, "ListThreadLabels", {});
+}
+
 export function getForumThread(id: string) {
   return twirpFetch<{ id: string; post_page_size: number }, GetThreadResponse>(SVC, "GetThread", {
     id,
@@ -119,6 +127,13 @@ export function useForumThreads(params: ListThreadsParams = {}) {
   });
 }
 
+export function useForumThreadLabels() {
+  return useQuery({
+    queryKey: ["forum", "labels"],
+    queryFn: listForumThreadLabels,
+  });
+}
+
 export function useForumThread(id: string) {
   return useQuery({
     queryKey: ["forum", "thread", id],
@@ -134,6 +149,7 @@ export function useCreateForumThread() {
     mutationFn: createForumThread,
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      qc.invalidateQueries({ queryKey: ["forum", "labels"] });
       if (data.thread?.id) qc.invalidateQueries({ queryKey: ["forum", "thread", data.thread.id] });
     },
   });
@@ -156,6 +172,7 @@ export function useUpdateForumThread() {
     mutationFn: updateForumThread,
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      qc.invalidateQueries({ queryKey: ["forum", "labels"] });
       if (data.thread?.id) qc.invalidateQueries({ queryKey: ["forum", "thread", data.thread.id] });
     },
   });
@@ -167,6 +184,7 @@ export function useDeleteForumThread() {
     mutationFn: deleteForumThread,
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      qc.invalidateQueries({ queryKey: ["forum", "labels"] });
       qc.removeQueries({ queryKey: ["forum", "thread", id] });
     },
   });

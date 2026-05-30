@@ -98,6 +98,26 @@ func (s *Store) ListThreads(_ context.Context, filter forum.ThreadListFilter, pa
 	return page, next, int32(len(items)), nil
 }
 
+func (s *Store) ListThreadLabels(_ context.Context, workspaceID string) ([]string, error) {
+	s.mu.RLock()
+	set := make(map[string]struct{})
+	for _, thread := range s.threads {
+		if workspaceID != "" && thread.GetWorkspaceId() != workspaceID {
+			continue
+		}
+		for _, label := range thread.GetLabels() {
+			set[label] = struct{}{}
+		}
+	}
+	s.mu.RUnlock()
+	labels := make([]string, 0, len(set))
+	for label := range set {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+	return labels, nil
+}
+
 func (s *Store) DeleteThread(_ context.Context, workspaceID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
