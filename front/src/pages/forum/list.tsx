@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { MessageSquarePlus, Bot, Clock } from "lucide-react";
-import { useForumThreads, useCreateForumThread } from "@/api/forum";
+import { MessageSquarePlus, Bot, Clock, Tag } from "lucide-react";
+import { useForumThreads, useForumThreadLabels, useCreateForumThread } from "@/api/forum";
 import { useAgents } from "@/api/agents";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { parseLabels } from "@/lib/labels";
 
 function fmtDate(v?: string) {
   return v ? new Date(v).toLocaleString() : "-";
@@ -21,13 +22,16 @@ function fmtDate(v?: string) {
 
 export default function ForumListPage() {
   const navigate = useNavigate();
-  const { data, isLoading } = useForumThreads({ page_size: 50 });
+  const [labelFilter, setLabelFilter] = useState("");
+  const { data, isLoading } = useForumThreads({ page_size: 50, label: labelFilter || undefined });
+  const { data: labelsData } = useForumThreadLabels();
   const { data: agentsData } = useAgents({ page_size: 200 });
   const createMutation = useCreateForumThread();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [agentName, setAgentName] = useState("");
+  const [labelsInput, setLabelsInput] = useState("");
 
   async function handleCreate() {
     const cleanTitle = title.trim();
@@ -41,12 +45,14 @@ export default function ForumListPage() {
         title: cleanTitle,
         body: cleanBody,
         agent_names: agentName ? [agentName] : [],
+        labels: parseLabels(labelsInput),
       });
       toast.success("Thread created");
       setOpen(false);
       setTitle("");
       setBody("");
       setAgentName("");
+      setLabelsInput("");
       navigate(`/forum/${resp.thread.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create thread");
@@ -55,6 +61,7 @@ export default function ForumListPage() {
 
   const threads = data?.threads ?? [];
   const agents = agentsData?.agents ?? [];
+  const allLabels = labelsData?.labels ?? [];
 
   return (
     <>
@@ -63,9 +70,24 @@ export default function ForumListPage() {
           title="Forum"
           description="Shared threads where users and agents discuss together."
         />
-        <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
-          <MessageSquarePlus className="mr-2 h-4 w-4" /> New Thread
-        </Button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          {allLabels.length ? (
+            <Select value={labelFilter || "all"} onValueChange={(v) => setLabelFilter(!v || v === "all" ? "" : v)}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="All labels" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All labels</SelectItem>
+                {allLabels.map((label) => (
+                  <SelectItem key={label} value={label}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
+            <MessageSquarePlus className="mr-2 h-4 w-4" /> New Thread
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -76,7 +98,9 @@ export default function ForumListPage() {
       ) : threads.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            No forum threads yet. Create one to start a shared discussion.
+            {labelFilter
+              ? `No threads labeled "${labelFilter}".`
+              : "No forum threads yet. Create one to start a shared discussion."}
           </CardContent>
         </Card>
       ) : (
@@ -92,6 +116,15 @@ export default function ForumListPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="line-clamp-2 text-sm text-muted-foreground">{thread.body}</p>
+                  {thread.labels?.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {thread.labels.map((label) => (
+                        <Badge key={label} variant="outline" className="gap-1 text-xs font-normal">
+                          <Tag className="h-3 w-3" /> {label}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Clock className="h-3.5 w-3.5" /> {fmtDate(thread.updated_at)}
@@ -122,6 +155,10 @@ export default function ForumListPage() {
             <div className="space-y-2">
               <Label htmlFor="forum-body">Body</Label>
               <Textarea id="forum-body" value={body} onChange={(e) => setBody(e.target.value)} rows={6} placeholder="Write the opening post..." />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="forum-labels">Labels</Label>
+              <Input id="forum-labels" value={labelsInput} onChange={(e) => setLabelsInput(e.target.value)} placeholder="Comma-separated, e.g. bug, question" />
             </div>
             <div className="space-y-2">
               <Label>Default agent</Label>

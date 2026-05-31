@@ -330,6 +330,7 @@ export interface ForumThread {
   created_by?: string;
   status?: string;
   agent_names?: string[];
+  labels?: string[];
   metadata?: Record<string, string>;
   created_at?: string;
   updated_at?: string;

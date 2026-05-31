@@ -76,11 +76,23 @@ func (s *ForumServiceServer) ListThreads(ctx context.Context, req *agentsv1.List
 	if err != nil {
 		return nil, err
 	}
-	threads, next, total, err := repo.ListThreads(ctx, forum.ThreadListFilter{WorkspaceID: workspaceID, Status: strings.TrimSpace(req.GetStatus())}, req.GetPageSize(), req.GetPageToken())
+	threads, next, total, err := repo.ListThreads(ctx, forum.ThreadListFilter{WorkspaceID: workspaceID, Status: strings.TrimSpace(req.GetStatus()), Label: strings.TrimSpace(req.GetLabel())}, req.GetPageSize(), req.GetPageToken())
 	if err != nil {
 		return nil, twirp.InternalErrorWith(err)
 	}
 	return &agentsv1.ListThreadsResponse{Threads: threads, NextPageToken: next, Total: total}, nil
+}
+
+func (s *ForumServiceServer) ListThreadLabels(ctx context.Context, _ *agentsv1.ListThreadLabelsRequest) (*agentsv1.ListThreadLabelsResponse, error) {
+	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	labels, err := repo.ListThreadLabels(ctx, workspaceID)
+	if err != nil {
+		return nil, twirp.InternalErrorWith(err)
+	}
+	return &agentsv1.ListThreadLabelsResponse{Labels: labels}, nil
 }
 
 func (s *ForumServiceServer) GetThread(ctx context.Context, req *agentsv1.GetThreadRequest) (*agentsv1.GetThreadResponse, error) {
@@ -122,6 +134,7 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.Cre
 		CreatedBy:   userID,
 		Status:      forumStatusOpen,
 		AgentNames:  append([]string(nil), req.GetAgentNames()...),
+		Labels:      normalizeLabels(req.GetLabels()),
 		Metadata:    copyStringMap(req.GetMetadata()),
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -213,6 +226,9 @@ func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *agentsv1.Upd
 	}
 	if req.GetAgentNames() != nil {
 		thread.AgentNames = append([]string(nil), req.GetAgentNames()...)
+	}
+	if req.GetLabels() != nil {
+		thread.Labels = normalizeLabels(req.GetLabels())
 	}
 	if req.GetMetadata() != nil {
 		thread.Metadata = copyStringMap(req.GetMetadata())
@@ -445,6 +461,29 @@ func mapForumErr(err error) error {
 	default:
 		return twirp.InternalErrorWith(err)
 	}
+}
+
+func normalizeLabels(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, label := range in {
+		label = strings.TrimSpace(label)
+		if label == "" {
+			continue
+		}
+		if _, ok := seen[label]; ok {
+			continue
+		}
+		seen[label] = struct{}{}
+		out = append(out, label)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func copyStringMap(in map[string]string) map[string]string {

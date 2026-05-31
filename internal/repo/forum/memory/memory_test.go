@@ -63,3 +63,67 @@ func TestCreatePostUpdatesThreadTimestampAndOrdering(t *testing.T) {
 		t.Fatalf("first listed thread = %q, want older-thread", got)
 	}
 }
+
+func TestListThreadsFilterByLabel(t *testing.T) {
+	ctx := context.Background()
+	store := New()
+
+	base := time.Date(2026, 5, 21, 1, 0, 0, 0, time.UTC)
+	for _, thread := range []*agentsv1.ForumThread{
+		{Id: "bug-thread", WorkspaceId: "workspace-1", Labels: []string{"bug", "urgent"}, UpdatedAt: timestamppb.New(base)},
+		{Id: "question-thread", WorkspaceId: "workspace-1", Labels: []string{"question"}, UpdatedAt: timestamppb.New(base.Add(time.Hour))},
+		{Id: "unlabeled-thread", WorkspaceId: "workspace-1", UpdatedAt: timestamppb.New(base.Add(2 * time.Hour))},
+	} {
+		if err := store.CreateThread(ctx, thread); err != nil {
+			t.Fatalf("CreateThread() error = %v", err)
+		}
+	}
+
+	threads, _, total, err := store.ListThreads(ctx, forum.ThreadListFilter{WorkspaceID: "workspace-1", Label: "bug"}, 10, "")
+	if err != nil {
+		t.Fatalf("ListThreads() error = %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("ListThreads() total = %d, want 1", total)
+	}
+	if got := threads[0].GetId(); got != "bug-thread" {
+		t.Fatalf("filtered thread = %q, want bug-thread", got)
+	}
+
+	_, _, total, err = store.ListThreads(ctx, forum.ThreadListFilter{WorkspaceID: "workspace-1", Label: "missing"}, 10, "")
+	if err != nil {
+		t.Fatalf("ListThreads() error = %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("ListThreads() total = %d, want 0 for unknown label", total)
+	}
+}
+
+func TestListThreadLabels(t *testing.T) {
+	ctx := context.Background()
+	store := New()
+
+	for _, thread := range []*agentsv1.ForumThread{
+		{Id: "t1", WorkspaceId: "workspace-1", Labels: []string{"bug", "urgent"}},
+		{Id: "t2", WorkspaceId: "workspace-1", Labels: []string{"bug", "question"}},
+		{Id: "t3", WorkspaceId: "workspace-2", Labels: []string{"other-workspace"}},
+	} {
+		if err := store.CreateThread(ctx, thread); err != nil {
+			t.Fatalf("CreateThread() error = %v", err)
+		}
+	}
+
+	labels, err := store.ListThreadLabels(ctx, "workspace-1")
+	if err != nil {
+		t.Fatalf("ListThreadLabels() error = %v", err)
+	}
+	want := []string{"bug", "question", "urgent"}
+	if len(labels) != len(want) {
+		t.Fatalf("ListThreadLabels() = %v, want %v", labels, want)
+	}
+	for i, label := range want {
+		if labels[i] != label {
+			t.Fatalf("ListThreadLabels()[%d] = %q, want %q (sorted, deduped, workspace-scoped)", i, labels[i], label)
+		}
+	}
+}

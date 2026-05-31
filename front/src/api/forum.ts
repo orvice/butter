@@ -6,6 +6,7 @@ const SVC = "agents.v1.ForumService";
 
 interface ListThreadsParams {
   status?: string;
+  label?: string;
   page_size?: number;
   page_token?: string;
 }
@@ -14,6 +15,10 @@ interface ListThreadsResponse {
   threads?: ForumThread[];
   next_page_token?: string;
   total?: number;
+}
+
+interface ListThreadLabelsResponse {
+  labels?: string[];
 }
 
 interface GetThreadResponse {
@@ -27,6 +32,7 @@ interface CreateThreadParams {
   title: string;
   body: string;
   agent_names?: string[];
+  labels?: string[];
   metadata?: Record<string, string>;
 }
 
@@ -41,6 +47,7 @@ export interface UpdateThreadParams {
   body?: string;
   status?: string;
   agent_names?: string[];
+  labels?: string[];
   metadata?: Record<string, string>;
 }
 
@@ -73,6 +80,10 @@ interface InvokeAgentResponse {
 
 export function listForumThreads(params: ListThreadsParams = {}) {
   return twirpFetch<ListThreadsParams, ListThreadsResponse>(SVC, "ListThreads", params);
+}
+
+export function listForumThreadLabels() {
+  return twirpFetch<object, ListThreadLabelsResponse>(SVC, "ListThreadLabels", {});
 }
 
 export function getForumThread(id: string) {
@@ -116,6 +127,13 @@ export function useForumThreads(params: ListThreadsParams = {}) {
   });
 }
 
+export function useForumThreadLabels() {
+  return useQuery({
+    queryKey: ["forum", "labels"],
+    queryFn: listForumThreadLabels,
+  });
+}
+
 export function useForumThread(id: string) {
   return useQuery({
     queryKey: ["forum", "thread", id],
@@ -131,6 +149,7 @@ export function useCreateForumThread() {
     mutationFn: createForumThread,
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      qc.invalidateQueries({ queryKey: ["forum", "labels"] });
       if (data.thread?.id) qc.invalidateQueries({ queryKey: ["forum", "thread", data.thread.id] });
     },
   });
@@ -153,6 +172,7 @@ export function useUpdateForumThread() {
     mutationFn: updateForumThread,
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      qc.invalidateQueries({ queryKey: ["forum", "labels"] });
       if (data.thread?.id) qc.invalidateQueries({ queryKey: ["forum", "thread", data.thread.id] });
     },
   });
@@ -164,6 +184,7 @@ export function useDeleteForumThread() {
     mutationFn: deleteForumThread,
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ["forum", "threads"] });
+      qc.invalidateQueries({ queryKey: ["forum", "labels"] });
       qc.removeQueries({ queryKey: ["forum", "thread", id] });
     },
   });

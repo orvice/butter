@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -83,6 +84,9 @@ func (s *Store) ListThreads(_ context.Context, filter forum.ThreadListFilter, pa
 		if filter.Status != "" && thread.GetStatus() != filter.Status {
 			continue
 		}
+		if filter.Label != "" && !slices.Contains(thread.GetLabels(), filter.Label) {
+			continue
+		}
 		items = append(items, proto.Clone(thread).(*agentsv1.ForumThread))
 	}
 	s.mu.RUnlock()
@@ -92,6 +96,26 @@ func (s *Store) ListThreads(_ context.Context, filter forum.ThreadListFilter, pa
 	})
 	page, next := paginate(items, pageSize, pageToken)
 	return page, next, int32(len(items)), nil
+}
+
+func (s *Store) ListThreadLabels(_ context.Context, workspaceID string) ([]string, error) {
+	s.mu.RLock()
+	set := make(map[string]struct{})
+	for _, thread := range s.threads {
+		if workspaceID != "" && thread.GetWorkspaceId() != workspaceID {
+			continue
+		}
+		for _, label := range thread.GetLabels() {
+			set[label] = struct{}{}
+		}
+	}
+	s.mu.RUnlock()
+	labels := make([]string, 0, len(set))
+	for label := range set {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+	return labels, nil
 }
 
 func (s *Store) DeleteThread(_ context.Context, workspaceID, id string) error {

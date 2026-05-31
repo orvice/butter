@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -39,6 +40,7 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 	if _, err := s.threads.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "updated_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "status", Value: 1}}},
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "labels", Value: 1}}},
 	}); err != nil {
 		return fmt.Errorf("create forum thread indexes: %w", err)
 	}
@@ -140,6 +142,9 @@ func (s *Store) ListThreads(ctx context.Context, filter forum.ThreadListFilter, 
 	if filter.Status != "" {
 		q["status"] = filter.Status
 	}
+	if filter.Label != "" {
+		q["labels"] = filter.Label
+	}
 	total, err := s.threads.CountDocuments(ctx, q)
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("count forum threads: %w", err)
@@ -162,6 +167,15 @@ func (s *Store) ListThreads(ctx context.Context, filter forum.ThreadListFilter, 
 		next = encodeToken(offset + len(out))
 	}
 	return out, next, int32(total), nil
+}
+
+func (s *Store) ListThreadLabels(ctx context.Context, workspaceID string) ([]string, error) {
+	var labels []string
+	if err := s.threads.Distinct(ctx, "labels", bson.M{"workspace_id": workspaceID}).Decode(&labels); err != nil {
+		return nil, fmt.Errorf("list forum thread labels: %w", err)
+	}
+	sort.Strings(labels)
+	return labels, nil
 }
 
 func (s *Store) DeleteThread(ctx context.Context, workspaceID, id string) error {
