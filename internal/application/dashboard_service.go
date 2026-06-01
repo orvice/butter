@@ -22,6 +22,8 @@ import (
 // DashboardServiceServer aggregates read-only metrics for the dashboard
 // Overview screen.
 type DashboardServiceServer struct {
+	agentsv1.UnimplementedDashboardServiceServer
+
 	store        DashboardConfigStore
 	cronJobRepo  cron.JobRepo
 	daemonReg    *daemon.Registry

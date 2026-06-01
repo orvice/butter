@@ -1,8 +1,10 @@
 # Butter API Reference
 
+更新时间：2026-06-02
+
 ## Authentication
 
-All endpoints except `GET /ping` and `AuthService.Login` require Bearer token authentication:
+All endpoints except the public paths listed below require Bearer token authentication:
 
 ```
 Authorization: Bearer <token>
@@ -16,9 +18,18 @@ Three token sources are accepted by `AuthMiddleware` (tried in order):
 
 `401 Unauthorized` on failure.
 
+**Public paths (no Bearer token):**
+
+- `GET /ping`
+- `POST /api/agents.v1.AuthService/Login`
+- `POST /api/agents.v1.AuthService/ListOAuthProviders`
+- `POST /api/agents.v1.AuthService/BeginOAuthFlow`
+- `POST /api/agents.v1.AuthService/CompleteOAuthFlow`
+- `GET /api/mcp/oauth/callback` (browser OAuth redirect from MCP providers)
+
 ## Workspace selection
 
-All configuration / runtime CRUD endpoints (`AgentService` / `MCPServerService` / `ModelProviderService` / `RemoteAgentService` / `ChannelService` / `CronJobService` / `APITokenService`) are scoped to a workspace. Clients select the active workspace via:
+All configuration / runtime CRUD endpoints (`AgentService` / `AgentFileService` / `MCPServerService` / `ModelProviderService` / `NotifyGroupService` / `RemoteAgentService` / `ChannelService` / `CronJobService` / `ForumService` / `APITokenService`) are scoped to a workspace. Clients select the active workspace via:
 
 ```
 X-Workspace-ID: <workspace-id>
@@ -200,6 +211,85 @@ response shape as avatar uploads.
 
 ---
 
+### Global MCP Server Presets
+
+Global MCP presets are admin-managed templates stored outside any workspace.
+Any authenticated user can list presets and install one into their current
+workspace; admin-only routes manage the preset catalog.
+
+#### List global presets
+
+```
+GET /api/global-mcp-servers
+```
+
+Requires Bearer token. Non-admin responses redact OAuth client secrets.
+
+**Response:** `{ "mcp_servers": MCPServer[] }`
+
+#### Create global preset
+
+```
+POST /api/admin/global-mcp-servers
+```
+
+Admin only. Body: `{ "mcp_server": MCPServer }`
+
+**Response:** `201 Created` with `{ "mcp_server": MCPServer }`
+
+#### Update global preset
+
+```
+PUT /api/admin/global-mcp-servers/:id
+```
+
+Admin only. Body: `{ "mcp_server": MCPServer }` (`id` must match the path).
+
+**Response:** `{ "mcp_server": MCPServer }`
+
+#### Delete global preset
+
+```
+DELETE /api/admin/global-mcp-servers/:id
+```
+
+Admin only. **Response:** `204 No Content`
+
+#### Install preset into workspace
+
+```
+POST /api/global-mcp-servers/:id/install
+```
+
+Copies the preset into the caller's workspace as a workspace-scoped MCP server.
+Requires `X-Workspace-ID` for user-session and root-token callers.
+
+**Request (optional body):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workspace_id` | string | Admin-only override to install into another workspace |
+
+**Response:** `{ "mcp_server": MCPServer }`
+
+---
+
+### MCP OAuth Browser Callback
+
+When an MCP server uses OAuth2, the provider redirects the user's browser here
+after consent. The handler completes the flow server-side and redirects back to
+the dashboard MCP page (or the `return_url` supplied to
+`StartMCPServerOAuth`).
+
+```
+GET /api/mcp/oauth/callback?state=<state>&code=<code>
+```
+
+Public (no Bearer token). On failure the redirect still occurs with
+`?oauth_status=error`; success adds `oauth_status=success&server_id=<id>`.
+
+---
+
 ## Twirp RPC Endpoints
 
 All Twirp endpoints use `POST` with path pattern `/api/<package>.<Service>/<Method>`.
@@ -340,12 +430,91 @@ are typically produced by `POST /api/uploads/avatar` (see
 
 **Response:** `{ "user": User }`
 
+#### ChangePassword
+
+```
+POST /api/agents.v1.AuthService/ChangePassword
+```
+
+Changes the authenticated user's password.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `current_password` | string | Required |
+| `new_password` | string | Required |
+
+**Response:** `{ "user": User }`
+
+#### ListOAuthProviders
+
+```
+POST /api/agents.v1.AuthService/ListOAuthProviders
+```
+
+Public. Returns configured OAuth providers for the login page.
+
+**Request:** `{}`
+
+**Response:** `{ "providers": OAuthProvider[] }`
+
+| OAuthProvider | Type | Description |
+|-------|------|-------------|
+| `name` | string | Provider key (e.g. `github`, `google`) |
+| `display_name` | string | Human-readable label |
+
+#### BeginOAuthFlow
+
+```
+POST /api/agents.v1.AuthService/BeginOAuthFlow
+```
+
+Public. Starts a dashboard OAuth login. The client redirects the browser to
+`authorize_url` and later calls `CompleteOAuthFlow` with the returned `state`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Required provider key |
+| `redirect_uri` | string | Frontend callback URL after success |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `authorize_url` | string | Provider consent URL |
+| `state` | string | Opaque state token |
+
+#### CompleteOAuthFlow
+
+```
+POST /api/agents.v1.AuthService/CompleteOAuthFlow
+```
+
+Public. Exchanges the provider authorization code for a dashboard session.
+Response shape mirrors `Login`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Required |
+| `code` | string | Authorization code from provider |
+| `state` | string | State from `BeginOAuthFlow` |
+
+**Response:** Same fields as `LoginResponse` (`token`, `user`, `expires_at`, `workspaces`).
+
 | User | Type | Description |
 |-------|------|-------------|
 | `id` | string | User id |
 | `username` | string | Login username |
 | `display_name` | string | Display name |
 | `avatar_url` | string | Avatar URL (CDN-aware, see [storage.md](storage.md)) |
+| `email` | string | Email (OAuth users) |
+| `provider` | string | OAuth provider key; empty for password users |
+| `external_id` | string | Provider-issued account id |
 | `role` | string | User role |
 | `disabled` | bool | Whether login is disabled |
 | `created_at` | timestamp |  |
@@ -841,6 +1010,73 @@ Enumerates tools across configured MCP servers.
 | `server_name` | string |  |
 | `allowed` | bool | True if not filtered out by the server's `tool_filter` |
 
+#### StartMCPServerOAuth
+
+```
+POST /api/agents.v1.MCPServerService/StartMCPServerOAuth
+```
+
+Starts a workspace-scoped OAuth2 authorization flow for an MCP server that
+declares `oauth2` config. Returns a browser URL and opaque `flow_id`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `server_id` | string | MCP server id |
+| `return_url` | string | Optional dashboard URL to redirect after browser callback |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `authorization_url` | string | Provider consent URL |
+| `flow_id` | string | Flow identifier for status polling |
+
+The browser completes via `GET /api/mcp/oauth/callback`.
+
+#### CompleteMCPServerOAuth
+
+```
+POST /api/agents.v1.MCPServerService/CompleteMCPServerOAuth
+```
+
+Completes an OAuth flow programmatically (alternative to the browser callback).
+
+**Request:** `{ "flow_id": "<id>", "code": "<code>", "state": "<state>" }`
+
+**Response:** `{ "status": MCPOAuthConnectionStatus }`
+
+#### GetMCPServerOAuthStatus
+
+```
+POST /api/agents.v1.MCPServerService/GetMCPServerOAuthStatus
+```
+
+**Request:** `{ "server_id": "<id>" }`
+
+**Response:** `{ "status": MCPOAuthConnectionStatus }`
+
+#### DisconnectMCPServerOAuth
+
+```
+POST /api/agents.v1.MCPServerService/DisconnectMCPServerOAuth
+```
+
+Removes stored OAuth credentials for the server.
+
+**Request:** `{ "server_id": "<id>" }`
+
+**Response:** `{ "status": MCPOAuthConnectionStatus }`
+
+| MCPOAuthConnectionStatus | Type | Description |
+|-------|------|-------------|
+| `server_id` | string | MCP server id |
+| `state` | enum | `DISCONNECTED`, `CONNECTED`, `ERROR` |
+| `detail` | string | Error or context |
+| `scopes` | string[] | Granted scopes |
+| `connected_at` | timestamp | When credentials were stored |
+
 #### MCPServer Object
 
 | Field | Type | Description |
@@ -850,6 +1086,7 @@ Enumerates tools across configured MCP servers.
 | `transport` | enum | `MCP_SERVER_TRANSPORT_STREAMABLE_HTTP`, `MCP_SERVER_TRANSPORT_SSE` |
 | `url` | string | URL for HTTP/SSE transports |
 | `headers` | map\<string,string\> | HTTP headers |
+| `oauth2` | MCPServerOAuth2Config | Optional OAuth2 client config |
 | `tool_filter` | string[] | Allowlist of exposed tools |
 | `metadata` | map\<string,string\> | Custom metadata |
 | `workspace_id` | string | Owning workspace |
@@ -1338,6 +1575,170 @@ Sends a user message to an existing session and returns the agent response.
 | `timestamp` | timestamp | Event timestamp |
 | `trace_id` | string | Mirrors `invocation_id`; consumers treat as opaque |
 | `trace_url` | string | `<langfuse_host>/trace/<trace_id>` when Langfuse is configured |
+
+---
+
+### ForumService
+
+Manages workspace-scoped discussion threads where users and agents participate
+together. Requires `X-Workspace-ID`.
+
+#### ListThreads
+
+```
+POST /api/agents.v1.ForumService/ListThreads
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Optional status filter |
+| `label` | string | Optional label filter |
+| `page_size` | int32 | Page size |
+| `page_token` | string | Opaque pagination token |
+
+**Response:** `{ "threads": ForumThread[], "next_page_token": string, "total": int32 }`
+
+#### ListThreadLabels
+
+```
+POST /api/agents.v1.ForumService/ListThreadLabels
+```
+
+**Request:** `{}`
+
+**Response:** `{ "labels": string[] }`
+
+#### GetThread
+
+```
+POST /api/agents.v1.ForumService/GetThread
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Thread id |
+| `post_page_size` | int32 | Posts per page |
+| `post_page_token` | string | Post pagination token |
+
+**Response:** `{ "thread": ForumThread, "posts": ForumPost[], "next_post_page_token": string, "post_total": int32 }`
+
+#### CreateThread
+
+```
+POST /api/agents.v1.ForumService/CreateThread
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Thread title |
+| `body` | string | First post body |
+| `agent_names` | string[] | Agents associated with the thread |
+| `labels` | string[] | Labels |
+| `metadata` | map\<string,string\> | Custom metadata |
+
+**Response:** `{ "thread": ForumThread, "first_post": ForumPost }`
+
+#### UpdateThread
+
+```
+POST /api/agents.v1.ForumService/UpdateThread
+```
+
+**Request:** thread id plus optional `title`, `body`, `status`, `agent_names`, `labels`, `metadata`.
+
+**Response:** `{ "thread": ForumThread }`
+
+#### DeleteThread
+
+```
+POST /api/agents.v1.ForumService/DeleteThread
+```
+
+**Request:** `{ "id": "<thread-id>" }`
+
+**Response:** `{}`
+
+#### CreatePost
+
+```
+POST /api/agents.v1.ForumService/CreatePost
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `thread_id` | string | Required |
+| `body` | string | Post text |
+| `parent_post_id` | string | Optional reply target |
+
+**Response:** `{ "post": ForumPost }`
+
+#### DeletePost
+
+```
+POST /api/agents.v1.ForumService/DeletePost
+```
+
+**Request:** `{ "thread_id": "<id>", "post_id": "<id>" }`
+
+**Response:** `{}`
+
+#### InvokeAgentInThread
+
+```
+POST /api/agents.v1.ForumService/InvokeAgentInThread
+```
+
+Runs an agent with recent thread context and stores the reply as a forum post.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `thread_id` | string | Required |
+| `agent_name` | string | Required |
+| `message` | string | User prompt |
+| `model_override` | string | Optional model alias |
+| `recent_post_limit` | int32 | Context window of prior posts |
+
+**Response:** `{ "post": ForumPost, "response": string }`
+
+#### ForumThread Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Thread id |
+| `title` | string | Title |
+| `body` | string | Opening post summary |
+| `created_by` | string | Creator user id |
+| `status` | string | Thread status |
+| `agent_names` | string[] | Associated agents |
+| `labels` | string[] | Labels |
+| `metadata` | map\<string,string\> | Custom metadata |
+| `created_at` / `updated_at` | timestamp | Timestamps |
+| `workspace_id` | string | Owning workspace |
+
+#### ForumPost Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Post id |
+| `thread_id` | string | Parent thread |
+| `body` | string | Post text |
+| `author_user_id` | string | User author (if human) |
+| `author_agent_name` | string | Agent author (if agent) |
+| `author_kind` | string | `user` or `agent` |
+| `invocation_id` | string | Linked invocation (agent posts) |
+| `parent_post_id` | string | Reply target |
+| `created_at` / `updated_at` | timestamp | Timestamps |
+| `workspace_id` | string | Owning workspace |
 
 ---
 

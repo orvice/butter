@@ -18,6 +18,8 @@ import (
 )
 
 type RemoteAgentServiceServer struct {
+	agentsv1.UnimplementedRemoteAgentServiceServer
+
 	repo      configrepo.RemoteAgentRepository
 	runtime   ConfigRuntime
 	daemonReg *daemon.Registry

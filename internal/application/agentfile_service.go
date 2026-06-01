@@ -14,6 +14,8 @@ import (
 )
 
 type AgentFileServiceServer struct {
+	agentsv1.UnimplementedAgentFileServiceServer
+
 	repo         agentfile.Repository
 	maxFileBytes int64
 }

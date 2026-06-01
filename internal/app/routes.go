@@ -14,6 +14,7 @@ import (
 	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/application"
+	"go.orx.me/apps/butter/internal/authn"
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/mcpoauth"
@@ -26,6 +27,7 @@ import (
 	"go.orx.me/apps/butter/internal/service"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -62,6 +64,53 @@ type Handlers struct {
 	notifyGroupRepo        configrepo.NotifyGroupRepository
 	remoteAgentRepo        configrepo.RemoteAgentRepository
 	channelRepo            configrepo.ChannelRepository
+	resolver               *authn.Resolver
+	grpcServer             *grpc.Server
+}
+
+// GRPCServer returns the gRPC server constructed during route setup. The
+// startup code binds a TCP listener via StartGRPCListener and calls
+// srv.Serve on it for native gRPC clients; the same server is also
+// exposed over HTTP/1.1 by the grpc-web wrapper mounted on Gin.
+func (h *Handlers) GRPCServer() *grpc.Server {
+	if h == nil {
+		return nil
+	}
+	return h.grpcServer
+}
+
+// Resolver returns the shared auth resolver wired during SetupRoutes. The
+// gRPC server uses it to authenticate incoming RPCs via metadata so the
+// Twirp and gRPC/grpc-web transports share one auth implementation.
+func (h *Handlers) Resolver() *authn.Resolver {
+	if h == nil {
+		return nil
+	}
+	return h.resolver
+}
+
+// RegisterGRPCServices registers every application service on the given
+// gRPC ServiceRegistrar. The DaemonConnectorService is registered
+// separately in SetupGRPCServer because it has its own auth contract.
+func (h *Handlers) RegisterGRPCServices(s grpc.ServiceRegistrar) {
+	if h == nil {
+		return
+	}
+	agentsv1.RegisterAgentServiceServer(s, h.agentSvcServer)
+	agentsv1.RegisterAgentFileServiceServer(s, h.agentFileSvcServer)
+	agentsv1.RegisterMCPServerServiceServer(s, h.mcpSvcServer)
+	agentsv1.RegisterModelProviderServiceServer(s, h.modelProviderSvcServer)
+	agentsv1.RegisterNotifyGroupServiceServer(s, h.notifyGroupSvcServer)
+	agentsv1.RegisterRemoteAgentServiceServer(s, h.remoteSvcServer)
+	agentsv1.RegisterForumServiceServer(s, h.forumSvcServer)
+	agentsv1.RegisterChannelServiceServer(s, h.channelSvcServer)
+	agentsv1.RegisterSessionServiceServer(s, h.sessionSvcServer)
+	agentsv1.RegisterCronJobServiceServer(s, h.cronSvcServer)
+	agentsv1.RegisterDashboardServiceServer(s, h.dashboardSvcServer)
+	agentsv1.RegisterDaemonServiceServer(s, h.daemonSvcServer)
+	agentsv1.RegisterAPITokenServiceServer(s, h.apiTokenSvcServer)
+	agentsv1.RegisterAuthServiceServer(s, h.authSvcServer)
+	agentsv1.RegisterWorkspaceServiceServer(s, h.workspaceSvcServer)
 }
 
 // apiTokenRepoFromHolder returns the currently wired apitoken repository, if any.
@@ -319,9 +368,23 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		remoteAgentRepo:        configStore,
 		channelRepo:            configStore,
 	}
+	handlers.resolver = authn.New(
+		cfg,
+		handlers.authRepoFromHolder,
+		handlers.apiTokenRepoFromHolder,
+		handlers.workspaceRepoFromHolder,
+	)
+	handlers.grpcServer = BuildGRPCServer(cfg, daemonRegistry, handlers)
+	grpcWebHandler := NewGRPCWebHandler(handlers.grpcServer)
 
 	router := func(r *gin.Engine) {
-		r.Use(httpHandler.AuthMiddleware(cfg, handlers.authRepoFromHolder, handlers.apiTokenRepoFromHolder, handlers.workspaceRepoFromHolder))
+		// grpc-web requests carry their own auth metadata and are
+		// authenticated by the gRPC interceptor; run the dispatcher BEFORE
+		// the Gin AuthMiddleware so we don't double-resolve or reject
+		// public methods like Login that have a different bypass list on
+		// the gRPC side.
+		r.Use(grpcWebDispatcher(grpcWebHandler))
+		r.Use(httpHandler.AuthMiddlewareWithResolver(handlers.resolver))
 		healthHandler.Register(r)
 		statusHandler.Register(r)
 		a2aHandler.Register(r)

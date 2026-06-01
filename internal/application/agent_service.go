@@ -27,6 +27,8 @@ import (
 const maxInvokeAgentInputBytes = 1 << 20 // 1 MiB
 
 type AgentServiceServer struct {
+	agentsv1.UnimplementedAgentServiceServer
+
 	repo      configrepo.AgentRepository
 	runtime   ConfigRuntime
 	runnerSvc *runner.Service

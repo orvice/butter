@@ -25,6 +25,8 @@ import (
 
 // SessionServiceServer implements the generated SessionService Twirp interface.
 type SessionServiceServer struct {
+	agentsv1.UnimplementedSessionServiceServer
+
 	mu           sync.RWMutex
 	sessionSvc   session.Service
 	runnerSvc    *runner.Service

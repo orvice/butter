@@ -13,6 +13,8 @@ import (
 )
 
 type NotifyGroupServiceServer struct {
+	agentsv1.UnimplementedNotifyGroupServiceServer
+
 	repo configrepo.NotifyGroupRepository
 }
 

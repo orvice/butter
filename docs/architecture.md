@@ -1,6 +1,6 @@
 # Butter 系统架构
 
-更新时间：2026-05-17
+更新时间：2026-06-02
 
 ## 概览
 
@@ -52,7 +52,9 @@ cmd/butter/main.go
 
 ```text
 Access Layer
-├── Gin HTTP handlers: /ping, /a2a/:agent_name/...
+├── Gin HTTP handlers: /ping, /status, /a2a/:agent_name/..., /api/chat/stream, /api/uploads/*
+├── Global MCP preset REST: /api/global-mcp-servers, /api/admin/global-mcp-servers/*
+├── MCP OAuth browser callback: GET /api/mcp/oauth/callback
 ├── Twirp RPC: /api/agents.v1.*Service/*
 ├── gRPC: DaemonConnectorService.Connect
 ├── Telegram poller
@@ -81,17 +83,26 @@ Agent Layer
 └── built-in system agent
 
 Config Layer
-├── AppConfig loaded by Butterfly
+├── AppConfig loaded by Butterfly (process config only; not agent seed)
 ├── ConfigStore runtime backend wrapper
-├── repo/config interfaces                # workspace-scoped CRUD + AcrossWorkspaces listings
+├── repo/config interfaces                # workspace-scoped CRUD + AcrossWorkspaces + global MCP presets
 ├── repo/config/{memory,mongo}
+├── repo/agentfile/{memory,mongo}         # agent file spaces + S3/memory content
+├── repo/forum/{memory,mongo}             # forum threads/posts
+├── repo/mcpoauth/{memory,mongo}          # MCP OAuth credentials
+├── repo/oauthstate/{memory,mongo}        # OAuth flow state (dashboard + MCP)
 ├── repo/apitoken/{memory,mongo}          # api_tokens collection (workspace-scoped)
 ├── repo/invocation/{memory,mongo}        # invocations collection
 └── repo/workspace/{memory,mongo}         # workspaces + workspace_members
 
+Auth Layer
+├── internal/authn.Resolver               # shared HTTP + gRPC/grpc-web auth
+├── internal/auth + internal/auth/provider  # user context + OAuth providers
+├── repo/auth/mongo (users) + repo/auth/redis (sessions)
+└── handler/http.AuthMiddleware
+
 Workspace Layer
 ├── internal/workspace                    # ctx propagation (FromContext / WithID / HeaderName)
-├── handler/http.AuthMiddleware           # resolves X-Workspace-ID, validates membership
 └── application.WorkspaceServiceServer    # CRUD + memberships
 
 Persistence
@@ -184,30 +195,35 @@ HTTP handler 位于 `internal/handler/http`：
 - `GET /status`：运行时状态，返回当前配置存储 backend 和配置集合数量。
 - `GET /a2a/:agent_name/.well-known/agent.json`：A2A agent card。
 - `POST /a2a/:agent_name`：A2A JSON-RPC task send。
+- `POST /api/chat/stream`：SSE 流式 chat（dashboard）。
+- `POST /api/uploads/*`：头像/静态资源上传（见 `docs/storage.md`）。
+- Global MCP preset REST（`/api/global-mcp-servers`、`/api/admin/global-mcp-servers/*`、install）。
+- `GET /api/mcp/oauth/callback`：MCP OAuth 浏览器回调（公开）。
 
 Twirp server 位于 `internal/application`，挂载在 `/api`：
 
 配置 / 执行：
 
-- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`。
-- `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools`。
-- `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
-- `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
-- `SessionService`：`Create` / `Get`（含 duration + trace_url）/ `List`（filter + page）/ `Delete` / `Reply`。
-- `CronJobService`：定时任务 CRUD + `ListCronExecutions` + `RunCronJobNow`。
+- `AgentService`：Agent CRUD + invoke/cancel/reload/runtime status/invocations。
+- `AgentFileService`：Agent 文件空间 CRUD + 读写/搜索。
+- `MCPServerService`：MCP CRUD + status/tools + MCP OAuth 连接管理。
+- `ModelProviderService` / `NotifyGroupService`：模型 Provider 与通知组 CRUD。
+- `RemoteAgentService` / `ChannelService` / `SessionService` / `CronJobService`：远程 agent、渠道、会话、定时任务。
+- `ForumService`：讨论帖 CRUD + 帖内 agent 调用。
 
-运维：
+运维 / 身份：
 
-- `DashboardService`：`GetOverview` / `GetActivityFeed` / `GetCronExecutionTimeseries`。
-- `DaemonService`：`ListDaemons` / `GetDaemon` / `ListDaemonTasks` / `CancelDaemonTask` / `GetBridgeDiagnostics`。
-- `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
+- `AuthService`：密码登录 + OAuth + 用户/profile 管理。
+- `WorkspaceService` / `DashboardService` / `DaemonService` / `APITokenService`。
 
-除 `/ping` 与 `AuthService.Login` 外，HTTP/Twirp 请求经过 `AuthMiddleware`：
+公开路径（免 Bearer）：`/ping`、Auth `Login` / OAuth RPC、`GET /api/mcp/oauth/callback`。
 
-1. 优先解析 `Authorization: Bearer <token>` 中的 user session（Redis `butter:auth:session:<sha256(token)>`，命中后异步 `TouchSession`）。
-2. 不匹配则用 `subtle.ConstantTimeCompare` 比对配置的 root token (`cfg.apiToken`)。
-3. 再不匹配则查 `apitoken.Repository.Lookup(sha256(token))`；命中后异步 `TouchLastUsed`，放行。
-4. 通过后解析 `X-Workspace-ID` 头：用户 session 走成员关系校验（admin 旁路）；API token 直接绑定到其存储的 workspace，覆盖 header；root token 与未配置 repo 时接受 header 原值。
+其余 HTTP/Twirp 请求经过 `internal/authn.Resolver`（HTTP 侧由 `AuthMiddleware` 包装）：
+
+1. 优先解析 `Authorization: Bearer <token>` 中的 user session（Redis，命中后异步 `TouchSession`）。
+2. 不匹配则用 `subtle.ConstantTimeCompare` 比对 root token。
+3. 再不匹配则查 `apitoken.Repository.Lookup(sha256(token))`。
+4. 通过后解析 `X-Workspace-ID`：user session 走成员关系校验（admin 旁路）；API token 绑定其 workspace；root token 接受 header 原值。
 5. 全部失败返回 `401 Unauthorized`。
 
 `AuthService.Login` 返回该用户可见的 workspace 列表（admin 看全部），前端在登录后弹出 workspace 选择器，把选中的 workspace id 写入后续请求头。
@@ -264,8 +280,11 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 - `workspace_members`：用户与 workspace 的多对多关系，`(workspace_id, user_id)` 复合唯一索引、`user_id` 普通索引。
 - `users`：dashboard 用户、bcrypt password hash 与全局角色。
 - Cron jobs / executions（`cron_jobs` / `cron_executions`，`_id = "{workspace_id}:{name}"`；含 `ListByTimeRange` 支撑时序聚合，`workspace_id` 字段可作过滤）。
-- `invocations`：runner 持久化的每次 ADK 调用（runner → `InvocationRecorder.Save`，RUNNING 起记，defer 写终态，附带 `workspace_id`）。驱动 ActivityFeed + AgentRuntimeStatus + ListAgentInvocations。
-- `api_tokens`：DB-stored API tokens（带 `workspace_id` + `secret_hash` + `prefix` + `last_used_at` + `revoked`）。
+- `invocations`：runner 持久化的每次 ADK 调用。
+- `api_tokens`：DB-stored API tokens。
+- `forum_threads` / `forum_posts`：Forum 讨论。
+- `mcp_oauth_connections` / `oauth_states`：MCP OAuth 凭据与 flow state。
+- Agent file 元数据（内容见 `docs/storage.md`）。
 
 后端选择：`storage_backend` 为空或等于 `"mongo"` 时全部走 mongo；显式设置为 `"memory"` 时用内存仓库（`api_tokens` / `invocations` 也支持 memory 实现，方便测试）。
 
@@ -281,7 +300,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 
 ## 前端 Dashboard 与镜像
 
-- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。9 个一级页对齐 Stitch 设计稿。
+- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。路由覆盖 Overview、Agents、Agent Files、MCP、Model Providers、Notify Groups、Remote Agents、Daemons、Channels、Sessions、Chat、Forum、Cron、API Tokens、Users、Workspaces、Admin Global MCP 等。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）生成到 `front/src/gen/`，运行时类型走 `@bufbuild/protobuf`。
 - 后端镜像：`ghcr.io/<owner>/<repo>`（根 `Dockerfile`，distroless static + cosign 签名）。
 - 前端镜像：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行 + SPA fallback + `/healthz`）。

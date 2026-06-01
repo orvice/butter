@@ -22,6 +22,8 @@ import (
 )
 
 type MCPServerServiceServer struct {
+	agentsv1.UnimplementedMCPServerServiceServer
+
 	repo         configrepo.MCPServerRepository
 	runtime      ConfigRuntime
 	oauthService *mcpoauth.Service

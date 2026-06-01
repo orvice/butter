@@ -19,6 +19,8 @@ import (
 
 // WorkspaceServiceServer implements the WorkspaceService Twirp interface.
 type WorkspaceServiceServer struct {
+	agentsv1.UnimplementedWorkspaceServiceServer
+
 	repo workspacerepo.Repository
 }
 

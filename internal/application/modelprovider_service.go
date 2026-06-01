@@ -24,6 +24,8 @@ func validateModelProviderBaseURL(mp *agentsv1.ModelProvider) error {
 }
 
 type ModelProviderServiceServer struct {
+	agentsv1.UnimplementedModelProviderServiceServer
+
 	repo    configrepo.ModelProviderRepository
 	runtime ConfigRuntime
 }

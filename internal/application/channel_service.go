@@ -21,6 +21,8 @@ type ChannelStatusProvider interface {
 }
 
 type ChannelServiceServer struct {
+	agentsv1.UnimplementedChannelServiceServer
+
 	repo    configrepo.ChannelRepository
 	runtime ConfigRuntime
 	manager ChannelStatusProvider

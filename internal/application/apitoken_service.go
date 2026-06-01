@@ -26,6 +26,8 @@ const tokenPrefixLen = 12
 
 // APITokenServiceServer manages API bearer tokens.
 type APITokenServiceServer struct {
+	agentsv1.UnimplementedAPITokenServiceServer
+
 	repo apitoken.Repository
 }
 

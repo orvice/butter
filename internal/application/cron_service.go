@@ -25,6 +25,8 @@ func cronJobMutationError(err error) error {
 
 // CronJobServiceServer implements the CronJobService Twirp interface.
 type CronJobServiceServer struct {
+	agentsv1.UnimplementedCronJobServiceServer
+
 	scheduler *cron.Scheduler
 	execRepo  cron.ExecutionRepo
 }

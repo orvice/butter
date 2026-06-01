@@ -15,6 +15,8 @@ import (
 
 // DaemonServiceServer exposes read-only views over the daemon registry.
 type DaemonServiceServer struct {
+	agentsv1.UnimplementedDaemonServiceServer
+
 	registry *daemon.Registry
 }
 

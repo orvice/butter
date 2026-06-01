@@ -34,6 +34,8 @@ const (
 )
 
 type ForumServiceServer struct {
+	agentsv1.UnimplementedForumServiceServer
+
 	mu        sync.RWMutex
 	repo      forum.Repository
 	runnerSvc forumAgentRunner

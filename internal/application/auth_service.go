@@ -27,6 +27,8 @@ import (
 const sessionSecretLen = 32
 
 type AuthServiceServer struct {
+	agentsv1.UnimplementedAuthServiceServer
+
 	repo       auth.Repository
 	wsRepo     workspacerepo.Repository
 	sessionTTL time.Duration

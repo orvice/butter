@@ -39,10 +39,10 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `Cro
 - `cmd/butter-daemon/` — Daemon client that reverse-connects to the server's daemon gRPC endpoint (connector, executor).
 - `internal/app/` — Application bootstrap and wiring. Split by concern: `routes.go` (HTTP/Twirp setup), `channels.go` (orchestration), `runtime.go` (MongoDB/Redis/Langfuse init), `cron.go` (scheduler init), `system_agent.go` (built-in agent registration), `config_runtime.go`/`config_store.go` (config repo selection), `grpc.go`.
 - `internal/config/` — `AppConfig` holds `[]agentsv1.Agent` and `[]agentsv1.AgentChannel` loaded from YAML by Butterfly.
-- `internal/handler/http/` — Gin HTTP handlers (`/ping`, `/a2a`, `/status`, API token auth middleware).
-- `internal/application/` — Twirp RPC server implementations (agent, session, cron, MCP server, remote agent, model provider, channel, dashboard, daemon, API token, auth, workspace services).
-- `internal/service/` — Business logic (health, status).
-- `internal/repo/` — Data access abstractions, each with memory + mongo implementations: `config/` (workspace-scoped CRUD + `*AcrossWorkspaces`), `apitoken/`, `auth/`, `invocation/`, `workspace/`.
+- `internal/handler/http/` — Gin HTTP handlers (`/ping`, `/a2a`, `/status`, `/api/chat/stream`, `/api/uploads/*`, global MCP preset routes, MCP OAuth callback, API token auth middleware via `internal/authn`).
+- `internal/application/` — Twirp RPC server implementations (agent, agent file, session, cron, MCP server, remote agent, model provider, notify group, channel, forum, dashboard, daemon, API token, auth, workspace services).
+- `internal/service/` — Business logic (health, status, upload).
+- `internal/repo/` — Data access abstractions, each with memory + mongo implementations where applicable: `config/` (workspace-scoped CRUD + `*AcrossWorkspaces` + global MCP presets), `apitoken/`, `auth/` (users in mongo, sessions in redis), `invocation/`, `workspace/`, `forum/`, `agentfile/`, `mcpoauth/`, `oauthstate/`.
 - `internal/agent/` — `NewFromProto()` factory: converts proto `agentsv1.Agent` configs into ADK agent instances (LLM, Loop, Sequential, Parallel); also `ProbeMCPServer`.
 - `internal/runtime/runner/` — Agent runner service managing per-channel ADK runners (invocation recording, cancel registry).
 - `internal/runtime/cron/` — Cron scheduler for automated agent execution.
@@ -51,7 +51,9 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `Cro
 - `internal/runtime/memory/` — Memory persistence (MongoDB implementation).
 - `internal/channel/` — Platform channel implementations and channel manager (Telegram, Discord).
 - `internal/workspace/` — Workspace context propagation: `WithID` / `FromContext` / `HeaderName` ("X-Workspace-ID").
-- `internal/auth/`, `internal/agentfiletool/`, `internal/mcpoauth/`, `internal/notify/` — Auth helpers, agent file tooling, MCP OAuth, and notifications.
+- `internal/authn/` — Shared auth + workspace resolution for HTTP/Twirp and gRPC/grpc-web (`Resolver`, `HeaderSource`).
+- `internal/auth/` + `internal/auth/provider/` — Auth context helpers and OAuth provider registry (GitHub, Google).
+- `internal/agentfiletool/`, `internal/mcpoauth/`, `internal/notify/` — Agent file tooling, MCP OAuth, and notifications.
 - `pkg/agent/` — Thin wrapper around ADK `agent.Agent`.
 - `pkg/proto/agents/v1/` — Generated Go code from protos. **Do not edit.**
 
