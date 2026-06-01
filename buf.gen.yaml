@@ -22,6 +22,9 @@ plugins:
     out: pkg/proto
     opt:
       - paths=source_relative
+  # bufbuild/es v2 already emits service descriptors (GenService<...>)
+  # alongside message types. @connectrpc/connect v2 consumes those
+  # descriptors directly, so we do NOT need a separate connect-es plugin.
   - remote: buf.build/bufbuild/es:v2.4.0
     out: front/src/gen
     include_imports: true
