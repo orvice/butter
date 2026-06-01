@@ -3421,6 +3421,8 @@ func (m *DaemonStatus) validate(all bool) error {
 
 	// no validation rules for RemoteAddr
 
+	// no validation rules for Host
+
 	if len(errors) > 0 {
 		return DaemonStatusMultiError(errors)
 	}

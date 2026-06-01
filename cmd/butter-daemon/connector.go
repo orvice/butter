@@ -105,6 +105,7 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 				Version:      daemonVersion,
 				Os:           runtime.GOOS + "-" + runtime.GOARCH,
 				Executors:    capabilities,
+				Host:         c.cfg.Host,
 			},
 		},
 	})

@@ -67,6 +67,8 @@ func (m *DaemonInfo) validate(all bool) error {
 
 	// no validation rules for Os
 
+	// no validation rules for Host
+
 	if len(errors) > 0 {
 		return DaemonInfoMultiError(errors)
 	}

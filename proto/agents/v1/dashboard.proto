@@ -244,6 +244,9 @@ message DaemonStatus {
   repeated string executors = 11;
   // Captured by the server from the gRPC peer (best-effort, may be empty).
   string remote_addr = 12;
+  // Operator-facing daemon host reported by the daemon handshake. The daemon
+  // derives this from its configured server target when its explicit host is empty.
+  string host = 13;
 }
 
 // =============================================================================

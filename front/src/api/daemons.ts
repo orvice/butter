@@ -80,6 +80,7 @@ function normalizeDaemon(value: unknown): DaemonStatus {
     os: asString(r.os),
     executors: asStringArray(r.executors) ?? [],
     remote_addr: asString(r.remote_addr ?? r.remoteAddr),
+    host: asString(r.host),
   };
 }
 

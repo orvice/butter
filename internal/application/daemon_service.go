@@ -177,5 +177,6 @@ func connectionToStatus(c *daemon.Connection, now time.Time) *agentsv1.DaemonSta
 		Os:           c.Info.GetOs(),
 		Executors:    c.Info.GetExecutors(),
 		RemoteAddr:   c.RemoteAddr,
+		Host:         c.Info.GetHost(),
 	}
 }

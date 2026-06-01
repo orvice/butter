@@ -487,6 +487,7 @@ export interface DaemonStatus {
   os?: string;
   executors?: string[];
   remote_addr?: string;
+  host?: string;
 }
 
 export interface DaemonTaskInFlight {

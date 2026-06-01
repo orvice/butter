@@ -80,7 +80,7 @@ export default function DaemonListPage() {
     { header: "Daemon", accessorKey: "name" },
     { header: "Version", cell: (r) => <span className="text-xs text-muted-foreground">{r.version ?? "-"}</span> },
     { header: "OS", cell: (r) => <span className="text-xs">{r.os ?? "-"}</span> },
-    { header: "Address", cell: (r) => <span className="text-xs font-mono">{r.remote_addr ?? "-"}</span> },
+    { header: "Address", cell: (r) => <span className="text-xs font-mono">{r.host ?? r.remote_addr ?? "-"}</span> },
     { header: "Status", cell: (r) => <DaemonStateBadge state={r.state} /> },
     { header: "Uptime", cell: (r) => <span className="text-xs">{fmtDuration(r.uptime)}</span> },
     {

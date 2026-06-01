@@ -38,6 +38,12 @@ message DaemonInfo {
   // remain the routing primitive; this is purely informational.
   // @gotags: json:"executors,omitempty" yaml:"executors,omitempty"
   repeated string executors = 7;
+
+  // Hostname or operator-facing address for this daemon. If the daemon config
+  // leaves host empty, the daemon client derives it from the configured server
+  // target and reports that fallback here for monitoring.
+  // @gotags: json:"host,omitempty" yaml:"host,omitempty"
+  string host = 8;
 }
 
 // DaemonTask is a task assignment sent from server to daemon.

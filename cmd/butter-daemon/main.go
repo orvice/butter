@@ -4,8 +4,11 @@ import (
 	"context"
 	"flag"
 	"log/slog"
+	"net"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"gopkg.in/yaml.v3"
@@ -16,6 +19,7 @@ import (
 // Config holds daemon configuration.
 type Config struct {
 	Server   string            `yaml:"server"`
+	Host     string            `yaml:"host"`
 	Token    string            `yaml:"token"`
 	DaemonID string            `yaml:"daemon_id"`
 	Name     string            `yaml:"name"`
@@ -49,6 +53,7 @@ func main() {
 		slog.Error("server address is required")
 		os.Exit(1)
 	}
+	cfg.Host = resolveHost(cfg.Host, cfg.Server)
 	if cfg.DaemonID == "" {
 		hostname, _ := os.Hostname()
 		cfg.DaemonID = hostname
@@ -67,6 +72,7 @@ func main() {
 
 	slog.Info("starting butter-daemon",
 		"server", cfg.Server,
+		"host", cfg.Host,
 		"daemon_id", cfg.DaemonID,
 		"name", cfg.Name,
 	)
@@ -89,6 +95,27 @@ func loadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func resolveHost(host, server string) string {
+	if trimmed := strings.TrimSpace(host); trimmed != "" {
+		return trimmed
+	}
+
+	server = strings.TrimSpace(server)
+	if server == "" {
+		return ""
+	}
+	if u, err := url.Parse(server); err == nil && u.Hostname() != "" {
+		return u.Hostname()
+	}
+	if h, _, err := net.SplitHostPort(server); err == nil {
+		return strings.Trim(h, "[]")
+	}
+	if idx := strings.LastIndex(server, ":"); idx > -1 && strings.Count(server, ":") == 1 {
+		return server[:idx]
+	}
+	return strings.Trim(server, "[]")
 }
 
 func buildExecutors(cfg *Config) []executor.Executor {
