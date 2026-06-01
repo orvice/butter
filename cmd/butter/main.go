@@ -40,8 +40,15 @@ func main() {
 				}
 				handlers.Wire(result)
 
-				// Start gRPC server for daemon connections.
-				srv, lis, err := butterapp.SetupGRPCServer(cfg, daemonRegistry)
+				// The user-facing gRPC server is built during SetupRoutes
+				// so the same instance can back grpc-web on the HTTP
+				// listener. Here we only bind the native gRPC TCP port
+				// for daemon connectors and server-to-server callers.
+				srv := handlers.GRPCServer()
+				if srv == nil {
+					return nil
+				}
+				lis, err := butterapp.StartGRPCListener(cfg, srv)
 				if err != nil {
 					return err
 				}
