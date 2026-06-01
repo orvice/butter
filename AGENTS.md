@@ -36,25 +36,38 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `Cro
 
 **Layers:**
 - `cmd/butter/main.go` — Entry point. Wires config, services, handlers, and registers Gin routes via Butterfly's `core.New()`.
-- `internal/app/` — Application bootstrap and wiring. Split by concern: `routes.go` (HTTP/Twirp setup), `channels.go` (orchestration), `runtime.go` (MongoDB/Redis/Langfuse init), `cron.go` (scheduler init), `system_agent.go` (built-in agent registration).
+- `cmd/butter-daemon/` — Daemon client that reverse-connects to the server's daemon gRPC endpoint (connector, executor).
+- `internal/app/` — Application bootstrap and wiring. Split by concern: `routes.go` (HTTP/Twirp setup), `channels.go` (orchestration), `runtime.go` (MongoDB/Redis/Langfuse init), `cron.go` (scheduler init), `system_agent.go` (built-in agent registration), `config_runtime.go`/`config_store.go` (config repo selection), `grpc.go`.
 - `internal/config/` — `AppConfig` holds `[]agentsv1.Agent` and `[]agentsv1.AgentChannel` loaded from YAML by Butterfly.
-- `internal/handler/http/` — Gin HTTP handlers.
-- `internal/application/` — Twirp RPC server implementations (agent, session, cron, MCP server, remote agent services).
-- `internal/service/` — Business logic.
-- `internal/repo/` — Data access abstractions.
-- `internal/store/config/` — In-memory CRUD store for agent/MCP/remote-agent configurations.
-- `internal/agent/` — `NewFromProto()` factory: converts proto `agentsv1.Agent` configs into ADK agent instances (LLM, Loop, Sequential, Parallel).
-- `internal/runtime/runner/` — Agent runner service managing per-channel ADK runners.
+- `internal/handler/http/` — Gin HTTP handlers (`/ping`, `/a2a`, `/status`, API token auth middleware).
+- `internal/application/` — Twirp RPC server implementations (agent, session, cron, MCP server, remote agent, model provider, channel, dashboard, daemon, API token, auth, workspace services).
+- `internal/service/` — Business logic (health, status).
+- `internal/repo/` — Data access abstractions, each with memory + mongo implementations: `config/` (workspace-scoped CRUD + `*AcrossWorkspaces`), `apitoken/`, `auth/`, `invocation/`, `workspace/`.
+- `internal/agent/` — `NewFromProto()` factory: converts proto `agentsv1.Agent` configs into ADK agent instances (LLM, Loop, Sequential, Parallel); also `ProbeMCPServer`.
+- `internal/runtime/runner/` — Agent runner service managing per-channel ADK runners (invocation recording, cancel registry).
 - `internal/runtime/cron/` — Cron scheduler for automated agent execution.
+- `internal/runtime/daemon/` — Daemon runtime: registry, connection, bridge, gRPC handler, metrics.
 - `internal/runtime/session/` — Session persistence (MongoDB implementation).
 - `internal/runtime/memory/` — Memory persistence (MongoDB implementation).
-- `internal/channel/` — Platform channel implementations (Telegram, Discord).
+- `internal/channel/` — Platform channel implementations and channel manager (Telegram, Discord).
+- `internal/workspace/` — Workspace context propagation: `WithID` / `FromContext` / `HeaderName` ("X-Workspace-ID").
+- `internal/auth/`, `internal/agentfiletool/`, `internal/mcpoauth/`, `internal/notify/` — Auth helpers, agent file tooling, MCP OAuth, and notifications.
 - `pkg/agent/` — Thin wrapper around ADK `agent.Agent`.
 - `pkg/proto/agents/v1/` — Generated Go code from protos. **Do not edit.**
 
 **Proto definitions** live in `proto/agents/v1/`:
 - `agent.proto` — Agent tree config: `Agent`, `AgentConfig`, `LLMAgentConfig`, `MCPServer`, workflow agent configs (Loop, Sequential, Parallel).
+- `agent_service.proto` — Agent management Twirp service.
+- `agent_file.proto` — Agent file tooling messages.
 - `agentchannel.proto` — Platform bindings: `AgentChannel`, triggers, delivery, Telegram config.
+- `api_token.proto` — API token management.
+- `auth.proto` — Authentication / user / session messages.
+- `context.proto` — Shared context messages.
+- `cron.proto` — Cron job and execution definitions.
+- `daemon.proto` — Daemon client gRPC contract.
+- `dashboard.proto` — Dashboard backend service.
+- `forum.proto` — Forum threads/posts service.
+- `workspace.proto` — Workspace and membership service.
 
 Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plugins: protobuf-go, gRPC, gRPC-Gateway, ConnectRPC, validate, Twirp.
 
@@ -69,6 +82,9 @@ Docs directory layout:
 - `docs/architecture.md` — System architecture overview covering multi-tenancy, process entry, layered structure, startup wiring, agent construction, and runner execution flow.
 - `docs/dashboard-api-gap.md` — Dashboard backend API gap analysis, including current coverage, recommended API extensions, persistence additions, phased implementation, and compatibility notes.
 - `docs/design-daemon-agent.md` — Daemon Agent design proposal with background, goals, architecture analysis, core challenges, incremental implementation plan, end-to-end flow, and file change list.
+- `docs/frontend-required-apis.md` — Follow-up list of backend semantics/fields the frontend still needs (gaps not yet covered by existing APIs).
+- `docs/postgres-migration-analysis.md` — Analysis of current MongoDB/Redis storage usage and candidates for a PostgreSQL backend.
 - `docs/project-structure.md` — Project directory structure documentation and maintenance guidance.
+- `docs/security-review.md` — Code-level security review with findings grouped by severity (affected file, issue, exploit scenario, recommended fix).
 - `docs/storage.md` — S3 object storage + static asset / avatar upload configuration and HTTP endpoints.
 - `docs/structure-review.md` — Directory structure review with strengths, issues, and refactoring recommendations such as renaming, bootstrap split, and runtime organization.
