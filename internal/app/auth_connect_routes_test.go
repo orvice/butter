@@ -124,6 +124,12 @@ func TestConnectMigratedServices_Routing(t *testing.T) {
 		// service returns FailedPrecondition. We only care that the
 		// response is connect-shaped, not 404.
 		{"apitoken_list", "/api/agents.v1.APITokenService/ListAPITokens"},
+		{"agent_list", "/api/agents.v1.AgentService/ListAgents"},
+		{"mcpserver_list", "/api/agents.v1.MCPServerService/ListMCPServers"},
+		{"modelprovider_list", "/api/agents.v1.ModelProviderService/ListModelProviders"},
+		{"notifygroup_list", "/api/agents.v1.NotifyGroupService/ListNotifyGroups"},
+		{"remoteagent_list", "/api/agents.v1.RemoteAgentService/ListRemoteAgents"},
+		{"channel_list", "/api/agents.v1.ChannelService/ListChannels"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
