@@ -136,6 +136,7 @@ func TestConnectMigratedServices_Routing(t *testing.T) {
 		{"dashboard_overview", "/api/agents.v1.DashboardService/GetOverview"},
 		{"agentfile_list", "/api/agents.v1.AgentFileService/ListAgentFileSpaces"},
 		{"daemon_list", "/api/agents.v1.DaemonService/ListDaemons"},
+		{"global_mcp_list", "/api/agents.v1.GlobalMCPServerService/ListGlobalMCPServers"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

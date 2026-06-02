@@ -2,14 +2,12 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync/atomic"
 
-	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
 	"github.com/gin-gonic/gin"
 	"github.com/twitchtv/twirp"
@@ -27,11 +25,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/service"
 	"go.orx.me/apps/butter/internal/transport/connectx"
-	wsctx "go.orx.me/apps/butter/internal/workspace"
-	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 // Handlers holds all HTTP/Twirp handlers that need post-bootstrap wiring.
@@ -61,7 +55,6 @@ type Handlers struct {
 	configStore            *ConfigStore
 	configRuntime          *ConfigRuntime
 	agentRepo              configrepo.AgentRepository
-	globalMCPServerRepo    configrepo.GlobalMCPServerRepository
 	mcpServerRepo          configrepo.MCPServerRepository
 	modelProviderRepo      configrepo.ModelProviderRepository
 	notifyGroupRepo        configrepo.NotifyGroupRepository
@@ -302,6 +295,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	daemonConnectPath, daemonConnectHandler := agentsv1connect.NewDaemonServiceHandler(application.NewDaemonServiceConnectAdapter(daemonSvcServer), connectOpts...)
 	apiTokenSvcServer := application.NewAPITokenServiceServer(nil)
 	apiTokenConnectPath, apiTokenConnectHandler := agentsv1connect.NewAPITokenServiceHandler(application.NewAPITokenServiceConnectAdapter(apiTokenSvcServer), connectOpts...)
+	globalMCPSvcServer := application.NewGlobalMCPServerServiceServer(configStore, mcpSvcServer)
+	globalMCPConnectPath, globalMCPConnectHandler := agentsv1connect.NewGlobalMCPServerServiceHandler(application.NewGlobalMCPServerServiceConnectAdapter(globalMCPSvcServer), connectOpts...)
 	authSvcServer := application.NewAuthServiceServer(nil, cfg.Auth.EffectiveSessionTTL())
 	authConnectPath, authConnectHandler := agentsv1connect.NewAuthServiceHandler(application.NewAuthServiceConnectAdapter(authSvcServer), connectOpts...)
 	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
@@ -330,7 +325,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		configStore:            configStore,
 		configRuntime:          configRuntime,
 		agentRepo:              configStore,
-		globalMCPServerRepo:    configStore,
 		mcpServerRepo:          configStore,
 		modelProviderRepo:      configStore,
 		notifyGroupRepo:        configStore,
@@ -346,7 +340,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		chatStreamHandler.Register(r)
 		uploadHandler.Register(r)
 		httpHandler.RegisterWorkspaceMCP(r, workspaceMCPSvc.Handler(), handlers.workspaceRepoFromHolder)
-		registerGlobalMCPServerRoutes(r, handlers, mcpSvcServer)
 		r.GET(mcpoauth.CallbackPath, func(c *gin.Context) {
 			status := "error"
 			serverID := ""
@@ -387,6 +380,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+cronConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", cronConnectHandler)))
 		r.Any("/api"+dashboardConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", dashboardConnectHandler)))
 		r.Any("/api"+daemonConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", daemonConnectHandler)))
+		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 	}
 
 	return router, handlers
@@ -398,214 +392,6 @@ func oauthCallbackFallback(cfg *config.AppConfig) string {
 		return "/mcp-servers"
 	}
 	return strings.TrimRight(base, "/") + "/mcp-servers"
-}
-
-type installGlobalMCPServerRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-}
-
-func registerGlobalMCPServerRoutes(r *gin.Engine, handlers *Handlers, mcpSvc *application.MCPServerServiceServer) {
-	r.GET("/api/global-mcp-servers", func(c *gin.Context) {
-		servers, err := handlers.globalMCPServerRepo.ListGlobalMCPServers(c.Request.Context())
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		writeMCPServerList(c, servers, !auth.IsAdmin(c.Request.Context()))
-	})
-
-	r.POST("/api/admin/global-mcp-servers", func(c *gin.Context) {
-		if !requireAdmin(c) {
-			return
-		}
-		server, ok := readMCPServer(c)
-		if !ok {
-			return
-		}
-		created, err := handlers.globalMCPServerRepo.CreateGlobalMCPServer(c.Request.Context(), server)
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		writeMCPServer(c, http.StatusCreated, created, false)
-	})
-
-	r.PUT("/api/admin/global-mcp-servers/:id", func(c *gin.Context) {
-		if !requireAdmin(c) {
-			return
-		}
-		server, ok := readMCPServer(c)
-		if !ok {
-			return
-		}
-		if server.GetId() == "" {
-			server.Id = c.Param("id")
-		}
-		if server.GetId() != c.Param("id") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "id mismatch"})
-			return
-		}
-		updated, err := handlers.globalMCPServerRepo.UpdateGlobalMCPServer(c.Request.Context(), server)
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		writeMCPServer(c, http.StatusOK, updated, false)
-	})
-
-	r.DELETE("/api/admin/global-mcp-servers/:id", func(c *gin.Context) {
-		if !requireAdmin(c) {
-			return
-		}
-		if err := handlers.globalMCPServerRepo.DeleteGlobalMCPServer(c.Request.Context(), c.Param("id")); err != nil {
-			writeError(c, err)
-			return
-		}
-		c.Status(http.StatusNoContent)
-	})
-
-	r.POST("/api/global-mcp-servers/:id/install", func(c *gin.Context) {
-		workspaceID, ok := installWorkspaceID(c)
-		if !ok {
-			return
-		}
-		var req installGlobalMCPServerRequest
-		if c.Request.Body != nil && c.Request.ContentLength != 0 {
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-		}
-		requestedWorkspaceID := strings.TrimSpace(req.WorkspaceID)
-		if requestedWorkspaceID != "" {
-			if !auth.IsAdmin(c.Request.Context()) && requestedWorkspaceID != workspaceID {
-				c.JSON(http.StatusForbidden, gin.H{"error": "admin role required for cross-workspace install"})
-				return
-			}
-			if requestedWorkspaceID != workspaceID {
-				auditAdminCrossWorkspaceInstall(c, workspaceID, requestedWorkspaceID, c.Param("id"))
-			}
-			workspaceID = requestedWorkspaceID
-		}
-		preset, err := handlers.globalMCPServerRepo.GetGlobalMCPServer(c.Request.Context(), c.Param("id"))
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		server := proto.Clone(preset).(*agentsv1.MCPServer)
-		server.WorkspaceId = ""
-		application.MarkInstalledGlobalMCPPreset(server, preset.GetId())
-		ctx := wsctx.WithID(c.Request.Context(), workspaceID)
-		created, err := mcpSvc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{McpServer: server})
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		writeMCPServer(c, http.StatusCreated, created.GetMcpServer(), true)
-	})
-}
-
-func requireAdmin(c *gin.Context) bool {
-	if auth.IsAdmin(c.Request.Context()) {
-		return true
-	}
-	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin role required"})
-	return false
-}
-
-// auditAdminCrossWorkspaceInstall emits a structured audit log entry when an
-// admin installs a global MCP preset into a workspace whose context they did
-// not explicitly enter. Cross-workspace installs are intentionally allowed
-// for ops/automation, but they need a paper trail because a compromised
-// admin can use this path to plant SSRF-capable MCP servers in any tenant.
-func auditAdminCrossWorkspaceInstall(c *gin.Context, contextWorkspaceID, targetWorkspaceID, presetID string) {
-	ctx := c.Request.Context()
-	logger := log.FromContext(ctx).With("audit", "admin_cross_workspace_install")
-	fields := []any{
-		"preset_id", presetID,
-		"context_workspace_id", contextWorkspaceID,
-		"target_workspace_id", targetWorkspaceID,
-		"remote_addr", c.ClientIP(),
-	}
-	if user, ok := auth.UserFromContext(ctx); ok {
-		fields = append(fields, "user_id", user.GetId(), "user_role", user.GetRole())
-	}
-	logger.Warn("admin installed global MCP preset into another workspace", fields...)
-}
-
-func installWorkspaceID(c *gin.Context) (string, bool) {
-	workspaceID, ok := wsctx.FromContext(c.Request.Context())
-	if ok {
-		return workspaceID, true
-	}
-	if auth.IsAdmin(c.Request.Context()) {
-		return "", true
-	}
-	c.JSON(http.StatusForbidden, gin.H{"error": "workspace required"})
-	return "", false
-}
-
-func readMCPServer(c *gin.Context) (*agentsv1.MCPServer, bool) {
-	body, err := c.GetRawData()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return nil, false
-	}
-	server := &agentsv1.MCPServer{}
-	if err := protojson.Unmarshal(body, server); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return nil, false
-	}
-	server.WorkspaceId = ""
-	return server, true
-}
-
-func writeMCPServerList(c *gin.Context, servers []*agentsv1.MCPServer, redact bool) {
-	out := make([]json.RawMessage, 0, len(servers))
-	for _, server := range servers {
-		raw, err := marshalMCPServer(mcpServerForResponse(server, redact))
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		out = append(out, raw)
-	}
-	c.JSON(http.StatusOK, gin.H{"mcp_servers": out})
-}
-
-func writeMCPServer(c *gin.Context, status int, server *agentsv1.MCPServer, redact bool) {
-	raw, err := marshalMCPServer(mcpServerForResponse(server, redact))
-	if err != nil {
-		writeError(c, err)
-		return
-	}
-	c.JSON(status, gin.H{"mcp_server": raw})
-}
-
-func marshalMCPServer(server *agentsv1.MCPServer) (json.RawMessage, error) {
-	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(server)
-	if err != nil {
-		return nil, err
-	}
-	return json.RawMessage(b), nil
-}
-
-func mcpServerForResponse(server *agentsv1.MCPServer, redact bool) *agentsv1.MCPServer {
-	if server == nil {
-		return nil
-	}
-	clone := proto.Clone(server).(*agentsv1.MCPServer)
-	if redact {
-		redactMCPServerSecret(clone)
-	}
-	return clone
-}
-
-func redactMCPServerSecret(server *agentsv1.MCPServer) {
-	oauth := server.GetAuth().GetOauth2()
-	if oauth != nil {
-		oauth.ClientSecret = ""
-	}
 }
 
 func writeError(c *gin.Context, err error) {

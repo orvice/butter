@@ -25,6 +25,8 @@ const (
 	AgentServiceName = "agents.v1.AgentService"
 	// MCPServerServiceName is the fully-qualified name of the MCPServerService service.
 	MCPServerServiceName = "agents.v1.MCPServerService"
+	// GlobalMCPServerServiceName is the fully-qualified name of the GlobalMCPServerService service.
+	GlobalMCPServerServiceName = "agents.v1.GlobalMCPServerService"
 	// ModelProviderServiceName is the fully-qualified name of the ModelProviderService service.
 	ModelProviderServiceName = "agents.v1.ModelProviderService"
 	// NotifyGroupServiceName is the fully-qualified name of the NotifyGroupService service.
@@ -109,6 +111,21 @@ const (
 	// MCPServerServiceDisconnectMCPServerOAuthProcedure is the fully-qualified name of the
 	// MCPServerService's DisconnectMCPServerOAuth RPC.
 	MCPServerServiceDisconnectMCPServerOAuthProcedure = "/agents.v1.MCPServerService/DisconnectMCPServerOAuth"
+	// GlobalMCPServerServiceListGlobalMCPServersProcedure is the fully-qualified name of the
+	// GlobalMCPServerService's ListGlobalMCPServers RPC.
+	GlobalMCPServerServiceListGlobalMCPServersProcedure = "/agents.v1.GlobalMCPServerService/ListGlobalMCPServers"
+	// GlobalMCPServerServiceCreateGlobalMCPServerProcedure is the fully-qualified name of the
+	// GlobalMCPServerService's CreateGlobalMCPServer RPC.
+	GlobalMCPServerServiceCreateGlobalMCPServerProcedure = "/agents.v1.GlobalMCPServerService/CreateGlobalMCPServer"
+	// GlobalMCPServerServiceUpdateGlobalMCPServerProcedure is the fully-qualified name of the
+	// GlobalMCPServerService's UpdateGlobalMCPServer RPC.
+	GlobalMCPServerServiceUpdateGlobalMCPServerProcedure = "/agents.v1.GlobalMCPServerService/UpdateGlobalMCPServer"
+	// GlobalMCPServerServiceDeleteGlobalMCPServerProcedure is the fully-qualified name of the
+	// GlobalMCPServerService's DeleteGlobalMCPServer RPC.
+	GlobalMCPServerServiceDeleteGlobalMCPServerProcedure = "/agents.v1.GlobalMCPServerService/DeleteGlobalMCPServer"
+	// GlobalMCPServerServiceInstallGlobalMCPServerProcedure is the fully-qualified name of the
+	// GlobalMCPServerService's InstallGlobalMCPServer RPC.
+	GlobalMCPServerServiceInstallGlobalMCPServerProcedure = "/agents.v1.GlobalMCPServerService/InstallGlobalMCPServer"
 	// ModelProviderServiceListModelProvidersProcedure is the fully-qualified name of the
 	// ModelProviderService's ListModelProviders RPC.
 	ModelProviderServiceListModelProvidersProcedure = "/agents.v1.ModelProviderService/ListModelProviders"
@@ -905,6 +922,187 @@ func (UnimplementedMCPServerServiceHandler) GetMCPServerOAuthStatus(context.Cont
 
 func (UnimplementedMCPServerServiceHandler) DisconnectMCPServerOAuth(context.Context, *connect.Request[v1.DisconnectMCPServerOAuthRequest]) (*connect.Response[v1.DisconnectMCPServerOAuthResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.DisconnectMCPServerOAuth is not implemented"))
+}
+
+// GlobalMCPServerServiceClient is a client for the agents.v1.GlobalMCPServerService service.
+type GlobalMCPServerServiceClient interface {
+	ListGlobalMCPServers(context.Context, *connect.Request[v1.ListGlobalMCPServersRequest]) (*connect.Response[v1.ListGlobalMCPServersResponse], error)
+	CreateGlobalMCPServer(context.Context, *connect.Request[v1.CreateGlobalMCPServerRequest]) (*connect.Response[v1.CreateGlobalMCPServerResponse], error)
+	UpdateGlobalMCPServer(context.Context, *connect.Request[v1.UpdateGlobalMCPServerRequest]) (*connect.Response[v1.UpdateGlobalMCPServerResponse], error)
+	DeleteGlobalMCPServer(context.Context, *connect.Request[v1.DeleteGlobalMCPServerRequest]) (*connect.Response[v1.DeleteGlobalMCPServerResponse], error)
+	// InstallGlobalMCPServer clones a preset into the caller's workspace.
+	// Admins may pass a different target workspace via `workspace_id`; the
+	// server audit-logs cross-workspace installs.
+	InstallGlobalMCPServer(context.Context, *connect.Request[v1.InstallGlobalMCPServerRequest]) (*connect.Response[v1.InstallGlobalMCPServerResponse], error)
+}
+
+// NewGlobalMCPServerServiceClient constructs a client for the agents.v1.GlobalMCPServerService
+// service. By default, it uses the Connect protocol with the binary Protobuf Codec, asks for
+// gzipped responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply
+// the connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewGlobalMCPServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) GlobalMCPServerServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	globalMCPServerServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("GlobalMCPServerService").Methods()
+	return &globalMCPServerServiceClient{
+		listGlobalMCPServers: connect.NewClient[v1.ListGlobalMCPServersRequest, v1.ListGlobalMCPServersResponse](
+			httpClient,
+			baseURL+GlobalMCPServerServiceListGlobalMCPServersProcedure,
+			connect.WithSchema(globalMCPServerServiceMethods.ByName("ListGlobalMCPServers")),
+			connect.WithClientOptions(opts...),
+		),
+		createGlobalMCPServer: connect.NewClient[v1.CreateGlobalMCPServerRequest, v1.CreateGlobalMCPServerResponse](
+			httpClient,
+			baseURL+GlobalMCPServerServiceCreateGlobalMCPServerProcedure,
+			connect.WithSchema(globalMCPServerServiceMethods.ByName("CreateGlobalMCPServer")),
+			connect.WithClientOptions(opts...),
+		),
+		updateGlobalMCPServer: connect.NewClient[v1.UpdateGlobalMCPServerRequest, v1.UpdateGlobalMCPServerResponse](
+			httpClient,
+			baseURL+GlobalMCPServerServiceUpdateGlobalMCPServerProcedure,
+			connect.WithSchema(globalMCPServerServiceMethods.ByName("UpdateGlobalMCPServer")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteGlobalMCPServer: connect.NewClient[v1.DeleteGlobalMCPServerRequest, v1.DeleteGlobalMCPServerResponse](
+			httpClient,
+			baseURL+GlobalMCPServerServiceDeleteGlobalMCPServerProcedure,
+			connect.WithSchema(globalMCPServerServiceMethods.ByName("DeleteGlobalMCPServer")),
+			connect.WithClientOptions(opts...),
+		),
+		installGlobalMCPServer: connect.NewClient[v1.InstallGlobalMCPServerRequest, v1.InstallGlobalMCPServerResponse](
+			httpClient,
+			baseURL+GlobalMCPServerServiceInstallGlobalMCPServerProcedure,
+			connect.WithSchema(globalMCPServerServiceMethods.ByName("InstallGlobalMCPServer")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// globalMCPServerServiceClient implements GlobalMCPServerServiceClient.
+type globalMCPServerServiceClient struct {
+	listGlobalMCPServers   *connect.Client[v1.ListGlobalMCPServersRequest, v1.ListGlobalMCPServersResponse]
+	createGlobalMCPServer  *connect.Client[v1.CreateGlobalMCPServerRequest, v1.CreateGlobalMCPServerResponse]
+	updateGlobalMCPServer  *connect.Client[v1.UpdateGlobalMCPServerRequest, v1.UpdateGlobalMCPServerResponse]
+	deleteGlobalMCPServer  *connect.Client[v1.DeleteGlobalMCPServerRequest, v1.DeleteGlobalMCPServerResponse]
+	installGlobalMCPServer *connect.Client[v1.InstallGlobalMCPServerRequest, v1.InstallGlobalMCPServerResponse]
+}
+
+// ListGlobalMCPServers calls agents.v1.GlobalMCPServerService.ListGlobalMCPServers.
+func (c *globalMCPServerServiceClient) ListGlobalMCPServers(ctx context.Context, req *connect.Request[v1.ListGlobalMCPServersRequest]) (*connect.Response[v1.ListGlobalMCPServersResponse], error) {
+	return c.listGlobalMCPServers.CallUnary(ctx, req)
+}
+
+// CreateGlobalMCPServer calls agents.v1.GlobalMCPServerService.CreateGlobalMCPServer.
+func (c *globalMCPServerServiceClient) CreateGlobalMCPServer(ctx context.Context, req *connect.Request[v1.CreateGlobalMCPServerRequest]) (*connect.Response[v1.CreateGlobalMCPServerResponse], error) {
+	return c.createGlobalMCPServer.CallUnary(ctx, req)
+}
+
+// UpdateGlobalMCPServer calls agents.v1.GlobalMCPServerService.UpdateGlobalMCPServer.
+func (c *globalMCPServerServiceClient) UpdateGlobalMCPServer(ctx context.Context, req *connect.Request[v1.UpdateGlobalMCPServerRequest]) (*connect.Response[v1.UpdateGlobalMCPServerResponse], error) {
+	return c.updateGlobalMCPServer.CallUnary(ctx, req)
+}
+
+// DeleteGlobalMCPServer calls agents.v1.GlobalMCPServerService.DeleteGlobalMCPServer.
+func (c *globalMCPServerServiceClient) DeleteGlobalMCPServer(ctx context.Context, req *connect.Request[v1.DeleteGlobalMCPServerRequest]) (*connect.Response[v1.DeleteGlobalMCPServerResponse], error) {
+	return c.deleteGlobalMCPServer.CallUnary(ctx, req)
+}
+
+// InstallGlobalMCPServer calls agents.v1.GlobalMCPServerService.InstallGlobalMCPServer.
+func (c *globalMCPServerServiceClient) InstallGlobalMCPServer(ctx context.Context, req *connect.Request[v1.InstallGlobalMCPServerRequest]) (*connect.Response[v1.InstallGlobalMCPServerResponse], error) {
+	return c.installGlobalMCPServer.CallUnary(ctx, req)
+}
+
+// GlobalMCPServerServiceHandler is an implementation of the agents.v1.GlobalMCPServerService
+// service.
+type GlobalMCPServerServiceHandler interface {
+	ListGlobalMCPServers(context.Context, *connect.Request[v1.ListGlobalMCPServersRequest]) (*connect.Response[v1.ListGlobalMCPServersResponse], error)
+	CreateGlobalMCPServer(context.Context, *connect.Request[v1.CreateGlobalMCPServerRequest]) (*connect.Response[v1.CreateGlobalMCPServerResponse], error)
+	UpdateGlobalMCPServer(context.Context, *connect.Request[v1.UpdateGlobalMCPServerRequest]) (*connect.Response[v1.UpdateGlobalMCPServerResponse], error)
+	DeleteGlobalMCPServer(context.Context, *connect.Request[v1.DeleteGlobalMCPServerRequest]) (*connect.Response[v1.DeleteGlobalMCPServerResponse], error)
+	// InstallGlobalMCPServer clones a preset into the caller's workspace.
+	// Admins may pass a different target workspace via `workspace_id`; the
+	// server audit-logs cross-workspace installs.
+	InstallGlobalMCPServer(context.Context, *connect.Request[v1.InstallGlobalMCPServerRequest]) (*connect.Response[v1.InstallGlobalMCPServerResponse], error)
+}
+
+// NewGlobalMCPServerServiceHandler builds an HTTP handler from the service implementation. It
+// returns the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewGlobalMCPServerServiceHandler(svc GlobalMCPServerServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	globalMCPServerServiceMethods := v1.File_agents_v1_agent_service_proto.Services().ByName("GlobalMCPServerService").Methods()
+	globalMCPServerServiceListGlobalMCPServersHandler := connect.NewUnaryHandler(
+		GlobalMCPServerServiceListGlobalMCPServersProcedure,
+		svc.ListGlobalMCPServers,
+		connect.WithSchema(globalMCPServerServiceMethods.ByName("ListGlobalMCPServers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	globalMCPServerServiceCreateGlobalMCPServerHandler := connect.NewUnaryHandler(
+		GlobalMCPServerServiceCreateGlobalMCPServerProcedure,
+		svc.CreateGlobalMCPServer,
+		connect.WithSchema(globalMCPServerServiceMethods.ByName("CreateGlobalMCPServer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	globalMCPServerServiceUpdateGlobalMCPServerHandler := connect.NewUnaryHandler(
+		GlobalMCPServerServiceUpdateGlobalMCPServerProcedure,
+		svc.UpdateGlobalMCPServer,
+		connect.WithSchema(globalMCPServerServiceMethods.ByName("UpdateGlobalMCPServer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	globalMCPServerServiceDeleteGlobalMCPServerHandler := connect.NewUnaryHandler(
+		GlobalMCPServerServiceDeleteGlobalMCPServerProcedure,
+		svc.DeleteGlobalMCPServer,
+		connect.WithSchema(globalMCPServerServiceMethods.ByName("DeleteGlobalMCPServer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	globalMCPServerServiceInstallGlobalMCPServerHandler := connect.NewUnaryHandler(
+		GlobalMCPServerServiceInstallGlobalMCPServerProcedure,
+		svc.InstallGlobalMCPServer,
+		connect.WithSchema(globalMCPServerServiceMethods.ByName("InstallGlobalMCPServer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.GlobalMCPServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case GlobalMCPServerServiceListGlobalMCPServersProcedure:
+			globalMCPServerServiceListGlobalMCPServersHandler.ServeHTTP(w, r)
+		case GlobalMCPServerServiceCreateGlobalMCPServerProcedure:
+			globalMCPServerServiceCreateGlobalMCPServerHandler.ServeHTTP(w, r)
+		case GlobalMCPServerServiceUpdateGlobalMCPServerProcedure:
+			globalMCPServerServiceUpdateGlobalMCPServerHandler.ServeHTTP(w, r)
+		case GlobalMCPServerServiceDeleteGlobalMCPServerProcedure:
+			globalMCPServerServiceDeleteGlobalMCPServerHandler.ServeHTTP(w, r)
+		case GlobalMCPServerServiceInstallGlobalMCPServerProcedure:
+			globalMCPServerServiceInstallGlobalMCPServerHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedGlobalMCPServerServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedGlobalMCPServerServiceHandler struct{}
+
+func (UnimplementedGlobalMCPServerServiceHandler) ListGlobalMCPServers(context.Context, *connect.Request[v1.ListGlobalMCPServersRequest]) (*connect.Response[v1.ListGlobalMCPServersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.GlobalMCPServerService.ListGlobalMCPServers is not implemented"))
+}
+
+func (UnimplementedGlobalMCPServerServiceHandler) CreateGlobalMCPServer(context.Context, *connect.Request[v1.CreateGlobalMCPServerRequest]) (*connect.Response[v1.CreateGlobalMCPServerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.GlobalMCPServerService.CreateGlobalMCPServer is not implemented"))
+}
+
+func (UnimplementedGlobalMCPServerServiceHandler) UpdateGlobalMCPServer(context.Context, *connect.Request[v1.UpdateGlobalMCPServerRequest]) (*connect.Response[v1.UpdateGlobalMCPServerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.GlobalMCPServerService.UpdateGlobalMCPServer is not implemented"))
+}
+
+func (UnimplementedGlobalMCPServerServiceHandler) DeleteGlobalMCPServer(context.Context, *connect.Request[v1.DeleteGlobalMCPServerRequest]) (*connect.Response[v1.DeleteGlobalMCPServerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.GlobalMCPServerService.DeleteGlobalMCPServer is not implemented"))
+}
+
+func (UnimplementedGlobalMCPServerServiceHandler) InstallGlobalMCPServer(context.Context, *connect.Request[v1.InstallGlobalMCPServerRequest]) (*connect.Response[v1.InstallGlobalMCPServerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.GlobalMCPServerService.InstallGlobalMCPServer is not implemented"))
 }
 
 // ModelProviderServiceClient is a client for the agents.v1.ModelProviderService service.

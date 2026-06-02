@@ -1037,6 +1037,277 @@ var MCPServerService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	GlobalMCPServerService_ListGlobalMCPServers_FullMethodName   = "/agents.v1.GlobalMCPServerService/ListGlobalMCPServers"
+	GlobalMCPServerService_CreateGlobalMCPServer_FullMethodName  = "/agents.v1.GlobalMCPServerService/CreateGlobalMCPServer"
+	GlobalMCPServerService_UpdateGlobalMCPServer_FullMethodName  = "/agents.v1.GlobalMCPServerService/UpdateGlobalMCPServer"
+	GlobalMCPServerService_DeleteGlobalMCPServer_FullMethodName  = "/agents.v1.GlobalMCPServerService/DeleteGlobalMCPServer"
+	GlobalMCPServerService_InstallGlobalMCPServer_FullMethodName = "/agents.v1.GlobalMCPServerService/InstallGlobalMCPServer"
+)
+
+// GlobalMCPServerServiceClient is the client API for GlobalMCPServerService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// GlobalMCPServerService manages workspace-agnostic MCP server presets that
+// admins curate and end users install into their workspace. Browse / install
+// is open to authenticated callers; admin role is required for the
+// create / update / delete mutations.
+type GlobalMCPServerServiceClient interface {
+	ListGlobalMCPServers(ctx context.Context, in *ListGlobalMCPServersRequest, opts ...grpc.CallOption) (*ListGlobalMCPServersResponse, error)
+	CreateGlobalMCPServer(ctx context.Context, in *CreateGlobalMCPServerRequest, opts ...grpc.CallOption) (*CreateGlobalMCPServerResponse, error)
+	UpdateGlobalMCPServer(ctx context.Context, in *UpdateGlobalMCPServerRequest, opts ...grpc.CallOption) (*UpdateGlobalMCPServerResponse, error)
+	DeleteGlobalMCPServer(ctx context.Context, in *DeleteGlobalMCPServerRequest, opts ...grpc.CallOption) (*DeleteGlobalMCPServerResponse, error)
+	// InstallGlobalMCPServer clones a preset into the caller's workspace.
+	// Admins may pass a different target workspace via `workspace_id`; the
+	// server audit-logs cross-workspace installs.
+	InstallGlobalMCPServer(ctx context.Context, in *InstallGlobalMCPServerRequest, opts ...grpc.CallOption) (*InstallGlobalMCPServerResponse, error)
+}
+
+type globalMCPServerServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewGlobalMCPServerServiceClient(cc grpc.ClientConnInterface) GlobalMCPServerServiceClient {
+	return &globalMCPServerServiceClient{cc}
+}
+
+func (c *globalMCPServerServiceClient) ListGlobalMCPServers(ctx context.Context, in *ListGlobalMCPServersRequest, opts ...grpc.CallOption) (*ListGlobalMCPServersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGlobalMCPServersResponse)
+	err := c.cc.Invoke(ctx, GlobalMCPServerService_ListGlobalMCPServers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *globalMCPServerServiceClient) CreateGlobalMCPServer(ctx context.Context, in *CreateGlobalMCPServerRequest, opts ...grpc.CallOption) (*CreateGlobalMCPServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateGlobalMCPServerResponse)
+	err := c.cc.Invoke(ctx, GlobalMCPServerService_CreateGlobalMCPServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *globalMCPServerServiceClient) UpdateGlobalMCPServer(ctx context.Context, in *UpdateGlobalMCPServerRequest, opts ...grpc.CallOption) (*UpdateGlobalMCPServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateGlobalMCPServerResponse)
+	err := c.cc.Invoke(ctx, GlobalMCPServerService_UpdateGlobalMCPServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *globalMCPServerServiceClient) DeleteGlobalMCPServer(ctx context.Context, in *DeleteGlobalMCPServerRequest, opts ...grpc.CallOption) (*DeleteGlobalMCPServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteGlobalMCPServerResponse)
+	err := c.cc.Invoke(ctx, GlobalMCPServerService_DeleteGlobalMCPServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *globalMCPServerServiceClient) InstallGlobalMCPServer(ctx context.Context, in *InstallGlobalMCPServerRequest, opts ...grpc.CallOption) (*InstallGlobalMCPServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InstallGlobalMCPServerResponse)
+	err := c.cc.Invoke(ctx, GlobalMCPServerService_InstallGlobalMCPServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GlobalMCPServerServiceServer is the server API for GlobalMCPServerService service.
+// All implementations must embed UnimplementedGlobalMCPServerServiceServer
+// for forward compatibility.
+//
+// GlobalMCPServerService manages workspace-agnostic MCP server presets that
+// admins curate and end users install into their workspace. Browse / install
+// is open to authenticated callers; admin role is required for the
+// create / update / delete mutations.
+type GlobalMCPServerServiceServer interface {
+	ListGlobalMCPServers(context.Context, *ListGlobalMCPServersRequest) (*ListGlobalMCPServersResponse, error)
+	CreateGlobalMCPServer(context.Context, *CreateGlobalMCPServerRequest) (*CreateGlobalMCPServerResponse, error)
+	UpdateGlobalMCPServer(context.Context, *UpdateGlobalMCPServerRequest) (*UpdateGlobalMCPServerResponse, error)
+	DeleteGlobalMCPServer(context.Context, *DeleteGlobalMCPServerRequest) (*DeleteGlobalMCPServerResponse, error)
+	// InstallGlobalMCPServer clones a preset into the caller's workspace.
+	// Admins may pass a different target workspace via `workspace_id`; the
+	// server audit-logs cross-workspace installs.
+	InstallGlobalMCPServer(context.Context, *InstallGlobalMCPServerRequest) (*InstallGlobalMCPServerResponse, error)
+	mustEmbedUnimplementedGlobalMCPServerServiceServer()
+}
+
+// UnimplementedGlobalMCPServerServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedGlobalMCPServerServiceServer struct{}
+
+func (UnimplementedGlobalMCPServerServiceServer) ListGlobalMCPServers(context.Context, *ListGlobalMCPServersRequest) (*ListGlobalMCPServersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGlobalMCPServers not implemented")
+}
+func (UnimplementedGlobalMCPServerServiceServer) CreateGlobalMCPServer(context.Context, *CreateGlobalMCPServerRequest) (*CreateGlobalMCPServerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateGlobalMCPServer not implemented")
+}
+func (UnimplementedGlobalMCPServerServiceServer) UpdateGlobalMCPServer(context.Context, *UpdateGlobalMCPServerRequest) (*UpdateGlobalMCPServerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateGlobalMCPServer not implemented")
+}
+func (UnimplementedGlobalMCPServerServiceServer) DeleteGlobalMCPServer(context.Context, *DeleteGlobalMCPServerRequest) (*DeleteGlobalMCPServerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteGlobalMCPServer not implemented")
+}
+func (UnimplementedGlobalMCPServerServiceServer) InstallGlobalMCPServer(context.Context, *InstallGlobalMCPServerRequest) (*InstallGlobalMCPServerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method InstallGlobalMCPServer not implemented")
+}
+func (UnimplementedGlobalMCPServerServiceServer) mustEmbedUnimplementedGlobalMCPServerServiceServer() {
+}
+func (UnimplementedGlobalMCPServerServiceServer) testEmbeddedByValue() {}
+
+// UnsafeGlobalMCPServerServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to GlobalMCPServerServiceServer will
+// result in compilation errors.
+type UnsafeGlobalMCPServerServiceServer interface {
+	mustEmbedUnimplementedGlobalMCPServerServiceServer()
+}
+
+func RegisterGlobalMCPServerServiceServer(s grpc.ServiceRegistrar, srv GlobalMCPServerServiceServer) {
+	// If the following call panics, it indicates UnimplementedGlobalMCPServerServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&GlobalMCPServerService_ServiceDesc, srv)
+}
+
+func _GlobalMCPServerService_ListGlobalMCPServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGlobalMCPServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GlobalMCPServerServiceServer).ListGlobalMCPServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GlobalMCPServerService_ListGlobalMCPServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GlobalMCPServerServiceServer).ListGlobalMCPServers(ctx, req.(*ListGlobalMCPServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GlobalMCPServerService_CreateGlobalMCPServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateGlobalMCPServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GlobalMCPServerServiceServer).CreateGlobalMCPServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GlobalMCPServerService_CreateGlobalMCPServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GlobalMCPServerServiceServer).CreateGlobalMCPServer(ctx, req.(*CreateGlobalMCPServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GlobalMCPServerService_UpdateGlobalMCPServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateGlobalMCPServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GlobalMCPServerServiceServer).UpdateGlobalMCPServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GlobalMCPServerService_UpdateGlobalMCPServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GlobalMCPServerServiceServer).UpdateGlobalMCPServer(ctx, req.(*UpdateGlobalMCPServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GlobalMCPServerService_DeleteGlobalMCPServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteGlobalMCPServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GlobalMCPServerServiceServer).DeleteGlobalMCPServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GlobalMCPServerService_DeleteGlobalMCPServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GlobalMCPServerServiceServer).DeleteGlobalMCPServer(ctx, req.(*DeleteGlobalMCPServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GlobalMCPServerService_InstallGlobalMCPServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InstallGlobalMCPServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GlobalMCPServerServiceServer).InstallGlobalMCPServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GlobalMCPServerService_InstallGlobalMCPServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GlobalMCPServerServiceServer).InstallGlobalMCPServer(ctx, req.(*InstallGlobalMCPServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// GlobalMCPServerService_ServiceDesc is the grpc.ServiceDesc for GlobalMCPServerService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var GlobalMCPServerService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.GlobalMCPServerService",
+	HandlerType: (*GlobalMCPServerServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListGlobalMCPServers",
+			Handler:    _GlobalMCPServerService_ListGlobalMCPServers_Handler,
+		},
+		{
+			MethodName: "CreateGlobalMCPServer",
+			Handler:    _GlobalMCPServerService_CreateGlobalMCPServer_Handler,
+		},
+		{
+			MethodName: "UpdateGlobalMCPServer",
+			Handler:    _GlobalMCPServerService_UpdateGlobalMCPServer_Handler,
+		},
+		{
+			MethodName: "DeleteGlobalMCPServer",
+			Handler:    _GlobalMCPServerService_DeleteGlobalMCPServer_Handler,
+		},
+		{
+			MethodName: "InstallGlobalMCPServer",
+			Handler:    _GlobalMCPServerService_InstallGlobalMCPServer_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agents/v1/agent_service.proto",
+}
+
+const (
 	ModelProviderService_ListModelProviders_FullMethodName  = "/agents.v1.ModelProviderService/ListModelProviders"
 	ModelProviderService_GetModelProvider_FullMethodName    = "/agents.v1.ModelProviderService/GetModelProvider"
 	ModelProviderService_CreateModelProvider_FullMethodName = "/agents.v1.ModelProviderService/CreateModelProvider"

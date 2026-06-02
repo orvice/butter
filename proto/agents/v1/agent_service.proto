@@ -64,6 +64,21 @@ service MCPServerService {
   rpc DisconnectMCPServerOAuth(DisconnectMCPServerOAuthRequest) returns (DisconnectMCPServerOAuthResponse);
 }
 
+// GlobalMCPServerService manages workspace-agnostic MCP server presets that
+// admins curate and end users install into their workspace. Browse / install
+// is open to authenticated callers; admin role is required for the
+// create / update / delete mutations.
+service GlobalMCPServerService {
+  rpc ListGlobalMCPServers(ListGlobalMCPServersRequest) returns (ListGlobalMCPServersResponse);
+  rpc CreateGlobalMCPServer(CreateGlobalMCPServerRequest) returns (CreateGlobalMCPServerResponse);
+  rpc UpdateGlobalMCPServer(UpdateGlobalMCPServerRequest) returns (UpdateGlobalMCPServerResponse);
+  rpc DeleteGlobalMCPServer(DeleteGlobalMCPServerRequest) returns (DeleteGlobalMCPServerResponse);
+  // InstallGlobalMCPServer clones a preset into the caller's workspace.
+  // Admins may pass a different target workspace via `workspace_id`; the
+  // server audit-logs cross-workspace installs.
+  rpc InstallGlobalMCPServer(InstallGlobalMCPServerRequest) returns (InstallGlobalMCPServerResponse);
+}
+
 // ModelProviderService manages LLM provider configurations.
 service ModelProviderService {
   rpc ListModelProviders(ListModelProvidersRequest) returns (ListModelProvidersResponse);
@@ -364,6 +379,49 @@ enum MCPOAuthConnectionState {
   MCPO_AUTH_CONNECTION_STATE_CONNECTED = 2;
   MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED = 3;
   MCPO_AUTH_CONNECTION_STATE_ERROR = 4;
+}
+
+// --- GlobalMCPServer messages ---
+
+message ListGlobalMCPServersRequest {}
+
+message ListGlobalMCPServersResponse {
+  repeated MCPServer mcp_servers = 1;
+}
+
+message CreateGlobalMCPServerRequest {
+  MCPServer mcp_server = 1;
+}
+
+message CreateGlobalMCPServerResponse {
+  MCPServer mcp_server = 1;
+}
+
+message UpdateGlobalMCPServerRequest {
+  MCPServer mcp_server = 1;
+}
+
+message UpdateGlobalMCPServerResponse {
+  MCPServer mcp_server = 1;
+}
+
+message DeleteGlobalMCPServerRequest {
+  string id = 1;
+}
+
+message DeleteGlobalMCPServerResponse {}
+
+message InstallGlobalMCPServerRequest {
+  // ID of the preset to install.
+  string id = 1;
+  // Optional target workspace. When empty, the caller's active workspace
+  // (X-Workspace-ID header) is used. Admins may pass a different workspace;
+  // the server audit-logs cross-workspace installs.
+  string workspace_id = 2;
+}
+
+message InstallGlobalMCPServerResponse {
+  MCPServer mcp_server = 1;
 }
 
 // --- ModelProvider messages ---
