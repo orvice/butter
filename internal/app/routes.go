@@ -26,6 +26,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/service"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
@@ -275,30 +276,36 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	notifyGroupSvcServer := application.NewNotifyGroupServiceServer(configStore)
 	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
 	remoteSvcServer.SetDaemonRegistry(daemonRegistry)
+	// Every Connect handler shares the same option set so the wire format
+	// matches the pre-migration Twirp behavior (snake_case JSON). Without
+	// this, dashboard callers that still read response fields like
+	// connected_daemons / base_url / space_id without camelCase fallbacks
+	// silently see undefined.
+	connectOpts := connectx.HandlerOptions()
 	forumSvcServer := application.NewForumServiceServer(nil)
-	forumConnectPath, forumConnectHandler := agentsv1connect.NewForumServiceHandler(application.NewForumServiceConnectAdapter(forumSvcServer))
-	agentConnectPath, agentConnectHandler := agentsv1connect.NewAgentServiceHandler(application.NewAgentServiceConnectAdapter(agentSvcServer))
-	agentFileConnectPath, agentFileConnectHandler := agentsv1connect.NewAgentFileServiceHandler(application.NewAgentFileServiceConnectAdapter(agentFileSvcServer))
-	mcpConnectPath, mcpConnectHandler := agentsv1connect.NewMCPServerServiceHandler(application.NewMCPServerServiceConnectAdapter(mcpSvcServer))
-	modelProviderConnectPath, modelProviderConnectHandler := agentsv1connect.NewModelProviderServiceHandler(application.NewModelProviderServiceConnectAdapter(modelProviderSvcServer))
-	notifyGroupConnectPath, notifyGroupConnectHandler := agentsv1connect.NewNotifyGroupServiceHandler(application.NewNotifyGroupServiceConnectAdapter(notifyGroupSvcServer))
-	remoteConnectPath, remoteConnectHandler := agentsv1connect.NewRemoteAgentServiceHandler(application.NewRemoteAgentServiceConnectAdapter(remoteSvcServer))
+	forumConnectPath, forumConnectHandler := agentsv1connect.NewForumServiceHandler(application.NewForumServiceConnectAdapter(forumSvcServer), connectOpts...)
+	agentConnectPath, agentConnectHandler := agentsv1connect.NewAgentServiceHandler(application.NewAgentServiceConnectAdapter(agentSvcServer), connectOpts...)
+	agentFileConnectPath, agentFileConnectHandler := agentsv1connect.NewAgentFileServiceHandler(application.NewAgentFileServiceConnectAdapter(agentFileSvcServer), connectOpts...)
+	mcpConnectPath, mcpConnectHandler := agentsv1connect.NewMCPServerServiceHandler(application.NewMCPServerServiceConnectAdapter(mcpSvcServer), connectOpts...)
+	modelProviderConnectPath, modelProviderConnectHandler := agentsv1connect.NewModelProviderServiceHandler(application.NewModelProviderServiceConnectAdapter(modelProviderSvcServer), connectOpts...)
+	notifyGroupConnectPath, notifyGroupConnectHandler := agentsv1connect.NewNotifyGroupServiceHandler(application.NewNotifyGroupServiceConnectAdapter(notifyGroupSvcServer), connectOpts...)
+	remoteConnectPath, remoteConnectHandler := agentsv1connect.NewRemoteAgentServiceHandler(application.NewRemoteAgentServiceConnectAdapter(remoteSvcServer), connectOpts...)
 	channelSvcServer := application.NewChannelServiceServer(configStore)
-	channelConnectPath, channelConnectHandler := agentsv1connect.NewChannelServiceHandler(application.NewChannelServiceConnectAdapter(channelSvcServer))
+	channelConnectPath, channelConnectHandler := agentsv1connect.NewChannelServiceHandler(application.NewChannelServiceConnectAdapter(channelSvcServer), connectOpts...)
 	sessionSvcServer := application.NewSessionServiceServer()
-	sessionConnectPath, sessionConnectHandler := agentsv1connect.NewSessionServiceHandler(application.NewSessionServiceConnectAdapter(sessionSvcServer))
+	sessionConnectPath, sessionConnectHandler := agentsv1connect.NewSessionServiceHandler(application.NewSessionServiceConnectAdapter(sessionSvcServer), connectOpts...)
 	cronSvcServer := application.NewCronJobServiceServer()
-	cronConnectPath, cronConnectHandler := agentsv1connect.NewCronJobServiceHandler(application.NewCronJobServiceConnectAdapter(cronSvcServer))
+	cronConnectPath, cronConnectHandler := agentsv1connect.NewCronJobServiceHandler(application.NewCronJobServiceConnectAdapter(cronSvcServer), connectOpts...)
 	dashboardSvcServer := application.NewDashboardServiceServer(configStore, daemonRegistry)
-	dashboardConnectPath, dashboardConnectHandler := agentsv1connect.NewDashboardServiceHandler(application.NewDashboardServiceConnectAdapter(dashboardSvcServer))
+	dashboardConnectPath, dashboardConnectHandler := agentsv1connect.NewDashboardServiceHandler(application.NewDashboardServiceConnectAdapter(dashboardSvcServer), connectOpts...)
 	daemonSvcServer := application.NewDaemonServiceServer(daemonRegistry)
-	daemonConnectPath, daemonConnectHandler := agentsv1connect.NewDaemonServiceHandler(application.NewDaemonServiceConnectAdapter(daemonSvcServer))
+	daemonConnectPath, daemonConnectHandler := agentsv1connect.NewDaemonServiceHandler(application.NewDaemonServiceConnectAdapter(daemonSvcServer), connectOpts...)
 	apiTokenSvcServer := application.NewAPITokenServiceServer(nil)
-	apiTokenConnectPath, apiTokenConnectHandler := agentsv1connect.NewAPITokenServiceHandler(application.NewAPITokenServiceConnectAdapter(apiTokenSvcServer))
+	apiTokenConnectPath, apiTokenConnectHandler := agentsv1connect.NewAPITokenServiceHandler(application.NewAPITokenServiceConnectAdapter(apiTokenSvcServer), connectOpts...)
 	authSvcServer := application.NewAuthServiceServer(nil, cfg.Auth.EffectiveSessionTTL())
-	authConnectPath, authConnectHandler := agentsv1connect.NewAuthServiceHandler(application.NewAuthServiceConnectAdapter(authSvcServer))
+	authConnectPath, authConnectHandler := agentsv1connect.NewAuthServiceHandler(application.NewAuthServiceConnectAdapter(authSvcServer), connectOpts...)
 	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
-	workspaceConnectPath, workspaceConnectHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceConnectAdapter(workspaceSvcServer))
+	workspaceConnectPath, workspaceConnectHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceConnectAdapter(workspaceSvcServer), connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
