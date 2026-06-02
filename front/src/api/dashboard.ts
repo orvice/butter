@@ -23,7 +23,7 @@ import type {
   HealthSummary,
   OverviewCounts,
 } from "@/types/api";
-import { tsToISO } from "./_proto-bridge";
+import { bigintToNumber, tsToISO } from "./_proto-bridge";
 import { makeClient } from "./transport";
 
 const client = makeClient(DashboardService);
@@ -72,7 +72,7 @@ function componentHealthFromProto(h: PbComponentHealth | undefined): ComponentHe
     status: healthStatusFromProto(h.status),
     detail: h.detail,
     checked_at: tsToISO(h.checkedAt),
-    latency_ms: h.latencyMs,
+    latency_ms: bigintToNumber(h.latencyMs),
   };
 }
 

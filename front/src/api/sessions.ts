@@ -138,7 +138,7 @@ async function createSession(params: CreateSessionParams): Promise<{ session: Se
     appName: params.app_name,
     userId: params.user_id,
     sessionId: params.session_id ?? "",
-    state: params.state ?? {},
+    state: (params.state ?? {}) as Record<string, unknown> as never,
   });
   if (!res.session) throw new Error("create returned nothing");
   return { session: infoFromProto(res.session) };

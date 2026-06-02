@@ -92,7 +92,7 @@ async function getAgentFile(
   });
   return {
     file: res.file ? fileFromProto(res.file) : undefined,
-    content: res.content ? new TextDecoder().decode(res.content) : undefined,
+    content: res.content || undefined,
   };
 }
 
@@ -108,7 +108,7 @@ async function writeAgentFile(input: WriteAgentFileInput): Promise<{ file?: Agen
   const res = await client.writeAgentFile({
     spaceId: input.spaceId,
     path: input.path,
-    content: new TextEncoder().encode(input.content),
+    content: input.content,
     contentType: input.contentType ?? "",
     metadata: input.metadata ?? {},
   });

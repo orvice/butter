@@ -16,7 +16,7 @@ import type {
   RemoteAgentState,
   RemoteAgentStatus,
 } from "@/types/api";
-import { tsToISO } from "./_proto-bridge";
+import { bigintToNumber, tsToISO } from "./_proto-bridge";
 import { makeClient } from "./transport";
 
 const client = makeClient(RemoteAgentService);
@@ -77,7 +77,7 @@ function statusFromProto(s: PbRemoteAgentStatus): RemoteAgentStatus {
     detail: s.detail,
     serving_daemon_id: s.servingDaemonId,
     checked_at: tsToISO(s.checkedAt),
-    latency_ms: s.latencyMs,
+    latency_ms: bigintToNumber(s.latencyMs),
   };
 }
 
