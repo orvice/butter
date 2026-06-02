@@ -47,11 +47,6 @@ Internal,InternalWith}` helper。生成的 `*.twirp.go` 文件、`go.mod` 里的
 
 剩余结构（**有意保留**）：
 
-- `connectx.WrapUnary` 适配器 + `internal/application/<svc>_connect.go`
-  一对文件的模式仍在。Service 业务方法签名仍是
-  `(ctx, *Req) (*Res, error)`，错误直接返回 `*connect.Error`，
-  `WrapUnary` 现在只是把方法包成 ConnectRPC handler 形状的一层，
-  错误直接 forward。
 - `connectx.HandlerOptions()` 仍强制 JSON 输出为 snake_case
   （`UseProtoNames=true`）。**前端浏览器调用现已切换到 binary protobuf**
   （`useBinaryFormat: true` in `front/src/api/transport.ts`），所以 JSON
@@ -59,19 +54,26 @@ Internal,InternalWith}` helper。生成的 `*.twirp.go` 文件、`go.mod` 里的
   codec hack 仍需全前端做 camelCase 重命名 + 撤掉 binary 切换，单独
   PR 更合适。
 
-## 3. 可选：原生 Connect 签名（更深度的清理）
+## 3. 原生 Connect 签名 ✅ 完成（commit `0f7218e`）
 
-如果将来需要直接读 Connect headers / trailers（例如把 chat SSE 收编到
-Connect server-stream），可以再做这一步：
+`connectx.WrapUnary` 适配器 + `internal/application/<svc>_connect.go` 文件
+全部删除。Service 方法签名改为原生 ConnectRPC 形式
+`(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，
+直接实现 `agentsv1connect.XxxServiceHandler` 接口；
+`routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载，
+不再需要中间适配器。
 
-- 删除 `internal/application/*_connect.go`
-- 把 `internal/application/*_service.go` 的方法签名改为
-  `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`
-- 业务代码访问 `req.Msg` 取请求体；service 直接实现
-  `agentsv1connect.XxxServiceHandler` 接口（不再需要 adapter）
-- **代价**：所有 `internal/application/*_test.go` 也得改签名
+副作用：
+- `internal/application/*_test.go` 全部更新为
+  `svc.Method(ctx, connect.NewRequest(&Req{...}))` 调用形式，
+  响应字段通过 `resp.Msg.GetX()` 访问。
+- `globalmcp_service.go::InstallGlobalMCPServer` 调用
+  `s.mcpSvc.CreateMCPServer` 也跟着用 `connect.NewRequest` + `.Msg`。
+- 净删除 **810 行**（15 个 adapter 文件 + WrapUnary 实现 + 测试 helper）。
 
-不是必须；适配器一层运行时开销可忽略。
+这步打开了未来把 chat SSE 改成 Connect server-stream 的门 —— streaming
+RPC 必须用原生 Connect 签名（`func(ctx, req, stream *connect.ServerStream[T]) error`）,
+adapter 形式没法表达。
 
 ## 4. 文档维护 ✅
 

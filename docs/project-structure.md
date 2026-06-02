@@ -63,47 +63,32 @@ butter/
 │   │   ├── routes.go            # ConnectRPC + HTTP + auth wiring
 │   │   ├── runtime.go
 │   │   └── system_agent.go
-│   ├── application/             # RPC service implementations.
-│   │   │                        # Each service is split into:
-│   │   │                        #   <svc>_service.go  — business logic (raw proto req/res)
-│   │   │                        #   <svc>_connect.go  — ConnectRPC adapter (delegates via WrapUnary)
+│   ├── application/             # RPC service implementations. Each
+│   │   │                        # `<svc>_service.go` uses native ConnectRPC
+│   │   │                        # signatures and is handed straight to
+│   │   │                        # agentsv1connect.NewXxxServiceHandler.
 │   │   ├── agent_service.go
-│   │   ├── agent_connect.go
 │   │   ├── agentfile_service.go
-│   │   ├── agentfile_connect.go
 │   │   ├── apitoken_service.go
-│   │   ├── apitoken_connect.go
 │   │   ├── auth_service.go
 │   │   ├── auth_oauth.go
-│   │   ├── auth_connect.go
 │   │   ├── channel_service.go
-│   │   ├── channel_connect.go
 │   │   ├── cron_service.go
-│   │   ├── cron_connect.go
 │   │   ├── daemon_service.go
-│   │   ├── daemon_connect.go
 │   │   ├── dashboard_service.go
-│   │   ├── dashboard_connect.go
 │   │   ├── forum_service.go
-│   │   ├── forum_connect.go
 │   │   ├── globalmcp_service.go
-│   │   ├── globalmcp_connect.go
 │   │   ├── mcpserver_service.go
-│   │   ├── mcpserver_connect.go
 │   │   ├── modelprovider_service.go
-│   │   ├── modelprovider_connect.go
 │   │   ├── notifygroup_service.go
-│   │   ├── notifygroup_connect.go
 │   │   ├── remoteagent_service.go
-│   │   ├── remoteagent_connect.go
 │   │   ├── runtime_mutation.go
 │   │   ├── session_service.go
-│   │   ├── session_connect.go
-│   │   ├── workspace_service.go
-│   │   └── workspace_connect.go
+│   │   └── workspace_service.go
 │   ├── transport/
-│   │   └── connectx/            # WrapUnary adapter, connect error helpers,
-│   │                            # snake_case JSON codec (HandlerOptions)
+│   │   └── connectx/            # connect.Error helpers (RequiredArgument
+│   │                            # /NotFound/InternalWith/…) + snake_case
+│   │                            # JSON codec (HandlerOptions)
 │   ├── channel/
 │   │   ├── manager.go           # ChannelStatus + RuntimeState
 │   │   ├── discord/
@@ -191,8 +176,8 @@ butter/
 
 - `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 gRPC 反连服务端的 daemon client（自报 version / os / executors）。
 - `internal/app/`：应用装配与初始化（路由、gRPC、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
-- `internal/application/`：RPC 服务实现（Agent / AgentFile / MCPServer / GlobalMCPServer / ModelProvider / NotifyGroup / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken / Auth / Forum / Workspace）。每个服务一对文件：`*_service.go` 写业务逻辑，方法签名保持 `(ctx, *Req) (*Res, error)`，错误直接用 `connect.NewError` 或 `connectx` helper 返回 `*connect.Error`；`*_connect.go` 是 ConnectRPC 适配器，通过 `connectx.WrapUnary` 把方法包成 `agentsv1connect.XxxServiceHandler`。
-- `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`WrapUnary` 把 raw proto request/response 签名包成 Connect handler 方法，错误直接 forward；`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` 等 helper 负责常用 `connect.Error` 构造；`HandlerOptions()` 返回固定的 codec/option 列表，强制 JSON 输出用 `UseProtoNames=true`（snake_case），保持迁移前的 JSON wire format。
+- `internal/application/`：RPC 服务实现（Agent / AgentFile / MCPServer / GlobalMCPServer / ModelProvider / NotifyGroup / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken / Auth / Forum / Workspace）。每个服务一个 `*_service.go`，方法签名是原生 ConnectRPC 形式 `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，直接满足 `agentsv1connect.XxxServiceHandler` 接口，由 `routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载。错误用 `connect.NewError` 或 `connectx` helper 构造。
+- `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` / `InternalWith` 是 `connect.Error` 的常用构造短手；`HandlerOptions()` 返回固定的 codec/option 列表，强制 JSON 输出用 `UseProtoNames=true`（snake_case），保持迁移前的 JSON wire format。
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
 - `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
 - `internal/channel/`：渠道适配与渠道管理（Telegram、Discord），含 `RuntimeState` 探活。
@@ -208,6 +193,6 @@ butter/
 
 - 新增模块优先放在现有分层下，避免在 `internal/` 根目录继续平铺。
 - `pkg/proto/` 与 `front/src/gen/` 均为生成代码目录，手动变更应在 `proto/` 中进行后 `make buf` 重新生成。
-- 新增 RPC service：在 `proto/agents/v1/*.proto` 定义 service + messages → `make buf` 生成代码 → 在 `internal/application/` 加 `<svc>_service.go`（业务逻辑）和 `<svc>_connect.go`（按现有 adapter 模板，每个 RPC 一行 `connectx.WrapUnary`）→ 在 `internal/app/routes.go` 用 `agentsv1connect.NewXxxServiceHandler(...)` 创建 handler 并挂在 `/api/agents.v1.XxxService/*`（注意 `http.StripPrefix("/api", ...)`）→ 前端在 `front/src/api/` 加文件，`makeClient(XxxService)` 拿到类型化 client。
+- 新增 RPC service：在 `proto/agents/v1/*.proto` 定义 service + messages → `make buf` 生成代码 → 在 `internal/application/` 加 `<svc>_service.go`，每个 RPC 方法签名为 `func (s *XxxServiceServer) Method(ctx context.Context, req *connect.Request[agentsv1.YyyRequest]) (*connect.Response[agentsv1.YyyResponse], error)`，方法体访问 `req.Msg.GetX()`，返回 `connect.NewResponse(&agentsv1.YyyResponse{...})` → 在 `internal/app/routes.go` 用 `agentsv1connect.NewXxxServiceHandler(svc, connectOpts...)` 创建 handler，并挂到 `/api/agents.v1.XxxService/*`（`http.StripPrefix("/api", handler)`）→ 前端在 `front/src/api/` 加文件，`makeClient(XxxService)` 拿到类型化 client。
 - 新增 MongoDB collection：在 `internal/repo/` 下加同名子包，提供 interface + memory + mongo 两实现，在 `internal/app/channels.go` 按 `storage_backend` 选择后端并注入 BootstrapResult。
 - 结构变更后同步更新本文件，保证文档与仓库一致。
