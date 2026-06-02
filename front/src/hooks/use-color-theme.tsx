@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { COLOR_THEME_KEY } from "@/lib/constants";
 
-export type ColorThemeId = "butter" | "mint" | "blueberry" | "rose" | "slate";
+export type ColorThemeId = "butter" | "mint" | "blueberry" | "rose" | "slate" | "day" | "dark";
 
 export type ColorTheme = {
   id: ColorThemeId;
@@ -42,6 +42,18 @@ const COLOR_THEMES: ColorTheme[] = [
     name: "Slate",
     description: "Neutral graphite with cyan signals",
     swatches: ["#475569", "#0891b2", "#e2e8f0"],
+  },
+  {
+    id: "day",
+    name: "Day",
+    description: "Bright sky blue with warm sunlight",
+    swatches: ["#0ea5e9", "#f59e0b", "#e0f2fe"],
+  },
+  {
+    id: "dark",
+    name: "Dark",
+    description: "Deep charcoal with neutral greys",
+    swatches: ["#27272a", "#52525b", "#e4e4e7"],
   },
 ];
 
