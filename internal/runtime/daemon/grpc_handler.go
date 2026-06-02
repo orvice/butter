@@ -19,15 +19,15 @@ import (
 type GRPCHandler struct {
 	agentsv1.UnimplementedDaemonConnectorServiceServer
 
-	registry *Registry
-	apiToken string
+	registry         *Registry
+	apiTokenProvider func() string
 }
 
 // NewGRPCHandler creates a new handler for daemon connections.
-func NewGRPCHandler(registry *Registry, apiToken string) *GRPCHandler {
+func NewGRPCHandler(registry *Registry, apiTokenProvider func() string) *GRPCHandler {
 	return &GRPCHandler{
-		registry: registry,
-		apiToken: apiToken,
+		registry:         registry,
+		apiTokenProvider: apiTokenProvider,
 	}
 }
 
@@ -121,7 +121,8 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 }
 
 func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnectorService_ConnectServer) error {
-	if h.apiToken == "" {
+	apiToken := strings.TrimSpace(h.apiToken())
+	if apiToken == "" {
 		return nil
 	}
 
@@ -136,9 +137,16 @@ func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnectorService_Connec
 	}
 
 	token := strings.TrimPrefix(values[0], "Bearer ")
-	if token != h.apiToken {
+	if token != apiToken {
 		return status.Errorf(codes.Unauthenticated, "invalid token")
 	}
 
 	return nil
+}
+
+func (h *GRPCHandler) apiToken() string {
+	if h.apiTokenProvider == nil {
+		return ""
+	}
+	return h.apiTokenProvider()
 }

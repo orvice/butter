@@ -44,12 +44,12 @@ function connectCodeToString(code: Code): string {
 }
 
 // transport is configured once and shared across all generated clients.
-// JSON-over-grpc-web is used (binary=false) so traffic stays inspectable
-// in the browser devtools network panel; switch to true when bandwidth or
-// latency matters more than debuggability.
+// The Go server is a grpc-go server wrapped for grpc-web, so use binary
+// protobuf framing instead of JSON grpc-web, which would require a server
+// JSON codec.
 export const transport: Transport = createGrpcWebTransport({
   baseUrl: BASE_URL || "/",
-  useBinaryFormat: false,
+  useBinaryFormat: true,
   interceptors: [authInterceptor],
 });
 

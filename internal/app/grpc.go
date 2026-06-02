@@ -37,7 +37,12 @@ func BuildGRPCServer(cfg *config.AppConfig, registry *daemon.Registry, handlers 
 
 	// Daemon connector keeps its existing token-based auth contract; the
 	// interceptor's PublicMethods list lets it through to the handler.
-	daemonHandler := daemon.NewGRPCHandler(registry, cfg.APIToken)
+	daemonHandler := daemon.NewGRPCHandler(registry, func() string {
+		if cfg == nil {
+			return ""
+		}
+		return cfg.APIToken
+	})
 	agentsv1.RegisterDaemonConnectorServiceServer(srv, daemonHandler)
 
 	// User-facing services share the auth interceptor and reuse the same

@@ -77,29 +77,21 @@ type Result struct {
 // authenticate a request. Repository providers are read lazily on every
 // call so they pick up post-bootstrap wiring.
 type Resolver struct {
-	rootToken            string
-	allowUnauthenticated bool
-	authProvider         AuthRepoProvider
-	apiTokenProvider     APITokenRepoProvider
-	workspaceProvider    WorkspaceRepoProvider
+	cfg               *config.AppConfig
+	authProvider      AuthRepoProvider
+	apiTokenProvider  APITokenRepoProvider
+	workspaceProvider WorkspaceRepoProvider
 
 	fallbackWarn sync.Once
 }
 
 // New constructs a Resolver.
 func New(cfg *config.AppConfig, authP AuthRepoProvider, apiTokenP APITokenRepoProvider, wsP WorkspaceRepoProvider) *Resolver {
-	rootToken := ""
-	allow := false
-	if cfg != nil {
-		rootToken = strings.TrimSpace(cfg.APIToken)
-		allow = cfg.Auth.AllowUnauthenticated
-	}
 	return &Resolver{
-		rootToken:            rootToken,
-		allowUnauthenticated: allow,
-		authProvider:         authP,
-		apiTokenProvider:     apiTokenP,
-		workspaceProvider:    wsP,
+		cfg:               cfg,
+		authProvider:      authP,
+		apiTokenProvider:  apiTokenP,
+		workspaceProvider: wsP,
 	}
 }
 
@@ -110,10 +102,11 @@ func (r *Resolver) Resolve(ctx context.Context, h HeaderSource) Result {
 	authRepo := r.lookupAuthRepo()
 	apiTokenRepo := r.lookupAPITokenRepo()
 	workspaceRepo := r.lookupWorkspaceRepo()
+	rootToken := r.rootToken()
 
 	// Dev/legacy bootstrap path: no auth wired at all.
-	if r.rootToken == "" && authRepo == nil && apiTokenRepo == nil {
-		if !r.allowUnauthenticated {
+	if rootToken == "" && authRepo == nil && apiTokenRepo == nil {
+		if !r.allowUnauthenticated() {
 			log.FromContext(ctx).Warn(
 				"auth not configured and allow_unauthenticated=false; rejecting request",
 			)
@@ -151,7 +144,7 @@ func (r *Resolver) Resolve(ctx context.Context, h HeaderSource) Result {
 	}
 
 	// Root token constant-time compare for ops/daemon/API compatibility.
-	if r.rootToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(r.rootToken)) == 1 {
+	if rootToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(rootToken)) == 1 {
 		newCtx := auth.WithAdmin(ctx)
 		newCtx = ApplyWorkspaceHeader(newCtx, h, workspaceRepo, "", true)
 		return Result{Ctx: newCtx, Outcome: OutcomeAuthenticated}
@@ -188,6 +181,17 @@ func (r *Resolver) lookupAuthRepo() auth.Repository {
 		return nil
 	}
 	return r.authProvider()
+}
+
+func (r *Resolver) rootToken() string {
+	if r.cfg == nil {
+		return ""
+	}
+	return strings.TrimSpace(r.cfg.APIToken)
+}
+
+func (r *Resolver) allowUnauthenticated() bool {
+	return r.cfg != nil && r.cfg.Auth.AllowUnauthenticated
 }
 
 func (r *Resolver) lookupAPITokenRepo() apitoken.Repository {

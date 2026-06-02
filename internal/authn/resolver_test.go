@@ -42,11 +42,41 @@ func TestResolver_AllowUnauthenticated_GrantsAdmin(t *testing.T) {
 	}
 }
 
+func TestResolver_AllowUnauthenticated_ReadsConfigLazily(t *testing.T) {
+	cfg := &config.AppConfig{}
+	r := New(cfg, nil, nil, nil)
+
+	cfg.Auth.AllowUnauthenticated = true
+
+	got := r.Resolve(context.Background(), staticHeaders{})
+	if got.Outcome != OutcomeAuthenticated {
+		t.Fatalf("expected authenticated after allow_unauthenticated is loaded, got %v", got.Outcome)
+	}
+	if !auth.IsAdmin(got.Ctx) {
+		t.Fatalf("expected admin context in dev fallback")
+	}
+}
+
 func TestResolver_RootToken_Match(t *testing.T) {
 	r := New(&config.AppConfig{APIToken: "secret"}, nil, nil, nil)
 	got := r.Resolve(context.Background(), staticHeaders{"Authorization": "Bearer secret"})
 	if got.Outcome != OutcomeAuthenticated {
 		t.Fatalf("expected authenticated, got %v", got.Outcome)
+	}
+	if !auth.IsAdmin(got.Ctx) {
+		t.Fatalf("root token should grant admin")
+	}
+}
+
+func TestResolver_RootToken_ReadsConfigLazily(t *testing.T) {
+	cfg := &config.AppConfig{}
+	r := New(cfg, nil, nil, nil)
+
+	cfg.APIToken = "loaded-secret"
+
+	got := r.Resolve(context.Background(), staticHeaders{"Authorization": "Bearer loaded-secret"})
+	if got.Outcome != OutcomeAuthenticated {
+		t.Fatalf("expected authenticated after token is loaded, got %v", got.Outcome)
 	}
 	if !auth.IsAdmin(got.Ctx) {
 		t.Fatalf("root token should grant admin")
@@ -65,13 +95,13 @@ func TestResolver_BearerParsing(t *testing.T) {
 	r := New(&config.AppConfig{APIToken: "secret"}, nil, nil, nil)
 
 	cases := map[string]Outcome{
-		"":                  OutcomeRejected, // missing
-		"secret":            OutcomeRejected, // no scheme
-		"Token secret":      OutcomeRejected, // wrong scheme
-		"Bearer":            OutcomeRejected, // empty token
-		"Bearer ":           OutcomeRejected, // empty after trim
-		"Bearer secret":     OutcomeAuthenticated,
-		"Bearer  secret  ":  OutcomeAuthenticated, // surrounding ws is tolerated
+		"":                 OutcomeRejected, // missing
+		"secret":           OutcomeRejected, // no scheme
+		"Token secret":     OutcomeRejected, // wrong scheme
+		"Bearer":           OutcomeRejected, // empty token
+		"Bearer ":          OutcomeRejected, // empty after trim
+		"Bearer secret":    OutcomeAuthenticated,
+		"Bearer  secret  ": OutcomeAuthenticated, // surrounding ws is tolerated
 	}
 	for hdr, want := range cases {
 		got := r.Resolve(context.Background(), staticHeaders{"Authorization": hdr})

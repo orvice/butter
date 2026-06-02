@@ -24,7 +24,32 @@ func startTestServer(t *testing.T, registry *Registry, apiToken string) (agentsv
 	}
 
 	srv := grpc.NewServer()
-	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, apiToken))
+	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, func() string { return apiToken }))
+	go srv.Serve(lis)
+
+	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		srv.Stop()
+		t.Fatalf("dial: %v", err)
+	}
+
+	client := agentsv1.NewDaemonConnectorServiceClient(conn)
+	cleanup := func() {
+		conn.Close()
+		srv.Stop()
+	}
+	return client, cleanup
+}
+
+func startTestServerWithTokenProvider(t *testing.T, registry *Registry, apiTokenProvider func() string) (agentsv1.DaemonConnectorServiceClient, func()) {
+	t.Helper()
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+
+	srv := grpc.NewServer()
+	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, apiTokenProvider))
 	go srv.Serve(lis)
 
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -182,5 +207,36 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if conn := registry.FindByCapability("test"); conn == nil {
 		t.Fatal("expected daemon to be registered with valid token")
+	}
+}
+
+func TestGRPCHandlerAuthReadsTokenLazily(t *testing.T) {
+	registry := NewRegistry()
+	apiToken := ""
+	client, cleanup := startTestServerWithTokenProvider(t, registry, func() string { return apiToken })
+	defer cleanup()
+
+	apiToken = "loaded-token"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer loaded-token")
+
+	stream, err := client.Connect(ctx)
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	err = stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_Register{
+			Register: &agentsv1.DaemonInfo{DaemonId: "lazy", Capabilities: []string{"lazy-token"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	if conn := registry.FindByCapability("lazy-token"); conn == nil {
+		t.Fatal("expected daemon to be registered with token loaded after handler construction")
 	}
 }
