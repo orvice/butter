@@ -1,38 +1,99 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "./client";
+import { create } from "@bufbuild/protobuf";
+import {
+  AgentFileService,
+  AgentFileSpaceSchema,
+  type AgentFile as PbAgentFile,
+  type AgentFileSearchResult as PbAgentFileSearchResult,
+  type AgentFileSpace as PbAgentFileSpace,
+} from "@/gen/agents/v1/agent_file_pb";
 import type { AgentFile, AgentFileSearchResult, AgentFileSpace } from "@/types/api";
+import { bigintToNumber, tsToISO } from "./_proto-bridge";
+import { makeClient } from "./transport";
 
-const SVC = "agents.v1.AgentFileService";
+const client = makeClient(AgentFileService);
 
-function listAgentFileSpaces() {
-  return twirpFetch<object, { spaces?: AgentFileSpace[] }>(SVC, "ListAgentFileSpaces", {});
+function spaceFromProto(s: PbAgentFileSpace): AgentFileSpace {
+  return {
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    metadata: s.metadata,
+    created_at: tsToISO(s.createdAt),
+    updated_at: tsToISO(s.updatedAt),
+    workspace_id: s.workspaceId,
+  };
 }
 
-function createAgentFileSpace(space: AgentFileSpace) {
-  return twirpFetch<{ space: AgentFileSpace }, { space?: AgentFileSpace }>(SVC, "CreateAgentFileSpace", { space });
+function spaceToProto(s: AgentFileSpace): PbAgentFileSpace {
+  return create(AgentFileSpaceSchema, {
+    id: s.id ?? "",
+    name: s.name,
+    description: s.description ?? "",
+    metadata: s.metadata ?? {},
+  });
 }
 
-function updateAgentFileSpace(space: AgentFileSpace) {
-  return twirpFetch<{ space: AgentFileSpace }, { space?: AgentFileSpace }>(SVC, "UpdateAgentFileSpace", { space });
+function fileFromProto(f: PbAgentFile): AgentFile {
+  return {
+    id: f.id,
+    space_id: f.spaceId,
+    path: f.path,
+    content_type: f.contentType,
+    size_bytes: bigintToNumber(f.sizeBytes),
+    version: bigintToNumber(f.version),
+    metadata: f.metadata,
+    created_at: tsToISO(f.createdAt),
+    updated_at: tsToISO(f.updatedAt),
+    workspace_id: f.workspaceId,
+  };
 }
 
-function deleteAgentFileSpace(id: string) {
-  return twirpFetch<{ id: string }, object>(SVC, "DeleteAgentFileSpace", { id });
+function searchResultFromProto(r: PbAgentFileSearchResult): AgentFileSearchResult {
+  return {
+    file: r.file ? fileFromProto(r.file) : undefined,
+    snippets: r.snippets,
+  };
 }
 
-function listAgentFiles(spaceId: string, pathPrefix = "") {
-  return twirpFetch<{ space_id: string; path_prefix?: string }, { files?: AgentFile[] }>(
-    SVC,
-    "ListAgentFiles",
-    { space_id: spaceId, path_prefix: pathPrefix },
-  );
+async function listAgentFileSpaces(): Promise<{ spaces?: AgentFileSpace[] }> {
+  const res = await client.listAgentFileSpaces({});
+  return { spaces: res.spaces.map(spaceFromProto) };
 }
 
-function getAgentFile(spaceId: string, path: string, version?: number) {
-  return twirpFetch<
-    { space_id: string; path: string; version?: number },
-    { file?: AgentFile; content?: string }
-  >(SVC, "GetAgentFile", { space_id: spaceId, path, version });
+async function createAgentFileSpace(space: AgentFileSpace): Promise<{ space?: AgentFileSpace }> {
+  const res = await client.createAgentFileSpace({ space: spaceToProto(space) });
+  return { space: res.space ? spaceFromProto(res.space) : undefined };
+}
+
+async function updateAgentFileSpace(space: AgentFileSpace): Promise<{ space?: AgentFileSpace }> {
+  const res = await client.updateAgentFileSpace({ space: spaceToProto(space) });
+  return { space: res.space ? spaceFromProto(res.space) : undefined };
+}
+
+async function deleteAgentFileSpace(id: string): Promise<void> {
+  await client.deleteAgentFileSpace({ id });
+}
+
+async function listAgentFiles(spaceId: string, pathPrefix = ""): Promise<{ files?: AgentFile[] }> {
+  const res = await client.listAgentFiles({ spaceId, pathPrefix });
+  return { files: res.files.map(fileFromProto) };
+}
+
+async function getAgentFile(
+  spaceId: string,
+  path: string,
+  version?: number,
+): Promise<{ file?: AgentFile; content?: string }> {
+  const res = await client.getAgentFile({
+    spaceId,
+    path,
+    version: version !== undefined ? BigInt(version) : 0n,
+  });
+  return {
+    file: res.file ? fileFromProto(res.file) : undefined,
+    content: res.content ? new TextDecoder().decode(res.content) : undefined,
+  };
 }
 
 interface WriteAgentFileInput {
@@ -43,28 +104,28 @@ interface WriteAgentFileInput {
   metadata?: Record<string, string>;
 }
 
-function writeAgentFile(input: WriteAgentFileInput) {
-  return twirpFetch<
-    { space_id: string; path: string; content: string; content_type?: string; metadata?: Record<string, string> },
-    { file?: AgentFile }
-  >(SVC, "WriteAgentFile", {
-    space_id: input.spaceId,
+async function writeAgentFile(input: WriteAgentFileInput): Promise<{ file?: AgentFile }> {
+  const res = await client.writeAgentFile({
+    spaceId: input.spaceId,
     path: input.path,
-    content: input.content,
-    content_type: input.contentType,
-    metadata: input.metadata,
+    content: new TextEncoder().encode(input.content),
+    contentType: input.contentType ?? "",
+    metadata: input.metadata ?? {},
   });
+  return { file: res.file ? fileFromProto(res.file) : undefined };
 }
 
-function deleteAgentFile({ spaceId, path }: { spaceId: string; path: string }) {
-  return twirpFetch<{ space_id: string; path: string }, object>(SVC, "DeleteAgentFile", { space_id: spaceId, path });
+async function deleteAgentFile({ spaceId, path }: { spaceId: string; path: string }): Promise<void> {
+  await client.deleteAgentFile({ spaceId, path });
 }
 
-function searchAgentFiles(spaceId: string, query: string, limit = 20) {
-  return twirpFetch<
-    { space_id: string; query: string; limit?: number },
-    { results?: AgentFileSearchResult[] }
-  >(SVC, "SearchAgentFiles", { space_id: spaceId, query, limit });
+async function searchAgentFiles(
+  spaceId: string,
+  query: string,
+  limit = 20,
+): Promise<{ results?: AgentFileSearchResult[] }> {
+  const res = await client.searchAgentFiles({ spaceId, query, limit });
+  return { results: res.results.map(searchResultFromProto) };
 }
 
 export function useAgentFileSpaces() {

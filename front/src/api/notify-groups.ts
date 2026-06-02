@@ -1,35 +1,140 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "./client";
-import type { NotifyGroup } from "@/types/api";
+import { create } from "@bufbuild/protobuf";
+import {
+  DiscordNotifyTargetSchema,
+  LarkNotifyTargetSchema,
+  NotifyGroupSchema,
+  NotifyTargetSchema,
+  NotifyTargetType,
+  TelegramNotifyTargetSchema,
+  type NotifyGroup as PbNotifyGroup,
+  type NotifyTarget as PbNotifyTarget,
+} from "@/gen/agents/v1/agent_pb";
+import { NotifyGroupService } from "@/gen/agents/v1/agent_service_pb";
+import type { NotifyGroup, NotifyTarget, NotifyTargetType as LegacyType } from "@/types/api";
+import { bigintToNumber } from "./_proto-bridge";
+import { makeClient } from "./transport";
 
-const SVC = "agents.v1.NotifyGroupService";
+const client = makeClient(NotifyGroupService);
 
-function listNotifyGroups() {
-  return twirpFetch<object, { notify_groups: NotifyGroup[] }>(SVC, "ListNotifyGroups", {});
+const NOTIFY_TARGET_TYPE_NAMES: LegacyType[] = [
+  "NOTIFY_TARGET_TYPE_UNSPECIFIED",
+  "NOTIFY_TARGET_TYPE_TELEGRAM",
+  "NOTIFY_TARGET_TYPE_LARK_WEBHOOK",
+  "NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK",
+];
+
+function typeFromProto(t: NotifyTargetType): LegacyType {
+  return NOTIFY_TARGET_TYPE_NAMES[t] ?? "NOTIFY_TARGET_TYPE_UNSPECIFIED";
 }
 
-function getNotifyGroup(name: string) {
-  return twirpFetch<{ name: string }, { notify_group: NotifyGroup }>(SVC, "GetNotifyGroup", { name });
+function typeToProto(t: LegacyType | undefined): NotifyTargetType {
+  const idx = NOTIFY_TARGET_TYPE_NAMES.indexOf(t ?? "NOTIFY_TARGET_TYPE_UNSPECIFIED");
+  return idx < 0 ? NotifyTargetType.UNSPECIFIED : (idx as NotifyTargetType);
 }
 
-function createNotifyGroup(notify_group: NotifyGroup) {
-  return twirpFetch<{ notify_group: NotifyGroup }, { notify_group: NotifyGroup }>(
-    SVC,
-    "CreateNotifyGroup",
-    { notify_group },
-  );
+function targetFromProto(t: PbNotifyTarget): NotifyTarget {
+  return {
+    name: t.name,
+    enabled: t.enabled,
+    type: typeFromProto(t.type),
+    telegram: t.telegram
+      ? {
+          bot_token: t.telegram.botToken,
+          chat_id: t.telegram.chatId,
+          parse_mode: t.telegram.parseMode,
+          message_thread_id: bigintToNumber(t.telegram.messageThreadId),
+        }
+      : undefined,
+    lark: t.lark
+      ? { webhook_url: t.lark.webhookUrl, secret: t.lark.secret }
+      : undefined,
+    discord: t.discord
+      ? {
+          webhook_url: t.discord.webhookUrl,
+          username: t.discord.username,
+          avatar_url: t.discord.avatarUrl,
+          thread_id: t.discord.threadId,
+        }
+      : undefined,
+    metadata: t.metadata,
+  };
 }
 
-function updateNotifyGroup(notify_group: NotifyGroup) {
-  return twirpFetch<{ notify_group: NotifyGroup }, { notify_group: NotifyGroup }>(
-    SVC,
-    "UpdateNotifyGroup",
-    { notify_group },
-  );
+function targetToProto(t: NotifyTarget): PbNotifyTarget {
+  return create(NotifyTargetSchema, {
+    name: t.name ?? "",
+    enabled: t.enabled ?? false,
+    type: typeToProto(t.type),
+    telegram: t.telegram
+      ? create(TelegramNotifyTargetSchema, {
+          botToken: t.telegram.bot_token ?? "",
+          chatId: t.telegram.chat_id ?? "",
+          parseMode: t.telegram.parse_mode ?? "",
+          messageThreadId: BigInt(t.telegram.message_thread_id ?? 0),
+        })
+      : undefined,
+    lark: t.lark
+      ? create(LarkNotifyTargetSchema, {
+          webhookUrl: t.lark.webhook_url ?? "",
+          secret: t.lark.secret ?? "",
+        })
+      : undefined,
+    discord: t.discord
+      ? create(DiscordNotifyTargetSchema, {
+          webhookUrl: t.discord.webhook_url ?? "",
+          username: t.discord.username ?? "",
+          avatarUrl: t.discord.avatar_url ?? "",
+          threadId: t.discord.thread_id ?? "",
+        })
+      : undefined,
+    metadata: t.metadata ?? {},
+  });
 }
 
-function deleteNotifyGroup(name: string) {
-  return twirpFetch<{ name: string }, object>(SVC, "DeleteNotifyGroup", { name });
+function fromProto(g: PbNotifyGroup): NotifyGroup {
+  return {
+    name: g.name,
+    enabled: g.enabled,
+    targets: g.targets.map(targetFromProto),
+    metadata: g.metadata,
+  };
+}
+
+function toProto(g: NotifyGroup): PbNotifyGroup {
+  return create(NotifyGroupSchema, {
+    name: g.name,
+    enabled: g.enabled ?? false,
+    targets: (g.targets ?? []).map(targetToProto),
+    metadata: g.metadata ?? {},
+  });
+}
+
+async function listNotifyGroups(): Promise<{ notify_groups: NotifyGroup[] }> {
+  const res = await client.listNotifyGroups({});
+  return { notify_groups: res.notifyGroups.map(fromProto) };
+}
+
+async function getNotifyGroup(name: string): Promise<{ notify_group: NotifyGroup }> {
+  const res = await client.getNotifyGroup({ name });
+  if (!res.notifyGroup) throw new Error("not found");
+  return { notify_group: fromProto(res.notifyGroup) };
+}
+
+async function createNotifyGroup(group: NotifyGroup): Promise<{ notify_group: NotifyGroup }> {
+  const res = await client.createNotifyGroup({ notifyGroup: toProto(group) });
+  if (!res.notifyGroup) throw new Error("create returned no group");
+  return { notify_group: fromProto(res.notifyGroup) };
+}
+
+async function updateNotifyGroup(group: NotifyGroup): Promise<{ notify_group: NotifyGroup }> {
+  const res = await client.updateNotifyGroup({ notifyGroup: toProto(group) });
+  if (!res.notifyGroup) throw new Error("update returned no group");
+  return { notify_group: fromProto(res.notifyGroup) };
+}
+
+async function deleteNotifyGroup(name: string): Promise<void> {
+  await client.deleteNotifyGroup({ name });
 }
 
 export function useNotifyGroups() {
