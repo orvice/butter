@@ -17,6 +17,7 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/mcpoauth"
+	workspacemcp "go.orx.me/apps/butter/internal/mcpserver"
 	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
@@ -49,6 +50,7 @@ type Handlers struct {
 	apiTokenSvcServer      *application.APITokenServiceServer
 	authSvcServer          *application.AuthServiceServer
 	workspaceSvcServer     *application.WorkspaceServiceServer
+	workspaceMCPSvc        *workspacemcp.Service
 	authRepo               atomic.Value // auth.Repository
 	apiTokenRepo           atomic.Value // apitoken.Repository
 	forumRepo              atomic.Value // forum.Repository
@@ -128,6 +130,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.agentFileSvcServer.SetRepo(result.AgentFileRepo)
 		h.agentFileSvcServer.SetMaxFileBytes(result.AgentFileMaxBytes)
 	}
+	if result.AgentFileRepo != nil && h.workspaceMCPSvc != nil {
+		h.workspaceMCPSvc.SetAgentFileRepo(result.AgentFileRepo)
+	}
 	if result.MCPAuthResolver != nil {
 		h.mcpSvcServer.SetMCPHTTPClientFactory(result.MCPAuthResolver)
 	}
@@ -189,6 +194,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.workspaceRepo.Store(result.WorkspaceRepo)
 		if h.workspaceSvcServer != nil {
 			h.workspaceSvcServer.SetRepo(result.WorkspaceRepo)
+		}
+		if h.workspaceMCPSvc != nil {
+			h.workspaceMCPSvc.SetWorkspaceRepo(result.WorkspaceRepo)
 		}
 		if h.authSvcServer != nil {
 			h.authSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
@@ -290,6 +298,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	authTwirp := agentsv1.NewAuthServiceServer(authSvcServer, pathPrefix)
 	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
 	workspaceTwirp := agentsv1.NewWorkspaceServiceServer(workspaceSvcServer, pathPrefix)
+	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
 		a2aHandler:             a2aHandler,
@@ -309,6 +318,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		apiTokenSvcServer:      apiTokenSvcServer,
 		authSvcServer:          authSvcServer,
 		workspaceSvcServer:     workspaceSvcServer,
+		workspaceMCPSvc:        workspaceMCPSvc,
 		configStore:            configStore,
 		configRuntime:          configRuntime,
 		agentRepo:              configStore,
@@ -327,6 +337,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		a2aHandler.Register(r)
 		chatStreamHandler.Register(r)
 		uploadHandler.Register(r)
+		httpHandler.RegisterWorkspaceMCP(r, workspaceMCPSvc.Handler(), handlers.workspaceRepoFromHolder)
 		registerGlobalMCPServerRoutes(r, handlers, mcpSvcServer)
 		r.GET(mcpoauth.CallbackPath, func(c *gin.Context) {
 			status := "error"
