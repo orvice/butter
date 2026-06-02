@@ -337,7 +337,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		a2aHandler.Register(r)
 		chatStreamHandler.Register(r)
 		uploadHandler.Register(r)
-		httpHandler.RegisterWorkspaceMCP(r, workspaceMCPSvc.Handler())
+		httpHandler.RegisterWorkspaceMCP(r, workspaceMCPSvc.Handler(), handlers.workspaceRepoFromHolder)
 		registerGlobalMCPServerRoutes(r, handlers, mcpSvcServer)
 		r.GET(mcpoauth.CallbackPath, func(c *gin.Context) {
 			status := "error"

@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -14,6 +16,7 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	agentfilememory "go.orx.me/apps/butter/internal/repo/agentfile/memory"
 	apitokenmemory "go.orx.me/apps/butter/internal/repo/apitoken/memory"
+	authrepo "go.orx.me/apps/butter/internal/repo/auth"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -34,6 +37,64 @@ func (h staticOAuthHandler) RoundTrip(req *http.Request) (*http.Response, error)
 	}
 	return base.RoundTrip(clone)
 }
+
+type sessionAuthRepo struct {
+	tokenHash string
+	user      *agentsv1.User
+	session   *authrepo.Session
+}
+
+func (r *sessionAuthRepo) EnsureIndexes(context.Context) error { return nil }
+func (r *sessionAuthRepo) CountUsers(context.Context) (int64, error) {
+	if r.user == nil {
+		return 0, nil
+	}
+	return 1, nil
+}
+func (r *sessionAuthRepo) ListUsers(context.Context) ([]*agentsv1.User, error) {
+	if r.user == nil {
+		return nil, nil
+	}
+	return []*agentsv1.User{r.user}, nil
+}
+func (r *sessionAuthRepo) CreateUser(context.Context, *agentsv1.User, string) error {
+	return errors.New("not implemented")
+}
+func (r *sessionAuthRepo) UpdateUserPassword(context.Context, string, string, time.Time) (*agentsv1.User, error) {
+	return nil, errors.New("not implemented")
+}
+func (r *sessionAuthRepo) UpdateUserProfile(context.Context, string, string, *string, time.Time) (*agentsv1.User, error) {
+	return nil, errors.New("not implemented")
+}
+func (r *sessionAuthRepo) SetUserDisabled(context.Context, string, bool, time.Time) (*agentsv1.User, error) {
+	return nil, errors.New("not implemented")
+}
+func (r *sessionAuthRepo) FindUserByUsername(context.Context, string) (*agentsv1.User, string, error) {
+	return nil, "", errors.New("not implemented")
+}
+func (r *sessionAuthRepo) FindUserByID(context.Context, string) (*agentsv1.User, string, error) {
+	return nil, "", errors.New("not implemented")
+}
+func (r *sessionAuthRepo) FindUserByExternalID(context.Context, string, string) (*agentsv1.User, error) {
+	return nil, errors.New("not implemented")
+}
+func (r *sessionAuthRepo) GetUser(_ context.Context, id string) (*agentsv1.User, error) {
+	if r.user != nil && r.user.GetId() == id {
+		return r.user, nil
+	}
+	return nil, authrepo.ErrUserNotFound
+}
+func (r *sessionAuthRepo) CreateSession(context.Context, *authrepo.Session) error {
+	return errors.New("not implemented")
+}
+func (r *sessionAuthRepo) LookupSession(_ context.Context, tokenHash string, now time.Time) (*authrepo.Session, *agentsv1.User, error) {
+	if tokenHash != r.tokenHash || r.session == nil || r.user == nil || r.session.Revoked || r.session.ExpiresAt.Before(now) {
+		return nil, nil, authrepo.ErrSessionNotFound
+	}
+	return r.session, r.user, nil
+}
+func (r *sessionAuthRepo) TouchSession(context.Context, string, time.Time) error { return nil }
+func (r *sessionAuthRepo) RevokeSession(context.Context, string) error           { return nil }
 
 func TestWorkspaceMCPServerExposesReadOnlyWorkspaceTools(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -146,6 +207,69 @@ func TestWorkspaceMCPServerExposesReadOnlyWorkspaceTools(t *testing.T) {
 	}
 	if containsStructuredValue(read.StructuredContent, "hide-me") {
 		t.Fatalf("read_file leaked secret metadata: %+v", read.StructuredContent)
+	}
+}
+
+func TestWorkspaceMCPServerAcceptsSessionPathWorkspaceAfterMembershipCheck(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx := context.Background()
+	sessionSecret := "session-token"
+	user := &agentsv1.User{Id: "user-1", Username: "member", Role: "member"}
+	authRepo := &sessionAuthRepo{
+		tokenHash: application.HashAPITokenSecret(sessionSecret),
+		user:      user,
+		session: &authrepo.Session{
+			ID:        "session-1",
+			UserID:    user.GetId(),
+			ExpiresAt: time.Now().Add(time.Hour),
+		},
+	}
+	cfg := &config.AppConfig{}
+	routerFn, handlers := SetupRoutes(cfg, daemon.NewRegistry())
+	wsRepo := workspacememory.New()
+	if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{
+		Id:        "ws-a",
+		Name:      "Workspace A",
+		Slug:      "ws-a",
+		CreatedAt: timestamppb.Now(),
+		UpdatedAt: timestamppb.Now(),
+	}); err != nil {
+		t.Fatalf("create workspace: %v", err)
+	}
+	if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{
+		WorkspaceId: "ws-a",
+		UserId:      user.GetId(),
+		Role:        "member",
+		CreatedAt:   timestamppb.Now(),
+	}); err != nil {
+		t.Fatalf("add member: %v", err)
+	}
+	handlers.Wire(&BootstrapResult{
+		AuthRepo:      authRepo,
+		WorkspaceRepo: wsRepo,
+		AgentFileRepo: agentfilememory.New(),
+	})
+	engine := gin.New()
+	routerFn(engine)
+	server := httptest.NewServer(engine)
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.1.0"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:             server.URL + "/api/workspaces/ws-a/mcp",
+		DisableStandaloneSSE: true,
+		HTTPClient:           &http.Client{Transport: staticOAuthHandler{token: sessionSecret}},
+	}, nil)
+	if err != nil {
+		t.Fatalf("connect mcp client without workspace header: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	info, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "workspace_info", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatalf("workspace_info: %v", err)
+	}
+	if got := info.StructuredContent.(map[string]any)["id"]; got != "ws-a" {
+		t.Fatalf("workspace id = %v, want ws-a", got)
 	}
 }
 

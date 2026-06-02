@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"butterfly.orx.me/core/log"
 	"github.com/gin-gonic/gin"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
@@ -11,7 +12,7 @@ import (
 )
 
 // RegisterWorkspaceMCP mounts a workspace-scoped MCP endpoint.
-func RegisterWorkspaceMCP(r *gin.Engine, handler http.Handler) {
+func RegisterWorkspaceMCP(r *gin.Engine, handler http.Handler, workspaceProvider WorkspaceRepoProvider) {
 	if handler == nil {
 		return
 	}
@@ -23,8 +24,26 @@ func RegisterWorkspaceMCP(r *gin.Engine, handler http.Handler) {
 		}
 		current, hasWorkspace := wsctx.FromContext(c.Request.Context())
 		if !hasWorkspace && !auth.IsAdmin(c.Request.Context()) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "workspace required"})
-			return
+			user, hasUser := auth.UserFromContext(c.Request.Context())
+			if !hasUser {
+				c.JSON(http.StatusForbidden, gin.H{"error": "workspace required"})
+				return
+			}
+			repo := workspaceProvider()
+			if repo == nil {
+				c.JSON(http.StatusForbidden, gin.H{"error": "workspace store not available"})
+				return
+			}
+			ok, err := repo.IsMember(c.Request.Context(), workspaceID, user.GetId())
+			if err != nil {
+				log.FromContext(c.Request.Context()).Warn("workspace mcp membership check failed", "workspace_id", workspaceID, "user_id", user.GetId(), "err", err)
+				c.JSON(http.StatusForbidden, gin.H{"error": "workspace access denied"})
+				return
+			}
+			if !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "workspace access denied"})
+				return
+			}
 		}
 		if hasWorkspace && current != workspaceID {
 			c.JSON(http.StatusForbidden, gin.H{"error": "workspace mismatch"})
