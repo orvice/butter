@@ -1,7 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import type { Workspace } from "@/gen/agents/v1/workspace_pb";
-import { twirpFetch } from "./client";
+import {
+  AuthService,
+  type User as PbUser,
+  type LoginResponse as PbLoginResponse,
+  type CompleteOAuthFlowResponse as PbCompleteOAuthFlowResponse,
+} from "@/gen/agents/v1/auth_pb";
+import { makeClient } from "./transport";
 
+// The exported interfaces here keep the snake_case/camelCase tolerance the
+// rest of the dashboard already relies on. Proto-generated types are
+// camelCase-only, so we map them at this boundary instead of forcing every
+// caller to use the proto types directly.
 export interface AuthUser {
   id: string;
   username: string;
@@ -65,67 +77,112 @@ export interface BeginOAuthFlowResponse {
   state: string;
 }
 
-const SVC = "agents.v1.AuthService";
-
-export function login(username: string, password: string) {
-  return twirpFetch<{ username: string; password: string }, LoginResponse>(SVC, "Login", { username, password });
-}
-
-export function listOAuthProviders() {
-  return twirpFetch<object, { providers?: OAuthProviderInfo[] }>(SVC, "ListOAuthProviders", {});
-}
-
-export function beginOAuthFlow(provider: string, redirectUri: string) {
-  return twirpFetch<{ provider: string; redirect_uri: string }, BeginOAuthFlowResponse>(
-    SVC,
-    "BeginOAuthFlow",
-    { provider, redirect_uri: redirectUri },
-  );
-}
-
-// CompleteOAuthFlowResponse has the same shape as LoginResponse; buf STANDARD
-// lint requires a dedicated type per RPC, but the frontend treats them the
-// same way.
 export type CompleteOAuthFlowResponse = LoginResponse;
 
-export function completeOAuthFlow(provider: string, code: string, state: string) {
-  return twirpFetch<{ provider: string; code: string; state: string }, CompleteOAuthFlowResponse>(
-    SVC,
-    "CompleteOAuthFlow",
-    { provider, code, state },
-  );
+const client = makeClient(AuthService);
+
+function toAuthUser(u: PbUser | undefined): AuthUser | undefined {
+  if (!u) return undefined;
+  return {
+    id: u.id,
+    username: u.username,
+    displayName: u.displayName,
+    avatarUrl: u.avatarUrl,
+    role: u.role,
+    disabled: u.disabled,
+  };
 }
 
-export function me() {
-  return twirpFetch<object, { user?: AuthUser }>(SVC, "Me", {});
+function toLoginResponse(r: PbLoginResponse | PbCompleteOAuthFlowResponse): LoginResponse {
+  return {
+    token: r.token,
+    user: toAuthUser(r.user),
+    expiresAt: tsToISOString(r.expiresAt),
+    workspaces: r.workspaces,
+  };
 }
 
-export function logout() {
-  return twirpFetch<object, object>(SVC, "Logout", {});
+function tsToISOString(ts: Timestamp | undefined): string | undefined {
+  if (!ts) return undefined;
+  return timestampDate(ts).toISOString();
 }
 
-function listUsers() {
-  return twirpFetch<object, { users?: AuthUser[] }>(SVC, "ListUsers", {});
+export async function login(username: string, password: string): Promise<LoginResponse> {
+  return toLoginResponse(await client.login({ username, password }));
 }
 
-function createUser(input: CreateUserInput) {
-  return twirpFetch<CreateUserInput, { user?: AuthUser }>(SVC, "CreateUser", input);
+export async function listOAuthProviders(): Promise<{ providers?: OAuthProviderInfo[] }> {
+  const res = await client.listOAuthProviders({});
+  return {
+    providers: res.providers.map((p) => ({ name: p.name, displayName: p.displayName })),
+  };
 }
 
-function updateUserPassword(input: UpdateUserPasswordInput) {
-  return twirpFetch<UpdateUserPasswordInput, { user?: AuthUser }>(SVC, "UpdateUserPassword", input);
+export async function beginOAuthFlow(
+  provider: string,
+  redirectUri: string,
+): Promise<BeginOAuthFlowResponse> {
+  const res = await client.beginOAuthFlow({ provider, redirectUri });
+  return { authorizeUrl: res.authorizeUrl, state: res.state };
 }
 
-function setUserDisabled(input: SetUserDisabledInput) {
-  return twirpFetch<SetUserDisabledInput, { user?: AuthUser }>(SVC, "SetUserDisabled", input);
+export async function completeOAuthFlow(
+  provider: string,
+  code: string,
+  state: string,
+): Promise<CompleteOAuthFlowResponse> {
+  return toLoginResponse(await client.completeOAuthFlow({ provider, code, state }));
 }
 
-function updateProfile(input: UpdateProfileInput) {
-  return twirpFetch<UpdateProfileInput, { user?: AuthUser }>(SVC, "UpdateProfile", input);
+export async function me(): Promise<{ user?: AuthUser }> {
+  const res = await client.me({});
+  return { user: toAuthUser(res.user) };
 }
 
-function changePassword(input: ChangePasswordInput) {
-  return twirpFetch<ChangePasswordInput, { user?: AuthUser }>(SVC, "ChangePassword", input);
+export async function logout(): Promise<void> {
+  await client.logout({});
+}
+
+async function listUsers(): Promise<{ users?: AuthUser[] }> {
+  const res = await client.listUsers({});
+  return { users: res.users.map((u) => toAuthUser(u)!) };
+}
+
+async function createUser(input: CreateUserInput): Promise<{ user?: AuthUser }> {
+  const res = await client.createUser({
+    username: input.username,
+    password: input.password,
+    displayName: input.display_name ?? "",
+    role: input.role ?? "",
+    disabled: input.disabled ?? false,
+  });
+  return { user: toAuthUser(res.user) };
+}
+
+async function updateUserPassword(input: UpdateUserPasswordInput): Promise<{ user?: AuthUser }> {
+  const res = await client.updateUserPassword(input);
+  return { user: toAuthUser(res.user) };
+}
+
+async function setUserDisabled(input: SetUserDisabledInput): Promise<{ user?: AuthUser }> {
+  const res = await client.setUserDisabled(input);
+  return { user: toAuthUser(res.user) };
+}
+
+async function updateProfile(input: UpdateProfileInput): Promise<{ user?: AuthUser }> {
+  const res = await client.updateProfile({
+    displayName: input.display_name,
+    avatarUrl: input.avatar_url,
+  });
+  return { user: toAuthUser(res.user) };
+}
+
+async function changePassword(input: ChangePasswordInput): Promise<{ user?: AuthUser }> {
+  const res = await client.changePassword({
+    currentPassword: input.current_password,
+    newPassword: input.new_password,
+  });
+  return { user: toAuthUser(res.user) };
 }
 
 export function isAdmin(user: AuthUser | null | undefined) {
