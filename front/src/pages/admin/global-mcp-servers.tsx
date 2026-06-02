@@ -5,8 +5,10 @@ import {
   useDeleteGlobalMCPServer,
   useGlobalMCPServers,
   useInstallGlobalMCPServer,
+  useTestGlobalMCPServer,
   useUpdateGlobalMCPServer,
 } from "@/api/global-mcp-servers";
+import { useMCPServers } from "@/api/mcp-servers";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
@@ -16,11 +18,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
+  CheckCircle2,
   Cloud,
   KeyRound,
   Pencil,
+  Plug,
   Plus,
   Radio,
   RefreshCw,
@@ -30,6 +33,8 @@ import {
 } from "lucide-react";
 import { MCP_TRANSPORT_LABELS } from "@/lib/constants";
 import type { MCPServer, MCPServerAuthType, MCPServerTransport } from "@/types/api";
+
+const GLOBAL_MCP_PRESET_METADATA_KEY = "butter.global_mcp_preset_id";
 
 type RegistrationMode = "dynamic" | "manual";
 
@@ -79,15 +84,6 @@ const STARTERS: Array<{ label: string; values: Partial<FormValues> }> = [
       resource: "https://mcp.linear.app/mcp",
     },
   },
-  {
-    label: "Gmail",
-    values: {
-      id: "gmail",
-      name: "Gmail",
-      url: "https://gmailmcp.googleapis.com/mcp/v1",
-      resource: "https://gmailmcp.googleapis.com/mcp/v1",
-    },
-  },
 ];
 
 const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
@@ -99,15 +95,25 @@ const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
 export default function AdminGlobalMCPServersPage() {
   const { data, isLoading } = useGlobalMCPServers();
   const { selectedWorkspaceId } = useWorkspace();
+  const { data: workspaceServers } = useMCPServers();
   const createMutation = useCreateGlobalMCPServer();
   const updateMutation = useUpdateGlobalMCPServer();
   const deleteMutation = useDeleteGlobalMCPServer();
   const installMutation = useInstallGlobalMCPServer();
+  const testMutation = useTestGlobalMCPServer();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MCPServer | null>(null);
   const [form, setForm] = useState<FormValues>(EMPTY_FORM);
 
   const servers = data?.mcp_servers ?? [];
+  const installedPresetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const server of workspaceServers?.mcp_servers ?? []) {
+      const presetId = server.metadata?.[GLOBAL_MCP_PRESET_METADATA_KEY];
+      if (presetId) ids.add(presetId);
+    }
+    return ids;
+  }, [workspaceServers]);
   const isEditing = editingId !== null;
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
@@ -145,26 +151,56 @@ export default function AdminGlobalMCPServersPage() {
     },
     {
       header: "",
-      cell: (row) => (
+      cell: (row) => {
+        const installed = !!row.id && installedPresetIds.has(row.id);
+        return (
         <div className="flex justify-end gap-2">
           <Button
             variant="ghost"
             size="sm"
-            disabled={!row.id || !selectedWorkspaceId || installMutation.isPending}
+            disabled={!row.id || testMutation.isPending}
             onClick={() => {
               if (!row.id) return;
-              installMutation.mutate(
-                { id: row.id, workspaceId: selectedWorkspaceId },
-                {
-                  onSuccess: () => toast.success(`${row.name} installed to workspace`),
-                  onError: (err) => toast.error(err.message),
+              testMutation.mutate(row.id, {
+                onSuccess: ({ status }) => {
+                  if (status.state === "STATE_CONNECTED") {
+                    toast.success(`${row.name} reachable (${status.tool_count ?? 0} tools)`);
+                  } else {
+                    toast.error(`${row.name}: ${status.detail || "unreachable"}`);
+                  }
                 },
-              );
+                onError: (err) => toast.error(err.message),
+              });
             }}
           >
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            Install
+            <Plug className="mr-1 h-3.5 w-3.5" />
+            Test
           </Button>
+          {installed ? (
+            <Badge variant="outline" className="self-center text-emerald-700">
+              <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+              Installed
+            </Badge>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!row.id || !selectedWorkspaceId || installMutation.isPending}
+              onClick={() => {
+                if (!row.id) return;
+                installMutation.mutate(
+                  { id: row.id, workspaceId: selectedWorkspaceId },
+                  {
+                    onSuccess: () => toast.success(`${row.name} installed to workspace`),
+                    onError: (err) => toast.error(err.message),
+                  },
+                );
+              }}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Install
+            </Button>
+          )}
           <Button variant="ghost" size="icon-sm" aria-label={`Edit ${row.name}`} onClick={() => startEdit(row)}>
             <Pencil className="h-4 w-4" />
           </Button>
@@ -178,7 +214,8 @@ export default function AdminGlobalMCPServersPage() {
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
-      ),
+        );
+      },
     },
   ];
 
@@ -378,13 +415,10 @@ export default function AdminGlobalMCPServersPage() {
                 </div>
               ) : null}
 
-              <Field label="Notes">
-                <Textarea
-                  value="Workspace installs copy this preset into the selected workspace; admin-owned OAuth secrets are redacted from normal workspace reads."
-                  readOnly
-                  className="min-h-16 resize-none text-muted-foreground"
-                />
-              </Field>
+              <p className="text-xs text-muted-foreground">
+                Workspace installs copy this preset into the selected workspace; admin-owned OAuth secrets are redacted
+                from normal workspace reads.
+              </p>
 
               <div className="flex gap-2">
                 <Button type="submit" disabled={isSaving}>

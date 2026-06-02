@@ -48,7 +48,10 @@ func (s *MCPServerServiceServer) SetMCPHTTPClientFactory(factory internalagent.M
 	s.httpFactory = factory
 }
 
-func validateMCPServerConfig(server *agentsv1.MCPServer) error {
+// ValidateMCPServerConfig checks transport, URL, and OAuth fields of an MCP
+// server config. It is shared by workspace mutations and the admin global
+// preset handlers so presets are validated at authoring time, not install time.
+func ValidateMCPServerConfig(server *agentsv1.MCPServer) error {
 	if server == nil {
 		return twirp.RequiredArgumentError("mcp_server")
 	}
@@ -175,7 +178,7 @@ func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agent
 	if err != nil {
 		return nil, err
 	}
-	if err := validateMCPServerConfig(req.GetMcpServer()); err != nil {
+	if err := ValidateMCPServerConfig(req.GetMcpServer()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -211,7 +214,7 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agent
 	if err != nil {
 		return nil, err
 	}
-	if err := validateMCPServerConfig(req.GetMcpServer()); err != nil {
+	if err := ValidateMCPServerConfig(req.GetMcpServer()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -289,7 +292,14 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
+	return &agentsv1.GetMCPServerStatusResponse{Status: s.ProbeServerStatus(ctx, m)}, nil
+}
 
+// ProbeServerStatus connects to the given MCP server and reports its status.
+// It never returns an error: failures are reflected as a DISCONNECTED state on
+// the returned status so callers can surface the detail directly. This is used
+// both by GetMCPServerStatus and by the admin global-preset test endpoint.
+func (s *MCPServerServiceServer) ProbeServerStatus(ctx context.Context, m *agentsv1.MCPServer) *agentsv1.MCPServerStatus {
 	status := &agentsv1.MCPServerStatus{
 		Id:        m.GetId(),
 		Name:      m.GetName(),
@@ -301,22 +311,22 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 		status.State = agentsv1.MCPServerStatus_STATE_DISCONNECTED
 		status.Detail = err.Error()
 		status.ToolCount = int32(len(m.GetToolFilter()))
-		return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
+		return status
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	result, err := internalagent.ProbeMCPServerWithFactory(probeCtx, m, s.mcpHTTPClientFactory())
 	if err != nil {
 		log.FromContext(ctx).Warn("mcp server probe failed",
-			"workspace_id", wsID, "id", m.GetId(), "name", m.GetName(), "err", err)
+			"id", m.GetId(), "name", m.GetName(), "err", err)
 		status.State = agentsv1.MCPServerStatus_STATE_DISCONNECTED
 		status.Detail = err.Error()
 		status.ToolCount = int32(len(m.GetToolFilter()))
-		return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
+		return status
 	}
 	status.State = agentsv1.MCPServerStatus_STATE_CONNECTED
 	status.ToolCount = int32(result.ToolCount)
-	return &agentsv1.GetMCPServerStatusResponse{Status: status}, nil
+	return status
 }
 
 func (s *MCPServerServiceServer) ListMCPTools(ctx context.Context, req *agentsv1.ListMCPToolsRequest) (*agentsv1.ListMCPToolsResponse, error) {
@@ -381,7 +391,7 @@ func (s *MCPServerServiceServer) StartMCPServerOAuth(ctx context.Context, req *a
 	if err != nil {
 		return nil, toTwirpError(err)
 	}
-	if err := validateMCPServerConfig(srv); err != nil {
+	if err := ValidateMCPServerConfig(srv); err != nil {
 		return nil, err
 	}
 	userID := "api"

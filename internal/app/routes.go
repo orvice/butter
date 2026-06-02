@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -463,6 +464,10 @@ func registerGlobalMCPServerRoutes(r *gin.Engine, handlers *Handlers, mcpSvc *ap
 		if !ok {
 			return
 		}
+		if err := application.ValidateMCPServerConfig(server); err != nil {
+			writeError(c, err)
+			return
+		}
 		created, err := handlers.globalMCPServerRepo.CreateGlobalMCPServer(c.Request.Context(), server)
 		if err != nil {
 			writeError(c, err)
@@ -486,6 +491,10 @@ func registerGlobalMCPServerRoutes(r *gin.Engine, handlers *Handlers, mcpSvc *ap
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id mismatch"})
 			return
 		}
+		if err := application.ValidateMCPServerConfig(server); err != nil {
+			writeError(c, err)
+			return
+		}
 		updated, err := handlers.globalMCPServerRepo.UpdateGlobalMCPServer(c.Request.Context(), server)
 		if err != nil {
 			writeError(c, err)
@@ -503,6 +512,24 @@ func registerGlobalMCPServerRoutes(r *gin.Engine, handlers *Handlers, mcpSvc *ap
 			return
 		}
 		c.Status(http.StatusNoContent)
+	})
+
+	r.POST("/api/admin/global-mcp-servers/:id/test", func(c *gin.Context) {
+		if !requireAdmin(c) {
+			return
+		}
+		preset, err := handlers.globalMCPServerRepo.GetGlobalMCPServer(c.Request.Context(), c.Param("id"))
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		status := mcpSvc.ProbeServerStatus(c.Request.Context(), preset)
+		raw, err := marshalProto(status)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": raw})
 	})
 
 	r.POST("/api/global-mcp-servers/:id/install", func(c *gin.Context) {
@@ -537,6 +564,10 @@ func registerGlobalMCPServerRoutes(r *gin.Engine, handlers *Handlers, mcpSvc *ap
 		server.WorkspaceId = ""
 		application.MarkInstalledGlobalMCPPreset(server, preset.GetId())
 		ctx := wsctx.WithID(c.Request.Context(), workspaceID)
+		if existing, err := mcpSvc.GetMCPServer(ctx, &agentsv1.GetMCPServerRequest{Id: preset.GetId()}); err == nil && existing.GetMcpServer() != nil {
+			c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("%q is already installed in this workspace", preset.GetName())})
+			return
+		}
 		created, err := mcpSvc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{McpServer: server})
 		if err != nil {
 			writeError(c, err)
@@ -624,7 +655,11 @@ func writeMCPServer(c *gin.Context, status int, server *agentsv1.MCPServer, reda
 }
 
 func marshalMCPServer(server *agentsv1.MCPServer) (json.RawMessage, error) {
-	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(server)
+	return marshalProto(server)
+}
+
+func marshalProto(m proto.Message) (json.RawMessage, error) {
+	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(m)
 	if err != nil {
 		return nil, err
 	}

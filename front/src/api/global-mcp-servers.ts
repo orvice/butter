@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "./client";
-import type { MCPServer } from "@/types/api";
+import type { MCPServer, MCPServerStatus } from "@/types/api";
 
 const QUERY_KEY = ["global-mcp-servers"];
 
@@ -25,6 +25,12 @@ function updateGlobalMCPServer(server: MCPServer) {
 function deleteGlobalMCPServer(id: string) {
   return apiFetch<void>(`/api/admin/global-mcp-servers/${encodeURIComponent(id)}`, {
     method: "DELETE",
+  });
+}
+
+function testGlobalMCPServer(id: string) {
+  return apiFetch<{ status: MCPServerStatus }>(`/api/admin/global-mcp-servers/${encodeURIComponent(id)}/test`, {
+    method: "POST",
   });
 }
 
@@ -61,6 +67,10 @@ export function useDeleteGlobalMCPServer() {
     mutationFn: deleteGlobalMCPServer,
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
+}
+
+export function useTestGlobalMCPServer() {
+  return useMutation({ mutationFn: testGlobalMCPServer });
 }
 
 export function useInstallGlobalMCPServer() {
