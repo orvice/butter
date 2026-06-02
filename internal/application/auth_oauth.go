@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/twitchtv/twirp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/auth/provider"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -37,9 +38,9 @@ func (s *AuthServiceServer) SetOAuthStateRepo(r oauthstate.Repository) {
 	s.stateRepo = r
 }
 
-func (s *AuthServiceServer) ListOAuthProviders(_ context.Context, _ *agentsv1.ListOAuthProvidersRequest) (*agentsv1.ListOAuthProvidersResponse, error) {
+func (s *AuthServiceServer) ListOAuthProviders(_ context.Context, _ *connect.Request[agentsv1.ListOAuthProvidersRequest]) (*connect.Response[agentsv1.ListOAuthProvidersResponse], error) {
 	if s.providers == nil {
-		return &agentsv1.ListOAuthProvidersResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListOAuthProvidersResponse{}), nil
 	}
 	list := s.providers.List()
 	out := make([]*agentsv1.OAuthProvider, 0, len(list))
@@ -49,86 +50,86 @@ func (s *AuthServiceServer) ListOAuthProviders(_ context.Context, _ *agentsv1.Li
 			DisplayName: p.DisplayName(),
 		})
 	}
-	return &agentsv1.ListOAuthProvidersResponse{Providers: out}, nil
+	return connect.NewResponse(&agentsv1.ListOAuthProvidersResponse{Providers: out}), nil
 }
 
-func (s *AuthServiceServer) BeginOAuthFlow(ctx context.Context, req *agentsv1.BeginOAuthFlowRequest) (*agentsv1.BeginOAuthFlowResponse, error) {
+func (s *AuthServiceServer) BeginOAuthFlow(ctx context.Context, req *connect.Request[agentsv1.BeginOAuthFlowRequest]) (*connect.Response[agentsv1.BeginOAuthFlowResponse], error) {
 	if s.providers == nil || s.stateRepo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "oauth login not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("oauth login not available"))
 	}
-	name := strings.TrimSpace(req.GetProvider())
+	name := strings.TrimSpace(req.Msg.GetProvider())
 	if name == "" {
-		return nil, twirp.RequiredArgumentError("provider")
+		return nil, connectx.RequiredArgument("provider")
 	}
 	p, err := s.providers.Get(name)
 	if err != nil {
-		return nil, twirp.NewError(twirp.NotFound, "unknown oauth provider")
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("unknown oauth provider"))
 	}
 	state, err := generateOAuthState()
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	now := time.Now().UTC()
 	entry := &oauthstate.Entry{
 		State:       state,
 		Provider:    name,
-		RedirectURI: strings.TrimSpace(req.GetRedirectUri()),
+		RedirectURI: strings.TrimSpace(req.Msg.GetRedirectUri()),
 		CreatedAt:   now,
 		ExpiresAt:   now.Add(oauthStateTTL),
 	}
 	if err := s.stateRepo.Create(ctx, entry); err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.BeginOAuthFlowResponse{
+	return connect.NewResponse(&agentsv1.BeginOAuthFlowResponse{
 		AuthorizeUrl: p.AuthorizeURL(state),
 		State:        state,
-	}, nil
+	}), nil
 }
 
-func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1.CompleteOAuthFlowRequest) (*agentsv1.CompleteOAuthFlowResponse, error) {
+func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *connect.Request[agentsv1.CompleteOAuthFlowRequest]) (*connect.Response[agentsv1.CompleteOAuthFlowResponse], error) {
 	logger := log.FromContext(ctx)
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "auth store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("auth store not available"))
 	}
 	if s.providers == nil || s.stateRepo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "oauth login not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("oauth login not available"))
 	}
-	name := strings.TrimSpace(req.GetProvider())
+	name := strings.TrimSpace(req.Msg.GetProvider())
 	if name == "" {
-		return nil, twirp.RequiredArgumentError("provider")
+		return nil, connectx.RequiredArgument("provider")
 	}
-	code := strings.TrimSpace(req.GetCode())
-	state := strings.TrimSpace(req.GetState())
+	code := strings.TrimSpace(req.Msg.GetCode())
+	state := strings.TrimSpace(req.Msg.GetState())
 	if code == "" {
-		return nil, twirp.RequiredArgumentError("code")
+		return nil, connectx.RequiredArgument("code")
 	}
 	if state == "" {
-		return nil, twirp.RequiredArgumentError("state")
+		return nil, connectx.RequiredArgument("state")
 	}
 
 	entry, err := s.stateRepo.Consume(ctx, state, time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, oauthstate.ErrNotFound) {
-			return nil, twirp.NewError(twirp.PermissionDenied, "invalid or expired state")
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("invalid or expired state"))
 		}
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	if entry.Provider != name {
-		return nil, twirp.NewError(twirp.PermissionDenied, "state provider mismatch")
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("state provider mismatch"))
 	}
 
 	p, err := s.providers.Get(name)
 	if err != nil {
-		return nil, twirp.NewError(twirp.NotFound, "unknown oauth provider")
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("unknown oauth provider"))
 	}
 
 	claims, err := p.Exchange(ctx, code)
 	if err != nil {
 		logger.Error("oauth exchange failed", "provider", name, "err", err)
-		return nil, twirp.NewError(twirp.Unauthenticated, "oauth code exchange failed")
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("oauth code exchange failed"))
 	}
 	if claims == nil || claims.ExternalID == "" {
-		return nil, twirp.NewError(twirp.Unauthenticated, "oauth provider returned no identity")
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("oauth provider returned no identity"))
 	}
 
 	user, err := s.upsertOAuthUser(ctx, name, claims)
@@ -136,12 +137,12 @@ func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1
 		return nil, err
 	}
 	if user.GetDisabled() {
-		return nil, twirp.NewError(twirp.PermissionDenied, "user disabled")
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("user disabled"))
 	}
 
 	secret, err := generateSessionSecret()
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	now := time.Now().UTC()
 	expiresAt := now.Add(s.sessionTTL)
@@ -153,7 +154,7 @@ func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1
 		ExpiresAt: expiresAt,
 	}
 	if err := s.repo.CreateSession(ctx, session); err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 
 	workspaces := s.userWorkspaces(ctx, user)
@@ -164,12 +165,12 @@ func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1
 		"session_id", session.ID,
 		"workspace_count", len(workspaces),
 	)
-	return &agentsv1.CompleteOAuthFlowResponse{
+	return connect.NewResponse(&agentsv1.CompleteOAuthFlowResponse{
 		Token:      secret,
 		User:       user,
 		ExpiresAt:  timestamppb.New(expiresAt),
 		Workspaces: workspaces,
-	}, nil
+	}), nil
 }
 
 // upsertOAuthUser returns the existing user for (provider, externalID) or
@@ -183,7 +184,7 @@ func (s *AuthServiceServer) upsertOAuthUser(ctx context.Context, providerName st
 		return existing, nil
 	}
 	if !errors.Is(err, auth.ErrUserNotFound) {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 
 	username := oauthUsername(providerName, claims)
@@ -213,11 +214,11 @@ func (s *AuthServiceServer) upsertOAuthUser(ctx context.Context, providerName st
 			user.Username = username + "_" + shortID(user.GetId())
 			if err2 := s.repo.CreateUser(ctx, user, ""); err2 != nil {
 				logger.Error("oauth user create retry failed", "provider", providerName, "external_id", claims.ExternalID, "err", err2)
-				return nil, twirp.InternalErrorWith(err2)
+				return nil, connectx.InternalWith(err2)
 			}
 		} else {
 			logger.Error("oauth user create failed", "provider", providerName, "external_id", claims.ExternalID, "err", err)
-			return nil, twirp.InternalErrorWith(err)
+			return nil, connectx.InternalWith(err)
 		}
 	}
 	logger.Info("oauth user created", "provider", providerName, "external_id", claims.ExternalID, "user_id", user.GetId(), "username", user.GetUsername())

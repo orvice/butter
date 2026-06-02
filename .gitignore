@@ -9,3 +9,10 @@ openspec/
 front/.vite/deps/
 .agents/
 bin/
+
+# Frontend toolchain is npm (Dockerfile uses `npm ci`, package-lock.json
+# is the tracked lockfile). Reject pnpm/yarn artifacts so contributors
+# don't fork the dependency state.
+front/pnpm-lock.yaml
+front/yarn.lock
+front/pnpm-workspace.yaml

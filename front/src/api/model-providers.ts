@@ -1,35 +1,63 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "./client";
+import { create } from "@bufbuild/protobuf";
+import { ModelProviderService } from "@/gen/agents/v1/agent_service_pb";
+import {
+  ModelProviderSchema,
+  ModelConfigSchema,
+  type ModelProvider as PbModelProvider,
+} from "@/gen/agents/v1/agent_pb";
 import type { ModelProvider } from "@/types/api";
+import { makeClient } from "./transport";
 
-const SVC = "agents.v1.ModelProviderService";
+const client = makeClient(ModelProviderService);
 
-function listModelProviders() {
-  return twirpFetch<object, { model_providers: ModelProvider[] }>(SVC, "ListModelProviders", {});
+function toProto(p: ModelProvider): PbModelProvider {
+  return create(ModelProviderSchema, {
+    name: p.name,
+    type: p.type,
+    apiKey: p.api_key ?? "",
+    baseUrl: p.base_url ?? "",
+    models: (p.models ?? []).map((m) =>
+      create(ModelConfigSchema, { name: m.name, alias: m.alias ?? "" }),
+    ),
+  });
 }
 
-function getModelProvider(name: string) {
-  return twirpFetch<{ name: string }, { model_provider: ModelProvider }>(SVC, "GetModelProvider", { name });
+function fromProto(p: PbModelProvider): ModelProvider {
+  return {
+    name: p.name,
+    type: p.type,
+    api_key: p.apiKey,
+    base_url: p.baseUrl,
+    models: p.models,
+  };
 }
 
-function createModelProvider(model_provider: ModelProvider) {
-  return twirpFetch<{ model_provider: ModelProvider }, { model_provider: ModelProvider }>(
-    SVC,
-    "CreateModelProvider",
-    { model_provider },
-  );
+async function listModelProviders(): Promise<{ model_providers: ModelProvider[] }> {
+  const res = await client.listModelProviders({});
+  return { model_providers: res.modelProviders.map(fromProto) };
 }
 
-function updateModelProvider(model_provider: ModelProvider) {
-  return twirpFetch<{ model_provider: ModelProvider }, { model_provider: ModelProvider }>(
-    SVC,
-    "UpdateModelProvider",
-    { model_provider },
-  );
+async function getModelProvider(name: string): Promise<{ model_provider: ModelProvider }> {
+  const res = await client.getModelProvider({ name });
+  if (!res.modelProvider) throw new Error("not found");
+  return { model_provider: fromProto(res.modelProvider) };
 }
 
-function deleteModelProvider(name: string) {
-  return twirpFetch<{ name: string }, object>(SVC, "DeleteModelProvider", { name });
+async function createModelProvider(model_provider: ModelProvider): Promise<{ model_provider: ModelProvider }> {
+  const res = await client.createModelProvider({ modelProvider: toProto(model_provider) });
+  if (!res.modelProvider) throw new Error("create returned no provider");
+  return { model_provider: fromProto(res.modelProvider) };
+}
+
+async function updateModelProvider(model_provider: ModelProvider): Promise<{ model_provider: ModelProvider }> {
+  const res = await client.updateModelProvider({ modelProvider: toProto(model_provider) });
+  if (!res.modelProvider) throw new Error("update returned no provider");
+  return { model_provider: fromProto(res.modelProvider) };
+}
+
+async function deleteModelProvider(name: string): Promise<void> {
+  await client.deleteModelProvider({ name });
 }
 
 export function useModelProviders() {

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -72,11 +72,11 @@ func TestForumServiceInvokeAgentInThreadRejectsConcurrentProcessing(t *testing.T
 		go func() {
 			defer wg.Done()
 			<-start
-			_, err := svc.InvokeAgentInThread(ctx, &agentsv1.InvokeAgentInThreadRequest{
+			_, err := svc.InvokeAgentInThread(ctx, connect.NewRequest(&agentsv1.InvokeAgentInThreadRequest{
 				ThreadId:  "thread-1",
 				AgentName: "agent-1",
 				Message:   "please help",
-			})
+			}))
 			errs <- err
 		}()
 	}
@@ -91,8 +91,8 @@ func TestForumServiceInvokeAgentInThreadRejectsConcurrentProcessing(t *testing.T
 			successes++
 			continue
 		}
-		var twerr twirp.Error
-		if errors.As(err, &twerr) && twerr.Code() == twirp.FailedPrecondition {
+		var twerr *connect.Error
+		if errors.As(err, &twerr) && twerr.Code() == connect.CodeFailedPrecondition {
 			preconditions++
 			continue
 		}
@@ -147,14 +147,14 @@ func TestForumServiceInvokeAgentInThreadRecentPostsFailureDoesNotMarkProcessing(
 	svc := NewForumServiceServer(repo)
 	svc.runnerSvc = newBlockingForumRunner()
 
-	_, err := svc.InvokeAgentInThread(ctx, &agentsv1.InvokeAgentInThreadRequest{
+	_, err := svc.InvokeAgentInThread(ctx, connect.NewRequest(&agentsv1.InvokeAgentInThreadRequest{
 		ThreadId:  "thread-1",
 		AgentName: "agent-1",
 		Message:   "please help",
-	})
-	var twerr twirp.Error
-	if !errors.As(err, &twerr) || twerr.Code() != twirp.Internal {
-		t.Fatalf("InvokeAgentInThread() error = %v, want internal twirp error", err)
+	}))
+	var twerr *connect.Error
+	if !errors.As(err, &twerr) || twerr.Code() != connect.CodeInternal {
+		t.Fatalf("InvokeAgentInThread() error = %v, want internal connect error", err)
 	}
 
 	thread, err := baseRepo.GetThread(ctx, "ws-forum", "thread-1")

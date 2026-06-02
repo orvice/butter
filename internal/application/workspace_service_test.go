@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
@@ -195,9 +195,9 @@ func TestWorkspaceService_GetWorkspace_NonMemberDenied(t *testing.T) {
 
 	// Outsider user is not a member of ws-a.
 	ctx := ctxAsUser("user", "u-outsider")
-	_, err := svc.GetWorkspace(ctx, &agentsv1.GetWorkspaceRequest{Id: "ws-a"})
-	twerr, ok := err.(twirp.Error)
-	if !ok || twerr.Code() != twirp.NotFound {
+	_, err := svc.GetWorkspace(ctx, connect.NewRequest(&agentsv1.GetWorkspaceRequest{Id: "ws-a"}))
+	twerr, ok := err.(*connect.Error)
+	if !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound for non-member, got %v", err)
 	}
 }
@@ -207,12 +207,12 @@ func TestWorkspaceService_GetWorkspace_MemberAllowed(t *testing.T) {
 	repo.seed()
 	svc := NewWorkspaceServiceServer(repo)
 
-	resp, err := svc.GetWorkspace(ctxAsUser("user", "u-member"), &agentsv1.GetWorkspaceRequest{Id: "ws-a"})
+	resp, err := svc.GetWorkspace(ctxAsUser("user", "u-member"), connect.NewRequest(&agentsv1.GetWorkspaceRequest{Id: "ws-a"}))
 	if err != nil {
 		t.Fatalf("member should be allowed: %v", err)
 	}
-	if resp.GetWorkspace().GetId() != "ws-a" {
-		t.Fatalf("expected ws-a, got %s", resp.GetWorkspace().GetId())
+	if resp.Msg.GetWorkspace().GetId() != "ws-a" {
+		t.Fatalf("expected ws-a, got %s", resp.Msg.GetWorkspace().GetId())
 	}
 }
 
@@ -222,16 +222,16 @@ func TestWorkspaceService_DeleteWorkspace_MemberDenied(t *testing.T) {
 	svc := NewWorkspaceServiceServer(repo)
 
 	// "member" role is in the workspace but lacks owner privileges.
-	_, err := svc.DeleteWorkspace(ctxAsUser("user", "u-member"), &agentsv1.DeleteWorkspaceRequest{Id: "ws-a"})
-	twerr, ok := err.(twirp.Error)
-	if !ok || twerr.Code() != twirp.PermissionDenied {
+	_, err := svc.DeleteWorkspace(ctxAsUser("user", "u-member"), connect.NewRequest(&agentsv1.DeleteWorkspaceRequest{Id: "ws-a"}))
+	twerr, ok := err.(*connect.Error)
+	if !ok || twerr.Code() != connect.CodePermissionDenied {
 		t.Fatalf("expected PermissionDenied for non-owner, got %v", err)
 	}
 
 	// Outsider — never a member — should not be told the workspace exists.
-	_, err = svc.DeleteWorkspace(ctxAsUser("user", "u-outsider"), &agentsv1.DeleteWorkspaceRequest{Id: "ws-a"})
-	twerr, ok = err.(twirp.Error)
-	if !ok || twerr.Code() != twirp.NotFound {
+	_, err = svc.DeleteWorkspace(ctxAsUser("user", "u-outsider"), connect.NewRequest(&agentsv1.DeleteWorkspaceRequest{Id: "ws-a"}))
+	twerr, ok = err.(*connect.Error)
+	if !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound for outsider, got %v", err)
 	}
 
@@ -246,13 +246,13 @@ func TestWorkspaceService_AddMember_NonOwnerDenied(t *testing.T) {
 	repo.seed()
 	svc := NewWorkspaceServiceServer(repo)
 
-	_, err := svc.AddWorkspaceMember(ctxAsUser("user", "u-member"), &agentsv1.AddWorkspaceMemberRequest{
+	_, err := svc.AddWorkspaceMember(ctxAsUser("user", "u-member"), connect.NewRequest(&agentsv1.AddWorkspaceMemberRequest{
 		WorkspaceId: "ws-a",
 		UserId:      "u-attacker",
 		Role:        "owner",
-	})
-	twerr, ok := err.(twirp.Error)
-	if !ok || twerr.Code() != twirp.PermissionDenied {
+	}))
+	twerr, ok := err.(*connect.Error)
+	if !ok || twerr.Code() != connect.CodePermissionDenied {
 		t.Fatalf("expected PermissionDenied, got %v", err)
 	}
 	if got, _ := repo.GetMember(context.Background(), "ws-a", "u-attacker"); got != nil {
@@ -265,11 +265,11 @@ func TestWorkspaceService_OwnerCanManage(t *testing.T) {
 	repo.seed()
 	svc := NewWorkspaceServiceServer(repo)
 
-	_, err := svc.AddWorkspaceMember(ctxAsUser("user", "u-owner"), &agentsv1.AddWorkspaceMemberRequest{
+	_, err := svc.AddWorkspaceMember(ctxAsUser("user", "u-owner"), connect.NewRequest(&agentsv1.AddWorkspaceMemberRequest{
 		WorkspaceId: "ws-a",
 		UserId:      "u-new",
 		Role:        "member",
-	})
+	}))
 	if err != nil {
 		t.Fatalf("owner add: %v", err)
 	}
@@ -284,11 +284,11 @@ func TestWorkspaceService_AdminBypassesMembership(t *testing.T) {
 	svc := NewWorkspaceServiceServer(repo)
 
 	// Admin has no membership in ws-a but should still be allowed.
-	_, err := svc.GetWorkspace(ctxAsUser("admin", "u-admin"), &agentsv1.GetWorkspaceRequest{Id: "ws-a"})
+	_, err := svc.GetWorkspace(ctxAsUser("admin", "u-admin"), connect.NewRequest(&agentsv1.GetWorkspaceRequest{Id: "ws-a"}))
 	if err != nil {
 		t.Fatalf("admin GetWorkspace: %v", err)
 	}
-	_, err = svc.DeleteWorkspace(ctxAsUser("admin", "u-admin"), &agentsv1.DeleteWorkspaceRequest{Id: "ws-other"})
+	_, err = svc.DeleteWorkspace(ctxAsUser("admin", "u-admin"), connect.NewRequest(&agentsv1.DeleteWorkspaceRequest{Id: "ws-other"}))
 	if err != nil {
 		t.Fatalf("admin DeleteWorkspace: %v", err)
 	}

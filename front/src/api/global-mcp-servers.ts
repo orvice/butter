@@ -1,38 +1,58 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "./client";
+import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { MCPServerSchema } from "@/gen/agents/v1/agent_pb";
+import { GlobalMCPServerService } from "@/gen/agents/v1/agent_service_pb";
 import type { MCPServer } from "@/types/api";
+import { makeClient } from "./transport";
 
+const client = makeClient(GlobalMCPServerService);
 const QUERY_KEY = ["global-mcp-servers"];
 
-function listGlobalMCPServers() {
-  return apiFetch<{ mcp_servers: MCPServer[] }>("/api/global-mcp-servers");
+// MCPServer has a nested auth.oauth2 type and an MCPServerTransport enum;
+// we already wrote the explicit toProto/fromProto mapping in api/mcp-servers.ts.
+// Reusing it here would force a cross-file import and re-export. Since
+// protojson accepts both snake_case and camelCase on input, and emits proto
+// field names with useProtoFieldName=true, we round-trip through JSON
+// instead — the same trick api/agents.ts uses for the deeply-nested Agent.
+function toProto(server: MCPServer) {
+  return fromJson(MCPServerSchema, server as unknown as JsonValue, { ignoreUnknownFields: true });
 }
 
-function createGlobalMCPServer(server: MCPServer) {
-  return apiFetch<{ mcp_server: MCPServer }>("/api/admin/global-mcp-servers", {
-    method: "POST",
-    body: JSON.stringify(server),
-  });
+function fromProto(server: unknown): MCPServer {
+  return toJson(MCPServerSchema, server as never, { useProtoFieldName: true }) as unknown as MCPServer;
 }
 
-function updateGlobalMCPServer(server: MCPServer) {
-  return apiFetch<{ mcp_server: MCPServer }>(`/api/admin/global-mcp-servers/${encodeURIComponent(server.id ?? "")}`, {
-    method: "PUT",
-    body: JSON.stringify(server),
-  });
+async function listGlobalMCPServers(): Promise<{ mcp_servers: MCPServer[] }> {
+  const res = await client.listGlobalMCPServers({});
+  return { mcp_servers: res.mcpServers.map(fromProto) };
 }
 
-function deleteGlobalMCPServer(id: string) {
-  return apiFetch<void>(`/api/admin/global-mcp-servers/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  });
+async function createGlobalMCPServer(server: MCPServer): Promise<{ mcp_server: MCPServer }> {
+  const res = await client.createGlobalMCPServer({ mcpServer: toProto(server) });
+  if (!res.mcpServer) throw new Error("create returned nothing");
+  return { mcp_server: fromProto(res.mcpServer) };
 }
 
-function installGlobalMCPServer({ id, workspaceId }: { id: string; workspaceId?: string }) {
-  return apiFetch<{ mcp_server: MCPServer }>(`/api/global-mcp-servers/${encodeURIComponent(id)}/install`, {
-    method: "POST",
-    body: JSON.stringify(workspaceId ? { workspace_id: workspaceId } : {}),
-  });
+async function updateGlobalMCPServer(server: MCPServer): Promise<{ mcp_server: MCPServer }> {
+  const res = await client.updateGlobalMCPServer({ mcpServer: toProto(server) });
+  if (!res.mcpServer) throw new Error("update returned nothing");
+  return { mcp_server: fromProto(res.mcpServer) };
+}
+
+async function deleteGlobalMCPServer(id: string): Promise<void> {
+  await client.deleteGlobalMCPServer({ id });
+}
+
+async function installGlobalMCPServer({
+  id,
+  workspaceId,
+}: {
+  id: string;
+  workspaceId?: string;
+}): Promise<{ mcp_server: MCPServer }> {
+  const res = await client.installGlobalMCPServer({ id, workspaceId: workspaceId ?? "" });
+  if (!res.mcpServer) throw new Error("install returned nothing");
+  return { mcp_server: fromProto(res.mcpServer) };
 }
 
 export function useGlobalMCPServers() {

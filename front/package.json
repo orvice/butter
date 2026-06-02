@@ -12,6 +12,8 @@
   "dependencies": {
     "@base-ui/react": "^1.4.0",
     "@bufbuild/protobuf": "^2.4.0",
+    "@connectrpc/connect": "^2.1.1",
+    "@connectrpc/connect-web": "^2.1.1",
     "@fontsource-variable/geist": "^5.2.8",
     "@hookform/resolvers": "^5.2.2",
     "@monaco-editor/react": "^4.7.0",

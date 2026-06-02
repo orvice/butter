@@ -2,9 +2,11 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
@@ -13,10 +15,9 @@ import (
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/twitchtv/twirp"
 )
 
 // DashboardServiceServer aggregates read-only metrics for the dashboard
@@ -81,18 +82,18 @@ func (s *DashboardServiceServer) SetCronExecutionRepo(repo cron.ExecutionRepo) {
 	s.cronExecRepo = repo
 }
 
-func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context, req *agentsv1.GetCronExecutionTimeseriesRequest) (*agentsv1.GetCronExecutionTimeseriesResponse, error) {
+func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context, req *connect.Request[agentsv1.GetCronExecutionTimeseriesRequest]) (*connect.Response[agentsv1.GetCronExecutionTimeseriesResponse], error) {
 	if err := requireDashboardAccess(ctx); err != nil {
 		return nil, err
 	}
 	if s.cronExecRepo == nil {
-		return &agentsv1.GetCronExecutionTimeseriesResponse{}, nil
+		return connect.NewResponse(&agentsv1.GetCronExecutionTimeseriesResponse{}), nil
 	}
 
 	end := time.Now().UTC()
 	var bucketSize time.Duration
 	var span time.Duration
-	switch req.GetRange() {
+	switch req.Msg.GetRange() {
 	case agentsv1.GetCronExecutionTimeseriesRequest_RANGE_7D:
 		span = 7 * 24 * time.Hour
 		bucketSize = 24 * time.Hour
@@ -106,10 +107,10 @@ func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context,
 	start := end.Add(-span).Truncate(bucketSize)
 	end = end.Truncate(bucketSize).Add(bucketSize)
 
-	execs, err := s.cronExecRepo.ListByTimeRange(ctx, "", req.GetJobName(), start, end)
+	execs, err := s.cronExecRepo.ListByTimeRange(ctx, "", req.Msg.GetJobName(), start, end)
 	if err != nil {
-		log.FromContext(ctx).Error("dashboard cron timeseries failed", "job", req.GetJobName(), "err", err)
-		return nil, twirp.InternalErrorWith(err)
+		log.FromContext(ctx).Error("dashboard cron timeseries failed", "job", req.Msg.GetJobName(), "err", err)
+		return nil, connectx.InternalWith(err)
 	}
 
 	bucketCount := int(end.Sub(start) / bucketSize)
@@ -133,33 +134,33 @@ func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context,
 		}
 	}
 
-	return &agentsv1.GetCronExecutionTimeseriesResponse{Buckets: buckets}, nil
+	return connect.NewResponse(&agentsv1.GetCronExecutionTimeseriesResponse{Buckets: buckets}), nil
 }
 
-func (s *DashboardServiceServer) GetActivityFeed(ctx context.Context, req *agentsv1.GetActivityFeedRequest) (*agentsv1.GetActivityFeedResponse, error) {
+func (s *DashboardServiceServer) GetActivityFeed(ctx context.Context, req *connect.Request[agentsv1.GetActivityFeedRequest]) (*connect.Response[agentsv1.GetActivityFeedResponse], error) {
 	if err := requireDashboardAccess(ctx); err != nil {
 		return nil, err
 	}
 	if s.invRepo == nil {
-		return &agentsv1.GetActivityFeedResponse{}, nil
+		return connect.NewResponse(&agentsv1.GetActivityFeedResponse{}), nil
 	}
-	limit := req.GetLimit()
+	limit := req.Msg.GetLimit()
 	if limit <= 0 {
 		limit = 20
 	}
 	if limit > 200 {
 		limit = 200
 	}
-	invs, next, err := s.invRepo.ListRecent(ctx, limit, req.GetPageToken())
+	invs, next, err := s.invRepo.ListRecent(ctx, limit, req.Msg.GetPageToken())
 	if err != nil {
 		log.FromContext(ctx).Error("dashboard activity feed failed", "limit", limit, "err", err)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	events := make([]*agentsv1.ActivityEvent, 0, len(invs))
 	for _, inv := range invs {
 		events = append(events, invocationToActivity(inv))
 	}
-	return &agentsv1.GetActivityFeedResponse{Events: events, NextPageToken: next}, nil
+	return connect.NewResponse(&agentsv1.GetActivityFeedResponse{Events: events, NextPageToken: next}), nil
 }
 
 func invocationToActivity(inv *agentsv1.Invocation) *agentsv1.ActivityEvent {
@@ -187,21 +188,21 @@ func invocationToActivity(inv *agentsv1.Invocation) *agentsv1.ActivityEvent {
 	}
 }
 
-func (s *DashboardServiceServer) GetOverview(ctx context.Context, _ *agentsv1.GetOverviewRequest) (*agentsv1.GetOverviewResponse, error) {
+func (s *DashboardServiceServer) GetOverview(ctx context.Context, _ *connect.Request[agentsv1.GetOverviewRequest]) (*connect.Response[agentsv1.GetOverviewResponse], error) {
 	if err := requireDashboardAccess(ctx); err != nil {
 		return nil, err
 	}
 	counts, err := s.counts(ctx)
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	health := s.health(ctx)
 	latest := s.latestHandshake()
-	return &agentsv1.GetOverviewResponse{
+	return connect.NewResponse(&agentsv1.GetOverviewResponse{
 		Counts:                counts,
 		Health:                health,
 		LatestDaemonHandshake: latest,
-	}, nil
+	}), nil
 }
 
 func (s *DashboardServiceServer) counts(ctx context.Context) (*agentsv1.OverviewCounts, error) {
@@ -361,5 +362,5 @@ func requireDashboardAccess(ctx context.Context) error {
 	if auth.IsAdmin(ctx) {
 		return nil
 	}
-	return twirp.NewError(twirp.PermissionDenied, "dashboard access requires admin role")
+	return connect.NewError(connect.CodePermissionDenied, errors.New("dashboard access requires admin role"))
 }

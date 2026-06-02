@@ -1,5 +1,5 @@
 // Package workspace provides workspace scoping primitives shared across
-// the HTTP middleware, Twirp services, repositories and runtime.
+// the HTTP middleware, ConnectRPC services, repositories and runtime.
 //
 // The current workspace is propagated as a string ID on the request
 // context. Services read it via FromContext or MustFromContext; the HTTP
@@ -42,8 +42,8 @@ func FromContext(ctx context.Context) (string, bool) {
 }
 
 // MustFromContext is a helper for services that require a workspace. It
-// returns an error rather than panicking so callers can map it to twirp
-// FailedPrecondition / InvalidArgument.
+// returns an error rather than panicking so callers can map it to
+// connect.CodeFailedPrecondition / CodeInvalidArgument.
 func MustFromContext(ctx context.Context) (string, error) {
 	id, ok := FromContext(ctx)
 	if !ok {

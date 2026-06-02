@@ -1,8 +1,31 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "./client";
+import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { AgentSchema } from "@/gen/agents/v1/agent_pb";
+import {
+  AgentRuntimeStatusSchema,
+  AgentService,
+  InvocationSchema,
+} from "@/gen/agents/v1/agent_service_pb";
 import type { Agent, AgentRuntimeStatus, Invocation } from "@/types/api";
+import { tsToISO } from "./_proto-bridge";
+import { makeClient } from "./transport";
 
-const SVC = "agents.v1.AgentService";
+const client = makeClient(AgentService);
+
+// Agent / AgentConfig is deeply nested (sub_agents, mcp_servers, file_mounts,
+// context_guard, ...). Rather than hand-rolling a 200-line toProto/fromProto,
+// we leverage protojson: the proto-es runtime's fromJson accepts both
+// snake_case and camelCase keys, and toJson with useProtoFieldName=true emits
+// snake_case identical to the legacy Twirp wire format. So the legacy
+// snake-cased Agent interface round-trips through the typed RPC call without
+// extra mapping code.
+function agentToProto(a: Agent) {
+  return fromJson(AgentSchema, a as unknown as JsonValue, { ignoreUnknownFields: true });
+}
+
+function agentFromProto(a: unknown): Agent {
+  return toJson(AgentSchema, a as never, { useProtoFieldName: true }) as unknown as Agent;
+}
 
 interface ListAgentsParams {
   page_size?: number;
@@ -15,24 +38,38 @@ interface ListAgentsResponse {
   total?: number;
 }
 
-function listAgents(params: ListAgentsParams = {}) {
-  return twirpFetch<ListAgentsParams, ListAgentsResponse>(SVC, "ListAgents", params);
+async function listAgents(params: ListAgentsParams = {}): Promise<ListAgentsResponse> {
+  const res = await client.listAgents({
+    pageSize: params.page_size ?? 0,
+    pageToken: params.page_token ?? "",
+  });
+  return {
+    agents: res.agents.map(agentFromProto),
+    next_page_token: res.nextPageToken,
+    total: res.total,
+  };
 }
 
-function getAgent(name: string) {
-  return twirpFetch<{ name: string }, { agent: Agent }>(SVC, "GetAgent", { name });
+async function getAgent(name: string): Promise<{ agent: Agent }> {
+  const res = await client.getAgent({ name });
+  if (!res.agent) throw new Error("not found");
+  return { agent: agentFromProto(res.agent) };
 }
 
-function createAgent(agent: Agent) {
-  return twirpFetch<{ agent: Agent }, { agent: Agent }>(SVC, "CreateAgent", { agent });
+async function createAgent(agent: Agent): Promise<{ agent: Agent }> {
+  const res = await client.createAgent({ agent: agentToProto(agent) });
+  if (!res.agent) throw new Error("create returned nothing");
+  return { agent: agentFromProto(res.agent) };
 }
 
-function updateAgent(agent: Agent) {
-  return twirpFetch<{ agent: Agent }, { agent: Agent }>(SVC, "UpdateAgent", { agent });
+async function updateAgent(agent: Agent): Promise<{ agent: Agent }> {
+  const res = await client.updateAgent({ agent: agentToProto(agent) });
+  if (!res.agent) throw new Error("update returned nothing");
+  return { agent: agentFromProto(res.agent) };
 }
 
-function deleteAgent(name: string) {
-  return twirpFetch<{ name: string }, object>(SVC, "DeleteAgent", { name });
+async function deleteAgent(name: string): Promise<void> {
+  await client.deleteAgent({ name });
 }
 
 interface InvokeAgentParams {
@@ -44,39 +81,41 @@ interface InvokeAgentParams {
   model_override?: string;
 }
 
-function invokeAgent(params: InvokeAgentParams) {
-  return twirpFetch<InvokeAgentParams, { session_id: string; response: string }>(
-    SVC,
-    "InvokeAgent",
-    params,
-  );
+async function invokeAgent(params: InvokeAgentParams): Promise<{ session_id: string; response: string }> {
+  const res = await client.invokeAgent({
+    agentName: params.agent_name,
+    input: params.input,
+    appName: params.app_name ?? "",
+    userId: params.user_id ?? "",
+    sessionId: params.session_id ?? "",
+    modelOverride: params.model_override ?? "",
+  });
+  return { session_id: res.sessionId, response: res.response };
 }
 
-export function cancelAgentInvocation(invocationId: string) {
-  return twirpFetch<{ invocation_id: string }, { cancelled: boolean }>(
-    SVC,
-    "CancelAgentInvocation",
-    { invocation_id: invocationId },
-  );
+export async function cancelAgentInvocation(invocationId: string): Promise<{ cancelled: boolean }> {
+  const res = await client.cancelAgentInvocation({ invocationId });
+  return { cancelled: res.cancelled };
 }
 
-function reloadAgents() {
-  return twirpFetch<object, { reloaded_at?: string }>(SVC, "ReloadAgents", {});
+async function reloadAgents(): Promise<{ reloaded_at?: string }> {
+  const res = await client.reloadAgents({});
+  return { reloaded_at: tsToISO(res.reloadedAt) };
 }
 
-function getAgentRuntimeStatus(name: string) {
-  return twirpFetch<{ name: string }, { status: AgentRuntimeStatus }>(
-    SVC,
-    "GetAgentRuntimeStatus",
-    { name },
-  );
+function runtimeStatusFromProto(s: Parameters<typeof toJson<typeof AgentRuntimeStatusSchema>>[1]): AgentRuntimeStatus {
+  return toJson(AgentRuntimeStatusSchema, s, { useProtoFieldName: true }) as unknown as AgentRuntimeStatus;
 }
 
-function listAgentRuntimeStatuses(names?: string[]) {
-  return twirpFetch<
-    { names?: string[] },
-    { statuses?: AgentRuntimeStatus[] }
-  >(SVC, "ListAgentRuntimeStatuses", { names });
+async function getAgentRuntimeStatus(name: string): Promise<{ status: AgentRuntimeStatus }> {
+  const res = await client.getAgentRuntimeStatus({ name });
+  if (!res.status) throw new Error("status not found");
+  return { status: runtimeStatusFromProto(res.status) };
+}
+
+async function listAgentRuntimeStatuses(names?: string[]): Promise<{ statuses?: AgentRuntimeStatus[] }> {
+  const res = await client.listAgentRuntimeStatuses({ names: names ?? [] });
+  return { statuses: res.statuses.map(runtimeStatusFromProto) };
 }
 
 interface ListInvocationsParams {
@@ -92,12 +131,22 @@ interface ListInvocationsResponse {
   total?: number;
 }
 
-function listAgentInvocations(params: ListInvocationsParams) {
-  return twirpFetch<ListInvocationsParams, ListInvocationsResponse>(
-    SVC,
-    "ListAgentInvocations",
-    params,
-  );
+async function listAgentInvocations(params: ListInvocationsParams): Promise<ListInvocationsResponse> {
+  const res = await client.listAgentInvocations({
+    agentName: params.agent_name ?? "",
+    sessionId: params.session_id ?? "",
+    pageSize: params.page_size ?? 0,
+    pageToken: params.page_token ?? "",
+  });
+  // Invocation also nests Timestamps; round-trip via toJson with proto names
+  // so the legacy snake_case interface matches without manual mapping.
+  return {
+    invocations: res.invocations.map(
+      (inv) => toJson(InvocationSchema, inv, { useProtoFieldName: true }) as unknown as Invocation,
+    ),
+    next_page_token: res.nextPageToken,
+    total: res.total,
+  };
 }
 
 export function useAgents(params: ListAgentsParams = {}) {

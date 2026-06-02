@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	adkrunner "google.golang.org/adk/runner"
@@ -93,14 +94,14 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 	channelSvc := application.NewChannelServiceServer(configStore)
 	channelSvc.SetRuntime(configRuntime)
 
-	_, err = mcpSvc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{
+	_, err = mcpSvc.CreateMCPServer(ctx, connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: &agentsv1.MCPServer{
 			Id:        "mcp-1",
 			Name:      "primary-mcp",
 			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
 			Url:       "http://127.0.0.1:8099/mcp",
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create mcp server: %v", err)
 	}
@@ -108,14 +109,14 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 		t.Fatalf("expected 1 mcp config, got %d", len(cfg.MCPServerConfigs))
 	}
 
-	_, err = remoteSvc.CreateRemoteAgent(ctx, &agentsv1.CreateRemoteAgentRequest{
+	_, err = remoteSvc.CreateRemoteAgent(ctx, connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{
 			Id:       "remote-1",
 			Name:     "remote-agent",
 			Url:      "http://127.0.0.1:8081/a2a/remote-agent/.well-known/agent.json",
 			Protocol: agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_A2A,
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create remote agent: %v", err)
 	}
@@ -123,7 +124,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 		t.Fatalf("expected 1 remote agent config, got %d", len(cfg.RemoteAgents))
 	}
 
-	_, err = agentSvc.CreateAgent(ctx, &agentsv1.CreateAgentRequest{
+	_, err = agentSvc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{
 			Name: "workflow-agent",
 			Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL,
@@ -132,7 +133,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 				RemoteAgentIds: []string{"remote-1"},
 			},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create agent: %v", err)
 	}
@@ -148,7 +149,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 		t.Fatalf("expected resolved MCP server in agent status, got %+v", status.MCPServers)
 	}
 
-	_, err = channelSvc.CreateChannel(ctx, &agentsv1.CreateChannelRequest{
+	_, err = channelSvc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{
 			Name:      "telegram-main",
 			AgentName: "workflow-agent",
@@ -156,7 +157,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 			Enabled:   false,
 			Telegram:  &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
@@ -173,7 +174,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 		t.Fatalf("expected persisted channel telegram-main, got %+v", channels)
 	}
 
-	_, err = agentSvc.DeleteAgent(ctx, &agentsv1.DeleteAgentRequest{Name: "workflow-agent"})
+	_, err = agentSvc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "workflow-agent"}))
 	if err != nil {
 		t.Fatalf("delete agent: %v", err)
 	}

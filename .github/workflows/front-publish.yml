@@ -7,7 +7,7 @@ on:
   schedule:
     - cron: '17 21 * * *'
   push:
-    branches: [ "main" ]
+    branches: [ "**" ]
     tags: [ 'v*.*.*' ]
     paths:
       - 'front/**'
@@ -51,10 +51,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Scheduled builds → `nightly`
-      # Push to main      → `main`
-      # Push to vX.Y.Z    → `X.Y.Z`, `X.Y`, `X`, `latest`
-      # PR                → `pr-<n>` (built only, not pushed)
+      # Scheduled (default branch) → `nightly`
+      # Push to main               → `main`
+      # Push to other branches     → `nightly` (shared; last push wins)
+      # Push to vX.Y.Z             → `X.Y.Z`, `X.Y`, `X`, `latest`
+      # PR                         → `pr-<n>` (built only, not pushed)
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
@@ -62,7 +63,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=schedule,pattern=nightly
-            type=ref,event=branch
+            type=ref,event=branch,enable={{is_default_branch}}
+            type=raw,value=nightly,enable=${{ github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name != github.event.repository.default_branch }}
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

@@ -19,7 +19,6 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/twitchtv/twirp v8.1.3+incompatible
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	golang.org/x/crypto v0.49.0
 	golang.org/x/oauth2 v0.36.0

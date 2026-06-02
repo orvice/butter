@@ -1,35 +1,146 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "./client";
-import type { CronJob, CronExecution } from "@/types/api";
+import { create } from "@bufbuild/protobuf";
+import {
+  CronDeliverySchema,
+  CronDeliveryType,
+  CronExecutionStatus,
+  CronJobSchema,
+  CronJobService,
+  type CronExecution as PbCronExecution,
+  type CronJob as PbCronJob,
+} from "@/gen/agents/v1/cron_pb";
+import type {
+  CronDelivery,
+  CronDeliveryType as LegacyDeliveryType,
+  CronExecution,
+  CronExecutionStatus as LegacyExecStatus,
+  CronJob,
+} from "@/types/api";
+import { tsToISO } from "./_proto-bridge";
+import { makeClient } from "./transport";
 
-const SVC = "agents.v1.CronJobService";
+const client = makeClient(CronJobService);
 
-function listCronJobs() {
-  return twirpFetch<object, { cron_jobs: CronJob[] }>(SVC, "ListCronJobs", {});
+const DELIVERY_TYPE_NAMES: LegacyDeliveryType[] = [
+  "CRON_DELIVERY_TYPE_UNSPECIFIED",
+  "CRON_DELIVERY_TYPE_LOG",
+  "CRON_DELIVERY_TYPE_WEBHOOK",
+  "CRON_DELIVERY_TYPE_CHANNEL",
+  "CRON_DELIVERY_TYPE_NOTIFY_GROUP",
+];
+
+const EXECUTION_STATUS_NAMES: LegacyExecStatus[] = [
+  "CRON_EXECUTION_STATUS_UNSPECIFIED",
+  "CRON_EXECUTION_STATUS_SUCCESS",
+  "CRON_EXECUTION_STATUS_ERROR",
+];
+
+function deliveryTypeFromProto(t: CronDeliveryType): LegacyDeliveryType {
+  return DELIVERY_TYPE_NAMES[t] ?? "CRON_DELIVERY_TYPE_UNSPECIFIED";
 }
 
-function getCronJob(name: string) {
-  return twirpFetch<{ name: string }, { cron_job: CronJob }>(SVC, "GetCronJob", { name });
+function deliveryTypeToProto(t: LegacyDeliveryType | undefined): CronDeliveryType {
+  const idx = DELIVERY_TYPE_NAMES.indexOf(t ?? "CRON_DELIVERY_TYPE_UNSPECIFIED");
+  return idx < 0 ? CronDeliveryType.UNSPECIFIED : (idx as CronDeliveryType);
 }
 
-function createCronJob(cron_job: CronJob) {
-  return twirpFetch<{ cron_job: CronJob }, { cron_job: CronJob }>(SVC, "CreateCronJob", { cron_job });
+function execStatusFromProto(s: CronExecutionStatus): LegacyExecStatus {
+  return EXECUTION_STATUS_NAMES[s] ?? "CRON_EXECUTION_STATUS_UNSPECIFIED";
 }
 
-function updateCronJob(cron_job: CronJob) {
-  return twirpFetch<{ cron_job: CronJob }, { cron_job: CronJob }>(SVC, "UpdateCronJob", { cron_job });
+function deliveryFromProto(d: PbCronJob["delivery"]): CronDelivery | undefined {
+  if (!d) return undefined;
+  return {
+    type: deliveryTypeFromProto(d.type),
+    webhook_url: d.webhookUrl,
+    channel_name: d.channelName,
+    chat_id: d.chatId,
+    notify_group_name: d.notifyGroupName,
+  };
 }
 
-function deleteCronJob(name: string) {
-  return twirpFetch<{ name: string }, { cron_job: CronJob }>(SVC, "DeleteCronJob", { name });
+function deliveryToProto(d: CronDelivery | undefined): PbCronJob["delivery"] | undefined {
+  if (!d) return undefined;
+  return create(CronDeliverySchema, {
+    type: deliveryTypeToProto(d.type),
+    webhookUrl: d.webhook_url ?? "",
+    channelName: d.channel_name ?? "",
+    chatId: d.chat_id ?? "",
+    notifyGroupName: d.notify_group_name ?? "",
+  });
 }
 
-function runCronJobNow(name: string) {
-  return twirpFetch<{ name: string }, { execution: CronExecution }>(
-    SVC,
-    "RunCronJobNow",
-    { name },
-  );
+function jobFromProto(j: PbCronJob): CronJob {
+  return {
+    name: j.name,
+    schedule: j.schedule,
+    agent_name: j.agentName,
+    input: j.input,
+    timezone: j.timezone,
+    enabled: j.enabled,
+    delivery: deliveryFromProto(j.delivery),
+    metadata: j.metadata,
+  };
+}
+
+function jobToProto(j: CronJob): PbCronJob {
+  return create(CronJobSchema, {
+    name: j.name,
+    schedule: j.schedule,
+    agentName: j.agent_name,
+    input: j.input ?? "",
+    timezone: j.timezone ?? "",
+    enabled: j.enabled ?? false,
+    delivery: deliveryToProto(j.delivery),
+    metadata: j.metadata ?? {},
+  });
+}
+
+function execFromProto(e: PbCronExecution): CronExecution {
+  return {
+    id: e.id,
+    job_name: e.jobName,
+    agent_name: e.agentName,
+    status: execStatusFromProto(e.status),
+    input: e.input,
+    output: e.output,
+    started_at: tsToISO(e.startedAt),
+    finished_at: tsToISO(e.finishedAt),
+  };
+}
+
+async function listCronJobs(): Promise<{ cron_jobs: CronJob[] }> {
+  const res = await client.listCronJobs({});
+  return { cron_jobs: res.cronJobs.map(jobFromProto) };
+}
+
+async function getCronJob(name: string): Promise<{ cron_job: CronJob }> {
+  const res = await client.getCronJob({ name });
+  if (!res.cronJob) throw new Error("not found");
+  return { cron_job: jobFromProto(res.cronJob) };
+}
+
+async function createCronJob(job: CronJob): Promise<{ cron_job: CronJob }> {
+  const res = await client.createCronJob({ cronJob: jobToProto(job) });
+  if (!res.cronJob) throw new Error("create returned nothing");
+  return { cron_job: jobFromProto(res.cronJob) };
+}
+
+async function updateCronJob(job: CronJob): Promise<{ cron_job: CronJob }> {
+  const res = await client.updateCronJob({ cronJob: jobToProto(job) });
+  if (!res.cronJob) throw new Error("update returned nothing");
+  return { cron_job: jobFromProto(res.cronJob) };
+}
+
+async function deleteCronJob(name: string): Promise<{ cron_job: CronJob | undefined }> {
+  const res = await client.deleteCronJob({ name });
+  return { cron_job: res.cronJob ? jobFromProto(res.cronJob) : undefined };
+}
+
+async function runCronJobNow(name: string): Promise<{ execution: CronExecution }> {
+  const res = await client.runCronJobNow({ name });
+  if (!res.execution) throw new Error("no execution returned");
+  return { execution: execFromProto(res.execution) };
 }
 
 interface ListExecutionsParams {
@@ -38,12 +149,18 @@ interface ListExecutionsParams {
   page_token?: string;
 }
 
-function listCronExecutions(params: ListExecutionsParams) {
-  return twirpFetch<ListExecutionsParams, { executions: CronExecution[]; next_page_token: string }>(
-    SVC,
-    "ListCronExecutions",
-    params,
-  );
+async function listCronExecutions(
+  params: ListExecutionsParams,
+): Promise<{ executions: CronExecution[]; next_page_token: string }> {
+  const res = await client.listCronExecutions({
+    jobName: params.job_name ?? "",
+    pageSize: params.page_size ?? 0,
+    pageToken: params.page_token ?? "",
+  });
+  return {
+    executions: res.executions.map(execFromProto),
+    next_page_token: res.nextPageToken,
+  };
 }
 
 export function useCronJobs() {

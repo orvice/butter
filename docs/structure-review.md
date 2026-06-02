@@ -2,7 +2,7 @@
 
 评审时间：2026-04-12
 
-> **状态说明（2026-05-18）**：本文是一次历史目录结构评审，保留用于记录当时的重构背景与判断。文中部分路径（例如 `internal/bootstrap`、`internal/service/configapi`、`internal/repo/configstore`、`internal/runner` 等）已经在后续重构中迁移或删除；当前结构请以 `docs/project-structure.md` 和 `docs/architecture.md` 为准。
+> **状态说明（2026-06-02 更新）**：本文是一次历史目录结构评审，保留用于记录当时的重构背景与判断。文中部分路径（例如 `internal/bootstrap`、`internal/service/configapi`、`internal/repo/configstore`、`internal/runner` 等）已经在后续重构中迁移或删除；文中"应该拆 `internal/transport/twirp`"的建议被 2026-06 的 ConnectRPC 迁移以 `internal/application/<svc>_connect.go` + `internal/transport/connectx` 的形式部分采纳，但命名上没有 `twirp` 子包。当前结构请以 `docs/project-structure.md` 和 `docs/architecture.md` 为准。
 
 ## 结论
 

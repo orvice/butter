@@ -1,5 +1,11 @@
 # Daemon Agent 设计方案
 
+> **状态：历史设计文档（已落地）。** 本文是 daemon agent 设计阶段的方案稿，
+> 描述当时的 Twirp + Gin 架构与拟新增的 daemon 服务。daemon 已全部落地；
+> 自 2026-06-02 起 RPC 层迁移到 ConnectRPC（见 `migration-connectrpc.md`），
+> daemon 自身仍走独立 gRPC 端口 `:9090`。RPC 部分提到的 Twirp 文件 / Twirp
+> 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。
+
 ## 背景
 
 Butter 当前已支持通过 ADK Go 封装的本地执行 agent（LLM、Loop、Sequential、Parallel），以及通过 A2A 协议调用的远程 agent。本文档描述支持第三种执行模式——**Daemon Agent**：Client 作为长驻进程与 Server 建立持久连接，Server 将任务下发给 Client，Client 通过 CLI 调用 opencode/claude-code 等工具执行任务并回传结果。

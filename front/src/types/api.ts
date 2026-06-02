@@ -595,9 +595,3 @@ export interface CronExecution {
   finished_at?: string;
 }
 
-// --- Twirp Error ---
-
-export interface TwirpError {
-  code: string;
-  msg: string;
-}

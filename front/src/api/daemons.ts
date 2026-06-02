@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "./client";
 import { WORKSPACE_KEY } from "@/lib/constants";
+import {
+  DaemonService,
+  DaemonStatus_State,
+  type BridgeDiagnostics as PbBridgeDiagnostics,
+  type DaemonStatus as PbDaemonStatus,
+  type DaemonTaskInFlight as PbDaemonTaskInFlight,
+  type LatencyPoint as PbLatencyPoint,
+} from "@/gen/agents/v1/dashboard_pb";
 import type {
   BridgeDiagnostics,
   DaemonState,
@@ -8,133 +15,98 @@ import type {
   DaemonTaskInFlight,
   LatencyPoint,
 } from "@/types/api";
+import { bigintToNumber, durationToString, tsToISO } from "./_proto-bridge";
+import { makeClient } from "./transport";
 
-const SVC = "agents.v1.DaemonService";
+const client = makeClient(DaemonService);
 
-type UnknownRecord = Record<string, unknown>;
+// Proto enum values are numeric (0..3); the legacy frontend type uses the
+// proto enum value names as string literals. Indexed lookup mirrors the
+// enum declaration order in the .proto.
+const DAEMON_STATE_NAMES: DaemonState[] = [
+  "STATE_UNSPECIFIED",
+  "STATE_ONLINE",
+  "STATE_IDLE",
+  "STATE_OFFLINE",
+];
 
-function asRecord(value: unknown): UnknownRecord {
-  return value && typeof value === "object" ? (value as UnknownRecord) : {};
+function toDaemonState(s: DaemonStatus_State): DaemonState {
+  return DAEMON_STATE_NAMES[s] ?? "STATE_UNSPECIFIED";
 }
 
-function asString(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "bigint") return String(value);
-  return undefined;
-}
-
-function asNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "bigint") return Number(value);
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function asStringArray(value: unknown): string[] | undefined {
-  return Array.isArray(value) ? value.map(asString).filter((v): v is string => !!v) : undefined;
-}
-
-function asDaemonState(value: unknown): DaemonState | undefined {
-  if (typeof value === "string") return value as DaemonState;
-  if (typeof value === "number") {
-    return (["STATE_UNSPECIFIED", "STATE_ONLINE", "STATE_IDLE", "STATE_OFFLINE"] as const)[value];
-  }
-  return undefined;
-}
-
-function normalizeLatencyPoint(value: unknown): LatencyPoint {
-  const r = asRecord(value);
+function toLatencyPoint(p: PbLatencyPoint): LatencyPoint {
   return {
-    timestamp: asString(r.timestamp),
-    latency_ms: asNumber(r.latency_ms ?? r.latencyMs),
+    timestamp: tsToISO(p.timestamp),
+    latency_ms: bigintToNumber(p.latencyMs),
   };
 }
 
-function normalizeDiagnostics(value: unknown): BridgeDiagnostics {
-  const r = asRecord(value);
+function toDiagnostics(d: PbBridgeDiagnostics | undefined): BridgeDiagnostics {
+  if (!d) return { latency: [] };
   return {
-    cpu_percent: asNumber(r.cpu_percent ?? r.cpuPercent),
-    memory_used_bytes: asNumber(r.memory_used_bytes ?? r.memoryUsedBytes),
-    memory_limit_bytes: asNumber(r.memory_limit_bytes ?? r.memoryLimitBytes),
-    goroutines: asNumber(r.goroutines),
-    checked_at: asString(r.checked_at ?? r.checkedAt),
-    latency: Array.isArray(r.latency) ? r.latency.map(normalizeLatencyPoint) : [],
+    cpu_percent: d.cpuPercent,
+    memory_used_bytes: bigintToNumber(d.memoryUsedBytes),
+    memory_limit_bytes: bigintToNumber(d.memoryLimitBytes),
+    goroutines: d.goroutines,
+    checked_at: tsToISO(d.checkedAt),
+    latency: d.latency.map(toLatencyPoint),
   };
 }
 
-function normalizeDaemon(value: unknown): DaemonStatus {
-  const r = asRecord(value);
+function toDaemonStatus(s: PbDaemonStatus): DaemonStatus {
   return {
-    daemon_id: asString(r.daemon_id ?? r.daemonId) ?? "",
-    name: asString(r.name),
-    capabilities: asStringArray(r.capabilities) ?? [],
-    labels: asRecord(r.labels) as Record<string, string>,
-    state: asDaemonState(r.state),
-    connected_at: asString(r.connected_at ?? r.connectedAt),
-    uptime: asString(r.uptime),
-    active_tasks: asNumber(r.active_tasks ?? r.activeTasks),
-    version: asString(r.version),
-    os: asString(r.os),
-    executors: asStringArray(r.executors) ?? [],
-    remote_addr: asString(r.remote_addr ?? r.remoteAddr),
+    daemon_id: s.daemonId,
+    name: s.name,
+    capabilities: s.capabilities,
+    labels: s.labels,
+    state: toDaemonState(s.state),
+    connected_at: tsToISO(s.connectedAt),
+    uptime: durationToString(s.uptime),
+    active_tasks: s.activeTasks,
+    version: s.version,
+    os: s.os,
+    executors: s.executors,
+    remote_addr: s.remoteAddr,
   };
 }
 
-function normalizeTask(value: unknown): DaemonTaskInFlight {
-  const r = asRecord(value);
+function toTaskInFlight(t: PbDaemonTaskInFlight): DaemonTaskInFlight {
   return {
-    task_id: asString(r.task_id ?? r.taskId) ?? "",
-    daemon_id: asString(r.daemon_id ?? r.daemonId),
-    daemon_name: asString(r.daemon_name ?? r.daemonName),
-    capability: asString(r.capability),
-    started_at: asString(r.started_at ?? r.startedAt),
-    elapsed: asString(r.elapsed),
-    current_step: asString(r.current_step ?? r.currentStep),
-    progress: asNumber(r.progress),
-    agent_name: asString(r.agent_name ?? r.agentName),
+    task_id: t.taskId,
+    daemon_id: t.daemonId,
+    daemon_name: t.daemonName,
+    capability: t.capability,
+    started_at: tsToISO(t.startedAt),
+    elapsed: durationToString(t.elapsed),
+    current_step: t.currentStep,
+    progress: t.progress,
+    agent_name: t.agentName,
   };
 }
 
-async function listDaemons() {
-  const res = await twirpFetch<object, { daemons?: unknown[] }>(SVC, "ListDaemons", {});
-  return { daemons: (res.daemons ?? []).map(normalizeDaemon) };
+async function listDaemons(): Promise<{ daemons: DaemonStatus[] }> {
+  const res = await client.listDaemons({});
+  return { daemons: res.daemons.map(toDaemonStatus) };
 }
 
-async function getDaemon(daemonId: string) {
-  const res = await twirpFetch<{ daemon_id: string }, { daemon?: unknown }>(
-    SVC,
-    "GetDaemon",
-    { daemon_id: daemonId },
-  );
-  return { daemon: normalizeDaemon(res.daemon) };
+async function getDaemon(daemonId: string): Promise<{ daemon: DaemonStatus }> {
+  const res = await client.getDaemon({ daemonId });
+  if (!res.daemon) throw new Error("daemon not found");
+  return { daemon: toDaemonStatus(res.daemon) };
 }
 
-async function listDaemonTasks(daemonId?: string) {
-  const res = await twirpFetch<{ daemon_id?: string }, { tasks?: unknown[] }>(
-    SVC,
-    "ListDaemonTasks",
-    { daemon_id: daemonId },
-  );
-  return { tasks: (res.tasks ?? []).map(normalizeTask) };
+async function listDaemonTasks(daemonId?: string): Promise<{ tasks: DaemonTaskInFlight[] }> {
+  const res = await client.listDaemonTasks({ daemonId: daemonId ?? "" });
+  return { tasks: res.tasks.map(toTaskInFlight) };
 }
 
-function cancelDaemonTask(taskId: string, daemonId?: string) {
-  return twirpFetch<
-    { task_id: string; daemon_id?: string },
-    { daemon_id?: string; daemonId?: string }
-  >(SVC, "CancelDaemonTask", { task_id: taskId, daemon_id: daemonId });
+async function cancelDaemonTask(taskId: string, daemonId?: string): Promise<void> {
+  await client.cancelDaemonTask({ taskId, daemonId: daemonId ?? "" });
 }
 
-async function getBridgeDiagnostics() {
-  const res = await twirpFetch<object, { diagnostics?: unknown }>(
-    SVC,
-    "GetBridgeDiagnostics",
-    {},
-  );
-  return { diagnostics: normalizeDiagnostics(res.diagnostics) };
+async function getBridgeDiagnostics(): Promise<{ diagnostics: BridgeDiagnostics }> {
+  const res = await client.getBridgeDiagnostics({});
+  return { diagnostics: toDiagnostics(res.diagnostics) };
 }
 
 export function useDaemons() {

@@ -2,7 +2,10 @@
 
 ## Authentication
 
-All endpoints except `GET /ping` and `AuthService.Login` require Bearer token authentication:
+All endpoints require Bearer token authentication except `GET /ping`,
+`OPTIONS` preflights, the MCP OAuth callback, and the public
+`AuthService.Login` / `AuthService.ListOAuthProviders` /
+`AuthService.BeginOAuthFlow` / `AuthService.CompleteOAuthFlow` RPCs.
 
 ```
 Authorization: Bearer <token>
@@ -200,11 +203,23 @@ response shape as avatar uploads.
 
 ---
 
-## Twirp RPC Endpoints
+## RPC Endpoints
 
-All Twirp endpoints use `POST` with path pattern `/api/<package>.<Service>/<Method>`.
+All RPC endpoints are served by [ConnectRPC](https://connectrpc.com) handlers
+mounted under `/api/<package>.<Service>/<Method>`. Every endpoint
+simultaneously speaks three protocols on the same URL:
 
-Request/response bodies are JSON. Content-Type: `application/json`.
+- **Connect** — JSON or binary protobuf, the default for the dashboard.
+- **gRPC-Web** — `application/grpc-web` / `application/grpc-web+proto`, usable
+  from browsers without HTTP/2.
+- **gRPC (h2c)** — only when the deployment terminates HTTP/2 in front of
+  Butter; the daemon service has its own native gRPC listener on a separate
+  port (`internal/app/grpc.go`).
+
+For the dashboard, `POST application/json` is the canonical shape. To stay
+backwards-compatible with the legacy Twirp wire format, the server emits
+proto field names (snake_case) in JSON responses; both snake_case and
+camelCase are accepted on input.
 
 ---
 
@@ -480,7 +495,7 @@ One-shot agent run. If `session_id` is empty an ephemeral id `invoke-<uuid>` is 
 POST /api/chat/stream
 ```
 
-Runs an agent and streams progress over Server-Sent Events (SSE). This endpoint is intended for chat UIs that need immediate invocation metadata, intermediate ADK runner events, and the final response without waiting for a unary Twirp response.
+Runs an agent and streams progress over Server-Sent Events (SSE). This endpoint is intended for chat UIs that need immediate invocation metadata, intermediate ADK runner events, and the final response without waiting for a unary RPC response.
 
 It uses the same authentication middleware as `/api` endpoints. If the request includes `X-Workspace-ID`, the runner invocation is scoped to that workspace.
 
@@ -853,6 +868,82 @@ Enumerates tools across configured MCP servers.
 | `tool_filter` | string[] | Allowlist of exposed tools |
 | `metadata` | map\<string,string\> | Custom metadata |
 | `workspace_id` | string | Owning workspace |
+
+---
+
+### GlobalMCPServerService
+
+Workspace-agnostic MCP server presets that admins curate and any
+authenticated user can install into their workspace. List and install do
+**not** require `X-Workspace-ID` (install resolves the target from the
+header if present, or from the request body for admin cross-workspace
+installs). Create / Update / Delete require role `admin`.
+
+For non-admin callers the `auth.oauth2.client_secret` field is zeroed in
+responses; the secret is still persisted server-side so the OAuth flow
+can complete when the preset is installed into a workspace.
+
+#### ListGlobalMCPServers
+
+```
+POST /api/agents.v1.GlobalMCPServerService/ListGlobalMCPServers
+```
+
+**Request:** `{}`
+
+**Response:** `{ "mcp_servers": MCPServer[] }`
+
+#### CreateGlobalMCPServer  *(admin only)*
+
+```
+POST /api/agents.v1.GlobalMCPServerService/CreateGlobalMCPServer
+```
+
+**Request:** `{ "mcp_server": MCPServer }` — `workspace_id` on the body
+is ignored (presets are workspace-agnostic).
+
+**Response:** `{ "mcp_server": MCPServer }`
+
+#### UpdateGlobalMCPServer  *(admin only)*
+
+```
+POST /api/agents.v1.GlobalMCPServerService/UpdateGlobalMCPServer
+```
+
+**Request:** `{ "mcp_server": MCPServer }` — `mcp_server.id` is required.
+
+**Response:** `{ "mcp_server": MCPServer }`
+
+#### DeleteGlobalMCPServer  *(admin only)*
+
+```
+POST /api/agents.v1.GlobalMCPServerService/DeleteGlobalMCPServer
+```
+
+**Request:** `{ "id": "<preset-id>" }`
+
+**Response:** `{}`
+
+#### InstallGlobalMCPServer
+
+```
+POST /api/agents.v1.GlobalMCPServerService/InstallGlobalMCPServer
+```
+
+Clones the preset into a workspace and tags the resulting MCP server
+with the source preset id (in `metadata`). Admins may install across
+workspaces by passing `workspace_id`; the server audit-logs cross-tenant
+installs.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Preset id (required) |
+| `workspace_id` | string | Optional. Defaults to the `X-Workspace-ID` header. Admin only when it differs from the active workspace. |
+
+**Response:** `{ "mcp_server": MCPServer }` — workspace-scoped clone with
+`client_secret` redacted in the response.
 
 ---
 
@@ -1620,7 +1711,7 @@ Aggregates `cron_executions` into time buckets for the Overview chart.
 
 Read-only views and control over connected daemons.
 
-> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's gRPC bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is not exposed as a regular Twirp JSON endpoint; dashboard / ops clients should use the `DaemonService` endpoints below.
+> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's gRPC bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is not exposed as a regular `/api` ConnectRPC JSON endpoint; dashboard / ops clients should use the `DaemonService` endpoints below.
 
 #### ListDaemons
 
@@ -1726,7 +1817,7 @@ Process-level diagnostics for the daemon bridge.
 
 ### DaemonConnectorService
 
-Daemon client connection protocol. This is a bidirectional gRPC streaming service, not a Twirp JSON endpoint under `/api`.
+Daemon client connection protocol. This is a bidirectional gRPC streaming service, not a ConnectRPC JSON endpoint under `/api`.
 
 #### Connect
 
@@ -1929,17 +2020,26 @@ POST /api/agents.v1.APITokenService/RevokeAPIToken
 
 ## Error Handling
 
-Twirp endpoints return errors in the standard Twirp format:
+RPC endpoints return errors in the standard Connect envelope:
 
 ```json
 {
   "code": "not_found",
-  "msg": "agent \"foo\" not found"
+  "message": "agent \"foo\" not found"
 }
 ```
 
-Common error codes:
-- `not_found` - Resource does not exist
-- `already_exists` - Resource name/ID already taken
-- `failed_precondition` - Service not yet initialized
-- `internal` - Unexpected server error
+The HTTP status code mirrors the gRPC mapping (Connect / gRPC-Web also
+encode the code via response headers / trailers). Common codes:
+
+- `invalid_argument` (HTTP 400) — request validation failed
+- `unauthenticated` (HTTP 401) — missing or invalid bearer token
+- `permission_denied` (HTTP 403) — insufficient role
+- `not_found` (HTTP 404) — resource missing
+- `already_exists` (HTTP 409) — name/id collision
+- `failed_precondition` (HTTP 400) — service not yet initialized or
+  X-Workspace-ID header missing on a scoped RPC
+- `internal` (HTTP 500) — unexpected server error
+
+REST endpoints (`/ping`, `/status`, `/a2a/*`, `/api/uploads/*`, `/api/chat/stream`)
+return errors as `{"error": "..."}` with a conventional HTTP status code.

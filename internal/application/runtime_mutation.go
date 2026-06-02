@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 )
 
 func mutateWithRuntime[T any](apply func() (T, error), reload func() error, rollback func() error) (T, error) {
@@ -22,7 +22,7 @@ func mutateWithRuntime[T any](apply func() (T, error), reload func() error, roll
 			if rollbackErr := rollback(); rollbackErr != nil {
 				log.FromContext(context.Background()).Error("runtime rollback failed",
 					"reload_err", err, "rollback_err", rollbackErr)
-				return zero, twirp.InternalErrorWith(fmt.Errorf("reload runtime: %w; rollback failed: %v", err, rollbackErr))
+				return zero, connectx.InternalWith(fmt.Errorf("reload runtime: %w; rollback failed: %v", err, rollbackErr))
 			}
 			log.FromContext(context.Background()).Info("runtime rollback succeeded after reload failure", "reload_err", err)
 		}
@@ -43,7 +43,7 @@ func deleteWithRuntime(apply func() error, reload func() error, rollback func() 
 			if rollbackErr := rollback(); rollbackErr != nil {
 				log.FromContext(context.Background()).Error("runtime rollback failed after delete",
 					"reload_err", err, "rollback_err", rollbackErr)
-				return twirp.InternalErrorWith(fmt.Errorf("reload runtime: %w; rollback failed: %v", err, rollbackErr))
+				return connectx.InternalWith(fmt.Errorf("reload runtime: %w; rollback failed: %v", err, rollbackErr))
 			}
 			log.FromContext(context.Background()).Info("runtime rollback succeeded after delete reload failure", "reload_err", err)
 		}

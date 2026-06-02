@@ -18,10 +18,6 @@ plugins:
     out: pkg/proto
     opt:
       - paths=source_relative
-  - local: protoc-gen-twirp
-    out: pkg/proto
-    opt:
-      - paths=source_relative
   - remote: buf.build/bufbuild/es:v2.4.0
     out: front/src/gen
     include_imports: true

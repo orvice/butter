@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -22,9 +23,9 @@ func NewDaemonServiceServer(registry *daemon.Registry) *DaemonServiceServer {
 	return &DaemonServiceServer{registry: registry}
 }
 
-func (s *DaemonServiceServer) ListDaemons(ctx context.Context, _ *agentsv1.ListDaemonsRequest) (*agentsv1.ListDaemonsResponse, error) {
+func (s *DaemonServiceServer) ListDaemons(ctx context.Context, _ *connect.Request[agentsv1.ListDaemonsRequest]) (*connect.Response[agentsv1.ListDaemonsResponse], error) {
 	if s.registry == nil {
-		return &agentsv1.ListDaemonsResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListDaemonsResponse{}), nil
 	}
 	conns := s.registry.ListConnections()
 	now := time.Now()
@@ -32,71 +33,71 @@ func (s *DaemonServiceServer) ListDaemons(ctx context.Context, _ *agentsv1.ListD
 	for _, c := range conns {
 		out = append(out, connectionToStatus(c, now))
 	}
-	return &agentsv1.ListDaemonsResponse{Daemons: out}, nil
+	return connect.NewResponse(&agentsv1.ListDaemonsResponse{Daemons: out}), nil
 }
 
-func (s *DaemonServiceServer) GetDaemon(ctx context.Context, req *agentsv1.GetDaemonRequest) (*agentsv1.GetDaemonResponse, error) {
+func (s *DaemonServiceServer) GetDaemon(ctx context.Context, req *connect.Request[agentsv1.GetDaemonRequest]) (*connect.Response[agentsv1.GetDaemonResponse], error) {
 	if s.registry == nil {
-		return nil, twirp.NotFoundError("daemon not found")
+		return nil, connectx.NotFound("daemon not found")
 	}
-	conn := s.registry.Get(req.GetDaemonId())
+	conn := s.registry.Get(req.Msg.GetDaemonId())
 	if conn == nil {
-		return nil, twirp.NotFoundError("daemon not found")
+		return nil, connectx.NotFound("daemon not found")
 	}
-	return &agentsv1.GetDaemonResponse{Daemon: connectionToStatus(conn, time.Now())}, nil
+	return connect.NewResponse(&agentsv1.GetDaemonResponse{Daemon: connectionToStatus(conn, time.Now())}), nil
 }
 
-func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *agentsv1.CancelDaemonTaskRequest) (*agentsv1.CancelDaemonTaskResponse, error) {
+func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *connect.Request[agentsv1.CancelDaemonTaskRequest]) (*connect.Response[agentsv1.CancelDaemonTaskResponse], error) {
 	if s.registry == nil {
-		return nil, twirp.NotFoundError("daemon registry not available")
+		return nil, connectx.NotFound("daemon registry not available")
 	}
-	if req.GetTaskId() == "" {
-		return nil, twirp.RequiredArgumentError("task_id")
+	if req.Msg.GetTaskId() == "" {
+		return nil, connectx.RequiredArgument("task_id")
 	}
 
 	var target *daemon.Connection
-	if hint := req.GetDaemonId(); hint != "" {
+	if hint := req.Msg.GetDaemonId(); hint != "" {
 		conn := s.registry.Get(hint)
-		if conn == nil || !conn.HasTask(req.GetTaskId()) {
-			return nil, twirp.NotFoundError("task not found on daemon")
+		if conn == nil || !conn.HasTask(req.Msg.GetTaskId()) {
+			return nil, connectx.NotFound("task not found on daemon")
 		}
 		target = conn
 	} else {
 		for _, conn := range s.registry.ListConnections() {
-			if conn.HasTask(req.GetTaskId()) {
+			if conn.HasTask(req.Msg.GetTaskId()) {
 				target = conn
 				break
 			}
 		}
 		if target == nil {
-			return nil, twirp.NotFoundError("task not found on any connected daemon")
+			return nil, connectx.NotFound("task not found on any connected daemon")
 		}
 	}
 
 	logger := log.FromContext(ctx)
 	logger.Info("cancelling daemon task",
-		"task_id", req.GetTaskId(),
+		"task_id", req.Msg.GetTaskId(),
 		"daemon_id", target.Info.GetDaemonId(),
 		"daemon_name", target.Info.GetName(),
 	)
-	if err := target.CancelTask(req.GetTaskId()); err != nil {
+	if err := target.CancelTask(req.Msg.GetTaskId()); err != nil {
 		logger.Error("cancel daemon task failed",
-			"task_id", req.GetTaskId(),
+			"task_id", req.Msg.GetTaskId(),
 			"daemon_id", target.Info.GetDaemonId(),
 			"err", err,
 		)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
-	logger.Info("daemon task cancelled", "task_id", req.GetTaskId(), "daemon_id", target.Info.GetDaemonId())
-	return &agentsv1.CancelDaemonTaskResponse{DaemonId: target.Info.GetDaemonId()}, nil
+	logger.Info("daemon task cancelled", "task_id", req.Msg.GetTaskId(), "daemon_id", target.Info.GetDaemonId())
+	return connect.NewResponse(&agentsv1.CancelDaemonTaskResponse{DaemonId: target.Info.GetDaemonId()}), nil
 }
 
-func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *agentsv1.ListDaemonTasksRequest) (*agentsv1.ListDaemonTasksResponse, error) {
+func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *connect.Request[agentsv1.ListDaemonTasksRequest]) (*connect.Response[agentsv1.ListDaemonTasksResponse], error) {
 	if s.registry == nil {
-		return &agentsv1.ListDaemonTasksResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListDaemonTasksResponse{}), nil
 	}
 	var conns []*daemon.Connection
-	if hint := req.GetDaemonId(); hint != "" {
+	if hint := req.Msg.GetDaemonId(); hint != "" {
 		if c := s.registry.Get(hint); c != nil {
 			conns = []*daemon.Connection{c}
 		}
@@ -129,14 +130,14 @@ func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *agentsv1
 			out = append(out, task)
 		}
 	}
-	return &agentsv1.ListDaemonTasksResponse{Tasks: out}, nil
+	return connect.NewResponse(&agentsv1.ListDaemonTasksResponse{Tasks: out}), nil
 }
 
-func (s *DaemonServiceServer) GetBridgeDiagnostics(ctx context.Context, _ *agentsv1.GetBridgeDiagnosticsRequest) (*agentsv1.GetBridgeDiagnosticsResponse, error) {
+func (s *DaemonServiceServer) GetBridgeDiagnostics(ctx context.Context, _ *connect.Request[agentsv1.GetBridgeDiagnosticsRequest]) (*connect.Response[agentsv1.GetBridgeDiagnosticsResponse], error) {
 	if s.registry == nil || s.registry.Metrics() == nil {
-		return &agentsv1.GetBridgeDiagnosticsResponse{Diagnostics: &agentsv1.BridgeDiagnostics{
+		return connect.NewResponse(&agentsv1.GetBridgeDiagnosticsResponse{Diagnostics: &agentsv1.BridgeDiagnostics{
 			CheckedAt: timestamppb.New(time.Now().UTC()),
-		}}, nil
+		}}), nil
 	}
 	snap := s.registry.Metrics().Snapshot()
 	points := make([]*agentsv1.LatencyPoint, 0, len(snap.Latency))
@@ -153,7 +154,7 @@ func (s *DaemonServiceServer) GetBridgeDiagnostics(ctx context.Context, _ *agent
 		CheckedAt:       timestamppb.New(time.Now().UTC()),
 		Latency:         points,
 	}
-	return &agentsv1.GetBridgeDiagnosticsResponse{Diagnostics: diag}, nil
+	return connect.NewResponse(&agentsv1.GetBridgeDiagnosticsResponse{Diagnostics: diag}), nil
 }
 
 func connectionToStatus(c *daemon.Connection, now time.Time) *agentsv1.DaemonStatus {

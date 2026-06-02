@@ -2,16 +2,12 @@ package app
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync/atomic"
 
-	"butterfly.orx.me/core/log"
 	"github.com/gin-gonic/gin"
-	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/config"
@@ -25,10 +21,8 @@ import (
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/service"
-	wsctx "go.orx.me/apps/butter/internal/workspace"
-	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+	"go.orx.me/apps/butter/internal/transport/connectx"
+	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
 // Handlers holds all HTTP/Twirp handlers that need post-bootstrap wiring.
@@ -58,7 +52,6 @@ type Handlers struct {
 	configStore            *ConfigStore
 	configRuntime          *ConfigRuntime
 	agentRepo              configrepo.AgentRepository
-	globalMCPServerRepo    configrepo.GlobalMCPServerRepository
 	mcpServerRepo          configrepo.MCPServerRepository
 	modelProviderRepo      configrepo.ModelProviderRepository
 	notifyGroupRepo        configrepo.NotifyGroupRepository
@@ -266,7 +259,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	uploadSvc := service.NewUploadServiceLazy(func() config.StaticConfig { return cfg.Static })
 	uploadHandler := httpHandler.NewUploadHandler(uploadSvc)
 
-	pathPrefix := twirp.WithServerPathPrefix("/api")
 	agentSvcServer := application.NewAgentServiceServer(configStore)
 	agentFileSvcServer := application.NewAgentFileServiceServer(nil)
 	mcpSvcServer := application.NewMCPServerServiceServer(configStore)
@@ -274,30 +266,38 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	notifyGroupSvcServer := application.NewNotifyGroupServiceServer(configStore)
 	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
 	remoteSvcServer.SetDaemonRegistry(daemonRegistry)
+	// Every Connect handler shares the same option set so the wire format
+	// matches the pre-migration Twirp behavior (snake_case JSON). Without
+	// this, dashboard callers that still read response fields like
+	// connected_daemons / base_url / space_id without camelCase fallbacks
+	// silently see undefined.
+	connectOpts := connectx.HandlerOptions()
 	forumSvcServer := application.NewForumServiceServer(nil)
-	forumTwirp := agentsv1.NewForumServiceServer(forumSvcServer, pathPrefix)
-	agentTwirp := agentsv1.NewAgentServiceServer(agentSvcServer, pathPrefix)
-	agentFileTwirp := agentsv1.NewAgentFileServiceServer(agentFileSvcServer, pathPrefix)
-	mcpTwirp := agentsv1.NewMCPServerServiceServer(mcpSvcServer, pathPrefix)
-	modelProviderTwirp := agentsv1.NewModelProviderServiceServer(modelProviderSvcServer, pathPrefix)
-	notifyGroupTwirp := agentsv1.NewNotifyGroupServiceServer(notifyGroupSvcServer, pathPrefix)
-	remoteTwirp := agentsv1.NewRemoteAgentServiceServer(remoteSvcServer, pathPrefix)
+	forumConnectPath, forumConnectHandler := agentsv1connect.NewForumServiceHandler(forumSvcServer, connectOpts...)
+	agentConnectPath, agentConnectHandler := agentsv1connect.NewAgentServiceHandler(agentSvcServer, connectOpts...)
+	agentFileConnectPath, agentFileConnectHandler := agentsv1connect.NewAgentFileServiceHandler(agentFileSvcServer, connectOpts...)
+	mcpConnectPath, mcpConnectHandler := agentsv1connect.NewMCPServerServiceHandler(mcpSvcServer, connectOpts...)
+	modelProviderConnectPath, modelProviderConnectHandler := agentsv1connect.NewModelProviderServiceHandler(modelProviderSvcServer, connectOpts...)
+	notifyGroupConnectPath, notifyGroupConnectHandler := agentsv1connect.NewNotifyGroupServiceHandler(notifyGroupSvcServer, connectOpts...)
+	remoteConnectPath, remoteConnectHandler := agentsv1connect.NewRemoteAgentServiceHandler(remoteSvcServer, connectOpts...)
 	channelSvcServer := application.NewChannelServiceServer(configStore)
-	channelTwirp := agentsv1.NewChannelServiceServer(channelSvcServer, pathPrefix)
+	channelConnectPath, channelConnectHandler := agentsv1connect.NewChannelServiceHandler(channelSvcServer, connectOpts...)
 	sessionSvcServer := application.NewSessionServiceServer()
-	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer, pathPrefix)
+	sessionConnectPath, sessionConnectHandler := agentsv1connect.NewSessionServiceHandler(sessionSvcServer, connectOpts...)
 	cronSvcServer := application.NewCronJobServiceServer()
-	cronTwirp := agentsv1.NewCronJobServiceServer(cronSvcServer, pathPrefix)
+	cronConnectPath, cronConnectHandler := agentsv1connect.NewCronJobServiceHandler(cronSvcServer, connectOpts...)
 	dashboardSvcServer := application.NewDashboardServiceServer(configStore, daemonRegistry)
-	dashboardTwirp := agentsv1.NewDashboardServiceServer(dashboardSvcServer, pathPrefix)
+	dashboardConnectPath, dashboardConnectHandler := agentsv1connect.NewDashboardServiceHandler(dashboardSvcServer, connectOpts...)
 	daemonSvcServer := application.NewDaemonServiceServer(daemonRegistry)
-	daemonTwirp := agentsv1.NewDaemonServiceServer(daemonSvcServer, pathPrefix)
+	daemonConnectPath, daemonConnectHandler := agentsv1connect.NewDaemonServiceHandler(daemonSvcServer, connectOpts...)
 	apiTokenSvcServer := application.NewAPITokenServiceServer(nil)
-	apiTokenTwirp := agentsv1.NewAPITokenServiceServer(apiTokenSvcServer, pathPrefix)
+	apiTokenConnectPath, apiTokenConnectHandler := agentsv1connect.NewAPITokenServiceHandler(apiTokenSvcServer, connectOpts...)
+	globalMCPSvcServer := application.NewGlobalMCPServerServiceServer(configStore, mcpSvcServer)
+	globalMCPConnectPath, globalMCPConnectHandler := agentsv1connect.NewGlobalMCPServerServiceHandler(globalMCPSvcServer, connectOpts...)
 	authSvcServer := application.NewAuthServiceServer(nil, cfg.Auth.EffectiveSessionTTL())
-	authTwirp := agentsv1.NewAuthServiceServer(authSvcServer, pathPrefix)
+	authConnectPath, authConnectHandler := agentsv1connect.NewAuthServiceHandler(authSvcServer, connectOpts...)
 	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
-	workspaceTwirp := agentsv1.NewWorkspaceServiceServer(workspaceSvcServer, pathPrefix)
+	workspaceConnectPath, workspaceConnectHandler := agentsv1connect.NewWorkspaceServiceHandler(workspaceSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -322,7 +322,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		configStore:            configStore,
 		configRuntime:          configRuntime,
 		agentRepo:              configStore,
-		globalMCPServerRepo:    configStore,
 		mcpServerRepo:          configStore,
 		modelProviderRepo:      configStore,
 		notifyGroupRepo:        configStore,
@@ -338,7 +337,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		chatStreamHandler.Register(r)
 		uploadHandler.Register(r)
 		httpHandler.RegisterWorkspaceMCP(r, workspaceMCPSvc.Handler(), handlers.workspaceRepoFromHolder)
-		registerGlobalMCPServerRoutes(r, handlers, mcpSvcServer)
 		r.GET(mcpoauth.CallbackPath, func(c *gin.Context) {
 			status := "error"
 			serverID := ""
@@ -360,22 +358,26 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 			c.Redirect(http.StatusFound, appendOAuthCallbackParams(target, status, serverID))
 		})
 
-		// Mount Twirp handlers under /api prefix
-		r.Any(forumTwirp.PathPrefix()+"*path", gin.WrapH(forumTwirp))
-		r.Any(agentTwirp.PathPrefix()+"*path", gin.WrapH(agentTwirp))
-		r.Any(agentFileTwirp.PathPrefix()+"*path", gin.WrapH(agentFileTwirp))
-		r.Any(mcpTwirp.PathPrefix()+"*path", gin.WrapH(mcpTwirp))
-		r.Any(modelProviderTwirp.PathPrefix()+"*path", gin.WrapH(modelProviderTwirp))
-		r.Any(notifyGroupTwirp.PathPrefix()+"*path", gin.WrapH(notifyGroupTwirp))
-		r.Any(remoteTwirp.PathPrefix()+"*path", gin.WrapH(remoteTwirp))
-		r.Any(channelTwirp.PathPrefix()+"*path", gin.WrapH(channelTwirp))
-		r.Any(sessionTwirp.PathPrefix()+"*path", gin.WrapH(sessionTwirp))
-		r.Any(cronTwirp.PathPrefix()+"*path", gin.WrapH(cronTwirp))
-		r.Any(dashboardTwirp.PathPrefix()+"*path", gin.WrapH(dashboardTwirp))
-		r.Any(daemonTwirp.PathPrefix()+"*path", gin.WrapH(daemonTwirp))
-		r.Any(apiTokenTwirp.PathPrefix()+"*path", gin.WrapH(apiTokenTwirp))
-		r.Any(authTwirp.PathPrefix()+"*path", gin.WrapH(authTwirp))
-		r.Any(workspaceTwirp.PathPrefix()+"*path", gin.WrapH(workspaceTwirp))
+		// Connect handlers mount at /agents.v1.XxxService/ by default; we
+		// strip the /api prefix before forwarding so the public URLs
+		// (/api/agents.v1.XxxService/Method) stay stable across the
+		// migration.
+		r.Any("/api"+authConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", authConnectHandler)))
+		r.Any("/api"+workspaceConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", workspaceConnectHandler)))
+		r.Any("/api"+apiTokenConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", apiTokenConnectHandler)))
+		r.Any("/api"+agentConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", agentConnectHandler)))
+		r.Any("/api"+mcpConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", mcpConnectHandler)))
+		r.Any("/api"+modelProviderConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", modelProviderConnectHandler)))
+		r.Any("/api"+notifyGroupConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", notifyGroupConnectHandler)))
+		r.Any("/api"+remoteConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", remoteConnectHandler)))
+		r.Any("/api"+channelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", channelConnectHandler)))
+		r.Any("/api"+forumConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", forumConnectHandler)))
+		r.Any("/api"+agentFileConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", agentFileConnectHandler)))
+		r.Any("/api"+sessionConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", sessionConnectHandler)))
+		r.Any("/api"+cronConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", cronConnectHandler)))
+		r.Any("/api"+dashboardConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", dashboardConnectHandler)))
+		r.Any("/api"+daemonConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", daemonConnectHandler)))
+		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 	}
 
 	return router, handlers
@@ -387,246 +389,6 @@ func oauthCallbackFallback(cfg *config.AppConfig) string {
 		return "/mcp-servers"
 	}
 	return strings.TrimRight(base, "/") + "/mcp-servers"
-}
-
-type installGlobalMCPServerRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-}
-
-func registerGlobalMCPServerRoutes(r *gin.Engine, handlers *Handlers, mcpSvc *application.MCPServerServiceServer) {
-	r.GET("/api/global-mcp-servers", func(c *gin.Context) {
-		servers, err := handlers.globalMCPServerRepo.ListGlobalMCPServers(c.Request.Context())
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		writeMCPServerList(c, servers, !auth.IsAdmin(c.Request.Context()))
-	})
-
-	r.POST("/api/admin/global-mcp-servers", func(c *gin.Context) {
-		if !requireAdmin(c) {
-			return
-		}
-		server, ok := readMCPServer(c)
-		if !ok {
-			return
-		}
-		created, err := handlers.globalMCPServerRepo.CreateGlobalMCPServer(c.Request.Context(), server)
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		writeMCPServer(c, http.StatusCreated, created, false)
-	})
-
-	r.PUT("/api/admin/global-mcp-servers/:id", func(c *gin.Context) {
-		if !requireAdmin(c) {
-			return
-		}
-		server, ok := readMCPServer(c)
-		if !ok {
-			return
-		}
-		if server.GetId() == "" {
-			server.Id = c.Param("id")
-		}
-		if server.GetId() != c.Param("id") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "id mismatch"})
-			return
-		}
-		updated, err := handlers.globalMCPServerRepo.UpdateGlobalMCPServer(c.Request.Context(), server)
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		writeMCPServer(c, http.StatusOK, updated, false)
-	})
-
-	r.DELETE("/api/admin/global-mcp-servers/:id", func(c *gin.Context) {
-		if !requireAdmin(c) {
-			return
-		}
-		if err := handlers.globalMCPServerRepo.DeleteGlobalMCPServer(c.Request.Context(), c.Param("id")); err != nil {
-			writeError(c, err)
-			return
-		}
-		c.Status(http.StatusNoContent)
-	})
-
-	r.POST("/api/global-mcp-servers/:id/install", func(c *gin.Context) {
-		workspaceID, ok := installWorkspaceID(c)
-		if !ok {
-			return
-		}
-		var req installGlobalMCPServerRequest
-		if c.Request.Body != nil && c.Request.ContentLength != 0 {
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-		}
-		requestedWorkspaceID := strings.TrimSpace(req.WorkspaceID)
-		if requestedWorkspaceID != "" {
-			if !auth.IsAdmin(c.Request.Context()) && requestedWorkspaceID != workspaceID {
-				c.JSON(http.StatusForbidden, gin.H{"error": "admin role required for cross-workspace install"})
-				return
-			}
-			if requestedWorkspaceID != workspaceID {
-				auditAdminCrossWorkspaceInstall(c, workspaceID, requestedWorkspaceID, c.Param("id"))
-			}
-			workspaceID = requestedWorkspaceID
-		}
-		preset, err := handlers.globalMCPServerRepo.GetGlobalMCPServer(c.Request.Context(), c.Param("id"))
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		server := proto.Clone(preset).(*agentsv1.MCPServer)
-		server.WorkspaceId = ""
-		application.MarkInstalledGlobalMCPPreset(server, preset.GetId())
-		ctx := wsctx.WithID(c.Request.Context(), workspaceID)
-		created, err := mcpSvc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{McpServer: server})
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		writeMCPServer(c, http.StatusCreated, created.GetMcpServer(), true)
-	})
-}
-
-func requireAdmin(c *gin.Context) bool {
-	if auth.IsAdmin(c.Request.Context()) {
-		return true
-	}
-	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin role required"})
-	return false
-}
-
-// auditAdminCrossWorkspaceInstall emits a structured audit log entry when an
-// admin installs a global MCP preset into a workspace whose context they did
-// not explicitly enter. Cross-workspace installs are intentionally allowed
-// for ops/automation, but they need a paper trail because a compromised
-// admin can use this path to plant SSRF-capable MCP servers in any tenant.
-func auditAdminCrossWorkspaceInstall(c *gin.Context, contextWorkspaceID, targetWorkspaceID, presetID string) {
-	ctx := c.Request.Context()
-	logger := log.FromContext(ctx).With("audit", "admin_cross_workspace_install")
-	fields := []any{
-		"preset_id", presetID,
-		"context_workspace_id", contextWorkspaceID,
-		"target_workspace_id", targetWorkspaceID,
-		"remote_addr", c.ClientIP(),
-	}
-	if user, ok := auth.UserFromContext(ctx); ok {
-		fields = append(fields, "user_id", user.GetId(), "user_role", user.GetRole())
-	}
-	logger.Warn("admin installed global MCP preset into another workspace", fields...)
-}
-
-func installWorkspaceID(c *gin.Context) (string, bool) {
-	workspaceID, ok := wsctx.FromContext(c.Request.Context())
-	if ok {
-		return workspaceID, true
-	}
-	if auth.IsAdmin(c.Request.Context()) {
-		return "", true
-	}
-	c.JSON(http.StatusForbidden, gin.H{"error": "workspace required"})
-	return "", false
-}
-
-func readMCPServer(c *gin.Context) (*agentsv1.MCPServer, bool) {
-	body, err := c.GetRawData()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return nil, false
-	}
-	server := &agentsv1.MCPServer{}
-	if err := protojson.Unmarshal(body, server); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return nil, false
-	}
-	server.WorkspaceId = ""
-	return server, true
-}
-
-func writeMCPServerList(c *gin.Context, servers []*agentsv1.MCPServer, redact bool) {
-	out := make([]json.RawMessage, 0, len(servers))
-	for _, server := range servers {
-		raw, err := marshalMCPServer(mcpServerForResponse(server, redact))
-		if err != nil {
-			writeError(c, err)
-			return
-		}
-		out = append(out, raw)
-	}
-	c.JSON(http.StatusOK, gin.H{"mcp_servers": out})
-}
-
-func writeMCPServer(c *gin.Context, status int, server *agentsv1.MCPServer, redact bool) {
-	raw, err := marshalMCPServer(mcpServerForResponse(server, redact))
-	if err != nil {
-		writeError(c, err)
-		return
-	}
-	c.JSON(status, gin.H{"mcp_server": raw})
-}
-
-func marshalMCPServer(server *agentsv1.MCPServer) (json.RawMessage, error) {
-	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(server)
-	if err != nil {
-		return nil, err
-	}
-	return json.RawMessage(b), nil
-}
-
-func mcpServerForResponse(server *agentsv1.MCPServer, redact bool) *agentsv1.MCPServer {
-	if server == nil {
-		return nil
-	}
-	clone := proto.Clone(server).(*agentsv1.MCPServer)
-	if redact {
-		redactMCPServerSecret(clone)
-	}
-	return clone
-}
-
-func redactMCPServerSecret(server *agentsv1.MCPServer) {
-	oauth := server.GetAuth().GetOauth2()
-	if oauth != nil {
-		oauth.ClientSecret = ""
-	}
-}
-
-func writeError(c *gin.Context, err error) {
-	if err == nil {
-		return
-	}
-	if twerr, ok := err.(twirp.Error); ok {
-		switch twerr.Code() {
-		case twirp.InvalidArgument, twirp.Malformed:
-			c.JSON(http.StatusBadRequest, gin.H{"error": twerr.Msg()})
-		case twirp.PermissionDenied:
-			c.JSON(http.StatusForbidden, gin.H{"error": twerr.Msg()})
-		case twirp.NotFound:
-			c.JSON(http.StatusNotFound, gin.H{"error": twerr.Msg()})
-		case twirp.AlreadyExists:
-			c.JSON(http.StatusConflict, gin.H{"error": twerr.Msg()})
-		case twirp.FailedPrecondition:
-			c.JSON(http.StatusPreconditionFailed, gin.H{"error": twerr.Msg()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": twerr.Msg()})
-		}
-		return
-	}
-	if errors.Is(err, configrepo.ErrNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
-	}
-	if errors.Is(err, configrepo.ErrAlreadyExists) {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 }
 
 func appendOAuthCallbackParams(raw, status, serverID string) string {

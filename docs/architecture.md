@@ -1,16 +1,16 @@
 # Butter 系统架构
 
-更新时间：2026-05-17
+更新时间：2026-06-02
 
 ## 概览
 
-Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/Twirp/gRPC/channel 输入统一转为 ADK agent 执行，并通过 MongoDB、Redis、运行时配置仓库和 daemon 长连接支撑会话、记忆、渠道状态、定时任务、远程执行、invocation 历史与运维面板。
+Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/gRPC/channel 输入统一转为 ADK agent 执行，并通过 MongoDB、Redis、运行时配置仓库和 daemon 长连接支撑会话、记忆、渠道状态、定时任务、远程执行、invocation 历史与运维面板。
 
 核心能力：
 
 - 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Cron / API Token / Invocation / Cron Execution 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
 - Agent 配置化：从 YAML 或配置仓库加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel agent。
-- 多入口接入：Gin HTTP、Twirp RPC、Telegram、Discord、Cron、A2A 和 daemon gRPC。
+- 多入口接入：Gin HTTP、ConnectRPC（同 endpoint 同时支持 Connect/gRPC-Web/gRPC）、Telegram、Discord、Cron、A2A 和 daemon gRPC。
 - 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload；`AgentService.ReloadAgents` 公开触发。
 - 多执行面：本地 ADK agent、A2A 远程 agent、daemon 反向连接 agent；A2A 与 MCP 提供 live probing。
 - 持久化运行时：MongoDB 保存 ADK session/memory、配置、cron 执行记录、invocation 历史、API tokens、workspaces 与 workspace_members；Redis 保存渠道内活跃 agent/model 选择。
@@ -25,7 +25,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/Twirp/gRPC/ch
 1. 客户端登录后，`AuthService.Login` 返回该用户可访问的 workspace 列表（全局 `admin` 角色得到所有 workspace）。
 2. 客户端选择一个 workspace，后续请求带 `X-Workspace-ID` 头。
 3. `AuthMiddleware` 校验调用方是该 workspace 的成员（admin 旁路），把 workspace id 注入 `context.Context`。
-4. Twirp 服务通过 `internal/workspace.FromContext(ctx)` 取出 workspace id，下传到 repo CRUD 调用；写入实体时自动写回 `workspace_id` 字段。
+4. RPC 服务通过 `internal/workspace.FromContext(ctx)` 取出 workspace id，下传到 repo CRUD 调用；写入实体时自动写回 `workspace_id` 字段。
 5. API token 自身绑定到一个 workspace，认证成功后直接覆盖请求 workspace（忽略 header）。
 
 启动时 `application.BootstrapDefaultWorkspace` 检查 `workspaces` 集合是否为空，若为空则自动创建 slug 为 `default` 的 workspace，并把现有所有用户加为 `owner`。
@@ -53,7 +53,7 @@ cmd/butter/main.go
 ```text
 Access Layer
 ├── Gin HTTP handlers: /ping, /a2a/:agent_name/...
-├── Twirp RPC: /api/agents.v1.*Service/*
+├── ConnectRPC: /api/agents.v1.*Service/*    # Connect / gRPC-Web / gRPC
 ├── gRPC: DaemonConnectorService.Connect
 ├── Telegram poller
 ├── Discord poller
@@ -103,7 +103,7 @@ Persistence
 
 `internal/app` 是服务装配层：
 
-- `routes.go` 创建 Gin handler、Twirp server 和 `Handlers` 容器。
+- `routes.go` 创建 Gin handler、ConnectRPC handler 和 `Handlers` 容器。每个 `internal/application/*ServiceServer` 被对应的 `application.NewXxxServiceConnectAdapter` 包成 `agentsv1connect.XxxServiceHandler`，挂载在 `/api/agents.v1.XxxService/*` 路径下（通过 `http.StripPrefix("/api", handler)` 接到 Connect 默认的 `/agents.v1.XxxService/` mount path）。共享的 codec/transport plumbing 见 `internal/transport/connectx`。
 - `config_store.go` 根据 `storage_backend` 选择 memory 或 mongo 配置后端，并把配置同步回 `AppConfig`。
 - `config_runtime.go` 在配置变更后同步 `AppConfig`，并触发 runner/channel reload。
 - `runtime.go` 初始化 MongoDB、Redis 和 Langfuse plugin。
@@ -112,7 +112,7 @@ Persistence
 - `cron.go` 创建 cron repository 和 scheduler。
 - `system_agent.go` 注册内置系统 agent。
 
-启动时先创建 HTTP/Twirp handler，再初始化配置仓库。配置仓库 seed 完成后，`StartChannels` 用当前配置构建 runner、cron 和渠道管理器。最后 `Handlers.Wire` 把 runner、session、cron、config runtime 等运行时依赖注入到已创建的 RPC/HTTP handler。
+启动时先创建 HTTP/ConnectRPC handler，再初始化配置仓库。配置仓库 seed 完成后，`StartChannels` 用当前配置构建 runner、cron 和渠道管理器。最后 `Handlers.Wire` 把 runner、session、cron、config runtime 等运行时依赖注入到已创建的 RPC/HTTP handler。
 
 ## Agent 构建模型
 
@@ -185,7 +185,7 @@ HTTP handler 位于 `internal/handler/http`：
 - `GET /a2a/:agent_name/.well-known/agent.json`：A2A agent card。
 - `POST /a2a/:agent_name`：A2A JSON-RPC task send。
 
-Twirp server 位于 `internal/application`，挂载在 `/api`：
+RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC（同一 URL 兼容 Connect JSON、gRPC-Web 和 gRPC 协议；为前端零改动兼容，JSON 输出沿用 snake_case proto field names）：
 
 配置 / 执行：
 
@@ -201,8 +201,9 @@ Twirp server 位于 `internal/application`，挂载在 `/api`：
 - `DashboardService`：`GetOverview` / `GetActivityFeed` / `GetCronExecutionTimeseries`。
 - `DaemonService`：`ListDaemons` / `GetDaemon` / `ListDaemonTasks` / `CancelDaemonTask` / `GetBridgeDiagnostics`。
 - `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
+- `GlobalMCPServerService`：admin 管理的 workspace-agnostic MCP server 预设；`Install` 把预设克隆到目标 workspace（admin 可跨 workspace 安装，审计日志记录）。
 
-除 `/ping` 与 `AuthService.Login` 外，HTTP/Twirp 请求经过 `AuthMiddleware`：
+除 `/ping`、OPTIONS 预检、MCP OAuth 回调以及 `AuthService.Login` / `ListOAuthProviders` / `BeginOAuthFlow` / `CompleteOAuthFlow` 之外，所有 HTTP/RPC 请求经过 `AuthMiddleware`：
 
 1. 优先解析 `Authorization: Bearer <token>` 中的 user session（Redis `butter:auth:session:<sha256(token)>`，命中后异步 `TouchSession`）。
 2. 不匹配则用 `subtle.ConstantTimeCompare` 比对配置的 root token (`cfg.apiToken`)。

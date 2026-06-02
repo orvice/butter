@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/twitchtv/twirp"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"go.orx.me/apps/butter/internal/config"
@@ -18,6 +18,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
 type runtimeTracker struct {
@@ -35,7 +36,7 @@ func (r *runtimeTracker) ReloadChannels(context.Context) error {
 	return nil
 }
 
-type twirpIntegrationFixture struct {
+type connectIntegrationFixture struct {
 	ctx     context.Context
 	cfg     *config.AppConfig
 	server  *httptest.Server
@@ -43,7 +44,27 @@ type twirpIntegrationFixture struct {
 	tracker *runtimeTracker
 }
 
-func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
+func (fx *connectIntegrationFixture) baseURL() string { return fx.server.URL + "/api" }
+
+func (fx *connectIntegrationFixture) httpClient() *http.Client { return fx.server.Client() }
+
+// workspaceHeaderInterceptor injects the X-Workspace-ID header onto every
+// outbound Connect request so the test fixture's workspace context survives
+// the round-trip through the gin AuthMiddleware.
+func workspaceHeaderInterceptor(workspaceID string) connect.Interceptor {
+	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			req.Header().Set(workspace.HeaderName, workspaceID)
+			return next(ctx, req)
+		}
+	})
+}
+
+func (fx *connectIntegrationFixture) clientOptions() []connect.ClientOption {
+	return []connect.ClientOption{connect.WithInterceptors(workspaceHeaderInterceptor("ws-test"))}
+}
+
+func newConnectIntegrationFixture(t *testing.T) *connectIntegrationFixture {
 	t.Helper()
 
 	mongoURI := os.Getenv("MONGO_URI")
@@ -54,18 +75,11 @@ func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 	ctx = workspace.WithID(ctx, "ws-test")
-	var err error
-	ctx, err = twirp.WithHTTPRequestHeaders(ctx, http.Header{
-		workspace.HeaderName: []string{"ws-test"},
-	})
-	if err != nil {
-		t.Fatalf("set workspace header: %v", err)
-	}
 
 	cfg := &config.AppConfig{
 		StorageBackend: "mongo",
 		MongoURI:       mongoURI,
-		MongoDB:        "butter_twirp_" + uuid.NewString(),
+		MongoDB:        "butter_connect_" + uuid.NewString(),
 		Auth:           config.AuthConfig{AllowUnauthenticated: true},
 	}
 
@@ -94,7 +108,7 @@ func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
 		_ = db.Drop(context.Background())
 	})
 
-	return &twirpIntegrationFixture{
+	return &connectIntegrationFixture{
 		ctx:     ctx,
 		cfg:     cfg,
 		server:  server,
@@ -103,12 +117,12 @@ func newTwirpIntegrationFixture(t *testing.T) *twirpIntegrationFixture {
 	}
 }
 
-func TestChannelServiceTwirpIntegration(t *testing.T) {
-	fx := newTwirpIntegrationFixture(t)
+func TestChannelService_ConnectIntegration(t *testing.T) {
+	fx := newConnectIntegrationFixture(t)
 
-	client := agentsv1.NewChannelServiceProtobufClient(fx.server.URL, fx.server.Client(), twirp.WithClientPathPrefix("/api"))
+	client := agentsv1connect.NewChannelServiceClient(fx.httpClient(), fx.baseURL(), fx.clientOptions()...)
 
-	createResp, err := client.CreateChannel(fx.ctx, &agentsv1.CreateChannelRequest{
+	createResp, err := client.CreateChannel(fx.ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{
 			Name:      "telegram-main",
 			AgentName: "agent-alpha",
@@ -116,18 +130,18 @@ func TestChannelServiceTwirpIntegration(t *testing.T) {
 			Enabled:   true,
 			Telegram:  &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
-	if createResp.GetChannel().GetName() != "telegram-main" {
-		t.Fatalf("expected created channel telegram-main, got %q", createResp.GetChannel().GetName())
+	if createResp.Msg.GetChannel().GetName() != "telegram-main" {
+		t.Fatalf("expected created channel telegram-main, got %q", createResp.Msg.GetChannel().GetName())
 	}
 	if fx.tracker.channelReloads != 1 {
 		t.Fatalf("expected 1 channel reload, got %d", fx.tracker.channelReloads)
 	}
 
-	updateResp, err := client.UpdateChannel(fx.ctx, &agentsv1.UpdateChannelRequest{
+	updateResp, err := client.UpdateChannel(fx.ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
 		Channel: &agentsv1.AgentChannel{
 			Name:      "telegram-main",
 			AgentName: "agent-beta",
@@ -135,23 +149,23 @@ func TestChannelServiceTwirpIntegration(t *testing.T) {
 			Enabled:   true,
 			Telegram:  &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("update channel: %v", err)
 	}
-	if updateResp.GetChannel().GetAgentName() != "agent-beta" {
-		t.Fatalf("expected updated agent-beta, got %q", updateResp.GetChannel().GetAgentName())
+	if updateResp.Msg.GetChannel().GetAgentName() != "agent-beta" {
+		t.Fatalf("expected updated agent-beta, got %q", updateResp.Msg.GetChannel().GetAgentName())
 	}
 	if fx.tracker.channelReloads != 2 {
 		t.Fatalf("expected 2 channel reloads, got %d", fx.tracker.channelReloads)
 	}
 
-	getResp, err := client.GetChannel(fx.ctx, &agentsv1.GetChannelRequest{Name: "telegram-main"})
+	getResp, err := client.GetChannel(fx.ctx, connect.NewRequest(&agentsv1.GetChannelRequest{Name: "telegram-main"}))
 	if err != nil {
 		t.Fatalf("get channel: %v", err)
 	}
-	if getResp.GetChannel().GetAgentName() != "agent-beta" {
-		t.Fatalf("expected persisted agent-beta, got %q", getResp.GetChannel().GetAgentName())
+	if getResp.Msg.GetChannel().GetAgentName() != "agent-beta" {
+		t.Fatalf("expected persisted agent-beta, got %q", getResp.Msg.GetChannel().GetAgentName())
 	}
 
 	repo := configmongo.New(fx.db)
@@ -163,15 +177,15 @@ func TestChannelServiceTwirpIntegration(t *testing.T) {
 		t.Fatalf("expected persisted updated channel, got %+v", channels)
 	}
 
-	if _, err := client.DeleteChannel(fx.ctx, &agentsv1.DeleteChannelRequest{Name: "telegram-main"}); err != nil {
+	if _, err := client.DeleteChannel(fx.ctx, connect.NewRequest(&agentsv1.DeleteChannelRequest{Name: "telegram-main"})); err != nil {
 		t.Fatalf("delete channel: %v", err)
 	}
 	if fx.tracker.channelReloads != 3 {
 		t.Fatalf("expected 3 channel reloads, got %d", fx.tracker.channelReloads)
 	}
 
-	_, err = client.GetChannel(fx.ctx, &agentsv1.GetChannelRequest{Name: "telegram-main"})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.NotFound {
+	_, err = client.GetChannel(fx.ctx, connect.NewRequest(&agentsv1.GetChannelRequest{Name: "telegram-main"}))
+	if cerr, ok := err.(*connect.Error); !ok || cerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound after delete, got %v", err)
 	}
 
@@ -184,42 +198,43 @@ func TestChannelServiceTwirpIntegration(t *testing.T) {
 	}
 }
 
-func TestConfigServicesTwirpIntegration(t *testing.T) {
-	fx := newTwirpIntegrationFixture(t)
+func TestConfigServices_ConnectIntegration(t *testing.T) {
+	fx := newConnectIntegrationFixture(t)
+	opts := fx.clientOptions()
 
-	mcpClient := agentsv1.NewMCPServerServiceProtobufClient(fx.server.URL, fx.server.Client(), twirp.WithClientPathPrefix("/api"))
-	remoteClient := agentsv1.NewRemoteAgentServiceProtobufClient(fx.server.URL, fx.server.Client(), twirp.WithClientPathPrefix("/api"))
-	agentClient := agentsv1.NewAgentServiceProtobufClient(fx.server.URL, fx.server.Client(), twirp.WithClientPathPrefix("/api"))
+	mcpClient := agentsv1connect.NewMCPServerServiceClient(fx.httpClient(), fx.baseURL(), opts...)
+	remoteClient := agentsv1connect.NewRemoteAgentServiceClient(fx.httpClient(), fx.baseURL(), opts...)
+	agentClient := agentsv1connect.NewAgentServiceClient(fx.httpClient(), fx.baseURL(), opts...)
 
-	if _, err := mcpClient.CreateMCPServer(fx.ctx, &agentsv1.CreateMCPServerRequest{
+	if _, err := mcpClient.CreateMCPServer(fx.ctx, connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: &agentsv1.MCPServer{
 			Id:        "mcp-1",
 			Name:      "primary-mcp",
 			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
 			Url:       "http://127.0.0.1:8099/mcp",
 		},
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("create mcp server: %v", err)
 	}
 	if fx.tracker.runnerReloads != 1 {
 		t.Fatalf("expected 1 runner reload after mcp create, got %d", fx.tracker.runnerReloads)
 	}
 
-	if _, err := remoteClient.CreateRemoteAgent(fx.ctx, &agentsv1.CreateRemoteAgentRequest{
+	if _, err := remoteClient.CreateRemoteAgent(fx.ctx, connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{
 			Id:       "remote-1",
 			Name:     "remote-agent",
 			Url:      "http://127.0.0.1:8081/a2a/remote-agent/.well-known/agent.json",
 			Protocol: agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_A2A,
 		},
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("create remote agent: %v", err)
 	}
 	if fx.tracker.runnerReloads != 2 {
 		t.Fatalf("expected 2 runner reloads after remote create, got %d", fx.tracker.runnerReloads)
 	}
 
-	createResp, err := agentClient.CreateAgent(fx.ctx, &agentsv1.CreateAgentRequest{
+	createResp, err := agentClient.CreateAgent(fx.ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{
 			Name: "workflow-agent",
 			Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL,
@@ -228,23 +243,23 @@ func TestConfigServicesTwirpIntegration(t *testing.T) {
 				RemoteAgentIds: []string{"remote-1"},
 			},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create agent: %v", err)
 	}
-	if createResp.GetAgent().GetName() != "workflow-agent" {
-		t.Fatalf("expected created agent workflow-agent, got %q", createResp.GetAgent().GetName())
+	if createResp.Msg.GetAgent().GetName() != "workflow-agent" {
+		t.Fatalf("expected created agent workflow-agent, got %q", createResp.Msg.GetAgent().GetName())
 	}
 	if fx.tracker.runnerReloads != 3 {
 		t.Fatalf("expected 3 runner reloads after agent create, got %d", fx.tracker.runnerReloads)
 	}
 
-	getResp, err := agentClient.GetAgent(fx.ctx, &agentsv1.GetAgentRequest{Name: "workflow-agent"})
+	getResp, err := agentClient.GetAgent(fx.ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "workflow-agent"}))
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
-	if getResp.GetAgent().GetConfig().GetMcpServerIds()[0] != "mcp-1" {
-		t.Fatalf("expected persisted mcp reference mcp-1, got %+v", getResp.GetAgent().GetConfig().GetMcpServerIds())
+	if getResp.Msg.GetAgent().GetConfig().GetMcpServerIds()[0] != "mcp-1" {
+		t.Fatalf("expected persisted mcp reference mcp-1, got %+v", getResp.Msg.GetAgent().GetConfig().GetMcpServerIds())
 	}
 
 	repo := configmongo.New(fx.db)
@@ -256,15 +271,15 @@ func TestConfigServicesTwirpIntegration(t *testing.T) {
 		t.Fatalf("expected persisted workflow-agent, got %+v", agents)
 	}
 
-	if _, err := agentClient.DeleteAgent(fx.ctx, &agentsv1.DeleteAgentRequest{Name: "workflow-agent"}); err != nil {
+	if _, err := agentClient.DeleteAgent(fx.ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "workflow-agent"})); err != nil {
 		t.Fatalf("delete agent: %v", err)
 	}
 	if fx.tracker.runnerReloads != 4 {
 		t.Fatalf("expected 4 runner reloads after agent delete, got %d", fx.tracker.runnerReloads)
 	}
 
-	_, err = agentClient.GetAgent(fx.ctx, &agentsv1.GetAgentRequest{Name: "workflow-agent"})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.NotFound {
+	_, err = agentClient.GetAgent(fx.ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "workflow-agent"}))
+	if cerr, ok := err.(*connect.Error); !ok || cerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound after agent delete, got %v", err)
 	}
 }

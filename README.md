@@ -83,6 +83,31 @@ The daemon connects back to the server's daemon gRPC endpoint and uses the root
 
 ## Development
 
+### Frontend local development
+
+The dashboard frontend lives in [front](front/). For local development, the
+recommended setup is to keep `VITE_API_BASE_URL` empty and let the Vite dev
+server proxy `/api` and `/ping` to the backend using `VITE_DEV_PROXY_TARGET`:
+
+```env
+VITE_API_BASE_URL=
+VITE_DEV_PROXY_TARGET=http://localhost:8080
+```
+
+Then run:
+
+```bash
+cd front
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+See [front/README.md](front/README.md) for the full local proxy behavior and
+direct API call alternative.
+
+### Backend development
+
 Run tests:
 
 ```bash

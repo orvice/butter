@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"go.orx.me/apps/butter/internal/auth/provider"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
@@ -117,8 +118,8 @@ type stubProvider struct {
 	gotCode     string
 }
 
-func (s *stubProvider) Name() string                  { return s.name }
-func (s *stubProvider) DisplayName() string           { return s.displayName }
+func (s *stubProvider) Name() string        { return s.name }
+func (s *stubProvider) DisplayName() string { return s.displayName }
 func (s *stubProvider) AuthorizeURL(state string) string {
 	return s.authorize + "?state=" + state
 }
@@ -143,7 +144,9 @@ func newServerWithOAuth(t *testing.T, stub provider.Provider) (*AuthServiceServe
 
 // oauthstateMemory wraps the in-memory store from the repo package so tests
 // don't depend on the mongo backend.
-func oauthstateMemory() oauthstate.Repository { return &memoryStateRepo{m: make(map[string]oauthstate.Entry)} }
+func oauthstateMemory() oauthstate.Repository {
+	return &memoryStateRepo{m: make(map[string]oauthstate.Entry)}
+}
 
 type memoryStateRepo struct {
 	mu sync.Mutex
@@ -189,58 +192,58 @@ func TestAuthService_OAuth_Flow_CreatesAndReusesUser(t *testing.T) {
 	ctx := context.Background()
 
 	// Begin: state should be stored and authorize URL echo state back.
-	beg, err := srv.BeginOAuthFlow(ctx, &agentsv1.BeginOAuthFlowRequest{Provider: "github"})
+	beg, err := srv.BeginOAuthFlow(ctx, connect.NewRequest(&agentsv1.BeginOAuthFlowRequest{Provider: "github"}))
 	if err != nil {
 		t.Fatalf("BeginOAuthFlow: %v", err)
 	}
-	if beg.GetState() == "" {
+	if beg.Msg.GetState() == "" {
 		t.Fatal("BeginOAuthFlow returned empty state")
 	}
-	if !strings.Contains(beg.GetAuthorizeUrl(), beg.GetState()) {
-		t.Errorf("authorize_url missing state: %s", beg.GetAuthorizeUrl())
+	if !strings.Contains(beg.Msg.GetAuthorizeUrl(), beg.Msg.GetState()) {
+		t.Errorf("authorize_url missing state: %s", beg.Msg.GetAuthorizeUrl())
 	}
 
 	// Complete: exchanges code, creates user, issues session.
-	resp, err := srv.CompleteOAuthFlow(ctx, &agentsv1.CompleteOAuthFlowRequest{
+	resp, err := srv.CompleteOAuthFlow(ctx, connect.NewRequest(&agentsv1.CompleteOAuthFlowRequest{
 		Provider: "github",
 		Code:     "the-code",
-		State:    beg.GetState(),
-	})
+		State:    beg.Msg.GetState(),
+	}))
 	if err != nil {
 		t.Fatalf("CompleteOAuthFlow: %v", err)
 	}
-	if resp.GetToken() == "" {
+	if resp.Msg.GetToken() == "" {
 		t.Error("LoginResponse missing token")
 	}
-	if resp.GetUser().GetExternalId() != "42" {
-		t.Errorf("user external id = %q, want 42", resp.GetUser().GetExternalId())
+	if resp.Msg.GetUser().GetExternalId() != "42" {
+		t.Errorf("user external id = %q, want 42", resp.Msg.GetUser().GetExternalId())
 	}
-	if resp.GetUser().GetProvider() != "github" {
-		t.Errorf("user provider = %q, want github", resp.GetUser().GetProvider())
+	if resp.Msg.GetUser().GetProvider() != "github" {
+		t.Errorf("user provider = %q, want github", resp.Msg.GetUser().GetProvider())
 	}
-	if !strings.HasPrefix(resp.GetUser().GetUsername(), "gith_alice") {
-		t.Errorf("username = %q, want prefix gith_alice", resp.GetUser().GetUsername())
+	if !strings.HasPrefix(resp.Msg.GetUser().GetUsername(), "gith_alice") {
+		t.Errorf("username = %q, want prefix gith_alice", resp.Msg.GetUser().GetUsername())
 	}
 	if stub.gotCode != "the-code" {
 		t.Errorf("provider got code %q, want the-code", stub.gotCode)
 	}
-	firstUserID := resp.GetUser().GetId()
+	firstUserID := resp.Msg.GetUser().GetId()
 
 	// Re-using the same provider identity must return the SAME user record.
-	beg2, err := srv.BeginOAuthFlow(ctx, &agentsv1.BeginOAuthFlowRequest{Provider: "github"})
+	beg2, err := srv.BeginOAuthFlow(ctx, connect.NewRequest(&agentsv1.BeginOAuthFlowRequest{Provider: "github"}))
 	if err != nil {
 		t.Fatalf("BeginOAuthFlow second: %v", err)
 	}
-	resp2, err := srv.CompleteOAuthFlow(ctx, &agentsv1.CompleteOAuthFlowRequest{
+	resp2, err := srv.CompleteOAuthFlow(ctx, connect.NewRequest(&agentsv1.CompleteOAuthFlowRequest{
 		Provider: "github",
 		Code:     "another-code",
-		State:    beg2.GetState(),
-	})
+		State:    beg2.Msg.GetState(),
+	}))
 	if err != nil {
 		t.Fatalf("CompleteOAuthFlow second: %v", err)
 	}
-	if resp2.GetUser().GetId() != firstUserID {
-		t.Errorf("second login created new user (%s vs %s) — should reuse existing", resp2.GetUser().GetId(), firstUserID)
+	if resp2.Msg.GetUser().GetId() != firstUserID {
+		t.Errorf("second login created new user (%s vs %s) — should reuse existing", resp2.Msg.GetUser().GetId(), firstUserID)
 	}
 	if got := len(repo.users); got != 1 {
 		t.Errorf("expected exactly 1 user after two logins, got %d", got)
@@ -256,15 +259,15 @@ func TestAuthService_OAuth_RejectsReplayedState(t *testing.T) {
 	srv, _ := newServerWithOAuth(t, stub)
 	ctx := context.Background()
 
-	beg, err := srv.BeginOAuthFlow(ctx, &agentsv1.BeginOAuthFlowRequest{Provider: "github"})
+	beg, err := srv.BeginOAuthFlow(ctx, connect.NewRequest(&agentsv1.BeginOAuthFlowRequest{Provider: "github"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := srv.CompleteOAuthFlow(ctx, &agentsv1.CompleteOAuthFlowRequest{Provider: "github", Code: "c", State: beg.GetState()}); err != nil {
+	if _, err := srv.CompleteOAuthFlow(ctx, connect.NewRequest(&agentsv1.CompleteOAuthFlowRequest{Provider: "github", Code: "c", State: beg.Msg.GetState()})); err != nil {
 		t.Fatalf("first complete: %v", err)
 	}
 	// Replay the same state — must be rejected.
-	_, err = srv.CompleteOAuthFlow(ctx, &agentsv1.CompleteOAuthFlowRequest{Provider: "github", Code: "c", State: beg.GetState()})
+	_, err = srv.CompleteOAuthFlow(ctx, connect.NewRequest(&agentsv1.CompleteOAuthFlowRequest{Provider: "github", Code: "c", State: beg.Msg.GetState()}))
 	if err == nil {
 		t.Fatal("expected error on state replay, got nil")
 	}
@@ -278,11 +281,11 @@ func TestAuthService_OAuth_RejectsMismatchedProvider(t *testing.T) {
 	}
 	srv, _ := newServerWithOAuth(t, stub)
 	ctx := context.Background()
-	beg, err := srv.BeginOAuthFlow(ctx, &agentsv1.BeginOAuthFlowRequest{Provider: "github"})
+	beg, err := srv.BeginOAuthFlow(ctx, connect.NewRequest(&agentsv1.BeginOAuthFlowRequest{Provider: "github"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = srv.CompleteOAuthFlow(ctx, &agentsv1.CompleteOAuthFlowRequest{Provider: "google", Code: "c", State: beg.GetState()})
+	_, err = srv.CompleteOAuthFlow(ctx, connect.NewRequest(&agentsv1.CompleteOAuthFlowRequest{Provider: "google", Code: "c", State: beg.Msg.GetState()}))
 	if err == nil {
 		t.Fatal("expected provider-mismatch rejection, got nil")
 	}
@@ -290,7 +293,7 @@ func TestAuthService_OAuth_RejectsMismatchedProvider(t *testing.T) {
 
 func TestAuthService_OAuth_DisabledWhenUnconfigured(t *testing.T) {
 	srv := NewAuthServiceServer(newFakeAuthRepo(), time.Hour)
-	_, err := srv.BeginOAuthFlow(context.Background(), &agentsv1.BeginOAuthFlowRequest{Provider: "github"})
+	_, err := srv.BeginOAuthFlow(context.Background(), connect.NewRequest(&agentsv1.BeginOAuthFlowRequest{Provider: "github"}))
 	if err == nil {
 		t.Fatal("expected error when oauth not configured")
 	}
@@ -304,11 +307,11 @@ func TestAuthService_OAuth_PropagatesExchangeError(t *testing.T) {
 	}
 	srv, _ := newServerWithOAuth(t, stub)
 	ctx := context.Background()
-	beg, err := srv.BeginOAuthFlow(ctx, &agentsv1.BeginOAuthFlowRequest{Provider: "github"})
+	beg, err := srv.BeginOAuthFlow(ctx, connect.NewRequest(&agentsv1.BeginOAuthFlowRequest{Provider: "github"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = srv.CompleteOAuthFlow(ctx, &agentsv1.CompleteOAuthFlowRequest{Provider: "github", Code: "c", State: beg.GetState()})
+	_, err = srv.CompleteOAuthFlow(ctx, connect.NewRequest(&agentsv1.CompleteOAuthFlowRequest{Provider: "github", Code: "c", State: beg.Msg.GetState()}))
 	if err == nil {
 		t.Fatal("expected exchange error to surface")
 	}

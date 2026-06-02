@@ -194,7 +194,7 @@ message Invocation {
 
 ### 2.3 DaemonService（新增）
 
-把 `daemon.Registry` 暴露成 Twirp/HTTP 接口。
+把 `daemon.Registry` 暴露成 RPC/HTTP 接口。
 
 ```proto
 service DaemonService {
@@ -437,7 +437,7 @@ message SessionDetail {
 
 ## 5. 与现有约束的兼容
 
-- 所有新增 RPC 仍走 Twirp `/api/agents.v1.*` 路径，复用 `APITokenAuthMiddleware`。
+- 所有新增 RPC 仍走 `/api/agents.v1.*` 路径，复用 `APITokenAuthMiddleware`。
 - 新增 proto 需在 `proto/agents/v1` 下定义，运行 `make buf` 重新生成 `pkg/proto`。
 - `daemon.proto` 中 `DaemonInfo` 加字段为兼容修改（新字段编号 5+，旧 daemon 不需要立即升级）。
 - 配置层（`internal/store/config`）目前只管理静态配置；运行时状态走独立 runtime registry，不进入 ConfigStore，避免误触发 reload。

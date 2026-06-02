@@ -1,8 +1,11 @@
-import { ApiError, BASE_URL, authHeaders, twirpFetch } from "./client";
+import { ApiError, BASE_URL, authHeaders } from "./client";
+import { AgentService } from "@/gen/agents/v1/agent_service_pb";
+import { SessionService } from "@/gen/agents/v1/agent_service_pb";
 import { TOKEN_KEY } from "@/lib/constants";
+import { makeClient } from "./transport";
 
-const SESSION_SVC = "agents.v1.SessionService";
-const AGENT_SVC = "agents.v1.AgentService";
+const sessionClient = makeClient(SessionService);
+const agentClient = makeClient(AgentService);
 
 export interface SendChatParams {
   agent_name: string;
@@ -48,16 +51,21 @@ export interface ChatStreamHandlers {
   onError?: (payload: ChatStreamPayload) => void;
 }
 
-export function replySession(params: SendChatParams) {
-  return twirpFetch<SendChatParams, ReplySessionResponse>(SESSION_SVC, "ReplySession", params);
+export async function replySession(params: SendChatParams): Promise<ReplySessionResponse> {
+  const res = await sessionClient.replySession({
+    agentName: params.agent_name,
+    appName: params.app_name,
+    userId: params.user_id,
+    sessionId: params.session_id,
+    message: params.message,
+    modelOverride: params.model_override ?? "",
+  });
+  return { response: res.response };
 }
 
-export function cancelAgentInvocation(invocationId: string) {
-  return twirpFetch<{ invocation_id: string }, { cancelled: boolean }>(
-    AGENT_SVC,
-    "CancelAgentInvocation",
-    { invocation_id: invocationId },
-  );
+export async function cancelAgentInvocation(invocationId: string): Promise<{ cancelled: boolean }> {
+  const res = await agentClient.cancelAgentInvocation({ invocationId });
+  return { cancelled: res.cancelled };
 }
 
 export async function streamChat(

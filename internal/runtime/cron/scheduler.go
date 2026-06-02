@@ -26,9 +26,9 @@ var notifyTargetTimeout = 10 * time.Second
 
 // ErrAgentNotInWorkspace is returned when a cron job references an agent
 // that does not exist in the job's workspace. The application layer maps
-// this to twirp.InvalidArgument so callers see "this agent doesn't belong
-// to your workspace" instead of a generic internal error, and the job is
-// never persisted in the first place.
+// this to connect.CodeInvalidArgument so callers see "this agent doesn't
+// belong to your workspace" instead of a generic internal error, and the
+// job is never persisted in the first place.
 var ErrAgentNotInWorkspace = errors.New("cron job agent not found in workspace")
 
 // Scheduler manages cron-based agent execution.
