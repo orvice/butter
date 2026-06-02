@@ -9,7 +9,7 @@ on:
   schedule:
     - cron: '17 20 * * *'
   push:
-    branches: [ "main" ]
+    branches: [ "**" ]
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
@@ -64,10 +64,10 @@ jobs:
       # Extract metadata (tags, labels) for Docker
       # https://github.com/docker/metadata-action
       #
-      # Scheduled builds → `nightly`
-      # Push to main      → `main`
-      # Push to vX.Y.Z    → `X.Y.Z`, `X.Y`, `X`, `latest`
-      # PR                → `pr-<n>` (built only, not pushed)
+      # Scheduled builds   → `nightly`
+      # Push to any branch → `<branch>`, `nightly-<branch>`; default branch also → `nightly`
+      # Push to vX.Y.Z     → `X.Y.Z`, `X.Y`, `X`, `latest`
+      # PR                 → `pr-<n>` (built only, not pushed)
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
@@ -76,6 +76,8 @@ jobs:
           tags: |
             type=schedule,pattern=nightly
             type=ref,event=branch
+            type=raw,value=nightly,enable={{is_default_branch}}
+            type=raw,value=nightly-{{branch}},enable={{is_not_default_branch}}
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
