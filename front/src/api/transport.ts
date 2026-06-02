@@ -21,8 +21,7 @@ const authInterceptor: Interceptor = (next) => async (req) => {
   } catch (err) {
     if (err instanceof ConnectError && err.code === Code.Unauthenticated) {
       // Don't trash the session when a deliberate "Me" check probes auth on
-      // the login page — login.tsx and validateToken() are responsible for
-      // their own redirects.
+      // the login page — login.tsx handles its own redirects.
       if (!isProbeRequest(req.url)) {
         localStorage.removeItem(TOKEN_KEY);
         if (typeof window !== "undefined" && window.location.pathname !== "/login") {

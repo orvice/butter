@@ -2,15 +2,12 @@ package app
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync/atomic"
 
-	"connectrpc.com/connect"
 	"github.com/gin-gonic/gin"
-	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/config"
@@ -392,74 +389,6 @@ func oauthCallbackFallback(cfg *config.AppConfig) string {
 		return "/mcp-servers"
 	}
 	return strings.TrimRight(base, "/") + "/mcp-servers"
-}
-
-func writeError(c *gin.Context, err error) {
-	if err == nil {
-		return
-	}
-	if twerr, ok := err.(twirp.Error); ok {
-		switch twerr.Code() {
-		case twirp.InvalidArgument, twirp.Malformed:
-			c.JSON(http.StatusBadRequest, gin.H{"error": twerr.Msg()})
-		case twirp.PermissionDenied:
-			c.JSON(http.StatusForbidden, gin.H{"error": twerr.Msg()})
-		case twirp.NotFound:
-			c.JSON(http.StatusNotFound, gin.H{"error": twerr.Msg()})
-		case twirp.AlreadyExists:
-			c.JSON(http.StatusConflict, gin.H{"error": twerr.Msg()})
-		case twirp.FailedPrecondition:
-			c.JSON(http.StatusPreconditionFailed, gin.H{"error": twerr.Msg()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": twerr.Msg()})
-		}
-		return
-	}
-	// Once a service is migrated to a Connect adapter the upstream calls
-	// surfaced via this REST helper start returning *connect.Error instead
-	// of twirp.Error; map the codes back to HTTP so REST callers see no
-	// change.
-	var cerr *connect.Error
-	if errors.As(err, &cerr) {
-		c.JSON(connectCodeToHTTPStatus(cerr.Code()), gin.H{"error": cerr.Message()})
-		return
-	}
-	if errors.Is(err, configrepo.ErrNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
-	}
-	if errors.Is(err, configrepo.ErrAlreadyExists) {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-}
-
-func connectCodeToHTTPStatus(code connect.Code) int {
-	switch code {
-	case connect.CodeInvalidArgument:
-		return http.StatusBadRequest
-	case connect.CodeUnauthenticated:
-		return http.StatusUnauthorized
-	case connect.CodePermissionDenied:
-		return http.StatusForbidden
-	case connect.CodeNotFound:
-		return http.StatusNotFound
-	case connect.CodeAlreadyExists:
-		return http.StatusConflict
-	case connect.CodeFailedPrecondition:
-		return http.StatusPreconditionFailed
-	case connect.CodeUnimplemented:
-		return http.StatusNotImplemented
-	case connect.CodeUnavailable:
-		return http.StatusServiceUnavailable
-	case connect.CodeDeadlineExceeded:
-		return http.StatusGatewayTimeout
-	case connect.CodeResourceExhausted:
-		return http.StatusTooManyRequests
-	default:
-		return http.StatusInternalServerError
-	}
 }
 
 func appendOAuthCallbackParams(raw, status, serverID string) string {

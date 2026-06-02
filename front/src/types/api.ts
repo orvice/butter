@@ -595,8 +595,3 @@ export interface CronExecution {
   finished_at?: string;
 }
 
-// RPC errors are surfaced via ConnectError from @connectrpc/connect, which is
-// a regular Error subclass with a `code` property. Components can rely on
-// `err.message` (matches the prior TwirpError.msg). No dashboard-side type
-// alias is needed for ConnectError; import it directly when special-casing
-// is required.
