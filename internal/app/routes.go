@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 	"github.com/gin-gonic/gin"
 	"github.com/twitchtv/twirp"
 
@@ -618,6 +619,15 @@ func writeError(c *gin.Context, err error) {
 		}
 		return
 	}
+	// Once a service is migrated to a Connect adapter the upstream calls
+	// surfaced via this REST helper start returning *connect.Error instead
+	// of twirp.Error; map the codes back to HTTP so REST callers see no
+	// change.
+	var cerr *connect.Error
+	if errors.As(err, &cerr) {
+		c.JSON(connectCodeToHTTPStatus(cerr.Code()), gin.H{"error": cerr.Message()})
+		return
+	}
 	if errors.Is(err, configrepo.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -627,6 +637,33 @@ func writeError(c *gin.Context, err error) {
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+}
+
+func connectCodeToHTTPStatus(code connect.Code) int {
+	switch code {
+	case connect.CodeInvalidArgument:
+		return http.StatusBadRequest
+	case connect.CodeUnauthenticated:
+		return http.StatusUnauthorized
+	case connect.CodePermissionDenied:
+		return http.StatusForbidden
+	case connect.CodeNotFound:
+		return http.StatusNotFound
+	case connect.CodeAlreadyExists:
+		return http.StatusConflict
+	case connect.CodeFailedPrecondition:
+		return http.StatusPreconditionFailed
+	case connect.CodeUnimplemented:
+		return http.StatusNotImplemented
+	case connect.CodeUnavailable:
+		return http.StatusServiceUnavailable
+	case connect.CodeDeadlineExceeded:
+		return http.StatusGatewayTimeout
+	case connect.CodeResourceExhausted:
+		return http.StatusTooManyRequests
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 func appendOAuthCallbackParams(raw, status, serverID string) string {

@@ -56,6 +56,14 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 			c.Next()
 			return
 		}
+		// CORS preflight: Connect-Web / gRPC-Web clients issue OPTIONS
+		// before the actual RPC POST. We don't carry credentials on the
+		// preflight, so route it past auth and let the registered route
+		// (or 404) handle the response.
+		if c.Request.Method == http.MethodOptions {
+			c.Next()
+			return
+		}
 
 		var authRepo auth.Repository
 		if authProvider != nil {

@@ -47,7 +47,7 @@ export async function twirpFetch<TReq, TRes>(
 
   if (!res.ok) {
     const err = data as TwirpError;
-    throw new ApiError(err.code || "unknown", err.msg || "Unknown error");
+    throw new ApiError(err.code || "unknown", err.message || err.msg || "Unknown error");
   }
 
   return data as TRes;

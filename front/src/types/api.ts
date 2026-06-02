@@ -595,9 +595,14 @@ export interface CronExecution {
   finished_at?: string;
 }
 
-// --- Twirp Error ---
+// --- RPC Error ---
+//
+// During the Twirp→Connect migration the server may serialize errors either
+// as Twirp ({code, msg}) or Connect ({code, message}). Frontend callers
+// should treat them as the same shape.
 
 export interface TwirpError {
   code: string;
-  msg: string;
+  msg?: string;
+  message?: string;
 }
