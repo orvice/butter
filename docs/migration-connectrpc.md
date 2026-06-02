@@ -2,6 +2,22 @@
 
 > 现状分析 + 分阶段改造计划。覆盖后端 RPC 服务、HTTP 鉴权中间件、前端调用层。
 
+## 0. 进度状态（2026-06-02 收尾）
+
+| 阶段 | 状态 | 说明 |
+|---|---|---|
+| Phase 0 — 公共设施 | ✅ 完成 | `connectx.WrapUnary` 适配器 + Twirp→Connect 错误码映射 + OPTIONS 预检放行 |
+| Phase 1 — 后端切换 | ✅ 完成 | 14 个原 Twirp 服务全部 Connect 化；新增 `GlobalMCPServerService` 替代原 `/api/global-mcp-servers/*` REST |
+| Phase 1.5 — JSON codec 修复 | ✅ 完成 | 强制 `UseProtoNames=true` 输出 snake_case，避免前端 130+ 处 snake_case 字段访问静默失效 |
+| Phase 2 — 前端切换 | ✅ 完成 | 15 个 `front/src/api/*.ts` 全部用 `@connectrpc/connect-web` 类型化客户端，`twirpFetch` 删除 |
+| Phase 3 — 去 Twirp 依赖 | 🔜 待做 | 见 [`connectrpc-followups.md`](connectrpc-followups.md) |
+
+测试现状：后端 383 个测试通过，前端 `tsc --force` 全量类型检查通过。`apiFetch` 仅保留给 `uploads.ts`（multipart）和 `chat.ts`（SSE），两者本来就在 Connect 协议范围外。
+
+后续工作清单：[`connectrpc-followups.md`](connectrpc-followups.md)。
+
+---
+
 ## 1. 现状梳理
 
 ### 1.1 后端 RPC 注册（Twirp）
