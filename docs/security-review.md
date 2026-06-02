@@ -9,8 +9,9 @@ butter service. Findings are grouped by severity. Each entry lists the
 affected file, the issue, an exploit scenario, and a recommended fix.
 
 The service is a multi-tenant agent orchestration platform built on the
-Butterfly framework and Google ADK. It exposes Twirp RPCs and Gin HTTP
-routes, integrates with Telegram/Discord, runs MCP servers (HTTP/SSE
+Butterfly framework and Google ADK. It exposes ConnectRPC services
+(Connect / gRPC-Web / gRPC on the same URL) and Gin HTTP routes,
+integrates with Telegram/Discord, runs MCP servers (HTTP/SSE
 transports — stdio was removed in commit `9f19aad`), and persists
 configurations/sessions in MongoDB and Redis.
 
@@ -50,13 +51,15 @@ configurations/sessions in MongoDB and Redis.
 
 - **File:** `internal/application/agent_service.go:219-282`
 - **Issue:** `req.GetInput()` is forwarded into runner/session storage
-  without a length check. Twirp request body limits are framework-level
-  defaults; the application layer adds no protection.
+  without a length check. Connect/gRPC request body limits are
+  framework-level defaults; the application layer adds no protection.
 - **Exploit:** Repeated multi-megabyte requests exhaust memory and disk
   (sessions are persisted). A single attacker workspace can DoS the
   service.
 - **Fix:** Reject inputs above a configurable limit (default 1MB is
-  generous for chat) with `twirp.InvalidArgumentError`.
+  generous for chat) with `connect.NewError(connect.CodeInvalidArgument, …)`
+  (or, while the migration adapter is still in place,
+  `twirp.InvalidArgumentError`).
 
 ---
 

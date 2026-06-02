@@ -95,6 +95,6 @@ message CountMetric {
 ## 暂不需要新增后端的项
 
 - Copy 按钮：纯前端 Clipboard API。
-- Forum 删除/编辑：已有 Twirp RPC。
-- Global MCP preset 安装：已有 HTTP route。
+- Forum 删除/编辑：已有 RPC。
+- Global MCP preset 安装：已有 `GlobalMCPServerService.InstallGlobalMCPServer` RPC。
 - Session Explorer 过滤：已有 `ListSessions` 参数。
