@@ -1,8 +1,46 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "./client";
+import {
+  ForumService,
+  type ForumPost as PbForumPost,
+  type ForumThread as PbForumThread,
+} from "@/gen/agents/v1/forum_pb";
 import type { ForumPost, ForumThread } from "@/types/api";
+import { tsToISO } from "./_proto-bridge";
+import { makeClient } from "./transport";
 
-const SVC = "agents.v1.ForumService";
+const client = makeClient(ForumService);
+
+function threadFromProto(t: PbForumThread): ForumThread {
+  return {
+    id: t.id,
+    title: t.title,
+    body: t.body,
+    created_by: t.createdBy,
+    status: t.status,
+    agent_names: t.agentNames,
+    labels: t.labels,
+    metadata: t.metadata,
+    created_at: tsToISO(t.createdAt),
+    updated_at: tsToISO(t.updatedAt),
+    workspace_id: t.workspaceId,
+  };
+}
+
+function postFromProto(p: PbForumPost): ForumPost {
+  return {
+    id: p.id,
+    thread_id: p.threadId,
+    body: p.body,
+    author_user_id: p.authorUserId,
+    author_agent_name: p.authorAgentName,
+    author_kind: p.authorKind,
+    invocation_id: p.invocationId,
+    parent_post_id: p.parentPostId,
+    created_at: tsToISO(p.createdAt),
+    updated_at: tsToISO(p.updatedAt),
+    workspace_id: p.workspaceId,
+  };
+}
 
 interface ListThreadsParams {
   status?: string;
@@ -78,46 +116,92 @@ interface InvokeAgentResponse {
   response?: string;
 }
 
-export function listForumThreads(params: ListThreadsParams = {}) {
-  return twirpFetch<ListThreadsParams, ListThreadsResponse>(SVC, "ListThreads", params);
-}
-
-export function listForumThreadLabels() {
-  return twirpFetch<object, ListThreadLabelsResponse>(SVC, "ListThreadLabels", {});
-}
-
-export function getForumThread(id: string) {
-  return twirpFetch<{ id: string; post_page_size: number }, GetThreadResponse>(SVC, "GetThread", {
-    id,
-    post_page_size: 200,
+export async function listForumThreads(params: ListThreadsParams = {}): Promise<ListThreadsResponse> {
+  const res = await client.listThreads({
+    status: params.status ?? "",
+    label: params.label ?? "",
+    pageSize: params.page_size ?? 0,
+    pageToken: params.page_token ?? "",
   });
+  return {
+    threads: res.threads.map(threadFromProto),
+    next_page_token: res.nextPageToken,
+    total: res.total,
+  };
 }
 
-export function createForumThread(params: CreateThreadParams) {
-  return twirpFetch<CreateThreadParams, CreateThreadResponse>(SVC, "CreateThread", params);
+export async function listForumThreadLabels(): Promise<ListThreadLabelsResponse> {
+  const res = await client.listThreadLabels({});
+  return { labels: res.labels };
 }
 
-export function updateForumThread(params: UpdateThreadParams) {
-  return twirpFetch<UpdateThreadParams, UpdateThreadResponse>(SVC, "UpdateThread", params);
+export async function getForumThread(id: string): Promise<GetThreadResponse> {
+  const res = await client.getThread({ id, postPageSize: 200, postPageToken: "" });
+  return {
+    thread: res.thread ? threadFromProto(res.thread) : undefined,
+    posts: res.posts.map(postFromProto),
+    next_post_page_token: res.nextPostPageToken,
+    post_total: res.postTotal,
+  };
 }
 
-export function createForumPost(params: CreatePostParams) {
-  return twirpFetch<CreatePostParams, CreatePostResponse>(SVC, "CreatePost", params);
-}
-
-export function invokeAgentInThread(params: InvokeAgentParams) {
-  return twirpFetch<InvokeAgentParams, InvokeAgentResponse>(SVC, "InvokeAgentInThread", params);
-}
-
-export function deleteForumThread(id: string) {
-  return twirpFetch<{ id: string }, object>(SVC, "DeleteThread", { id });
-}
-
-export function deleteForumPost(threadId: string, postId: string) {
-  return twirpFetch<{ thread_id: string; post_id: string }, object>(SVC, "DeletePost", {
-    thread_id: threadId,
-    post_id: postId,
+export async function createForumThread(params: CreateThreadParams): Promise<CreateThreadResponse> {
+  const res = await client.createThread({
+    title: params.title,
+    body: params.body,
+    agentNames: params.agent_names ?? [],
+    labels: params.labels ?? [],
+    metadata: params.metadata ?? {},
   });
+  if (!res.thread) throw new Error("create returned no thread");
+  return {
+    thread: threadFromProto(res.thread),
+    first_post: res.firstPost ? postFromProto(res.firstPost) : undefined,
+  };
+}
+
+export async function updateForumThread(params: UpdateThreadParams): Promise<UpdateThreadResponse> {
+  const res = await client.updateThread({
+    id: params.id,
+    title: params.title ?? "",
+    body: params.body ?? "",
+    status: params.status ?? "",
+    agentNames: params.agent_names ?? [],
+    labels: params.labels ?? [],
+    metadata: params.metadata ?? {},
+  });
+  if (!res.thread) throw new Error("update returned no thread");
+  return { thread: threadFromProto(res.thread) };
+}
+
+export async function createForumPost(params: CreatePostParams): Promise<CreatePostResponse> {
+  const res = await client.createPost({
+    threadId: params.thread_id,
+    body: params.body,
+    parentPostId: params.parent_post_id ?? "",
+  });
+  if (!res.post) throw new Error("create returned no post");
+  return { post: postFromProto(res.post) };
+}
+
+export async function invokeAgentInThread(params: InvokeAgentParams): Promise<InvokeAgentResponse> {
+  const res = await client.invokeAgentInThread({
+    threadId: params.thread_id,
+    agentName: params.agent_name,
+    message: params.message ?? "",
+    modelOverride: params.model_override ?? "",
+    recentPostLimit: params.recent_post_limit ?? 0,
+  });
+  if (!res.post) throw new Error("invoke returned no post");
+  return { post: postFromProto(res.post), response: res.response };
+}
+
+export async function deleteForumThread(id: string): Promise<void> {
+  await client.deleteThread({ id });
+}
+
+export async function deleteForumPost(threadId: string, postId: string): Promise<void> {
+  await client.deletePost({ threadId, postId });
 }
 
 export function useForumThreads(params: ListThreadsParams = {}) {
