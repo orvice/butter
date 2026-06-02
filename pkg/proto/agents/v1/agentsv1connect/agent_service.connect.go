@@ -78,6 +78,9 @@ const (
 	// AgentServiceCancelAgentInvocationProcedure is the fully-qualified name of the AgentService's
 	// CancelAgentInvocation RPC.
 	AgentServiceCancelAgentInvocationProcedure = "/agents.v1.AgentService/CancelAgentInvocation"
+	// AgentServiceStreamAgentProcedure is the fully-qualified name of the AgentService's StreamAgent
+	// RPC.
+	AgentServiceStreamAgentProcedure = "/agents.v1.AgentService/StreamAgent"
 	// MCPServerServiceListMCPServersProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPServers RPC.
 	MCPServerServiceListMCPServersProcedure = "/agents.v1.MCPServerService/ListMCPServers"
@@ -245,6 +248,15 @@ type AgentServiceClient interface {
 	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
 	// invocation transitions to FAILED with a cancellation error.
 	CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error)
+	// StreamAgent runs an agent and streams progress events back to the
+	// caller. The dashboard chat UI uses this in place of the old
+	// POST /api/chat/stream Server-Sent Events endpoint; one of the
+	// StreamAgentEvent oneof variants is sent for each runner event
+	// (started, mid-stream text delta, full ADK event, final response).
+	// Errors bubble up as the RPC's terminal connect.Error so the client
+	// gets typed cancellation / failed-precondition codes instead of an
+	// ad-hoc string payload.
+	StreamAgent(context.Context, *connect.Request[v1.StreamAgentRequest]) (*connect.ServerStreamForClient[v1.StreamAgentResponse], error)
 }
 
 // NewAgentServiceClient constructs a client for the agents.v1.AgentService service. By default, it
@@ -324,6 +336,12 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("CancelAgentInvocation")),
 			connect.WithClientOptions(opts...),
 		),
+		streamAgent: connect.NewClient[v1.StreamAgentRequest, v1.StreamAgentResponse](
+			httpClient,
+			baseURL+AgentServiceStreamAgentProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("StreamAgent")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -340,6 +358,7 @@ type agentServiceClient struct {
 	getAgentRuntimeStatus    *connect.Client[v1.GetAgentRuntimeStatusRequest, v1.GetAgentRuntimeStatusResponse]
 	listAgentRuntimeStatuses *connect.Client[v1.ListAgentRuntimeStatusesRequest, v1.ListAgentRuntimeStatusesResponse]
 	cancelAgentInvocation    *connect.Client[v1.CancelAgentInvocationRequest, v1.CancelAgentInvocationResponse]
+	streamAgent              *connect.Client[v1.StreamAgentRequest, v1.StreamAgentResponse]
 }
 
 // ListAgents calls agents.v1.AgentService.ListAgents.
@@ -397,6 +416,11 @@ func (c *agentServiceClient) CancelAgentInvocation(ctx context.Context, req *con
 	return c.cancelAgentInvocation.CallUnary(ctx, req)
 }
 
+// StreamAgent calls agents.v1.AgentService.StreamAgent.
+func (c *agentServiceClient) StreamAgent(ctx context.Context, req *connect.Request[v1.StreamAgentRequest]) (*connect.ServerStreamForClient[v1.StreamAgentResponse], error) {
+	return c.streamAgent.CallServerStream(ctx, req)
+}
+
 // AgentServiceHandler is an implementation of the agents.v1.AgentService service.
 type AgentServiceHandler interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
@@ -424,6 +448,15 @@ type AgentServiceHandler interface {
 	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
 	// invocation transitions to FAILED with a cancellation error.
 	CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error)
+	// StreamAgent runs an agent and streams progress events back to the
+	// caller. The dashboard chat UI uses this in place of the old
+	// POST /api/chat/stream Server-Sent Events endpoint; one of the
+	// StreamAgentEvent oneof variants is sent for each runner event
+	// (started, mid-stream text delta, full ADK event, final response).
+	// Errors bubble up as the RPC's terminal connect.Error so the client
+	// gets typed cancellation / failed-precondition codes instead of an
+	// ad-hoc string payload.
+	StreamAgent(context.Context, *connect.Request[v1.StreamAgentRequest], *connect.ServerStream[v1.StreamAgentResponse]) error
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -499,6 +532,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("CancelAgentInvocation")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceStreamAgentHandler := connect.NewServerStreamHandler(
+		AgentServiceStreamAgentProcedure,
+		svc.StreamAgent,
+		connect.WithSchema(agentServiceMethods.ByName("StreamAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceListAgentsProcedure:
@@ -523,6 +562,8 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceListAgentRuntimeStatusesHandler.ServeHTTP(w, r)
 		case AgentServiceCancelAgentInvocationProcedure:
 			agentServiceCancelAgentInvocationHandler.ServeHTTP(w, r)
+		case AgentServiceStreamAgentProcedure:
+			agentServiceStreamAgentHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -574,6 +615,10 @@ func (UnimplementedAgentServiceHandler) ListAgentRuntimeStatuses(context.Context
 
 func (UnimplementedAgentServiceHandler) CancelAgentInvocation(context.Context, *connect.Request[v1.CancelAgentInvocationRequest]) (*connect.Response[v1.CancelAgentInvocationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.CancelAgentInvocation is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) StreamAgent(context.Context, *connect.Request[v1.StreamAgentRequest], *connect.ServerStream[v1.StreamAgentResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.StreamAgent is not implemented"))
 }
 
 // MCPServerServiceClient is a client for the agents.v1.MCPServerService service.

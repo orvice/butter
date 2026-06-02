@@ -1342,6 +1342,866 @@ var _ interface {
 	ErrorName() string
 } = CancelAgentInvocationResponseValidationError{}
 
+// Validate checks the field values on StreamAgentRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *StreamAgentRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StreamAgentRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// StreamAgentRequestMultiError, or nil if none found.
+func (m *StreamAgentRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StreamAgentRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AgentName
+
+	// no validation rules for Message
+
+	// no validation rules for AppName
+
+	// no validation rules for UserId
+
+	// no validation rules for SessionId
+
+	// no validation rules for ModelOverride
+
+	if len(errors) > 0 {
+		return StreamAgentRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// StreamAgentRequestMultiError is an error wrapping multiple validation errors
+// returned by StreamAgentRequest.ValidateAll() if the designated constraints
+// aren't met.
+type StreamAgentRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StreamAgentRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StreamAgentRequestMultiError) AllErrors() []error { return m }
+
+// StreamAgentRequestValidationError is the validation error returned by
+// StreamAgentRequest.Validate if the designated constraints aren't met.
+type StreamAgentRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e StreamAgentRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e StreamAgentRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e StreamAgentRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e StreamAgentRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e StreamAgentRequestValidationError) ErrorName() string {
+	return "StreamAgentRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e StreamAgentRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStreamAgentRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = StreamAgentRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = StreamAgentRequestValidationError{}
+
+// Validate checks the field values on StreamAgentResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *StreamAgentResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StreamAgentResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// StreamAgentResponseMultiError, or nil if none found.
+func (m *StreamAgentResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StreamAgentResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch v := m.Event.(type) {
+	case *StreamAgentResponse_Started:
+		if v == nil {
+			err := StreamAgentResponseValidationError{
+				field:  "Event",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetStarted()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, StreamAgentResponseValidationError{
+						field:  "Started",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, StreamAgentResponseValidationError{
+						field:  "Started",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetStarted()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return StreamAgentResponseValidationError{
+					field:  "Started",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *StreamAgentResponse_RunEvent:
+		if v == nil {
+			err := StreamAgentResponseValidationError{
+				field:  "Event",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetRunEvent()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, StreamAgentResponseValidationError{
+						field:  "RunEvent",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, StreamAgentResponseValidationError{
+						field:  "RunEvent",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetRunEvent()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return StreamAgentResponseValidationError{
+					field:  "RunEvent",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *StreamAgentResponse_TextDelta:
+		if v == nil {
+			err := StreamAgentResponseValidationError{
+				field:  "Event",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetTextDelta()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, StreamAgentResponseValidationError{
+						field:  "TextDelta",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, StreamAgentResponseValidationError{
+						field:  "TextDelta",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetTextDelta()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return StreamAgentResponseValidationError{
+					field:  "TextDelta",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *StreamAgentResponse_Final:
+		if v == nil {
+			err := StreamAgentResponseValidationError{
+				field:  "Event",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetFinal()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, StreamAgentResponseValidationError{
+						field:  "Final",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, StreamAgentResponseValidationError{
+						field:  "Final",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetFinal()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return StreamAgentResponseValidationError{
+					field:  "Final",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
+	}
+
+	if len(errors) > 0 {
+		return StreamAgentResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// StreamAgentResponseMultiError is an error wrapping multiple validation
+// errors returned by StreamAgentResponse.ValidateAll() if the designated
+// constraints aren't met.
+type StreamAgentResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StreamAgentResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StreamAgentResponseMultiError) AllErrors() []error { return m }
+
+// StreamAgentResponseValidationError is the validation error returned by
+// StreamAgentResponse.Validate if the designated constraints aren't met.
+type StreamAgentResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e StreamAgentResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e StreamAgentResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e StreamAgentResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e StreamAgentResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e StreamAgentResponseValidationError) ErrorName() string {
+	return "StreamAgentResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e StreamAgentResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStreamAgentResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = StreamAgentResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = StreamAgentResponseValidationError{}
+
+// Validate checks the field values on StreamAgentStarted with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *StreamAgentStarted) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StreamAgentStarted with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// StreamAgentStartedMultiError, or nil if none found.
+func (m *StreamAgentStarted) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StreamAgentStarted) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for InvocationId
+
+	// no validation rules for SessionId
+
+	// no validation rules for AgentName
+
+	if len(errors) > 0 {
+		return StreamAgentStartedMultiError(errors)
+	}
+
+	return nil
+}
+
+// StreamAgentStartedMultiError is an error wrapping multiple validation errors
+// returned by StreamAgentStarted.ValidateAll() if the designated constraints
+// aren't met.
+type StreamAgentStartedMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StreamAgentStartedMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StreamAgentStartedMultiError) AllErrors() []error { return m }
+
+// StreamAgentStartedValidationError is the validation error returned by
+// StreamAgentStarted.Validate if the designated constraints aren't met.
+type StreamAgentStartedValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e StreamAgentStartedValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e StreamAgentStartedValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e StreamAgentStartedValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e StreamAgentStartedValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e StreamAgentStartedValidationError) ErrorName() string {
+	return "StreamAgentStartedValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e StreamAgentStartedValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStreamAgentStarted.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = StreamAgentStartedValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = StreamAgentStartedValidationError{}
+
+// Validate checks the field values on StreamAgentRunEvent with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *StreamAgentRunEvent) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StreamAgentRunEvent with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// StreamAgentRunEventMultiError, or nil if none found.
+func (m *StreamAgentRunEvent) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StreamAgentRunEvent) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for InvocationId
+
+	// no validation rules for SessionId
+
+	// no validation rules for AgentName
+
+	// no validation rules for EventId
+
+	// no validation rules for Author
+
+	// no validation rules for Branch
+
+	// no validation rules for Partial
+
+	// no validation rules for FinalResponse
+
+	// no validation rules for ContentJson
+
+	if all {
+		switch v := interface{}(m.GetTimestamp()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StreamAgentRunEventValidationError{
+					field:  "Timestamp",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StreamAgentRunEventValidationError{
+					field:  "Timestamp",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTimestamp()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StreamAgentRunEventValidationError{
+				field:  "Timestamp",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return StreamAgentRunEventMultiError(errors)
+	}
+
+	return nil
+}
+
+// StreamAgentRunEventMultiError is an error wrapping multiple validation
+// errors returned by StreamAgentRunEvent.ValidateAll() if the designated
+// constraints aren't met.
+type StreamAgentRunEventMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StreamAgentRunEventMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StreamAgentRunEventMultiError) AllErrors() []error { return m }
+
+// StreamAgentRunEventValidationError is the validation error returned by
+// StreamAgentRunEvent.Validate if the designated constraints aren't met.
+type StreamAgentRunEventValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e StreamAgentRunEventValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e StreamAgentRunEventValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e StreamAgentRunEventValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e StreamAgentRunEventValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e StreamAgentRunEventValidationError) ErrorName() string {
+	return "StreamAgentRunEventValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e StreamAgentRunEventValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStreamAgentRunEvent.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = StreamAgentRunEventValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = StreamAgentRunEventValidationError{}
+
+// Validate checks the field values on StreamAgentTextDelta with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *StreamAgentTextDelta) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StreamAgentTextDelta with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// StreamAgentTextDeltaMultiError, or nil if none found.
+func (m *StreamAgentTextDelta) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StreamAgentTextDelta) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for InvocationId
+
+	// no validation rules for SessionId
+
+	// no validation rules for AgentName
+
+	// no validation rules for Text
+
+	if len(errors) > 0 {
+		return StreamAgentTextDeltaMultiError(errors)
+	}
+
+	return nil
+}
+
+// StreamAgentTextDeltaMultiError is an error wrapping multiple validation
+// errors returned by StreamAgentTextDelta.ValidateAll() if the designated
+// constraints aren't met.
+type StreamAgentTextDeltaMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StreamAgentTextDeltaMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StreamAgentTextDeltaMultiError) AllErrors() []error { return m }
+
+// StreamAgentTextDeltaValidationError is the validation error returned by
+// StreamAgentTextDelta.Validate if the designated constraints aren't met.
+type StreamAgentTextDeltaValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e StreamAgentTextDeltaValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e StreamAgentTextDeltaValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e StreamAgentTextDeltaValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e StreamAgentTextDeltaValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e StreamAgentTextDeltaValidationError) ErrorName() string {
+	return "StreamAgentTextDeltaValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e StreamAgentTextDeltaValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStreamAgentTextDelta.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = StreamAgentTextDeltaValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = StreamAgentTextDeltaValidationError{}
+
+// Validate checks the field values on StreamAgentFinal with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *StreamAgentFinal) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StreamAgentFinal with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// StreamAgentFinalMultiError, or nil if none found.
+func (m *StreamAgentFinal) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StreamAgentFinal) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for InvocationId
+
+	// no validation rules for SessionId
+
+	// no validation rules for AgentName
+
+	// no validation rules for Response
+
+	if len(errors) > 0 {
+		return StreamAgentFinalMultiError(errors)
+	}
+
+	return nil
+}
+
+// StreamAgentFinalMultiError is an error wrapping multiple validation errors
+// returned by StreamAgentFinal.ValidateAll() if the designated constraints
+// aren't met.
+type StreamAgentFinalMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StreamAgentFinalMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StreamAgentFinalMultiError) AllErrors() []error { return m }
+
+// StreamAgentFinalValidationError is the validation error returned by
+// StreamAgentFinal.Validate if the designated constraints aren't met.
+type StreamAgentFinalValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e StreamAgentFinalValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e StreamAgentFinalValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e StreamAgentFinalValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e StreamAgentFinalValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e StreamAgentFinalValidationError) ErrorName() string { return "StreamAgentFinalValidationError" }
+
+// Error satisfies the builtin error interface
+func (e StreamAgentFinalValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStreamAgentFinal.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = StreamAgentFinalValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = StreamAgentFinalValidationError{}
+
 // Validate checks the field values on GetAgentRequest with the rules defined
 // in the proto definition for this message. If any rules are violated, the
 // first error encountered is returned, or nil if there are no violations.
