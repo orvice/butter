@@ -208,10 +208,10 @@ message StreamAgentRequest {
 // variant per message — no ad-hoc JSON payload disambiguation.
 message StreamAgentResponse {
   oneof event {
-    StreamAgentStarted started     = 1;
-    StreamAgentRunEvent run_event  = 2;
+    StreamAgentStarted started = 1;
+    StreamAgentRunEvent run_event = 2;
     StreamAgentTextDelta text_delta = 3;
-    StreamAgentFinal final         = 4;
+    StreamAgentFinal final = 4;
   }
 }
 
@@ -220,8 +220,8 @@ message StreamAgentResponse {
 // CancelAgentInvocation.
 message StreamAgentStarted {
   string invocation_id = 1;
-  string session_id    = 2;
-  string agent_name    = 3;
+  string session_id = 2;
+  string agent_name = 3;
 }
 
 // StreamAgentRunEvent mirrors a single ADK session.Event. content_json
@@ -229,14 +229,14 @@ message StreamAgentStarted {
 // it client-side to render tool calls / function responses / etc.
 message StreamAgentRunEvent {
   string invocation_id = 1;
-  string session_id    = 2;
-  string agent_name    = 3;
-  string event_id      = 4;
-  string author        = 5;
-  string branch        = 6;
-  bool partial         = 7;
-  bool final_response  = 8;
-  string content_json  = 9;
+  string session_id = 2;
+  string agent_name = 3;
+  string event_id = 4;
+  string author = 5;
+  string branch = 6;
+  bool partial = 7;
+  bool final_response = 8;
+  string content_json = 9;
   google.protobuf.Timestamp timestamp = 10;
 }
 
@@ -244,18 +244,18 @@ message StreamAgentRunEvent {
 // the UI can render the response as it streams in.
 message StreamAgentTextDelta {
   string invocation_id = 1;
-  string session_id    = 2;
-  string agent_name    = 3;
-  string text          = 4;
+  string session_id = 2;
+  string agent_name = 3;
+  string text = 4;
 }
 
 // StreamAgentFinal is sent once after the runner returns the final
 // response text. The stream is closed by the server after this.
 message StreamAgentFinal {
   string invocation_id = 1;
-  string session_id    = 2;
-  string agent_name    = 3;
-  string response      = 4;
+  string session_id = 2;
+  string agent_name = 3;
+  string response = 4;
 }
 
 message GetAgentRequest {
