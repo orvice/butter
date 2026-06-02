@@ -130,6 +130,12 @@ func TestConnectMigratedServices_Routing(t *testing.T) {
 		{"notifygroup_list", "/api/agents.v1.NotifyGroupService/ListNotifyGroups"},
 		{"remoteagent_list", "/api/agents.v1.RemoteAgentService/ListRemoteAgents"},
 		{"channel_list", "/api/agents.v1.ChannelService/ListChannels"},
+		{"forum_list", "/api/agents.v1.ForumService/ListThreads"},
+		{"session_list", "/api/agents.v1.SessionService/ListSessions"},
+		{"cron_list", "/api/agents.v1.CronJobService/ListCronJobs"},
+		{"dashboard_overview", "/api/agents.v1.DashboardService/GetOverview"},
+		{"agentfile_list", "/api/agents.v1.AgentFileService/ListAgentFileSpaces"},
+		{"daemon_list", "/api/agents.v1.DaemonService/ListDaemons"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

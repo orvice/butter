@@ -268,7 +268,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	uploadSvc := service.NewUploadServiceLazy(func() config.StaticConfig { return cfg.Static })
 	uploadHandler := httpHandler.NewUploadHandler(uploadSvc)
 
-	pathPrefix := twirp.WithServerPathPrefix("/api")
 	agentSvcServer := application.NewAgentServiceServer(configStore)
 	agentFileSvcServer := application.NewAgentFileServiceServer(nil)
 	mcpSvcServer := application.NewMCPServerServiceServer(configStore)
@@ -277,9 +276,9 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
 	remoteSvcServer.SetDaemonRegistry(daemonRegistry)
 	forumSvcServer := application.NewForumServiceServer(nil)
-	forumTwirp := agentsv1.NewForumServiceServer(forumSvcServer, pathPrefix)
+	forumConnectPath, forumConnectHandler := agentsv1connect.NewForumServiceHandler(application.NewForumServiceConnectAdapter(forumSvcServer))
 	agentConnectPath, agentConnectHandler := agentsv1connect.NewAgentServiceHandler(application.NewAgentServiceConnectAdapter(agentSvcServer))
-	agentFileTwirp := agentsv1.NewAgentFileServiceServer(agentFileSvcServer, pathPrefix)
+	agentFileConnectPath, agentFileConnectHandler := agentsv1connect.NewAgentFileServiceHandler(application.NewAgentFileServiceConnectAdapter(agentFileSvcServer))
 	mcpConnectPath, mcpConnectHandler := agentsv1connect.NewMCPServerServiceHandler(application.NewMCPServerServiceConnectAdapter(mcpSvcServer))
 	modelProviderConnectPath, modelProviderConnectHandler := agentsv1connect.NewModelProviderServiceHandler(application.NewModelProviderServiceConnectAdapter(modelProviderSvcServer))
 	notifyGroupConnectPath, notifyGroupConnectHandler := agentsv1connect.NewNotifyGroupServiceHandler(application.NewNotifyGroupServiceConnectAdapter(notifyGroupSvcServer))
@@ -287,13 +286,13 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	channelSvcServer := application.NewChannelServiceServer(configStore)
 	channelConnectPath, channelConnectHandler := agentsv1connect.NewChannelServiceHandler(application.NewChannelServiceConnectAdapter(channelSvcServer))
 	sessionSvcServer := application.NewSessionServiceServer()
-	sessionTwirp := agentsv1.NewSessionServiceServer(sessionSvcServer, pathPrefix)
+	sessionConnectPath, sessionConnectHandler := agentsv1connect.NewSessionServiceHandler(application.NewSessionServiceConnectAdapter(sessionSvcServer))
 	cronSvcServer := application.NewCronJobServiceServer()
-	cronTwirp := agentsv1.NewCronJobServiceServer(cronSvcServer, pathPrefix)
+	cronConnectPath, cronConnectHandler := agentsv1connect.NewCronJobServiceHandler(application.NewCronJobServiceConnectAdapter(cronSvcServer))
 	dashboardSvcServer := application.NewDashboardServiceServer(configStore, daemonRegistry)
-	dashboardTwirp := agentsv1.NewDashboardServiceServer(dashboardSvcServer, pathPrefix)
+	dashboardConnectPath, dashboardConnectHandler := agentsv1connect.NewDashboardServiceHandler(application.NewDashboardServiceConnectAdapter(dashboardSvcServer))
 	daemonSvcServer := application.NewDaemonServiceServer(daemonRegistry)
-	daemonTwirp := agentsv1.NewDaemonServiceServer(daemonSvcServer, pathPrefix)
+	daemonConnectPath, daemonConnectHandler := agentsv1connect.NewDaemonServiceHandler(application.NewDaemonServiceConnectAdapter(daemonSvcServer))
 	apiTokenSvcServer := application.NewAPITokenServiceServer(nil)
 	apiTokenConnectPath, apiTokenConnectHandler := agentsv1connect.NewAPITokenServiceHandler(application.NewAPITokenServiceConnectAdapter(apiTokenSvcServer))
 	authSvcServer := application.NewAuthServiceServer(nil, cfg.Auth.EffectiveSessionTTL())
@@ -362,13 +361,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 			c.Redirect(http.StatusFound, appendOAuthCallbackParams(target, status, serverID))
 		})
 
-		// Mount Twirp handlers under /api prefix
-		r.Any(forumTwirp.PathPrefix()+"*path", gin.WrapH(forumTwirp))
-		r.Any(agentFileTwirp.PathPrefix()+"*path", gin.WrapH(agentFileTwirp))
-		r.Any(sessionTwirp.PathPrefix()+"*path", gin.WrapH(sessionTwirp))
-		r.Any(cronTwirp.PathPrefix()+"*path", gin.WrapH(cronTwirp))
-		r.Any(dashboardTwirp.PathPrefix()+"*path", gin.WrapH(dashboardTwirp))
-		r.Any(daemonTwirp.PathPrefix()+"*path", gin.WrapH(daemonTwirp))
 		// Connect handlers mount at /agents.v1.XxxService/ by default; we
 		// strip the /api prefix before forwarding so the public URLs
 		// (/api/agents.v1.XxxService/Method) stay stable across the
@@ -382,6 +374,12 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+notifyGroupConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", notifyGroupConnectHandler)))
 		r.Any("/api"+remoteConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", remoteConnectHandler)))
 		r.Any("/api"+channelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", channelConnectHandler)))
+		r.Any("/api"+forumConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", forumConnectHandler)))
+		r.Any("/api"+agentFileConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", agentFileConnectHandler)))
+		r.Any("/api"+sessionConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", sessionConnectHandler)))
+		r.Any("/api"+cronConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", cronConnectHandler)))
+		r.Any("/api"+dashboardConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", dashboardConnectHandler)))
+		r.Any("/api"+daemonConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", daemonConnectHandler)))
 	}
 
 	return router, handlers
