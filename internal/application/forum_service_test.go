@@ -72,11 +72,11 @@ func TestForumServiceInvokeAgentInThreadRejectsConcurrentProcessing(t *testing.T
 		go func() {
 			defer wg.Done()
 			<-start
-			_, err := svc.InvokeAgentInThread(ctx, &agentsv1.InvokeAgentInThreadRequest{
+			_, err := svc.InvokeAgentInThread(ctx, connect.NewRequest(&agentsv1.InvokeAgentInThreadRequest{
 				ThreadId:  "thread-1",
 				AgentName: "agent-1",
 				Message:   "please help",
-			})
+			}))
 			errs <- err
 		}()
 	}
@@ -147,11 +147,11 @@ func TestForumServiceInvokeAgentInThreadRecentPostsFailureDoesNotMarkProcessing(
 	svc := NewForumServiceServer(repo)
 	svc.runnerSvc = newBlockingForumRunner()
 
-	_, err := svc.InvokeAgentInThread(ctx, &agentsv1.InvokeAgentInThreadRequest{
+	_, err := svc.InvokeAgentInThread(ctx, connect.NewRequest(&agentsv1.InvokeAgentInThreadRequest{
 		ThreadId:  "thread-1",
 		AgentName: "agent-1",
 		Message:   "please help",
-	})
+	}))
 	var twerr *connect.Error
 	if !errors.As(err, &twerr) || twerr.Code() != connect.CodeInternal {
 		t.Fatalf("InvokeAgentInThread() error = %v, want internal connect error", err)

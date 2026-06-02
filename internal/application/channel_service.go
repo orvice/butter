@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 
 	"go.orx.me/apps/butter/internal/channel"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
@@ -38,7 +39,7 @@ func (s *ChannelServiceServer) SetChannelManager(m ChannelStatusProvider) {
 	s.manager = m
 }
 
-func (s *ChannelServiceServer) ListChannels(ctx context.Context, _ *agentsv1.ListChannelsRequest) (*agentsv1.ListChannelsResponse, error) {
+func (s *ChannelServiceServer) ListChannels(ctx context.Context, _ *connect.Request[agentsv1.ListChannelsRequest]) (*connect.Response[agentsv1.ListChannelsResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -47,19 +48,19 @@ func (s *ChannelServiceServer) ListChannels(ctx context.Context, _ *agentsv1.Lis
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.ListChannelsResponse{Channels: channels}, nil
+	return connect.NewResponse(&agentsv1.ListChannelsResponse{Channels: channels}), nil
 }
 
-func (s *ChannelServiceServer) GetChannel(ctx context.Context, req *agentsv1.GetChannelRequest) (*agentsv1.GetChannelResponse, error) {
+func (s *ChannelServiceServer) GetChannel(ctx context.Context, req *connect.Request[agentsv1.GetChannelRequest]) (*connect.Response[agentsv1.GetChannelResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	c, err := s.repo.GetChannel(ctx, wsID, req.GetName())
+	c, err := s.repo.GetChannel(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.GetChannelResponse{Channel: c}, nil
+	return connect.NewResponse(&agentsv1.GetChannelResponse{Channel: c}), nil
 }
 
 func validateChannelTriggers(channel *agentsv1.AgentChannel) error {
@@ -79,61 +80,61 @@ func validateChannelTriggers(channel *agentsv1.AgentChannel) error {
 	return nil
 }
 
-func (s *ChannelServiceServer) CreateChannel(ctx context.Context, req *agentsv1.CreateChannelRequest) (*agentsv1.CreateChannelResponse, error) {
+func (s *ChannelServiceServer) CreateChannel(ctx context.Context, req *connect.Request[agentsv1.CreateChannelRequest]) (*connect.Response[agentsv1.CreateChannelResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateChannelTriggers(req.GetChannel()); err != nil {
+	if err := validateChannelTriggers(req.Msg.GetChannel()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
 	logger.Info("creating channel",
 		"workspace_id", wsID,
-		"channel", req.GetChannel().GetName(),
-		"platform", req.GetChannel().GetPlatform(),
-		"enabled", req.GetChannel().GetEnabled(),
+		"channel", req.Msg.GetChannel().GetName(),
+		"platform", req.Msg.GetChannel().GetPlatform(),
+		"enabled", req.Msg.GetChannel().GetEnabled(),
 	)
 	c, err := mutateWithRuntime(
 		func() (*agentsv1.AgentChannel, error) {
-			return s.repo.CreateChannel(ctx, wsID, req.GetChannel())
+			return s.repo.CreateChannel(ctx, wsID, req.Msg.GetChannel())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if err := s.repo.DeleteChannel(ctx, wsID, req.GetChannel().GetName()); err != nil {
+			if err := s.repo.DeleteChannel(ctx, wsID, req.Msg.GetChannel().GetName()); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
 		},
 	)
 	if err != nil {
-		logger.Error("create channel failed", "workspace_id", wsID, "channel", req.GetChannel().GetName(), "err", err)
+		logger.Error("create channel failed", "workspace_id", wsID, "channel", req.Msg.GetChannel().GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
 	logger.Info("channel created", "workspace_id", wsID, "channel", c.GetName(), "platform", c.GetPlatform())
-	return &agentsv1.CreateChannelResponse{Channel: c}, nil
+	return connect.NewResponse(&agentsv1.CreateChannelResponse{Channel: c}), nil
 }
 
-func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *agentsv1.UpdateChannelRequest) (*agentsv1.UpdateChannelResponse, error) {
+func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *connect.Request[agentsv1.UpdateChannelRequest]) (*connect.Response[agentsv1.UpdateChannelResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateChannelTriggers(req.GetChannel()); err != nil {
+	if err := validateChannelTriggers(req.Msg.GetChannel()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	prev, err := s.repo.GetChannel(ctx, wsID, req.GetChannel().GetName())
+	prev, err := s.repo.GetChannel(ctx, wsID, req.Msg.GetChannel().GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("updating channel", "workspace_id", wsID, "channel", req.GetChannel().GetName())
+	logger.Info("updating channel", "workspace_id", wsID, "channel", req.Msg.GetChannel().GetName())
 
 	c, err := mutateWithRuntime(
 		func() (*agentsv1.AgentChannel, error) {
-			return s.repo.UpdateChannel(ctx, wsID, req.GetChannel())
+			return s.repo.UpdateChannel(ctx, wsID, req.Msg.GetChannel())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -146,28 +147,28 @@ func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *agentsv1.
 		},
 	)
 	if err != nil {
-		logger.Error("update channel failed", "workspace_id", wsID, "channel", req.GetChannel().GetName(), "err", err)
+		logger.Error("update channel failed", "workspace_id", wsID, "channel", req.Msg.GetChannel().GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
 	logger.Info("channel updated", "workspace_id", wsID, "channel", c.GetName())
-	return &agentsv1.UpdateChannelResponse{Channel: c}, nil
+	return connect.NewResponse(&agentsv1.UpdateChannelResponse{Channel: c}), nil
 }
 
-func (s *ChannelServiceServer) DeleteChannel(ctx context.Context, req *agentsv1.DeleteChannelRequest) (*agentsv1.DeleteChannelResponse, error) {
+func (s *ChannelServiceServer) DeleteChannel(ctx context.Context, req *connect.Request[agentsv1.DeleteChannelRequest]) (*connect.Response[agentsv1.DeleteChannelResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	prev, err := s.repo.GetChannel(ctx, wsID, req.GetName())
+	prev, err := s.repo.GetChannel(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("deleting channel", "workspace_id", wsID, "channel", req.GetName())
+	logger.Info("deleting channel", "workspace_id", wsID, "channel", req.Msg.GetName())
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteChannel(ctx, wsID, req.GetName())
+			return s.repo.DeleteChannel(ctx, wsID, req.Msg.GetName())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -180,19 +181,19 @@ func (s *ChannelServiceServer) DeleteChannel(ctx context.Context, req *agentsv1.
 		},
 	)
 	if err != nil {
-		logger.Error("delete channel failed", "workspace_id", wsID, "channel", req.GetName(), "err", err)
+		logger.Error("delete channel failed", "workspace_id", wsID, "channel", req.Msg.GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	logger.Info("channel deleted", "workspace_id", wsID, "channel", req.GetName())
-	return &agentsv1.DeleteChannelResponse{}, nil
+	logger.Info("channel deleted", "workspace_id", wsID, "channel", req.Msg.GetName())
+	return connect.NewResponse(&agentsv1.DeleteChannelResponse{}), nil
 }
 
-func (s *ChannelServiceServer) GetChannelStatus(ctx context.Context, req *agentsv1.GetChannelStatusRequest) (*agentsv1.GetChannelStatusResponse, error) {
+func (s *ChannelServiceServer) GetChannelStatus(ctx context.Context, req *connect.Request[agentsv1.GetChannelStatusRequest]) (*connect.Response[agentsv1.GetChannelStatusResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	c, err := s.repo.GetChannel(ctx, wsID, req.GetName())
+	c, err := s.repo.GetChannel(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
@@ -231,18 +232,18 @@ func (s *ChannelServiceServer) GetChannelStatus(ctx context.Context, req *agents
 		Detail:     detail,
 		LastPollAt: timestamppb.New(time.Now().UTC()),
 	}
-	return &agentsv1.GetChannelStatusResponse{Status: status}, nil
+	return connect.NewResponse(&agentsv1.GetChannelStatusResponse{Status: status}), nil
 }
 
-func (s *ChannelServiceServer) RestartChannel(ctx context.Context, req *agentsv1.RestartChannelRequest) (*agentsv1.RestartChannelResponse, error) {
+func (s *ChannelServiceServer) RestartChannel(ctx context.Context, req *connect.Request[agentsv1.RestartChannelRequest]) (*connect.Response[agentsv1.RestartChannelResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	logger.Info("restarting channel", "workspace_id", wsID, "channel", req.GetName())
+	logger.Info("restarting channel", "workspace_id", wsID, "channel", req.Msg.GetName())
 	resp := &agentsv1.RestartChannelResponse{}
-	if name := req.GetName(); name != "" {
+	if name := req.Msg.GetName(); name != "" {
 		c, err := s.repo.GetChannel(ctx, wsID, name)
 		if err != nil {
 			return nil, toConnectError(err)
@@ -250,27 +251,27 @@ func (s *ChannelServiceServer) RestartChannel(ctx context.Context, req *agentsv1
 		resp.Channel = c
 	}
 	if err := s.reloadRuntime(ctx); err != nil {
-		logger.Error("restart channel: reload runtime failed", "workspace_id", wsID, "channel", req.GetName(), "err", err)
+		logger.Error("restart channel: reload runtime failed", "workspace_id", wsID, "channel", req.Msg.GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	logger.Info("channel restarted", "workspace_id", wsID, "channel", req.GetName())
-	return resp, nil
+	logger.Info("channel restarted", "workspace_id", wsID, "channel", req.Msg.GetName())
+	return connect.NewResponse(resp), nil
 }
 
-func (s *ChannelServiceServer) PauseChannel(ctx context.Context, req *agentsv1.PauseChannelRequest) (*agentsv1.PauseChannelResponse, error) {
-	c, err := s.toggleChannelEnabled(ctx, req.GetName(), false)
+func (s *ChannelServiceServer) PauseChannel(ctx context.Context, req *connect.Request[agentsv1.PauseChannelRequest]) (*connect.Response[agentsv1.PauseChannelResponse], error) {
+	c, err := s.toggleChannelEnabled(ctx, req.Msg.GetName(), false)
 	if err != nil {
 		return nil, err
 	}
-	return &agentsv1.PauseChannelResponse{Channel: c}, nil
+	return connect.NewResponse(&agentsv1.PauseChannelResponse{Channel: c}), nil
 }
 
-func (s *ChannelServiceServer) ResumeChannel(ctx context.Context, req *agentsv1.ResumeChannelRequest) (*agentsv1.ResumeChannelResponse, error) {
-	c, err := s.toggleChannelEnabled(ctx, req.GetName(), true)
+func (s *ChannelServiceServer) ResumeChannel(ctx context.Context, req *connect.Request[agentsv1.ResumeChannelRequest]) (*connect.Response[agentsv1.ResumeChannelResponse], error) {
+	c, err := s.toggleChannelEnabled(ctx, req.Msg.GetName(), true)
 	if err != nil {
 		return nil, err
 	}
-	return &agentsv1.ResumeChannelResponse{Channel: c}, nil
+	return connect.NewResponse(&agentsv1.ResumeChannelResponse{Channel: c}), nil
 }
 
 func (s *ChannelServiceServer) toggleChannelEnabled(ctx context.Context, name string, enabled bool) (*agentsv1.AgentChannel, error) {

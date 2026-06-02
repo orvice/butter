@@ -32,9 +32,9 @@ func NewGlobalMCPServerServiceServer(repo configrepo.GlobalMCPServerRepository, 
 	return &GlobalMCPServerServiceServer{repo: repo, mcpSvc: mcpSvc}
 }
 
-func (s *GlobalMCPServerServiceServer) ListGlobalMCPServers(ctx context.Context, _ *agentsv1.ListGlobalMCPServersRequest) (*agentsv1.ListGlobalMCPServersResponse, error) {
+func (s *GlobalMCPServerServiceServer) ListGlobalMCPServers(ctx context.Context, _ *connect.Request[agentsv1.ListGlobalMCPServersRequest]) (*connect.Response[agentsv1.ListGlobalMCPServersResponse], error) {
 	if s.repo == nil {
-		return &agentsv1.ListGlobalMCPServersResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListGlobalMCPServersResponse{}), nil
 	}
 	servers, err := s.repo.ListGlobalMCPServers(ctx)
 	if err != nil {
@@ -45,17 +45,17 @@ func (s *GlobalMCPServerServiceServer) ListGlobalMCPServers(ctx context.Context,
 	for _, srv := range servers {
 		out = append(out, mcpServerForResponseClone(srv, redact))
 	}
-	return &agentsv1.ListGlobalMCPServersResponse{McpServers: out}, nil
+	return connect.NewResponse(&agentsv1.ListGlobalMCPServersResponse{McpServers: out}), nil
 }
 
-func (s *GlobalMCPServerServiceServer) CreateGlobalMCPServer(ctx context.Context, req *agentsv1.CreateGlobalMCPServerRequest) (*agentsv1.CreateGlobalMCPServerResponse, error) {
+func (s *GlobalMCPServerServiceServer) CreateGlobalMCPServer(ctx context.Context, req *connect.Request[agentsv1.CreateGlobalMCPServerRequest]) (*connect.Response[agentsv1.CreateGlobalMCPServerResponse], error) {
 	if s.repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("global mcp store not available"))
 	}
 	if !auth.IsAdmin(ctx) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
-	server := req.GetMcpServer()
+	server := req.Msg.GetMcpServer()
 	if server == nil {
 		return nil, connectx.RequiredArgument("mcp_server")
 	}
@@ -64,17 +64,17 @@ func (s *GlobalMCPServerServiceServer) CreateGlobalMCPServer(ctx context.Context
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.CreateGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(created, false)}, nil
+	return connect.NewResponse(&agentsv1.CreateGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(created, false)}), nil
 }
 
-func (s *GlobalMCPServerServiceServer) UpdateGlobalMCPServer(ctx context.Context, req *agentsv1.UpdateGlobalMCPServerRequest) (*agentsv1.UpdateGlobalMCPServerResponse, error) {
+func (s *GlobalMCPServerServiceServer) UpdateGlobalMCPServer(ctx context.Context, req *connect.Request[agentsv1.UpdateGlobalMCPServerRequest]) (*connect.Response[agentsv1.UpdateGlobalMCPServerResponse], error) {
 	if s.repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("global mcp store not available"))
 	}
 	if !auth.IsAdmin(ctx) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
-	server := req.GetMcpServer()
+	server := req.Msg.GetMcpServer()
 	if server == nil {
 		return nil, connectx.RequiredArgument("mcp_server")
 	}
@@ -86,38 +86,38 @@ func (s *GlobalMCPServerServiceServer) UpdateGlobalMCPServer(ctx context.Context
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.UpdateGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(updated, false)}, nil
+	return connect.NewResponse(&agentsv1.UpdateGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(updated, false)}), nil
 }
 
-func (s *GlobalMCPServerServiceServer) DeleteGlobalMCPServer(ctx context.Context, req *agentsv1.DeleteGlobalMCPServerRequest) (*agentsv1.DeleteGlobalMCPServerResponse, error) {
+func (s *GlobalMCPServerServiceServer) DeleteGlobalMCPServer(ctx context.Context, req *connect.Request[agentsv1.DeleteGlobalMCPServerRequest]) (*connect.Response[agentsv1.DeleteGlobalMCPServerResponse], error) {
 	if s.repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("global mcp store not available"))
 	}
 	if !auth.IsAdmin(ctx) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
-	id := strings.TrimSpace(req.GetId())
+	id := strings.TrimSpace(req.Msg.GetId())
 	if id == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
 	if err := s.repo.DeleteGlobalMCPServer(ctx, id); err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.DeleteGlobalMCPServerResponse{}, nil
+	return connect.NewResponse(&agentsv1.DeleteGlobalMCPServerResponse{}), nil
 }
 
-func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Context, req *agentsv1.InstallGlobalMCPServerRequest) (*agentsv1.InstallGlobalMCPServerResponse, error) {
+func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Context, req *connect.Request[agentsv1.InstallGlobalMCPServerRequest]) (*connect.Response[agentsv1.InstallGlobalMCPServerResponse], error) {
 	if s.repo == nil || s.mcpSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("global mcp store not available"))
 	}
-	presetID := strings.TrimSpace(req.GetId())
+	presetID := strings.TrimSpace(req.Msg.GetId())
 	if presetID == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
 
 	contextWorkspaceID, _ := wsctx.FromContext(ctx)
 	targetWorkspaceID := contextWorkspaceID
-	requested := strings.TrimSpace(req.GetWorkspaceId())
+	requested := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if requested != "" {
 		if !auth.IsAdmin(ctx) && requested != contextWorkspaceID {
 			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required for cross-workspace install"))
@@ -140,11 +140,11 @@ func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Contex
 	MarkInstalledGlobalMCPPreset(server, preset.GetId())
 
 	installCtx := wsctx.WithID(ctx, targetWorkspaceID)
-	created, err := s.mcpSvc.CreateMCPServer(installCtx, &agentsv1.CreateMCPServerRequest{McpServer: server})
+	created, err := s.mcpSvc.CreateMCPServer(installCtx, connect.NewRequest(&agentsv1.CreateMCPServerRequest{McpServer: server}))
 	if err != nil {
 		return nil, err
 	}
-	return &agentsv1.InstallGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(created.GetMcpServer(), true)}, nil
+	return connect.NewResponse(&agentsv1.InstallGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(created.Msg.GetMcpServer(), true)}), nil
 }
 
 // mcpServerForResponseClone clones the server and optionally clears the

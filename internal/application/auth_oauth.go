@@ -38,9 +38,9 @@ func (s *AuthServiceServer) SetOAuthStateRepo(r oauthstate.Repository) {
 	s.stateRepo = r
 }
 
-func (s *AuthServiceServer) ListOAuthProviders(_ context.Context, _ *agentsv1.ListOAuthProvidersRequest) (*agentsv1.ListOAuthProvidersResponse, error) {
+func (s *AuthServiceServer) ListOAuthProviders(_ context.Context, _ *connect.Request[agentsv1.ListOAuthProvidersRequest]) (*connect.Response[agentsv1.ListOAuthProvidersResponse], error) {
 	if s.providers == nil {
-		return &agentsv1.ListOAuthProvidersResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListOAuthProvidersResponse{}), nil
 	}
 	list := s.providers.List()
 	out := make([]*agentsv1.OAuthProvider, 0, len(list))
@@ -50,14 +50,14 @@ func (s *AuthServiceServer) ListOAuthProviders(_ context.Context, _ *agentsv1.Li
 			DisplayName: p.DisplayName(),
 		})
 	}
-	return &agentsv1.ListOAuthProvidersResponse{Providers: out}, nil
+	return connect.NewResponse(&agentsv1.ListOAuthProvidersResponse{Providers: out}), nil
 }
 
-func (s *AuthServiceServer) BeginOAuthFlow(ctx context.Context, req *agentsv1.BeginOAuthFlowRequest) (*agentsv1.BeginOAuthFlowResponse, error) {
+func (s *AuthServiceServer) BeginOAuthFlow(ctx context.Context, req *connect.Request[agentsv1.BeginOAuthFlowRequest]) (*connect.Response[agentsv1.BeginOAuthFlowResponse], error) {
 	if s.providers == nil || s.stateRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("oauth login not available"))
 	}
-	name := strings.TrimSpace(req.GetProvider())
+	name := strings.TrimSpace(req.Msg.GetProvider())
 	if name == "" {
 		return nil, connectx.RequiredArgument("provider")
 	}
@@ -73,20 +73,20 @@ func (s *AuthServiceServer) BeginOAuthFlow(ctx context.Context, req *agentsv1.Be
 	entry := &oauthstate.Entry{
 		State:       state,
 		Provider:    name,
-		RedirectURI: strings.TrimSpace(req.GetRedirectUri()),
+		RedirectURI: strings.TrimSpace(req.Msg.GetRedirectUri()),
 		CreatedAt:   now,
 		ExpiresAt:   now.Add(oauthStateTTL),
 	}
 	if err := s.stateRepo.Create(ctx, entry); err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.BeginOAuthFlowResponse{
+	return connect.NewResponse(&agentsv1.BeginOAuthFlowResponse{
 		AuthorizeUrl: p.AuthorizeURL(state),
 		State:        state,
-	}, nil
+	}), nil
 }
 
-func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1.CompleteOAuthFlowRequest) (*agentsv1.CompleteOAuthFlowResponse, error) {
+func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *connect.Request[agentsv1.CompleteOAuthFlowRequest]) (*connect.Response[agentsv1.CompleteOAuthFlowResponse], error) {
 	logger := log.FromContext(ctx)
 	if s.repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("auth store not available"))
@@ -94,12 +94,12 @@ func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1
 	if s.providers == nil || s.stateRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("oauth login not available"))
 	}
-	name := strings.TrimSpace(req.GetProvider())
+	name := strings.TrimSpace(req.Msg.GetProvider())
 	if name == "" {
 		return nil, connectx.RequiredArgument("provider")
 	}
-	code := strings.TrimSpace(req.GetCode())
-	state := strings.TrimSpace(req.GetState())
+	code := strings.TrimSpace(req.Msg.GetCode())
+	state := strings.TrimSpace(req.Msg.GetState())
 	if code == "" {
 		return nil, connectx.RequiredArgument("code")
 	}
@@ -165,12 +165,12 @@ func (s *AuthServiceServer) CompleteOAuthFlow(ctx context.Context, req *agentsv1
 		"session_id", session.ID,
 		"workspace_count", len(workspaces),
 	)
-	return &agentsv1.CompleteOAuthFlowResponse{
+	return connect.NewResponse(&agentsv1.CompleteOAuthFlowResponse{
 		Token:      secret,
 		User:       user,
 		ExpiresAt:  timestamppb.New(expiresAt),
 		Workspaces: workspaces,
-	}, nil
+	}), nil
 }
 
 // upsertOAuthUser returns the existing user for (provider, externalID) or

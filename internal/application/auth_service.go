@@ -52,17 +52,17 @@ func (s *AuthServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
 	s.wsRepo = repo
 }
 
-func (s *AuthServiceServer) Login(ctx context.Context, req *agentsv1.LoginRequest) (*agentsv1.LoginResponse, error) {
+func (s *AuthServiceServer) Login(ctx context.Context, req *connect.Request[agentsv1.LoginRequest]) (*connect.Response[agentsv1.LoginResponse], error) {
 	logger := log.FromContext(ctx)
 	if s.repo == nil {
 		logger.Warn("login rejected: auth store not available")
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("auth store not available"))
 	}
-	username := strings.TrimSpace(req.GetUsername())
+	username := strings.TrimSpace(req.Msg.GetUsername())
 	if username == "" {
 		return nil, connectx.RequiredArgument("username")
 	}
-	if req.GetPassword() == "" {
+	if req.Msg.GetPassword() == "" {
 		return nil, connectx.RequiredArgument("password")
 	}
 
@@ -81,7 +81,7 @@ func (s *AuthServiceServer) Login(ctx context.Context, req *agentsv1.LoginReques
 		logger.Info("login rejected: user disabled", "username", username, "user_id", user.GetId())
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("user disabled"))
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.GetPassword())); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.Msg.GetPassword())); err != nil {
 		logger.Info("login failed: password mismatch", "username", username, "user_id", user.GetId())
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid username or password"))
 	}
@@ -113,12 +113,12 @@ func (s *AuthServiceServer) Login(ctx context.Context, req *agentsv1.LoginReques
 		"session_id", session.ID,
 		"workspace_count", len(workspaces),
 	)
-	return &agentsv1.LoginResponse{
+	return connect.NewResponse(&agentsv1.LoginResponse{
 		Token:      secret,
 		User:       user,
 		ExpiresAt:  timestamppb.New(expiresAt),
 		Workspaces: workspaces,
-	}, nil
+	}), nil
 }
 
 // userWorkspaces returns the workspaces the user can access. Global admins
@@ -195,18 +195,18 @@ func BootstrapDefaultWorkspace(ctx context.Context, wsRepo workspacerepo.Reposit
 	return nil
 }
 
-func (s *AuthServiceServer) Me(ctx context.Context, _ *agentsv1.MeRequest) (*agentsv1.MeResponse, error) {
+func (s *AuthServiceServer) Me(ctx context.Context, _ *connect.Request[agentsv1.MeRequest]) (*connect.Response[agentsv1.MeResponse], error) {
 	user, ok := auth.UserFromContext(ctx)
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthenticated"))
 	}
-	return &agentsv1.MeResponse{User: user}, nil
+	return connect.NewResponse(&agentsv1.MeResponse{User: user}), nil
 }
 
-func (s *AuthServiceServer) Logout(ctx context.Context, _ *agentsv1.LogoutRequest) (*agentsv1.LogoutResponse, error) {
+func (s *AuthServiceServer) Logout(ctx context.Context, _ *connect.Request[agentsv1.LogoutRequest]) (*connect.Response[agentsv1.LogoutResponse], error) {
 	logger := log.FromContext(ctx)
 	if s.repo == nil {
-		return &agentsv1.LogoutResponse{}, nil
+		return connect.NewResponse(&agentsv1.LogoutResponse{}), nil
 	}
 	session, ok := auth.SessionFromContext(ctx)
 	if !ok {
@@ -217,10 +217,10 @@ func (s *AuthServiceServer) Logout(ctx context.Context, _ *agentsv1.LogoutReques
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("logout succeeded", "session_id", session.ID, "user_id", session.UserID)
-	return &agentsv1.LogoutResponse{}, nil
+	return connect.NewResponse(&agentsv1.LogoutResponse{}), nil
 }
 
-func (s *AuthServiceServer) ListUsers(ctx context.Context, _ *agentsv1.ListUsersRequest) (*agentsv1.ListUsersResponse, error) {
+func (s *AuthServiceServer) ListUsers(ctx context.Context, _ *connect.Request[agentsv1.ListUsersRequest]) (*connect.Response[agentsv1.ListUsersResponse], error) {
 	if err := s.requireAdmin(ctx); err != nil {
 		return nil, err
 	}
@@ -228,22 +228,22 @@ func (s *AuthServiceServer) ListUsers(ctx context.Context, _ *agentsv1.ListUsers
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.ListUsersResponse{Users: users}, nil
+	return connect.NewResponse(&agentsv1.ListUsersResponse{Users: users}), nil
 }
 
-func (s *AuthServiceServer) CreateUser(ctx context.Context, req *agentsv1.CreateUserRequest) (*agentsv1.CreateUserResponse, error) {
+func (s *AuthServiceServer) CreateUser(ctx context.Context, req *connect.Request[agentsv1.CreateUserRequest]) (*connect.Response[agentsv1.CreateUserResponse], error) {
 	if err := s.requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	username := strings.TrimSpace(req.GetUsername())
+	username := strings.TrimSpace(req.Msg.GetUsername())
 	if username == "" {
 		return nil, connectx.RequiredArgument("username")
 	}
-	if req.GetPassword() == "" {
+	if req.Msg.GetPassword() == "" {
 		return nil, connectx.RequiredArgument("password")
 	}
-	role := normalizeRole(req.GetRole())
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.GetPassword()), bcrypt.DefaultCost)
+	role := normalizeRole(req.Msg.GetRole())
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Msg.GetPassword()), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
@@ -251,9 +251,9 @@ func (s *AuthServiceServer) CreateUser(ctx context.Context, req *agentsv1.Create
 	user := &agentsv1.User{
 		Id:          uuid.NewString(),
 		Username:    username,
-		DisplayName: strings.TrimSpace(req.GetDisplayName()),
+		DisplayName: strings.TrimSpace(req.Msg.GetDisplayName()),
 		Role:        role,
-		Disabled:    req.GetDisabled(),
+		Disabled:    req.Msg.GetDisabled(),
 		CreatedAt:   timestamppb.New(now),
 		UpdatedAt:   timestamppb.New(now),
 	}
@@ -270,21 +270,21 @@ func (s *AuthServiceServer) CreateUser(ctx context.Context, req *agentsv1.Create
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("user created", "username", username, "user_id", user.GetId(), "role", user.GetRole(), "disabled", user.GetDisabled())
-	return &agentsv1.CreateUserResponse{User: user}, nil
+	return connect.NewResponse(&agentsv1.CreateUserResponse{User: user}), nil
 }
 
-func (s *AuthServiceServer) UpdateUserPassword(ctx context.Context, req *agentsv1.UpdateUserPasswordRequest) (*agentsv1.UpdateUserPasswordResponse, error) {
+func (s *AuthServiceServer) UpdateUserPassword(ctx context.Context, req *connect.Request[agentsv1.UpdateUserPasswordRequest]) (*connect.Response[agentsv1.UpdateUserPasswordResponse], error) {
 	if err := s.requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	id := strings.TrimSpace(req.GetId())
+	id := strings.TrimSpace(req.Msg.GetId())
 	if id == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
-	if req.GetPassword() == "" {
+	if req.Msg.GetPassword() == "" {
 		return nil, connectx.RequiredArgument("password")
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.GetPassword()), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Msg.GetPassword()), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
@@ -298,10 +298,10 @@ func (s *AuthServiceServer) UpdateUserPassword(ctx context.Context, req *agentsv
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("user password updated", "user_id", id, "username", user.GetUsername())
-	return &agentsv1.UpdateUserPasswordResponse{User: user}, nil
+	return connect.NewResponse(&agentsv1.UpdateUserPasswordResponse{User: user}), nil
 }
 
-func (s *AuthServiceServer) UpdateProfile(ctx context.Context, req *agentsv1.UpdateProfileRequest) (*agentsv1.UpdateProfileResponse, error) {
+func (s *AuthServiceServer) UpdateProfile(ctx context.Context, req *connect.Request[agentsv1.UpdateProfileRequest]) (*connect.Response[agentsv1.UpdateProfileResponse], error) {
 	if s.repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("auth store not available"))
 	}
@@ -309,16 +309,16 @@ func (s *AuthServiceServer) UpdateProfile(ctx context.Context, req *agentsv1.Upd
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthenticated"))
 	}
-	displayName := strings.TrimSpace(req.GetDisplayName())
+	displayName := strings.TrimSpace(req.Msg.GetDisplayName())
 	if displayName == "" {
 		return nil, connectx.RequiredArgument("display_name")
 	}
-	// req.AvatarUrl is nil when the client did not include the field — leave
+	// req.Msg.AvatarUrl is nil when the client did not include the field — leave
 	// the stored avatar untouched. A non-nil pointer (including empty string)
 	// is a deliberate update; trim whitespace but preserve the explicit clear.
 	var avatarURL *string
-	if req.AvatarUrl != nil {
-		trimmed := strings.TrimSpace(*req.AvatarUrl)
+	if req.Msg.AvatarUrl != nil {
+		trimmed := strings.TrimSpace(*req.Msg.AvatarUrl)
 		avatarURL = &trimmed
 	}
 	user, err := s.repo.UpdateUserProfile(ctx, current.GetId(), displayName, avatarURL, time.Now().UTC())
@@ -328,10 +328,10 @@ func (s *AuthServiceServer) UpdateProfile(ctx context.Context, req *agentsv1.Upd
 		}
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.UpdateProfileResponse{User: user}, nil
+	return connect.NewResponse(&agentsv1.UpdateProfileResponse{User: user}), nil
 }
 
-func (s *AuthServiceServer) ChangePassword(ctx context.Context, req *agentsv1.ChangePasswordRequest) (*agentsv1.ChangePasswordResponse, error) {
+func (s *AuthServiceServer) ChangePassword(ctx context.Context, req *connect.Request[agentsv1.ChangePasswordRequest]) (*connect.Response[agentsv1.ChangePasswordResponse], error) {
 	if s.repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("auth store not available"))
 	}
@@ -339,10 +339,10 @@ func (s *AuthServiceServer) ChangePassword(ctx context.Context, req *agentsv1.Ch
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthenticated"))
 	}
-	if req.GetCurrentPassword() == "" {
+	if req.Msg.GetCurrentPassword() == "" {
 		return nil, connectx.RequiredArgument("current_password")
 	}
-	if req.GetNewPassword() == "" {
+	if req.Msg.GetNewPassword() == "" {
 		return nil, connectx.RequiredArgument("new_password")
 	}
 	_, passwordHash, err := s.repo.FindUserByID(ctx, current.GetId())
@@ -352,10 +352,10 @@ func (s *AuthServiceServer) ChangePassword(ctx context.Context, req *agentsv1.Ch
 		}
 		return nil, connectx.InternalWith(err)
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.GetCurrentPassword())); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.Msg.GetCurrentPassword())); err != nil {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("current password is incorrect"))
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.GetNewPassword()), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Msg.GetNewPassword()), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
@@ -366,32 +366,32 @@ func (s *AuthServiceServer) ChangePassword(ctx context.Context, req *agentsv1.Ch
 		}
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.ChangePasswordResponse{User: user}, nil
+	return connect.NewResponse(&agentsv1.ChangePasswordResponse{User: user}), nil
 }
 
-func (s *AuthServiceServer) SetUserDisabled(ctx context.Context, req *agentsv1.SetUserDisabledRequest) (*agentsv1.SetUserDisabledResponse, error) {
+func (s *AuthServiceServer) SetUserDisabled(ctx context.Context, req *connect.Request[agentsv1.SetUserDisabledRequest]) (*connect.Response[agentsv1.SetUserDisabledResponse], error) {
 	if err := s.requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	id := strings.TrimSpace(req.GetId())
+	id := strings.TrimSpace(req.Msg.GetId())
 	if id == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
 	current, _ := auth.UserFromContext(ctx)
-	if current != nil && current.GetId() == id && req.GetDisabled() {
+	if current != nil && current.GetId() == id && req.Msg.GetDisabled() {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot disable current user"))
 	}
 	logger := log.FromContext(ctx)
-	user, err := s.repo.SetUserDisabled(ctx, id, req.GetDisabled(), time.Now().UTC())
+	user, err := s.repo.SetUserDisabled(ctx, id, req.Msg.GetDisabled(), time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
 			return nil, connectx.NotFound("user")
 		}
-		logger.Error("set user disabled failed", "user_id", id, "disabled", req.GetDisabled(), "err", err)
+		logger.Error("set user disabled failed", "user_id", id, "disabled", req.Msg.GetDisabled(), "err", err)
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("user disabled flag updated", "user_id", id, "username", user.GetUsername(), "disabled", user.GetDisabled())
-	return &agentsv1.SetUserDisabledResponse{User: user}, nil
+	return connect.NewResponse(&agentsv1.SetUserDisabledResponse{User: user}), nil
 }
 
 func (s *AuthServiceServer) requireAdmin(ctx context.Context) error {

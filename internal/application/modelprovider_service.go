@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -36,7 +37,7 @@ func (s *ModelProviderServiceServer) SetRuntime(runtime ConfigRuntime) {
 	s.runtime = runtime
 }
 
-func (s *ModelProviderServiceServer) ListModelProviders(ctx context.Context, _ *agentsv1.ListModelProvidersRequest) (*agentsv1.ListModelProvidersResponse, error) {
+func (s *ModelProviderServiceServer) ListModelProviders(ctx context.Context, _ *connect.Request[agentsv1.ListModelProvidersRequest]) (*connect.Response[agentsv1.ListModelProvidersResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -45,71 +46,71 @@ func (s *ModelProviderServiceServer) ListModelProviders(ctx context.Context, _ *
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.ListModelProvidersResponse{ModelProviders: providers}, nil
+	return connect.NewResponse(&agentsv1.ListModelProvidersResponse{ModelProviders: providers}), nil
 }
 
-func (s *ModelProviderServiceServer) GetModelProvider(ctx context.Context, req *agentsv1.GetModelProviderRequest) (*agentsv1.GetModelProviderResponse, error) {
+func (s *ModelProviderServiceServer) GetModelProvider(ctx context.Context, req *connect.Request[agentsv1.GetModelProviderRequest]) (*connect.Response[agentsv1.GetModelProviderResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	provider, err := s.repo.GetModelProvider(ctx, wsID, req.GetName())
+	provider, err := s.repo.GetModelProvider(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.GetModelProviderResponse{ModelProvider: provider}, nil
+	return connect.NewResponse(&agentsv1.GetModelProviderResponse{ModelProvider: provider}), nil
 }
 
-func (s *ModelProviderServiceServer) CreateModelProvider(ctx context.Context, req *agentsv1.CreateModelProviderRequest) (*agentsv1.CreateModelProviderResponse, error) {
+func (s *ModelProviderServiceServer) CreateModelProvider(ctx context.Context, req *connect.Request[agentsv1.CreateModelProviderRequest]) (*connect.Response[agentsv1.CreateModelProviderResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateModelProviderBaseURL(req.GetModelProvider()); err != nil {
+	if err := validateModelProviderBaseURL(req.Msg.GetModelProvider()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	logger.Info("creating model provider", "workspace_id", wsID, "name", req.GetModelProvider().GetName())
+	logger.Info("creating model provider", "workspace_id", wsID, "name", req.Msg.GetModelProvider().GetName())
 	provider, err := mutateWithRuntime(
 		func() (*agentsv1.ModelProvider, error) {
-			return s.repo.CreateModelProvider(ctx, wsID, req.GetModelProvider())
+			return s.repo.CreateModelProvider(ctx, wsID, req.Msg.GetModelProvider())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if err := s.repo.DeleteModelProvider(ctx, wsID, req.GetModelProvider().GetName()); err != nil {
+			if err := s.repo.DeleteModelProvider(ctx, wsID, req.Msg.GetModelProvider().GetName()); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
 		},
 	)
 	if err != nil {
-		logger.Error("create model provider failed", "workspace_id", wsID, "name", req.GetModelProvider().GetName(), "err", err)
+		logger.Error("create model provider failed", "workspace_id", wsID, "name", req.Msg.GetModelProvider().GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
 	logger.Info("model provider created", "workspace_id", wsID, "name", provider.GetName())
-	return &agentsv1.CreateModelProviderResponse{ModelProvider: provider}, nil
+	return connect.NewResponse(&agentsv1.CreateModelProviderResponse{ModelProvider: provider}), nil
 }
 
-func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, req *agentsv1.UpdateModelProviderRequest) (*agentsv1.UpdateModelProviderResponse, error) {
+func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, req *connect.Request[agentsv1.UpdateModelProviderRequest]) (*connect.Response[agentsv1.UpdateModelProviderResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateModelProviderBaseURL(req.GetModelProvider()); err != nil {
+	if err := validateModelProviderBaseURL(req.Msg.GetModelProvider()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	prev, err := s.repo.GetModelProvider(ctx, wsID, req.GetModelProvider().GetName())
+	prev, err := s.repo.GetModelProvider(ctx, wsID, req.Msg.GetModelProvider().GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("updating model provider", "workspace_id", wsID, "name", req.GetModelProvider().GetName())
+	logger.Info("updating model provider", "workspace_id", wsID, "name", req.Msg.GetModelProvider().GetName())
 
 	provider, err := mutateWithRuntime(
 		func() (*agentsv1.ModelProvider, error) {
-			return s.repo.UpdateModelProvider(ctx, wsID, req.GetModelProvider())
+			return s.repo.UpdateModelProvider(ctx, wsID, req.Msg.GetModelProvider())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -122,28 +123,28 @@ func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, re
 		},
 	)
 	if err != nil {
-		logger.Error("update model provider failed", "workspace_id", wsID, "name", req.GetModelProvider().GetName(), "err", err)
+		logger.Error("update model provider failed", "workspace_id", wsID, "name", req.Msg.GetModelProvider().GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
 	logger.Info("model provider updated", "workspace_id", wsID, "name", provider.GetName())
-	return &agentsv1.UpdateModelProviderResponse{ModelProvider: provider}, nil
+	return connect.NewResponse(&agentsv1.UpdateModelProviderResponse{ModelProvider: provider}), nil
 }
 
-func (s *ModelProviderServiceServer) DeleteModelProvider(ctx context.Context, req *agentsv1.DeleteModelProviderRequest) (*agentsv1.DeleteModelProviderResponse, error) {
+func (s *ModelProviderServiceServer) DeleteModelProvider(ctx context.Context, req *connect.Request[agentsv1.DeleteModelProviderRequest]) (*connect.Response[agentsv1.DeleteModelProviderResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	prev, err := s.repo.GetModelProvider(ctx, wsID, req.GetName())
+	prev, err := s.repo.GetModelProvider(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("deleting model provider", "workspace_id", wsID, "name", req.GetName())
+	logger.Info("deleting model provider", "workspace_id", wsID, "name", req.Msg.GetName())
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteModelProvider(ctx, wsID, req.GetName())
+			return s.repo.DeleteModelProvider(ctx, wsID, req.Msg.GetName())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -156,11 +157,11 @@ func (s *ModelProviderServiceServer) DeleteModelProvider(ctx context.Context, re
 		},
 	)
 	if err != nil {
-		logger.Error("delete model provider failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
+		logger.Error("delete model provider failed", "workspace_id", wsID, "name", req.Msg.GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	logger.Info("model provider deleted", "workspace_id", wsID, "name", req.GetName())
-	return &agentsv1.DeleteModelProviderResponse{}, nil
+	logger.Info("model provider deleted", "workspace_id", wsID, "name", req.Msg.GetName())
+	return connect.NewResponse(&agentsv1.DeleteModelProviderResponse{}), nil
 }
 
 func (s *ModelProviderServiceServer) reloadRuntime(ctx context.Context) error {

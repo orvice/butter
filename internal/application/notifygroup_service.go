@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -64,7 +65,7 @@ func validateNotifyGroup(group *agentsv1.NotifyGroup) error {
 	return nil
 }
 
-func (s *NotifyGroupServiceServer) ListNotifyGroups(ctx context.Context, _ *agentsv1.ListNotifyGroupsRequest) (*agentsv1.ListNotifyGroupsResponse, error) {
+func (s *NotifyGroupServiceServer) ListNotifyGroups(ctx context.Context, _ *connect.Request[agentsv1.ListNotifyGroupsRequest]) (*connect.Response[agentsv1.ListNotifyGroupsResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -73,67 +74,67 @@ func (s *NotifyGroupServiceServer) ListNotifyGroups(ctx context.Context, _ *agen
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.ListNotifyGroupsResponse{NotifyGroups: groups}, nil
+	return connect.NewResponse(&agentsv1.ListNotifyGroupsResponse{NotifyGroups: groups}), nil
 }
 
-func (s *NotifyGroupServiceServer) GetNotifyGroup(ctx context.Context, req *agentsv1.GetNotifyGroupRequest) (*agentsv1.GetNotifyGroupResponse, error) {
+func (s *NotifyGroupServiceServer) GetNotifyGroup(ctx context.Context, req *connect.Request[agentsv1.GetNotifyGroupRequest]) (*connect.Response[agentsv1.GetNotifyGroupResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	group, err := s.repo.GetNotifyGroup(ctx, wsID, req.GetName())
+	group, err := s.repo.GetNotifyGroup(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.GetNotifyGroupResponse{NotifyGroup: group}, nil
+	return connect.NewResponse(&agentsv1.GetNotifyGroupResponse{NotifyGroup: group}), nil
 }
 
-func (s *NotifyGroupServiceServer) CreateNotifyGroup(ctx context.Context, req *agentsv1.CreateNotifyGroupRequest) (*agentsv1.CreateNotifyGroupResponse, error) {
+func (s *NotifyGroupServiceServer) CreateNotifyGroup(ctx context.Context, req *connect.Request[agentsv1.CreateNotifyGroupRequest]) (*connect.Response[agentsv1.CreateNotifyGroupResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateNotifyGroup(req.GetNotifyGroup()); err != nil {
+	if err := validateNotifyGroup(req.Msg.GetNotifyGroup()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	logger.Info("creating notify group", "workspace_id", wsID, "name", req.GetNotifyGroup().GetName())
-	group, err := s.repo.CreateNotifyGroup(ctx, wsID, req.GetNotifyGroup())
+	logger.Info("creating notify group", "workspace_id", wsID, "name", req.Msg.GetNotifyGroup().GetName())
+	group, err := s.repo.CreateNotifyGroup(ctx, wsID, req.Msg.GetNotifyGroup())
 	if err != nil {
-		logger.Error("create notify group failed", "workspace_id", wsID, "name", req.GetNotifyGroup().GetName(), "err", err)
+		logger.Error("create notify group failed", "workspace_id", wsID, "name", req.Msg.GetNotifyGroup().GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.CreateNotifyGroupResponse{NotifyGroup: group}, nil
+	return connect.NewResponse(&agentsv1.CreateNotifyGroupResponse{NotifyGroup: group}), nil
 }
 
-func (s *NotifyGroupServiceServer) UpdateNotifyGroup(ctx context.Context, req *agentsv1.UpdateNotifyGroupRequest) (*agentsv1.UpdateNotifyGroupResponse, error) {
+func (s *NotifyGroupServiceServer) UpdateNotifyGroup(ctx context.Context, req *connect.Request[agentsv1.UpdateNotifyGroupRequest]) (*connect.Response[agentsv1.UpdateNotifyGroupResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateNotifyGroup(req.GetNotifyGroup()); err != nil {
+	if err := validateNotifyGroup(req.Msg.GetNotifyGroup()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	logger.Info("updating notify group", "workspace_id", wsID, "name", req.GetNotifyGroup().GetName())
-	group, err := s.repo.UpdateNotifyGroup(ctx, wsID, req.GetNotifyGroup())
+	logger.Info("updating notify group", "workspace_id", wsID, "name", req.Msg.GetNotifyGroup().GetName())
+	group, err := s.repo.UpdateNotifyGroup(ctx, wsID, req.Msg.GetNotifyGroup())
 	if err != nil {
-		logger.Error("update notify group failed", "workspace_id", wsID, "name", req.GetNotifyGroup().GetName(), "err", err)
+		logger.Error("update notify group failed", "workspace_id", wsID, "name", req.Msg.GetNotifyGroup().GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.UpdateNotifyGroupResponse{NotifyGroup: group}, nil
+	return connect.NewResponse(&agentsv1.UpdateNotifyGroupResponse{NotifyGroup: group}), nil
 }
 
-func (s *NotifyGroupServiceServer) DeleteNotifyGroup(ctx context.Context, req *agentsv1.DeleteNotifyGroupRequest) (*agentsv1.DeleteNotifyGroupResponse, error) {
+func (s *NotifyGroupServiceServer) DeleteNotifyGroup(ctx context.Context, req *connect.Request[agentsv1.DeleteNotifyGroupRequest]) (*connect.Response[agentsv1.DeleteNotifyGroupResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	logger.Info("deleting notify group", "workspace_id", wsID, "name", req.GetName())
-	if err := s.repo.DeleteNotifyGroup(ctx, wsID, req.GetName()); err != nil {
-		logger.Error("delete notify group failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
+	logger.Info("deleting notify group", "workspace_id", wsID, "name", req.Msg.GetName())
+	if err := s.repo.DeleteNotifyGroup(ctx, wsID, req.Msg.GetName()); err != nil {
+		logger.Error("delete notify group failed", "workspace_id", wsID, "name", req.Msg.GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.DeleteNotifyGroupResponse{}, nil
+	return connect.NewResponse(&agentsv1.DeleteNotifyGroupResponse{}), nil
 }

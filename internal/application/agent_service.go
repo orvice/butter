@@ -53,7 +53,7 @@ func (s *AgentServiceServer) SetInvocationRepo(repo invocation.Repository) {
 	s.invRepo = repo
 }
 
-func (s *AgentServiceServer) ListAgents(ctx context.Context, req *agentsv1.ListAgentsRequest) (*agentsv1.ListAgentsResponse, error) {
+func (s *AgentServiceServer) ListAgents(ctx context.Context, req *connect.Request[agentsv1.ListAgentsRequest]) (*connect.Response[agentsv1.ListAgentsResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -68,12 +68,12 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *agentsv1.ListA
 	})
 
 	total := int32(len(agents))
-	pageSize := req.GetPageSize()
+	pageSize := req.Msg.GetPageSize()
 	if pageSize <= 0 {
 		pageSize = 50
 	}
 	offset := 0
-	if token := req.GetPageToken(); token != "" {
+	if token := req.Msg.GetPageToken(); token != "" {
 		if raw, err := base64.StdEncoding.DecodeString(token); err == nil {
 			if n, err := strconv.Atoi(string(raw)); err == nil && n >= 0 {
 				offset = n
@@ -81,7 +81,7 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *agentsv1.ListA
 		}
 	}
 	if offset >= len(agents) {
-		return &agentsv1.ListAgentsResponse{Total: total}, nil
+		return connect.NewResponse(&agentsv1.ListAgentsResponse{Total: total}), nil
 	}
 	end := offset + int(pageSize)
 	if end > len(agents) {
@@ -91,14 +91,14 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *agentsv1.ListA
 	if end < len(agents) {
 		next = base64.StdEncoding.EncodeToString([]byte(strconv.Itoa(end)))
 	}
-	return &agentsv1.ListAgentsResponse{
+	return connect.NewResponse(&agentsv1.ListAgentsResponse{
 		Agents:        agents[offset:end],
 		NextPageToken: next,
 		Total:         total,
-	}, nil
+	}), nil
 }
 
-func (s *AgentServiceServer) ReloadAgents(ctx context.Context, _ *agentsv1.ReloadAgentsRequest) (*agentsv1.ReloadAgentsResponse, error) {
+func (s *AgentServiceServer) ReloadAgents(ctx context.Context, _ *connect.Request[agentsv1.ReloadAgentsRequest]) (*connect.Response[agentsv1.ReloadAgentsResponse], error) {
 	logger := log.FromContext(ctx)
 	if s.runtime == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("config runtime not wired"))
@@ -109,65 +109,65 @@ func (s *AgentServiceServer) ReloadAgents(ctx context.Context, _ *agentsv1.Reloa
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent runtime reloaded")
-	return &agentsv1.ReloadAgentsResponse{ReloadedAt: timestamppb.New(time.Now().UTC())}, nil
+	return connect.NewResponse(&agentsv1.ReloadAgentsResponse{ReloadedAt: timestamppb.New(time.Now().UTC())}), nil
 }
 
-func (s *AgentServiceServer) GetAgent(ctx context.Context, req *agentsv1.GetAgentRequest) (*agentsv1.GetAgentResponse, error) {
+func (s *AgentServiceServer) GetAgent(ctx context.Context, req *connect.Request[agentsv1.GetAgentRequest]) (*connect.Response[agentsv1.GetAgentResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	a, err := s.repo.GetAgent(ctx, wsID, req.GetName())
+	a, err := s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.GetAgentResponse{Agent: a}, nil
+	return connect.NewResponse(&agentsv1.GetAgentResponse{Agent: a}), nil
 }
 
-func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *agentsv1.CreateAgentRequest) (*agentsv1.CreateAgentResponse, error) {
+func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Request[agentsv1.CreateAgentRequest]) (*connect.Response[agentsv1.CreateAgentResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	logger.Info("creating agent", "workspace_id", wsID, "agent", req.GetAgent().GetName(), "type", req.GetAgent().GetType().String())
+	logger.Info("creating agent", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "type", req.Msg.GetAgent().GetType().String())
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.CreateAgent(ctx, wsID, req.GetAgent())
+			return s.repo.CreateAgent(ctx, wsID, req.Msg.GetAgent())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if err := s.repo.DeleteAgent(ctx, wsID, req.GetAgent().GetName()); err != nil {
+			if err := s.repo.DeleteAgent(ctx, wsID, req.Msg.GetAgent().GetName()); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
 		},
 	)
 	if err != nil {
-		logger.Error("create agent failed", "workspace_id", wsID, "agent", req.GetAgent().GetName(), "err", err)
+		logger.Error("create agent failed", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent created", "workspace_id", wsID, "agent", a.GetName(), "type", a.GetType().String())
-	return &agentsv1.CreateAgentResponse{Agent: a}, nil
+	return connect.NewResponse(&agentsv1.CreateAgentResponse{Agent: a}), nil
 }
 
-func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.UpdateAgentRequest) (*agentsv1.UpdateAgentResponse, error) {
+func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Request[agentsv1.UpdateAgentRequest]) (*connect.Response[agentsv1.UpdateAgentResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	prev, err := s.repo.GetAgent(ctx, wsID, req.GetAgent().GetName())
+	prev, err := s.repo.GetAgent(ctx, wsID, req.Msg.GetAgent().GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("updating agent", "workspace_id", wsID, "agent", req.GetAgent().GetName())
+	logger.Info("updating agent", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName())
 
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.UpdateAgent(ctx, wsID, req.GetAgent())
+			return s.repo.UpdateAgent(ctx, wsID, req.Msg.GetAgent())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -180,28 +180,28 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.Upda
 		},
 	)
 	if err != nil {
-		logger.Error("update agent failed", "workspace_id", wsID, "agent", req.GetAgent().GetName(), "err", err)
+		logger.Error("update agent failed", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent updated", "workspace_id", wsID, "agent", a.GetName())
-	return &agentsv1.UpdateAgentResponse{Agent: a}, nil
+	return connect.NewResponse(&agentsv1.UpdateAgentResponse{Agent: a}), nil
 }
 
-func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.DeleteAgentRequest) (*agentsv1.DeleteAgentResponse, error) {
+func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Request[agentsv1.DeleteAgentRequest]) (*connect.Response[agentsv1.DeleteAgentResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	prev, err := s.repo.GetAgent(ctx, wsID, req.GetName())
+	prev, err := s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("deleting agent", "workspace_id", wsID, "agent", req.GetName())
+	logger.Info("deleting agent", "workspace_id", wsID, "agent", req.Msg.GetName())
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteAgent(ctx, wsID, req.GetName())
+			return s.repo.DeleteAgent(ctx, wsID, req.Msg.GetName())
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -214,37 +214,37 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.Dele
 		},
 	)
 	if err != nil {
-		logger.Error("delete agent failed", "workspace_id", wsID, "agent", req.GetName(), "err", err)
+		logger.Error("delete agent failed", "workspace_id", wsID, "agent", req.Msg.GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	logger.Info("agent deleted", "workspace_id", wsID, "agent", req.GetName())
-	return &agentsv1.DeleteAgentResponse{}, nil
+	logger.Info("agent deleted", "workspace_id", wsID, "agent", req.Msg.GetName())
+	return connect.NewResponse(&agentsv1.DeleteAgentResponse{}), nil
 }
 
-func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.InvokeAgentRequest) (*agentsv1.InvokeAgentResponse, error) {
+func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Request[agentsv1.InvokeAgentRequest]) (*connect.Response[agentsv1.InvokeAgentResponse], error) {
 	if s.runnerSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
-	if req.GetAgentName() == "" {
+	if req.Msg.GetAgentName() == "" {
 		return nil, connectx.RequiredArgument("agent_name")
 	}
-	if req.GetInput() == "" {
+	if req.Msg.GetInput() == "" {
 		return nil, connectx.RequiredArgument("input")
 	}
-	if len(req.GetInput()) > maxInvokeAgentInputBytes {
+	if len(req.Msg.GetInput()) > maxInvokeAgentInputBytes {
 		return nil, connectx.InvalidArgument("input",
 			"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
 	}
 
-	appName := req.GetAppName()
+	appName := req.Msg.GetAppName()
 	if appName == "" {
 		appName = "api"
 	}
-	userID := req.GetUserId()
+	userID := req.Msg.GetUserId()
 	if userID == "" {
 		userID = "api"
 	}
-	sessionID := req.GetSessionId()
+	sessionID := req.Msg.GetSessionId()
 	if sessionID == "" {
 		sessionID = "invoke-" + uuid.NewString()
 	}
@@ -262,20 +262,20 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.Invo
 	logger := log.FromContext(ctx)
 	logger.Info("invoking agent",
 		"workspace_id", wsID,
-		"agent", req.GetAgentName(),
+		"agent", req.Msg.GetAgentName(),
 		"app_name", appName,
 		"user_id", userID,
 		"session_id", sessionID,
-		"model_override", req.GetModelOverride(),
-		"input_len", len(req.GetInput()),
+		"model_override", req.Msg.GetModelOverride(),
+		"input_len", len(req.Msg.GetInput()),
 	)
-	parts := []*genai.Part{{Text: req.GetInput()}}
+	parts := []*genai.Part{{Text: req.Msg.GetInput()}}
 	start := time.Now()
-	response, err := s.runnerSvc.Run(ctx, req.GetAgentName(), parts, req.GetModelOverride(), ctxInfo, nil, nil)
+	response, err := s.runnerSvc.Run(ctx, req.Msg.GetAgentName(), parts, req.Msg.GetModelOverride(), ctxInfo, nil, nil)
 	if err != nil {
 		logger.Error("agent invocation failed",
 			"workspace_id", wsID,
-			"agent", req.GetAgentName(),
+			"agent", req.Msg.GetAgentName(),
 			"session_id", sessionID,
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"err", err,
@@ -284,16 +284,16 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.Invo
 	}
 	logger.Info("agent invocation completed",
 		"workspace_id", wsID,
-		"agent", req.GetAgentName(),
+		"agent", req.Msg.GetAgentName(),
 		"session_id", sessionID,
 		"elapsed_ms", time.Since(start).Milliseconds(),
 	)
-	return &agentsv1.InvokeAgentResponse{SessionId: sessionID, Response: response}, nil
+	return connect.NewResponse(&agentsv1.InvokeAgentResponse{SessionId: sessionID, Response: response}), nil
 }
 
-func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *agentsv1.ListAgentInvocationsRequest) (*agentsv1.ListAgentInvocationsResponse, error) {
+func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *connect.Request[agentsv1.ListAgentInvocationsRequest]) (*connect.Response[agentsv1.ListAgentInvocationsResponse], error) {
 	if s.invRepo == nil {
-		return &agentsv1.ListAgentInvocationsResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListAgentInvocationsResponse{}), nil
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -301,52 +301,52 @@ func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *agen
 	}
 	invs, next, total, err := s.invRepo.List(ctx, invocation.ListFilter{
 		WorkspaceID: wsID,
-		AgentName:   req.GetAgentName(),
-		SessionID:   req.GetSessionId(),
-	}, req.GetPageSize(), req.GetPageToken())
+		AgentName:   req.Msg.GetAgentName(),
+		SessionID:   req.Msg.GetSessionId(),
+	}, req.Msg.GetPageSize(), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.ListAgentInvocationsResponse{
+	return connect.NewResponse(&agentsv1.ListAgentInvocationsResponse{
 		Invocations:   invs,
 		NextPageToken: next,
 		Total:         total,
-	}, nil
+	}), nil
 }
 
-func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *agentsv1.CancelAgentInvocationRequest) (*agentsv1.CancelAgentInvocationResponse, error) {
+func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *connect.Request[agentsv1.CancelAgentInvocationRequest]) (*connect.Response[agentsv1.CancelAgentInvocationResponse], error) {
 	if s.runnerSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
-	if req.GetInvocationId() == "" {
+	if req.Msg.GetInvocationId() == "" {
 		return nil, connectx.RequiredArgument("invocation_id")
 	}
-	cancelled := s.runnerSvc.CancelInvocation(req.GetInvocationId())
+	cancelled := s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId())
 	log.FromContext(ctx).Info("cancel agent invocation requested",
-		"invocation_id", req.GetInvocationId(),
+		"invocation_id", req.Msg.GetInvocationId(),
 		"cancelled", cancelled,
 	)
-	return &agentsv1.CancelAgentInvocationResponse{Cancelled: cancelled}, nil
+	return connect.NewResponse(&agentsv1.CancelAgentInvocationResponse{Cancelled: cancelled}), nil
 }
 
-func (s *AgentServiceServer) GetAgentRuntimeStatus(ctx context.Context, req *agentsv1.GetAgentRuntimeStatusRequest) (*agentsv1.GetAgentRuntimeStatusResponse, error) {
-	if req.GetName() == "" {
+func (s *AgentServiceServer) GetAgentRuntimeStatus(ctx context.Context, req *connect.Request[agentsv1.GetAgentRuntimeStatusRequest]) (*connect.Response[agentsv1.GetAgentRuntimeStatusResponse], error) {
+	if req.Msg.GetName() == "" {
 		return nil, connectx.RequiredArgument("name")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	status := s.runtimeStatusFor(ctx, wsID, req.GetName())
-	return &agentsv1.GetAgentRuntimeStatusResponse{Status: status}, nil
+	status := s.runtimeStatusFor(ctx, wsID, req.Msg.GetName())
+	return connect.NewResponse(&agentsv1.GetAgentRuntimeStatusResponse{Status: status}), nil
 }
 
-func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *agentsv1.ListAgentRuntimeStatusesRequest) (*agentsv1.ListAgentRuntimeStatusesResponse, error) {
+func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *connect.Request[agentsv1.ListAgentRuntimeStatusesRequest]) (*connect.Response[agentsv1.ListAgentRuntimeStatusesResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	names := req.GetNames()
+	names := req.Msg.GetNames()
 	if len(names) == 0 {
 		agents, err := s.repo.ListAgents(ctx, wsID)
 		if err != nil {
@@ -361,7 +361,7 @@ func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *
 	for _, name := range names {
 		out = append(out, s.runtimeStatusFor(ctx, wsID, name))
 	}
-	return &agentsv1.ListAgentRuntimeStatusesResponse{Statuses: out}, nil
+	return connect.NewResponse(&agentsv1.ListAgentRuntimeStatusesResponse{Statuses: out}), nil
 }
 
 // runtimeStatusFor derives an AgentRuntimeStatus from the invocation repo. If

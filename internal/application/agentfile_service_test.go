@@ -21,19 +21,19 @@ func TestAgentFileServiceWriteEnforcesMaxFileBytes(t *testing.T) {
 		t.Fatalf("CreateSpace: %v", err)
 	}
 
-	if _, err := svc.WriteAgentFile(ctx, &agentsv1.WriteAgentFileRequest{
+	if _, err := svc.WriteAgentFile(ctx, connect.NewRequest(&agentsv1.WriteAgentFileRequest{
 		SpaceId: space.GetId(),
 		Path:    "/ok.txt",
 		Content: "1234",
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("WriteAgentFile within limit: %v", err)
 	}
 
-	_, err = svc.WriteAgentFile(ctx, &agentsv1.WriteAgentFileRequest{
+	_, err = svc.WriteAgentFile(ctx, connect.NewRequest(&agentsv1.WriteAgentFileRequest{
 		SpaceId: space.GetId(),
 		Path:    "/too-large.txt",
 		Content: "12345",
-	})
+	}))
 	if err == nil {
 		t.Fatal("expected max size error")
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"connectrpc.com/connect"
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/workspace"
@@ -47,23 +48,23 @@ func TestGlobalMCPAdminCRUD(t *testing.T) {
 	svc, _ := newGlobalMCPTest(t)
 	adminCtx := auth.WithAdmin(context.Background())
 
-	createRes, err := svc.CreateGlobalMCPServer(adminCtx, &agentsv1.CreateGlobalMCPServerRequest{
+	createRes, err := svc.CreateGlobalMCPServer(adminCtx, connect.NewRequest(&agentsv1.CreateGlobalMCPServerRequest{
 		McpServer: manualOAuthPreset("manual"),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if got := createRes.GetMcpServer().GetAuth().GetOauth2().GetClientSecret(); got != "secret-1" {
+	if got := createRes.Msg.GetMcpServer().GetAuth().GetOauth2().GetClientSecret(); got != "secret-1" {
 		t.Fatalf("admin create response should include secret, got %q", got)
 	}
 
-	if _, err := svc.UpdateGlobalMCPServer(adminCtx, &agentsv1.UpdateGlobalMCPServerRequest{
+	if _, err := svc.UpdateGlobalMCPServer(adminCtx, connect.NewRequest(&agentsv1.UpdateGlobalMCPServerRequest{
 		McpServer: manualOAuthPreset("manual"),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
-	if _, err := svc.DeleteGlobalMCPServer(adminCtx, &agentsv1.DeleteGlobalMCPServerRequest{Id: "manual"}); err != nil {
+	if _, err := svc.DeleteGlobalMCPServer(adminCtx, connect.NewRequest(&agentsv1.DeleteGlobalMCPServerRequest{Id: "manual"})); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 }
@@ -72,17 +73,17 @@ func TestGlobalMCPNonAdminMutationsRejected(t *testing.T) {
 	svc, _ := newGlobalMCPTest(t)
 	ctx := context.Background()
 
-	if _, err := svc.CreateGlobalMCPServer(ctx, &agentsv1.CreateGlobalMCPServerRequest{
+	if _, err := svc.CreateGlobalMCPServer(ctx, connect.NewRequest(&agentsv1.CreateGlobalMCPServerRequest{
 		McpServer: manualOAuthPreset("manual"),
-	}); err == nil {
+	})); err == nil {
 		t.Fatal("expected non-admin create to be rejected")
 	}
-	if _, err := svc.UpdateGlobalMCPServer(ctx, &agentsv1.UpdateGlobalMCPServerRequest{
+	if _, err := svc.UpdateGlobalMCPServer(ctx, connect.NewRequest(&agentsv1.UpdateGlobalMCPServerRequest{
 		McpServer: manualOAuthPreset("manual"),
-	}); err == nil {
+	})); err == nil {
 		t.Fatal("expected non-admin update to be rejected")
 	}
-	if _, err := svc.DeleteGlobalMCPServer(ctx, &agentsv1.DeleteGlobalMCPServerRequest{Id: "manual"}); err == nil {
+	if _, err := svc.DeleteGlobalMCPServer(ctx, connect.NewRequest(&agentsv1.DeleteGlobalMCPServerRequest{Id: "manual"})); err == nil {
 		t.Fatal("expected non-admin delete to be rejected")
 	}
 }
@@ -94,20 +95,20 @@ func TestGlobalMCPListRedactsSecretsForNonAdmins(t *testing.T) {
 	}
 
 	// Non-admin sees the preset but with the secret zeroed.
-	res, err := svc.ListGlobalMCPServers(context.Background(), &agentsv1.ListGlobalMCPServersRequest{})
+	res, err := svc.ListGlobalMCPServers(context.Background(), connect.NewRequest(&agentsv1.ListGlobalMCPServersRequest{}))
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if got := res.GetMcpServers()[0].GetAuth().GetOauth2().GetClientSecret(); got != "" {
+	if got := res.Msg.GetMcpServers()[0].GetAuth().GetOauth2().GetClientSecret(); got != "" {
 		t.Fatalf("non-admin list leaked client_secret: %q", got)
 	}
 
 	// Admin retains the secret.
-	adminRes, err := svc.ListGlobalMCPServers(auth.WithAdmin(context.Background()), &agentsv1.ListGlobalMCPServersRequest{})
+	adminRes, err := svc.ListGlobalMCPServers(auth.WithAdmin(context.Background()), connect.NewRequest(&agentsv1.ListGlobalMCPServersRequest{}))
 	if err != nil {
 		t.Fatalf("admin list: %v", err)
 	}
-	if got := adminRes.GetMcpServers()[0].GetAuth().GetOauth2().GetClientSecret(); got != "secret-1" {
+	if got := adminRes.Msg.GetMcpServers()[0].GetAuth().GetOauth2().GetClientSecret(); got != "secret-1" {
 		t.Fatalf("admin list dropped client_secret: got %q", got)
 	}
 }
@@ -119,11 +120,11 @@ func TestGlobalMCPInstallRedactsAndStoresSecret(t *testing.T) {
 	}
 
 	wsCtx := workspace.WithID(context.Background(), "ws-a")
-	res, err := svc.InstallGlobalMCPServer(wsCtx, &agentsv1.InstallGlobalMCPServerRequest{Id: "manual"})
+	res, err := svc.InstallGlobalMCPServer(wsCtx, connect.NewRequest(&agentsv1.InstallGlobalMCPServerRequest{Id: "manual"}))
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	if got := res.GetMcpServer().GetAuth().GetOauth2().GetClientSecret(); got != "" {
+	if got := res.Msg.GetMcpServer().GetAuth().GetOauth2().GetClientSecret(); got != "" {
 		t.Fatalf("install response leaked client_secret: %q", got)
 	}
 
@@ -147,10 +148,10 @@ func TestGlobalMCPInstallWorkspaceBoundary(t *testing.T) {
 	// Non-admin trying to install into a workspace they're not entering
 	// gets rejected outright.
 	wsACtx := workspace.WithID(context.Background(), "ws-a")
-	if _, err := svc.InstallGlobalMCPServer(wsACtx, &agentsv1.InstallGlobalMCPServerRequest{
+	if _, err := svc.InstallGlobalMCPServer(wsACtx, connect.NewRequest(&agentsv1.InstallGlobalMCPServerRequest{
 		Id:          "manual",
 		WorkspaceId: "ws-b",
-	}); err == nil {
+	})); err == nil {
 		t.Fatal("non-admin cross-workspace install should be rejected")
 	}
 	if _, err := store.GetMCPServer(context.Background(), "ws-b", "manual"); err == nil {
@@ -160,10 +161,10 @@ func TestGlobalMCPInstallWorkspaceBoundary(t *testing.T) {
 	// Admin can install across workspaces (cross-workspace audit log fires
 	// in the implementation; not asserted here).
 	adminCtx := auth.WithAdmin(context.Background())
-	if _, err := svc.InstallGlobalMCPServer(adminCtx, &agentsv1.InstallGlobalMCPServerRequest{
+	if _, err := svc.InstallGlobalMCPServer(adminCtx, connect.NewRequest(&agentsv1.InstallGlobalMCPServerRequest{
 		Id:          "manual",
 		WorkspaceId: "ws-b",
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("admin cross-workspace install: %v", err)
 	}
 	if _, err := store.GetMCPServer(context.Background(), "ws-b", "manual"); err != nil {

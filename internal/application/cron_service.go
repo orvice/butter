@@ -53,9 +53,9 @@ func requireWorkspace(ctx context.Context) (string, error) {
 	return id, nil
 }
 
-func (s *CronJobServiceServer) ListCronJobs(ctx context.Context, _ *agentsv1.ListCronJobsRequest) (*agentsv1.ListCronJobsResponse, error) {
+func (s *CronJobServiceServer) ListCronJobs(ctx context.Context, _ *connect.Request[agentsv1.ListCronJobsRequest]) (*connect.Response[agentsv1.ListCronJobsResponse], error) {
 	if s.scheduler == nil {
-		return &agentsv1.ListCronJobsResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListCronJobsResponse{}), nil
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -65,10 +65,10 @@ func (s *CronJobServiceServer) ListCronJobs(ctx context.Context, _ *agentsv1.Lis
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.ListCronJobsResponse{CronJobs: jobs}, nil
+	return connect.NewResponse(&agentsv1.ListCronJobsResponse{CronJobs: jobs}), nil
 }
 
-func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *agentsv1.GetCronJobRequest) (*agentsv1.GetCronJobResponse, error) {
+func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *connect.Request[agentsv1.GetCronJobRequest]) (*connect.Response[agentsv1.GetCronJobResponse], error) {
 	if s.scheduler == nil {
 		return nil, connectx.NotFound("cron scheduler not initialized")
 	}
@@ -76,14 +76,14 @@ func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *agentsv1.Get
 	if err != nil {
 		return nil, err
 	}
-	job, err := s.scheduler.GetJob(ctx, wsID, req.GetName())
+	job, err := s.scheduler.GetJob(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return &agentsv1.GetCronJobResponse{CronJob: job}, nil
+	return connect.NewResponse(&agentsv1.GetCronJobResponse{CronJob: job}), nil
 }
 
-func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.CreateCronJobRequest) (*agentsv1.CreateCronJobResponse, error) {
+func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *connect.Request[agentsv1.CreateCronJobRequest]) (*connect.Response[agentsv1.CreateCronJobResponse], error) {
 	if s.scheduler == nil {
 		return nil, connectx.Internal("cron scheduler not initialized")
 	}
@@ -91,7 +91,7 @@ func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.
 	if err != nil {
 		return nil, err
 	}
-	job := req.GetCronJob()
+	job := req.Msg.GetCronJob()
 	job.WorkspaceId = wsID
 	logger := log.FromContext(ctx)
 	logger.Info("creating cron job", "workspace_id", wsID, "name", job.GetName(), "schedule", job.GetSchedule())
@@ -100,10 +100,10 @@ func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.
 		return nil, cronJobMutationError(err)
 	}
 	logger.Info("cron job created", "workspace_id", wsID, "name", job.GetName())
-	return &agentsv1.CreateCronJobResponse{CronJob: job}, nil
+	return connect.NewResponse(&agentsv1.CreateCronJobResponse{CronJob: job}), nil
 }
 
-func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.UpdateCronJobRequest) (*agentsv1.UpdateCronJobResponse, error) {
+func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *connect.Request[agentsv1.UpdateCronJobRequest]) (*connect.Response[agentsv1.UpdateCronJobResponse], error) {
 	if s.scheduler == nil {
 		return nil, connectx.Internal("cron scheduler not initialized")
 	}
@@ -111,7 +111,7 @@ func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.
 	if err != nil {
 		return nil, err
 	}
-	job := req.GetCronJob()
+	job := req.Msg.GetCronJob()
 	job.WorkspaceId = wsID
 	logger := log.FromContext(ctx)
 	logger.Info("updating cron job", "workspace_id", wsID, "name", job.GetName(), "schedule", job.GetSchedule())
@@ -120,10 +120,10 @@ func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.
 		return nil, cronJobMutationError(err)
 	}
 	logger.Info("cron job updated", "workspace_id", wsID, "name", job.GetName())
-	return &agentsv1.UpdateCronJobResponse{CronJob: job}, nil
+	return connect.NewResponse(&agentsv1.UpdateCronJobResponse{CronJob: job}), nil
 }
 
-func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.DeleteCronJobRequest) (*agentsv1.DeleteCronJobResponse, error) {
+func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *connect.Request[agentsv1.DeleteCronJobRequest]) (*connect.Response[agentsv1.DeleteCronJobResponse], error) {
 	if s.scheduler == nil {
 		return nil, connectx.Internal("cron scheduler not initialized")
 	}
@@ -132,20 +132,20 @@ func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	job, err := s.scheduler.GetJob(ctx, wsID, req.GetName())
+	job, err := s.scheduler.GetJob(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("deleting cron job", "workspace_id", wsID, "name", req.GetName())
-	if err := s.scheduler.RemoveJob(ctx, wsID, req.GetName()); err != nil {
-		logger.Error("delete cron job failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
+	logger.Info("deleting cron job", "workspace_id", wsID, "name", req.Msg.GetName())
+	if err := s.scheduler.RemoveJob(ctx, wsID, req.Msg.GetName()); err != nil {
+		logger.Error("delete cron job failed", "workspace_id", wsID, "name", req.Msg.GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	logger.Info("cron job deleted", "workspace_id", wsID, "name", req.GetName())
-	return &agentsv1.DeleteCronJobResponse{CronJob: job}, nil
+	logger.Info("cron job deleted", "workspace_id", wsID, "name", req.Msg.GetName())
+	return connect.NewResponse(&agentsv1.DeleteCronJobResponse{CronJob: job}), nil
 }
 
-func (s *CronJobServiceServer) RunCronJobNow(ctx context.Context, req *agentsv1.RunCronJobNowRequest) (*agentsv1.RunCronJobNowResponse, error) {
+func (s *CronJobServiceServer) RunCronJobNow(ctx context.Context, req *connect.Request[agentsv1.RunCronJobNowRequest]) (*connect.Response[agentsv1.RunCronJobNowResponse], error) {
 	if s.scheduler == nil {
 		return nil, connectx.Internal("cron scheduler not initialized")
 	}
@@ -154,30 +154,30 @@ func (s *CronJobServiceServer) RunCronJobNow(ctx context.Context, req *agentsv1.
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	logger.Info("running cron job manually", "workspace_id", wsID, "name", req.GetName())
-	exec, err := s.scheduler.RunJobNow(ctx, wsID, req.GetName())
+	logger.Info("running cron job manually", "workspace_id", wsID, "name", req.Msg.GetName())
+	exec, err := s.scheduler.RunJobNow(ctx, wsID, req.Msg.GetName())
 	if err != nil {
-		logger.Error("run cron job manually failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
+		logger.Error("run cron job manually failed", "workspace_id", wsID, "name", req.Msg.GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
-	logger.Info("cron job manual run started", "workspace_id", wsID, "name", req.GetName(), "execution_id", exec.GetId())
-	return &agentsv1.RunCronJobNowResponse{Execution: exec}, nil
+	logger.Info("cron job manual run started", "workspace_id", wsID, "name", req.Msg.GetName(), "execution_id", exec.GetId())
+	return connect.NewResponse(&agentsv1.RunCronJobNowResponse{Execution: exec}), nil
 }
 
-func (s *CronJobServiceServer) ListCronExecutions(ctx context.Context, req *agentsv1.ListCronExecutionsRequest) (*agentsv1.ListCronExecutionsResponse, error) {
+func (s *CronJobServiceServer) ListCronExecutions(ctx context.Context, req *connect.Request[agentsv1.ListCronExecutionsRequest]) (*connect.Response[agentsv1.ListCronExecutionsResponse], error) {
 	if s.execRepo == nil {
-		return &agentsv1.ListCronExecutionsResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListCronExecutionsResponse{}), nil
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	executions, nextToken, err := s.execRepo.List(ctx, wsID, req.GetJobName(), req.GetPageSize(), req.GetPageToken())
+	executions, nextToken, err := s.execRepo.List(ctx, wsID, req.Msg.GetJobName(), req.Msg.GetPageSize(), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.ListCronExecutionsResponse{
+	return connect.NewResponse(&agentsv1.ListCronExecutionsResponse{
 		Executions:    executions,
 		NextPageToken: nextToken,
-	}, nil
+	}), nil
 }

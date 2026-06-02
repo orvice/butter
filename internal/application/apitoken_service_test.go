@@ -25,7 +25,7 @@ func TestRevokeAPIToken_RejectsCrossWorkspace(t *testing.T) {
 	// Caller is in ws-self.
 	ctx := workspace.WithID(context.Background(), "ws-self")
 
-	_, err := svc.RevokeAPIToken(ctx, &agentsv1.RevokeAPITokenRequest{Id: "tok-1"})
+	_, err := svc.RevokeAPIToken(ctx, connect.NewRequest(&agentsv1.RevokeAPITokenRequest{Id: "tok-1"}))
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -59,11 +59,11 @@ func TestRevokeAPIToken_AllowsSameWorkspace(t *testing.T) {
 	}
 
 	ctx := workspace.WithID(context.Background(), "ws-self")
-	resp, err := svc.RevokeAPIToken(ctx, &agentsv1.RevokeAPITokenRequest{Id: "tok-1"})
+	resp, err := svc.RevokeAPIToken(ctx, connect.NewRequest(&agentsv1.RevokeAPITokenRequest{Id: "tok-1"}))
 	if err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
-	if !resp.GetToken().GetRevoked() {
+	if !resp.Msg.GetToken().GetRevoked() {
 		t.Fatal("expected token to be revoked")
 	}
 }
@@ -72,7 +72,7 @@ func TestRevokeAPIToken_RequiresWorkspaceContext(t *testing.T) {
 	store := memory.New()
 	svc := NewAPITokenServiceServer(store)
 
-	_, err := svc.RevokeAPIToken(context.Background(), &agentsv1.RevokeAPITokenRequest{Id: "tok-1"})
+	_, err := svc.RevokeAPIToken(context.Background(), connect.NewRequest(&agentsv1.RevokeAPITokenRequest{Id: "tok-1"}))
 	if err == nil {
 		t.Fatal("expected error when workspace missing")
 	}

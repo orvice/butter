@@ -83,7 +83,7 @@ func TestNotifyGroupServiceServer_ValidatesNotifyGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := memory.New()
 			svc := NewNotifyGroupServiceServer(store)
-			_, err := svc.CreateNotifyGroup(ctx, &agentsv1.CreateNotifyGroupRequest{NotifyGroup: tt.group})
+			_, err := svc.CreateNotifyGroup(ctx, connect.NewRequest(&agentsv1.CreateNotifyGroupRequest{NotifyGroup: tt.group}))
 			if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 				t.Fatalf("expected validation error, got %v", err)
 			}
@@ -98,7 +98,7 @@ func TestNotifyGroupServiceServer_AcceptsSupportedTargets(t *testing.T) {
 	store := memory.New()
 	svc := NewNotifyGroupServiceServer(store)
 
-	_, err := svc.CreateNotifyGroup(testCtx(), &agentsv1.CreateNotifyGroupRequest{
+	_, err := svc.CreateNotifyGroup(testCtx(), connect.NewRequest(&agentsv1.CreateNotifyGroupRequest{
 		NotifyGroup: &agentsv1.NotifyGroup{
 			Name:    "ops",
 			Enabled: true,
@@ -125,7 +125,7 @@ func TestNotifyGroupServiceServer_AcceptsSupportedTargets(t *testing.T) {
 				},
 			},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("expected valid notify group to pass, got %v", err)
 	}

@@ -12,7 +12,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"google.golang.org/genai"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
@@ -72,19 +71,19 @@ func (s *ForumServiceServer) getRunner() forumAgentRunner {
 	return s.runnerSvc
 }
 
-func (s *ForumServiceServer) ListThreads(ctx context.Context, req *agentsv1.ListThreadsRequest) (*agentsv1.ListThreadsResponse, error) {
+func (s *ForumServiceServer) ListThreads(ctx context.Context, req *connect.Request[agentsv1.ListThreadsRequest]) (*connect.Response[agentsv1.ListThreadsResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	threads, next, total, err := repo.ListThreads(ctx, forum.ThreadListFilter{WorkspaceID: workspaceID, Status: strings.TrimSpace(req.GetStatus()), Label: strings.TrimSpace(req.GetLabel())}, req.GetPageSize(), req.GetPageToken())
+	threads, next, total, err := repo.ListThreads(ctx, forum.ThreadListFilter{WorkspaceID: workspaceID, Status: strings.TrimSpace(req.Msg.GetStatus()), Label: strings.TrimSpace(req.Msg.GetLabel())}, req.Msg.GetPageSize(), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.ListThreadsResponse{Threads: threads, NextPageToken: next, Total: total}, nil
+	return connect.NewResponse(&agentsv1.ListThreadsResponse{Threads: threads, NextPageToken: next, Total: total}), nil
 }
 
-func (s *ForumServiceServer) ListThreadLabels(ctx context.Context, _ *agentsv1.ListThreadLabelsRequest) (*agentsv1.ListThreadLabelsResponse, error) {
+func (s *ForumServiceServer) ListThreadLabels(ctx context.Context, _ *connect.Request[agentsv1.ListThreadLabelsRequest]) (*connect.Response[agentsv1.ListThreadLabelsResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -93,33 +92,33 @@ func (s *ForumServiceServer) ListThreadLabels(ctx context.Context, _ *agentsv1.L
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.ListThreadLabelsResponse{Labels: labels}, nil
+	return connect.NewResponse(&agentsv1.ListThreadLabelsResponse{Labels: labels}), nil
 }
 
-func (s *ForumServiceServer) GetThread(ctx context.Context, req *agentsv1.GetThreadRequest) (*agentsv1.GetThreadResponse, error) {
+func (s *ForumServiceServer) GetThread(ctx context.Context, req *connect.Request[agentsv1.GetThreadRequest]) (*connect.Response[agentsv1.GetThreadResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	thread, err := repo.GetThread(ctx, workspaceID, req.GetId())
+	thread, err := repo.GetThread(ctx, workspaceID, req.Msg.GetId())
 	if err != nil {
 		return nil, mapForumErr(err)
 	}
-	posts, next, total, err := repo.ListPosts(ctx, forum.PostListFilter{WorkspaceID: workspaceID, ThreadID: req.GetId()}, req.GetPostPageSize(), req.GetPostPageToken())
+	posts, next, total, err := repo.ListPosts(ctx, forum.PostListFilter{WorkspaceID: workspaceID, ThreadID: req.Msg.GetId()}, req.Msg.GetPostPageSize(), req.Msg.GetPostPageToken())
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.GetThreadResponse{Thread: thread, Posts: posts, NextPostPageToken: next, PostTotal: total}, nil
+	return connect.NewResponse(&agentsv1.GetThreadResponse{Thread: thread, Posts: posts, NextPostPageToken: next, PostTotal: total}), nil
 }
 
-func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.CreateThreadRequest) (*agentsv1.CreateThreadResponse, error) {
+func (s *ForumServiceServer) CreateThread(ctx context.Context, req *connect.Request[agentsv1.CreateThreadRequest]) (*connect.Response[agentsv1.CreateThreadResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	userID := authorUserID(ctx)
-	title := strings.TrimSpace(req.GetTitle())
-	body := strings.TrimSpace(req.GetBody())
+	title := strings.TrimSpace(req.Msg.GetTitle())
+	body := strings.TrimSpace(req.Msg.GetBody())
 	if title == "" {
 		return nil, connectx.RequiredArgument("title")
 	}
@@ -134,9 +133,9 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.Cre
 		Body:        body,
 		CreatedBy:   userID,
 		Status:      forumStatusOpen,
-		AgentNames:  append([]string(nil), req.GetAgentNames()...),
-		Labels:      normalizeLabels(req.GetLabels()),
-		Metadata:    copyStringMap(req.GetMetadata()),
+		AgentNames:  append([]string(nil), req.Msg.GetAgentNames()...),
+		Labels:      normalizeLabels(req.Msg.GetLabels()),
+		Metadata:    copyStringMap(req.Msg.GetMetadata()),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		WorkspaceId: workspaceID,
@@ -165,7 +164,7 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.Cre
 			go s.invokeAgentPost(bgCtx, repo, runnerSvc, thread, []*agentsv1.ForumPost{post}, agentName, userID)
 		}
 	}
-	return &agentsv1.CreateThreadResponse{Thread: thread, FirstPost: post}, nil
+	return connect.NewResponse(&agentsv1.CreateThreadResponse{Thread: thread, FirstPost: post}), nil
 }
 
 func (s *ForumServiceServer) invokeAgentPost(ctx context.Context, repo forum.Repository, runnerSvc forumAgentRunner, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentName, userID string) {
@@ -207,71 +206,71 @@ func (s *ForumServiceServer) invokeAgentPost(ctx context.Context, repo forum.Rep
 	}
 }
 
-func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *agentsv1.UpdateThreadRequest) (*agentsv1.UpdateThreadResponse, error) {
+func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *connect.Request[agentsv1.UpdateThreadRequest]) (*connect.Response[agentsv1.UpdateThreadResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	thread, err := repo.GetThread(ctx, workspaceID, req.GetId())
+	thread, err := repo.GetThread(ctx, workspaceID, req.Msg.GetId())
 	if err != nil {
 		return nil, mapForumErr(err)
 	}
-	if v := strings.TrimSpace(req.GetTitle()); v != "" {
+	if v := strings.TrimSpace(req.Msg.GetTitle()); v != "" {
 		thread.Title = v
 	}
-	if req.GetBody() != "" {
-		thread.Body = req.GetBody()
+	if req.Msg.GetBody() != "" {
+		thread.Body = req.Msg.GetBody()
 	}
-	if v := strings.TrimSpace(req.GetStatus()); v != "" {
+	if v := strings.TrimSpace(req.Msg.GetStatus()); v != "" {
 		thread.Status = v
 	}
-	if req.GetAgentNames() != nil {
-		thread.AgentNames = append([]string(nil), req.GetAgentNames()...)
+	if req.Msg.GetAgentNames() != nil {
+		thread.AgentNames = append([]string(nil), req.Msg.GetAgentNames()...)
 	}
-	if req.GetLabels() != nil {
-		thread.Labels = normalizeLabels(req.GetLabels())
+	if req.Msg.GetLabels() != nil {
+		thread.Labels = normalizeLabels(req.Msg.GetLabels())
 	}
-	if req.GetMetadata() != nil {
-		thread.Metadata = copyStringMap(req.GetMetadata())
+	if req.Msg.GetMetadata() != nil {
+		thread.Metadata = copyStringMap(req.Msg.GetMetadata())
 	}
 	thread.UpdatedAt = timestamppb.New(time.Now().UTC())
 	if err := repo.UpdateThread(ctx, thread); err != nil {
 		return nil, mapForumErr(err)
 	}
-	return &agentsv1.UpdateThreadResponse{Thread: thread}, nil
+	return connect.NewResponse(&agentsv1.UpdateThreadResponse{Thread: thread}), nil
 }
 
-func (s *ForumServiceServer) DeleteThread(ctx context.Context, req *agentsv1.DeleteThreadRequest) (*agentsv1.DeleteThreadResponse, error) {
+func (s *ForumServiceServer) DeleteThread(ctx context.Context, req *connect.Request[agentsv1.DeleteThreadRequest]) (*connect.Response[agentsv1.DeleteThreadResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := repo.DeleteThread(ctx, workspaceID, req.GetId()); err != nil {
+	if err := repo.DeleteThread(ctx, workspaceID, req.Msg.GetId()); err != nil {
 		return nil, mapForumErr(err)
 	}
-	return &agentsv1.DeleteThreadResponse{}, nil
+	return connect.NewResponse(&agentsv1.DeleteThreadResponse{}), nil
 }
 
-func (s *ForumServiceServer) CreatePost(ctx context.Context, req *agentsv1.CreatePostRequest) (*agentsv1.CreatePostResponse, error) {
+func (s *ForumServiceServer) CreatePost(ctx context.Context, req *connect.Request[agentsv1.CreatePostRequest]) (*connect.Response[agentsv1.CreatePostResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := repo.GetThread(ctx, workspaceID, req.GetThreadId()); err != nil {
+	if _, err := repo.GetThread(ctx, workspaceID, req.Msg.GetThreadId()); err != nil {
 		return nil, mapForumErr(err)
 	}
-	body := strings.TrimSpace(req.GetBody())
+	body := strings.TrimSpace(req.Msg.GetBody())
 	if body == "" {
 		return nil, connectx.RequiredArgument("body")
 	}
 	now := timestamppb.New(time.Now().UTC())
 	post := &agentsv1.ForumPost{
 		Id:           uuid.NewString(),
-		ThreadId:     req.GetThreadId(),
+		ThreadId:     req.Msg.GetThreadId(),
 		Body:         body,
 		AuthorUserId: authorUserID(ctx),
 		AuthorKind:   forumAuthorUser,
-		ParentPostId: req.GetParentPostId(),
+		ParentPostId: req.Msg.GetParentPostId(),
 		CreatedAt:    now,
 		UpdatedAt:    now,
 		WorkspaceId:  workspaceID,
@@ -279,21 +278,21 @@ func (s *ForumServiceServer) CreatePost(ctx context.Context, req *agentsv1.Creat
 	if err := repo.CreatePost(ctx, post); err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.CreatePostResponse{Post: post}, nil
+	return connect.NewResponse(&agentsv1.CreatePostResponse{Post: post}), nil
 }
 
-func (s *ForumServiceServer) DeletePost(ctx context.Context, req *agentsv1.DeletePostRequest) (*agentsv1.DeletePostResponse, error) {
+func (s *ForumServiceServer) DeletePost(ctx context.Context, req *connect.Request[agentsv1.DeletePostRequest]) (*connect.Response[agentsv1.DeletePostResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := repo.DeletePost(ctx, workspaceID, req.GetThreadId(), req.GetPostId()); err != nil {
+	if err := repo.DeletePost(ctx, workspaceID, req.Msg.GetThreadId(), req.Msg.GetPostId()); err != nil {
 		return nil, mapForumErr(err)
 	}
-	return &agentsv1.DeletePostResponse{}, nil
+	return connect.NewResponse(&agentsv1.DeletePostResponse{}), nil
 }
 
-func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agentsv1.InvokeAgentInThreadRequest) (*agentsv1.InvokeAgentInThreadResponse, error) {
+func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *connect.Request[agentsv1.InvokeAgentInThreadRequest]) (*connect.Response[agentsv1.InvokeAgentInThreadResponse], error) {
 	repo, workspaceID, err := s.requireRepoWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -302,31 +301,31 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agent
 	if runnerSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
-	agentName := strings.TrimSpace(req.GetAgentName())
+	agentName := strings.TrimSpace(req.Msg.GetAgentName())
 	if agentName == "" {
 		return nil, connectx.RequiredArgument("agent_name")
 	}
-	if _, err := repo.GetThread(ctx, workspaceID, req.GetThreadId()); err != nil {
+	if _, err := repo.GetThread(ctx, workspaceID, req.Msg.GetThreadId()); err != nil {
 		return nil, mapForumErr(err)
 	}
 	now := timestamppb.New(time.Now().UTC())
 	userID := authorUserID(ctx)
-	message := strings.TrimSpace(req.GetMessage())
+	message := strings.TrimSpace(req.Msg.GetMessage())
 	postBody := message
 	if postBody == "" {
 		postBody = fmt.Sprintf("@%s", agentName)
 	}
-	limit := req.GetRecentPostLimit()
+	limit := req.Msg.GetRecentPostLimit()
 	if limit <= 0 {
 		limit = defaultRecentPosts
 	}
-	posts, err := repo.ListRecentPosts(ctx, workspaceID, req.GetThreadId(), limit)
+	posts, err := repo.ListRecentPosts(ctx, workspaceID, req.Msg.GetThreadId(), limit)
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
 	userPost := &agentsv1.ForumPost{
 		Id:           uuid.NewString(),
-		ThreadId:     req.GetThreadId(),
+		ThreadId:     req.Msg.GetThreadId(),
 		Body:         postBody,
 		AuthorUserId: userID,
 		AuthorKind:   forumAuthorUser,
@@ -345,10 +344,10 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agent
 	}
 	posts = appendRecentForumPost(posts, userPost, limit)
 	logger := log.FromContext(ctx)
-	logger.Info("queued forum agent invocation", "thread_id", req.GetThreadId(), "agent", agentName, "workspace_id", workspaceID, "invocation_id", invocationID)
+	logger.Info("queued forum agent invocation", "thread_id", req.Msg.GetThreadId(), "agent", agentName, "workspace_id", workspaceID, "invocation_id", invocationID)
 	bgCtx := wsctx.WithID(context.Background(), workspaceID)
-	go s.invokeAgentForUserPost(bgCtx, repo, runnerSvc, thread, posts, agentName, userID, message, req.GetModelOverride(), invocationID)
-	return &agentsv1.InvokeAgentInThreadResponse{Post: userPost}, nil
+	go s.invokeAgentForUserPost(bgCtx, repo, runnerSvc, thread, posts, agentName, userID, message, req.Msg.GetModelOverride(), invocationID)
+	return connect.NewResponse(&agentsv1.InvokeAgentInThreadResponse{Post: userPost}), nil
 }
 
 func (s *ForumServiceServer) invokeAgentForUserPost(ctx context.Context, repo forum.Repository, runnerSvc forumAgentRunner, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentName, userID, message, modelOverride, invocationID string) {
@@ -523,5 +522,3 @@ func buildForumPrompt(thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost,
 	}
 	return b.String()
 }
-
-var _ = proto.Clone

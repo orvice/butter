@@ -76,53 +76,53 @@ func (s *SessionServiceServer) getRunnerSvc() *runner.Service {
 	return s.runnerSvc
 }
 
-func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.CreateSessionRequest) (*agentsv1.CreateSessionResponse, error) {
+func (s *SessionServiceServer) CreateSession(ctx context.Context, req *connect.Request[agentsv1.CreateSessionRequest]) (*connect.Response[agentsv1.CreateSessionResponse], error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
 	var state map[string]any
-	if req.GetState() != nil {
-		state = req.GetState().AsMap()
+	if req.Msg.GetState() != nil {
+		state = req.Msg.GetState().AsMap()
 	}
 
 	logger := log.FromContext(ctx)
 	resp, err := sessionSvc.Create(ctx, &session.CreateRequest{
-		AppName:   req.GetAppName(),
-		UserID:    req.GetUserId(),
-		SessionID: req.GetSessionId(),
+		AppName:   req.Msg.GetAppName(),
+		UserID:    req.Msg.GetUserId(),
+		SessionID: req.Msg.GetSessionId(),
 		State:     state,
 	})
 	if err != nil {
 		logger.Error("create session failed",
-			"app_name", req.GetAppName(),
-			"user_id", req.GetUserId(),
-			"session_id", req.GetSessionId(),
+			"app_name", req.Msg.GetAppName(),
+			"user_id", req.Msg.GetUserId(),
+			"session_id", req.Msg.GetSessionId(),
 			"err", err,
 		)
 		return nil, connectx.InternalWith(err)
 	}
 
 	logger.Info("session created",
-		"app_name", req.GetAppName(),
-		"user_id", req.GetUserId(),
+		"app_name", req.Msg.GetAppName(),
+		"user_id", req.Msg.GetUserId(),
 		"session_id", resp.Session.ID(),
 	)
-	return &agentsv1.CreateSessionResponse{Session: sessionToInfo(resp.Session)}, nil
+	return connect.NewResponse(&agentsv1.CreateSessionResponse{Session: sessionToInfo(resp.Session)}), nil
 }
 
-func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.GetSessionRequest) (*agentsv1.GetSessionResponse, error) {
+func (s *SessionServiceServer) GetSession(ctx context.Context, req *connect.Request[agentsv1.GetSessionRequest]) (*connect.Response[agentsv1.GetSessionResponse], error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
 	resp, err := sessionSvc.Get(ctx, &session.GetRequest{
-		AppName:         req.GetAppName(),
-		UserID:          req.GetUserId(),
-		SessionID:       req.GetSessionId(),
-		NumRecentEvents: int(req.GetNumRecentEvents()),
+		AppName:         req.Msg.GetAppName(),
+		UserID:          req.Msg.GetUserId(),
+		SessionID:       req.Msg.GetSessionId(),
+		NumRecentEvents: int(req.Msg.GetNumRecentEvents()),
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -159,18 +159,18 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.Get
 		detail.Duration = durationpb.New(lastTS.Sub(firstTS))
 	}
 
-	return &agentsv1.GetSessionResponse{SessionDetail: detail}, nil
+	return connect.NewResponse(&agentsv1.GetSessionResponse{SessionDetail: detail}), nil
 }
 
-func (s *SessionServiceServer) ListSessions(ctx context.Context, req *agentsv1.ListSessionsRequest) (*agentsv1.ListSessionsResponse, error) {
+func (s *SessionServiceServer) ListSessions(ctx context.Context, req *connect.Request[agentsv1.ListSessionsRequest]) (*connect.Response[agentsv1.ListSessionsResponse], error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
 	resp, err := sessionSvc.List(ctx, &session.ListRequest{
-		AppName: req.GetAppName(),
-		UserID:  req.GetUserId(),
+		AppName: req.Msg.GetAppName(),
+		UserID:  req.Msg.GetUserId(),
 	})
 	if err != nil {
 		return nil, connectx.InternalWith(err)
@@ -178,8 +178,8 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *agentsv1.L
 
 	// Apply date-range filter at the service layer since ADK session.ListRequest
 	// only supports AppName+UserID.
-	startTs := req.GetStartTime()
-	endTs := req.GetEndTime()
+	startTs := req.Msg.GetStartTime()
+	endTs := req.Msg.GetEndTime()
 	infos := make([]*agentsv1.SessionInfo, 0, len(resp.Sessions))
 	for _, sess := range resp.Sessions {
 		last := sess.LastUpdateTime()
@@ -198,13 +198,13 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *agentsv1.L
 	})
 
 	total := int32(len(infos))
-	page, next := paginateSessions(infos, req.GetPageSize(), req.GetPageToken())
+	page, next := paginateSessions(infos, req.Msg.GetPageSize(), req.Msg.GetPageToken())
 
-	return &agentsv1.ListSessionsResponse{
+	return connect.NewResponse(&agentsv1.ListSessionsResponse{
 		Sessions:      page,
 		NextPageToken: next,
 		Total:         total,
-	}, nil
+	}), nil
 }
 
 func paginateSessions(items []*agentsv1.SessionInfo, pageSize int32, pageToken string) ([]*agentsv1.SessionInfo, string) {
@@ -233,7 +233,7 @@ func paginateSessions(items []*agentsv1.SessionInfo, pageSize int32, pageToken s
 	return items[offset:end], next
 }
 
-func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.DeleteSessionRequest) (*agentsv1.DeleteSessionResponse, error) {
+func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.Request[agentsv1.DeleteSessionRequest]) (*connect.Response[agentsv1.DeleteSessionResponse], error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
@@ -241,66 +241,66 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.
 
 	logger := log.FromContext(ctx)
 	err := sessionSvc.Delete(ctx, &session.DeleteRequest{
-		AppName:   req.GetAppName(),
-		UserID:    req.GetUserId(),
-		SessionID: req.GetSessionId(),
+		AppName:   req.Msg.GetAppName(),
+		UserID:    req.Msg.GetUserId(),
+		SessionID: req.Msg.GetSessionId(),
 	})
 	if err != nil {
 		logger.Error("delete session failed",
-			"app_name", req.GetAppName(),
-			"user_id", req.GetUserId(),
-			"session_id", req.GetSessionId(),
+			"app_name", req.Msg.GetAppName(),
+			"user_id", req.Msg.GetUserId(),
+			"session_id", req.Msg.GetSessionId(),
 			"err", err,
 		)
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("session deleted",
-		"app_name", req.GetAppName(),
-		"user_id", req.GetUserId(),
-		"session_id", req.GetSessionId(),
+		"app_name", req.Msg.GetAppName(),
+		"user_id", req.Msg.GetUserId(),
+		"session_id", req.Msg.GetSessionId(),
 	)
-	return &agentsv1.DeleteSessionResponse{}, nil
+	return connect.NewResponse(&agentsv1.DeleteSessionResponse{}), nil
 }
 
-func (s *SessionServiceServer) ReplySession(ctx context.Context, req *agentsv1.ReplySessionRequest) (*agentsv1.ReplySessionResponse, error) {
+func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Request[agentsv1.ReplySessionRequest]) (*connect.Response[agentsv1.ReplySessionResponse], error) {
 	runnerSvc := s.getRunnerSvc()
 	if runnerSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
 
-	textPart := &genai.Part{Text: req.GetMessage()}
+	textPart := &genai.Part{Text: req.Msg.GetMessage()}
 	ctxInfo := &agentsv1.ContextInfo{
-		ChannelName: req.GetAppName(),
-		SessionId:   req.GetSessionId(),
-		UserId:      req.GetUserId(),
+		ChannelName: req.Msg.GetAppName(),
+		SessionId:   req.Msg.GetSessionId(),
+		UserId:      req.Msg.GetUserId(),
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
 	}
 
 	logger := log.FromContext(ctx)
 	logger.Info("replying to session",
-		"agent", req.GetAgentName(),
-		"app_name", req.GetAppName(),
-		"user_id", req.GetUserId(),
-		"session_id", req.GetSessionId(),
-		"message_len", len(req.GetMessage()),
+		"agent", req.Msg.GetAgentName(),
+		"app_name", req.Msg.GetAppName(),
+		"user_id", req.Msg.GetUserId(),
+		"session_id", req.Msg.GetSessionId(),
+		"message_len", len(req.Msg.GetMessage()),
 	)
 	start := time.Now()
-	response, err := runnerSvc.Run(ctx, req.GetAgentName(), []*genai.Part{textPart}, req.GetModelOverride(), ctxInfo, nil, nil)
+	response, err := runnerSvc.Run(ctx, req.Msg.GetAgentName(), []*genai.Part{textPart}, req.Msg.GetModelOverride(), ctxInfo, nil, nil)
 	if err != nil {
 		logger.Error("session reply failed",
-			"agent", req.GetAgentName(),
-			"session_id", req.GetSessionId(),
+			"agent", req.Msg.GetAgentName(),
+			"session_id", req.Msg.GetSessionId(),
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"err", err,
 		)
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("session reply completed",
-		"agent", req.GetAgentName(),
-		"session_id", req.GetSessionId(),
+		"agent", req.Msg.GetAgentName(),
+		"session_id", req.Msg.GetSessionId(),
 		"elapsed_ms", time.Since(start).Milliseconds(),
 	)
-	return &agentsv1.ReplySessionResponse{Response: response}, nil
+	return connect.NewResponse(&agentsv1.ReplySessionResponse{Response: response}), nil
 }
 
 func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {

@@ -40,9 +40,9 @@ func (s *APITokenServiceServer) SetRepo(repo apitoken.Repository) {
 	s.repo = repo
 }
 
-func (s *APITokenServiceServer) ListAPITokens(ctx context.Context, _ *agentsv1.ListAPITokensRequest) (*agentsv1.ListAPITokensResponse, error) {
+func (s *APITokenServiceServer) ListAPITokens(ctx context.Context, _ *connect.Request[agentsv1.ListAPITokensRequest]) (*connect.Response[agentsv1.ListAPITokensResponse], error) {
 	if s.repo == nil {
-		return &agentsv1.ListAPITokensResponse{}, nil
+		return connect.NewResponse(&agentsv1.ListAPITokensResponse{}), nil
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -52,10 +52,10 @@ func (s *APITokenServiceServer) ListAPITokens(ctx context.Context, _ *agentsv1.L
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return &agentsv1.ListAPITokensResponse{Tokens: tokens}, nil
+	return connect.NewResponse(&agentsv1.ListAPITokensResponse{Tokens: tokens}), nil
 }
 
-func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *agentsv1.CreateAPITokenRequest) (*agentsv1.CreateAPITokenResponse, error) {
+func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *connect.Request[agentsv1.CreateAPITokenRequest]) (*connect.Response[agentsv1.CreateAPITokenResponse], error) {
 	if s.repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("api token store not available"))
 	}
@@ -63,7 +63,7 @@ func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *agentsv
 	if err != nil {
 		return nil, err
 	}
-	name := req.GetName()
+	name := req.Msg.GetName()
 	if name == "" {
 		return nil, connectx.RequiredArgument("name")
 	}
@@ -87,21 +87,21 @@ func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *agentsv
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("api token created", "workspace_id", wsID, "id", token.GetId(), "name", name, "prefix", token.GetPrefix())
-	return &agentsv1.CreateAPITokenResponse{Token: token, Secret: secret}, nil
+	return connect.NewResponse(&agentsv1.CreateAPITokenResponse{Token: token, Secret: secret}), nil
 }
 
-func (s *APITokenServiceServer) RevokeAPIToken(ctx context.Context, req *agentsv1.RevokeAPITokenRequest) (*agentsv1.RevokeAPITokenResponse, error) {
+func (s *APITokenServiceServer) RevokeAPIToken(ctx context.Context, req *connect.Request[agentsv1.RevokeAPITokenRequest]) (*connect.Response[agentsv1.RevokeAPITokenResponse], error) {
 	if s.repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("api token store not available"))
 	}
-	if req.GetId() == "" {
+	if req.Msg.GetId() == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	existing, err := s.repo.Get(ctx, req.GetId())
+	existing, err := s.repo.Get(ctx, req.Msg.GetId())
 	if err != nil {
 		if errors.Is(err, apitoken.ErrNotFound) {
 			return nil, connectx.NotFound("api token not found")
@@ -114,16 +114,16 @@ func (s *APITokenServiceServer) RevokeAPIToken(ctx context.Context, req *agentsv
 		return nil, connectx.NotFound("api token not found")
 	}
 	logger := log.FromContext(ctx)
-	token, err := s.repo.Revoke(ctx, req.GetId())
+	token, err := s.repo.Revoke(ctx, req.Msg.GetId())
 	if err != nil {
 		if errors.Is(err, apitoken.ErrNotFound) {
 			return nil, connectx.NotFound("api token not found")
 		}
-		logger.Error("revoke api token failed", "workspace_id", wsID, "id", req.GetId(), "err", err)
+		logger.Error("revoke api token failed", "workspace_id", wsID, "id", req.Msg.GetId(), "err", err)
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("api token revoked", "workspace_id", wsID, "id", token.GetId(), "name", token.GetName())
-	return &agentsv1.RevokeAPITokenResponse{Token: token}, nil
+	return connect.NewResponse(&agentsv1.RevokeAPITokenResponse{Token: token}), nil
 }
 
 // HashAPITokenSecret is shared between the service and the auth middleware so

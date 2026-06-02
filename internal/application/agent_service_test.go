@@ -48,29 +48,29 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 	ctx := testCtx()
 
 	// List empty
-	resp, err := svc.ListAgents(ctx, &agentsv1.ListAgentsRequest{})
+	resp, err := svc.ListAgents(ctx, connect.NewRequest(&agentsv1.ListAgentsRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(resp.GetAgents()) != 0 {
-		t.Fatalf("expected 0 agents, got %d", len(resp.GetAgents()))
+	if len(resp.Msg.GetAgents()) != 0 {
+		t.Fatalf("expected 0 agents, got %d", len(resp.Msg.GetAgents()))
 	}
 
 	// Create
-	createResp, err := svc.CreateAgent(ctx, &agentsv1.CreateAgentRequest{
+	createResp, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{Name: "a1", Description: "test"},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if createResp.GetAgent().GetName() != "a1" {
-		t.Fatalf("expected a1, got %s", createResp.GetAgent().GetName())
+	if createResp.Msg.GetAgent().GetName() != "a1" {
+		t.Fatalf("expected a1, got %s", createResp.Msg.GetAgent().GetName())
 	}
 
 	// Create duplicate
-	_, err = svc.CreateAgent(ctx, &agentsv1.CreateAgentRequest{
+	_, err = svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{Name: "a1"},
-	})
+	}))
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -79,39 +79,39 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 	}
 
 	// Get
-	getResp, err := svc.GetAgent(ctx, &agentsv1.GetAgentRequest{Name: "a1"})
+	getResp, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "a1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if getResp.GetAgent().GetDescription() != "test" {
-		t.Fatalf("expected test, got %s", getResp.GetAgent().GetDescription())
+	if getResp.Msg.GetAgent().GetDescription() != "test" {
+		t.Fatalf("expected test, got %s", getResp.Msg.GetAgent().GetDescription())
 	}
 
 	// Get not found
-	_, err = svc.GetAgent(ctx, &agentsv1.GetAgentRequest{Name: "nope"})
+	_, err = svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "nope"}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
 
 	// Update
-	updateResp, err := svc.UpdateAgent(ctx, &agentsv1.UpdateAgentRequest{
+	updateResp, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
 		Agent: &agentsv1.Agent{Name: "a1", Description: "updated"},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updateResp.GetAgent().GetDescription() != "updated" {
-		t.Fatalf("expected updated, got %s", updateResp.GetAgent().GetDescription())
+	if updateResp.Msg.GetAgent().GetDescription() != "updated" {
+		t.Fatalf("expected updated, got %s", updateResp.Msg.GetAgent().GetDescription())
 	}
 
 	// Delete
-	_, err = svc.DeleteAgent(ctx, &agentsv1.DeleteAgentRequest{Name: "a1"})
+	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Delete not found
-	_, err = svc.DeleteAgent(ctx, &agentsv1.DeleteAgentRequest{Name: "a1"})
+	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
@@ -122,37 +122,37 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	svc := NewMCPServerServiceServer(store)
 	ctx := testCtx()
 
-	created, err := svc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{
+	created, err := svc.CreateMCPServer(ctx, connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: testMCPServer("m1", "mcp1"),
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created.GetMcpServer().GetId() != "m1" {
-		t.Fatalf("expected m1, got %s", created.GetMcpServer().GetId())
+	if created.Msg.GetMcpServer().GetId() != "m1" {
+		t.Fatalf("expected m1, got %s", created.Msg.GetMcpServer().GetId())
 	}
 
-	_, err = svc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{
+	_, err = svc.CreateMCPServer(ctx, connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: testMCPServer("m1", "mcp1 duplicate"),
-	})
+	}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeAlreadyExists {
 		t.Fatalf("expected AlreadyExists, got %v", err)
 	}
 
-	got, err := svc.GetMCPServer(ctx, &agentsv1.GetMCPServerRequest{Id: "m1"})
+	got, err := svc.GetMCPServer(ctx, connect.NewRequest(&agentsv1.GetMCPServerRequest{Id: "m1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.GetMcpServer().GetName() != "mcp1" {
-		t.Fatalf("expected mcp1, got %s", got.GetMcpServer().GetName())
+	if got.Msg.GetMcpServer().GetName() != "mcp1" {
+		t.Fatalf("expected mcp1, got %s", got.Msg.GetMcpServer().GetName())
 	}
 
-	_, err = svc.DeleteMCPServer(ctx, &agentsv1.DeleteMCPServerRequest{Id: "m1"})
+	_, err = svc.DeleteMCPServer(ctx, connect.NewRequest(&agentsv1.DeleteMCPServerRequest{Id: "m1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = svc.GetMCPServer(ctx, &agentsv1.GetMCPServerRequest{Id: "m1"})
+	_, err = svc.GetMCPServer(ctx, connect.NewRequest(&agentsv1.GetMCPServerRequest{Id: "m1"}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
@@ -162,25 +162,25 @@ func TestMCPServerServiceServer_ValidationRejectsUnsupportedTransportAndMissingU
 	store := memory.New()
 	svc := NewMCPServerServiceServer(store)
 
-	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
+	_, err := svc.CreateMCPServer(testCtx(), connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: &agentsv1.MCPServer{
 			Id:        "m1",
 			Name:      "mcp1",
 			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_UNSPECIFIED,
 			Url:       "https://mcp.example.com/mcp",
 		},
-	})
+	}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 		t.Fatalf("expected InvalidArgument for unsupported transport, got %v", err)
 	}
 
-	_, err = svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
+	_, err = svc.CreateMCPServer(testCtx(), connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: &agentsv1.MCPServer{
 			Id:        "m2",
 			Name:      "mcp2",
 			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
 		},
-	})
+	}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 		t.Fatalf("expected InvalidArgument for missing URL, got %v", err)
 	}
@@ -191,37 +191,37 @@ func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
 	svc := NewRemoteAgentServiceServer(store)
 	ctx := testCtx()
 
-	created, err := svc.CreateRemoteAgent(ctx, &agentsv1.CreateRemoteAgentRequest{
+	created, err := svc.CreateRemoteAgent(ctx, connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1", Name: "ra1", Url: "http://example.com"},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created.GetRemoteAgent().GetId() != "r1" {
-		t.Fatalf("expected r1, got %s", created.GetRemoteAgent().GetId())
+	if created.Msg.GetRemoteAgent().GetId() != "r1" {
+		t.Fatalf("expected r1, got %s", created.Msg.GetRemoteAgent().GetId())
 	}
 
-	_, err = svc.CreateRemoteAgent(ctx, &agentsv1.CreateRemoteAgentRequest{
+	_, err = svc.CreateRemoteAgent(ctx, connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1"},
-	})
+	}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeAlreadyExists {
 		t.Fatalf("expected AlreadyExists, got %v", err)
 	}
 
-	got, err := svc.GetRemoteAgent(ctx, &agentsv1.GetRemoteAgentRequest{Id: "r1"})
+	got, err := svc.GetRemoteAgent(ctx, connect.NewRequest(&agentsv1.GetRemoteAgentRequest{Id: "r1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.GetRemoteAgent().GetName() != "ra1" {
-		t.Fatalf("expected ra1, got %s", got.GetRemoteAgent().GetName())
+	if got.Msg.GetRemoteAgent().GetName() != "ra1" {
+		t.Fatalf("expected ra1, got %s", got.Msg.GetRemoteAgent().GetName())
 	}
 
-	_, err = svc.DeleteRemoteAgent(ctx, &agentsv1.DeleteRemoteAgentRequest{Id: "r1"})
+	_, err = svc.DeleteRemoteAgent(ctx, connect.NewRequest(&agentsv1.DeleteRemoteAgentRequest{Id: "r1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = svc.GetRemoteAgent(ctx, &agentsv1.GetRemoteAgentRequest{Id: "r1"})
+	_, err = svc.GetRemoteAgent(ctx, connect.NewRequest(&agentsv1.GetRemoteAgentRequest{Id: "r1"}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
@@ -234,9 +234,9 @@ func TestChannelServiceServer_ReloadsRuntime(t *testing.T) {
 	svc.SetRuntime(runtime)
 	ctx := testCtx()
 
-	_, err := svc.CreateChannel(ctx, &agentsv1.CreateChannelRequest{
+	_, err := svc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,9 +244,9 @@ func TestChannelServiceServer_ReloadsRuntime(t *testing.T) {
 		t.Fatalf("expected 1 reload call, got %d", runtime.calls)
 	}
 
-	_, err = svc.UpdateChannel(ctx, &agentsv1.UpdateChannelRequest{
+	_, err = svc.UpdateChannel(ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
 		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent2"},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestChannelServiceServer_ReloadsRuntime(t *testing.T) {
 		t.Fatalf("expected 2 reload calls, got %d", runtime.calls)
 	}
 
-	_, err = svc.DeleteChannel(ctx, &agentsv1.DeleteChannelRequest{Name: "ch1"})
+	_, err = svc.DeleteChannel(ctx, connect.NewRequest(&agentsv1.DeleteChannelRequest{Name: "ch1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +270,7 @@ func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
 		store := memory.New()
 		svc := NewChannelServiceServer(store)
 
-		_, err := svc.CreateChannel(ctx, &agentsv1.CreateChannelRequest{
+		_, err := svc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
 			Channel: &agentsv1.AgentChannel{
 				Name:      "ch1",
 				AgentName: "agent1",
@@ -278,7 +278,7 @@ func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
 					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_UNSPECIFIED,
 				}},
 			},
-		})
+		}))
 		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 			t.Fatalf("expected InvalidArgument, got %v", err)
 		}
@@ -294,7 +294,7 @@ func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
 		}
 		svc := NewChannelServiceServer(store)
 
-		_, err := svc.UpdateChannel(ctx, &agentsv1.UpdateChannelRequest{
+		_, err := svc.UpdateChannel(ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
 			Channel: &agentsv1.AgentChannel{
 				Name:      "ch1",
 				AgentName: "agent1",
@@ -302,7 +302,7 @@ func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
 					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_MENTION,
 				}},
 			},
-		})
+		}))
 		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 			t.Fatalf("expected InvalidArgument, got %v", err)
 		}
@@ -312,7 +312,7 @@ func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
 		store := memory.New()
 		svc := NewChannelServiceServer(store)
 
-		_, err := svc.CreateChannel(ctx, &agentsv1.CreateChannelRequest{
+		_, err := svc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
 			Channel: &agentsv1.AgentChannel{
 				Name:      "ch1",
 				AgentName: "agent1",
@@ -320,7 +320,7 @@ func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
 					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_MESSAGE,
 				}},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("expected supported trigger to pass, got %v", err)
 		}
@@ -332,9 +332,9 @@ func TestChannelServiceServer_ReloadError(t *testing.T) {
 	svc := NewChannelServiceServer(store)
 	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-	_, err := svc.CreateChannel(testCtx(), &agentsv1.CreateChannelRequest{
+	_, err := svc.CreateChannel(testCtx(), connect.NewRequest(&agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
-	})
+	}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
@@ -349,9 +349,9 @@ func TestAgentServiceServer_ReloadsRuntime(t *testing.T) {
 	runtime := &reloadTracker{}
 	svc.SetRuntime(runtime)
 
-	_, err := svc.CreateAgent(testCtx(), &agentsv1.CreateAgentRequest{
+	_, err := svc.CreateAgent(testCtx(), connect.NewRequest(&agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{Name: "a1"},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,9 +368,9 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		svc := NewAgentServiceServer(store)
 		svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-		_, err := svc.CreateAgent(ctx, &agentsv1.CreateAgentRequest{
+		_, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
 			Agent: &agentsv1.Agent{Name: "a1"},
-		})
+		}))
 		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
 		}
@@ -388,9 +388,9 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		svc := NewAgentServiceServer(store)
 		svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-		_, err := svc.UpdateAgent(ctx, &agentsv1.UpdateAgentRequest{
+		_, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
 			Agent: &agentsv1.Agent{Name: "a1", Description: "after"},
-		})
+		}))
 		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
 		}
@@ -413,7 +413,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		svc := NewAgentServiceServer(store)
 		svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-		_, err := svc.DeleteAgent(ctx, &agentsv1.DeleteAgentRequest{Name: "a1"})
+		_, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
 		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
 		}
@@ -434,9 +434,9 @@ func TestMCPServerServiceServer_ReloadsRuntime(t *testing.T) {
 	runtime := &reloadTracker{}
 	svc.SetRuntime(runtime)
 
-	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
+	_, err := svc.CreateMCPServer(testCtx(), connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: testMCPServer("m1", "mcp1"),
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,9 +450,9 @@ func TestMCPServerServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 	svc := NewMCPServerServiceServer(store)
 	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
+	_, err := svc.CreateMCPServer(testCtx(), connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: testMCPServer("m1", "mcp1"),
-	})
+	}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
@@ -467,9 +467,9 @@ func TestRemoteAgentServiceServer_ReloadsRuntime(t *testing.T) {
 	runtime := &reloadTracker{}
 	svc.SetRuntime(runtime)
 
-	_, err := svc.CreateRemoteAgent(testCtx(), &agentsv1.CreateRemoteAgentRequest{
+	_, err := svc.CreateRemoteAgent(testCtx(), connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1", Name: "ra1", Url: "http://example.com"},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,9 +483,9 @@ func TestRemoteAgentServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 	svc := NewRemoteAgentServiceServer(store)
 	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-	_, err := svc.CreateRemoteAgent(testCtx(), &agentsv1.CreateRemoteAgentRequest{
+	_, err := svc.CreateRemoteAgent(testCtx(), connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1", Name: "ra1", Url: "http://example.com"},
-	})
+	}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
