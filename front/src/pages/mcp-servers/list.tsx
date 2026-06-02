@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,7 @@ import {
   useMCPTools,
   useStartMCPServerOAuth,
 } from "@/api/mcp-servers";
+import { BASE_URL } from "@/api/client";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -35,10 +36,14 @@ import {
   KeyRound,
   LogIn,
   Unplug,
+  Copy,
+  ExternalLink,
+  PlugZap,
 } from "lucide-react";
 import type { MCPOAuthConnectionState, MCPServer, MCPServerAuthType, MCPServerTransport, MCPTool } from "@/types/api";
 import { MCP_TRANSPORT_LABELS } from "@/lib/constants";
 import { ServerStatusBadge, ServerStatusInline } from "./status-cell";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
   MCP_SERVER_TRANSPORT_STREAMABLE_HTTP: Cloud,
@@ -49,10 +54,15 @@ const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
 export default function MCPServerListPage() {
   const { data, isLoading } = useMCPServers();
   const { data: toolsData } = useMCPTools();
+  const { selectedWorkspaceId } = useWorkspace();
   const deleteMutation = useDeleteMCPServer();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const workspaceEndpoint = useMemo(
+    () => buildWorkspaceMCPEndpoint(selectedWorkspaceId),
+    [selectedWorkspaceId],
+  );
 
   useEffect(() => {
     const result = searchParams.get("mcp_oauth");
@@ -155,6 +165,55 @@ export default function MCPServerListPage() {
         </Button>
       </div>
 
+      <Card className="mb-6">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <PlugZap className="h-4 w-4" /> Workspace MCP Endpoint
+            </CardTitle>
+            <CardDescription>
+              Read-only access to this workspace for external MCP clients.
+            </CardDescription>
+          </div>
+          <Badge variant="outline" className="w-fit text-xs">
+            Streamable HTTP
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="min-h-10 flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-xs leading-5 text-muted-foreground break-all">
+              {workspaceEndpoint || "Select a workspace"}
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button
+                size="icon"
+                variant="outline"
+                disabled={!workspaceEndpoint}
+                title="Copy endpoint"
+                onClick={() => {
+                  if (!workspaceEndpoint) return;
+                  navigator.clipboard.writeText(workspaceEndpoint);
+                  toast.success("Endpoint copied");
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                disabled={!workspaceEndpoint}
+                title="Open endpoint"
+                onClick={() => {
+                  if (workspaceEndpoint) window.open(workspaceEndpoint, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <DataTable
         columns={columns}
         data={servers}
@@ -223,6 +282,13 @@ export default function MCPServerListPage() {
       />
     </>
   );
+}
+
+function buildWorkspaceMCPEndpoint(workspaceId: string) {
+  if (!workspaceId) return "";
+  const base = new URL(BASE_URL || window.location.origin, window.location.origin);
+  const prefix = base.pathname.replace(/\/$/, "");
+  return `${base.origin}${prefix}/api/workspaces/${encodeURIComponent(workspaceId)}/mcp`;
 }
 
 function OAuthMenuItems({ server }: { server: MCPServer }) {
