@@ -99,3 +99,54 @@ func TestAuthService_ConnectRouting(t *testing.T) {
 		}
 	})
 }
+
+// TestConnectMigratedServices_Routing is a smoke test that each migrated
+// service is reachable via Connect at its /api-prefixed URL and that error
+// responses use Connect's wire format ({code, message}). It does not exercise
+// service-specific behavior — service tests in internal/application/*_test.go
+// already do that against the underlying Twirp-shaped signatures.
+func TestConnectMigratedServices_Routing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.AppConfig{Auth: config.AuthConfig{AllowUnauthenticated: true}}
+	router, _ := SetupRoutes(cfg, daemon.NewRegistry())
+	engine := gin.New()
+	router(engine)
+
+	cases := []struct {
+		name string
+		url  string
+	}{
+		// AllowUnauthenticated grants admin without a user, and the
+		// workspace repo isn't wired, so ListWorkspaces returns an
+		// empty list. Reaching that branch proves the route is mounted.
+		{"workspace_list", "/api/agents.v1.WorkspaceService/ListWorkspaces"},
+		// APITokenService has no repo wired in this test, so the
+		// service returns FailedPrecondition. We only care that the
+		// response is connect-shaped, not 404.
+		{"apitoken_list", "/api/agents.v1.APITokenService/ListAPITokens"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tc.url, strings.NewReader(`{}`))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			engine.ServeHTTP(w, req)
+			if w.Code == http.StatusNotFound {
+				t.Fatalf("route not mounted: 404 from %s", tc.url)
+			}
+			var body map[string]any
+			if w.Body.Len() == 0 {
+				t.Fatalf("empty body from %s (status %d)", tc.url, w.Code)
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body from %s: %v; raw=%q", tc.url, err, w.Body.String())
+			}
+			// Error responses must carry connect's "message" key; success
+			// responses won't have "message" but also won't have twirp's
+			// "msg" stand-in.
+			if _, hasMsg := body["msg"]; hasMsg {
+				t.Fatalf("response still uses twirp-style \"msg\" key: %v", body)
+			}
+		})
+	}
+}

@@ -295,11 +295,11 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	daemonSvcServer := application.NewDaemonServiceServer(daemonRegistry)
 	daemonTwirp := agentsv1.NewDaemonServiceServer(daemonSvcServer, pathPrefix)
 	apiTokenSvcServer := application.NewAPITokenServiceServer(nil)
-	apiTokenTwirp := agentsv1.NewAPITokenServiceServer(apiTokenSvcServer, pathPrefix)
+	apiTokenConnectPath, apiTokenConnectHandler := agentsv1connect.NewAPITokenServiceHandler(application.NewAPITokenServiceConnectAdapter(apiTokenSvcServer))
 	authSvcServer := application.NewAuthServiceServer(nil, cfg.Auth.EffectiveSessionTTL())
 	authConnectPath, authConnectHandler := agentsv1connect.NewAuthServiceHandler(application.NewAuthServiceConnectAdapter(authSvcServer))
 	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
-	workspaceTwirp := agentsv1.NewWorkspaceServiceServer(workspaceSvcServer, pathPrefix)
+	workspaceConnectPath, workspaceConnectHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceConnectAdapter(workspaceSvcServer))
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -375,13 +375,13 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any(cronTwirp.PathPrefix()+"*path", gin.WrapH(cronTwirp))
 		r.Any(dashboardTwirp.PathPrefix()+"*path", gin.WrapH(dashboardTwirp))
 		r.Any(daemonTwirp.PathPrefix()+"*path", gin.WrapH(daemonTwirp))
-		r.Any(apiTokenTwirp.PathPrefix()+"*path", gin.WrapH(apiTokenTwirp))
-		r.Any(workspaceTwirp.PathPrefix()+"*path", gin.WrapH(workspaceTwirp))
-
-		// AuthService runs on Connect (gRPC-Web compatible). The connect
-		// handler's own mount path is /agents.v1.AuthService/, so we strip
-		// the /api prefix before forwarding to keep the public URL stable.
+		// Connect handlers mount at /agents.v1.XxxService/ by default; we
+		// strip the /api prefix before forwarding so the public URLs
+		// (/api/agents.v1.XxxService/Method) stay stable across the
+		// migration.
 		r.Any("/api"+authConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", authConnectHandler)))
+		r.Any("/api"+workspaceConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", workspaceConnectHandler)))
+		r.Any("/api"+apiTokenConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", apiTokenConnectHandler)))
 	}
 
 	return router, handlers
