@@ -10,7 +10,7 @@
 | Phase 1 — 后端切换 | ✅ 完成 | 14 个原 Twirp 服务全部 Connect 化；新增 `GlobalMCPServerService` 替代原 `/api/global-mcp-servers/*` REST |
 | Phase 1.5 — JSON codec 修复 | ✅ 完成 | 强制 `UseProtoNames=true` 输出 snake_case，避免前端 130+ 处 snake_case 字段访问静默失效 |
 | Phase 2 — 前端切换 | ✅ 完成 | 15 个 `front/src/api/*.ts` 全部用 `@connectrpc/connect-web` 类型化客户端，`twirpFetch` 删除 |
-| Phase 3 — 去 Twirp 依赖 | 🔜 待做 | 见 [`connectrpc-followups.md`](connectrpc-followups.md) |
+| Phase 3 — 去 Twirp 依赖 | ✅ 完成 (commit `2cbfdfd`) | 251 处 `twirp.X` 替换为 `connect.NewError` / `connectx.X` helper；`*.twirp.go` 38k+ 行删除；`go.mod` 移除 `github.com/twitchtv/twirp`；`buf.gen.yaml` 删 `protoc-gen-twirp` 插件；`TwirpErrorToConnect` 删除，`WrapUnary` 简化为 forward |
 
 测试现状：后端 383 个测试通过，前端 `tsc --force` 全量类型检查通过。`apiFetch` 仅保留给 `uploads.ts`（multipart）和 `chat.ts`（SSE），两者本来就在 Connect 协议范围外。
 
