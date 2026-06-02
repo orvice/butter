@@ -8,8 +8,8 @@ export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 // authInterceptor injects the Authorization and X-Workspace-ID headers on
 // every Connect RPC. It also rewrites 401 / Unauthenticated errors into a
-// hard redirect to /login the same way twirpFetch used to, so existing
-// React Query callers don't have to special-case auth failures.
+// hard redirect to /login so existing React Query callers don't have to
+// special-case auth failures.
 const authInterceptor: Interceptor = (next) => async (req) => {
   const token = localStorage.getItem(TOKEN_KEY);
   const workspaceId = localStorage.getItem(WORKSPACE_KEY);

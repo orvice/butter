@@ -595,14 +595,8 @@ export interface CronExecution {
   finished_at?: string;
 }
 
-// --- RPC Error ---
-//
-// During the Twirp→Connect migration the server may serialize errors either
-// as Twirp ({code, msg}) or Connect ({code, message}). Frontend callers
-// should treat them as the same shape.
-
-export interface TwirpError {
-  code: string;
-  msg?: string;
-  message?: string;
-}
+// RPC errors are surfaced via ConnectError from @connectrpc/connect, which is
+// a regular Error subclass with a `code` property. Components can rely on
+// `err.message` (matches the prior TwirpError.msg). No dashboard-side type
+// alias is needed for ConnectError; import it directly when special-casing
+// is required.
