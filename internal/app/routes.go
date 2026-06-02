@@ -28,6 +28,7 @@ import (
 	"go.orx.me/apps/butter/internal/service"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -296,7 +297,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	apiTokenSvcServer := application.NewAPITokenServiceServer(nil)
 	apiTokenTwirp := agentsv1.NewAPITokenServiceServer(apiTokenSvcServer, pathPrefix)
 	authSvcServer := application.NewAuthServiceServer(nil, cfg.Auth.EffectiveSessionTTL())
-	authTwirp := agentsv1.NewAuthServiceServer(authSvcServer, pathPrefix)
+	authConnectPath, authConnectHandler := agentsv1connect.NewAuthServiceHandler(application.NewAuthServiceConnectAdapter(authSvcServer))
 	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
 	workspaceTwirp := agentsv1.NewWorkspaceServiceServer(workspaceSvcServer, pathPrefix)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
@@ -375,8 +376,12 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any(dashboardTwirp.PathPrefix()+"*path", gin.WrapH(dashboardTwirp))
 		r.Any(daemonTwirp.PathPrefix()+"*path", gin.WrapH(daemonTwirp))
 		r.Any(apiTokenTwirp.PathPrefix()+"*path", gin.WrapH(apiTokenTwirp))
-		r.Any(authTwirp.PathPrefix()+"*path", gin.WrapH(authTwirp))
 		r.Any(workspaceTwirp.PathPrefix()+"*path", gin.WrapH(workspaceTwirp))
+
+		// AuthService runs on Connect (gRPC-Web compatible). The connect
+		// handler's own mount path is /agents.v1.AuthService/, so we strip
+		// the /api prefix before forwarding to keep the public URL stable.
+		r.Any("/api"+authConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", authConnectHandler)))
 	}
 
 	return router, handlers
