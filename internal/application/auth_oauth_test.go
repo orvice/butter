@@ -117,8 +117,8 @@ type stubProvider struct {
 	gotCode     string
 }
 
-func (s *stubProvider) Name() string                  { return s.name }
-func (s *stubProvider) DisplayName() string           { return s.displayName }
+func (s *stubProvider) Name() string        { return s.name }
+func (s *stubProvider) DisplayName() string { return s.displayName }
 func (s *stubProvider) AuthorizeURL(state string) string {
 	return s.authorize + "?state=" + state
 }
@@ -143,7 +143,9 @@ func newServerWithOAuth(t *testing.T, stub provider.Provider) (*AuthServiceServe
 
 // oauthstateMemory wraps the in-memory store from the repo package so tests
 // don't depend on the mongo backend.
-func oauthstateMemory() oauthstate.Repository { return &memoryStateRepo{m: make(map[string]oauthstate.Entry)} }
+func oauthstateMemory() oauthstate.Repository {
+	return &memoryStateRepo{m: make(map[string]oauthstate.Entry)}
+}
 
 type memoryStateRepo struct {
 	mu sync.Mutex

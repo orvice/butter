@@ -43,7 +43,7 @@ func (s *ModelProviderServiceServer) ListModelProviders(ctx context.Context, _ *
 	}
 	providers, err := s.repo.ListModelProviders(ctx, wsID)
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.ListModelProvidersResponse{ModelProviders: providers}, nil
 }
@@ -55,7 +55,7 @@ func (s *ModelProviderServiceServer) GetModelProvider(ctx context.Context, req *
 	}
 	provider, err := s.repo.GetModelProvider(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.GetModelProviderResponse{ModelProvider: provider}, nil
 }
@@ -86,7 +86,7 @@ func (s *ModelProviderServiceServer) CreateModelProvider(ctx context.Context, re
 	)
 	if err != nil {
 		logger.Error("create model provider failed", "workspace_id", wsID, "name", req.GetModelProvider().GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("model provider created", "workspace_id", wsID, "name", provider.GetName())
 	return &agentsv1.CreateModelProviderResponse{ModelProvider: provider}, nil
@@ -103,7 +103,7 @@ func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, re
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetModelProvider(ctx, wsID, req.GetModelProvider().GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("updating model provider", "workspace_id", wsID, "name", req.GetModelProvider().GetName())
 
@@ -123,7 +123,7 @@ func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, re
 	)
 	if err != nil {
 		logger.Error("update model provider failed", "workspace_id", wsID, "name", req.GetModelProvider().GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("model provider updated", "workspace_id", wsID, "name", provider.GetName())
 	return &agentsv1.UpdateModelProviderResponse{ModelProvider: provider}, nil
@@ -137,7 +137,7 @@ func (s *ModelProviderServiceServer) DeleteModelProvider(ctx context.Context, re
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetModelProvider(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("deleting model provider", "workspace_id", wsID, "name", req.GetName())
 
@@ -157,7 +157,7 @@ func (s *ModelProviderServiceServer) DeleteModelProvider(ctx context.Context, re
 	)
 	if err != nil {
 		logger.Error("delete model provider failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("model provider deleted", "workspace_id", wsID, "name", req.GetName())
 	return &agentsv1.DeleteModelProviderResponse{}, nil
@@ -168,7 +168,7 @@ func (s *ModelProviderServiceServer) reloadRuntime(ctx context.Context) error {
 		return nil
 	}
 	if err := s.runtime.ReloadRunner(ctx); err != nil {
-		return toTwirpError(fmt.Errorf("reload model providers: %w", err))
+		return toConnectError(fmt.Errorf("reload model providers: %w", err))
 	}
 	return nil
 }

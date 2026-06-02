@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/channel"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -45,7 +45,7 @@ func (s *ChannelServiceServer) ListChannels(ctx context.Context, _ *agentsv1.Lis
 	}
 	channels, err := s.repo.ListChannels(ctx, wsID)
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.ListChannelsResponse{Channels: channels}, nil
 }
@@ -57,7 +57,7 @@ func (s *ChannelServiceServer) GetChannel(ctx context.Context, req *agentsv1.Get
 	}
 	c, err := s.repo.GetChannel(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.GetChannelResponse{Channel: c}, nil
 }
@@ -70,7 +70,7 @@ func validateChannelTriggers(channel *agentsv1.AgentChannel) error {
 			agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_PRIVATE_CHAT:
 			continue
 		default:
-			return twirp.InvalidArgumentError(
+			return connectx.InvalidArgument(
 				fmt.Sprintf("channel.triggers[%d].type", i),
 				fmt.Sprintf("unsupported trigger type %s", trigger.GetType()),
 			)
@@ -110,7 +110,7 @@ func (s *ChannelServiceServer) CreateChannel(ctx context.Context, req *agentsv1.
 	)
 	if err != nil {
 		logger.Error("create channel failed", "workspace_id", wsID, "channel", req.GetChannel().GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("channel created", "workspace_id", wsID, "channel", c.GetName(), "platform", c.GetPlatform())
 	return &agentsv1.CreateChannelResponse{Channel: c}, nil
@@ -127,7 +127,7 @@ func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *agentsv1.
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetChannel(ctx, wsID, req.GetChannel().GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("updating channel", "workspace_id", wsID, "channel", req.GetChannel().GetName())
 
@@ -147,7 +147,7 @@ func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *agentsv1.
 	)
 	if err != nil {
 		logger.Error("update channel failed", "workspace_id", wsID, "channel", req.GetChannel().GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("channel updated", "workspace_id", wsID, "channel", c.GetName())
 	return &agentsv1.UpdateChannelResponse{Channel: c}, nil
@@ -161,7 +161,7 @@ func (s *ChannelServiceServer) DeleteChannel(ctx context.Context, req *agentsv1.
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetChannel(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("deleting channel", "workspace_id", wsID, "channel", req.GetName())
 
@@ -181,7 +181,7 @@ func (s *ChannelServiceServer) DeleteChannel(ctx context.Context, req *agentsv1.
 	)
 	if err != nil {
 		logger.Error("delete channel failed", "workspace_id", wsID, "channel", req.GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("channel deleted", "workspace_id", wsID, "channel", req.GetName())
 	return &agentsv1.DeleteChannelResponse{}, nil
@@ -194,7 +194,7 @@ func (s *ChannelServiceServer) GetChannelStatus(ctx context.Context, req *agents
 	}
 	c, err := s.repo.GetChannel(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 
 	state := agentsv1.ChannelStatus_STATE_UNSPECIFIED
@@ -209,7 +209,7 @@ func (s *ChannelServiceServer) GetChannelStatus(ctx context.Context, req *agents
 	default:
 		rs, d, err := s.manager.ChannelStatus(ctx, c.GetName())
 		if err != nil {
-			return nil, twirp.InternalErrorWith(fmt.Errorf("channel status: %w", err))
+			return nil, connectx.InternalWith(fmt.Errorf("channel status: %w", err))
 		}
 		detail = d
 		switch rs {
@@ -220,7 +220,7 @@ func (s *ChannelServiceServer) GetChannelStatus(ctx context.Context, req *agents
 		case channel.RuntimeStateUnsupported:
 			state = agentsv1.ChannelStatus_STATE_ERROR
 		case channel.RuntimeStateNotFound:
-			return nil, twirp.NotFoundError("channel not found")
+			return nil, connectx.NotFound("channel not found")
 		}
 	}
 
@@ -245,13 +245,13 @@ func (s *ChannelServiceServer) RestartChannel(ctx context.Context, req *agentsv1
 	if name := req.GetName(); name != "" {
 		c, err := s.repo.GetChannel(ctx, wsID, name)
 		if err != nil {
-			return nil, toTwirpError(err)
+			return nil, toConnectError(err)
 		}
 		resp.Channel = c
 	}
 	if err := s.reloadRuntime(ctx); err != nil {
 		logger.Error("restart channel: reload runtime failed", "workspace_id", wsID, "channel", req.GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("channel restarted", "workspace_id", wsID, "channel", req.GetName())
 	return resp, nil
@@ -275,7 +275,7 @@ func (s *ChannelServiceServer) ResumeChannel(ctx context.Context, req *agentsv1.
 
 func (s *ChannelServiceServer) toggleChannelEnabled(ctx context.Context, name string, enabled bool) (*agentsv1.AgentChannel, error) {
 	if name == "" {
-		return nil, twirp.RequiredArgumentError("name")
+		return nil, connectx.RequiredArgument("name")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -284,7 +284,7 @@ func (s *ChannelServiceServer) toggleChannelEnabled(ctx context.Context, name st
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetChannel(ctx, wsID, name)
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	if prev.GetEnabled() == enabled {
 		logger.Debug("channel already in target state", "workspace_id", wsID, "channel", name, "enabled", enabled)
@@ -311,7 +311,7 @@ func (s *ChannelServiceServer) toggleChannelEnabled(ctx context.Context, name st
 	)
 	if err != nil {
 		logger.Error("toggle channel enabled failed", "workspace_id", wsID, "channel", name, "enabled", enabled, "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("channel enabled toggled", "workspace_id", wsID, "channel", name, "enabled", enabled)
 	return updated, nil
@@ -322,7 +322,7 @@ func (s *ChannelServiceServer) reloadRuntime(ctx context.Context) error {
 		return nil
 	}
 	if err := s.runtime.ReloadChannels(ctx); err != nil {
-		return toTwirpError(fmt.Errorf("reload channels: %w", err))
+		return toConnectError(fmt.Errorf("reload channels: %w", err))
 	}
 	return nil
 }

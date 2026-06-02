@@ -5,76 +5,58 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/twitchtv/twirp"
 )
 
-func TestTwirpErrorToConnect_CodeMapping(t *testing.T) {
-	cases := []struct {
-		twirpCode twirp.ErrorCode
-		want      connect.Code
-	}{
-		{twirp.Canceled, connect.CodeCanceled},
-		{twirp.InvalidArgument, connect.CodeInvalidArgument},
-		{twirp.Malformed, connect.CodeInvalidArgument},
-		{twirp.DeadlineExceeded, connect.CodeDeadlineExceeded},
-		{twirp.NotFound, connect.CodeNotFound},
-		{twirp.BadRoute, connect.CodeUnimplemented},
-		{twirp.AlreadyExists, connect.CodeAlreadyExists},
-		{twirp.PermissionDenied, connect.CodePermissionDenied},
-		{twirp.Unauthenticated, connect.CodeUnauthenticated},
-		{twirp.ResourceExhausted, connect.CodeResourceExhausted},
-		{twirp.FailedPrecondition, connect.CodeFailedPrecondition},
-		{twirp.Aborted, connect.CodeAborted},
-		{twirp.OutOfRange, connect.CodeOutOfRange},
-		{twirp.Unimplemented, connect.CodeUnimplemented},
-		{twirp.Internal, connect.CodeInternal},
-		{twirp.Unavailable, connect.CodeUnavailable},
-		{twirp.DataLoss, connect.CodeDataLoss},
-		{twirp.Unknown, connect.CodeUnknown},
+func TestRequiredArgument(t *testing.T) {
+	got := RequiredArgument("username")
+	if got.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("code: got %v want CodeInvalidArgument", got.Code())
 	}
-	for _, tc := range cases {
-		t.Run(string(tc.twirpCode), func(t *testing.T) {
-			in := twirp.NewError(tc.twirpCode, "boom")
-			got := TwirpErrorToConnect(in)
-			if got == nil {
-				t.Fatalf("nil result for %v", tc.twirpCode)
-			}
-			if got.Code() != tc.want {
-				t.Fatalf("code: got %v want %v", got.Code(), tc.want)
-			}
-			if got.Message() != "boom" {
-				t.Fatalf("msg: got %q want %q", got.Message(), "boom")
-			}
-		})
-	}
-}
-
-func TestTwirpErrorToConnect_NilInput(t *testing.T) {
-	if got := TwirpErrorToConnect(nil); got != nil {
-		t.Fatalf("expected nil, got %v", got)
-	}
-}
-
-func TestTwirpErrorToConnect_NonTwirpFallsBackToInternal(t *testing.T) {
-	got := TwirpErrorToConnect(errors.New("plain error"))
-	if got == nil {
-		t.Fatal("expected non-nil connect error")
-	}
-	if got.Code() != connect.CodeInternal {
-		t.Fatalf("code: got %v want CodeInternal", got.Code())
-	}
-	if got.Message() != "plain error" {
-		t.Fatalf("msg: got %q", got.Message())
-	}
-}
-
-func TestTwirpErrorToConnect_PreservesMeta(t *testing.T) {
-	in := twirp.NewError(twirp.InvalidArgument, "missing").WithMeta("argument", "username")
-	got := TwirpErrorToConnect(in)
-	if got == nil {
-		t.Fatal("expected non-nil")
+	if got.Message() != "username is required" {
+		t.Fatalf("message: got %q", got.Message())
 	}
 	if v := got.Meta().Get("argument"); v != "username" {
-		t.Fatalf("meta argument: got %q want username", v)
+		t.Fatalf("argument meta: got %q want username", v)
+	}
+}
+
+func TestInvalidArgument(t *testing.T) {
+	got := InvalidArgument("page_size", "must be positive")
+	if got.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("code: got %v", got.Code())
+	}
+	if got.Message() != "page_size must be positive" {
+		t.Fatalf("message: got %q", got.Message())
+	}
+}
+
+func TestNotFound(t *testing.T) {
+	got := NotFound("agent not found")
+	if got.Code() != connect.CodeNotFound {
+		t.Fatalf("code: got %v", got.Code())
+	}
+	if got.Message() != "agent not found" {
+		t.Fatalf("message: got %q", got.Message())
+	}
+}
+
+func TestInternal(t *testing.T) {
+	got := Internal("boom")
+	if got.Code() != connect.CodeInternal {
+		t.Fatalf("code: got %v", got.Code())
+	}
+}
+
+func TestInternalWith_PreservesUnderlying(t *testing.T) {
+	underlying := errors.New("disk full")
+	got := InternalWith(underlying)
+	if got.Code() != connect.CodeInternal {
+		t.Fatalf("code: got %v", got.Code())
+	}
+	if got.Message() != "disk full" {
+		t.Fatalf("message: got %q", got.Message())
+	}
+	if !errors.Is(got, underlying) {
+		t.Fatal("expected wrapped error to be reachable via errors.Is")
 	}
 }

@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/mcpoauth"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	mcpoauthrepo "go.orx.me/apps/butter/internal/repo/mcpoauth"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -48,13 +49,13 @@ func (s *MCPServerServiceServer) SetMCPHTTPClientFactory(factory internalagent.M
 
 func validateMCPServerConfig(server *agentsv1.MCPServer) error {
 	if server == nil {
-		return twirp.RequiredArgumentError("mcp_server")
+		return connectx.RequiredArgument("mcp_server")
 	}
 	if !isRemoteMCPTransport(server.GetTransport()) {
-		return twirp.InvalidArgumentError("mcp_server.transport", fmt.Sprintf("unsupported MCP transport %s", server.GetTransport()))
+		return connectx.InvalidArgument("mcp_server.transport", fmt.Sprintf("unsupported MCP transport %s", server.GetTransport()))
 	}
 	if strings.TrimSpace(server.GetUrl()) == "" {
-		return twirp.RequiredArgumentError("mcp_server.url")
+		return connectx.RequiredArgument("mcp_server.url")
 	}
 	if err := validateHTTPURL("mcp_server.url", server.GetUrl()); err != nil {
 		return err
@@ -65,10 +66,10 @@ func validateMCPServerConfig(server *agentsv1.MCPServer) error {
 	}
 	oauth := server.GetAuth().GetOauth2()
 	if oauth == nil {
-		return twirp.RequiredArgumentError("mcp_server.auth.oauth2")
+		return connectx.RequiredArgument("mcp_server.auth.oauth2")
 	}
 	if strings.TrimSpace(oauth.GetClientSecret()) != "" && strings.TrimSpace(oauth.GetClientId()) == "" {
-		return twirp.InvalidArgumentError("mcp_server.auth.oauth2.client_id", "client_id is required when client_secret is set")
+		return connectx.InvalidArgument("mcp_server.auth.oauth2.client_id", "client_id is required when client_secret is set")
 	}
 	for field, value := range map[string]string{
 		"mcp_server.auth.oauth2.authorization_url":        oauth.GetAuthorizationUrl(),
@@ -95,10 +96,10 @@ func isRemoteMCPTransport(t agentsv1.MCPServerTransport) bool {
 func validateHTTPURL(field, raw string) error {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		return twirp.InvalidArgumentError(field, "must be an absolute http or https URL")
+		return connectx.InvalidArgument(field, "must be an absolute http or https URL")
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return twirp.InvalidArgumentError(field, "must use http or https")
+		return connectx.InvalidArgument(field, "must use http or https")
 	}
 	return nil
 }
@@ -110,7 +111,7 @@ func (s *MCPServerServiceServer) ListMCPServers(ctx context.Context, _ *agentsv1
 	}
 	servers, err := s.repo.ListMCPServers(ctx, wsID)
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.ListMCPServersResponse{McpServers: redactInstalledGlobalMCPSecrets(servers)}, nil
 }
@@ -122,7 +123,7 @@ func (s *MCPServerServiceServer) GetMCPServer(ctx context.Context, req *agentsv1
 	}
 	m, err := s.repo.GetMCPServer(ctx, wsID, req.GetId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.GetMCPServerResponse{McpServer: redactInstalledGlobalMCPSecret(m)}, nil
 }
@@ -198,7 +199,7 @@ func (s *MCPServerServiceServer) CreateMCPServer(ctx context.Context, req *agent
 	)
 	if err != nil {
 		logger.Error("create mcp server failed", "workspace_id", wsID, "name", req.GetMcpServer().GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("mcp server created", "workspace_id", wsID, "id", m.GetId(), "name", m.GetName())
 	return &agentsv1.CreateMCPServerResponse{McpServer: m}, nil
@@ -215,7 +216,7 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agent
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetMCPServer(ctx, wsID, req.GetMcpServer().GetId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("updating mcp server", "workspace_id", wsID, "id", req.GetMcpServer().GetId(), "name", req.GetMcpServer().GetName())
 
@@ -235,7 +236,7 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *agent
 	)
 	if err != nil {
 		logger.Error("update mcp server failed", "workspace_id", wsID, "id", req.GetMcpServer().GetId(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("mcp server updated", "workspace_id", wsID, "id", m.GetId(), "name", m.GetName())
 	return &agentsv1.UpdateMCPServerResponse{McpServer: m}, nil
@@ -249,7 +250,7 @@ func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agent
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetMCPServer(ctx, wsID, req.GetId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("deleting mcp server", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
 
@@ -269,7 +270,7 @@ func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *agent
 	)
 	if err != nil {
 		logger.Error("delete mcp server failed", "workspace_id", wsID, "id", req.GetId(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("mcp server deleted", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
 	if s.oauthService != nil {
@@ -285,7 +286,7 @@ func (s *MCPServerServiceServer) GetMCPServerStatus(ctx context.Context, req *ag
 	}
 	m, err := s.repo.GetMCPServer(ctx, wsID, req.GetId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 
 	status := &agentsv1.MCPServerStatus{
@@ -326,13 +327,13 @@ func (s *MCPServerServiceServer) ListMCPTools(ctx context.Context, req *agentsv1
 	if id := req.GetServerId(); id != "" {
 		srv, err := s.repo.GetMCPServer(ctx, wsID, id)
 		if err != nil {
-			return nil, toTwirpError(err)
+			return nil, toConnectError(err)
 		}
 		servers = []*agentsv1.MCPServer{srv}
 	} else {
 		all, err := s.repo.ListMCPServers(ctx, wsID)
 		if err != nil {
-			return nil, toTwirpError(err)
+			return nil, toConnectError(err)
 		}
 		servers = all
 	}
@@ -370,14 +371,14 @@ func (s *MCPServerServiceServer) StartMCPServerOAuth(ctx context.Context, req *a
 		return nil, err
 	}
 	if s.oauthService == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "mcp oauth service is not configured")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("mcp oauth service is not configured"))
 	}
 	if strings.TrimSpace(req.GetServerId()) == "" {
-		return nil, twirp.RequiredArgumentError("server_id")
+		return nil, connectx.RequiredArgument("server_id")
 	}
 	srv, err := s.repo.GetMCPServer(ctx, wsID, req.GetServerId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	if err := validateMCPServerConfig(srv); err != nil {
 		return nil, err
@@ -388,7 +389,7 @@ func (s *MCPServerServiceServer) StartMCPServerOAuth(ctx context.Context, req *a
 	}
 	start, err := s.oauthService.Start(ctx, wsID, userID, srv, req.GetReturnUrl())
 	if err != nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, err.Error())
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New(err.Error()))
 	}
 	return &agentsv1.StartMCPServerOAuthResponse{AuthorizationUrl: start.AuthorizationURL, FlowId: start.FlowID}, nil
 }
@@ -399,14 +400,14 @@ func (s *MCPServerServiceServer) CompleteMCPServerOAuth(ctx context.Context, req
 		return nil, err
 	}
 	if s.oauthService == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "mcp oauth service is not configured")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("mcp oauth service is not configured"))
 	}
 	if strings.TrimSpace(req.GetFlowId()) == "" {
-		return nil, twirp.RequiredArgumentError("flow_id")
+		return nil, connectx.RequiredArgument("flow_id")
 	}
 	conn, err := s.oauthService.Complete(ctx, wsID, req.GetFlowId(), req.GetCode(), req.GetState())
 	if err != nil {
-		return nil, twirp.NewError(twirp.InvalidArgument, err.Error())
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(err.Error()))
 	}
 	return &agentsv1.CompleteMCPServerOAuthResponse{Status: oauthStatusFromConnection(conn.ServerID, conn, nil)}, nil
 }
@@ -417,11 +418,11 @@ func (s *MCPServerServiceServer) GetMCPServerOAuthStatus(ctx context.Context, re
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetServerId()) == "" {
-		return nil, twirp.RequiredArgumentError("server_id")
+		return nil, connectx.RequiredArgument("server_id")
 	}
 	srv, err := s.repo.GetMCPServer(ctx, wsID, req.GetServerId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	if s.oauthService == nil {
 		return &agentsv1.GetMCPServerOAuthStatusResponse{Status: disconnectedOAuthStatus(srv.GetId(), "mcp oauth service is not configured")}, nil
@@ -436,14 +437,14 @@ func (s *MCPServerServiceServer) DisconnectMCPServerOAuth(ctx context.Context, r
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetServerId()) == "" {
-		return nil, twirp.RequiredArgumentError("server_id")
+		return nil, connectx.RequiredArgument("server_id")
 	}
 	if _, err := s.repo.GetMCPServer(ctx, wsID, req.GetServerId()); err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	if s.oauthService != nil {
 		if err := s.oauthService.Disconnect(ctx, wsID, req.GetServerId()); err != nil {
-			return nil, twirp.InternalErrorWith(err)
+			return nil, connectx.InternalWith(err)
 		}
 	}
 	return &agentsv1.DisconnectMCPServerOAuthResponse{Status: disconnectedOAuthStatus(req.GetServerId(), "disconnected")}, nil
@@ -509,7 +510,7 @@ func (s *MCPServerServiceServer) reloadRuntime(ctx context.Context) error {
 		return nil
 	}
 	if err := s.runtime.ReloadRunner(ctx); err != nil {
-		return toTwirpError(err)
+		return toConnectError(err)
 	}
 	return nil
 }

@@ -5,22 +5,23 @@ import (
 	"errors"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 
 	"go.orx.me/apps/butter/internal/runtime/cron"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-// cronJobMutationError maps scheduler errors to typed twirp errors so that
-// validation failures (e.g. agent does not exist in workspace) surface as
-// InvalidArgument instead of being swallowed by toTwirpError's catch-all
-// InternalErrorWith.
+// cronJobMutationError maps scheduler errors to typed connect errors so
+// that validation failures (e.g. agent does not exist in workspace) surface
+// as InvalidArgument instead of being swallowed by toConnectError's
+// catch-all InternalWith.
 func cronJobMutationError(err error) error {
 	if errors.Is(err, cron.ErrAgentNotInWorkspace) {
-		return twirp.InvalidArgumentError("agent_name", err.Error())
+		return connectx.InvalidArgument("agent_name", err.Error())
 	}
-	return toTwirpError(err)
+	return toConnectError(err)
 }
 
 // CronJobServiceServer implements the CronJobService Twirp interface.
@@ -47,7 +48,7 @@ func (s *CronJobServiceServer) SetExecutionRepo(repo cron.ExecutionRepo) {
 func requireWorkspace(ctx context.Context) (string, error) {
 	id, ok := workspace.FromContext(ctx)
 	if !ok {
-		return "", twirp.NewError(twirp.FailedPrecondition, "workspace required (set X-Workspace-ID header)")
+		return "", connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace required (set X-Workspace-ID header)"))
 	}
 	return id, nil
 }
@@ -62,14 +63,14 @@ func (s *CronJobServiceServer) ListCronJobs(ctx context.Context, _ *agentsv1.Lis
 	}
 	jobs, err := s.scheduler.ListJobs(ctx, wsID)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.ListCronJobsResponse{CronJobs: jobs}, nil
 }
 
 func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *agentsv1.GetCronJobRequest) (*agentsv1.GetCronJobResponse, error) {
 	if s.scheduler == nil {
-		return nil, twirp.NotFoundError("cron scheduler not initialized")
+		return nil, connectx.NotFound("cron scheduler not initialized")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -77,14 +78,14 @@ func (s *CronJobServiceServer) GetCronJob(ctx context.Context, req *agentsv1.Get
 	}
 	job, err := s.scheduler.GetJob(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.GetCronJobResponse{CronJob: job}, nil
 }
 
 func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.CreateCronJobRequest) (*agentsv1.CreateCronJobResponse, error) {
 	if s.scheduler == nil {
-		return nil, twirp.InternalError("cron scheduler not initialized")
+		return nil, connectx.Internal("cron scheduler not initialized")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -104,7 +105,7 @@ func (s *CronJobServiceServer) CreateCronJob(ctx context.Context, req *agentsv1.
 
 func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.UpdateCronJobRequest) (*agentsv1.UpdateCronJobResponse, error) {
 	if s.scheduler == nil {
-		return nil, twirp.InternalError("cron scheduler not initialized")
+		return nil, connectx.Internal("cron scheduler not initialized")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -124,7 +125,7 @@ func (s *CronJobServiceServer) UpdateCronJob(ctx context.Context, req *agentsv1.
 
 func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.DeleteCronJobRequest) (*agentsv1.DeleteCronJobResponse, error) {
 	if s.scheduler == nil {
-		return nil, twirp.InternalError("cron scheduler not initialized")
+		return nil, connectx.Internal("cron scheduler not initialized")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -133,12 +134,12 @@ func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.
 	logger := log.FromContext(ctx)
 	job, err := s.scheduler.GetJob(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("deleting cron job", "workspace_id", wsID, "name", req.GetName())
 	if err := s.scheduler.RemoveJob(ctx, wsID, req.GetName()); err != nil {
 		logger.Error("delete cron job failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("cron job deleted", "workspace_id", wsID, "name", req.GetName())
 	return &agentsv1.DeleteCronJobResponse{CronJob: job}, nil
@@ -146,7 +147,7 @@ func (s *CronJobServiceServer) DeleteCronJob(ctx context.Context, req *agentsv1.
 
 func (s *CronJobServiceServer) RunCronJobNow(ctx context.Context, req *agentsv1.RunCronJobNowRequest) (*agentsv1.RunCronJobNowResponse, error) {
 	if s.scheduler == nil {
-		return nil, twirp.InternalError("cron scheduler not initialized")
+		return nil, connectx.Internal("cron scheduler not initialized")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -157,7 +158,7 @@ func (s *CronJobServiceServer) RunCronJobNow(ctx context.Context, req *agentsv1.
 	exec, err := s.scheduler.RunJobNow(ctx, wsID, req.GetName())
 	if err != nil {
 		logger.Error("run cron job manually failed", "workspace_id", wsID, "name", req.GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("cron job manual run started", "workspace_id", wsID, "name", req.GetName(), "execution_id", exec.GetId())
 	return &agentsv1.RunCronJobNowResponse{Execution: exec}, nil
@@ -173,7 +174,7 @@ func (s *CronJobServiceServer) ListCronExecutions(ctx context.Context, req *agen
 	}
 	executions, nextToken, err := s.execRepo.List(ctx, wsID, req.GetJobName(), req.GetPageSize(), req.GetPageToken())
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.ListCronExecutionsResponse{
 		Executions:    executions,

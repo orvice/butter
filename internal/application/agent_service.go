@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/twitchtv/twirp"
 	"google.golang.org/genai"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
@@ -59,7 +60,7 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *agentsv1.ListA
 	}
 	agents, err := s.repo.ListAgents(ctx, wsID)
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 
 	sort.SliceStable(agents, func(i, j int) bool {
@@ -100,12 +101,12 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *agentsv1.ListA
 func (s *AgentServiceServer) ReloadAgents(ctx context.Context, _ *agentsv1.ReloadAgentsRequest) (*agentsv1.ReloadAgentsResponse, error) {
 	logger := log.FromContext(ctx)
 	if s.runtime == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "config runtime not wired")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("config runtime not wired"))
 	}
 	logger.Info("reloading agent runtime")
 	if err := s.runtime.ReloadRunner(ctx); err != nil {
 		logger.Error("reload agent runtime failed", "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("agent runtime reloaded")
 	return &agentsv1.ReloadAgentsResponse{ReloadedAt: timestamppb.New(time.Now().UTC())}, nil
@@ -118,7 +119,7 @@ func (s *AgentServiceServer) GetAgent(ctx context.Context, req *agentsv1.GetAgen
 	}
 	a, err := s.repo.GetAgent(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.GetAgentResponse{Agent: a}, nil
 }
@@ -146,7 +147,7 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *agentsv1.Crea
 	)
 	if err != nil {
 		logger.Error("create agent failed", "workspace_id", wsID, "agent", req.GetAgent().GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("agent created", "workspace_id", wsID, "agent", a.GetName(), "type", a.GetType().String())
 	return &agentsv1.CreateAgentResponse{Agent: a}, nil
@@ -160,7 +161,7 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.Upda
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetAgent(ctx, wsID, req.GetAgent().GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("updating agent", "workspace_id", wsID, "agent", req.GetAgent().GetName())
 
@@ -180,7 +181,7 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *agentsv1.Upda
 	)
 	if err != nil {
 		logger.Error("update agent failed", "workspace_id", wsID, "agent", req.GetAgent().GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("agent updated", "workspace_id", wsID, "agent", a.GetName())
 	return &agentsv1.UpdateAgentResponse{Agent: a}, nil
@@ -194,7 +195,7 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.Dele
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetAgent(ctx, wsID, req.GetName())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("deleting agent", "workspace_id", wsID, "agent", req.GetName())
 
@@ -214,7 +215,7 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.Dele
 	)
 	if err != nil {
 		logger.Error("delete agent failed", "workspace_id", wsID, "agent", req.GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("agent deleted", "workspace_id", wsID, "agent", req.GetName())
 	return &agentsv1.DeleteAgentResponse{}, nil
@@ -222,16 +223,16 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *agentsv1.Dele
 
 func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.InvokeAgentRequest) (*agentsv1.InvokeAgentResponse, error) {
 	if s.runnerSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "runner service not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
 	if req.GetAgentName() == "" {
-		return nil, twirp.RequiredArgumentError("agent_name")
+		return nil, connectx.RequiredArgument("agent_name")
 	}
 	if req.GetInput() == "" {
-		return nil, twirp.RequiredArgumentError("input")
+		return nil, connectx.RequiredArgument("input")
 	}
 	if len(req.GetInput()) > maxInvokeAgentInputBytes {
-		return nil, twirp.InvalidArgumentError("input",
+		return nil, connectx.InvalidArgument("input",
 			"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
 	}
 
@@ -279,7 +280,7 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *agentsv1.Invo
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"err", err,
 		)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("agent invocation completed",
 		"workspace_id", wsID,
@@ -304,7 +305,7 @@ func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *agen
 		SessionID:   req.GetSessionId(),
 	}, req.GetPageSize(), req.GetPageToken())
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.ListAgentInvocationsResponse{
 		Invocations:   invs,
@@ -315,10 +316,10 @@ func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *agen
 
 func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *agentsv1.CancelAgentInvocationRequest) (*agentsv1.CancelAgentInvocationResponse, error) {
 	if s.runnerSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "runner service not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
 	if req.GetInvocationId() == "" {
-		return nil, twirp.RequiredArgumentError("invocation_id")
+		return nil, connectx.RequiredArgument("invocation_id")
 	}
 	cancelled := s.runnerSvc.CancelInvocation(req.GetInvocationId())
 	log.FromContext(ctx).Info("cancel agent invocation requested",
@@ -330,7 +331,7 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *age
 
 func (s *AgentServiceServer) GetAgentRuntimeStatus(ctx context.Context, req *agentsv1.GetAgentRuntimeStatusRequest) (*agentsv1.GetAgentRuntimeStatusResponse, error) {
 	if req.GetName() == "" {
-		return nil, twirp.RequiredArgumentError("name")
+		return nil, connectx.RequiredArgument("name")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -349,7 +350,7 @@ func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *
 	if len(names) == 0 {
 		agents, err := s.repo.ListAgents(ctx, wsID)
 		if err != nil {
-			return nil, toTwirpError(err)
+			return nil, toConnectError(err)
 		}
 		names = make([]string, 0, len(agents))
 		for _, a := range agents {
@@ -410,7 +411,7 @@ func (s *AgentServiceServer) reloadRuntime(ctx context.Context) error {
 		return nil
 	}
 	if err := s.runtime.ReloadRunner(ctx); err != nil {
-		return toTwirpError(err)
+		return toConnectError(err)
 	}
 	return nil
 }
@@ -420,15 +421,16 @@ type ConfigRuntime interface {
 	ReloadChannels(ctx context.Context) error
 }
 
-func toTwirpError(err error) twirp.Error {
-	if twerr, ok := err.(twirp.Error); ok {
-		return twerr
+func toConnectError(err error) *connect.Error {
+	var cerr *connect.Error
+	if errors.As(err, &cerr) {
+		return cerr
 	}
 	if errors.Is(err, configrepo.ErrNotFound) {
-		return twirp.NotFoundError(err.Error())
+		return connectx.NotFound(err.Error())
 	}
 	if errors.Is(err, configrepo.ErrAlreadyExists) {
-		return twirp.NewError(twirp.AlreadyExists, err.Error())
+		return connect.NewError(connect.CodeAlreadyExists, errors.New(err.Error()))
 	}
-	return twirp.InternalErrorWith(err)
+	return connectx.InternalWith(err)
 }

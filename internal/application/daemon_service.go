@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
 
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -37,28 +37,28 @@ func (s *DaemonServiceServer) ListDaemons(ctx context.Context, _ *agentsv1.ListD
 
 func (s *DaemonServiceServer) GetDaemon(ctx context.Context, req *agentsv1.GetDaemonRequest) (*agentsv1.GetDaemonResponse, error) {
 	if s.registry == nil {
-		return nil, twirp.NotFoundError("daemon not found")
+		return nil, connectx.NotFound("daemon not found")
 	}
 	conn := s.registry.Get(req.GetDaemonId())
 	if conn == nil {
-		return nil, twirp.NotFoundError("daemon not found")
+		return nil, connectx.NotFound("daemon not found")
 	}
 	return &agentsv1.GetDaemonResponse{Daemon: connectionToStatus(conn, time.Now())}, nil
 }
 
 func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *agentsv1.CancelDaemonTaskRequest) (*agentsv1.CancelDaemonTaskResponse, error) {
 	if s.registry == nil {
-		return nil, twirp.NotFoundError("daemon registry not available")
+		return nil, connectx.NotFound("daemon registry not available")
 	}
 	if req.GetTaskId() == "" {
-		return nil, twirp.RequiredArgumentError("task_id")
+		return nil, connectx.RequiredArgument("task_id")
 	}
 
 	var target *daemon.Connection
 	if hint := req.GetDaemonId(); hint != "" {
 		conn := s.registry.Get(hint)
 		if conn == nil || !conn.HasTask(req.GetTaskId()) {
-			return nil, twirp.NotFoundError("task not found on daemon")
+			return nil, connectx.NotFound("task not found on daemon")
 		}
 		target = conn
 	} else {
@@ -69,7 +69,7 @@ func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *agentsv
 			}
 		}
 		if target == nil {
-			return nil, twirp.NotFoundError("task not found on any connected daemon")
+			return nil, connectx.NotFound("task not found on any connected daemon")
 		}
 	}
 
@@ -85,7 +85,7 @@ func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *agentsv
 			"daemon_id", target.Info.GetDaemonId(),
 			"err", err,
 		)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("daemon task cancelled", "task_id", req.GetTaskId(), "daemon_id", target.Info.GetDaemonId())
 	return &agentsv1.CancelDaemonTaskResponse{DaemonId: target.Info.GetDaemonId()}, nil

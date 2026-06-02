@@ -2,9 +2,11 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
@@ -13,10 +15,9 @@ import (
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/twitchtv/twirp"
 )
 
 // DashboardServiceServer aggregates read-only metrics for the dashboard
@@ -109,7 +110,7 @@ func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context,
 	execs, err := s.cronExecRepo.ListByTimeRange(ctx, "", req.GetJobName(), start, end)
 	if err != nil {
 		log.FromContext(ctx).Error("dashboard cron timeseries failed", "job", req.GetJobName(), "err", err)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 
 	bucketCount := int(end.Sub(start) / bucketSize)
@@ -153,7 +154,7 @@ func (s *DashboardServiceServer) GetActivityFeed(ctx context.Context, req *agent
 	invs, next, err := s.invRepo.ListRecent(ctx, limit, req.GetPageToken())
 	if err != nil {
 		log.FromContext(ctx).Error("dashboard activity feed failed", "limit", limit, "err", err)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	events := make([]*agentsv1.ActivityEvent, 0, len(invs))
 	for _, inv := range invs {
@@ -193,7 +194,7 @@ func (s *DashboardServiceServer) GetOverview(ctx context.Context, _ *agentsv1.Ge
 	}
 	counts, err := s.counts(ctx)
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	health := s.health(ctx)
 	latest := s.latestHandshake()
@@ -361,5 +362,5 @@ func requireDashboardAccess(ctx context.Context) error {
 	if auth.IsAdmin(ctx) {
 		return nil
 	}
-	return twirp.NewError(twirp.PermissionDenied, "dashboard access requires admin role")
+	return connect.NewError(connect.CodePermissionDenied, errors.New("dashboard access requires admin role"))
 }

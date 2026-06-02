@@ -2,14 +2,16 @@ package application
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -36,7 +38,7 @@ func (s *GlobalMCPServerServiceServer) ListGlobalMCPServers(ctx context.Context,
 	}
 	servers, err := s.repo.ListGlobalMCPServers(ctx)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	redact := !auth.IsAdmin(ctx)
 	out := make([]*agentsv1.MCPServer, 0, len(servers))
@@ -48,69 +50,69 @@ func (s *GlobalMCPServerServiceServer) ListGlobalMCPServers(ctx context.Context,
 
 func (s *GlobalMCPServerServiceServer) CreateGlobalMCPServer(ctx context.Context, req *agentsv1.CreateGlobalMCPServerRequest) (*agentsv1.CreateGlobalMCPServerResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "global mcp store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("global mcp store not available"))
 	}
 	if !auth.IsAdmin(ctx) {
-		return nil, twirp.NewError(twirp.PermissionDenied, "admin role required")
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
 	server := req.GetMcpServer()
 	if server == nil {
-		return nil, twirp.RequiredArgumentError("mcp_server")
+		return nil, connectx.RequiredArgument("mcp_server")
 	}
 	server.WorkspaceId = ""
 	created, err := s.repo.CreateGlobalMCPServer(ctx, server)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.CreateGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(created, false)}, nil
 }
 
 func (s *GlobalMCPServerServiceServer) UpdateGlobalMCPServer(ctx context.Context, req *agentsv1.UpdateGlobalMCPServerRequest) (*agentsv1.UpdateGlobalMCPServerResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "global mcp store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("global mcp store not available"))
 	}
 	if !auth.IsAdmin(ctx) {
-		return nil, twirp.NewError(twirp.PermissionDenied, "admin role required")
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
 	server := req.GetMcpServer()
 	if server == nil {
-		return nil, twirp.RequiredArgumentError("mcp_server")
+		return nil, connectx.RequiredArgument("mcp_server")
 	}
 	if strings.TrimSpace(server.GetId()) == "" {
-		return nil, twirp.RequiredArgumentError("mcp_server.id")
+		return nil, connectx.RequiredArgument("mcp_server.id")
 	}
 	server.WorkspaceId = ""
 	updated, err := s.repo.UpdateGlobalMCPServer(ctx, server)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.UpdateGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(updated, false)}, nil
 }
 
 func (s *GlobalMCPServerServiceServer) DeleteGlobalMCPServer(ctx context.Context, req *agentsv1.DeleteGlobalMCPServerRequest) (*agentsv1.DeleteGlobalMCPServerResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "global mcp store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("global mcp store not available"))
 	}
 	if !auth.IsAdmin(ctx) {
-		return nil, twirp.NewError(twirp.PermissionDenied, "admin role required")
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
 	id := strings.TrimSpace(req.GetId())
 	if id == "" {
-		return nil, twirp.RequiredArgumentError("id")
+		return nil, connectx.RequiredArgument("id")
 	}
 	if err := s.repo.DeleteGlobalMCPServer(ctx, id); err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.DeleteGlobalMCPServerResponse{}, nil
 }
 
 func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Context, req *agentsv1.InstallGlobalMCPServerRequest) (*agentsv1.InstallGlobalMCPServerResponse, error) {
 	if s.repo == nil || s.mcpSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "global mcp store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("global mcp store not available"))
 	}
 	presetID := strings.TrimSpace(req.GetId())
 	if presetID == "" {
-		return nil, twirp.RequiredArgumentError("id")
+		return nil, connectx.RequiredArgument("id")
 	}
 
 	contextWorkspaceID, _ := wsctx.FromContext(ctx)
@@ -118,7 +120,7 @@ func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Contex
 	requested := strings.TrimSpace(req.GetWorkspaceId())
 	if requested != "" {
 		if !auth.IsAdmin(ctx) && requested != contextWorkspaceID {
-			return nil, twirp.NewError(twirp.PermissionDenied, "admin role required for cross-workspace install")
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required for cross-workspace install"))
 		}
 		if requested != contextWorkspaceID {
 			auditCrossWorkspaceInstall(ctx, contextWorkspaceID, requested, presetID)
@@ -126,12 +128,12 @@ func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Contex
 		targetWorkspaceID = requested
 	}
 	if targetWorkspaceID == "" && !auth.IsAdmin(ctx) {
-		return nil, twirp.NewError(twirp.PermissionDenied, "workspace required")
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("workspace required"))
 	}
 
 	preset, err := s.repo.GetGlobalMCPServer(ctx, presetID)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	server := proto.Clone(preset).(*agentsv1.MCPServer)
 	server.WorkspaceId = ""

@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/twitchtv/twirp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -35,11 +36,11 @@ func (s *WorkspaceServiceServer) ListWorkspaces(ctx context.Context, _ *agentsv1
 	if !auth.IsAdmin(ctx) {
 		user, hasUser := auth.UserFromContext(ctx)
 		if !hasUser {
-			return nil, twirp.NewError(twirp.Unauthenticated, "authentication required")
+			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
 		}
 		members, err := s.repo.ListMembershipsForUser(ctx, user.GetId())
 		if err != nil {
-			return nil, twirp.InternalErrorWith(err)
+			return nil, connectx.InternalWith(err)
 		}
 		out := make([]*agentsv1.Workspace, 0, len(members))
 		for _, m := range members {
@@ -48,7 +49,7 @@ func (s *WorkspaceServiceServer) ListWorkspaces(ctx context.Context, _ *agentsv1
 				if errors.Is(err, workspacerepo.ErrNotFound) {
 					continue
 				}
-				return nil, twirp.InternalErrorWith(err)
+				return nil, connectx.InternalWith(err)
 			}
 			out = append(out, ws)
 		}
@@ -56,17 +57,17 @@ func (s *WorkspaceServiceServer) ListWorkspaces(ctx context.Context, _ *agentsv1
 	}
 	all, err := s.repo.ListWorkspaces(ctx)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.ListWorkspacesResponse{Workspaces: all}, nil
 }
 
 func (s *WorkspaceServiceServer) GetWorkspace(ctx context.Context, req *agentsv1.GetWorkspaceRequest) (*agentsv1.GetWorkspaceResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace store not available"))
 	}
 	if req.GetId() == "" {
-		return nil, twirp.RequiredArgumentError("id")
+		return nil, connectx.RequiredArgument("id")
 	}
 	if err := s.requireMembership(ctx, req.GetId()); err != nil {
 		return nil, err
@@ -80,19 +81,19 @@ func (s *WorkspaceServiceServer) GetWorkspace(ctx context.Context, req *agentsv1
 
 func (s *WorkspaceServiceServer) CreateWorkspace(ctx context.Context, req *agentsv1.CreateWorkspaceRequest) (*agentsv1.CreateWorkspaceResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace store not available"))
 	}
 	in := req.GetWorkspace()
 	if in == nil {
-		return nil, twirp.RequiredArgumentError("workspace")
+		return nil, connectx.RequiredArgument("workspace")
 	}
 	name := strings.TrimSpace(in.GetName())
 	slug := strings.TrimSpace(in.GetSlug())
 	if name == "" {
-		return nil, twirp.RequiredArgumentError("name")
+		return nil, connectx.RequiredArgument("name")
 	}
 	if slug == "" {
-		return nil, twirp.RequiredArgumentError("slug")
+		return nil, connectx.RequiredArgument("slug")
 	}
 
 	logger := log.FromContext(ctx)
@@ -130,11 +131,11 @@ func (s *WorkspaceServiceServer) CreateWorkspace(ctx context.Context, req *agent
 
 func (s *WorkspaceServiceServer) UpdateWorkspace(ctx context.Context, req *agentsv1.UpdateWorkspaceRequest) (*agentsv1.UpdateWorkspaceResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace store not available"))
 	}
 	in := req.GetWorkspace()
 	if in == nil || in.GetId() == "" {
-		return nil, twirp.RequiredArgumentError("workspace.id")
+		return nil, connectx.RequiredArgument("workspace.id")
 	}
 	if err := s.requireRole(ctx, in.GetId(), "owner"); err != nil {
 		return nil, err
@@ -152,10 +153,10 @@ func (s *WorkspaceServiceServer) UpdateWorkspace(ctx context.Context, req *agent
 
 func (s *WorkspaceServiceServer) DeleteWorkspace(ctx context.Context, req *agentsv1.DeleteWorkspaceRequest) (*agentsv1.DeleteWorkspaceResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace store not available"))
 	}
 	if req.GetId() == "" {
-		return nil, twirp.RequiredArgumentError("id")
+		return nil, connectx.RequiredArgument("id")
 	}
 	if err := s.requireRole(ctx, req.GetId(), "owner"); err != nil {
 		return nil, err
@@ -174,27 +175,27 @@ func (s *WorkspaceServiceServer) ListWorkspaceMembers(ctx context.Context, req *
 		return &agentsv1.ListWorkspaceMembersResponse{}, nil
 	}
 	if req.GetWorkspaceId() == "" {
-		return nil, twirp.RequiredArgumentError("workspace_id")
+		return nil, connectx.RequiredArgument("workspace_id")
 	}
 	if err := s.requireMembership(ctx, req.GetWorkspaceId()); err != nil {
 		return nil, err
 	}
 	members, err := s.repo.ListMembers(ctx, req.GetWorkspaceId())
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.ListWorkspaceMembersResponse{Members: members}, nil
 }
 
 func (s *WorkspaceServiceServer) AddWorkspaceMember(ctx context.Context, req *agentsv1.AddWorkspaceMemberRequest) (*agentsv1.AddWorkspaceMemberResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace store not available"))
 	}
 	if req.GetWorkspaceId() == "" {
-		return nil, twirp.RequiredArgumentError("workspace_id")
+		return nil, connectx.RequiredArgument("workspace_id")
 	}
 	if req.GetUserId() == "" {
-		return nil, twirp.RequiredArgumentError("user_id")
+		return nil, connectx.RequiredArgument("user_id")
 	}
 	if err := s.requireRole(ctx, req.GetWorkspaceId(), "owner"); err != nil {
 		return nil, err
@@ -221,13 +222,13 @@ func (s *WorkspaceServiceServer) AddWorkspaceMember(ctx context.Context, req *ag
 
 func (s *WorkspaceServiceServer) UpdateWorkspaceMember(ctx context.Context, req *agentsv1.UpdateWorkspaceMemberRequest) (*agentsv1.UpdateWorkspaceMemberResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace store not available"))
 	}
 	if req.GetWorkspaceId() == "" {
-		return nil, twirp.RequiredArgumentError("workspace_id")
+		return nil, connectx.RequiredArgument("workspace_id")
 	}
 	if req.GetUserId() == "" {
-		return nil, twirp.RequiredArgumentError("user_id")
+		return nil, connectx.RequiredArgument("user_id")
 	}
 	if err := s.requireRole(ctx, req.GetWorkspaceId(), "owner"); err != nil {
 		return nil, err
@@ -249,13 +250,13 @@ func (s *WorkspaceServiceServer) UpdateWorkspaceMember(ctx context.Context, req 
 
 func (s *WorkspaceServiceServer) RemoveWorkspaceMember(ctx context.Context, req *agentsv1.RemoveWorkspaceMemberRequest) (*agentsv1.RemoveWorkspaceMemberResponse, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "workspace store not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace store not available"))
 	}
 	if req.GetWorkspaceId() == "" {
-		return nil, twirp.RequiredArgumentError("workspace_id")
+		return nil, connectx.RequiredArgument("workspace_id")
 	}
 	if req.GetUserId() == "" {
-		return nil, twirp.RequiredArgumentError("user_id")
+		return nil, connectx.RequiredArgument("user_id")
 	}
 	if err := s.requireRole(ctx, req.GetWorkspaceId(), "owner"); err != nil {
 		return nil, err
@@ -277,14 +278,14 @@ func (s *WorkspaceServiceServer) requireMembership(ctx context.Context, workspac
 	}
 	user, ok := auth.UserFromContext(ctx)
 	if !ok {
-		return twirp.NewError(twirp.Unauthenticated, "authentication required")
+		return connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
 	}
 	member, err := s.repo.IsMember(ctx, workspaceID, user.GetId())
 	if err != nil {
-		return twirp.InternalErrorWith(err)
+		return connectx.InternalWith(err)
 	}
 	if !member {
-		return twirp.NotFoundError("workspace not found")
+		return connectx.NotFound("workspace not found")
 	}
 	return nil
 }
@@ -298,30 +299,30 @@ func (s *WorkspaceServiceServer) requireRole(ctx context.Context, workspaceID st
 	}
 	user, ok := auth.UserFromContext(ctx)
 	if !ok {
-		return twirp.NewError(twirp.Unauthenticated, "authentication required")
+		return connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
 	}
 	member, err := s.repo.GetMember(ctx, workspaceID, user.GetId())
 	if err != nil {
 		if errors.Is(err, workspacerepo.ErrNotFound) {
-			return twirp.NotFoundError("workspace not found")
+			return connectx.NotFound("workspace not found")
 		}
-		return twirp.InternalErrorWith(err)
+		return connectx.InternalWith(err)
 	}
 	if slices.Contains(roles, member.GetRole()) {
 		return nil
 	}
-	return twirp.NewError(twirp.PermissionDenied, "insufficient workspace role")
+	return connect.NewError(connect.CodePermissionDenied, errors.New("insufficient workspace role"))
 }
 
-func mapWorkspaceErr(err error) twirp.Error {
+func mapWorkspaceErr(err error) *connect.Error {
 	if err == nil {
 		return nil
 	}
 	if errors.Is(err, workspacerepo.ErrNotFound) {
-		return twirp.NotFoundError(err.Error())
+		return connectx.NotFound(err.Error())
 	}
 	if errors.Is(err, workspacerepo.ErrAlreadyExists) {
-		return twirp.NewError(twirp.AlreadyExists, err.Error())
+		return connect.NewError(connect.CodeAlreadyExists, errors.New(err.Error()))
 	}
-	return twirp.InternalErrorWith(err)
+	return connectx.InternalWith(err)
 }

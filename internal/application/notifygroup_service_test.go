@@ -4,8 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/twitchtv/twirp"
-
+	"connectrpc.com/connect"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/config/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -85,7 +84,7 @@ func TestNotifyGroupServiceServer_ValidatesNotifyGroup(t *testing.T) {
 			store := memory.New()
 			svc := NewNotifyGroupServiceServer(store)
 			_, err := svc.CreateNotifyGroup(ctx, &agentsv1.CreateNotifyGroupRequest{NotifyGroup: tt.group})
-			if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+			if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 				t.Fatalf("expected validation error, got %v", err)
 			}
 			if _, err := store.GetNotifyGroup(ctx, wsTest, "ops"); !errors.Is(err, configrepo.ErrNotFound) {

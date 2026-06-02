@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
@@ -196,8 +196,8 @@ func TestWorkspaceService_GetWorkspace_NonMemberDenied(t *testing.T) {
 	// Outsider user is not a member of ws-a.
 	ctx := ctxAsUser("user", "u-outsider")
 	_, err := svc.GetWorkspace(ctx, &agentsv1.GetWorkspaceRequest{Id: "ws-a"})
-	twerr, ok := err.(twirp.Error)
-	if !ok || twerr.Code() != twirp.NotFound {
+	twerr, ok := err.(*connect.Error)
+	if !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound for non-member, got %v", err)
 	}
 }
@@ -223,15 +223,15 @@ func TestWorkspaceService_DeleteWorkspace_MemberDenied(t *testing.T) {
 
 	// "member" role is in the workspace but lacks owner privileges.
 	_, err := svc.DeleteWorkspace(ctxAsUser("user", "u-member"), &agentsv1.DeleteWorkspaceRequest{Id: "ws-a"})
-	twerr, ok := err.(twirp.Error)
-	if !ok || twerr.Code() != twirp.PermissionDenied {
+	twerr, ok := err.(*connect.Error)
+	if !ok || twerr.Code() != connect.CodePermissionDenied {
 		t.Fatalf("expected PermissionDenied for non-owner, got %v", err)
 	}
 
 	// Outsider — never a member — should not be told the workspace exists.
 	_, err = svc.DeleteWorkspace(ctxAsUser("user", "u-outsider"), &agentsv1.DeleteWorkspaceRequest{Id: "ws-a"})
-	twerr, ok = err.(twirp.Error)
-	if !ok || twerr.Code() != twirp.NotFound {
+	twerr, ok = err.(*connect.Error)
+	if !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound for outsider, got %v", err)
 	}
 
@@ -251,8 +251,8 @@ func TestWorkspaceService_AddMember_NonOwnerDenied(t *testing.T) {
 		UserId:      "u-attacker",
 		Role:        "owner",
 	})
-	twerr, ok := err.(twirp.Error)
-	if !ok || twerr.Code() != twirp.PermissionDenied {
+	twerr, ok := err.(*connect.Error)
+	if !ok || twerr.Code() != connect.CodePermissionDenied {
 		t.Fatalf("expected PermissionDenied, got %v", err)
 	}
 	if got, _ := repo.GetMember(context.Background(), "ws-a", "u-attacker"); got != nil {

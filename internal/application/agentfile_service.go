@@ -7,9 +7,10 @@ import (
 	"sort"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 
 	"go.orx.me/apps/butter/internal/repo/agentfile"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -35,7 +36,7 @@ func (s *AgentFileServiceServer) SetMaxFileBytes(max int64) {
 
 func (s *AgentFileServiceServer) requireRepo() (agentfile.Repository, error) {
 	if s.repo == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "agent file repository not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent file repository not available"))
 	}
 	return s.repo, nil
 }
@@ -51,7 +52,7 @@ func (s *AgentFileServiceServer) ListAgentFileSpaces(ctx context.Context, _ *age
 	}
 	spaces, err := repo.ListSpaces(ctx, wsID)
 	if err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.ListAgentFileSpacesResponse{Spaces: spaces}, nil
 }
@@ -62,7 +63,7 @@ func (s *AgentFileServiceServer) GetAgentFileSpace(ctx context.Context, req *age
 		return nil, err
 	}
 	if req.GetId() == "" {
-		return nil, twirp.RequiredArgumentError("id")
+		return nil, connectx.RequiredArgument("id")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -70,7 +71,7 @@ func (s *AgentFileServiceServer) GetAgentFileSpace(ctx context.Context, req *age
 	}
 	space, err := repo.GetSpace(ctx, wsID, req.GetId())
 	if err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.GetAgentFileSpaceResponse{Space: space}, nil
 }
@@ -81,10 +82,10 @@ func (s *AgentFileServiceServer) CreateAgentFileSpace(ctx context.Context, req *
 		return nil, err
 	}
 	if req.GetSpace() == nil {
-		return nil, twirp.RequiredArgumentError("space")
+		return nil, connectx.RequiredArgument("space")
 	}
 	if req.GetSpace().GetName() == "" {
-		return nil, twirp.RequiredArgumentError("space.name")
+		return nil, connectx.RequiredArgument("space.name")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -94,7 +95,7 @@ func (s *AgentFileServiceServer) CreateAgentFileSpace(ctx context.Context, req *
 	logger.Info("creating agent file space", "workspace_id", wsID, "name", req.GetSpace().GetName())
 	space, err := repo.CreateSpace(ctx, wsID, req.GetSpace())
 	if err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.CreateAgentFileSpaceResponse{Space: space}, nil
 }
@@ -105,13 +106,13 @@ func (s *AgentFileServiceServer) UpdateAgentFileSpace(ctx context.Context, req *
 		return nil, err
 	}
 	if req.GetSpace() == nil {
-		return nil, twirp.RequiredArgumentError("space")
+		return nil, connectx.RequiredArgument("space")
 	}
 	if req.GetSpace().GetId() == "" {
-		return nil, twirp.RequiredArgumentError("space.id")
+		return nil, connectx.RequiredArgument("space.id")
 	}
 	if req.GetSpace().GetName() == "" {
-		return nil, twirp.RequiredArgumentError("space.name")
+		return nil, connectx.RequiredArgument("space.name")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -119,7 +120,7 @@ func (s *AgentFileServiceServer) UpdateAgentFileSpace(ctx context.Context, req *
 	}
 	space, err := repo.UpdateSpace(ctx, wsID, req.GetSpace())
 	if err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.UpdateAgentFileSpaceResponse{Space: space}, nil
 }
@@ -130,14 +131,14 @@ func (s *AgentFileServiceServer) DeleteAgentFileSpace(ctx context.Context, req *
 		return nil, err
 	}
 	if req.GetId() == "" {
-		return nil, twirp.RequiredArgumentError("id")
+		return nil, connectx.RequiredArgument("id")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if err := repo.DeleteSpace(ctx, wsID, req.GetId()); err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.DeleteAgentFileSpaceResponse{}, nil
 }
@@ -148,7 +149,7 @@ func (s *AgentFileServiceServer) ListAgentFiles(ctx context.Context, req *agents
 		return nil, err
 	}
 	if req.GetSpaceId() == "" {
-		return nil, twirp.RequiredArgumentError("space_id")
+		return nil, connectx.RequiredArgument("space_id")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -156,7 +157,7 @@ func (s *AgentFileServiceServer) ListAgentFiles(ctx context.Context, req *agents
 	}
 	files, err := repo.ListFiles(ctx, wsID, req.GetSpaceId(), req.GetPathPrefix())
 	if err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	sort.SliceStable(files, func(i, j int) bool { return files[i].GetPath() < files[j].GetPath() })
 	return &agentsv1.ListAgentFilesResponse{Files: files}, nil
@@ -168,10 +169,10 @@ func (s *AgentFileServiceServer) GetAgentFile(ctx context.Context, req *agentsv1
 		return nil, err
 	}
 	if req.GetSpaceId() == "" {
-		return nil, twirp.RequiredArgumentError("space_id")
+		return nil, connectx.RequiredArgument("space_id")
 	}
 	if req.GetPath() == "" {
-		return nil, twirp.RequiredArgumentError("path")
+		return nil, connectx.RequiredArgument("path")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -179,7 +180,7 @@ func (s *AgentFileServiceServer) GetAgentFile(ctx context.Context, req *agentsv1
 	}
 	file, content, err := repo.ReadFile(ctx, wsID, req.GetSpaceId(), req.GetPath(), req.GetVersion())
 	if err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.GetAgentFileResponse{File: file, Content: content}, nil
 }
@@ -190,13 +191,13 @@ func (s *AgentFileServiceServer) WriteAgentFile(ctx context.Context, req *agents
 		return nil, err
 	}
 	if req.GetSpaceId() == "" {
-		return nil, twirp.RequiredArgumentError("space_id")
+		return nil, connectx.RequiredArgument("space_id")
 	}
 	if req.GetPath() == "" {
-		return nil, twirp.RequiredArgumentError("path")
+		return nil, connectx.RequiredArgument("path")
 	}
 	if max := s.maxFileBytes; max > 0 && int64(len([]byte(req.GetContent()))) > max {
-		return nil, twirp.InvalidArgumentError("content", fmt.Sprintf("content exceeds max file size of %d bytes", max))
+		return nil, connectx.InvalidArgument("content", fmt.Sprintf("content exceeds max file size of %d bytes", max))
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -204,7 +205,7 @@ func (s *AgentFileServiceServer) WriteAgentFile(ctx context.Context, req *agents
 	}
 	file, err := repo.WriteFile(ctx, wsID, req.GetSpaceId(), req.GetPath(), req.GetContent(), req.GetContentType(), req.GetMetadata())
 	if err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.WriteAgentFileResponse{File: file}, nil
 }
@@ -215,17 +216,17 @@ func (s *AgentFileServiceServer) DeleteAgentFile(ctx context.Context, req *agent
 		return nil, err
 	}
 	if req.GetSpaceId() == "" {
-		return nil, twirp.RequiredArgumentError("space_id")
+		return nil, connectx.RequiredArgument("space_id")
 	}
 	if req.GetPath() == "" {
-		return nil, twirp.RequiredArgumentError("path")
+		return nil, connectx.RequiredArgument("path")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if err := repo.DeleteFile(ctx, wsID, req.GetSpaceId(), req.GetPath()); err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.DeleteAgentFileResponse{}, nil
 }
@@ -236,10 +237,10 @@ func (s *AgentFileServiceServer) SearchAgentFiles(ctx context.Context, req *agen
 		return nil, err
 	}
 	if req.GetSpaceId() == "" {
-		return nil, twirp.RequiredArgumentError("space_id")
+		return nil, connectx.RequiredArgument("space_id")
 	}
 	if req.GetQuery() == "" {
-		return nil, twirp.RequiredArgumentError("query")
+		return nil, connectx.RequiredArgument("query")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -247,25 +248,26 @@ func (s *AgentFileServiceServer) SearchAgentFiles(ctx context.Context, req *agen
 	}
 	results, err := repo.SearchFiles(ctx, wsID, req.GetSpaceId(), req.GetQuery(), int(req.GetLimit()))
 	if err != nil {
-		return nil, toAgentFileTwirpError(err)
+		return nil, toConnectAgentFileError(err)
 	}
 	return &agentsv1.SearchAgentFilesResponse{Results: results}, nil
 }
 
-func toAgentFileTwirpError(err error) twirp.Error {
-	if twerr, ok := err.(twirp.Error); ok {
-		return twerr
+func toConnectAgentFileError(err error) *connect.Error {
+	var cerr *connect.Error
+	if errors.As(err, &cerr) {
+		return cerr
 	}
 	if errors.Is(err, agentfile.ErrNotFound) {
-		return twirp.NotFoundError(err.Error())
+		return connectx.NotFound(err.Error())
 	}
 	if errors.Is(err, agentfile.ErrAlreadyExists) {
-		return twirp.NewError(twirp.AlreadyExists, err.Error())
+		return connect.NewError(connect.CodeAlreadyExists, errors.New(err.Error()))
 	}
 	if errors.Is(err, agentfile.ErrInvalidPath) {
-		return twirp.InvalidArgumentError("path", err.Error())
+		return connectx.InvalidArgument("path", err.Error())
 	}
-	return twirp.InternalErrorWith(err)
+	return connectx.InternalWith(err)
 }
 
 const defaultAgentFileMaxBytes int64 = 256 * 1024

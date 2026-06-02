@@ -4,8 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/twitchtv/twirp"
-
+	"connectrpc.com/connect"
 	"go.orx.me/apps/butter/internal/mcpoauth"
 	"go.orx.me/apps/butter/internal/repo/config/memory"
 	mcpoauthmemory "go.orx.me/apps/butter/internal/repo/mcpoauth/memory"
@@ -21,7 +20,7 @@ func TestMCPServerServiceServer_OAuthValidation(t *testing.T) {
 		Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_UNSPECIFIED,
 		Auth:      oauthAuth("https://issuer.example.com/authorize", "https://issuer.example.com/token"),
 	}})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 		t.Fatalf("expected invalid argument for unsupported transport, got %v", err)
 	}
 

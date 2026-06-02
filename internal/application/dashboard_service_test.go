@@ -4,8 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/twitchtv/twirp"
-
+	"connectrpc.com/connect"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -47,6 +46,6 @@ func TestDashboard_RequiresAdmin(t *testing.T) {
 }
 
 func isPermissionDenied(err error) bool {
-	twerr, ok := err.(twirp.Error)
-	return ok && twerr.Code() == twirp.PermissionDenied
+	twerr, ok := err.(*connect.Error)
+	return ok && twerr.Code() == connect.CodePermissionDenied
 }

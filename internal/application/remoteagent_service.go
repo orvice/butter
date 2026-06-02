@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -42,7 +42,7 @@ func (s *RemoteAgentServiceServer) ListRemoteAgents(ctx context.Context, _ *agen
 	}
 	agents, err := s.repo.ListRemoteAgents(ctx, wsID)
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.ListRemoteAgentsResponse{RemoteAgents: agents}, nil
 }
@@ -54,7 +54,7 @@ func (s *RemoteAgentServiceServer) GetRemoteAgent(ctx context.Context, req *agen
 	}
 	r, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	return &agentsv1.GetRemoteAgentResponse{RemoteAgent: r}, nil
 }
@@ -89,7 +89,7 @@ func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *a
 	)
 	if err != nil {
 		logger.Error("create remote agent failed", "workspace_id", wsID, "name", req.GetRemoteAgent().GetName(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("remote agent created", "workspace_id", wsID, "id", r.GetId(), "name", r.GetName())
 	return &agentsv1.CreateRemoteAgentResponse{RemoteAgent: r}, nil
@@ -106,7 +106,7 @@ func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *a
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetRemoteAgent().GetId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("updating remote agent", "workspace_id", wsID, "id", req.GetRemoteAgent().GetId(), "name", req.GetRemoteAgent().GetName())
 
@@ -126,7 +126,7 @@ func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *a
 	)
 	if err != nil {
 		logger.Error("update remote agent failed", "workspace_id", wsID, "id", req.GetRemoteAgent().GetId(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("remote agent updated", "workspace_id", wsID, "id", r.GetId(), "name", r.GetName())
 	return &agentsv1.UpdateRemoteAgentResponse{RemoteAgent: r}, nil
@@ -140,7 +140,7 @@ func (s *RemoteAgentServiceServer) DeleteRemoteAgent(ctx context.Context, req *a
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("deleting remote agent", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
 
@@ -160,7 +160,7 @@ func (s *RemoteAgentServiceServer) DeleteRemoteAgent(ctx context.Context, req *a
 	)
 	if err != nil {
 		logger.Error("delete remote agent failed", "workspace_id", wsID, "id", req.GetId(), "err", err)
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 	logger.Info("remote agent deleted", "workspace_id", wsID, "id", req.GetId(), "name", prev.GetName())
 	return &agentsv1.DeleteRemoteAgentResponse{}, nil
@@ -173,7 +173,7 @@ func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req
 	}
 	ra, err := s.repo.GetRemoteAgent(ctx, wsID, req.GetId())
 	if err != nil {
-		return nil, toTwirpError(err)
+		return nil, toConnectError(err)
 	}
 
 	status := &agentsv1.RemoteAgentStatus{
@@ -239,7 +239,7 @@ func validateRemoteAgentURL(ra *agentsv1.RemoteAgent) error {
 	raw := strings.TrimSpace(ra.GetUrl())
 	if ra.GetProtocol() == agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_A2A {
 		if raw == "" {
-			return twirp.RequiredArgumentError("url")
+			return connectx.RequiredArgument("url")
 		}
 		return validateHTTPURL("url", raw)
 	}
@@ -273,7 +273,7 @@ func (s *RemoteAgentServiceServer) reloadRuntime(ctx context.Context) error {
 		return nil
 	}
 	if err := s.runtime.ReloadRunner(ctx); err != nil {
-		return toTwirpError(err)
+		return toConnectError(err)
 	}
 	return nil
 }

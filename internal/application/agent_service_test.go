@@ -5,8 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/twitchtv/twirp"
-
+	"connectrpc.com/connect"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/config/memory"
 	"go.orx.me/apps/butter/internal/workspace"
@@ -75,7 +74,7 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.AlreadyExists {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeAlreadyExists {
 		t.Fatalf("expected AlreadyExists, got %v", err)
 	}
 
@@ -90,7 +89,7 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 
 	// Get not found
 	_, err = svc.GetAgent(ctx, &agentsv1.GetAgentRequest{Name: "nope"})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.NotFound {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
 
@@ -113,7 +112,7 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 
 	// Delete not found
 	_, err = svc.DeleteAgent(ctx, &agentsv1.DeleteAgentRequest{Name: "a1"})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.NotFound {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
 }
@@ -136,7 +135,7 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	_, err = svc.CreateMCPServer(ctx, &agentsv1.CreateMCPServerRequest{
 		McpServer: testMCPServer("m1", "mcp1 duplicate"),
 	})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.AlreadyExists {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeAlreadyExists {
 		t.Fatalf("expected AlreadyExists, got %v", err)
 	}
 
@@ -154,7 +153,7 @@ func TestMCPServerServiceServer_CRUD(t *testing.T) {
 	}
 
 	_, err = svc.GetMCPServer(ctx, &agentsv1.GetMCPServerRequest{Id: "m1"})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.NotFound {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
 }
@@ -171,7 +170,7 @@ func TestMCPServerServiceServer_ValidationRejectsUnsupportedTransportAndMissingU
 			Url:       "https://mcp.example.com/mcp",
 		},
 	})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 		t.Fatalf("expected InvalidArgument for unsupported transport, got %v", err)
 	}
 
@@ -182,7 +181,7 @@ func TestMCPServerServiceServer_ValidationRejectsUnsupportedTransportAndMissingU
 			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
 		},
 	})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 		t.Fatalf("expected InvalidArgument for missing URL, got %v", err)
 	}
 }
@@ -205,7 +204,7 @@ func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
 	_, err = svc.CreateRemoteAgent(ctx, &agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1"},
 	})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.AlreadyExists {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeAlreadyExists {
 		t.Fatalf("expected AlreadyExists, got %v", err)
 	}
 
@@ -223,7 +222,7 @@ func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
 	}
 
 	_, err = svc.GetRemoteAgent(ctx, &agentsv1.GetRemoteAgentRequest{Id: "r1"})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.NotFound {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
 }
@@ -280,7 +279,7 @@ func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
 				}},
 			},
 		})
-		if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 			t.Fatalf("expected InvalidArgument, got %v", err)
 		}
 		if _, err := store.GetChannel(ctx, wsTest, "ch1"); !errors.Is(err, configrepo.ErrNotFound) {
@@ -304,7 +303,7 @@ func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
 				}},
 			},
 		})
-		if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.InvalidArgument {
+		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
 			t.Fatalf("expected InvalidArgument, got %v", err)
 		}
 	})
@@ -336,7 +335,7 @@ func TestChannelServiceServer_ReloadError(t *testing.T) {
 	_, err := svc.CreateChannel(testCtx(), &agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
 	})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
 	if _, err := store.GetChannel(context.Background(), wsTest, "ch1"); !errors.Is(err, configrepo.ErrNotFound) {
@@ -372,7 +371,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		_, err := svc.CreateAgent(ctx, &agentsv1.CreateAgentRequest{
 			Agent: &agentsv1.Agent{Name: "a1"},
 		})
-		if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
+		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
 		}
 		if _, err := store.GetAgent(ctx, wsTest, "a1"); !errors.Is(err, configrepo.ErrNotFound) {
@@ -392,7 +391,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		_, err := svc.UpdateAgent(ctx, &agentsv1.UpdateAgentRequest{
 			Agent: &agentsv1.Agent{Name: "a1", Description: "after"},
 		})
-		if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
+		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
 		}
 
@@ -415,7 +414,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
 		_, err := svc.DeleteAgent(ctx, &agentsv1.DeleteAgentRequest{Name: "a1"})
-		if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
+		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
 		}
 
@@ -454,7 +453,7 @@ func TestMCPServerServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 	_, err := svc.CreateMCPServer(testCtx(), &agentsv1.CreateMCPServerRequest{
 		McpServer: testMCPServer("m1", "mcp1"),
 	})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
 	if _, err := store.GetMCPServer(context.Background(), wsTest, "m1"); !errors.Is(err, configrepo.ErrNotFound) {
@@ -487,7 +486,7 @@ func TestRemoteAgentServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 	_, err := svc.CreateRemoteAgent(testCtx(), &agentsv1.CreateRemoteAgentRequest{
 		RemoteAgent: &agentsv1.RemoteAgent{Id: "r1", Name: "ra1", Url: "http://example.com"},
 	})
-	if twerr, ok := err.(twirp.Error); !ok || twerr.Code() != twirp.Internal {
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 		t.Fatalf("expected Internal, got %v", err)
 	}
 	if _, err := store.GetRemoteAgent(context.Background(), wsTest, "r1"); !errors.Is(err, configrepo.ErrNotFound) {

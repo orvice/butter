@@ -12,13 +12,14 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
-	"github.com/twitchtv/twirp"
+	"connectrpc.com/connect"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/adk/session"
 )
@@ -78,7 +79,7 @@ func (s *SessionServiceServer) getRunnerSvc() *runner.Service {
 func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.CreateSessionRequest) (*agentsv1.CreateSessionResponse, error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "session service not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
 	var state map[string]any
@@ -100,7 +101,7 @@ func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.
 			"session_id", req.GetSessionId(),
 			"err", err,
 		)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 
 	logger.Info("session created",
@@ -114,7 +115,7 @@ func (s *SessionServiceServer) CreateSession(ctx context.Context, req *agentsv1.
 func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.GetSessionRequest) (*agentsv1.GetSessionResponse, error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "session service not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
 	resp, err := sessionSvc.Get(ctx, &session.GetRequest{
@@ -125,15 +126,15 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.Get
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			return nil, twirp.NewError(twirp.Canceled, err.Error())
+			return nil, connect.NewError(connect.CodeCanceled, errors.New(err.Error()))
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, twirp.NewError(twirp.DeadlineExceeded, err.Error())
+			return nil, connect.NewError(connect.CodeDeadlineExceeded, errors.New(err.Error()))
 		}
 		if strings.Contains(strings.ToLower(err.Error()), "session not found") {
-			return nil, twirp.NotFoundError(err.Error())
+			return nil, connectx.NotFound(err.Error())
 		}
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 
 	detail := &agentsv1.SessionDetail{
@@ -164,7 +165,7 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *agentsv1.Get
 func (s *SessionServiceServer) ListSessions(ctx context.Context, req *agentsv1.ListSessionsRequest) (*agentsv1.ListSessionsResponse, error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "session service not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
 	resp, err := sessionSvc.List(ctx, &session.ListRequest{
@@ -172,7 +173,7 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *agentsv1.L
 		UserID:  req.GetUserId(),
 	})
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 
 	// Apply date-range filter at the service layer since ADK session.ListRequest
@@ -235,7 +236,7 @@ func paginateSessions(items []*agentsv1.SessionInfo, pageSize int32, pageToken s
 func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.DeleteSessionRequest) (*agentsv1.DeleteSessionResponse, error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "session service not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
 	logger := log.FromContext(ctx)
@@ -251,7 +252,7 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.
 			"session_id", req.GetSessionId(),
 			"err", err,
 		)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("session deleted",
 		"app_name", req.GetAppName(),
@@ -264,7 +265,7 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *agentsv1.
 func (s *SessionServiceServer) ReplySession(ctx context.Context, req *agentsv1.ReplySessionRequest) (*agentsv1.ReplySessionResponse, error) {
 	runnerSvc := s.getRunnerSvc()
 	if runnerSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "runner service not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
 
 	textPart := &genai.Part{Text: req.GetMessage()}
@@ -292,7 +293,7 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *agentsv1.R
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"err", err,
 		)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("session reply completed",
 		"agent", req.GetAgentName(),

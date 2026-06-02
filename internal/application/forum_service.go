@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/twitchtv/twirp"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -18,6 +18,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/repo/forum"
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -78,7 +79,7 @@ func (s *ForumServiceServer) ListThreads(ctx context.Context, req *agentsv1.List
 	}
 	threads, next, total, err := repo.ListThreads(ctx, forum.ThreadListFilter{WorkspaceID: workspaceID, Status: strings.TrimSpace(req.GetStatus()), Label: strings.TrimSpace(req.GetLabel())}, req.GetPageSize(), req.GetPageToken())
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.ListThreadsResponse{Threads: threads, NextPageToken: next, Total: total}, nil
 }
@@ -90,7 +91,7 @@ func (s *ForumServiceServer) ListThreadLabels(ctx context.Context, _ *agentsv1.L
 	}
 	labels, err := repo.ListThreadLabels(ctx, workspaceID)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.ListThreadLabelsResponse{Labels: labels}, nil
 }
@@ -106,7 +107,7 @@ func (s *ForumServiceServer) GetThread(ctx context.Context, req *agentsv1.GetThr
 	}
 	posts, next, total, err := repo.ListPosts(ctx, forum.PostListFilter{WorkspaceID: workspaceID, ThreadID: req.GetId()}, req.GetPostPageSize(), req.GetPostPageToken())
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.GetThreadResponse{Thread: thread, Posts: posts, NextPostPageToken: next, PostTotal: total}, nil
 }
@@ -120,10 +121,10 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.Cre
 	title := strings.TrimSpace(req.GetTitle())
 	body := strings.TrimSpace(req.GetBody())
 	if title == "" {
-		return nil, twirp.RequiredArgumentError("title")
+		return nil, connectx.RequiredArgument("title")
 	}
 	if body == "" {
-		return nil, twirp.RequiredArgumentError("body")
+		return nil, connectx.RequiredArgument("body")
 	}
 	now := timestamppb.New(time.Now().UTC())
 	threadID := uuid.NewString()
@@ -151,11 +152,11 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *agentsv1.Cre
 		WorkspaceId:  workspaceID,
 	}
 	if err := repo.CreateThread(ctx, thread); err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	if err := repo.CreatePost(ctx, post); err != nil {
 		_ = repo.DeleteThread(ctx, workspaceID, threadID)
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	if runnerSvc := s.getRunner(); runnerSvc != nil && len(thread.GetAgentNames()) > 0 {
 		bgCtx := wsctx.WithID(context.Background(), workspaceID)
@@ -261,7 +262,7 @@ func (s *ForumServiceServer) CreatePost(ctx context.Context, req *agentsv1.Creat
 	}
 	body := strings.TrimSpace(req.GetBody())
 	if body == "" {
-		return nil, twirp.RequiredArgumentError("body")
+		return nil, connectx.RequiredArgument("body")
 	}
 	now := timestamppb.New(time.Now().UTC())
 	post := &agentsv1.ForumPost{
@@ -276,7 +277,7 @@ func (s *ForumServiceServer) CreatePost(ctx context.Context, req *agentsv1.Creat
 		WorkspaceId:  workspaceID,
 	}
 	if err := repo.CreatePost(ctx, post); err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	return &agentsv1.CreatePostResponse{Post: post}, nil
 }
@@ -299,11 +300,11 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agent
 	}
 	runnerSvc := s.getRunner()
 	if runnerSvc == nil {
-		return nil, twirp.NewError(twirp.FailedPrecondition, "runner service not available")
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
 	agentName := strings.TrimSpace(req.GetAgentName())
 	if agentName == "" {
-		return nil, twirp.RequiredArgumentError("agent_name")
+		return nil, connectx.RequiredArgument("agent_name")
 	}
 	if _, err := repo.GetThread(ctx, workspaceID, req.GetThreadId()); err != nil {
 		return nil, mapForumErr(err)
@@ -321,7 +322,7 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *agent
 	}
 	posts, err := repo.ListRecentPosts(ctx, workspaceID, req.GetThreadId(), limit)
 	if err != nil {
-		return nil, twirp.InternalErrorWith(err)
+		return nil, connectx.InternalWith(err)
 	}
 	userPost := &agentsv1.ForumPost{
 		Id:           uuid.NewString(),
@@ -436,11 +437,11 @@ func (s *ForumServiceServer) finishThreadProcessing(ctx context.Context, repo fo
 func (s *ForumServiceServer) requireRepoWorkspace(ctx context.Context) (forum.Repository, string, error) {
 	repo := s.getRepo()
 	if repo == nil {
-		return nil, "", twirp.NewError(twirp.FailedPrecondition, "forum repository not available")
+		return nil, "", connect.NewError(connect.CodeFailedPrecondition, errors.New("forum repository not available"))
 	}
 	workspaceID, ok := wsctx.FromContext(ctx)
 	if !ok || strings.TrimSpace(workspaceID) == "" {
-		return nil, "", twirp.NewError(twirp.FailedPrecondition, "workspace required")
+		return nil, "", connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace required"))
 	}
 	return repo, workspaceID, nil
 }
@@ -455,11 +456,11 @@ func authorUserID(ctx context.Context) string {
 func mapForumErr(err error) error {
 	switch {
 	case errors.Is(err, forum.ErrThreadNotFound), errors.Is(err, forum.ErrPostNotFound):
-		return twirp.NotFoundError(err.Error())
+		return connectx.NotFound(err.Error())
 	case errors.Is(err, forum.ErrThreadProcessing):
-		return twirp.NewError(twirp.FailedPrecondition, err.Error())
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New(err.Error()))
 	default:
-		return twirp.InternalErrorWith(err)
+		return connectx.InternalWith(err)
 	}
 }
 
@@ -523,5 +524,4 @@ func buildForumPrompt(thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost,
 	return b.String()
 }
 
-var _ agentsv1.ForumService = (*ForumServiceServer)(nil)
 var _ = proto.Clone
