@@ -53,9 +53,11 @@ Internal,InternalWith}` helper。生成的 `*.twirp.go` 文件、`go.mod` 里的
   `WrapUnary` 现在只是把方法包成 ConnectRPC handler 形状的一层，
   错误直接 forward。
 - `connectx.HandlerOptions()` 仍强制 JSON 输出为 snake_case
-  （`UseProtoNames=true`），这是为兼容 130+ 处前端直接读 snake_case 字段
-  （如 `counts.connected_daemons`）。要去掉这个 codec hack 就得全前端做
-  camelCase 重命名，单独发一个 PR 更合适。
+  （`UseProtoNames=true`）。**前端浏览器调用现已切换到 binary protobuf**
+  （`useBinaryFormat: true` in `front/src/api/transport.ts`），所以 JSON
+  codec 主要是给 `curl` 调试和未来非浏览器调用方留的兜底。要彻底去掉这个
+  codec hack 仍需全前端做 camelCase 重命名 + 撤掉 binary 切换，单独
+  PR 更合适。
 
 ## 3. 可选：原生 Connect 签名（更深度的清理）
 

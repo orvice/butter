@@ -39,8 +39,8 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `Cro
 - `internal/app/` — Application bootstrap and wiring. Split by concern: `routes.go` (HTTP + ConnectRPC route setup), `channels.go` (orchestration), `runtime.go` (MongoDB/Redis/Langfuse init), `cron.go` (scheduler init), `system_agent.go` (built-in agent registration).
 - `internal/config/` — `AppConfig` holds `[]agentsv1.Agent` and `[]agentsv1.AgentChannel` loaded from YAML by Butterfly.
 - `internal/handler/http/` — Gin HTTP handlers.
-- `internal/application/` — RPC service implementations (agent, session, cron, MCP server, remote agent, …). Each service has a `*_service.go` with the business logic plus a `*_connect.go` adapter that exposes it as a ConnectRPC handler via `connectx.WrapUnary`. Implementations currently still construct errors with `twirp.NewError`; the adapter translates them into `connect.Error` on the wire. See `docs/connectrpc-followups.md` for the Phase 3 cleanup that drops the Twirp dependency.
-- `internal/transport/connectx/` — Shared ConnectRPC plumbing: `WrapUnary` generic adapter, `TwirpErrorToConnect` code mapping, and the snake_case JSON codec installed via `HandlerOptions()` so the wire format stays compatible with the pre-migration Twirp output.
+- `internal/application/` — RPC service implementations (agent, session, cron, MCP server, remote agent, …). Each service has a `*_service.go` with the business logic plus a `*_connect.go` adapter that exposes it as a ConnectRPC handler via `connectx.WrapUnary`. Service methods keep raw proto request/response signatures and return `*connect.Error` directly via `connect.NewError` or local `connectx` helpers.
+- `internal/transport/connectx/` — Shared ConnectRPC plumbing: `WrapUnary` generic adapter, common `connect.Error` helpers, and the snake_case JSON codec installed via `HandlerOptions()` so the wire format stays compatible with the pre-migration JSON output.
 - `internal/service/` — Business logic.
 - `internal/repo/` — Data access abstractions.
 - `internal/store/config/` — In-memory CRUD store for agent/MCP/remote-agent configurations.
@@ -57,6 +57,6 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `Cro
 - `agent.proto` — Agent tree config: `Agent`, `AgentConfig`, `LLMAgentConfig`, `MCPServer`, workflow agent configs (Loop, Sequential, Parallel).
 - `agentchannel.proto` — Platform bindings: `AgentChannel`, triggers, delivery, Telegram config.
 
-Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plugins: protobuf-go, gRPC, gRPC-Gateway, ConnectRPC, validate, Twirp. (Twirp output is still generated but nothing in runtime code references it; slated for removal — see `docs/connectrpc-followups.md`.)
+Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plugins: protobuf-go, gRPC, gRPC-Gateway, ConnectRPC, validate, and bufbuild/es for the frontend. Twirp generation and runtime dependencies were removed in ConnectRPC Phase 3.
 
 **Config** is loaded by Butterfly from the YAML file pointed to by `BUTTERFLY_CONFIG_FILE_PATH`. The repository sample is `config.yaml`; deployments may copy it to `config/butter.yaml` or another path. Tracing uses OpenTelemetry (`BUTTERFLY_TRACING_PROVIDER`, `BUTTERFLY_TRACING_ENDPOINT`).

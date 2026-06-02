@@ -58,8 +58,7 @@ configurations/sessions in MongoDB and Redis.
   service.
 - **Fix:** Reject inputs above a configurable limit (default 1MB is
   generous for chat) with `connect.NewError(connect.CodeInvalidArgument, …)`
-  (or, while the migration adapter is still in place,
-  `twirp.InvalidArgumentError`).
+  or the local `connectx.InvalidArgument` helper.
 
 ---
 

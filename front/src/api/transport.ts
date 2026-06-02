@@ -50,6 +50,11 @@ function isProbeRequest(url: string): boolean {
 
 export const transport = createConnectTransport({
   baseUrl: `${BASE_URL}/api`,
+  // Use binary protobuf on the wire (Content-Type: application/proto). Roughly
+  // 30–50% smaller payloads + faster parse than the default JSON encoding;
+  // DevTools Network shows the body as binary so debugging falls back to
+  // breakpoints or `connect.Code` / `err.message` inspection.
+  useBinaryFormat: true,
   interceptors: [authInterceptor],
 });
 

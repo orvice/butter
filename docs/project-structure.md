@@ -1,6 +1,6 @@
 # 项目目录结构文档
 
-更新时间：2026-05-17
+更新时间：2026-06-03
 
 ```text
 butter/
@@ -65,7 +65,7 @@ butter/
 │   │   └── system_agent.go
 │   ├── application/             # RPC service implementations.
 │   │   │                        # Each service is split into:
-│   │   │                        #   <svc>_service.go  — business logic (Twirp-shaped signatures)
+│   │   │                        #   <svc>_service.go  — business logic (raw proto req/res)
 │   │   │                        #   <svc>_connect.go  — ConnectRPC adapter (delegates via WrapUnary)
 │   │   ├── agent_service.go
 │   │   ├── agent_connect.go
@@ -102,7 +102,7 @@ butter/
 │   │   ├── workspace_service.go
 │   │   └── workspace_connect.go
 │   ├── transport/
-│   │   └── connectx/            # WrapUnary adapter, Twirp→Connect error mapping,
+│   │   └── connectx/            # WrapUnary adapter, connect error helpers,
 │   │                            # snake_case JSON codec (HandlerOptions)
 │   ├── channel/
 │   │   ├── manager.go           # ChannelStatus + RuntimeState
@@ -175,7 +175,7 @@ butter/
 ├── .env.example
 ├── AGENTS.md
 ├── CLAUDE.md
-├── buf.gen.yaml                 # go + connect + grpc-gateway + validate + twirp (unused, see docs/connectrpc-followups.md) + bufbuild/es
+├── buf.gen.yaml                 # go + connect + grpc-gateway + validate + bufbuild/es
 ├── buf.lock
 ├── buf.yaml
 ├── config.yaml
@@ -191,8 +191,8 @@ butter/
 
 - `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 gRPC 反连服务端的 daemon client（自报 version / os / executors）。
 - `internal/app/`：应用装配与初始化（路由、gRPC、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
-- `internal/application/`：RPC 服务实现（Agent / AgentFile / MCPServer / GlobalMCPServer / ModelProvider / NotifyGroup / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken / Auth / Forum / Workspace）。每个服务一对文件：`*_service.go` 写业务逻辑（当前签名仍是 Twirp 风格，错误用 `twirp.NewError`），`*_connect.go` 是 ConnectRPC 适配器，通过 `connectx.WrapUnary` 把方法包成 `agentsv1connect.XxxServiceHandler`，并在出口把 `twirp.Error` 翻译成 `connect.Error`。彻底去 Twirp 依赖的计划见 `docs/connectrpc-followups.md`。
-- `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`WrapUnary` 把 Twirp 风格签名包成 Connect handler 方法；`TwirpErrorToConnect` 做错误码翻译；`HandlerOptions()` 返回固定的 codec/option 列表，强制 JSON 输出用 `UseProtoNames=true`（snake_case），与原 Twirp wire format 一致。
+- `internal/application/`：RPC 服务实现（Agent / AgentFile / MCPServer / GlobalMCPServer / ModelProvider / NotifyGroup / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken / Auth / Forum / Workspace）。每个服务一对文件：`*_service.go` 写业务逻辑，方法签名保持 `(ctx, *Req) (*Res, error)`，错误直接用 `connect.NewError` 或 `connectx` helper 返回 `*connect.Error`；`*_connect.go` 是 ConnectRPC 适配器，通过 `connectx.WrapUnary` 把方法包成 `agentsv1connect.XxxServiceHandler`。
+- `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`WrapUnary` 把 raw proto request/response 签名包成 Connect handler 方法，错误直接 forward；`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` 等 helper 负责常用 `connect.Error` 构造；`HandlerOptions()` 返回固定的 codec/option 列表，强制 JSON 输出用 `UseProtoNames=true`（snake_case），保持迁移前的 JSON wire format。
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
 - `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
 - `internal/channel/`：渠道适配与渠道管理（Telegram、Discord），含 `RuntimeState` 探活。
@@ -200,7 +200,7 @@ butter/
 - `internal/repo/`：仓库层。`config/` 是配置仓库（memory + mongo）；新增 `apitoken/` 与 `invocation/`，同样 memory + mongo 双实现。
 - `front/`：Vite + React 19 dashboard。`src/api/` 是类型化的 ConnectRPC 客户端（`@connectrpc/connect-web`，一服务一文件），`src/api/transport.ts` 提供共享 transport + 注入 Authorization / X-Workspace-ID 的 interceptor，`src/api/_proto-bridge.ts` 提供 Timestamp/Duration/bigint 转换工具；`src/gen/` 是 buf 生成的 TS proto 类型（含 service definitions），`src/pages/` 一个目录一屏。
 - `proto/`：Proto 定义源文件（agent + cron + daemon + dashboard + api_token + agentchannel + context）。
-- `pkg/proto/`：Proto 生成代码（Go + Connect + grpc + validate，Twirp 仍生成但未被运行时代码引用）；不要手改。
+- `pkg/proto/`：Proto 生成代码（Go + Connect + grpc + grpc-gateway + validate）；不要手改。Twirp 生成产物已在 ConnectRPC Phase 3 移除。
 - `.github/workflows/`：CI。后端走 `docker-publish.yml`，前端独立 `front-publish.yml`（`paths: front/**` 过滤），均推 ghcr 并 cosign 签名。
 - `docs/`：项目文档。系统架构见 `architecture.md`；API 契约见 `api.md`；功能总览见 `app.md`。
 

@@ -495,7 +495,7 @@ One-shot agent run. If `session_id` is empty an ephemeral id `invoke-<uuid>` is 
 POST /api/chat/stream
 ```
 
-Runs an agent and streams progress over Server-Sent Events (SSE). This endpoint is intended for chat UIs that need immediate invocation metadata, intermediate ADK runner events, and the final response without waiting for a unary Twirp response.
+Runs an agent and streams progress over Server-Sent Events (SSE). This endpoint is intended for chat UIs that need immediate invocation metadata, intermediate ADK runner events, and the final response without waiting for a unary RPC response.
 
 It uses the same authentication middleware as `/api` endpoints. If the request includes `X-Workspace-ID`, the runner invocation is scoped to that workspace.
 
@@ -1711,7 +1711,7 @@ Aggregates `cron_executions` into time buckets for the Overview chart.
 
 Read-only views and control over connected daemons.
 
-> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's gRPC bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is not exposed as a regular Twirp JSON endpoint; dashboard / ops clients should use the `DaemonService` endpoints below.
+> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's gRPC bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is not exposed as a regular `/api` ConnectRPC JSON endpoint; dashboard / ops clients should use the `DaemonService` endpoints below.
 
 #### ListDaemons
 
@@ -1817,7 +1817,7 @@ Process-level diagnostics for the daemon bridge.
 
 ### DaemonConnectorService
 
-Daemon client connection protocol. This is a bidirectional gRPC streaming service, not a Twirp JSON endpoint under `/api`.
+Daemon client connection protocol. This is a bidirectional gRPC streaming service, not a ConnectRPC JSON endpoint under `/api`.
 
 #### Connect
 

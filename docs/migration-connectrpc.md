@@ -18,6 +18,10 @@
 
 ---
 
+> 下面第 1–5 节保留迁移前的现状分析、方案和执行计划，用于历史追溯；
+> 当前实现状态以第 0 节、[`connectrpc-followups.md`](connectrpc-followups.md)
+> 和 [`project-structure.md`](project-structure.md) 为准。
+
 ## 1. 现状梳理
 
 ### 1.1 后端 RPC 注册（Twirp）
