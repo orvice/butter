@@ -39,6 +39,9 @@ import {
   Copy,
   ExternalLink,
   PlugZap,
+  ShieldCheck,
+  Terminal,
+  ListChecks,
 } from "lucide-react";
 import type { MCPOAuthConnectionState, MCPServer, MCPServerAuthType, MCPServerTransport, MCPTool } from "@/types/api";
 import { MCP_TRANSPORT_LABELS } from "@/lib/constants";
@@ -51,6 +54,17 @@ const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
   MCP_SERVER_TRANSPORT_UNSPECIFIED: Server,
 };
 
+const WORKSPACE_MCP_TOOLS = [
+  "workspace_info",
+  "list_agents",
+  "get_agent",
+  "list_mcp_servers",
+  "list_file_spaces",
+  "list_files",
+  "read_file",
+  "search_files",
+];
+
 export default function MCPServerListPage() {
   const { data, isLoading } = useMCPServers();
   const { data: toolsData } = useMCPTools();
@@ -62,6 +76,10 @@ export default function MCPServerListPage() {
   const workspaceEndpoint = useMemo(
     () => buildWorkspaceMCPEndpoint(selectedWorkspaceId),
     [selectedWorkspaceId],
+  );
+  const workspaceClientConfig = useMemo(
+    () => buildWorkspaceMCPClientConfig(workspaceEndpoint),
+    [workspaceEndpoint],
   );
 
   useEffect(() => {
@@ -169,10 +187,10 @@ export default function MCPServerListPage() {
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <PlugZap className="h-4 w-4" /> Workspace MCP Endpoint
+              <PlugZap className="h-4 w-4" /> Workspace MCP
             </CardTitle>
             <CardDescription>
-              Read-only access to this workspace for external MCP clients.
+              Connect MCP clients to this workspace's read-only tools.
             </CardDescription>
           </div>
           <Badge variant="outline" className="w-fit text-xs">
@@ -180,35 +198,100 @@ export default function MCPServerListPage() {
           </Badge>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="min-h-10 flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-xs leading-5 text-muted-foreground break-all">
-              {workspaceEndpoint || "Select a workspace"}
+          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="space-y-4">
+              <div className="rounded-md border">
+                <div className="flex items-center justify-between border-b px-3 py-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <PlugZap className="h-4 w-4 text-muted-foreground" />
+                    Endpoint
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={!workspaceEndpoint}
+                      title="Copy endpoint"
+                      onClick={() => copyToClipboard(workspaceEndpoint, "Endpoint copied")}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={!workspaceEndpoint}
+                      title="Open endpoint"
+                      onClick={() => {
+                        if (workspaceEndpoint) window.open(workspaceEndpoint, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="min-h-10 bg-muted px-3 py-2 font-mono text-xs leading-5 text-muted-foreground break-all">
+                  {workspaceEndpoint || "Select a workspace"}
+                </div>
+              </div>
+
+              <div className="rounded-md border">
+                <div className="flex items-center justify-between border-b px-3 py-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Terminal className="h-4 w-4 text-muted-foreground" />
+                    Client Config
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={!workspaceClientConfig}
+                    onClick={() => copyToClipboard(workspaceClientConfig, "Client config copied")}
+                  >
+                    <Copy className="mr-1 h-3.5 w-3.5" /> Copy
+                  </Button>
+                </div>
+                <pre className="max-h-56 overflow-auto bg-muted p-3 text-xs leading-5">
+                  <code>{workspaceClientConfig || "Select a workspace"}</code>
+                </pre>
+              </div>
             </div>
-            <div className="flex shrink-0 gap-2">
-              <Button
-                size="icon"
-                variant="outline"
-                disabled={!workspaceEndpoint}
-                title="Copy endpoint"
-                onClick={() => {
-                  if (!workspaceEndpoint) return;
-                  navigator.clipboard.writeText(workspaceEndpoint);
-                  toast.success("Endpoint copied");
-                }}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="outline"
-                disabled={!workspaceEndpoint}
-                title="Open endpoint"
-                onClick={() => {
-                  if (workspaceEndpoint) window.open(workspaceEndpoint, "_blank", "noopener,noreferrer");
-                }}
-              >
-                <ExternalLink className="h-4 w-4" />
-              </Button>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="rounded-md border p-3">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                  Authentication
+                </div>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>Use a bearer token scoped to this workspace.</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => navigate("/api-tokens")}
+                  >
+                    <KeyRound className="mr-2 h-4 w-4" /> Manage API Tokens
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <ListChecks className="h-4 w-4 text-muted-foreground" />
+                    Workspace Tools
+                  </div>
+                  <Badge variant="outline" className="text-xs">
+                    {WORKSPACE_MCP_TOOLS.length}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">
+                  {WORKSPACE_MCP_TOOLS.map((tool) => (
+                    <div key={tool} className="rounded border bg-muted/50 px-2 py-1.5 font-mono text-xs">
+                      {tool}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -289,6 +372,31 @@ function buildWorkspaceMCPEndpoint(workspaceId: string) {
   const base = new URL(BASE_URL || window.location.origin, window.location.origin);
   const prefix = base.pathname.replace(/\/$/, "");
   return `${base.origin}${prefix}/api/workspaces/${encodeURIComponent(workspaceId)}/mcp`;
+}
+
+function buildWorkspaceMCPClientConfig(endpoint: string) {
+  if (!endpoint) return "";
+  return JSON.stringify(
+    {
+      mcpServers: {
+        "butter-workspace": {
+          type: "streamable-http",
+          url: endpoint,
+          headers: {
+            Authorization: "Bearer <api-token>",
+          },
+        },
+      },
+    },
+    null,
+    2,
+  );
+}
+
+function copyToClipboard(text: string, message: string) {
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  toast.success(message);
 }
 
 function OAuthMenuItems({ server }: { server: MCPServer }) {
