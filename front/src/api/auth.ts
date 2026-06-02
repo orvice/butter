@@ -1,6 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import type { Workspace } from "@/gen/agents/v1/workspace_pb";
 import {
   AuthService,
@@ -8,6 +6,7 @@ import {
   type LoginResponse as PbLoginResponse,
   type CompleteOAuthFlowResponse as PbCompleteOAuthFlowResponse,
 } from "@/gen/agents/v1/auth_pb";
+import { tsToISO } from "./_proto-bridge";
 import { makeClient } from "./transport";
 
 // The exported interfaces here keep the snake_case/camelCase tolerance the
@@ -97,14 +96,9 @@ function toLoginResponse(r: PbLoginResponse | PbCompleteOAuthFlowResponse): Logi
   return {
     token: r.token,
     user: toAuthUser(r.user),
-    expiresAt: tsToISOString(r.expiresAt),
+    expiresAt: tsToISO(r.expiresAt),
     workspaces: r.workspaces,
   };
-}
-
-function tsToISOString(ts: Timestamp | undefined): string | undefined {
-  if (!ts) return undefined;
-  return timestampDate(ts).toISOString();
 }
 
 export async function login(username: string, password: string): Promise<LoginResponse> {

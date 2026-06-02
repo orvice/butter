@@ -1,10 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { twirpFetch } from "@/api/client";
-import type { Workspace, WorkspaceMember } from "@/gen/agents/v1/workspace_pb";
+import { WorkspaceService, type Workspace, type WorkspaceMember } from "@/gen/agents/v1/workspace_pb";
+import { makeClient } from "./transport";
 
 type WorkspacesCache = { workspaces?: Workspace[] };
-
-const SVC = "agents.v1.WorkspaceService";
 
 export interface CreateWorkspaceInput {
   name: string;
@@ -36,42 +34,59 @@ export interface RemoveWorkspaceMemberInput {
   user_id: string;
 }
 
-export function listWorkspaces() {
-  return twirpFetch<object, { workspaces?: Workspace[] }>(SVC, "ListWorkspaces", {});
+const client = makeClient(WorkspaceService);
+
+export async function listWorkspaces(): Promise<{ workspaces?: Workspace[] }> {
+  const res = await client.listWorkspaces({});
+  return { workspaces: res.workspaces };
 }
 
-export function createWorkspaceRequest(input: CreateWorkspaceInput) {
-  return twirpFetch<{ workspace: CreateWorkspaceInput }, { workspace?: Workspace }>(SVC, "CreateWorkspace", {
-    workspace: input,
+export async function createWorkspaceRequest(input: CreateWorkspaceInput): Promise<{ workspace?: Workspace }> {
+  const res = await client.createWorkspace({
+    workspace: { name: input.name, slug: input.slug, description: input.description ?? "" },
   });
+  return { workspace: res.workspace };
 }
 
-function updateWorkspaceRequest(input: UpdateWorkspaceInput) {
-  return twirpFetch<{ workspace: UpdateWorkspaceInput }, { workspace?: Workspace }>(SVC, "UpdateWorkspace", {
-    workspace: input,
+async function updateWorkspaceRequest(input: UpdateWorkspaceInput): Promise<{ workspace?: Workspace }> {
+  const res = await client.updateWorkspace({
+    workspace: { id: input.id, name: input.name, slug: input.slug, description: input.description ?? "" },
   });
+  return { workspace: res.workspace };
 }
 
-function deleteWorkspaceRequest(id: string) {
-  return twirpFetch<{ id: string }, object>(SVC, "DeleteWorkspace", { id });
+async function deleteWorkspaceRequest(id: string): Promise<void> {
+  await client.deleteWorkspace({ id });
 }
 
-function listWorkspaceMembersRequest(workspaceId: string) {
-  return twirpFetch<{ workspace_id: string }, { members?: WorkspaceMember[] }>(SVC, "ListWorkspaceMembers", {
-    workspace_id: workspaceId,
+async function listWorkspaceMembersRequest(workspaceId: string): Promise<{ members?: WorkspaceMember[] }> {
+  const res = await client.listWorkspaceMembers({ workspaceId });
+  return { members: res.members };
+}
+
+async function addWorkspaceMemberRequest(input: AddWorkspaceMemberInput): Promise<{ member?: WorkspaceMember }> {
+  const res = await client.addWorkspaceMember({
+    workspaceId: input.workspace_id,
+    userId: input.user_id,
+    role: input.role,
   });
+  return { member: res.member };
 }
 
-function addWorkspaceMemberRequest(input: AddWorkspaceMemberInput) {
-  return twirpFetch<AddWorkspaceMemberInput, { member?: WorkspaceMember }>(SVC, "AddWorkspaceMember", input);
+async function updateWorkspaceMemberRequest(input: UpdateWorkspaceMemberInput): Promise<{ member?: WorkspaceMember }> {
+  const res = await client.updateWorkspaceMember({
+    workspaceId: input.workspace_id,
+    userId: input.user_id,
+    role: input.role,
+  });
+  return { member: res.member };
 }
 
-function updateWorkspaceMemberRequest(input: UpdateWorkspaceMemberInput) {
-  return twirpFetch<UpdateWorkspaceMemberInput, { member?: WorkspaceMember }>(SVC, "UpdateWorkspaceMember", input);
-}
-
-function removeWorkspaceMemberRequest(input: RemoveWorkspaceMemberInput) {
-  return twirpFetch<RemoveWorkspaceMemberInput, object>(SVC, "RemoveWorkspaceMember", input);
+async function removeWorkspaceMemberRequest(input: RemoveWorkspaceMemberInput): Promise<void> {
+  await client.removeWorkspaceMember({
+    workspaceId: input.workspace_id,
+    userId: input.user_id,
+  });
 }
 
 export function useWorkspaceMembers(workspaceId: string) {
