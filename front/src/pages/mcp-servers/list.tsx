@@ -37,11 +37,11 @@ import {
   LogIn,
   Unplug,
   Copy,
-  ExternalLink,
   PlugZap,
   ShieldCheck,
   Terminal,
   ListChecks,
+  Link2,
 } from "lucide-react";
 import type { MCPOAuthConnectionState, MCPServer, MCPServerAuthType, MCPServerTransport, MCPTool } from "@/types/api";
 import { MCP_TRANSPORT_LABELS } from "@/lib/constants";
@@ -54,15 +54,20 @@ const TRANSPORT_ICON: Record<MCPServerTransport, typeof Server> = {
   MCP_SERVER_TRANSPORT_UNSPECIFIED: Server,
 };
 
-const WORKSPACE_MCP_TOOLS = [
-  "workspace_info",
-  "list_agents",
-  "get_agent",
-  "list_mcp_servers",
-  "list_file_spaces",
-  "list_files",
-  "read_file",
-  "search_files",
+type WorkspaceMCPTool = {
+  name: string;
+  description: string;
+};
+
+const WORKSPACE_MCP_TOOLS: WorkspaceMCPTool[] = [
+  { name: "workspace_info", description: "Workspace id, name, slug, and description." },
+  { name: "list_agents", description: "Configured agents in the selected workspace." },
+  { name: "get_agent", description: "One redacted agent configuration by name." },
+  { name: "list_mcp_servers", description: "External MCP server summaries with secrets redacted." },
+  { name: "list_file_spaces", description: "Workspace agent file spaces." },
+  { name: "list_files", description: "Files in a selected agent file space." },
+  { name: "read_file", description: "Text content for a selected file path." },
+  { name: "search_files", description: "Text search results from a selected file space." },
 ];
 
 export default function MCPServerListPage() {
@@ -203,31 +208,17 @@ export default function MCPServerListPage() {
               <div className="rounded-md border">
                 <div className="flex items-center justify-between border-b px-3 py-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
-                    <PlugZap className="h-4 w-4 text-muted-foreground" />
+                    <Link2 className="h-4 w-4 text-muted-foreground" />
                     Endpoint
                   </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      disabled={!workspaceEndpoint}
-                      title="Copy endpoint"
-                      onClick={() => copyToClipboard(workspaceEndpoint, "Endpoint copied")}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      disabled={!workspaceEndpoint}
-                      title="Open endpoint"
-                      onClick={() => {
-                        if (workspaceEndpoint) window.open(workspaceEndpoint, "_blank", "noopener,noreferrer");
-                      }}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={!workspaceEndpoint}
+                    onClick={() => copyToClipboard(workspaceEndpoint, "Endpoint copied")}
+                  >
+                    <Copy className="mr-1 h-3.5 w-3.5" /> Copy
+                  </Button>
                 </div>
                 <div className="min-h-10 bg-muted px-3 py-2 font-mono text-xs leading-5 text-muted-foreground break-all">
                   {workspaceEndpoint || "Select a workspace"}
@@ -286,8 +277,9 @@ export default function MCPServerListPage() {
                 </div>
                 <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">
                   {WORKSPACE_MCP_TOOLS.map((tool) => (
-                    <div key={tool} className="rounded border bg-muted/50 px-2 py-1.5 font-mono text-xs">
-                      {tool}
+                    <div key={tool.name} className="rounded border bg-muted/50 px-2 py-1.5">
+                      <div className="font-mono text-xs">{tool.name}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{tool.description}</div>
                     </div>
                   ))}
                 </div>
@@ -370,7 +362,8 @@ export default function MCPServerListPage() {
 function buildWorkspaceMCPEndpoint(workspaceId: string) {
   if (!workspaceId) return "";
   const base = new URL(BASE_URL || window.location.origin, window.location.origin);
-  const prefix = base.pathname.replace(/\/$/, "");
+  const normalizedPath = base.pathname.replace(/\/$/, "");
+  const prefix = normalizedPath === "" || normalizedPath === "/api" ? "" : normalizedPath;
   return `${base.origin}${prefix}/api/workspaces/${encodeURIComponent(workspaceId)}/mcp`;
 }
 
@@ -393,10 +386,14 @@ function buildWorkspaceMCPClientConfig(endpoint: string) {
   );
 }
 
-function copyToClipboard(text: string, message: string) {
+async function copyToClipboard(text: string, message: string) {
   if (!text) return;
-  navigator.clipboard.writeText(text);
-  toast.success(message);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(message);
+  } catch {
+    toast.error("Copy failed");
+  }
 }
 
 function OAuthMenuItems({ server }: { server: MCPServer }) {
