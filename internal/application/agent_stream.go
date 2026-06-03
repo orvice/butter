@@ -140,6 +140,12 @@ func (s *AgentServiceServer) StreamAgent(
 				},
 			})
 		}
+		// Pure text-only partial events are surfaced as TextDelta only.
+		// Mixed events (text + function call etc.) emit both a TextDelta for
+		// each text chunk AND a RunEvent carrying the full content_json so the
+		// UI can render tool calls correctly. The text appears in both; clients
+		// should deduplicate by ignoring text parts inside content_json when
+		// a TextDelta for the same invocation was already received.
 		if len(textParts) > 0 && streamAgentEventHasOnlyTextParts(evt) {
 			return
 		}
@@ -174,9 +180,7 @@ func (s *AgentServiceServer) StreamAgent(
 			"invocation_id", invocationID,
 			"err", runErr,
 		)
-		// errors.Is(ctx.Err(), context.Canceled) → CodeCanceled from the
-		// runner; let Connect's handler infrastructure surface it directly.
-		return connectx.InternalWith(runErr)
+		return streamAgentError(runErr)
 	}
 	if sendErr != nil {
 		// Send failed (likely client disconnected); nothing to surface
@@ -252,4 +256,22 @@ func streamAgentTextParts(evt *session.Event) []string {
 		out = append(out, part.Text)
 	}
 	return out
+}
+
+// streamAgentError maps a runner error to the appropriate Connect status code.
+// Existing *connect.Error values are returned as-is. context.Canceled becomes
+// CodeCanceled (e.g. user hit stop); context.DeadlineExceeded becomes
+// CodeDeadlineExceeded. Everything else falls back to CodeInternal.
+func streamAgentError(err error) *connect.Error {
+	var connectErr *connect.Error
+	if errors.As(err, &connectErr) {
+		return connectErr
+	}
+	if errors.Is(err, context.Canceled) {
+		return connect.NewError(connect.CodeCanceled, err)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return connect.NewError(connect.CodeDeadlineExceeded, err)
+	}
+	return connect.NewError(connect.CodeInternal, err)
 }
