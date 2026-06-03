@@ -213,7 +213,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       void handleSend();
     }
