@@ -87,4 +87,3 @@ func HandlerOptions() []connect.HandlerOption {
 		connect.WithCodec(newSnakeCaseJSONCodec("json; charset=utf-8")),
 	}
 }
-

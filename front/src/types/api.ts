@@ -594,4 +594,3 @@ export interface CronExecution {
   started_at?: string;
   finished_at?: string;
 }
-
