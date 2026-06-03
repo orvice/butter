@@ -142,6 +142,11 @@ agents:
 
 ## 5. Upload endpoints
 
+Uploads are **REST multipart** handlers under `/api/uploads/*`, not ConnectRPC.
+This keeps browser `FormData` uploads simple; persist the returned `url` via
+`AuthService.UpdateProfile` (users) or agent metadata (icons). See
+[api.md](api.md) § Uploads.
+
 All endpoints sit behind the standard auth middleware (dashboard Bearer session,
 root token, or workspace-bound API token; user/root-token callers should include
 `X-Workspace-ID`).

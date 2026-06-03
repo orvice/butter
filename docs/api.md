@@ -150,6 +150,11 @@ They require S3-compatible static storage to be enabled with `static.s3_bucket`
 in config. See [storage.md](storage.md) for full object storage setup,
 authorization details, and response examples.
 
+Uploads intentionally stay as **REST multipart** endpoints (not ConnectRPC):
+browsers upload via `FormData`, and the dashboard persists the returned URL
+through `AuthService.UpdateProfile` (user avatars) or agent metadata updates
+(agent icons). See [storage.md](storage.md) §6.
+
 #### Upload current user avatar
 
 ```
@@ -216,10 +221,11 @@ simultaneously speaks three protocols on the same URL:
   Butter; the daemon service has its own native gRPC listener on a separate
   port (`internal/app/grpc.go`).
 
-For the dashboard, `POST application/json` is the canonical shape. To stay
-backwards-compatible with the legacy Twirp wire format, the server emits
-proto field names (snake_case) in JSON responses; both snake_case and
-camelCase are accepted on input.
+For the dashboard, **`application/proto` (binary protobuf)** is the canonical
+wire format (`useBinaryFormat: true` in `front/src/api/transport.ts`). The
+server also accepts Connect JSON and gRPC-Web on the same URLs. When using
+JSON, responses use proto field names (snake_case) via `connectx.HandlerOptions()`
+(`UseProtoNames=true`); both snake_case and camelCase are accepted on input.
 
 ---
 
@@ -487,48 +493,47 @@ One-shot agent run. If `session_id` is empty an ephemeral id `invoke-<uuid>` is 
 | `session_id` | string | The session id used (echoed back) |
 | `response` | string | Final agent response text |
 
-### Chat streaming HTTP endpoint
-
-#### Stream chat
+#### StreamAgent
 
 ```
-POST /api/chat/stream
+POST /api/agents.v1.AgentService/StreamAgent
 ```
 
-Runs an agent and streams progress over Server-Sent Events (SSE). This endpoint is intended for chat UIs that need immediate invocation metadata, intermediate ADK runner events, and the final response without waiting for a unary RPC response.
+**Server-streaming** RPC for the dashboard chat UI. Replaces the removed
+`POST /api/chat/stream` SSE endpoint. The client opens a Connect server stream,
+sends one `StreamAgentRequest`, then reads `StreamAgentResponse` messages until
+the server closes the stream after `final` or aborts with a `connect.Error`.
 
-It uses the same authentication middleware as `/api` endpoints. If the request includes `X-Workspace-ID`, the runner invocation is scoped to that workspace.
+Requires the same Bearer token as other `/api` RPCs. Non-admin callers must set
+`X-Workspace-ID` so the runner invocation is workspace-scoped (same rule as
+`InvokeAgent`).
 
-**Request JSON:**
+**Request (`StreamAgentRequest`):**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_name` | string | Required agent name |
-| `message` | string | Required user message |
-| `app_name` | string | Defaults to `"api"` |
-| `user_id` | string | Defaults to `"api"` |
+| `agent_name` | string | Required |
+| `message` | string | Required user prompt (non-empty) |
+| `app_name` | string | ADK app name; defaults to `"api"` |
+| `user_id` | string | ADK user id; defaults to `"api"` |
 | `session_id` | string | Reuse an existing session; empty creates `chat-<uuid>` |
 | `model_override` | string | Optional model alias or full name |
 
-**Events:**
+**Stream messages (`StreamAgentResponse.event` oneof):**
 
-| SSE event | Description |
-|-----------|-------------|
-| `invocation_started` | First event. Contains `invocation_id`, `session_id`, and `agent_name`. |
-| `agent_event` | Intermediate non-final ADK event. Contains event metadata and `content_json` when present. |
-| `final` | Final successful response. Contains `response`. |
-| `error` | Terminal error. Contains `error`. |
+| Variant | Description |
+|---------|-------------|
+| `started` | First message. `invocation_id`, `session_id`, `agent_name`. Use `invocation_id` with `CancelAgentInvocation`. |
+| `text_delta` | Partial assistant text chunk (`text`). |
+| `run_event` | Full ADK `session.Event` mirror: `event_id`, `author`, `branch`, `partial`, `final_response`, `content_json`, `timestamp`. |
+| `final` | Terminal success. `response` text; server closes the stream after this. |
 
-**Example:**
+Terminal failures are **`connect.Error`** on the RPC (e.g. `failed_precondition`
+when the runner is unavailable or workspace header is missing), not an in-stream
+error payload.
 
-```bash
-curl -N \
-  -H 'Authorization: Bearer <token>' \
-  -H 'X-Workspace-ID: <workspace-id>' \
-  -H 'Content-Type: application/json' \
-  -d '{"agent_name":"assistant","message":"Hello"}' \
-  http://localhost:8080/api/chat/stream
-```
+The dashboard calls this via `front/src/api/chat.ts::streamChat` using
+`agentClient.streamAgent(...)` with an optional `AbortSignal` for stop/cancel.
 
 #### CancelAgentInvocation
 
@@ -2041,5 +2046,5 @@ encode the code via response headers / trailers). Common codes:
   X-Workspace-ID header missing on a scoped RPC
 - `internal` (HTTP 500) — unexpected server error
 
-REST endpoints (`/ping`, `/status`, `/a2a/*`, `/api/uploads/*`, `/api/chat/stream`)
+REST endpoints (`/ping`, `/status`, `/a2a/*`, `/api/uploads/*`)
 return errors as `{"error": "..."}` with a conventional HTTP status code.

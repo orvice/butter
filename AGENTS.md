@@ -65,9 +65,9 @@ Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plug
 
 Docs directory layout:
 
-- `docs/api.md` — API reference covering authentication, workspace selection, REST endpoints, ConnectRPC endpoints, and error handling.
-- `docs/migration-connectrpc.md` — Plan + status report for the Twirp → ConnectRPC migration (phases 0–3 complete).
-- `docs/connectrpc-followups.md` — Outstanding work after the migration: runtime smoke test and optional deeper native Connect signatures.
+- `docs/api.md` — API reference: auth, workspace, REST uploads (`/api/uploads/*`), ConnectRPC (incl. `AgentService.StreamAgent` chat stream), errors.
+- `docs/migration-connectrpc.md` — Twirp → ConnectRPC migration plan + status (phases 0–3.5, chat `StreamAgent` complete).
+- `docs/connectrpc-followups.md` — Post-migration follow-ups (runtime smoke test, wire-format notes).
 - `docs/app.md` — Product/function overview in Chinese, including workspace multi-tenancy, agent orchestration, model management, MCP tools, remote agents, daemon execution, and channel entry points.
 - `docs/architecture.md` — System architecture overview covering multi-tenancy, process entry, layered structure, startup wiring, agent construction, and runner execution flow.
 - `docs/dashboard-api-gap.md` — Dashboard backend API gap analysis, including current coverage, recommended API extensions, persistence additions, phased implementation, and compatibility notes.

@@ -19,8 +19,8 @@ import (
 )
 
 // StreamAgent runs an agent and streams progress events to the caller.
-// The dashboard chat UI uses this in place of the legacy
-// POST /api/chat/stream Server-Sent Events handler.
+// The dashboard chat UI uses this Connect server-stream RPC (the legacy
+// POST /api/chat/stream SSE handler was removed).
 //
 // The stream's first message is always a StreamAgentStarted carrying the
 // invocation_id; clients use that id with CancelAgentInvocation if the

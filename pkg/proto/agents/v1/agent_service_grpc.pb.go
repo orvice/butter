@@ -65,9 +65,9 @@ type AgentServiceClient interface {
 	// invocation transitions to FAILED with a cancellation error.
 	CancelAgentInvocation(ctx context.Context, in *CancelAgentInvocationRequest, opts ...grpc.CallOption) (*CancelAgentInvocationResponse, error)
 	// StreamAgent runs an agent and streams progress events back to the
-	// caller. The dashboard chat UI uses this in place of the old
-	// POST /api/chat/stream Server-Sent Events endpoint; one of the
-	// StreamAgentEvent oneof variants is sent for each runner event
+	// caller. The dashboard chat UI uses this Connect server-stream RPC
+	// (replaces the removed POST /api/chat/stream SSE endpoint). One of the
+	// StreamAgentResponse.event oneof variants is sent for each runner event
 	// (started, mid-stream text delta, full ADK event, final response).
 	// Errors bubble up as the RPC's terminal connect.Error so the client
 	// gets typed cancellation / failed-precondition codes instead of an
@@ -244,9 +244,9 @@ type AgentServiceServer interface {
 	// invocation transitions to FAILED with a cancellation error.
 	CancelAgentInvocation(context.Context, *CancelAgentInvocationRequest) (*CancelAgentInvocationResponse, error)
 	// StreamAgent runs an agent and streams progress events back to the
-	// caller. The dashboard chat UI uses this in place of the old
-	// POST /api/chat/stream Server-Sent Events endpoint; one of the
-	// StreamAgentEvent oneof variants is sent for each runner event
+	// caller. The dashboard chat UI uses this Connect server-stream RPC
+	// (replaces the removed POST /api/chat/stream SSE endpoint). One of the
+	// StreamAgentResponse.event oneof variants is sent for each runner event
 	// (started, mid-stream text delta, full ADK event, final response).
 	// Errors bubble up as the RPC's terminal connect.Error so the client
 	// gets typed cancellation / failed-precondition codes instead of an

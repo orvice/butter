@@ -68,6 +68,7 @@ butter/
 │   │   │                        # signatures and is handed straight to
 │   │   │                        # agentsv1connect.NewXxxServiceHandler.
 │   │   ├── agent_service.go
+│   │   ├── agent_stream.go        # AgentService.StreamAgent server-stream
 │   │   ├── agentfile_service.go
 │   │   ├── apitoken_service.go
 │   │   ├── auth_service.go
@@ -96,7 +97,7 @@ butter/
 │   ├── config/
 │   │   └── config.go
 │   ├── handler/
-│   │   └── http/                # /ping, /a2a, /status, APITokenAuthMiddleware
+│   │   └── http/                # /ping, /status, /a2a, /api/uploads/*, auth middleware
 │   ├── repo/
 │   │   ├── apitoken/            # interface + memory + mongo (workspace-scoped)
 │   │   │   ├── memory/
@@ -177,13 +178,13 @@ butter/
 - `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 gRPC 反连服务端的 daemon client（自报 version / os / executors）。
 - `internal/app/`：应用装配与初始化（路由、gRPC、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
 - `internal/application/`：RPC 服务实现（Agent / AgentFile / MCPServer / GlobalMCPServer / ModelProvider / NotifyGroup / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken / Auth / Forum / Workspace）。每个服务一个 `*_service.go`，方法签名是原生 ConnectRPC 形式 `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，直接满足 `agentsv1connect.XxxServiceHandler` 接口，由 `routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载。错误用 `connect.NewError` 或 `connectx` helper 构造。
-- `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` / `InternalWith` 是 `connect.Error` 的常用构造短手；`HandlerOptions()` 返回固定的 codec/option 列表，强制 JSON 输出用 `UseProtoNames=true`（snake_case），保持迁移前的 JSON wire format。
+- `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` / `InternalWith` 是 `connect.Error` 的常用构造短手；`HandlerOptions()` 含 snake_case JSON codec（`UseProtoNames=true`）供 curl/非浏览器调用；dashboard 浏览器默认 binary protobuf（`front/src/api/transport.ts`）。
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
 - `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
 - `internal/channel/`：渠道适配与渠道管理（Telegram、Discord），含 `RuntimeState` 探活。
 - `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`memory`。
 - `internal/repo/`：仓库层。`config/` 是配置仓库（memory + mongo）；新增 `apitoken/` 与 `invocation/`，同样 memory + mongo 双实现。
-- `front/`：Vite + React 19 dashboard。`src/api/` 是类型化的 ConnectRPC 客户端（`@connectrpc/connect-web`，一服务一文件），`src/api/transport.ts` 提供共享 transport + 注入 Authorization / X-Workspace-ID 的 interceptor，`src/api/_proto-bridge.ts` 提供 Timestamp/Duration/bigint 转换工具；`src/gen/` 是 buf 生成的 TS proto 类型（含 service definitions），`src/pages/` 一个目录一屏。
+- `front/`：Vite + React 19 dashboard。`src/api/` 是类型化的 ConnectRPC 客户端（`@connectrpc/connect-web`，一服务一文件）；`uploads.ts` 是唯一仍用裸 `fetch` + multipart 的 API 模块。`src/api/transport.ts` 提供共享 transport（binary protobuf）+ Authorization / X-Workspace-ID interceptor；`chat.ts` 调用 `StreamAgent` server-stream。`src/gen/` 是 buf 生成的 TS proto 类型；`src/pages/` 一目录一屏。
 - `proto/`：Proto 定义源文件（agent + cron + daemon + dashboard + api_token + agentchannel + context）。
 - `pkg/proto/`：Proto 生成代码（Go + Connect + grpc + grpc-gateway + validate）；不要手改。Twirp 生成产物已在 ConnectRPC Phase 3 移除。
 - `.github/workflows/`：CI。后端走 `docker-publish.yml`，前端独立 `front-publish.yml`（`paths: front/**` 过滤），均推 ghcr 并 cosign 签名。

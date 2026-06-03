@@ -103,7 +103,7 @@ Persistence
 
 `internal/app` 是服务装配层：
 
-- `routes.go` 创建 Gin handler、ConnectRPC handler 和 `Handlers` 容器。每个 `internal/application/*ServiceServer` 被对应的 `application.NewXxxServiceConnectAdapter` 包成 `agentsv1connect.XxxServiceHandler`，挂载在 `/api/agents.v1.XxxService/*` 路径下（通过 `http.StripPrefix("/api", handler)` 接到 Connect 默认的 `/agents.v1.XxxService/` mount path）。共享的 codec/transport plumbing 见 `internal/transport/connectx`。
+- `routes.go` 创建 Gin handler、ConnectRPC handler 和 `Handlers` 容器。每个 `internal/application/*ServiceServer` 直接实现 `agentsv1connect.XxxServiceHandler`，由 `agentsv1connect.NewXxxServiceHandler(svc, connectOpts...)` 挂载在 `/api/agents.v1.XxxService/*`（`http.StripPrefix("/api", handler)`）。共享 codec/transport 见 `internal/transport/connectx`（含 snake_case JSON 兜底；dashboard 浏览器走 binary protobuf）。
 - `config_store.go` 根据 `storage_backend` 选择 memory 或 mongo 配置后端，并把配置同步回 `AppConfig`。
 - `config_runtime.go` 在配置变更后同步 `AppConfig`，并触发 runner/channel reload。
 - `runtime.go` 初始化 MongoDB、Redis 和 Langfuse plugin。
@@ -184,12 +184,13 @@ HTTP handler 位于 `internal/handler/http`：
 - `GET /status`：运行时状态，返回当前配置存储 backend 和配置集合数量。
 - `GET /a2a/:agent_name/.well-known/agent.json`：A2A agent card。
 - `POST /a2a/:agent_name`：A2A JSON-RPC task send。
+- `POST /api/uploads/*`：头像与静态资源 multipart 上传（见 `docs/storage.md`）；不走 ConnectRPC。
 
-RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC（同一 URL 兼容 Connect JSON、gRPC-Web 和 gRPC 协议；为前端零改动兼容，JSON 输出沿用 snake_case proto field names）：
+RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC（同一 URL 兼容 Connect binary/protobuf、Connect JSON、gRPC-Web 和 gRPC）。Dashboard 浏览器默认 `application/proto`；JSON codec 仍输出 snake_case field names（`connectx.HandlerOptions`）。
 
 配置 / 执行：
 
-- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`。
+- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（chat server-stream）/ `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`。
 - `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools`。
 - `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
 - `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
