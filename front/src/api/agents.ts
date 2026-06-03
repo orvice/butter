@@ -12,6 +12,20 @@ import { makeClient } from "./transport";
 
 const client = makeClient(AgentService);
 
+function stripUndefined(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripUndefined);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, stripUndefined(v)]),
+    );
+  }
+  return value;
+}
+
 // Agent / AgentConfig is deeply nested (sub_agents, mcp_servers, file_mounts,
 // context_guard, ...). Rather than hand-rolling a 200-line toProto/fromProto,
 // we leverage protojson: the proto-es runtime's fromJson accepts both
@@ -20,7 +34,7 @@ const client = makeClient(AgentService);
 // snake-cased Agent interface round-trips through the typed RPC call without
 // extra mapping code.
 function agentToProto(a: Agent) {
-  return fromJson(AgentSchema, a as unknown as JsonValue, { ignoreUnknownFields: true });
+  return fromJson(AgentSchema, stripUndefined(a) as JsonValue, { ignoreUnknownFields: true });
 }
 
 function agentFromProto(a: unknown): Agent {
