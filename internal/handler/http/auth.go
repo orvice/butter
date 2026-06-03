@@ -57,7 +57,7 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 		// actual RPC POST. Preflight carries no credentials, so answer it
 		// before auth; the actual request is still authenticated below.
 		if c.Request.Method == http.MethodOptions {
-			c.Status(http.StatusNoContent)
+			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
 		if isPublicPath(c.Request.URL.Path) {
