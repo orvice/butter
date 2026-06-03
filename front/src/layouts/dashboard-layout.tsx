@@ -395,8 +395,7 @@ export default function DashboardLayout() {
         </div>
         <SidebarNav isAdmin={isAdmin} />
         <Separator />
-        <div className={cn("flex items-center justify-between gap-2 border-t", isCompact ? "p-3" : "p-4")}>
-          <ThemeControls className="min-w-0" />
+        <div className={cn("flex justify-end border-t", isCompact ? "p-3" : "p-4")}>
           <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
@@ -424,8 +423,7 @@ export default function DashboardLayout() {
                 </div>
                 <SidebarNav isAdmin={isAdmin} />
                 <Separator />
-                <div className="flex items-center justify-between gap-2 border-t p-3">
-                  <ThemeControls className="min-w-0" />
+                <div className="flex justify-end border-t p-3">
                   <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
                     <LogOut className="h-4 w-4" />
                   </Button>
@@ -443,6 +441,7 @@ export default function DashboardLayout() {
           <div className="flex flex-wrap items-center gap-2">
             <WorkspaceSwitcher />
             <StatusPill />
+            <ThemeControls mode="menu" />
             <Button variant="ghost" size="icon" aria-label="Storage status">
               <Database className="h-4 w-4" />
             </Button>
