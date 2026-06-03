@@ -92,10 +92,19 @@ func TestAuthService_ConnectRouting(t *testing.T) {
 			"/api/agents.v1.AuthService/Login",
 			nil,
 		)
+		req.Header.Set("Origin", "http://localhost:5173")
+		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+		req.Header.Set("Access-Control-Request-Headers", "authorization,x-workspace-id,connect-protocol-version")
 		w := httptest.NewRecorder()
 		engine.ServeHTTP(w, req)
-		if w.Code == http.StatusUnauthorized {
-			t.Fatalf("OPTIONS preflight was rejected by auth middleware (401)")
+		if w.Code != http.StatusNoContent {
+			t.Fatalf("status: got %d want 204, body=%q", w.Code, w.Body.String())
+		}
+		if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+			t.Fatalf("Access-Control-Allow-Origin: got %q", got)
+		}
+		if got := w.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-Workspace-ID") {
+			t.Fatalf("Access-Control-Allow-Headers missing X-Workspace-ID: %q", got)
 		}
 	})
 }

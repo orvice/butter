@@ -52,16 +52,16 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 	allowUnauthenticated := cfg.Auth.AllowUnauthenticated
 
 	return func(c *gin.Context) {
+		applyCORSHeaders(c)
 		if isPublicPath(c.Request.URL.Path) {
 			c.Next()
 			return
 		}
-		// CORS preflight: Connect-Web / gRPC-Web clients issue OPTIONS
-		// before the actual RPC POST. We don't carry credentials on the
-		// preflight, so route it past auth and let the registered route
-		// (or 404) handle the response.
+		// CORS preflight: Connect-Web clients issue OPTIONS before the
+		// actual RPC POST. Preflight carries no credentials, so answer it
+		// before auth; the actual request is still authenticated below.
 		if c.Request.Method == http.MethodOptions {
-			c.Next()
+			c.Status(http.StatusNoContent)
 			return
 		}
 
@@ -164,6 +164,18 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 
 		unauthorized(c)
 	}
+}
+
+func applyCORSHeaders(c *gin.Context) {
+	origin := c.GetHeader("Origin")
+	if origin == "" {
+		return
+	}
+	header := c.Writer.Header()
+	header.Set("Access-Control-Allow-Origin", origin)
+	header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Workspace-ID, Connect-Protocol-Version")
+	header.Set("Access-Control-Expose-Headers", "Content-Type, Connect-Error-Code, Connect-Error-Message")
 }
 
 // applyWorkspaceHeader resolves the X-Workspace-ID header (if set) and
