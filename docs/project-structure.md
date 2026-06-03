@@ -16,11 +16,16 @@ butter/
 │   ├── api.md
 │   ├── app.md
 │   ├── architecture.md
+│   ├── connectrpc-followups.md
 │   ├── dashboard-api-gap.md
 │   ├── design-daemon-agent.md
+│   ├── frontend-required-apis.md
+│   ├── migration-connectrpc.md
+│   ├── postgres-migration-analysis.md
 │   ├── project-structure.md
-│   ├── structure-review.md
-│   └── superpowers/
+│   ├── security-review.md
+│   ├── storage.md
+│   └── structure-review.md
 ├── front/
 │   ├── Dockerfile
 │   ├── nginx.conf
@@ -38,15 +43,28 @@ butter/
 │       ├── layouts/
 │       ├── lib/
 │       ├── pages/
+│       │   ├── admin/
+│       │   ├── agent-files/
 │       │   ├── agents/
 │       │   ├── api-tokens/
 │       │   ├── channels/
+│       │   ├── chat/
 │       │   ├── cron/
 │       │   ├── daemons/
+│       │   ├── forum/
 │       │   ├── mcp-servers/
+│       │   ├── model-providers/
+│       │   ├── notify-groups/
 │       │   ├── remote-agents/
 │       │   ├── sessions/
-│       │   └── dashboard.tsx
+│       │   ├── users/
+│       │   ├── auth-oauth-callback.tsx
+│       │   ├── dashboard.tsx
+│       │   ├── integrations.tsx
+│       │   ├── login.tsx
+│       │   ├── operations.tsx
+│       │   ├── profile.tsx
+│       │   └── workspaces.tsx
 │       └── types/
 ├── internal/
 │   ├── agent/
@@ -99,20 +117,32 @@ butter/
 │   ├── handler/
 │   │   └── http/                # /ping, /status, /a2a, /api/uploads/*, auth middleware
 │   ├── repo/
+│   │   ├── agentfile/           # agent file spaces + files (workspace-scoped)
+│   │   │   ├── memory/
+│   │   │   ├── mongo/
+│   │   │   └── repository.go
 │   │   ├── apitoken/            # interface + memory + mongo (workspace-scoped)
 │   │   │   ├── memory/
 │   │   │   ├── mongo/
 │   │   │   └── repository.go
-│   │   ├── auth/                # users + auth_sessions
+│   │   ├── auth/                # users + auth_sessions (Redis wrapper in production)
 │   │   │   ├── mongo/
 │   │   │   └── repository.go
 │   │   ├── config/              # workspace-scoped CRUD + AcrossWorkspaces listings
 │   │   │   ├── memory/
 │   │   │   ├── mongo/
 │   │   │   └── repository.go
+│   │   ├── forum/               # forum threads + posts (workspace-scoped)
+│   │   │   ├── memory/
+│   │   │   ├── mongo/
+│   │   │   └── repository.go
 │   │   ├── invocation/          # interface + memory + mongo
 │   │   │   ├── memory/
 │   │   │   ├── mongo/
+│   │   │   └── repository.go
+│   │   ├── mcpoauth/            # MCP OAuth2 token store
+│   │   │   └── repository.go
+│   │   ├── oauthstate/          # OAuth state nonce store (used by auth + MCP OAuth)
 │   │   │   └── repository.go
 │   │   ├── workspace/           # workspaces + workspace_members
 │   │   │   ├── memory/
@@ -140,6 +170,7 @@ butter/
 ├── proto/
 │   └── agents/v1/
 │       ├── agent.proto
+│       ├── agent_file.proto
 │       ├── agent_service.proto
 │       ├── agentchannel.proto
 │       ├── api_token.proto
@@ -148,6 +179,7 @@ butter/
 │       ├── cron.proto
 │       ├── daemon.proto
 │       ├── dashboard.proto
+│       ├── forum.proto
 │       └── workspace.proto
 ├── .github/
 │   └── workflows/

@@ -13,7 +13,7 @@ Authorization: Bearer <token>
 
 Three token sources are accepted by `AuthMiddleware` (tried in order):
 
-1. **Dashboard user session** — issued by `AuthService.Login`. The middleware looks up the hashed token in `auth_sessions` and asynchronously updates `last_used_at`.
+1. **Dashboard user session** — issued by `AuthService.Login`. The middleware looks up the hashed token in **Redis** (key `butter:auth:session:<sha256(token)>`) and asynchronously updates `last_used_at`.
 2. **Root token** — the single value of `apiToken` in `config.yaml`. Compared with constant-time. Intended for ops / CLI.
 3. **DB-stored API tokens** — managed at runtime via `APITokenService` (see below). Stored as `sha256` hashes; only the prefix is visible. Each token is bound to one workspace. Successful auth updates `last_used_at` asynchronously.
 
@@ -206,6 +206,17 @@ Admin only. Multipart form:
 Stores the asset under `<static.key_prefix>/static/<name>` and returns the same
 response shape as avatar uploads.
 
+### Workspace MCP Endpoint
+
+```
+ANY /api/workspaces/:workspace_id/mcp
+```
+
+Exposes a workspace-scoped MCP server over HTTP, forwarding requests to the
+underlying workspace MCP service. Accepts all HTTP methods (`GET`, `POST`, etc.)
+as required by the MCP streamable-HTTP transport. Requires Bearer token auth;
+the caller must be a member of `:workspace_id`.
+
 ---
 
 ## RPC Endpoints
@@ -341,6 +352,66 @@ Admin only.
 | `disabled` | bool | New disabled state |
 
 **Response:** `{ "user": User }`
+
+#### ListOAuthProviders
+
+```
+POST /api/agents.v1.AuthService/ListOAuthProviders
+```
+
+Public endpoint (no Bearer token required). Returns the OAuth providers
+configured on the server (e.g. `github`).
+
+**Request:** `{}`
+
+**Response:** `{ "providers": OAuthProvider[] }`
+
+| OAuthProvider | Type | Description |
+|-------|------|-------------|
+| `key` | string | Provider key, e.g. `github` |
+| `name` | string | Display name |
+
+#### BeginOAuthFlow
+
+```
+POST /api/agents.v1.AuthService/BeginOAuthFlow
+```
+
+Public endpoint. Returns the authorization URL to redirect the user to, plus
+a `state` token that must be passed back to `CompleteOAuthFlow`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Provider key (e.g. `github`) |
+| `redirect_uri` | string | Caller's redirect URI; echoed back in the state so `CompleteOAuthFlow` can return it |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `authorization_url` | string | Redirect the user here |
+| `state` | string | Opaque state token |
+
+#### CompleteOAuthFlow
+
+```
+POST /api/agents.v1.AuthService/CompleteOAuthFlow
+```
+
+Public endpoint. Exchanges the provider authorization code for a session, mirroring `LoginResponse`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | string | Authorization code from provider |
+| `state` | string | State token from `BeginOAuthFlow` |
+
+**Response:** Same shape as `Login` response (`token`, `user`, `expires_at`, `workspaces`).
+
+---
 
 #### UpdateProfile
 
@@ -860,6 +931,65 @@ Enumerates tools across configured MCP servers.
 | `server_id` | string |  |
 | `server_name` | string |  |
 | `allowed` | bool | True if not filtered out by the server's `tool_filter` |
+
+#### StartMCPServerOAuth
+
+```
+POST /api/agents.v1.MCPServerService/StartMCPServerOAuth
+```
+
+Prepares a workspace-scoped OAuth2 authorization flow for an MCP server.
+Returns the authorization URL to redirect the user to, plus a `flow_id` that
+the frontend must hold until the user returns via the OAuth callback.
+
+**Request:** `{ "mcp_server_id": "<server-id>" }`
+
+**Response:** `{ "authorization_url": string, "flow_id": string }`
+
+#### CompleteMCPServerOAuth
+
+```
+POST /api/agents.v1.MCPServerService/CompleteMCPServerOAuth
+```
+
+Exchanges an OAuth code+state (after the callback redirects) for a stored token
+and persists the connection. The HTTP callback `GET /api/mcp/oauth/callback`
+internally invokes this; clients may also call it directly.
+
+**Request:** `{ "flow_id": string, "code": string }`
+
+**Response:** `{ "status": MCPOAuthConnectionStatus }`
+
+#### GetMCPServerOAuthStatus
+
+```
+POST /api/agents.v1.MCPServerService/GetMCPServerOAuthStatus
+```
+
+**Request:** `{ "mcp_server_id": "<server-id>" }`
+
+**Response:** `{ "status": MCPOAuthConnectionStatus }`
+
+| MCPOAuthConnectionStatus | Type | Description |
+|-------|------|-------------|
+| `server_id` | string | |
+| `connected` | bool | Whether a valid token is stored |
+| `expires_at` | timestamp | Token expiry if known |
+| `detail` | string | Error or status message |
+
+#### DisconnectMCPServerOAuth
+
+```
+POST /api/agents.v1.MCPServerService/DisconnectMCPServerOAuth
+```
+
+Revokes and deletes the stored OAuth token for the server.
+
+**Request:** `{ "mcp_server_id": "<server-id>" }`
+
+**Response:** `{}`
+
+---
 
 #### MCPServer Object
 
@@ -1967,6 +2097,24 @@ POST /api/agents.v1.WorkspaceService/RemoveWorkspaceMember
 | `user_id` | string |  |
 | `role` | string | `owner` / `admin` / `member` |
 | `created_at` | timestamp |  |
+
+---
+
+### ForumService
+
+Manages forum threads and posts within a workspace. Requires `X-Workspace-ID`.
+
+| RPC | Path | Notes |
+|-----|------|-------|
+| `ListThreads` | `POST /api/agents.v1.ForumService/ListThreads` | Paginated; filter by label |
+| `ListThreadLabels` | `POST /api/agents.v1.ForumService/ListThreadLabels` | Labels in use across threads |
+| `GetThread` | `POST /api/agents.v1.ForumService/GetThread` | Includes posts |
+| `CreateThread` | `POST /api/agents.v1.ForumService/CreateThread` | Creates thread with optional initial post |
+| `UpdateThread` | `POST /api/agents.v1.ForumService/UpdateThread` | Updates title/labels |
+| `DeleteThread` | `POST /api/agents.v1.ForumService/DeleteThread` | Deletes thread and all posts |
+| `CreatePost` | `POST /api/agents.v1.ForumService/CreatePost` | Appends a post to a thread |
+| `DeletePost` | `POST /api/agents.v1.ForumService/DeletePost` | Deletes a single post |
+| `InvokeAgentInThread` | `POST /api/agents.v1.ForumService/InvokeAgentInThread` | Invokes an agent in thread context |
 
 ---
 
