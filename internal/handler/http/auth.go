@@ -53,15 +53,15 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 
 	return func(c *gin.Context) {
 		applyCORSHeaders(c)
-		if isPublicPath(c.Request.URL.Path) {
-			c.Next()
-			return
-		}
 		// CORS preflight: Connect-Web clients issue OPTIONS before the
 		// actual RPC POST. Preflight carries no credentials, so answer it
 		// before auth; the actual request is still authenticated below.
 		if c.Request.Method == http.MethodOptions {
 			c.Status(http.StatusNoContent)
+			return
+		}
+		if isPublicPath(c.Request.URL.Path) {
+			c.Next()
 			return
 		}
 
