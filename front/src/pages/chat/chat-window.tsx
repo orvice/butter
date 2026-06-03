@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import type { SessionInfo } from "@/types/api";
 
 const APP_NAME = "web-chat";
+const EMPTY_STREAMING_EVENTS: ParsedEvent[] = [];
 
 interface ChatWindowProps {
   session: SessionInfo | null;
@@ -21,17 +22,33 @@ interface ChatWindowProps {
   agentName: string | null;
 }
 
+interface ChatRunState {
+  runId: string | null;
+  sessionId: string;
+  pending: boolean;
+  pendingBaseEventIds: Set<string> | null;
+  pendingUserMessage: string | null;
+  streamingEvents: ParsedEvent[];
+  streamingResponse: string;
+  invocationId: string | null;
+}
+
 export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
+  const sessionId = session?.session_id ?? "";
   const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState(false);
-  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
-  const [streamingEvents, setStreamingEvents] = useState<ParsedEvent[]>([]);
-  const [streamingResponse, setStreamingResponse] = useState("");
-  const [invocationId, setInvocationId] = useState<string | null>(null);
+  const [runState, setRunState] = useState<ChatRunState>(() => emptyChatRunState(""));
   const abortRef = useRef<AbortController | null>(null);
+  const activeRunIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const sessionId = session?.session_id ?? "";
+  const isRunForCurrentSession = runState.sessionId === sessionId;
+  const pending = isRunForCurrentSession && runState.pending;
+  const pendingBaseEventIds = isRunForCurrentSession ? runState.pendingBaseEventIds : null;
+  const pendingUserMessage = isRunForCurrentSession ? runState.pendingUserMessage : null;
+  const streamingEvents = isRunForCurrentSession ? runState.streamingEvents : EMPTY_STREAMING_EVENTS;
+  const streamingResponse = isRunForCurrentSession ? runState.streamingResponse : "";
+  const invocationId = isRunForCurrentSession ? runState.invocationId : null;
+
   const liveQuery = useLiveSession(APP_NAME, userId, sessionId, pending);
   const reply = useReplySession();
 
@@ -44,21 +61,27 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
     return makeOptimisticTextEvent("pending-user", "user", pendingUserMessage);
   }, [pendingUserMessage]);
   const events = useMemo<ParsedEvent[]>(() => {
-    const out = [...persistedEvents];
-    if (optimisticUserEvent) out.push(optimisticUserEvent);
-    out.push(...streamingEvents);
+    const out: ParsedEvent[] = [];
+    const seen = new Set<string>();
+    const baseEvents = pendingBaseEventIds
+      ? persistedEvents.filter((evt) => pendingBaseEventIds.has(evt.eventId))
+      : persistedEvents;
+
+    for (const event of baseEvents) appendUniqueEvent(out, seen, event);
+    if (optimisticUserEvent) appendUniqueEvent(out, seen, optimisticUserEvent);
+    for (const event of streamingEvents) appendUniqueEvent(out, seen, event);
     if (streamingResponse.trim()) {
-      out.push(makeOptimisticTextEvent("streaming-assistant", "assistant", streamingResponse));
+      appendUniqueEvent(
+        out,
+        seen,
+        makeOptimisticTextEvent("streaming-assistant", "assistant", streamingResponse),
+      );
     }
     return out;
-  }, [persistedEvents, optimisticUserEvent, streamingEvents, streamingResponse]);
+  }, [persistedEvents, pendingBaseEventIds, optimisticUserEvent, streamingEvents, streamingResponse]);
 
   useEffect(() => {
-    setStreamingEvents([]);
-    setStreamingResponse("");
-    setInvocationId(null);
     abortRef.current?.abort();
-    abortRef.current = null;
   }, [sessionId]);
 
   useEffect(() => {
@@ -78,12 +101,20 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   async function handleSend() {
     const text = draft.trim();
     if (!text || !agentName || pending) return;
+    const runId = newRunId();
+    abortRef.current?.abort();
+    activeRunIdRef.current = runId;
     setDraft("");
-    setPending(true);
-    setPendingUserMessage(text);
-    setStreamingEvents([]);
-    setStreamingResponse("");
-    setInvocationId(null);
+    setRunState({
+      runId,
+      sessionId,
+      pending: true,
+      pendingBaseEventIds: new Set(persistedEvents.map((evt) => evt.eventId)),
+      pendingUserMessage: text,
+      streamingEvents: [],
+      streamingResponse: "",
+      invocationId: null,
+    });
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -101,21 +132,35 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
         {
           onStarted: (payload) => {
             streamStarted = true;
-            if (payload.invocation_id) setInvocationId(payload.invocation_id);
+            if (payload.invocation_id) {
+              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                ...current,
+                invocationId: payload.invocation_id ?? current.invocationId,
+              })));
+            }
           },
           onAgentEvent: (payload) => {
             const event = payloadToParsedEvent(payload);
             if (event) {
-              setStreamingEvents((prev) => [...prev, event]);
+              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                ...current,
+                streamingEvents: [...current.streamingEvents, event],
+              })));
             }
           },
           onTextDelta: (payload) => {
             if (payload.text_delta) {
-              setStreamingResponse((prev) => prev + payload.text_delta);
+              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                ...current,
+                streamingResponse: current.streamingResponse + payload.text_delta,
+              })));
             }
           },
           onFinal: (payload) => {
-            setStreamingResponse(payload.response ?? "");
+            setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+              ...current,
+              streamingResponse: payload.response ?? "",
+            })));
           },
           onError: (payload) => {
             if (payload.error) toast.error(payload.error);
@@ -145,12 +190,11 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
         toast.error(err instanceof Error ? err.message : "Failed to send message");
       }
     } finally {
-      setPending(false);
-      setPendingUserMessage(null);
-      setStreamingEvents([]);
-      setStreamingResponse("");
-      setInvocationId(null);
-      abortRef.current = null;
+      setRunState((prev) => prev.runId === runId ? emptyChatRunState(prev.sessionId) : prev);
+      if (activeRunIdRef.current === runId) {
+        activeRunIdRef.current = null;
+        abortRef.current = null;
+      }
     }
   }
 
@@ -260,10 +304,43 @@ function makeOptimisticTextEvent(
   };
 }
 
+function emptyChatRunState(sessionId: string): ChatRunState {
+  return {
+    runId: null,
+    sessionId,
+    pending: false,
+    pendingBaseEventIds: null,
+    pendingUserMessage: null,
+    streamingEvents: [],
+    streamingResponse: "",
+    invocationId: null,
+  };
+}
+
+function updateChatRun(
+  prev: ChatRunState,
+  sessionId: string,
+  runId: string,
+  update: (current: ChatRunState) => ChatRunState,
+): ChatRunState {
+  if (prev.sessionId !== sessionId || prev.runId !== runId) return prev;
+  return update(prev);
+}
+
+function newRunId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function appendUniqueEvent(out: ParsedEvent[], seen: Set<string>, event: ParsedEvent) {
+  if (seen.has(event.eventId)) return;
+  seen.add(event.eventId);
+  out.push(event);
+}
+
 function payloadToParsedEvent(payload: ChatStreamPayload): ParsedEvent | null {
   const evt = payload.event;
   if (!evt?.event_id) return null;
-  return parseSessionEvent({
+  const parsed = parseSessionEvent({
     event_id: evt.event_id,
     invocation_id: evt.invocation_id,
     author: evt.author,
@@ -272,6 +349,10 @@ function payloadToParsedEvent(payload: ChatStreamPayload): ParsedEvent | null {
     timestamp: evt.timestamp,
     trace_id: evt.invocation_id,
   });
+  if (evt.partial && parsed.text) {
+    return { ...parsed, text: "" };
+  }
+  return parsed;
 }
 
 function isAbortError(err: unknown): boolean {
