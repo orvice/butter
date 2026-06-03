@@ -1,5 +1,10 @@
 # Security Review — butter
 
+> **Note (2026-06-03):** This review was conducted against commit `809f2dd`. Several
+> Critical and High findings have since been fixed in main. See the status column
+> added to each finding. Open findings (H1, H2, H3, M1–M3, L1–L2) remain valid as
+> of the last audit update.
+
 Date: 2026-05-23
 Reviewer: Craft Agent (Claude Opus 4.7)
 Scope: Repository `go.orx.me/apps/butter` at commit `809f2dd` (main).
@@ -19,8 +24,10 @@ configurations/sessions in MongoDB and Redis.
 
 ## Critical
 
-### C1. RemoteAgent URL not validated → SSRF
+### C1. RemoteAgent URL not validated → SSRF ✅ FIXED
 
+- **Status:** Fixed. `validateRemoteAgentURL` + `validateHTTPURL` added to
+  `remoteagent_service.go` (lines 235–250).
 - **File:** `internal/application/remoteagent_service.go:61-92`
   (`CreateRemoteAgent`, `UpdateRemoteAgent`)
 - **Issue:** RemoteAgent URLs used by the A2A protocol are stored without
@@ -34,8 +41,10 @@ configurations/sessions in MongoDB and Redis.
 - **Fix:** Call `validateHTTPURL()` on `req.GetRemoteAgent().GetUrl()` in
   both Create and Update.
 
-### C2. ModelProvider `base_url` not validated → SSRF
+### C2. ModelProvider `base_url` not validated → SSRF ✅ FIXED
 
+- **Status:** Fixed. `validateModelProviderBaseURL` added to
+  `modelprovider_service.go` (lines 16–24).
 - **File:** `proto/agents/v1/agent.proto:337-338` (`base_url` field) and
   the corresponding `internal/application/modelprovider_service.go`
   Create/Update handlers.
@@ -47,8 +56,10 @@ configurations/sessions in MongoDB and Redis.
 - **Fix:** Apply `validateHTTPURL()` (or equivalent) to `base_url` on
   create/update.
 
-### C3. `InvokeAgent` input not size-limited → DoS
+### C3. `InvokeAgent` input not size-limited → DoS ✅ FIXED
 
+- **Status:** Fixed. `maxInvokeAgentInputBytes = 1 << 20` (1 MB) added to
+  `agent_service.go` (lines 26–28, enforced at lines 234–236).
 - **File:** `internal/application/agent_service.go:219-282`
 - **Issue:** `req.GetInput()` is forwarded into runner/session storage
   without a length check. Connect/gRPC request body limits are
@@ -109,8 +120,11 @@ configurations/sessions in MongoDB and Redis.
   workspace-owner co-sign for installation into workspaces the admin is
   not a member of.
 
-### H4. CronJob does not validate agent ownership at create time
+### H4. CronJob does not validate agent ownership at create time ✅ FIXED
 
+- **Status:** Fixed. `ErrAgentNotInWorkspace` check added to
+  `internal/runtime/cron/scheduler.go` (lines 27–32, 131); surfaced in
+  `cron_service.go` (lines 20–22).
 - **File:** `internal/application/cron_service.go:73-90`
 - **Issue:** The CronJob is stored with `agent_name`. There is no
   pre-flight check that the agent exists in the caller's workspace. If
@@ -195,13 +209,10 @@ configurations/sessions in MongoDB and Redis.
 
 ## Suggested order of remediation
 
-1. **Now:** C1, C2 — apply existing `validateHTTPURL` to RemoteAgent and
-   ModelProvider.
-2. **This sprint:** C3 — input size limit on `InvokeAgent` (tracked in
-   the worktree spun off from this review).
-3. **This sprint:** H1 — restructure invocation storage to use top-level
-   indexed fields.
-4. **Follow-up:** H2, H3 — centralize admin determination and audit
-   admin install actions.
-5. **Follow-up:** H4 — make CronJob bind to `agent_id`.
-6. **Backlog:** M-tier hardening and L-tier UX/error messages.
+> ✅ C1, C2, C3, H4 have been fixed as of 2026-06-03 (see status notes above).
+> Remaining open items:
+
+1. **Open (High):** H1 — restructure invocation storage to use top-level indexed fields.
+2. **Open (High):** H2 — centralize admin determination.
+3. **Open (High):** H3 — audit logging for admin cross-workspace installs.
+4. **Backlog:** M-tier hardening (M1–M3) and L-tier UX/error messages (L1–L2).

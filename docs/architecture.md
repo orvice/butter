@@ -103,7 +103,7 @@ Persistence
 
 `internal/app` 是服务装配层：
 
-- `routes.go` 创建 Gin handler、ConnectRPC handler 和 `Handlers` 容器。每个 `internal/application/*ServiceServer` 被对应的 `application.NewXxxServiceConnectAdapter` 包成 `agentsv1connect.XxxServiceHandler`，挂载在 `/api/agents.v1.XxxService/*` 路径下（通过 `http.StripPrefix("/api", handler)` 接到 Connect 默认的 `/agents.v1.XxxService/` mount path）。共享的 codec/transport plumbing 见 `internal/transport/connectx`。
+- `routes.go` 创建 Gin handler、ConnectRPC handler 和 `Handlers` 容器。每个 `internal/application/*ServiceServer` 直接实现 `agentsv1connect.XxxServiceHandler`，由 `agentsv1connect.NewXxxServiceHandler(svc, connectOpts...)` 挂载在 `/api/agents.v1.XxxService/*`（`http.StripPrefix("/api", handler)`）。共享 codec/transport 见 `internal/transport/connectx`（含 snake_case JSON 兜底；dashboard 浏览器走 binary protobuf）。
 - `config_store.go` 根据 `storage_backend` 选择 memory 或 mongo 配置后端，并把配置同步回 `AppConfig`。
 - `config_runtime.go` 在配置变更后同步 `AppConfig`，并触发 runner/channel reload。
 - `runtime.go` 初始化 MongoDB、Redis 和 Langfuse plugin。
@@ -184,24 +184,32 @@ HTTP handler 位于 `internal/handler/http`：
 - `GET /status`：运行时状态，返回当前配置存储 backend 和配置集合数量。
 - `GET /a2a/:agent_name/.well-known/agent.json`：A2A agent card。
 - `POST /a2a/:agent_name`：A2A JSON-RPC task send。
+- `POST /api/uploads/*`：头像与静态资源 multipart 上传（见 `docs/storage.md`）；不走 ConnectRPC。
+- `ANY /api/workspaces/:workspace_id/mcp`：工作区范围的 MCP HTTP 端点，转发给工作区 MCP service。
+- `GET /api/mcp/oauth/callback`：MCP OAuth2 授权码回调，由 `MCPServerService.CompleteMCPServerOAuthCallback` 处理后重定向。
 
-RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC（同一 URL 兼容 Connect JSON、gRPC-Web 和 gRPC 协议；为前端零改动兼容，JSON 输出沿用 snake_case proto field names）：
+RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC（同一 URL 兼容 Connect binary/protobuf、Connect JSON、gRPC-Web 和 gRPC）。Dashboard 浏览器默认 `application/proto`；JSON codec 仍输出 snake_case field names（`connectx.HandlerOptions`）。
 
 配置 / 执行：
 
-- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`。
-- `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools`。
+- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（chat server-stream）/ `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`。
+- `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools` + MCP OAuth2 流程（`StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`）。
 - `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
 - `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
 - `SessionService`：`Create` / `Get`（含 duration + trace_url）/ `List`（filter + page）/ `Delete` / `Reply`。
 - `CronJobService`：定时任务 CRUD + `ListCronExecutions` + `RunCronJobNow`。
+- `ModelProviderService`：LLM Provider CRUD。
+- `NotifyGroupService`：通知组 CRUD，供 cron 投递使用。
+- `AgentFileService`：workspace 范围的文件空间与文件 CRUD（含 `SearchAgentFiles`）。
+- `ForumService`：论坛 thread / post 管理（`ListThreads` / `ListThreadLabels` / `GetThread` / `CreateThread` / `UpdateThread` / `DeleteThread` / `CreatePost` / `DeletePost` / `InvokeAgentInThread`）。
 
 运维：
 
 - `DashboardService`：`GetOverview` / `GetActivityFeed` / `GetCronExecutionTimeseries`。
 - `DaemonService`：`ListDaemons` / `GetDaemon` / `ListDaemonTasks` / `CancelDaemonTask` / `GetBridgeDiagnostics`。
 - `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
-- `GlobalMCPServerService`：admin 管理的 workspace-agnostic MCP server 预设；`Install` 把预设克隆到目标 workspace（admin 可跨 workspace 安装，审计日志记录）。
+- `GlobalMCPServerService`：admin 管理的 workspace-agnostic MCP server 预设；`InstallGlobalMCPServer` 把预设克隆到目标 workspace（admin 可跨 workspace 安装，审计日志记录）。
+- `WorkspaceService`：workspace 与成员 CRUD（无需 `X-Workspace-ID`）。
 
 除 `/ping`、OPTIONS 预检、MCP OAuth 回调以及 `AuthService.Login` / `ListOAuthProviders` / `BeginOAuthFlow` / `CompleteOAuthFlow` 之外，所有 HTTP/RPC 请求经过 `AuthMiddleware`：
 
@@ -282,7 +290,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 
 ## 前端 Dashboard 与镜像
 
-- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。9 个一级页对齐 Stitch 设计稿。
+- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。一级页包含：Login、Chat、Forum、Dashboard(Overview)、Agents、MCP Servers、Remote Agents、Daemons、Channels、Sessions、Cron、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Operations、Admin 等（见 `front/src/pages/`）。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）生成到 `front/src/gen/`，运行时类型走 `@bufbuild/protobuf`。
 - 后端镜像：`ghcr.io/<owner>/<repo>`（根 `Dockerfile`，distroless static + cosign 签名）。
 - 前端镜像：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行 + SPA fallback + `/healthz`）。

@@ -38,6 +38,15 @@ service AgentService {
   // CancelAgentInvocation cancels an in-flight invocation by its ID. The
   // invocation transitions to FAILED with a cancellation error.
   rpc CancelAgentInvocation(CancelAgentInvocationRequest) returns (CancelAgentInvocationResponse);
+  // StreamAgent runs an agent and streams progress events back to the
+  // caller. The dashboard chat UI uses this Connect server-stream RPC
+  // (replaces the removed POST /api/chat/stream SSE endpoint). One of the
+  // StreamAgentResponse.event oneof variants is sent for each runner event
+  // (started, mid-stream text delta, full ADK event, final response).
+  // Errors bubble up as the RPC's terminal connect.Error so the client
+  // gets typed cancellation / failed-precondition codes instead of an
+  // ad-hoc string payload.
+  rpc StreamAgent(StreamAgentRequest) returns (stream StreamAgentResponse);
 }
 
 // MCPServerService manages MCP Server configurations.
@@ -174,6 +183,79 @@ message CancelAgentInvocationRequest {
 message CancelAgentInvocationResponse {
   // True if the invocation was found and the cancel signal was delivered.
   bool cancelled = 1;
+}
+
+// --- StreamAgent messages ---
+
+message StreamAgentRequest {
+  // Name of the agent to invoke. Required.
+  string agent_name = 1;
+  // User prompt to send to the agent. Required, non-empty.
+  string message = 2;
+  // ADK app name. Defaults to "api" when empty.
+  string app_name = 3;
+  // ADK user id. Defaults to "api" when empty.
+  string user_id = 4;
+  // Existing session id, or empty to start an ephemeral session.
+  string session_id = 5;
+  // Optional model override; if set the agent runs with this model
+  // instead of the configured default.
+  string model_override = 6;
+}
+
+// StreamAgentResponse is sent for every observable transition during
+// the agent invocation. The oneof guarantees clients see exactly one
+// variant per message — no ad-hoc JSON payload disambiguation.
+message StreamAgentResponse {
+  oneof event {
+    StreamAgentStarted started = 1;
+    StreamAgentRunEvent run_event = 2;
+    StreamAgentTextDelta text_delta = 3;
+    StreamAgentFinal final = 4;
+  }
+}
+
+// StreamAgentStarted is the first event in the stream; it carries the
+// server-assigned invocation_id so callers can correlate with
+// CancelAgentInvocation.
+message StreamAgentStarted {
+  string invocation_id = 1;
+  string session_id = 2;
+  string agent_name = 3;
+}
+
+// StreamAgentRunEvent mirrors a single ADK session.Event. content_json
+// is the genai.Content payload serialized as JSON; the dashboard parses
+// it client-side to render tool calls / function responses / etc.
+message StreamAgentRunEvent {
+  string invocation_id = 1;
+  string session_id = 2;
+  string agent_name = 3;
+  string event_id = 4;
+  string author = 5;
+  string branch = 6;
+  bool partial = 7;
+  bool final_response = 8;
+  string content_json = 9;
+  google.protobuf.Timestamp timestamp = 10;
+}
+
+// StreamAgentTextDelta is emitted for partial assistant-text chunks so
+// the UI can render the response as it streams in.
+message StreamAgentTextDelta {
+  string invocation_id = 1;
+  string session_id = 2;
+  string agent_name = 3;
+  string text = 4;
+}
+
+// StreamAgentFinal is sent once after the runner returns the final
+// response text. The stream is closed by the server after this.
+message StreamAgentFinal {
+  string invocation_id = 1;
+  string session_id = 2;
+  string agent_name = 3;
+  string response = 4;
 }
 
 message GetAgentRequest {

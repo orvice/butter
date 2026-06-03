@@ -30,6 +30,7 @@ const (
 	AgentService_GetAgentRuntimeStatus_FullMethodName    = "/agents.v1.AgentService/GetAgentRuntimeStatus"
 	AgentService_ListAgentRuntimeStatuses_FullMethodName = "/agents.v1.AgentService/ListAgentRuntimeStatuses"
 	AgentService_CancelAgentInvocation_FullMethodName    = "/agents.v1.AgentService/CancelAgentInvocation"
+	AgentService_StreamAgent_FullMethodName              = "/agents.v1.AgentService/StreamAgent"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -63,6 +64,15 @@ type AgentServiceClient interface {
 	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
 	// invocation transitions to FAILED with a cancellation error.
 	CancelAgentInvocation(ctx context.Context, in *CancelAgentInvocationRequest, opts ...grpc.CallOption) (*CancelAgentInvocationResponse, error)
+	// StreamAgent runs an agent and streams progress events back to the
+	// caller. The dashboard chat UI uses this Connect server-stream RPC
+	// (replaces the removed POST /api/chat/stream SSE endpoint). One of the
+	// StreamAgentResponse.event oneof variants is sent for each runner event
+	// (started, mid-stream text delta, full ADK event, final response).
+	// Errors bubble up as the RPC's terminal connect.Error so the client
+	// gets typed cancellation / failed-precondition codes instead of an
+	// ad-hoc string payload.
+	StreamAgent(ctx context.Context, in *StreamAgentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamAgentResponse], error)
 }
 
 type agentServiceClient struct {
@@ -183,6 +193,25 @@ func (c *agentServiceClient) CancelAgentInvocation(ctx context.Context, in *Canc
 	return out, nil
 }
 
+func (c *agentServiceClient) StreamAgent(ctx context.Context, in *StreamAgentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamAgentResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[0], AgentService_StreamAgent_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamAgentRequest, StreamAgentResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_StreamAgentClient = grpc.ServerStreamingClient[StreamAgentResponse]
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -214,6 +243,15 @@ type AgentServiceServer interface {
 	// CancelAgentInvocation cancels an in-flight invocation by its ID. The
 	// invocation transitions to FAILED with a cancellation error.
 	CancelAgentInvocation(context.Context, *CancelAgentInvocationRequest) (*CancelAgentInvocationResponse, error)
+	// StreamAgent runs an agent and streams progress events back to the
+	// caller. The dashboard chat UI uses this Connect server-stream RPC
+	// (replaces the removed POST /api/chat/stream SSE endpoint). One of the
+	// StreamAgentResponse.event oneof variants is sent for each runner event
+	// (started, mid-stream text delta, full ADK event, final response).
+	// Errors bubble up as the RPC's terminal connect.Error so the client
+	// gets typed cancellation / failed-precondition codes instead of an
+	// ad-hoc string payload.
+	StreamAgent(*StreamAgentRequest, grpc.ServerStreamingServer[StreamAgentResponse]) error
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -256,6 +294,9 @@ func (UnimplementedAgentServiceServer) ListAgentRuntimeStatuses(context.Context,
 }
 func (UnimplementedAgentServiceServer) CancelAgentInvocation(context.Context, *CancelAgentInvocationRequest) (*CancelAgentInvocationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelAgentInvocation not implemented")
+}
+func (UnimplementedAgentServiceServer) StreamAgent(*StreamAgentRequest, grpc.ServerStreamingServer[StreamAgentResponse]) error {
+	return status.Error(codes.Unimplemented, "method StreamAgent not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -476,6 +517,17 @@ func _AgentService_CancelAgentInvocation_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_StreamAgent_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamAgentRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentServiceServer).StreamAgent(m, &grpc.GenericServerStream[StreamAgentRequest, StreamAgentResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_StreamAgentServer = grpc.ServerStreamingServer[StreamAgentResponse]
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -528,7 +580,13 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AgentService_CancelAgentInvocation_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamAgent",
+			Handler:       _AgentService_StreamAgent_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "agents/v1/agent_service.proto",
 }
 

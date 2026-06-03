@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { useLayoutDensity } from "@/hooks/use-layout-density";
 import { useCreateSession, useDeleteSession, useSessions } from "@/api/sessions";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { cn } from "@/lib/utils";
 import { AgentPicker } from "./agent-picker";
 import { ChatSidebar } from "./chat-sidebar";
 import { ChatWindow } from "./chat-window";
@@ -18,6 +20,7 @@ function agentNameOf(state: SessionInfo["state"]): string | null {
 
 export default function ChatPage() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { isCompact } = useLayoutDensity();
   const userId = user?.id ?? "";
 
   const sessionsQuery = useSessions(
@@ -103,7 +106,12 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="-m-4 flex h-[calc(100vh-4rem)] flex-col sm:-m-8 md:flex-row">
+    <div
+      className={cn(
+        "-m-4 flex flex-col md:flex-row",
+        isCompact ? "h-[calc(100vh-3rem)] sm:-m-5" : "h-[calc(100vh-4rem)] sm:-m-8",
+      )}
+    >
       <ChatSidebar
         sessions={sessions}
         isLoading={sessionsQuery.isLoading}

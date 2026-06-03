@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLayoutDensity } from "@/hooks/use-layout-density";
 import { cn } from "@/lib/utils";
 import { Plus, Trash2, MessageCircle } from "lucide-react";
 import type { SessionInfo } from "@/types/api";
@@ -27,29 +28,36 @@ export function ChatSidebar({
   onNewChat,
   onDelete,
 }: ChatSidebarProps) {
+  const { isCompact } = useLayoutDensity();
+
   return (
-    <aside className="flex max-h-64 w-full shrink-0 flex-col border-b bg-card/40 md:h-full md:max-h-none md:w-72 md:border-b-0 md:border-r">
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-3">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <MessageCircle className="h-4 w-4" /> Chats
+    <aside
+      className={cn(
+        "flex w-full shrink-0 flex-col border-b bg-card/40 md:h-full md:max-h-none md:border-b-0 md:border-r",
+        isCompact ? "max-h-52 md:w-64" : "max-h-64 md:w-72",
+      )}
+    >
+      <div className={cn("flex items-center justify-between gap-2 border-b px-3", isCompact ? "py-2" : "py-3")}>
+        <div className={cn("flex items-center gap-2 font-semibold", isCompact ? "text-xs" : "text-sm")}>
+          <MessageCircle className={cn(isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} /> Chats
         </div>
-        <Button size="sm" onClick={onNewChat}>
+        <Button size={isCompact ? "xs" : "sm"} onClick={onNewChat}>
           <Plus className="mr-1 h-3 w-3" /> New
         </Button>
       </div>
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className={cn("flex-1 overflow-y-auto", isCompact ? "p-1.5" : "p-2")}>
         {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+          <div className={cn(isCompact ? "space-y-1.5" : "space-y-2")}>
+            <Skeleton className={cn("w-full", isCompact ? "h-10" : "h-12")} />
+            <Skeleton className={cn("w-full", isCompact ? "h-10" : "h-12")} />
+            <Skeleton className={cn("w-full", isCompact ? "h-10" : "h-12")} />
           </div>
         ) : sessions.length === 0 ? (
-          <div className="px-3 py-8 text-center text-xs text-muted-foreground">
+          <div className={cn("px-3 text-center text-xs text-muted-foreground", isCompact ? "py-5" : "py-8")}>
             No chats yet. Click <span className="font-medium">New</span> to start one.
           </div>
         ) : (
-          <ul className="space-y-1">
+          <ul className={cn(isCompact ? "space-y-0.5" : "space-y-1")}>
             {sessions.map((s) => {
               const active = s.session_id === activeSessionId;
               const agent = agentNameOf(s.state);
@@ -58,7 +66,8 @@ export function ChatSidebar({
                 <li key={s.session_id}>
                   <div
                     className={cn(
-                      "group flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-xs transition-colors",
+                      "group flex cursor-pointer items-start gap-2 rounded-md px-2 text-xs transition-colors",
+                      isCompact ? "py-1.5" : "py-2",
                       active
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-accent/50",
@@ -69,7 +78,7 @@ export function ChatSidebar({
                       <div className="truncate font-medium">
                         {agent ?? "Unknown agent"}
                       </div>
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                      <div className="flex items-center justify-between gap-2 text-[10px] leading-tight text-muted-foreground">
                         <span className="truncate font-mono">
                           {s.session_id.slice(0, 12)}…
                         </span>

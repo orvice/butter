@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLayoutDensity } from "@/hooks/use-layout-density";
 import { cn } from "@/lib/utils";
 import { parseSessionEvent, parseSessionEvents, type ParsedEvent } from "@/lib/session-events";
 import { useLiveSession, useReplySession } from "@/api/sessions";
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 import type { SessionInfo } from "@/types/api";
 
 const APP_NAME = "web-chat";
+const EMPTY_STREAMING_EVENTS: ParsedEvent[] = [];
 
 interface ChatWindowProps {
   session: SessionInfo | null;
@@ -21,17 +23,34 @@ interface ChatWindowProps {
   agentName: string | null;
 }
 
+interface ChatRunState {
+  runId: string | null;
+  sessionId: string;
+  pending: boolean;
+  pendingBaseEventIds: Set<string> | null;
+  pendingUserMessage: string | null;
+  streamingEvents: ParsedEvent[];
+  streamingResponse: string;
+  invocationId: string | null;
+}
+
 export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
+  const sessionId = session?.session_id ?? "";
+  const { isCompact } = useLayoutDensity();
   const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState(false);
-  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
-  const [streamingEvents, setStreamingEvents] = useState<ParsedEvent[]>([]);
-  const [streamingResponse, setStreamingResponse] = useState("");
-  const [invocationId, setInvocationId] = useState<string | null>(null);
+  const [runState, setRunState] = useState<ChatRunState>(() => emptyChatRunState(""));
   const abortRef = useRef<AbortController | null>(null);
+  const activeRunIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const sessionId = session?.session_id ?? "";
+  const isRunForCurrentSession = runState.sessionId === sessionId;
+  const pending = isRunForCurrentSession && runState.pending;
+  const pendingBaseEventIds = isRunForCurrentSession ? runState.pendingBaseEventIds : null;
+  const pendingUserMessage = isRunForCurrentSession ? runState.pendingUserMessage : null;
+  const streamingEvents = isRunForCurrentSession ? runState.streamingEvents : EMPTY_STREAMING_EVENTS;
+  const streamingResponse = isRunForCurrentSession ? runState.streamingResponse : "";
+  const invocationId = isRunForCurrentSession ? runState.invocationId : null;
+
   const liveQuery = useLiveSession(APP_NAME, userId, sessionId, pending);
   const reply = useReplySession();
 
@@ -44,21 +63,27 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
     return makeOptimisticTextEvent("pending-user", "user", pendingUserMessage);
   }, [pendingUserMessage]);
   const events = useMemo<ParsedEvent[]>(() => {
-    const out = [...persistedEvents];
-    if (optimisticUserEvent) out.push(optimisticUserEvent);
-    out.push(...streamingEvents);
+    const out: ParsedEvent[] = [];
+    const seen = new Set<string>();
+    const baseEvents = pendingBaseEventIds
+      ? persistedEvents.filter((evt) => pendingBaseEventIds.has(evt.eventId))
+      : persistedEvents;
+
+    for (const event of baseEvents) appendUniqueEvent(out, seen, event);
+    if (optimisticUserEvent) appendUniqueEvent(out, seen, optimisticUserEvent);
+    for (const event of streamingEvents) appendUniqueEvent(out, seen, event);
     if (streamingResponse.trim()) {
-      out.push(makeOptimisticTextEvent("streaming-assistant", "assistant", streamingResponse));
+      appendUniqueEvent(
+        out,
+        seen,
+        makeOptimisticTextEvent("streaming-assistant", "assistant", streamingResponse),
+      );
     }
     return out;
-  }, [persistedEvents, optimisticUserEvent, streamingEvents, streamingResponse]);
+  }, [persistedEvents, pendingBaseEventIds, optimisticUserEvent, streamingEvents, streamingResponse]);
 
   useEffect(() => {
-    setStreamingEvents([]);
-    setStreamingResponse("");
-    setInvocationId(null);
     abortRef.current?.abort();
-    abortRef.current = null;
   }, [sessionId]);
 
   useEffect(() => {
@@ -69,7 +94,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   if (!session) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center text-sm text-muted-foreground">
-        <Bot className="mb-2 h-8 w-8" />
+        <Bot className={cn("mb-2", isCompact ? "h-6 w-6" : "h-8 w-8")} />
         Select a chat on the left or start a new one.
       </div>
     );
@@ -78,12 +103,20 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   async function handleSend() {
     const text = draft.trim();
     if (!text || !agentName || pending) return;
+    const runId = newRunId();
+    abortRef.current?.abort();
+    activeRunIdRef.current = runId;
     setDraft("");
-    setPending(true);
-    setPendingUserMessage(text);
-    setStreamingEvents([]);
-    setStreamingResponse("");
-    setInvocationId(null);
+    setRunState({
+      runId,
+      sessionId,
+      pending: true,
+      pendingBaseEventIds: new Set(persistedEvents.map((evt) => evt.eventId)),
+      pendingUserMessage: text,
+      streamingEvents: [],
+      streamingResponse: "",
+      invocationId: null,
+    });
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -101,21 +134,35 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
         {
           onStarted: (payload) => {
             streamStarted = true;
-            if (payload.invocation_id) setInvocationId(payload.invocation_id);
+            if (payload.invocation_id) {
+              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                ...current,
+                invocationId: payload.invocation_id ?? current.invocationId,
+              })));
+            }
           },
           onAgentEvent: (payload) => {
             const event = payloadToParsedEvent(payload);
             if (event) {
-              setStreamingEvents((prev) => [...prev, event]);
+              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                ...current,
+                streamingEvents: [...current.streamingEvents, event],
+              })));
             }
           },
           onTextDelta: (payload) => {
             if (payload.text_delta) {
-              setStreamingResponse((prev) => prev + payload.text_delta);
+              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                ...current,
+                streamingResponse: current.streamingResponse + payload.text_delta,
+              })));
             }
           },
           onFinal: (payload) => {
-            setStreamingResponse(payload.response ?? "");
+            setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+              ...current,
+              streamingResponse: payload.response ?? "",
+            })));
           },
           onError: (payload) => {
             if (payload.error) toast.error(payload.error);
@@ -145,12 +192,11 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
         toast.error(err instanceof Error ? err.message : "Failed to send message");
       }
     } finally {
-      setPending(false);
-      setPendingUserMessage(null);
-      setStreamingEvents([]);
-      setStreamingResponse("");
-      setInvocationId(null);
-      abortRef.current = null;
+      setRunState((prev) => prev.runId === runId ? emptyChatRunState(prev.sessionId) : prev);
+      if (activeRunIdRef.current === runId) {
+        activeRunIdRef.current = null;
+        abortRef.current = null;
+      }
     }
   }
 
@@ -167,7 +213,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       void handleSend();
     }
@@ -175,38 +221,44 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
 
   return (
     <div className="flex h-full flex-1 flex-col">
-      <div className="flex items-center justify-between border-b px-3 py-3 sm:px-4">
+      <div className={cn("flex items-center justify-between border-b px-3 sm:px-4", isCompact ? "py-2" : "py-3")}>
         <div className="flex min-w-0 items-center gap-2">
-          <Bot className="h-4 w-4 text-muted-foreground" />
+          <Bot className={cn("text-muted-foreground", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
           <div className="min-w-0">
-            <div className="text-sm font-semibold">{agentName ?? "Unknown agent"}</div>
-            <div className="truncate font-mono text-[10px] text-muted-foreground">{sessionId}</div>
+            <div className={cn("font-semibold", isCompact ? "text-xs" : "text-sm")}>{agentName ?? "Unknown agent"}</div>
+            <div className="truncate font-mono text-[10px] leading-tight text-muted-foreground">{sessionId}</div>
           </div>
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-4">
+      <div
+        ref={scrollRef}
+        className={cn(
+          "flex-1 overflow-y-auto px-3 sm:px-4",
+          isCompact ? "space-y-2 py-2.5" : "space-y-3 py-4",
+        )}
+      >
         {liveQuery.isLoading ? (
           <>
-            <Skeleton className="h-16 w-2/3" />
-            <Skeleton className="ml-auto h-16 w-1/2" />
+            <Skeleton className={cn("w-2/3", isCompact ? "h-12" : "h-16")} />
+            <Skeleton className={cn("ml-auto w-1/2", isCompact ? "h-12" : "h-16")} />
           </>
         ) : events.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
             No messages yet.
           </div>
         ) : (
-          events.map((evt) => <MessageBubble key={evt.eventId} event={evt} />)
+          events.map((evt) => <MessageBubble key={evt.eventId} event={evt} isCompact={isCompact} />)
         )}
         {pending ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" /> Agent is thinking...
           </div>
         ) : null}
       </div>
 
-      <div className="border-t bg-background p-3">
-        <div className="flex items-end gap-2">
+      <div className={cn("border-t bg-background", isCompact ? "p-2" : "p-3")}>
+        <div className={cn("flex items-end", isCompact ? "gap-1.5" : "gap-2")}>
           <Textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -218,10 +270,14 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
             }
             disabled={!agentName || pending}
             rows={2}
-            className="flex-1 resize-none"
+            className={cn(
+              "flex-1 resize-none",
+              isCompact && "min-h-10 rounded-md px-2 py-1.5 text-sm leading-5",
+            )}
           />
           <Button
             variant={pending ? "secondary" : "default"}
+            size={isCompact ? "sm" : "default"}
             onClick={() => pending ? void handleStop() : void handleSend()}
             disabled={!agentName || (!pending && draft.trim().length === 0)}
           >
@@ -260,10 +316,43 @@ function makeOptimisticTextEvent(
   };
 }
 
+function emptyChatRunState(sessionId: string): ChatRunState {
+  return {
+    runId: null,
+    sessionId,
+    pending: false,
+    pendingBaseEventIds: null,
+    pendingUserMessage: null,
+    streamingEvents: [],
+    streamingResponse: "",
+    invocationId: null,
+  };
+}
+
+function updateChatRun(
+  prev: ChatRunState,
+  sessionId: string,
+  runId: string,
+  update: (current: ChatRunState) => ChatRunState,
+): ChatRunState {
+  if (prev.sessionId !== sessionId || prev.runId !== runId) return prev;
+  return update(prev);
+}
+
+function newRunId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function appendUniqueEvent(out: ParsedEvent[], seen: Set<string>, event: ParsedEvent) {
+  if (seen.has(event.eventId)) return;
+  seen.add(event.eventId);
+  out.push(event);
+}
+
 function payloadToParsedEvent(payload: ChatStreamPayload): ParsedEvent | null {
   const evt = payload.event;
   if (!evt?.event_id) return null;
-  return parseSessionEvent({
+  const parsed = parseSessionEvent({
     event_id: evt.event_id,
     invocation_id: evt.invocation_id,
     author: evt.author,
@@ -272,17 +361,22 @@ function payloadToParsedEvent(payload: ChatStreamPayload): ParsedEvent | null {
     timestamp: evt.timestamp,
     trace_id: evt.invocation_id,
   });
+  if (evt.partial && parsed.text) {
+    return { ...parsed, text: "" };
+  }
+  return parsed;
 }
 
 function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError";
 }
 
-function MarkdownMessage({ text, isUser }: { text: string; isUser: boolean }) {
+function MarkdownMessage({ text, isUser, isCompact }: { text: string; isUser: boolean; isCompact: boolean }) {
   return (
     <div
       className={cn(
-        "rounded-lg px-3 py-2 text-sm leading-relaxed",
+        "rounded-lg text-sm",
+        isCompact ? "px-2.5 py-1.5 leading-6" : "px-3 py-2 leading-relaxed",
         isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
       )}
     >
@@ -291,23 +385,31 @@ function MarkdownMessage({ text, isUser }: { text: string; isUser: boolean }) {
         components={{
           a: MarkdownLink,
           code: MarkdownCode,
-          pre: MarkdownPre,
-          table: MarkdownTable,
+          pre: ({ children }) => <MarkdownPre isCompact={isCompact}>{children}</MarkdownPre>,
+          table: ({ children }) => <MarkdownTable isCompact={isCompact}>{children}</MarkdownTable>,
           th: MarkdownTableHeader,
           td: MarkdownTableCell,
-          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-          ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
-          ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+          p: ({ children }) => <p className={cn(isCompact ? "mb-1.5" : "mb-2", "last:mb-0")}>{children}</p>,
+          ul: ({ children }) => (
+            <ul className={cn(isCompact ? "mb-1.5 space-y-0.5" : "mb-2 space-y-1", "list-disc pl-5 last:mb-0")}>
+              {children}
+            </ul>
+          ),
+          ol: ({ children }) => (
+            <ol className={cn(isCompact ? "mb-1.5 space-y-0.5" : "mb-2 space-y-1", "list-decimal pl-5 last:mb-0")}>
+              {children}
+            </ol>
+          ),
           li: ({ children }) => <li className="pl-1">{children}</li>,
           blockquote: ({ children }) => (
-            <blockquote className="mb-2 border-l-2 border-current/30 pl-3 italic opacity-90 last:mb-0">
+            <blockquote className={cn(isCompact ? "mb-1.5" : "mb-2", "border-l-2 border-current/30 pl-3 italic opacity-90 last:mb-0")}>
               {children}
             </blockquote>
           ),
-          hr: () => <hr className="my-3 border-current/20" />,
-          h1: ({ children }) => <h1 className="mb-2 text-lg font-semibold last:mb-0">{children}</h1>,
-          h2: ({ children }) => <h2 className="mb-2 text-base font-semibold last:mb-0">{children}</h2>,
-          h3: ({ children }) => <h3 className="mb-2 text-sm font-semibold last:mb-0">{children}</h3>,
+          hr: () => <hr className={cn(isCompact ? "my-2" : "my-3", "border-current/20")} />,
+          h1: ({ children }) => <h1 className={cn(isCompact ? "mb-1.5 text-base" : "mb-2 text-lg", "font-semibold last:mb-0")}>{children}</h1>,
+          h2: ({ children }) => <h2 className={cn(isCompact ? "mb-1.5 text-sm" : "mb-2 text-base", "font-semibold last:mb-0")}>{children}</h2>,
+          h3: ({ children }) => <h3 className={cn(isCompact ? "mb-1 text-sm" : "mb-2 text-sm", "font-semibold last:mb-0")}>{children}</h3>,
         }}
       >
         {text}
@@ -340,17 +442,17 @@ function MarkdownCode({ children, className }: ComponentProps<"code">) {
   return <code className={cn("font-mono text-xs", className)}>{children}</code>;
 }
 
-function MarkdownPre({ children }: ComponentProps<"pre">) {
+function MarkdownPre({ children, isCompact }: ComponentProps<"pre"> & { isCompact?: boolean }) {
   return (
-    <pre className="mb-2 overflow-x-auto rounded-md bg-background/80 p-3 text-foreground last:mb-0">
+    <pre className={cn("overflow-x-auto rounded-md bg-background/80 text-foreground last:mb-0", isCompact ? "mb-1.5 p-2" : "mb-2 p-3")}>
       {children}
     </pre>
   );
 }
 
-function MarkdownTable({ children }: ComponentProps<"table">) {
+function MarkdownTable({ children, isCompact }: ComponentProps<"table"> & { isCompact?: boolean }) {
   return (
-    <div className="mb-2 overflow-x-auto last:mb-0">
+    <div className={cn("overflow-x-auto last:mb-0", isCompact ? "mb-1.5" : "mb-2")}>
       <table className="w-full border-collapse text-left text-xs">{children}</table>
     </div>
   );
@@ -364,26 +466,31 @@ function MarkdownTableCell({ children }: ComponentProps<"td">) {
   return <td className="border border-current/20 px-2 py-1 align-top">{children}</td>;
 }
 
-function MessageBubble({ event }: { event: ParsedEvent }) {
+function MessageBubble({ event, isCompact }: { event: ParsedEvent; isCompact: boolean }) {
   const isUser = event.role === "user";
   const hasText = event.text.trim().length > 0;
   const hasTools = event.toolCalls.length > 0 || event.toolResponses.length > 0;
   if (!hasText && !hasTools) return null;
 
   return (
-    <div className={cn("flex gap-2", isUser ? "justify-end" : "justify-start")}>
+    <div className={cn("flex", isCompact ? "gap-1.5" : "gap-2", isUser ? "justify-end" : "justify-start")}>
       {!isUser ? (
-        <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <Bot className="h-3 w-3" />
+        <div
+          className={cn(
+            "mt-1 flex shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground",
+            isCompact ? "h-5 w-5" : "h-6 w-6",
+          )}
+        >
+          <Bot className={cn(isCompact ? "h-2.5 w-2.5" : "h-3 w-3")} />
         </div>
       ) : null}
-      <div className={cn("max-w-[88%] space-y-1.5 sm:max-w-[75%]", isUser && "items-end")}>
+      <div className={cn(isCompact ? "max-w-[94%] space-y-1 sm:max-w-[86%]" : "max-w-[88%] space-y-1.5 sm:max-w-[75%]", isUser && "items-end")}>
         {hasText ? (
-          <MarkdownMessage text={event.text} isUser={isUser} />
+          <MarkdownMessage text={event.text} isUser={isUser} isCompact={isCompact} />
         ) : null}
         {event.toolCalls.map((tc, i) => (
           <Card key={`call-${i}`} className="border-dashed">
-            <CardContent className="flex items-start gap-2 p-2 text-xs">
+            <CardContent className={cn("flex items-start gap-2 text-xs", isCompact ? "p-1.5" : "p-2")}>
               <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
                 <div className="font-medium">Tool call: {tc.name}</div>
@@ -398,7 +505,7 @@ function MessageBubble({ event }: { event: ParsedEvent }) {
         ))}
         {event.toolResponses.map((tr, i) => (
           <Card key={`resp-${i}`} className="border-dashed">
-            <CardContent className="flex items-start gap-2 p-2 text-xs">
+            <CardContent className={cn("flex items-start gap-2 text-xs", isCompact ? "p-1.5" : "p-2")}>
               <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
                 <div className="font-medium">Tool response: {tr.name}</div>
@@ -423,8 +530,13 @@ function MessageBubble({ event }: { event: ParsedEvent }) {
         ) : null}
       </div>
       {isUser ? (
-        <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-          <UserIcon className="h-3 w-3" />
+        <div
+          className={cn(
+            "mt-1 flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground",
+            isCompact ? "h-5 w-5" : "h-6 w-6",
+          )}
+        >
+          <UserIcon className={cn(isCompact ? "h-2.5 w-2.5" : "h-3 w-3")} />
         </div>
       ) : null}
     </div>

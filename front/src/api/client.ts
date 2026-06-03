@@ -2,8 +2,8 @@ import { TOKEN_KEY, WORKSPACE_KEY } from "@/lib/constants";
 
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
-// authHeaders is still needed by chat.ts (Server-Sent Events stream) and
-// uploads.ts (multipart). The typed Connect clients in api/transport.ts add
+// authHeaders is still needed by uploads.ts (multipart REST). Chat streaming
+// uses Connect via transport.ts (AgentService.StreamAgent). Typed Connect
 // these headers via an interceptor and don't go through this helper.
 export function authHeaders(): Record<string, string> {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -23,8 +23,8 @@ export class ApiError extends Error {
   }
 }
 
-// apiFetch is reserved for the non-Connect REST endpoints: multipart uploads
-// and the SSE chat stream. Connect endpoints go through transport.ts.
+// apiFetch is reserved for non-Connect REST (multipart uploads). Connect RPCs,
+// including chat StreamAgent, go through transport.ts.
 export async function apiFetch<TRes>(path: string, init: RequestInit = {}): Promise<TRes> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,

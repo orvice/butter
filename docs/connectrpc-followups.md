@@ -27,7 +27,9 @@
    - 创建一个 MCP Server（带 oauth2）
    - 创建一个 Cron Job
    - 编辑一个 Agent（**最复杂**：嵌套 config / sub_agents / mcp_servers / file_mounts）
-7. Chat：发一条消息，确认 SSE 流式输出正常（这条没改过协议，但顺手验证）
+7. Chat：发一条消息，确认 `AgentService.StreamAgent` server-stream 正常
+   （`started` → `text_delta` / `run_event` → `final`；Stop 用 AbortSignal +
+   `CancelAgentInvocation`）
 8. 安装一个 Global MCP Server preset（验证 Phase 2 切换的
    `GlobalMCPServerService.InstallGlobalMCPServer`）
 
@@ -71,13 +73,15 @@ Internal,InternalWith}` helper。生成的 `*.twirp.go` 文件、`go.mod` 里的
   `s.mcpSvc.CreateMCPServer` 也跟着用 `connect.NewRequest` + `.Msg`。
 - 净删除 **810 行**（15 个 adapter 文件 + WrapUnary 实现 + 测试 helper）。
 
-这步打开了未来把 chat SSE 改成 Connect server-stream 的门 —— streaming
-RPC 必须用原生 Connect 签名（`func(ctx, req, stream *connect.ServerStream[T]) error`）,
-adapter 形式没法表达。
+原生 Connect 签名是 server-streaming RPC 的前提（`func(ctx, req, stream *connect.ServerStream[T]) error`）。
+Dashboard chat 已用此形式实现 `AgentService.StreamAgent`（`agent_stream.go`），
+替代已删除的 `POST /api/chat/stream` SSE handler。
 
-## 4. 文档维护 ✅
+## 4. 文档维护
 
 - ✅ `docs/api.md` 错误格式、协议描述已更新；新增 `GlobalMCPServerService` 章节
+- ✅ `docs/api.md`：`StreamAgent` 替代 SSE `chat/stream`；REST 列表与 dashboard wire 格式同步
+- ✅ `docs/architecture.md` / `docs/app.md` / `docs/project-structure.md` / `docs/migration-connectrpc.md`：Connect 挂载与 chat/upload 边界同步
 - ✅ `docs/architecture.md` / `docs/app.md` / `docs/project-structure.md`
   全部扫过并改写到 ConnectRPC 表述
 - ✅ `AGENTS.md` / `CLAUDE.md` 已更新

@@ -8,7 +8,7 @@
 
 | 前端能力 | 已使用接口 | 说明 |
 |---|---|---|
-| Global MCP preset 安装到当前 workspace | `POST /api/global-mcp-servers/{id}/install` | Admin Global MCP 页面现在可以直接安装 preset。 |
+| Global MCP preset 安装到当前 workspace | `POST /api/agents.v1.GlobalMCPServerService/InstallGlobalMCPServer` | Admin Global MCP 页面现在可以直接安装 preset。 |
 | Forum thread/post 管理 | `ForumService.UpdateThread`、`DeleteThread`、`DeletePost` | Thread 页面新增编辑、删除 thread、删除 post。 |
 | Operations 内嵌 Session 过滤 | `SessionService.ListSessions` | 复用 `app_name`、`user_id`、`page_size` 参数。 |
 | Dashboard 环境选择 | `DashboardService.GetOverview.environment` | 前端会传 environment；当前后端仍只是接收字段，不做过滤。 |
@@ -96,5 +96,5 @@ message CountMetric {
 
 - Copy 按钮：纯前端 Clipboard API。
 - Forum 删除/编辑：已有 RPC。
-- Global MCP preset 安装：已有 `GlobalMCPServerService.InstallGlobalMCPServer` RPC。
+- Global MCP preset 安装：已有 `POST /api/agents.v1.GlobalMCPServerService/InstallGlobalMCPServer` RPC。
 - Session Explorer 过滤：已有 `ListSessions` 参数。
