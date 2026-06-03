@@ -174,9 +174,7 @@ func (s *AgentServiceServer) StreamAgent(
 			"invocation_id", invocationID,
 			"err", runErr,
 		)
-		// errors.Is(ctx.Err(), context.Canceled) → CodeCanceled from the
-		// runner; let Connect's handler infrastructure surface it directly.
-		return connectx.InternalWith(runErr)
+		return streamAgentError(runErr)
 	}
 	if sendErr != nil {
 		// Send failed (likely client disconnected); nothing to surface
@@ -190,6 +188,20 @@ func (s *AgentServiceServer) StreamAgent(
 		"invocation_id", invocationID,
 	)
 	return nil
+}
+
+func streamAgentError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var connectErr *connect.Error
+	if errors.As(err, &connectErr) {
+		return connectErr
+	}
+	if errors.Is(err, context.Canceled) {
+		return connect.NewError(connect.CodeCanceled, err)
+	}
+	return connectx.InternalWith(err)
 }
 
 func streamAgentRunEvent(evt *session.Event, invocationID, sessionID, agentName string) *agentsv1.StreamAgentRunEvent {
