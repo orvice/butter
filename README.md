@@ -81,6 +81,33 @@ go run ./cmd/butter-daemon -config daemon.yaml
 The daemon connects back to the server's daemon gRPC endpoint and uses the root
 `apiToken` as authorization metadata.
 
+Daemon executors are configured locally. ACP-compatible coding agents such as
+opencode should be exposed through the generic ACP executor:
+
+```yaml
+server: localhost:9090
+token: your-root-api-token
+daemon_id: local-dev
+name: Local Dev Daemon
+
+executors:
+  acp:
+    - capability: opencode
+      command: opencode
+      args: ["acp"]
+      work_dir: /path/to/repo
+      permission_policy: deny
+      fs:
+        read: true
+        write: true
+      terminal: true
+  shell:
+    work_dir: /path/to/repo
+```
+
+Legacy `executors.opencode` config is still accepted and is translated to the
+ACP form above (`opencode acp`), but new configs should use `executors.acp`.
+
 ## Development
 
 ### Frontend local development

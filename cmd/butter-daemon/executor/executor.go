@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -13,4 +14,13 @@ type Executor interface {
 	Execute(ctx context.Context, task *agentsv1.DaemonTask, onUpdate func(*agentsv1.DaemonTaskUpdate)) error
 	// Capability returns the capability string this executor handles.
 	Capability() string
+}
+
+func sendFailed(taskID, errMsg string, onUpdate func(*agentsv1.DaemonTaskUpdate)) error {
+	onUpdate(&agentsv1.DaemonTaskUpdate{
+		TaskId: taskID,
+		Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED,
+		Error:  errMsg,
+	})
+	return fmt.Errorf("%s", errMsg)
 }

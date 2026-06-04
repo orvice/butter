@@ -11,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.101.0
 	github.com/aws/smithy-go v1.25.1
 	github.com/bwmarrin/discordgo v0.29.0
+	github.com/coder/acp-go-sdk v0.13.5
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-telegram/bot v1.20.0
