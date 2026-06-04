@@ -10,7 +10,9 @@ import (
 
 	"go.orx.me/apps/butter/internal/notify"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -156,6 +158,72 @@ func (r *testNotifyGroupRepo) DeleteNotifyGroup(context.Context, string, string)
 
 func (r *testNotifyGroupRepo) ListNotifyGroupsAcrossWorkspaces(context.Context) ([]*agentsv1.NotifyGroup, error) {
 	return []*agentsv1.NotifyGroup{r.group}, nil
+}
+
+type testCronRunner struct {
+	output      string
+	runSSECalls int
+}
+
+func (r *testCronRunner) HasAgentInWorkspace(string, string) bool {
+	return true
+}
+
+func (r *testCronRunner) RunSSE(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (string, error) {
+	r.runSSECalls++
+	return r.output, nil
+}
+
+type testExecutionRepo struct {
+	saved *agentsv1.CronExecution
+}
+
+func (r *testExecutionRepo) Save(_ context.Context, exec *agentsv1.CronExecution) error {
+	r.saved = exec
+	return nil
+}
+
+func (r *testExecutionRepo) List(context.Context, string, string, int32, string) ([]*agentsv1.CronExecution, string, error) {
+	return nil, "", errors.New("not implemented")
+}
+
+func (r *testExecutionRepo) GetByID(context.Context, string) (*agentsv1.CronExecution, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *testExecutionRepo) ListByTimeRange(context.Context, string, string, time.Time, time.Time) ([]*agentsv1.CronExecution, error) {
+	return nil, errors.New("not implemented")
+}
+
+func TestExecuteJobUsesSSERunner(t *testing.T) {
+	cronRunner := &testCronRunner{output: "done"}
+	execRepo := &testExecutionRepo{}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: execRepo,
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "daily-summary",
+		WorkspaceId: "ws1",
+		AgentName:   "assistant",
+		Input:       "summarize",
+	})
+
+	if cronRunner.runSSECalls != 1 {
+		t.Fatalf("RunSSE calls = %d, want 1", cronRunner.runSSECalls)
+	}
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+		t.Fatalf("status = %s, want success", exec.GetStatus())
+	}
+	if exec.GetOutput() != "done" {
+		t.Fatalf("output = %q, want %q", exec.GetOutput(), "done")
+	}
+	if execRepo.saved != exec {
+		t.Fatal("execution was not saved")
+	}
 }
 
 type fanoutTransport struct {

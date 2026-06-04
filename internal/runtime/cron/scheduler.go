@@ -34,7 +34,7 @@ var ErrAgentNotInWorkspace = errors.New("cron job agent not found in workspace")
 // Scheduler manages cron-based agent execution.
 type Scheduler struct {
 	cron      *robfigcron.Cron
-	runner    *runner.Service
+	runner    runnerService
 	execRepo  ExecutionRepo
 	jobRepo   JobRepo
 	groupRepo configrepo.NotifyGroupRepository
@@ -44,6 +44,11 @@ type Scheduler struct {
 
 	mu       sync.Mutex
 	entryIDs map[string]robfigcron.EntryID // composite "workspace_id:name" -> cron entry ID
+}
+
+type runnerService interface {
+	HasAgentInWorkspace(workspaceID, name string) bool
+	RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 }
 
 func jobKey(workspaceID, name string) string { return workspaceID + ":" + name }
@@ -274,7 +279,7 @@ func (s *Scheduler) executeJob(job *agentsv1.CronJob) *agentsv1.CronExecution {
 	)
 
 	parts := []*genai.Part{genai.NewPartFromText(input)}
-	output, err := s.runner.Run(s.ctx, job.GetAgentName(), parts, "", ctxInfo, nil, nil)
+	output, err := s.runner.RunSSE(s.ctx, job.GetAgentName(), parts, "", ctxInfo, nil, nil)
 
 	finishTime := time.Now()
 
