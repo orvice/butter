@@ -32,7 +32,7 @@ Module: `go.orx.me/apps/butter`
 A service skeleton built on `butterfly.orx.me/core` (Butterfly framework) with an agent system powered by Google ADK (`google.golang.org/adk`).
 
 **Workspaces (multi-tenancy):**
-Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `CronJob`, `APIToken`, `Invocation`, and `CronExecution` belongs to exactly one workspace. Repo CRUD methods take `workspaceID string` as the first parameter; RPC services derive it from the request context via `internal/workspace.FromContext`. Clients select the active workspace with the `X-Workspace-ID` HTTP header; the auth middleware validates the caller's membership (global admins bypass the check). On startup `application.BootstrapDefaultWorkspace` ensures a `default` workspace exists and adds all known users as owners. Repos also expose `*AcrossWorkspaces` listings used by the runtime layers (runner, channel manager, cron scheduler) that operate on the flat global view — agent names are therefore expected to be unique across workspaces in this iteration.
+Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `NotifyGroup`, `AgentFileSpace`, `AgentFile`, `ForumThread`, `ForumPost`, `CronJob`, `APIToken`, `Invocation`, and `CronExecution` belongs to exactly one workspace. Repo CRUD methods take `workspaceID string` as the first parameter; RPC services derive it from the request context via `internal/workspace.FromContext`. Clients select the active workspace with the `X-Workspace-ID` HTTP header; the auth middleware validates the caller's membership (global admins bypass the check). `AuthService`, `WorkspaceService`, `DashboardService`, and `DaemonService` do not require a workspace header; `SessionService` session CRUD is app/user/session scoped, but `ReplySession` should include `X-Workspace-ID` so the runner resolves agents in the intended workspace. On startup `application.BootstrapDefaultWorkspace` ensures a `default` workspace exists and adds all known users as owners. Repos also expose `*AcrossWorkspaces` listings used by the runtime layers (runner, channel manager, cron scheduler) that operate on the flat global view — agent names are therefore expected to be unique across workspaces in this iteration.
 
 **Layers:**
 - `cmd/butter/main.go` — Entry point. Wires config, services, handlers, and registers Gin routes via Butterfly's `core.New()`.
@@ -65,7 +65,7 @@ Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plug
 
 Docs directory layout:
 
-- `docs/api.md` — API reference: auth, workspace, REST uploads (`/api/uploads/*`), ConnectRPC (incl. `AgentService.StreamAgent` chat stream), errors.
+- `docs/api.md` — App developer API reference and handoff doc: auth, workspace headers, ConnectRPC URL/field conventions, TypeScript Connect-Web examples, REST uploads (`/api/uploads/*`), `AgentService.StreamAgent` chat stream, and errors.
 - `docs/migration-connectrpc.md` — Twirp → ConnectRPC migration plan + status (phases 0–3.5, chat `StreamAgent` complete).
 - `docs/connectrpc-followups.md` — Post-migration follow-ups (runtime smoke test, wire-format notes).
 - `docs/app.md` — Product/function overview in Chinese, including workspace multi-tenancy, agent orchestration, model management, MCP tools, remote agents, daemon execution, and channel entry points.
