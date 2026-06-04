@@ -283,14 +283,13 @@ func (c *acpTaskClient) output() string {
 func (c *acpTaskClient) RequestPermission(ctx context.Context, params acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
 	selected := acp.PermissionOptionId("")
 	if c.cfg.PermissionPolicy == PermissionPolicyAllow {
+		// Only ever auto-select an explicit allow option; never fall back to an
+		// arbitrary option, which could be a reject choice.
 		for _, opt := range params.Options {
 			if opt.Kind == acp.PermissionOptionKindAllowOnce || opt.Kind == acp.PermissionOptionKindAllowAlways {
 				selected = opt.OptionId
 				break
 			}
-		}
-		if selected == "" && len(params.Options) > 0 {
-			selected = params.Options[0].OptionId
 		}
 	}
 
@@ -409,6 +408,48 @@ func (c *acpTaskClient) resolvePath(path string) (string, error) {
 	}
 	if !c.cfg.FS.AllowAbsolutePaths && !pathWithin(c.cfg.WorkDir, resolved) {
 		return "", fmt.Errorf("path escapes work_dir: %s", path)
+	}
+	if !c.cfg.FS.AllowAbsolutePaths {
+		// Resolve symlinks on the deepest existing ancestor so a symlink inside
+		// work_dir cannot point the real target outside it.
+		if real, err := evalSymlinkContainment(c.cfg.WorkDir, resolved); err != nil {
+			return "", err
+		} else {
+			resolved = real
+		}
+	}
+	return resolved, nil
+}
+
+// evalSymlinkContainment resolves symlinks on the longest existing prefix of
+// path and verifies the real location stays within root. The path may not exist
+// yet (e.g. a file about to be written), so non-existent tail segments are
+// re-appended after resolving the existing ancestor.
+func evalSymlinkContainment(root, path string) (string, error) {
+	existing := path
+	var tail []string
+	for {
+		if _, err := os.Lstat(existing); err == nil {
+			break
+		}
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			break
+		}
+		tail = append([]string{filepath.Base(existing)}, tail...)
+		existing = parent
+	}
+	realExisting, err := filepath.EvalSymlinks(existing)
+	if err != nil {
+		return "", err
+	}
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	resolved := filepath.Join(append([]string{realExisting}, tail...)...)
+	if !pathWithin(realRoot, resolved) {
+		return "", fmt.Errorf("path escapes work_dir via symlink: %s", path)
 	}
 	return resolved, nil
 }

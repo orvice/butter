@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coder/acp-go-sdk"
+	"google.golang.org/protobuf/proto"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -378,8 +379,7 @@ func collectUpdates() (func() []*agentsv1.DaemonTaskUpdate, func(*agentsv1.Daemo
 		}, func(update *agentsv1.DaemonTaskUpdate) {
 			mu.Lock()
 			defer mu.Unlock()
-			clone := *update
-			updates = append(updates, &clone)
+			updates = append(updates, proto.Clone(update).(*agentsv1.DaemonTaskUpdate))
 		}
 }
 

@@ -28,6 +28,8 @@ type Connector struct {
 
 	mu          sync.Mutex
 	cancelFuncs map[string]context.CancelFunc // task_id → cancel
+
+	sendMu sync.Mutex // serializes stream.Send across concurrent tasks/callbacks
 }
 
 // NewConnector creates a new daemon connector.
@@ -182,6 +184,8 @@ func (c *Connector) handleCancel(taskID string) {
 }
 
 func (c *Connector) sendUpdate(stream agentsv1.DaemonConnectorService_ConnectClient, update *agentsv1.DaemonTaskUpdate) {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
 	if err := stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_TaskUpdate{TaskUpdate: update},
 	}); err != nil {
