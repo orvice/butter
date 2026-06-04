@@ -1,5 +1,223 @@
 # Butter API Reference
 
+This document is written for app and dashboard developers who need to call
+Butter directly. It covers the wire-level conventions that matter when copying
+the API into another client project. The canonical schemas are the protobuf
+files in `proto/agents/v1/*.proto`; this page explains how those RPCs are
+mounted, authenticated, and used from browser/mobile/server apps.
+
+## App Developer Quick Start
+
+### Base URL and RPC URL shape
+
+Use your deployment origin as `BUTTER_BASE_URL`. All ConnectRPC calls are under
+`/api`:
+
+```
+{BUTTER_BASE_URL}/api/agents.v1.<Service>/<Method>
+```
+
+Examples:
+
+```
+POST https://butter.example.com/api/agents.v1.AuthService/Login
+POST https://butter.example.com/api/agents.v1.AgentService/ListAgents
+POST https://butter.example.com/api/agents.v1.AgentService/StreamAgent
+```
+
+REST-only endpoints (`/ping`, `/status`, `/a2a/*`, `/api/uploads/*`,
+`/api/workspaces/:workspace_id/mcp`) are documented separately below.
+
+### Minimum app flow
+
+1. Call `AuthService.Login` or complete the OAuth flow. These public methods do
+   not require a Bearer token.
+2. Store `LoginResponse.token` as the app session token.
+3. Let the user pick a workspace from `LoginResponse.workspaces`.
+4. For workspace-scoped calls, send both:
+
+```
+Authorization: Bearer <token>
+X-Workspace-ID: <workspace-id>
+```
+
+5. Use `AgentService.StreamAgent` for chat streaming, `InvokeAgent` for a
+   one-shot response, and `/api/uploads/*` for multipart uploads.
+
+### Request headers
+
+| Header | Required | Use |
+|--------|----------|-----|
+| `Authorization: Bearer <token>` | Required except public endpoints | Dashboard session token, root token, or API token |
+| `X-Workspace-ID: <workspace-id>` | Required for workspace-scoped RPCs when using a user session or root token | Selects the active workspace |
+| `Content-Type: application/json` | Required for plain JSON HTTP calls | Connect JSON request body |
+| `Content-Type: application/proto` | Used by generated Connect clients with binary protobuf | Smaller/faster payloads; not convenient for curl |
+| `Connect-Protocol-Version: 1` | Sent by Connect-Web clients | Allowed by CORS and safe to include |
+
+The server CORS middleware allows `Authorization`, `Content-Type`,
+`X-Workspace-ID`, and `Connect-Protocol-Version`.
+
+### Field naming
+
+Generated protobuf clients use their language-native field names. In the
+current TypeScript client that means camelCase, for example `agentName` and
+`modelOverride`.
+
+Plain JSON HTTP calls should use proto field names, which are snake_case:
+`agent_name`, `model_override`, `display_name`, `expires_at`. The server also
+accepts camelCase on JSON input for compatibility, but JSON responses use
+snake_case.
+
+### Plain JSON examples
+
+Login:
+
+```bash
+curl -sS "$BUTTER_BASE_URL/api/agents.v1.AuthService/Login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"secret"}'
+```
+
+Response:
+
+```json
+{
+  "token": "session-token",
+  "user": {
+    "id": "u-123",
+    "username": "admin",
+    "display_name": "Admin",
+    "role": "admin"
+  },
+  "expires_at": "2026-06-11T08:00:00Z",
+  "workspaces": [
+    { "id": "w-123", "name": "Default", "slug": "default" }
+  ]
+}
+```
+
+List agents in a workspace:
+
+```bash
+curl -sS "$BUTTER_BASE_URL/api/agents.v1.AgentService/ListAgents" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $BUTTER_TOKEN" \
+  -H "X-Workspace-ID: $BUTTER_WORKSPACE_ID" \
+  -d '{"page_size":50}'
+```
+
+Invoke an agent once:
+
+```bash
+curl -sS "$BUTTER_BASE_URL/api/agents.v1.AgentService/InvokeAgent" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $BUTTER_TOKEN" \
+  -H "X-Workspace-ID: $BUTTER_WORKSPACE_ID" \
+  -d '{
+    "agent_name": "assistant",
+    "input": "Summarize today'\''s channel activity.",
+    "app_name": "external-app",
+    "user_id": "u-123"
+  }'
+```
+
+### TypeScript Connect-Web client
+
+Install the Connect runtime and generate TypeScript protobuf code from
+`proto/agents/v1/*.proto` with Buf or your preferred protobuf pipeline:
+
+```bash
+npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf
+```
+
+Client setup:
+
+```ts
+import { Code, ConnectError, createClient, type Interceptor } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { AuthService } from "./gen/agents/v1/auth_pb";
+import { AgentService } from "./gen/agents/v1/agent_service_pb";
+
+const BUTTER_BASE_URL = "https://butter.example.com";
+
+const authInterceptor: Interceptor = (next) => async (req) => {
+  const token = localStorage.getItem("butter_token");
+  const workspaceId = localStorage.getItem("butter_workspace_id");
+  if (token) req.header.set("Authorization", `Bearer ${token}`);
+  if (workspaceId) req.header.set("X-Workspace-ID", workspaceId);
+  return next(req);
+};
+
+const transport = createConnectTransport({
+  baseUrl: `${BUTTER_BASE_URL}/api`,
+  useBinaryFormat: true,
+  interceptors: [authInterceptor],
+});
+
+export const authClient = createClient(AuthService, transport);
+export const agentClient = createClient(AgentService, transport);
+
+export function isAuthError(err: unknown): boolean {
+  return err instanceof ConnectError && err.code === Code.Unauthenticated;
+}
+```
+
+Login and store the selected workspace:
+
+```ts
+const login = await authClient.login({ username: "admin", password: "secret" });
+localStorage.setItem("butter_token", login.token);
+
+const workspace = login.workspaces[0];
+if (workspace) {
+  localStorage.setItem("butter_workspace_id", workspace.id);
+}
+```
+
+Stream chat:
+
+```ts
+const stream = agentClient.streamAgent({
+  agentName: "assistant",
+  message: "What changed in this workspace?",
+  appName: "external-app",
+  userId: "u-123",
+  sessionId: "",
+});
+
+for await (const msg of stream) {
+  switch (msg.event.case) {
+    case "started":
+      console.log("invocation", msg.event.value.invocationId);
+      break;
+    case "textDelta":
+      appendAssistantText(msg.event.value.text);
+      break;
+    case "runEvent":
+      console.log("agent event", msg.event.value.contentJson);
+      break;
+    case "final":
+      console.log("final", msg.event.value.response);
+      break;
+  }
+}
+```
+
+Abort/cancel a stream from the browser:
+
+```ts
+const controller = new AbortController();
+const stream = agentClient.streamAgent(
+  { agentName: "assistant", message: "Run a long task" },
+  { signal: controller.signal },
+);
+
+controller.abort();
+```
+
+If you received a `started.invocation_id`, you can also call
+`AgentService.CancelAgentInvocation` to cancel server-side work.
+
 ## Authentication
 
 All endpoints require Bearer token authentication except `GET /ping`,
@@ -21,11 +239,35 @@ Three token sources are accepted by `AuthMiddleware` (tried in order):
 
 ## Workspace selection
 
-All configuration / runtime CRUD endpoints (`AgentService` / `MCPServerService` / `ModelProviderService` / `RemoteAgentService` / `ChannelService` / `CronJobService` / `APITokenService`) are scoped to a workspace. Clients select the active workspace via:
+Most product data belongs to a workspace. Clients select the active workspace
+via:
 
 ```
 X-Workspace-ID: <workspace-id>
 ```
+
+The header is required for most methods on these app-facing services:
+
+| Service | Scope |
+|---------|-------|
+| `AgentService` | Agent config, invocation, runtime status, chat stream |
+| `AgentFileService` | Agent file spaces and files |
+| `MCPServerService` | Workspace MCP server config, status, OAuth, tool listing |
+| `ModelProviderService` | Workspace model provider config |
+| `NotifyGroupService` | Workspace notification groups |
+| `RemoteAgentService` | Workspace remote agent config/status |
+| `ChannelService` | Workspace channel config/status/control |
+| `CronJobService` | Workspace cron jobs and executions |
+| `ForumService` | Workspace forum threads/posts and agent replies |
+| `APITokenService` | Tokens are created/listed/revoked within the selected workspace |
+
+The header is not required for `AuthService`, `WorkspaceService`,
+`DashboardService`, or `DaemonService`. `SessionService` creates, reads, lists,
+and deletes sessions by `app_name` + `user_id` + `session_id`; include
+`X-Workspace-ID` when calling `ReplySession` so the runner resolves agents in
+the intended workspace. `GlobalMCPServerService` list/create/update/delete are
+global/admin operations; `InstallGlobalMCPServer` installs into the current
+workspace unless an admin explicitly passes `workspace_id`.
 
 Resolution rules:
 
@@ -33,7 +275,9 @@ Resolution rules:
 - An **API token** ignores any caller-supplied header and uses the workspace bound to the token at creation time.
 - The **root token** accepts the `X-Workspace-ID` header verbatim.
 
-If the header is missing on a workspace-scoped RPC the server returns `failed_precondition` with message `workspace required (set X-Workspace-ID header)`. `AuthService`, `WorkspaceService`, `DashboardService`, `DaemonService`, and `SessionService` do not require the header (they operate globally or self-resolve workspace).
+If the header is missing on a workspace-scoped RPC the server returns
+`failed_precondition` with message
+`workspace required (set X-Workspace-ID header)`.
 
 On login, `AuthService.Login` returns the user's accessible workspaces in `LoginResponse.workspaces`; the dashboard uses that list to render the workspace picker before storing the chosen id in `X-Workspace-ID`.
 
@@ -353,66 +597,6 @@ Admin only.
 
 **Response:** `{ "user": User }`
 
-#### ListOAuthProviders
-
-```
-POST /api/agents.v1.AuthService/ListOAuthProviders
-```
-
-Public endpoint (no Bearer token required). Returns the OAuth providers
-configured on the server (e.g. `github`).
-
-**Request:** `{}`
-
-**Response:** `{ "providers": OAuthProvider[] }`
-
-| OAuthProvider | Type | Description |
-|-------|------|-------------|
-| `key` | string | Provider key, e.g. `github` |
-| `name` | string | Display name |
-
-#### BeginOAuthFlow
-
-```
-POST /api/agents.v1.AuthService/BeginOAuthFlow
-```
-
-Public endpoint. Returns the authorization URL to redirect the user to, plus
-a `state` token that must be passed back to `CompleteOAuthFlow`.
-
-**Request:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `provider` | string | Provider key (e.g. `github`) |
-| `redirect_uri` | string | Caller's redirect URI; echoed back in the state so `CompleteOAuthFlow` can return it |
-
-**Response:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `authorization_url` | string | Redirect the user here |
-| `state` | string | Opaque state token |
-
-#### CompleteOAuthFlow
-
-```
-POST /api/agents.v1.AuthService/CompleteOAuthFlow
-```
-
-Public endpoint. Exchanges the provider authorization code for a session, mirroring `LoginResponse`.
-
-**Request:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `code` | string | Authorization code from provider |
-| `state` | string | State token from `BeginOAuthFlow` |
-
-**Response:** Same shape as `Login` response (`token`, `user`, `expires_at`, `workspaces`).
-
----
-
 #### UpdateProfile
 
 ```
@@ -432,16 +616,100 @@ are typically produced by `POST /api/uploads/avatar` (see
 
 **Response:** `{ "user": User }`
 
+#### ChangePassword
+
+```
+POST /api/agents.v1.AuthService/ChangePassword
+```
+
+Changes the authenticated user's own password. Requires a password-backed user
+session; OAuth-only users may not have a current password hash.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `current_password` | string | Required current password |
+| `new_password` | string | Required new password |
+
+**Response:** `{ "user": User }`
+
+Returns `permission_denied` when `current_password` is incorrect.
+
+#### ListOAuthProviders
+
+```
+POST /api/agents.v1.AuthService/ListOAuthProviders
+```
+
+Public endpoint (no Bearer token required). Returns the OAuth providers
+configured on the server (e.g. `github`).
+
+**Request:** `{}`
+
+**Response:** `{ "providers": OAuthProvider[] }`
+
+| OAuthProvider | Type | Description |
+|-------|------|-------------|
+| `name` | string | Provider key, e.g. `github` |
+| `display_name` | string | Human-readable label, e.g. `GitHub` |
+
+#### BeginOAuthFlow
+
+```
+POST /api/agents.v1.AuthService/BeginOAuthFlow
+```
+
+Public endpoint. Returns the authorization URL to redirect the user to, plus
+a `state` token that must be passed back to `CompleteOAuthFlow`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Provider key (e.g. `github`) |
+| `redirect_uri` | string | Client callback URI stored with the OAuth state |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `authorize_url` | string | Redirect the user here |
+| `state` | string | Opaque state token |
+
+#### CompleteOAuthFlow
+
+```
+POST /api/agents.v1.AuthService/CompleteOAuthFlow
+```
+
+Public endpoint. Exchanges the provider authorization code for a session, mirroring `LoginResponse`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Provider key used by `BeginOAuthFlow` |
+| `code` | string | Authorization code from provider |
+| `state` | string | State token from `BeginOAuthFlow` |
+
+**Response:** Same shape as `Login` response (`token`, `user`, `expires_at`, `workspaces`).
+
+---
+
 | User | Type | Description |
 |-------|------|-------------|
 | `id` | string | User id |
 | `username` | string | Login username |
 | `display_name` | string | Display name |
 | `avatar_url` | string | Avatar URL (CDN-aware, see [storage.md](storage.md)) |
+| `email` | string | Email address, usually populated by OAuth providers |
+| `provider` | string | OAuth provider name; empty for password users |
+| `external_id` | string | Provider-issued external account id |
 | `role` | string | User role |
 | `disabled` | bool | Whether login is disabled |
-| `created_at` | timestamp |  |
-| `updated_at` | timestamp |  |
+| `created_at` | timestamp | RFC3339 timestamp |
+| `updated_at` | timestamp | RFC3339 timestamp |
 
 ---
 
@@ -2196,3 +2464,38 @@ encode the code via response headers / trailers). Common codes:
 
 REST endpoints (`/ping`, `/status`, `/a2a/*`, `/api/uploads/*`)
 return errors as `{"error": "..."}` with a conventional HTTP status code.
+
+TypeScript client handling:
+
+```ts
+import { Code, ConnectError } from "@connectrpc/connect";
+
+try {
+  await agentClient.listAgents({});
+} catch (err) {
+  if (err instanceof ConnectError) {
+    switch (err.code) {
+      case Code.Unauthenticated:
+        redirectToLogin();
+        break;
+      case Code.PermissionDenied:
+        showToast("You do not have access to this action.");
+        break;
+      case Code.FailedPrecondition:
+        showToast(err.message); // often missing X-Workspace-ID
+        break;
+      default:
+        showToast(err.message);
+    }
+  }
+}
+```
+
+For app developers, the most common integration mistakes are:
+
+- Missing `Authorization` after login.
+- Missing `X-Workspace-ID` on workspace-scoped calls.
+- Sending JSON field names from generated TypeScript types (`agentName`) while
+  expecting snake_case JSON responses (`agent_name`).
+- Trying to upload files through ConnectRPC instead of the REST multipart
+  endpoints under `/api/uploads/*`.
