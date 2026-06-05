@@ -220,7 +220,7 @@ butter/
 - `proto/`：Proto 定义源文件（agent + cron + daemon + dashboard + api_token + agentchannel + context）。
 - `pkg/proto/`：Proto 生成代码（Go + Connect + grpc + grpc-gateway + validate）；不要手改。Twirp 生成产物已在 ConnectRPC Phase 3 移除。
 - `.github/workflows/`：CI。后端走 `docker-publish.yml`，前端独立 `front-publish.yml`（`paths: front/**` 过滤），均推 ghcr 并 cosign 签名。
-- `docs/`：项目文档。系统架构见 `architecture.md`；API 契约见 `api.md`；功能总览见 `app.md`。
+- `docs/`：项目文档。系统架构见 `architecture.md`；API 契约与外部 App 开发接入说明见 `api.md`；功能总览见 `app.md`。
 
 ## 维护建议
 
