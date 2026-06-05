@@ -4,7 +4,10 @@
 > 描述当时的 Twirp + Gin 架构与拟新增的 daemon 服务。daemon 已全部落地；
 > 自 2026-06-02 起 RPC 层迁移到 ConnectRPC（见 `migration-connectrpc.md`），
 > daemon 自身仍走独立 gRPC 端口 `:9090`。RPC 部分提到的 Twirp 文件 / Twirp
-> 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。
+> 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。自
+> 2026-06-05 起，daemon coding agent 执行器已从 opencode 专用 CLI 调用迁移为
+> 通用 ACP executor（`github.com/coder/acp-go-sdk`），opencode 通过 `opencode acp`
+> 接入；旧 `executors.opencode` 配置仅作为兼容入口保留。
 
 ## 背景
 
@@ -461,10 +464,9 @@ agentsv1.RegisterDaemonConnectorServer(grpcServer, daemonGRPCHandler)
 cmd/butter-daemon/
 ├── main.go           # CLI 入口，读取配置
 ├── connector.go      # gRPC 连接 + 自动重连（指数退避）
-├── dispatcher.go     # 接收任务，分发给 executor
 └── executor/
     ├── executor.go   # Executor 接口
-    ├── opencode.go   # opencode CLI executor
+    ├── acp.go        # 通用 ACP stdio executor
     └── shell.go      # 通用 shell command executor
 ```
 
@@ -479,32 +481,33 @@ type Executor interface {
 }
 ```
 
-**OpenCode Executor**：
+**ACP Executor（现状）**：
 
 ```go
-type OpenCodeExecutor struct {
-    WorkDir string
-    Binary  string  // 默认 "opencode"
+type ACPConfig struct {
+    Capability       string            `yaml:"capability"`
+    Command          string            `yaml:"command"`
+    Args             []string          `yaml:"args"`
+    Env              map[string]string `yaml:"env"`
+    WorkDir          string            `yaml:"work_dir"`
+    PermissionPolicy string            `yaml:"permission_policy"` // deny | allow
+    FS               ACPFSConfig       `yaml:"fs"`
+    Terminal         bool              `yaml:"terminal"`
 }
 
-func (e *OpenCodeExecutor) Capability() string { return "opencode" }
-
-func (e *OpenCodeExecutor) Execute(ctx context.Context, task *DaemonTask, onUpdate func(*DaemonTaskUpdate)) error {
-    cmd := exec.CommandContext(ctx, e.Binary, "--non-interactive", "--prompt", task.Input)
-    cmd.Dir = e.WorkDir
-
-    // 合并 stdout + stderr
-    output, _ := cmd.CombinedOutput()
-
-    // 流式版本应使用 pipe + scanner 逐行回传
-    onUpdate(&DaemonTaskUpdate{
-        TaskId: task.TaskId,
-        Status: DAEMON_TASK_STATUS_COMPLETED,
-        Output: string(output),
-    })
-    return nil
+type ACPFSConfig struct {
+    Read               bool `yaml:"read"`
+    Write              bool `yaml:"write"`
+    AllowAbsolutePaths bool `yaml:"allow_absolute_paths"`
 }
 ```
+
+当前 `ACPExecutor` 使用 `github.com/coder/acp-go-sdk` 通过 stdio 启动 ACP agent，并按
+`Initialize → NewSession → Prompt` 生命周期执行任务。`capability` 仍是 server 路由到
+daemon executor 的键；opencode 不再由 `opencode.go` 直调 CLI，而是配置成
+`command: opencode` + `args: ["acp"]`。executor 支持 ACP permission、file
+callbacks、terminal callbacks、任务取消与进程清理；文件回调默认限制在 `work_dir`
+内，并会解析 symlink 防止通过工作区内链接逃逸。
 
 **服务端 DaemonConfig**（通过 `DaemonService` 写入 workspace 配置仓库）：
 
@@ -531,10 +534,31 @@ labels:
   repo: "butter"
   env: "dev"
 executors:
+  acp:
+    - capability: opencode
+      command: opencode
+      args: ["acp"]
+      work_dir: "/home/user/workspace/butter"
+      permission_policy: deny
+      fs:
+        read: true
+        write: true
+      terminal: true
+  shell:
+    work_dir: "/home/user/workspace/butter"
+```
+
+旧的本地配置形态仍可兼容：
+
+```yaml
+executors:
   opencode:
     work_dir: "/home/user/workspace/butter"
     binary: "opencode"
 ```
+
+daemon 启动时会把它转换成 `capability: opencode`、`command: opencode`、
+`args: ["acp"]` 的 ACP profile；新配置应直接使用 `executors.acp`。
 
 **连接流程**：
 
@@ -733,7 +757,7 @@ Telegram → Poller.handleMessage()
       → Registry.FindByCapability(workspace_id, "opencode")
       → Connection.SendTask(DaemonTask{workspace_id: ...})
         → gRPC stream → Daemon Client
-        → Daemon: opencode 执行
+        → Daemon: ACP executor 调用 opencode acp
         → DaemonTaskUpdate (RUNNING → COMPLETED)
       ← final output
     ← response text
