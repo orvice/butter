@@ -15,13 +15,13 @@ Three token sources are accepted by `AuthMiddleware` (tried in order):
 
 1. **Dashboard user session** — issued by `AuthService.Login`. The middleware looks up the hashed token in **Redis** (key `butter:auth:session:<sha256(token)>`) and asynchronously updates `last_used_at`.
 2. **Root token** — the single value of `apiToken` in `config.yaml`. Compared with constant-time. Intended for ops / CLI.
-3. **DB-stored API tokens** — managed at runtime via `APITokenService` (see below). Stored as `sha256` hashes; only the prefix is visible. Each token is bound to one workspace. Successful auth updates `last_used_at` asynchronously.
+3. **DB-stored API tokens** — managed at runtime via `APITokenService` and daemon credential issuance. Stored as `sha256` hashes; only the prefix is visible. User API tokens are `kind=API_TOKEN_KIND_USER` with `api:*` scope and are bound to one workspace. Daemon credentials are `kind=API_TOKEN_KIND_DAEMON` with `daemon:connect` scope and are only accepted by daemon gRPC. Successful auth updates `last_used_at` asynchronously.
 
 `401 Unauthorized` on failure.
 
 ## Workspace selection
 
-All configuration / runtime CRUD endpoints (`AgentService` / `MCPServerService` / `ModelProviderService` / `RemoteAgentService` / `ChannelService` / `CronJobService` / `APITokenService`) are scoped to a workspace. Clients select the active workspace via:
+All configuration / runtime CRUD endpoints (`AgentService` / `MCPServerService` / `ModelProviderService` / `RemoteAgentService` / `ChannelService` / `CronJobService` / `APITokenService` / `DaemonService`) are scoped to a workspace. Clients select the active workspace via:
 
 ```
 X-Workspace-ID: <workspace-id>
@@ -33,7 +33,7 @@ Resolution rules:
 - An **API token** ignores any caller-supplied header and uses the workspace bound to the token at creation time.
 - The **root token** accepts the `X-Workspace-ID` header verbatim.
 
-If the header is missing on a workspace-scoped RPC the server returns `failed_precondition` with message `workspace required (set X-Workspace-ID header)`. `AuthService`, `WorkspaceService`, `DashboardService`, `DaemonService`, and `SessionService` do not require the header (they operate globally or self-resolve workspace).
+If the header is missing on a workspace-scoped RPC the server returns `failed_precondition` with message `workspace required (set X-Workspace-ID header)`. `AuthService`, `WorkspaceService`, `DashboardService`, and `SessionService` do not require the header (they operate globally or self-resolve workspace).
 
 On login, `AuthService.Login` returns the user's accessible workspaces in `LoginResponse.workspaces`; the dashboard uses that list to render the workspace picker before storing the chosen id in `X-Workspace-ID`.
 
@@ -1844,9 +1844,76 @@ Aggregates `cron_executions` into time buckets for the Overview chart.
 
 ### DaemonService
 
-Read-only views and control over connected daemons.
+Workspace-scoped daemon configuration, credential issuance, and control over
+connected daemons. A daemon must have a stored `DaemonConfig` in the active
+workspace before a credential can be issued or a worker connection can be
+accepted.
 
 > `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's gRPC bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is not exposed as a regular `/api` ConnectRPC JSON endpoint; dashboard / ops clients should use the `DaemonService` endpoints below.
+
+#### ListDaemonConfigs
+
+```
+POST /api/agents.v1.DaemonService/ListDaemonConfigs
+```
+
+**Response:** `{ "daemons": DaemonConfig[] }`
+
+#### GetDaemonConfig
+
+```
+POST /api/agents.v1.DaemonService/GetDaemonConfig
+```
+
+**Request:** `{ "id": "<daemon-id>" }`
+
+**Response:** `{ "daemon": DaemonConfig }`
+
+#### CreateDaemonConfig / UpdateDaemonConfig
+
+```
+POST /api/agents.v1.DaemonService/CreateDaemonConfig
+POST /api/agents.v1.DaemonService/UpdateDaemonConfig
+```
+
+**Request:** `{ "daemon": DaemonConfig }`
+
+`name` and at least one `allowed_capabilities` entry are required. `id` is
+optional on create and required on update. The server writes `workspace_id`,
+`created_at`, and `created_by`.
+
+#### DeleteDaemonConfig
+
+```
+POST /api/agents.v1.DaemonService/DeleteDaemonConfig
+```
+
+**Request:** `{ "id": "<daemon-id>" }`
+
+#### CreateDaemonCredential
+
+```
+POST /api/agents.v1.DaemonService/CreateDaemonCredential
+```
+
+Issues a one-time daemon credential for an existing daemon config in the active
+workspace. The returned secret should be placed in the daemon client's
+`credential` config field.
+
+**Request:** `{ "daemon_id": "<id>", "name": "<label>"?, "ttl": "720h"? }`
+
+**Response:** `{ "token": APIToken, "secret": "bt_<...>" }`
+
+| DaemonConfig | Type | Description |
+|-------|------|-------------|
+| `id` | string | Workspace-local daemon id |
+| `name` | string | Display name |
+| `description` | string |  |
+| `allowed_capabilities` | string[] | Capabilities this daemon may serve |
+| `labels` | map\<string,string\> | Operator metadata |
+| `created_at` | timestamp |  |
+| `created_by` | string | User id that created the config |
+| `workspace_id` | string | Owning workspace |
 
 #### ListDaemons
 
@@ -1880,6 +1947,7 @@ POST /api/agents.v1.DaemonService/GetDaemon
 | `os` | string | e.g. `linux-amd64` |
 | `executors` | string[] | Informational executor names |
 | `remote_addr` | string | Peer address captured by the server |
+| `workspace_id` | string | Owning workspace |
 
 #### CancelDaemonTask
 
@@ -1921,6 +1989,7 @@ Tasks currently in flight across connected daemons.
 | `current_step` | string | Latest progress label reported by the daemon |
 | `progress` | int32 | 0–100; 0 when unknown |
 | `agent_name` | string | Agent that triggered the dispatch |
+| `workspace_id` | string | Owning workspace |
 
 #### GetBridgeDiagnostics
 
@@ -1962,13 +2031,13 @@ grpc agents.v1.DaemonConnectorService/Connect
 
 Establishes a long-lived stream. The daemon sends a `register` message first, then sends `task_update` messages. The server sends task assignments and cancellation requests on the response stream.
 
-When `apiToken` is configured, the client must include gRPC metadata `authorization: Bearer <apiToken>`. The server validates this metadata before reading the first `register` message and returns `Unauthenticated` when it is missing or invalid.
+The client must include gRPC metadata `authorization: Bearer <daemon-credential>`. The server validates the hashed credential before accepting the registration: the token must be `API_TOKEN_KIND_DAEMON`, carry `daemon:connect`, match the registering `daemon_id`, belong to a workspace, and reference an existing `DaemonConfig`. The credential's workspace is authoritative; if the daemon self-reports a different `workspace_id`, the connection is rejected. Offered capabilities are filtered against `DaemonConfig.allowed_capabilities`.
 
 **Client stream (`ConnectRequest`):**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `register` | DaemonInfo | First message only; registers daemon id, name, capabilities, labels, version, OS, and executor names |
+| `register` | DaemonInfo | First message only; registers daemon id, name, capabilities, labels, version, OS, executor names, and optional workspace id |
 | `task_update` | DaemonTaskUpdate | Subsequent task lifecycle, output, error, current step, and progress updates |
 
 **Server stream (`ConnectResponse`):**
@@ -2165,6 +2234,10 @@ POST /api/agents.v1.APITokenService/RevokeAPIToken
 | `name` | string | Label |
 | `prefix` | string | First 12 chars of the secret, for display only |
 | `workspace_id` | string | Workspace the token authenticates into |
+| `kind` | enum | `API_TOKEN_KIND_USER` or `API_TOKEN_KIND_DAEMON` |
+| `scopes` | string[] | `api:*` for user API tokens, `daemon:connect` for daemon credentials |
+| `expires_at` | timestamp | Optional expiry; empty means no expiry |
+| `daemon_id` | string | Set for daemon credentials |
 | `created_at` | timestamp |  |
 | `last_used_at` | timestamp | Updated async after successful auth |
 | `revoked` | bool | Revoked tokens cannot authenticate |

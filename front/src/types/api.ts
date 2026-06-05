@@ -487,6 +487,29 @@ export interface DaemonStatus {
   os?: string;
   executors?: string[];
   remote_addr?: string;
+  workspace_id?: string;
+}
+
+export interface DaemonConfig {
+  id: string;
+  name: string;
+  description?: string;
+  allowed_capabilities?: string[];
+  labels?: Record<string, string>;
+  created_at?: string;
+  created_by?: string;
+  workspace_id?: string;
+}
+
+export interface CreateDaemonCredentialInput {
+  daemon_id: string;
+  name?: string;
+  ttl_hours?: number;
+}
+
+export interface CreateDaemonCredentialResult {
+  token?: APIToken;
+  secret: string;
 }
 
 export interface DaemonTaskInFlight {
@@ -499,6 +522,7 @@ export interface DaemonTaskInFlight {
   current_step?: string;
   progress?: number;
   agent_name?: string;
+  workspace_id?: string;
 }
 
 export interface LatencyPoint {
@@ -563,6 +587,11 @@ export interface APIToken {
   created_at?: string;
   last_used_at?: string;
   revoked?: boolean;
+  kind?: string;
+  scopes?: string[];
+  expires_at?: string;
+  daemon_id?: string;
+  workspace_id?: string;
 }
 
 export interface CronDelivery {
@@ -594,4 +623,3 @@ export interface CronExecution {
   started_at?: string;
   finished_at?: string;
 }
-

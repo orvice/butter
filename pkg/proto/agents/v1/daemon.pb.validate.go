@@ -67,6 +67,8 @@ func (m *DaemonInfo) validate(all bool) error {
 
 	// no validation rules for Os
 
+	// no validation rules for WorkspaceId
+
 	if len(errors) > 0 {
 		return DaemonInfoMultiError(errors)
 	}
@@ -179,6 +181,8 @@ func (m *DaemonTask) validate(all bool) error {
 	// no validation rules for Metadata
 
 	// no validation rules for Capability
+
+	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
 		return DaemonTaskMultiError(errors)

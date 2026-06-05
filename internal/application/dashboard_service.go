@@ -230,7 +230,7 @@ func (s *DashboardServiceServer) counts(ctx context.Context) (*agentsv1.Overview
 		Channels:     int32(len(channels)),
 	}
 	if s.daemonReg != nil {
-		out.ConnectedDaemons = int32(len(s.daemonReg.ListConnected()))
+		out.ConnectedDaemons = int32(len(s.daemonReg.ListConnected("")))
 	}
 	if s.cronJobRepo != nil {
 		jobs, err := s.cronJobRepo.ListAll(ctx)
@@ -336,7 +336,7 @@ func (s *DashboardServiceServer) latestHandshake() *agentsv1.DaemonHandshake {
 	if s.daemonReg == nil {
 		return nil
 	}
-	conns := s.daemonReg.ListConnections()
+	conns := s.daemonReg.ListConnections("")
 	if len(conns) == 0 {
 		return nil
 	}

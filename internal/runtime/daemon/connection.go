@@ -18,6 +18,7 @@ type taskState struct {
 	startedAt   time.Time
 	agentName   string
 	capability  string
+	workspaceID string
 	currentStep string
 	progress    int32
 }
@@ -28,6 +29,7 @@ type TaskSnapshot struct {
 	TaskID      string
 	AgentName   string
 	Capability  string
+	WorkspaceID string
 	StartedAt   time.Time
 	CurrentStep string
 	Progress    int32
@@ -37,6 +39,7 @@ type TaskSnapshot struct {
 // communication channels.
 type Connection struct {
 	Info        *agentsv1.DaemonInfo
+	WorkspaceID string
 	SendCh      chan *agentsv1.ConnectResponse // server → daemon
 	ConnectedAt time.Time
 	// RemoteAddr is the peer address captured at handshake; empty if the gRPC
@@ -52,6 +55,7 @@ type Connection struct {
 func NewConnection(info *agentsv1.DaemonInfo) *Connection {
 	return &Connection{
 		Info:        info,
+		WorkspaceID: info.GetWorkspaceId(),
 		SendCh:      make(chan *agentsv1.ConnectResponse, 16),
 		ConnectedAt: time.Now(),
 		activeTasks: make(map[string]*taskState),
@@ -68,10 +72,11 @@ func (c *Connection) SendTask(task *agentsv1.DaemonTask) (<-chan *agentsv1.Daemo
 	}
 	resultCh := make(chan *agentsv1.DaemonTaskUpdate, 16)
 	c.activeTasks[task.TaskId] = &taskState{
-		resultCh:   resultCh,
-		startedAt:  time.Now(),
-		agentName:  task.GetAgentName(),
-		capability: task.GetCapability(),
+		resultCh:    resultCh,
+		startedAt:   time.Now(),
+		agentName:   task.GetAgentName(),
+		capability:  task.GetCapability(),
+		workspaceID: task.GetWorkspaceId(),
 	}
 	c.mu.Unlock()
 
@@ -162,6 +167,7 @@ func (c *Connection) ActiveTaskSnapshots() []TaskSnapshot {
 			TaskID:      id,
 			AgentName:   t.agentName,
 			Capability:  t.capability,
+			WorkspaceID: t.workspaceID,
 			StartedAt:   t.startedAt,
 			CurrentStep: t.currentStep,
 			Progress:    t.progress,

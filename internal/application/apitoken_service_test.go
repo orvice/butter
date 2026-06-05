@@ -18,6 +18,8 @@ func TestRevokeAPIToken_RejectsCrossWorkspace(t *testing.T) {
 	if err := store.Create(context.Background(), &agentsv1.APIToken{
 		Id:          "tok-1",
 		WorkspaceId: "ws-other",
+		Kind:        agentsv1.APITokenKind_API_TOKEN_KIND_USER,
+		Scopes:      []string{"api:*"},
 	}, "hash-1"); err != nil {
 		t.Fatalf("seed token: %v", err)
 	}
@@ -54,6 +56,8 @@ func TestRevokeAPIToken_AllowsSameWorkspace(t *testing.T) {
 	if err := store.Create(context.Background(), &agentsv1.APIToken{
 		Id:          "tok-1",
 		WorkspaceId: "ws-self",
+		Kind:        agentsv1.APITokenKind_API_TOKEN_KIND_USER,
+		Scopes:      []string{"api:*"},
 	}, "hash-1"); err != nil {
 		t.Fatalf("seed token: %v", err)
 	}

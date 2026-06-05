@@ -38,6 +38,11 @@ message DaemonInfo {
   // remain the routing primitive; this is purely informational.
   // @gotags: json:"executors,omitempty" yaml:"executors,omitempty"
   repeated string executors = 7;
+
+  // Workspace this daemon belongs to. The server derives the authoritative
+  // workspace from the daemon credential and rejects mismatches.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
+  string workspace_id = 8;
 }
 
 // DaemonTask is a task assignment sent from server to daemon.
@@ -66,6 +71,10 @@ message DaemonTask {
   // Populated by the server from RemoteAgent.daemon_capability.
   // @gotags: json:"capability,omitempty" yaml:"capability,omitempty"
   string capability = 7;
+
+  // Workspace that owns this task.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
+  string workspace_id = 8;
 }
 
 // DaemonTaskUpdate is sent from daemon to server to report task progress or results.

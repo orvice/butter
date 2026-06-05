@@ -79,10 +79,9 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 	}
 	defer conn.Close()
 
-	// Attach auth token.
 	streamCtx := ctx
-	if c.cfg.Token != "" {
-		streamCtx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+c.cfg.Token)
+	if c.cfg.Credential != "" {
+		streamCtx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+c.cfg.Credential)
 	}
 
 	client := agentsv1.NewDaemonConnectorServiceClient(conn)

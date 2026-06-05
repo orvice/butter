@@ -134,9 +134,9 @@ func (s *Service) Run(
 
 避免一次性大规模重构现有工作代码，采用增量方式：先在现有架构上扩展 daemon 能力，后续按需向目标架构演进。
 
-### Phase 1：Daemon Execution Plane（最小可行方案）
+### Phase 1：Workspace-scoped Daemon Execution Plane
 
-**目标**：daemon client 能连接 server，接收任务，执行并返回结果。不改动现有 runner/channel 流程。
+**目标**：daemon 作为 workspace-scoped DB 配置资源存在；daemon client 通过专用 credential 连接 server，接收任务，执行并返回结果。不改动现有 runner/channel 流程。
 
 #### 1.1 Proto 定义
 
@@ -154,6 +154,10 @@ message DaemonInfo {
   string name = 2;                   // 人类可读名称
   repeated string capabilities = 3;  // 支持的执行能力 e.g. ["opencode", "claude-code"]
   map<string, string> labels = 4;    // 路由标签 e.g. {"repo": "butter", "env": "prod"}
+  string version = 5;
+  string os = 6;
+  repeated string executors = 7;
+  string workspace_id = 8;           // 可自报；服务端以 daemon credential 绑定的 workspace 为准
 }
 
 // Server 下发给 Daemon 的任务
@@ -165,6 +169,7 @@ message DaemonTask {
   string user_id = 5;
   map<string, string> metadata = 6;
   string capability = 7;              // 执行能力路由键，daemon 据此选择 executor
+  string workspace_id = 8;            // 任务所属 workspace
 }
 
 // Daemon 回传的任务进度/结果
@@ -246,17 +251,17 @@ internal/runtime/daemon/
 ```go
 type Registry struct {
     mu    sync.RWMutex
-    conns map[string]*Connection  // daemon_id → connection
+    conns map[string]map[string]*Connection  // workspace_id → daemon_id → connection
 }
 
 // Register 在 daemon 连接时调用
 func (r *Registry) Register(conn *Connection)
 // Unregister 在 daemon 断开时调用
-func (r *Registry) Unregister(daemonID string)
-// FindByCapability 查找具有指定能力的可用 daemon
-func (r *Registry) FindByCapability(capability string) *Connection
-// ListConnected 列出所有在线 daemon
-func (r *Registry) ListConnected() []*DaemonInfo
+func (r *Registry) Unregister(workspaceID, daemonID string)
+// FindByCapability 在指定 workspace 查找具有指定能力的可用 daemon
+func (r *Registry) FindByCapability(workspaceID, capability string) *Connection
+// ListConnected 列出指定 workspace 的在线 daemon；workspaceID 为空时列出全部（admin/内部使用）
+func (r *Registry) ListConnected(workspaceID string) []*DaemonInfo
 ```
 
 **Connection**：
@@ -264,6 +269,7 @@ func (r *Registry) ListConnected() []*DaemonInfo
 ```go
 type Connection struct {
     Info          *DaemonInfo
+    WorkspaceID   string
     sendCh        chan *ServerMessage    // server → daemon
     activeTasks   sync.Map              // task_id → chan *DaemonTaskUpdate
     ConnectedAt   time.Time
@@ -368,18 +374,20 @@ func (b *Bridge) daemonRunFunc(ctx agent.InvocationContext) iter.Seq2[*session.E
 type GRPCHandler struct {
     agentsv1.UnimplementedDaemonConnectorServer
     registry *Registry
-    authFn   func(ctx context.Context) error  // 复用现有 APIToken 鉴权
+    tokenRepo apitoken.Repository
+    daemonRepo configrepo.DaemonConfigRepository
 }
 
 func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnector_ConnectServer) error {
     // 1. 接收首条消息（必须是 register）
-    // 2. 鉴权（从 gRPC metadata 提取 token）
-    // 3. 创建 Connection，注册到 Registry
-    // 4. 启动两个 goroutine:
+    // 2. 鉴权（从 gRPC metadata 提取 daemon credential）
+    // 3. 使用 credential 绑定的 workspace_id + daemon_id 覆盖 register，并按 DaemonConfig.allowed_capabilities 过滤能力
+    // 4. 创建 Connection，注册到 Registry
+    // 5. 启动两个 goroutine:
     //    - sendLoop: conn.sendCh → stream.Send()
     //    - recvLoop: stream.Recv() → conn.DispatchUpdate()
-    // 5. 等待 stream 关闭或 ctx 取消
-    // 6. Unregister + 清理 activeTasks（通知等待方 daemon 已断开）
+    // 6. 等待 stream 关闭或 ctx 取消
+    // 7. Unregister + 清理 activeTasks（通知等待方 daemon 已断开）
 }
 ```
 
@@ -409,7 +417,11 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
             if daemonRegistry == nil {
                 return nil, fmt.Errorf("remote agent %q: daemon registry not available", ra.GetName())
             }
-            bridge := daemon.NewBridge(daemonRegistry, ra.GetDaemonCapability())
+            workspaceID := ra.GetWorkspaceId()
+            if workspaceID == "" {
+                workspaceID = pb.GetWorkspaceId()
+            }
+            bridge := daemon.NewBridge(daemonRegistry, workspaceID, ra.GetDaemonCapability())
             a, err := bridge.BuildAgent(ra.GetName(), fmt.Sprintf("Daemon agent: %s", ra.GetName()))
             if err != nil {
                 return nil, fmt.Errorf("remote agent %q: building daemon bridge: %w", ra.GetName(), err)
@@ -494,14 +506,27 @@ func (e *OpenCodeExecutor) Execute(ctx context.Context, task *DaemonTask, onUpda
 }
 ```
 
-**Daemon 配置**（YAML 或 flags）：
+**服务端 DaemonConfig**（通过 `DaemonService` 写入 workspace 配置仓库）：
+
+```yaml
+id: "dev-machine-1"
+name: "orvice-dev"
+description: "Local development worker"
+allowed_capabilities: ["opencode", "claude-code"]
+labels:
+  repo: "butter"
+  env: "dev"
+```
+
+随后调用 `CreateDaemonCredential` 为该 `daemon_id` 签发 worker credential。credential token 为 `API_TOKEN_KIND_DAEMON`，scope 为 `daemon:connect`，并绑定 workspace + daemon_id。
+
+**Daemon 本地配置**（YAML 或 flags）：
 
 ```yaml
 server: "butter.example.com:9090"  # gRPC 地址
-token: "xxx"                        # API token
+credential: "bt_xxx"                # daemon credential
 daemon_id: "dev-machine-1"
 name: "orvice-dev"
-capabilities: ["opencode", "claude-code"]
 labels:
   repo: "butter"
   env: "dev"
@@ -705,8 +730,8 @@ Telegram → Poller.handleMessage()
   → runner.Run("coding-agent", parts, model, ctxInfo, onEvent, nil)
     → agent 树中的 daemon sub-agent 被 ADK 调度
     → Bridge.Run()
-      → Registry.FindByCapability("opencode")
-      → Connection.SendTask(DaemonTask)
+      → Registry.FindByCapability(workspace_id, "opencode")
+      → Connection.SendTask(DaemonTask{workspace_id: ...})
         → gRPC stream → Daemon Client
         → Daemon: opencode 执行
         → DaemonTaskUpdate (RUNNING → COMPLETED)
@@ -722,8 +747,8 @@ Telegram → Poller.handleMessage()
   → 识别 daemon agent
   → sendReply("Task submitted")
   → Bridge.RunAsync(task, onProgress, onComplete)
-    → Registry.FindByCapability("opencode")
-    → Connection.SendTask(DaemonTask)
+    → Registry.FindByCapability(workspace_id, "opencode")
+    → Connection.SendTask(DaemonTask{workspace_id: ...})
     → (后台) Daemon Client 执行
     → DaemonTaskUpdate (RUNNING, partial output)
       → onProgress → Telegram editMessage("Progress: ...")
@@ -774,8 +799,8 @@ Telegram → Poller.handleMessage()
 
 ## 实施建议
 
-1. **Phase 1 优先**：实现最小可行的 daemon 连接 + 任务执行。可以先用同步阻塞模式验证端到端流程。
+1. **正式资源模型优先**：先落地 workspace-scoped `DaemonConfig`、daemon credential、registry workspace 隔离，再实现 daemon 连接 + 任务执行。
 2. **gRPC 端口**：建议独立端口（如 9090），避免与 Gin HTTP server 冲突。go.mod 中已有 `google.golang.org/grpc v1.79.3`。
-3. **鉴权**：复用现有 APIToken，通过 gRPC metadata 传递 `authorization: Bearer <token>`。
+3. **鉴权**：daemon gRPC 只接受 `API_TOKEN_KIND_DAEMON` + `daemon:connect` credential，通过 gRPC metadata 传递 `authorization: Bearer <credential>`；root token 与普通 API token 不进入 daemon connector。
 4. **测试策略**：Phase 1 完成后用集成测试验证：mock daemon client → gRPC 连接 → 收到任务 → 返回结果 → 验证 runner 拿到输出。
 5. **Phase 4/5 按需引入**：除非 agent 类型超过 3 种或入口超过 5 个，否则不必急于引入 Adapter/Gateway 层。

@@ -26,6 +26,10 @@ type tokenDoc struct {
 	CreatedAt   time.Time `bson:"created_at"`
 	LastUsedAt  time.Time `bson:"last_used_at,omitempty"`
 	Revoked     bool      `bson:"revoked,omitempty"`
+	Kind        int32     `bson:"kind,omitempty"`
+	Scopes      []string  `bson:"scopes,omitempty"`
+	ExpiresAt   time.Time `bson:"expires_at,omitempty"`
+	DaemonID    string    `bson:"daemon_id,omitempty"`
 }
 
 // Store is a MongoDB-backed implementation of apitoken.Repository.
@@ -79,6 +83,12 @@ func (s *Store) Create(ctx context.Context, token *agentsv1.APIToken, secretHash
 		Prefix:      token.GetPrefix(),
 		SecretHash:  secretHash,
 		CreatedAt:   token.GetCreatedAt().AsTime(),
+		Kind:        int32(token.GetKind()),
+		Scopes:      token.GetScopes(),
+		DaemonID:    token.GetDaemonId(),
+	}
+	if token.GetExpiresAt() != nil {
+		doc.ExpiresAt = token.GetExpiresAt().AsTime()
 	}
 	if _, err := s.coll.InsertOne(ctx, doc); err != nil {
 		return fmt.Errorf("insert api_token: %w", err)
@@ -124,9 +134,15 @@ func docToProto(doc *tokenDoc) *agentsv1.APIToken {
 		Prefix:      doc.Prefix,
 		CreatedAt:   timestamppb.New(doc.CreatedAt),
 		Revoked:     doc.Revoked,
+		Kind:        agentsv1.APITokenKind(doc.Kind),
+		Scopes:      append([]string(nil), doc.Scopes...),
+		DaemonId:    doc.DaemonID,
 	}
 	if !doc.LastUsedAt.IsZero() {
 		t.LastUsedAt = timestamppb.New(doc.LastUsedAt)
+	}
+	if !doc.ExpiresAt.IsZero() {
+		t.ExpiresAt = timestamppb.New(doc.ExpiresAt)
 	}
 	return t
 }

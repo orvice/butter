@@ -17,11 +17,11 @@ import (
 
 // Config holds daemon configuration.
 type Config struct {
-	Server   string            `yaml:"server"`
-	Token    string            `yaml:"token"`
-	DaemonID string            `yaml:"daemon_id"`
-	Name     string            `yaml:"name"`
-	Labels   map[string]string `yaml:"labels"`
+	Server     string            `yaml:"server"`
+	Credential string            `yaml:"credential"`
+	DaemonID   string            `yaml:"daemon_id"`
+	Name       string            `yaml:"name"`
+	Labels     map[string]string `yaml:"labels"`
 
 	Executors ExecutorConfig `yaml:"executors"`
 }
@@ -57,6 +57,10 @@ func main() {
 
 	if cfg.Server == "" {
 		slog.Error("server address is required")
+		os.Exit(1)
+	}
+	if cfg.Credential == "" {
+		slog.Error("daemon credential is required")
 		os.Exit(1)
 	}
 	if cfg.DaemonID == "" {

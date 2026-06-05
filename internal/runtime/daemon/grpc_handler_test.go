@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net"
 	"testing"
@@ -13,18 +15,52 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	tokenmem "go.orx.me/apps/butter/internal/repo/apitoken/memory"
+	configmem "go.orx.me/apps/butter/internal/repo/config/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func startTestServer(t *testing.T, registry *Registry, apiToken string) (agentsv1.DaemonConnectorServiceClient, func()) {
+const (
+	testWorkspaceID = "ws-1"
+	testSecret      = "daemon-secret"
+)
+
+func startTestServer(t *testing.T, registry *Registry, seed bool) (agentsv1.DaemonConnectorServiceClient, func()) {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
 
+	tokenRepo := tokenmem.New()
+	daemonRepo := configmem.New()
+	if seed {
+		_, err := daemonRepo.CreateDaemonConfig(context.Background(), testWorkspaceID, &agentsv1.DaemonConfig{
+			Id:                  "test-daemon",
+			Name:                "Test",
+			AllowedCapabilities: []string{"opencode", "test"},
+			WorkspaceId:         testWorkspaceID,
+		})
+		if err != nil {
+			t.Fatalf("seed daemon config: %v", err)
+		}
+		err = tokenRepo.Create(context.Background(), &agentsv1.APIToken{
+			Id:          "tok-1",
+			Name:        "daemon",
+			WorkspaceId: testWorkspaceID,
+			Kind:        agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON,
+			Scopes:      []string{"daemon:connect"},
+			DaemonId:    "test-daemon",
+			CreatedAt:   timestamppb.New(time.Now().UTC()),
+		}, hashTestSecret(testSecret))
+		if err != nil {
+			t.Fatalf("seed daemon credential: %v", err)
+		}
+	}
+
 	srv := grpc.NewServer()
-	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, apiToken))
+	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, tokenRepo, daemonRepo))
 	go srv.Serve(lis)
 
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -41,13 +77,19 @@ func startTestServer(t *testing.T, registry *Registry, apiToken string) (agentsv
 	return client, cleanup
 }
 
+func hashTestSecret(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:])
+}
+
 func TestGRPCHandlerConnectAndTask(t *testing.T) {
 	registry := NewRegistry()
-	client, cleanup := startTestServer(t, registry, "")
+	client, cleanup := startTestServer(t, registry, true)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+testSecret)
 
 	stream, err := client.Connect(ctx)
 	if err != nil {
@@ -61,6 +103,7 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 				DaemonId:     "test-daemon",
 				Name:         "Test",
 				Capabilities: []string{"opencode"},
+				WorkspaceId:  testWorkspaceID,
 			},
 		},
 	})
@@ -71,13 +114,13 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 	// Wait for registration to propagate.
 	time.Sleep(100 * time.Millisecond)
 
-	conn := registry.FindByCapability("opencode")
+	conn := registry.FindByCapability(testWorkspaceID, "opencode")
 	if conn == nil {
 		t.Fatal("daemon not found in registry after register")
 	}
 
 	// Send a task via the registry connection.
-	task := &agentsv1.DaemonTask{TaskId: "t1", AgentName: "coder", Input: "hello", Capability: "opencode"}
+	task := &agentsv1.DaemonTask{TaskId: "t1", AgentName: "coder", Input: "hello", Capability: "opencode", WorkspaceId: testWorkspaceID}
 	resultCh, err := conn.SendTask(task)
 	if err != nil {
 		t.Fatalf("SendTask: %v", err)
@@ -122,7 +165,7 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 
 func TestGRPCHandlerAuthRejectsInvalidToken(t *testing.T) {
 	registry := NewRegistry()
-	client, cleanup := startTestServer(t, registry, "secret-token")
+	client, cleanup := startTestServer(t, registry, true)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -157,14 +200,14 @@ func TestGRPCHandlerAuthRejectsInvalidToken(t *testing.T) {
 
 func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 	registry := NewRegistry()
-	client, cleanup := startTestServer(t, registry, "secret-token")
+	client, cleanup := startTestServer(t, registry, true)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	// Connect with valid token.
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer secret-token")
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+testSecret)
 	stream, err := client.Connect(ctx)
 	if err != nil {
 		t.Fatalf("Connect: %v", err)
@@ -172,7 +215,7 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 
 	err = stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
-			Register: &agentsv1.DaemonInfo{DaemonId: "d1", Capabilities: []string{"test"}},
+			Register: &agentsv1.DaemonInfo{DaemonId: "test-daemon", Capabilities: []string{"test"}},
 		},
 	})
 	if err != nil {
@@ -180,7 +223,7 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 	}
 
 	time.Sleep(100 * time.Millisecond)
-	if conn := registry.FindByCapability("test"); conn == nil {
+	if conn := registry.FindByCapability(testWorkspaceID, "test"); conn == nil {
 		t.Fatal("expected daemon to be registered with valid token")
 	}
 }

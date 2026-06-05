@@ -30,23 +30,23 @@
 | Remote Agent CRUD | ✅ | `RemoteAgentService` |
 | Channel CRUD | ✅ | `ChannelService` |
 | Cron CRUD + 历史 | ✅ | `CronJobService` + `ListCronExecutions` |
-| Session CRUD + Reply | 部分 | `SessionService`；缺过滤/分页 |
+| Session CRUD + Reply | ✅ | `SessionService`，含过滤/分页 |
 | Daemon 连接（gRPC） | ✅ | `DaemonConnectorService.Connect`（仅供 daemon client 接入） |
-| 健康/Status | 部分 | `GET /status` 只返回配置后端与计数，缺 MongoDB/Redis 实时探活 |
-| Dashboard 聚合指标 | ❌ | 无 |
-| Cron 执行图表数据 | ❌ | 无时间序列聚合 |
-| 活动流 / 最近事件 | ❌ | 无 |
-| Agent 运行状态/last_run | ❌ | Agent 配置静态，未暴露运行状态 |
-| 调用日志 / 调用历史 | ❌ | Runner 未持久化 invocation 记录 |
-| 手动触发 Agent / Cron | ❌ | 仅 `ReplySession`（需现有 session） |
-| 取消运行中任务 | 部分 | Daemon 层有 `CancelTask`，未对外暴露 |
-| Daemon 列表 / 详情 | ❌ | `Registry.ListConnected` 仅内部 |
-| Daemon 任务监控 | ❌ | 无 ListTasks API |
-| Bridge 诊断指标 | ❌ | 无 |
-| MCP 连通性 / ListTools | ❌ | 无 |
-| Channel 运行状态 / Restart | ❌ | 无 |
-| API Token 多 token 管理 | ❌ | 单一 `apiToken` 配置项 |
-| Langfuse trace URL | ❌ | Session/Event 未携带 trace_id |
+| 健康/Status | ✅ | `DashboardService.GetOverview` 实时探活 MongoDB / Redis / Runner |
+| Dashboard 聚合指标 | ✅ | `DashboardService.GetOverview` |
+| Cron 执行图表数据 | ✅ | `GetCronExecutionTimeseries` |
+| 活动流 / 最近事件 | ✅ | `GetActivityFeed` + `invocations` |
+| Agent 运行状态/last_run | ✅ | `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` |
+| 调用日志 / 调用历史 | ✅ | `ListAgentInvocations` |
+| 手动触发 Agent / Cron | ✅ | `InvokeAgent` / `RunCronJobNow` |
+| 取消运行中任务 | ✅ | `CancelAgentInvocation` / `CancelDaemonTask` |
+| Daemon 列表 / 详情 | ✅ | `DaemonService.ListDaemons` / `GetDaemon` |
+| Daemon 任务监控 | ✅ | `DaemonService.ListDaemonTasks` |
+| Bridge 诊断指标 | ✅ | `DaemonService.GetBridgeDiagnostics` |
+| MCP 连通性 / ListTools | ✅ | `GetMCPServerStatus` / `ListMCPTools` |
+| Channel 运行状态 / Restart | ✅ | `GetChannelStatus` / `RestartChannel` / `PauseChannel` / `ResumeChannel` |
+| API Token 多 token 管理 | ✅ | `APITokenService` + daemon credential tokens |
+| Langfuse trace URL | ✅ | `SessionEvent.trace_url` |
 
 ## 2. 建议新增 / 扩展的接口
 
@@ -194,10 +194,17 @@ message Invocation {
 
 ### 2.3 DaemonService（新增）
 
-把 `daemon.Registry` 暴露成 RPC/HTTP 接口。
+把 workspace-scoped `DaemonConfig`、daemon credential 签发和在线 registry 暴露成 RPC/HTTP 接口。
 
 ```proto
 service DaemonService {
+  rpc ListDaemonConfigs(ListDaemonConfigsRequest) returns (ListDaemonConfigsResponse);
+  rpc GetDaemonConfig(GetDaemonConfigRequest) returns (GetDaemonConfigResponse);
+  rpc CreateDaemonConfig(CreateDaemonConfigRequest) returns (CreateDaemonConfigResponse);
+  rpc UpdateDaemonConfig(UpdateDaemonConfigRequest) returns (UpdateDaemonConfigResponse);
+  rpc DeleteDaemonConfig(DeleteDaemonConfigRequest) returns (DeleteDaemonConfigResponse);
+  rpc CreateDaemonCredential(CreateDaemonCredentialRequest)
+      returns (CreateDaemonCredentialResponse);
   rpc ListDaemons(ListDaemonsRequest) returns (ListDaemonsResponse);
   rpc GetDaemon(GetDaemonRequest) returns (GetDaemonResponse);
   rpc ListDaemonTasks(ListDaemonTasksRequest) returns (ListDaemonTasksResponse);
@@ -219,6 +226,7 @@ message DaemonStatus {
   google.protobuf.Duration uptime = 9;
   int32 active_tasks = 10;
   repeated string executors = 11; // shell / open-code / claude-code ...
+  string workspace_id = 12;
 }
 
 message DaemonTaskStatusView {
@@ -245,6 +253,7 @@ message BridgeDiagnostics {
 - `daemon.Registry` 增加 `Get`、并为 `DaemonInfo` 扩展 `version`/`os`/`remote_addr`/`connected_at` 字段（修改 `daemon.proto` 中的 `DaemonInfo`）。
 - `daemon.Connection` 暴露 active task 列表。
 - 新增 `internal/runtime/daemon/metrics.go` 输出 bridge 诊断。
+- 新增 `config_daemons` 持久化 workspace daemon config；daemon credential 使用 `API_TOKEN_KIND_DAEMON` + `daemon:connect` scope。
 
 ### 2.4 MCPServerService 扩展
 
@@ -320,15 +329,13 @@ message ChannelStatus {
 
 ### 2.7 APITokenService（新增）
 
-设计稿要求“多 token 管理 + 标签 + Revoke / Regenerate”，当前只有 `apiToken` 单值。
+设计稿要求“多 token 管理 + 标签 + Revoke / Regenerate”。当前已落地 `ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`，并扩展 `kind` / `scopes` / `expires_at` / `daemon_id` 支持 daemon credential；`RegenerateAPIToken` 仍未作为单独 RPC 实现，可通过 revoke + create 完成。
 
 ```proto
 service APITokenService {
   rpc ListAPITokens(ListAPITokensRequest) returns (ListAPITokensResponse);
   rpc CreateAPIToken(CreateAPITokenRequest) returns (CreateAPITokenResponse);
   rpc RevokeAPIToken(RevokeAPITokenRequest) returns (RevokeAPITokenResponse);
-  rpc RegenerateAPIToken(RegenerateAPITokenRequest)
-      returns (RegenerateAPITokenResponse);
 }
 
 message APIToken {
@@ -338,16 +345,20 @@ message APIToken {
   google.protobuf.Timestamp created_at = 4;
   google.protobuf.Timestamp last_used_at = 5;
   bool revoked = 6;
-  repeated string scopes = 7; // 可选 scope
+  APITokenKind kind = 7;
+  repeated string scopes = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  string daemon_id = 10;
+  string workspace_id = 100;
 }
 
 message CreateAPITokenResponse {
   APIToken token = 1;
-  string secret = 2; // 只在创建/再生成时返回一次
+  string secret = 2; // 只在创建时返回一次
 }
 ```
 
-并把 `APITokenAuthMiddleware` 改成从 MongoDB token collection 校验（同时保留 `apiToken` 作为 root token 兼容）。
+`AuthMiddleware` 从 token collection 校验普通 API token（`API_TOKEN_KIND_USER` + `api:*`），daemon gRPC connector 独立校验 daemon credential（`API_TOKEN_KIND_DAEMON` + `daemon:connect`）。
 
 ### 2.8 CronJobService 扩展
 
@@ -427,6 +438,7 @@ message SessionDetail {
 | `invocations` | Agent / Daemon 任务调用记录 | `runner.Service.Run` finally |
 | `activity_events` | 仪表盘活动流 | runner / channel / daemon callback |
 | `api_tokens` | 多 token 管理 | APITokenService |
+| `config_daemons` | Workspace daemon 配置 | DaemonService |
 | `channel_metrics` | 渠道消息计数（24h） | 渠道 poller 周期上报 |
 
 ## 4. 实施建议（分阶段）

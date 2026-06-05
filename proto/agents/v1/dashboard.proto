@@ -4,6 +4,7 @@ package agents.v1;
 
 import "agents/v1/agent.proto";
 import "agents/v1/agentchannel.proto";
+import "agents/v1/api_token.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -129,6 +130,15 @@ message DaemonHandshake {
 // =============================================================================
 
 service DaemonService {
+  // Workspace-scoped daemon configuration. A daemon must have a stored config
+  // before a worker credential can be issued or a runtime connection accepted.
+  rpc ListDaemonConfigs(ListDaemonConfigsRequest) returns (ListDaemonConfigsResponse);
+  rpc GetDaemonConfig(GetDaemonConfigRequest) returns (GetDaemonConfigResponse);
+  rpc CreateDaemonConfig(CreateDaemonConfigRequest) returns (CreateDaemonConfigResponse);
+  rpc UpdateDaemonConfig(UpdateDaemonConfigRequest) returns (UpdateDaemonConfigResponse);
+  rpc DeleteDaemonConfig(DeleteDaemonConfigRequest) returns (DeleteDaemonConfigResponse);
+  rpc CreateDaemonCredential(CreateDaemonCredentialRequest) returns (CreateDaemonCredentialResponse);
+
   rpc ListDaemons(ListDaemonsRequest) returns (ListDaemonsResponse);
   rpc GetDaemon(GetDaemonRequest) returns (GetDaemonResponse);
   // CancelDaemonTask requests cancellation of a running task on any connected
@@ -165,6 +175,66 @@ message BridgeDiagnostics {
 message LatencyPoint {
   google.protobuf.Timestamp timestamp = 1;
   int64 latency_ms = 2;
+}
+
+message DaemonConfig {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string allowed_capabilities = 4;
+  map<string, string> labels = 5;
+  google.protobuf.Timestamp created_at = 6;
+  string created_by = 7;
+
+  // ID of the workspace this daemon config belongs to.
+  string workspace_id = 100;
+}
+
+message ListDaemonConfigsRequest {}
+
+message ListDaemonConfigsResponse {
+  repeated DaemonConfig daemons = 1;
+}
+
+message GetDaemonConfigRequest {
+  string id = 1;
+}
+
+message GetDaemonConfigResponse {
+  DaemonConfig daemon = 1;
+}
+
+message CreateDaemonConfigRequest {
+  DaemonConfig daemon = 1;
+}
+
+message CreateDaemonConfigResponse {
+  DaemonConfig daemon = 1;
+}
+
+message UpdateDaemonConfigRequest {
+  DaemonConfig daemon = 1;
+}
+
+message UpdateDaemonConfigResponse {
+  DaemonConfig daemon = 1;
+}
+
+message DeleteDaemonConfigRequest {
+  string id = 1;
+}
+
+message DeleteDaemonConfigResponse {}
+
+message CreateDaemonCredentialRequest {
+  string daemon_id = 1;
+  string name = 2;
+  google.protobuf.Duration ttl = 3;
+}
+
+message CreateDaemonCredentialResponse {
+  APIToken token = 1;
+  string secret = 2;
 }
 
 message ListDaemonsRequest {}
@@ -218,6 +288,7 @@ message DaemonTaskInFlight {
   int32 progress = 8;
   // Agent name that triggered the dispatch.
   string agent_name = 9;
+  string workspace_id = 10;
 }
 
 message DaemonStatus {
@@ -244,6 +315,7 @@ message DaemonStatus {
   repeated string executors = 11;
   // Captured by the server from the gRPC peer (best-effort, may be empty).
   string remote_addr = 12;
+  string workspace_id = 13;
 }
 
 // =============================================================================

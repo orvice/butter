@@ -8,7 +8,7 @@ import (
 
 func TestBridgeBuildAgent(t *testing.T) {
 	registry := NewRegistry()
-	bridge := NewBridge(registry, "opencode")
+	bridge := NewBridge(registry, "ws-1", "opencode")
 
 	ag, err := bridge.BuildAgent("test-daemon", "A test daemon agent")
 	if err != nil {
@@ -24,7 +24,7 @@ func TestBridgeBuildAgent(t *testing.T) {
 
 func TestBridgeNoDaemonAvailable(t *testing.T) {
 	registry := NewRegistry()
-	bridge := NewBridge(registry, "opencode")
+	bridge := NewBridge(registry, "ws-1", "opencode")
 
 	ag, err := bridge.BuildAgent("test", "test")
 	if err != nil {
@@ -64,15 +64,16 @@ func TestExtractText(t *testing.T) {
 func TestBridgeEndToEndViaConnection(t *testing.T) {
 	registry := NewRegistry()
 	conn := NewConnection(&agentsv1.DaemonInfo{
+		WorkspaceId:  "ws-1",
 		DaemonId:     "d1",
 		Capabilities: []string{"opencode"},
 	})
 	registry.Register(conn)
 
-	bridge := NewBridge(registry, "opencode")
+	bridge := NewBridge(registry, "ws-1", "opencode")
 
 	// Verify the bridge can find the daemon.
-	found := bridge.registry.FindByCapability("opencode")
+	found := bridge.registry.FindByCapability("ws-1", "opencode")
 	if found == nil {
 		t.Fatal("bridge's registry should find daemon")
 	}

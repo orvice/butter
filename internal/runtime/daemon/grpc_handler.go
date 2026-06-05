@@ -1,10 +1,13 @@
 package daemon
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"butterfly.orx.me/core/log"
 	"google.golang.org/grpc/codes"
@@ -12,6 +15,8 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
+	"go.orx.me/apps/butter/internal/repo/apitoken"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -19,15 +24,17 @@ import (
 type GRPCHandler struct {
 	agentsv1.UnimplementedDaemonConnectorServiceServer
 
-	registry *Registry
-	apiToken string
+	registry   *Registry
+	tokenRepo  apitoken.Repository
+	daemonRepo configrepo.DaemonConfigRepository
 }
 
 // NewGRPCHandler creates a new handler for daemon connections.
-func NewGRPCHandler(registry *Registry, apiToken string) *GRPCHandler {
+func NewGRPCHandler(registry *Registry, tokenRepo apitoken.Repository, daemonRepo configrepo.DaemonConfigRepository) *GRPCHandler {
 	return &GRPCHandler{
-		registry: registry,
-		apiToken: apiToken,
+		registry:   registry,
+		tokenRepo:  tokenRepo,
+		daemonRepo: daemonRepo,
 	}
 }
 
@@ -35,11 +42,6 @@ func NewGRPCHandler(registry *Registry, apiToken string) *GRPCHandler {
 func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServer) error {
 	ctx := stream.Context()
 	logger := log.FromContext(ctx)
-
-	// Authenticate.
-	if err := h.authenticate(stream); err != nil {
-		return err
-	}
 
 	// First message must be a register.
 	firstMsg, err := stream.Recv()
@@ -53,6 +55,15 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 	if regInfo.DaemonId == "" {
 		return status.Errorf(codes.InvalidArgument, "daemon_id is required")
 	}
+	authInfo, err := h.authenticate(stream, regInfo)
+	if err != nil {
+		return err
+	}
+	regInfo.WorkspaceId = authInfo.workspaceID
+	regInfo.Capabilities = filterAllowedCapabilities(regInfo.GetCapabilities(), authInfo.allowedCapabilities)
+	if len(regInfo.GetCapabilities()) == 0 {
+		return status.Errorf(codes.PermissionDenied, "daemon has no allowed capabilities")
+	}
 
 	conn := NewConnection(regInfo)
 	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
@@ -61,11 +72,12 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 	h.registry.Register(conn)
 	defer func() {
 		conn.Close()
-		h.registry.Unregister(regInfo.DaemonId)
-		logger.Info("daemon disconnected", "daemon_id", regInfo.DaemonId)
+		h.registry.Unregister(regInfo.GetWorkspaceId(), regInfo.DaemonId)
+		logger.Info("daemon disconnected", "workspace_id", regInfo.GetWorkspaceId(), "daemon_id", regInfo.DaemonId)
 	}()
 
 	logger.Info("daemon connected",
+		"workspace_id", regInfo.GetWorkspaceId(),
 		"daemon_id", regInfo.DaemonId,
 		"name", regInfo.Name,
 		"capabilities", regInfo.Capabilities,
@@ -120,25 +132,85 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 	return nil
 }
 
-func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnectorService_ConnectServer) error {
-	if h.apiToken == "" {
-		return nil
+type authResult struct {
+	workspaceID         string
+	allowedCapabilities []string
+}
+
+func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnectorService_ConnectServer, regInfo *agentsv1.DaemonInfo) (*authResult, error) {
+	if h.tokenRepo == nil || h.daemonRepo == nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "daemon auth repositories not wired")
 	}
 
 	md, ok := metadata.FromIncomingContext(stream.Context())
 	if !ok {
-		return status.Errorf(codes.Unauthenticated, "missing metadata")
+		return nil, status.Errorf(codes.Unauthenticated, "missing metadata")
 	}
 
 	values := md.Get("authorization")
 	if len(values) == 0 {
-		return status.Errorf(codes.Unauthenticated, "missing authorization header")
+		return nil, status.Errorf(codes.Unauthenticated, "missing authorization header")
 	}
 
 	token := strings.TrimPrefix(values[0], "Bearer ")
-	if token != h.apiToken {
-		return status.Errorf(codes.Unauthenticated, "invalid token")
+	stored, err := h.tokenRepo.Lookup(stream.Context(), hashSecret(token))
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid token")
+	}
+	if stored.GetKind() != agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON {
+		return nil, status.Errorf(codes.PermissionDenied, "token is not a daemon credential")
+	}
+	if stored.GetWorkspaceId() == "" {
+		return nil, status.Errorf(codes.PermissionDenied, "daemon credential has no workspace")
+	}
+	if stored.GetDaemonId() != regInfo.GetDaemonId() {
+		return nil, status.Errorf(codes.PermissionDenied, "daemon credential does not match daemon_id")
+	}
+	if expires := stored.GetExpiresAt(); expires != nil && time.Now().UTC().After(expires.AsTime()) {
+		return nil, status.Errorf(codes.Unauthenticated, "daemon credential expired")
+	}
+	if !hasScope(stored.GetScopes(), "daemon:connect") {
+		return nil, status.Errorf(codes.PermissionDenied, "daemon credential lacks daemon:connect scope")
+	}
+	if regInfo.GetWorkspaceId() != "" && regInfo.GetWorkspaceId() != stored.GetWorkspaceId() {
+		return nil, status.Errorf(codes.PermissionDenied, "workspace_id does not match daemon credential")
 	}
 
-	return nil
+	cfg, err := h.daemonRepo.GetDaemonConfig(stream.Context(), stored.GetWorkspaceId(), stored.GetDaemonId())
+	if err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "daemon is not registered in workspace")
+	}
+
+	_ = h.tokenRepo.TouchLastUsed(stream.Context(), stored.GetId())
+	return &authResult{workspaceID: stored.GetWorkspaceId(), allowedCapabilities: cfg.GetAllowedCapabilities()}, nil
+}
+
+func hashSecret(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:])
+}
+
+func hasScope(scopes []string, want string) bool {
+	for _, scope := range scopes {
+		if scope == want || scope == "daemon:*" {
+			return true
+		}
+	}
+	return false
+}
+
+func filterAllowedCapabilities(offered, allowed []string) []string {
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, cap := range allowed {
+		if cap != "" {
+			allowedSet[cap] = struct{}{}
+		}
+	}
+	var out []string
+	for _, cap := range offered {
+		if _, ok := allowedSet[cap]; ok {
+			out = append(out, cap)
+		}
+	}
+	return out
 }

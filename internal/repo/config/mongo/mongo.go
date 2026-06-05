@@ -19,6 +19,7 @@ const (
 	globalMCPCollection      = "config_global_mcpservers"
 	mcpServersCollection     = "config_mcpservers"
 	remoteAgentsCollection   = "config_remoteagents"
+	daemonConfigsCollection  = "config_daemons"
 	channelsCollection       = "config_channels"
 	modelProvidersCollection = "config_modelproviders"
 	notifyGroupsCollection   = "config_notifygroups"
@@ -40,6 +41,7 @@ type Store struct {
 	globalMCP      *mongo.Collection
 	mcpServers     *mongo.Collection
 	remoteAgents   *mongo.Collection
+	daemonConfigs  *mongo.Collection
 	channels       *mongo.Collection
 	modelProviders *mongo.Collection
 	notifyGroups   *mongo.Collection
@@ -51,6 +53,7 @@ func New(db *mongo.Database) *Store {
 		globalMCP:      db.Collection(globalMCPCollection),
 		mcpServers:     db.Collection(mcpServersCollection),
 		remoteAgents:   db.Collection(remoteAgentsCollection),
+		daemonConfigs:  db.Collection(daemonConfigsCollection),
 		channels:       db.Collection(channelsCollection),
 		modelProviders: db.Collection(modelProvidersCollection),
 		notifyGroups:   db.Collection(notifyGroupsCollection),
@@ -60,7 +63,7 @@ func New(db *mongo.Database) *Store {
 // EnsureIndexes creates the (workspace_id, name) compound indexes for fast
 // per-workspace listings.
 func (s *Store) EnsureIndexes(ctx context.Context) error {
-	collections := []*mongo.Collection{s.agents, s.globalMCP, s.mcpServers, s.remoteAgents, s.channels, s.modelProviders, s.notifyGroups}
+	collections := []*mongo.Collection{s.agents, s.globalMCP, s.mcpServers, s.remoteAgents, s.daemonConfigs, s.channels, s.modelProviders, s.notifyGroups}
 	for _, c := range collections {
 		_, err := c.Indexes().CreateOne(ctx, mongo.IndexModel{
 			Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "name", Value: 1}},
@@ -471,6 +474,96 @@ func (s *Store) DeleteRemoteAgent(ctx context.Context, workspaceID, id string) e
 	}
 	if res.DeletedCount == 0 {
 		return mapError("remote agent", workspaceID, id, mongo.ErrNoDocuments)
+	}
+	return nil
+}
+
+// --- Daemon Configs ---
+
+func (s *Store) ListDaemonConfigs(ctx context.Context, workspaceID string) ([]*agentsv1.DaemonConfig, error) {
+	docs, err := listInWorkspace(ctx, s.daemonConfigs, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentsv1.DaemonConfig, 0, len(docs))
+	for _, d := range docs {
+		daemon := &agentsv1.DaemonConfig{}
+		if err := unmarshal(d.Spec, daemon); err != nil {
+			return nil, fmt.Errorf("unmarshal daemon config %q: %w", d.ID, err)
+		}
+		out = append(out, daemon)
+	}
+	return out, nil
+}
+
+func (s *Store) ListDaemonConfigsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.DaemonConfig, error) {
+	docs, err := listAll(ctx, s.daemonConfigs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentsv1.DaemonConfig, 0, len(docs))
+	for _, d := range docs {
+		daemon := &agentsv1.DaemonConfig{}
+		if err := unmarshal(d.Spec, daemon); err != nil {
+			return nil, fmt.Errorf("unmarshal daemon config %q: %w", d.ID, err)
+		}
+		out = append(out, daemon)
+	}
+	return out, nil
+}
+
+func (s *Store) GetDaemonConfig(ctx context.Context, workspaceID, id string) (*agentsv1.DaemonConfig, error) {
+	var doc configDoc
+	err := s.daemonConfigs.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, id)}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("daemon config", workspaceID, id, err)
+	}
+	daemon := &agentsv1.DaemonConfig{}
+	if err := unmarshal(doc.Spec, daemon); err != nil {
+		return nil, fmt.Errorf("unmarshal daemon config %q: %w", id, err)
+	}
+	return daemon, nil
+}
+
+func (s *Store) CreateDaemonConfig(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonConfig) (*agentsv1.DaemonConfig, error) {
+	clone := proto.Clone(daemon).(*agentsv1.DaemonConfig)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetId()), WorkspaceID: workspaceID, Name: clone.GetId(), Spec: spec}
+	if _, err := s.daemonConfigs.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("daemon config", workspaceID, clone.GetId(), err)
+	}
+	return clone, nil
+}
+
+func (s *Store) UpdateDaemonConfig(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonConfig) (*agentsv1.DaemonConfig, error) {
+	clone := proto.Clone(daemon).(*agentsv1.DaemonConfig)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetId()), WorkspaceID: workspaceID, Name: clone.GetId(), Spec: spec}
+	res, err := s.daemonConfigs.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
+	if err != nil {
+		return nil, mapError("daemon config", workspaceID, clone.GetId(), err)
+	}
+	if res.MatchedCount == 0 {
+		return nil, mapError("daemon config", workspaceID, clone.GetId(), mongo.ErrNoDocuments)
+	}
+	return clone, nil
+}
+
+func (s *Store) DeleteDaemonConfig(ctx context.Context, workspaceID, id string) error {
+	res, err := s.daemonConfigs.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, id)})
+	if err != nil {
+		return mapError("daemon config", workspaceID, id, err)
+	}
+	if res.DeletedCount == 0 {
+		return mapError("daemon config", workspaceID, id, mongo.ErrNoDocuments)
 	}
 	return nil
 }

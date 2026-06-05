@@ -433,7 +433,14 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
 			if daemonRegistry == nil {
 				return nil, fmt.Errorf("remote agent %q: daemon registry not available", ra.GetName())
 			}
-			bridge := daemon.NewBridge(daemonRegistry, ra.GetDaemonCapability())
+			workspaceID := ra.GetWorkspaceId()
+			if workspaceID == "" {
+				workspaceID = pb.GetWorkspaceId()
+			}
+			if workspaceID == "" {
+				return nil, fmt.Errorf("remote agent %q: DAEMON protocol requires workspace_id", ra.GetName())
+			}
+			bridge := daemon.NewBridge(daemonRegistry, workspaceID, ra.GetDaemonCapability())
 			a, err := bridge.BuildAgent(ra.GetName(), fmt.Sprintf("Daemon agent: %s", ra.GetName()))
 			if err != nil {
 				return nil, fmt.Errorf("creating daemon agent %q: %w", ra.GetName(), err)

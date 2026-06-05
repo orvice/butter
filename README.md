@@ -41,9 +41,10 @@ The sample `.env.example` uses `BUTTERFLY_CONFIG_FILE_PATH=./config/butter.yaml`
 You can either place your runtime config there or change the variable to an
 existing file such as `./config.yaml`.
 
-Most service settings live in the YAML config, including agents, model
-providers, MCP servers, channels, auth bootstrap, storage, daemon settings, and
-the optional root `apiToken`.
+Most service settings live in the YAML config, including auth bootstrap,
+storage, tracing, and the optional root `apiToken`. Workspace-scoped agent,
+MCP, remote agent, channel, model provider, cron, API token, and daemon
+configuration is stored through the runtime config repository.
 
 ### Run
 
@@ -78,15 +79,19 @@ with:
 go run ./cmd/butter-daemon -config daemon.yaml
 ```
 
-The daemon connects back to the server's daemon gRPC endpoint and uses the root
-`apiToken` as authorization metadata.
+Before starting a worker, create a workspace-scoped daemon config with the
+allowed capabilities, then issue a daemon credential for that daemon. The
+credential is a dedicated `API_TOKEN_KIND_DAEMON` token with `daemon:connect`
+scope; it is accepted only by the daemon gRPC endpoint and cannot call the HTTP
+API. The credential determines the authoritative workspace and daemon id during
+registration.
 
 Daemon executors are configured locally. ACP-compatible coding agents such as
 opencode should be exposed through the generic ACP executor:
 
 ```yaml
 server: localhost:9090
-token: your-root-api-token
+credential: bt_daemon_credential_secret
 daemon_id: local-dev
 name: Local Dev Daemon
 

@@ -285,6 +285,8 @@ func TestWorkspaceMCPServerRejectsAPITokenWorkspaceMismatch(t *testing.T) {
 		Prefix:      "bt_test",
 		CreatedAt:   timestamppb.Now(),
 		WorkspaceId: "ws-a",
+		Kind:        agentsv1.APITokenKind_API_TOKEN_KIND_USER,
+		Scopes:      []string{"api:*"},
 	}
 	if err := tokenRepo.Create(ctx, token, application.HashAPITokenSecret("bt_test")); err != nil {
 		t.Fatalf("create token: %v", err)

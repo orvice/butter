@@ -18,15 +18,17 @@ import (
 // Bridge wraps daemon execution behind the ADK agent interface.
 type Bridge struct {
 	registry   *Registry
+	workspaceID string
 	capability string
 	metrics    *Metrics
 }
 
 // NewBridge creates a new bridge for the given capability. It pulls the
 // metrics collector off the registry so bridge invocations are recorded.
-func NewBridge(registry *Registry, capability string) *Bridge {
+func NewBridge(registry *Registry, workspaceID, capability string) *Bridge {
 	b := &Bridge{
 		registry:   registry,
+		workspaceID: workspaceID,
 		capability: capability,
 	}
 	if registry != nil {
@@ -63,7 +65,7 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 
 		input := extractText(ctx.UserContent())
 
-		conn := b.registry.FindByCapability(b.capability)
+		conn := b.registry.FindByCapability(b.workspaceID, b.capability)
 		if conn == nil {
 			yield(nil, fmt.Errorf("no daemon available for capability %q", b.capability))
 			return
@@ -76,6 +78,7 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 			Capability: b.capability,
 			SessionId:  ctx.Session().ID(),
 			UserId:     ctx.Session().UserID(),
+			WorkspaceId: b.workspaceID,
 		}
 
 		resultCh, err := conn.SendTask(task)

@@ -56,6 +56,16 @@ type RemoteAgentRepository interface {
 	ListRemoteAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.RemoteAgent, error)
 }
 
+// DaemonConfigRepository defines workspace-scoped daemon worker definitions.
+type DaemonConfigRepository interface {
+	ListDaemonConfigs(ctx context.Context, workspaceID string) ([]*agentsv1.DaemonConfig, error)
+	GetDaemonConfig(ctx context.Context, workspaceID, id string) (*agentsv1.DaemonConfig, error)
+	CreateDaemonConfig(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonConfig) (*agentsv1.DaemonConfig, error)
+	UpdateDaemonConfig(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonConfig) (*agentsv1.DaemonConfig, error)
+	DeleteDaemonConfig(ctx context.Context, workspaceID, id string) error
+	ListDaemonConfigsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.DaemonConfig, error)
+}
+
 // ChannelRepository defines CRUD operations for AgentChannel configurations.
 type ChannelRepository interface {
 	ListChannels(ctx context.Context, workspaceID string) ([]*agentsv1.AgentChannel, error)

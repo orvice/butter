@@ -196,7 +196,7 @@ func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req
 			status.Detail = "daemon registry not wired"
 			return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
 		}
-		conn := s.daemonReg.FindByCapability(cap)
+		conn := s.daemonReg.FindByCapability(wsID, cap)
 		if conn == nil {
 			status.State = agentsv1.RemoteAgentStatus_STATE_UNREACHABLE
 			status.Detail = fmt.Sprintf("no online daemon serves capability %q", cap)

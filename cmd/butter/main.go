@@ -41,7 +41,7 @@ func main() {
 				handlers.Wire(result)
 
 				// Start gRPC server for daemon connections.
-				srv, lis, err := butterapp.SetupGRPCServer(cfg, daemonRegistry)
+				srv, lis, err := butterapp.SetupGRPCServer(cfg, daemonRegistry, result.APITokenRepo, handlers.ConfigStore())
 				if err != nil {
 					return err
 				}

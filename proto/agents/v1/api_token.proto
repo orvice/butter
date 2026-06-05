@@ -8,8 +8,8 @@ import "validate/validate.proto";
 option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 
 // =============================================================================
-// APITokenService manages API bearer tokens used by the dashboard and external
-// integrations to call the HTTP/Twirp API.
+// APITokenService manages workspace-scoped bearer tokens used by the dashboard,
+// external integrations, and daemon workers.
 // =============================================================================
 
 service APITokenService {
@@ -45,10 +45,32 @@ message APIToken {
   // @gotags: json:"revoked,omitempty" yaml:"revoked,omitempty" bson:"revoked,omitempty"
   bool revoked = 6;
 
+  // Token kind controls which entrypoints may accept this secret.
+  // @gotags: json:"kind,omitempty" yaml:"kind,omitempty" bson:"kind,omitempty"
+  APITokenKind kind = 7;
+
+  // Fine-grained permission labels such as "api:*" or "daemon:connect".
+  // @gotags: json:"scopes,omitempty" yaml:"scopes,omitempty" bson:"scopes,omitempty"
+  repeated string scopes = 8;
+
+  // Optional expiry time. Empty means the token does not expire.
+  // @gotags: json:"expires_at,omitempty" yaml:"expires_at,omitempty" bson:"expires_at,omitempty"
+  google.protobuf.Timestamp expires_at = 9;
+
+  // For daemon tokens, the daemon id this token may connect as.
+  // @gotags: json:"daemon_id,omitempty" yaml:"daemon_id,omitempty" bson:"daemon_id,omitempty"
+  string daemon_id = 10;
+
   // ID of the workspace this token belongs to. Tokens authenticate within
   // a single workspace.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
+}
+
+enum APITokenKind {
+  API_TOKEN_KIND_UNSPECIFIED = 0;
+  API_TOKEN_KIND_USER = 1;
+  API_TOKEN_KIND_DAEMON = 2;
 }
 
 message ListAPITokensRequest {}

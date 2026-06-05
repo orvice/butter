@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { APITokenService, type APIToken as PbAPIToken } from "@/gen/agents/v1/api_token_pb";
+import { APITokenKind, APITokenService, type APIToken as PbAPIToken } from "@/gen/agents/v1/api_token_pb";
 import type { APIToken } from "@/types/api";
 import { tsToISO } from "./_proto-bridge";
 import { makeClient } from "./transport";
 
 const client = makeClient(APITokenService);
 
-function toAPIToken(t: PbAPIToken): APIToken {
+export function toAPIToken(t: PbAPIToken): APIToken {
   return {
     id: t.id,
     name: t.name,
@@ -14,6 +14,11 @@ function toAPIToken(t: PbAPIToken): APIToken {
     created_at: tsToISO(t.createdAt),
     last_used_at: tsToISO(t.lastUsedAt),
     revoked: t.revoked,
+    kind: APITokenKind[t.kind],
+    scopes: t.scopes,
+    expires_at: tsToISO(t.expiresAt),
+    daemon_id: t.daemonId,
+    workspace_id: t.workspaceId,
   };
 }
 
