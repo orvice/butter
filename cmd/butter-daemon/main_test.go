@@ -12,10 +12,10 @@ func TestACPProfilesFromConfig(t *testing.T) {
 	cfg := &Config{
 		Executors: ExecutorConfig{
 			ACP: []executor.ACPConfig{{
-				Capability: "gemini",
-				Command:    "gemini",
-				Args:       []string{"--experimental-acp"},
-				WorkDir:    workDir,
+				Runtime: "gemini",
+				Command: "gemini",
+				Args:    []string{"--experimental-acp"},
+				WorkDir: workDir,
 			}},
 		},
 	}
@@ -24,14 +24,15 @@ func TestACPProfilesFromConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("acpProfilesFromConfig: %v", err)
 	}
-	if len(profiles) != 1 {
-		t.Fatalf("expected 1 profile, got %d", len(profiles))
+	if len(profiles) != 3 {
+		t.Fatalf("expected 3 profiles, got %d", len(profiles))
 	}
-	if profiles[0].Capability != "gemini" || profiles[0].Command != "gemini" {
-		t.Fatalf("unexpected profile: %+v", profiles[0])
+	got := profiles[2]
+	if got.Runtime != "gemini" || got.Command != "gemini" {
+		t.Fatalf("unexpected profile: %+v", got)
 	}
-	if profiles[0].WorkDir != filepath.Clean(workDir) {
-		t.Fatalf("expected normalized work dir %q, got %q", filepath.Clean(workDir), profiles[0].WorkDir)
+	if got.WorkDir != filepath.Clean(workDir) {
+		t.Fatalf("expected normalized work dir %q, got %q", filepath.Clean(workDir), got.WorkDir)
 	}
 }
 
@@ -42,12 +43,12 @@ func TestACPProfilesFromConfigRejectsIncompleteProfile(t *testing.T) {
 		},
 	}
 	if _, err := acpProfilesFromConfig(cfg); err == nil {
-		t.Fatalf("expected missing capability error")
+		t.Fatalf("expected missing runtime error")
 	}
 
 	cfg = &Config{
 		Executors: ExecutorConfig{
-			ACP: []executor.ACPConfig{{Capability: "opencode"}},
+			ACP: []executor.ACPConfig{{Runtime: "opencode"}},
 		},
 	}
 	if _, err := acpProfilesFromConfig(cfg); err == nil {
@@ -70,12 +71,12 @@ func TestLegacyOpenCodeConfigBecomesACPProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("acpProfilesFromConfig: %v", err)
 	}
-	if len(profiles) != 1 {
-		t.Fatalf("expected 1 profile, got %d", len(profiles))
+	if len(profiles) != 2 {
+		t.Fatalf("expected 2 profiles, got %d", len(profiles))
 	}
 	got := profiles[0]
-	if got.Capability != "opencode" {
-		t.Fatalf("expected opencode capability, got %q", got.Capability)
+	if got.Runtime != "opencode" {
+		t.Fatalf("expected opencode runtime, got %q", got.Runtime)
 	}
 	if got.Command != "custom-opencode" {
 		t.Fatalf("expected custom binary, got %q", got.Command)
@@ -101,10 +102,16 @@ func TestBuildExecutorsPreservesShell(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildExecutors: %v", err)
 	}
-	if len(executors) != 1 {
-		t.Fatalf("expected 1 executor, got %d", len(executors))
+	if len(executors) != 3 {
+		t.Fatalf("expected 3 executors, got %d", len(executors))
 	}
-	if executors[0].Capability() != "shell" {
-		t.Fatalf("expected shell capability, got %q", executors[0].Capability())
+	foundShell := false
+	for _, exec := range executors {
+		if exec.Runtime() == "shell" {
+			foundShell = true
+		}
+	}
+	if !foundShell {
+		t.Fatalf("expected shell runtime in executors")
 	}
 }

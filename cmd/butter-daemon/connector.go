@@ -36,7 +36,7 @@ type Connector struct {
 func NewConnector(cfg *Config, executors []executor.Executor) *Connector {
 	execMap := make(map[string]executor.Executor, len(executors))
 	for _, e := range executors {
-		execMap[e.Capability()] = e
+		execMap[e.Runtime()] = e
 	}
 	return &Connector{
 		cfg:         cfg,
@@ -91,21 +91,20 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 	}
 
 	// Send registration.
-	capabilities := make([]string, 0, len(c.executors))
-	for cap := range c.executors {
-		capabilities = append(capabilities, cap)
+	runtimes := make([]string, 0, len(c.executors))
+	for runtime := range c.executors {
+		runtimes = append(runtimes, runtime)
 	}
 
 	err = stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{
-				DaemonId:     c.cfg.DaemonID,
-				Name:         c.cfg.Name,
-				Capabilities: capabilities,
-				Labels:       c.cfg.Labels,
-				Version:      daemonVersion,
-				Os:           runtime.GOOS + "-" + runtime.GOARCH,
-				Executors:    capabilities,
+				Name:        c.cfg.Name,
+				AcpRuntimes: runtimes,
+				Labels:      c.cfg.Labels,
+				Version:     daemonVersion,
+				Os:          runtime.GOOS + "-" + runtime.GOARCH,
+				Executors:   runtimes,
 			},
 		},
 	})
@@ -114,8 +113,7 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 	}
 
 	slog.Info("registered with server",
-		"daemon_id", c.cfg.DaemonID,
-		"capabilities", capabilities,
+		"acp_runtimes", runtimes,
 	)
 
 	// Receive loop.
@@ -138,14 +136,14 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 }
 
 func (c *Connector) handleTask(ctx context.Context, stream agentsv1.DaemonConnectorService_ConnectClient, task *agentsv1.DaemonTask) {
-	slog.Info("task received", "task_id", task.TaskId, "capability", task.Capability, "input_len", len(task.Input))
+	slog.Info("task received", "task_id", task.TaskId, "acp_runtime", task.AcpRuntime, "work_dir", task.WorkDir, "input_len", len(task.Input))
 
-	exec, ok := c.executors[task.Capability]
+	exec, ok := c.executors[task.AcpRuntime]
 	if !ok {
 		c.sendUpdate(stream, &agentsv1.DaemonTaskUpdate{
 			TaskId: task.TaskId,
 			Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED,
-			Error:  fmt.Sprintf("unsupported capability: %s", task.Capability),
+			Error:  fmt.Sprintf("unsupported acp_runtime: %s", task.AcpRuntime),
 		})
 		return
 	}

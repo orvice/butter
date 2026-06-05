@@ -23,12 +23,12 @@ import (
 
 // DaemonServiceServer exposes read-only views over the daemon registry.
 type DaemonServiceServer struct {
-	repo      configrepo.DaemonConfigRepository
+	repo      configrepo.DaemonRuntimeRepository
 	registry  *daemon.Registry
 	tokenRepo apitoken.Repository
 }
 
-func NewDaemonServiceServer(repo configrepo.DaemonConfigRepository, registry *daemon.Registry) *DaemonServiceServer {
+func NewDaemonServiceServer(repo configrepo.DaemonRuntimeRepository, registry *daemon.Registry) *DaemonServiceServer {
 	return &DaemonServiceServer{repo: repo, registry: registry}
 }
 
@@ -36,19 +36,19 @@ func (s *DaemonServiceServer) SetAPITokenRepo(repo apitoken.Repository) {
 	s.tokenRepo = repo
 }
 
-func (s *DaemonServiceServer) ListDaemonConfigs(ctx context.Context, _ *connect.Request[agentsv1.ListDaemonConfigsRequest]) (*connect.Response[agentsv1.ListDaemonConfigsResponse], error) {
+func (s *DaemonServiceServer) ListDaemonRuntimes(ctx context.Context, _ *connect.Request[agentsv1.ListDaemonRuntimesRequest]) (*connect.Response[agentsv1.ListDaemonRuntimesResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	daemons, err := s.repo.ListDaemonConfigs(ctx, wsID)
+	runtimes, err := s.repo.ListDaemonRuntimes(ctx, wsID)
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return connect.NewResponse(&agentsv1.ListDaemonConfigsResponse{Daemons: daemons}), nil
+	return connect.NewResponse(&agentsv1.ListDaemonRuntimesResponse{Runtimes: runtimes}), nil
 }
 
-func (s *DaemonServiceServer) GetDaemonConfig(ctx context.Context, req *connect.Request[agentsv1.GetDaemonConfigRequest]) (*connect.Response[agentsv1.GetDaemonConfigResponse], error) {
+func (s *DaemonServiceServer) GetDaemonRuntime(ctx context.Context, req *connect.Request[agentsv1.GetDaemonRuntimeRequest]) (*connect.Response[agentsv1.GetDaemonRuntimeResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -56,84 +56,76 @@ func (s *DaemonServiceServer) GetDaemonConfig(ctx context.Context, req *connect.
 	if req.Msg.GetId() == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
-	d, err := s.repo.GetDaemonConfig(ctx, wsID, req.Msg.GetId())
+	d, err := s.repo.GetDaemonRuntime(ctx, wsID, req.Msg.GetId())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return connect.NewResponse(&agentsv1.GetDaemonConfigResponse{Daemon: d}), nil
+	return connect.NewResponse(&agentsv1.GetDaemonRuntimeResponse{Runtime: d}), nil
 }
 
-func (s *DaemonServiceServer) CreateDaemonConfig(ctx context.Context, req *connect.Request[agentsv1.CreateDaemonConfigRequest]) (*connect.Response[agentsv1.CreateDaemonConfigResponse], error) {
+func (s *DaemonServiceServer) CreateDaemonRuntime(ctx context.Context, req *connect.Request[agentsv1.CreateDaemonRuntimeRequest]) (*connect.Response[agentsv1.CreateDaemonRuntimeResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if req.Msg.GetDaemon() == nil {
-		return nil, connectx.RequiredArgument("daemon")
+	if req.Msg.GetRuntime() == nil {
+		return nil, connectx.RequiredArgument("runtime")
 	}
-	d := proto.Clone(req.Msg.GetDaemon()).(*agentsv1.DaemonConfig)
+	d := proto.Clone(req.Msg.GetRuntime()).(*agentsv1.DaemonRuntime)
 	if d.GetId() == "" {
 		d.Id = uuid.NewString()
 	}
 	d.Id = strings.TrimSpace(d.GetId())
 	d.Name = strings.TrimSpace(d.GetName())
 	d.Description = strings.TrimSpace(d.GetDescription())
-	d.AllowedCapabilities = normalizeCapabilities(d.GetAllowedCapabilities())
 	if d.GetName() == "" {
 		return nil, connectx.RequiredArgument("name")
-	}
-	if len(d.GetAllowedCapabilities()) == 0 {
-		return nil, connectx.RequiredArgument("allowed_capabilities")
 	}
 	d.WorkspaceId = wsID
 	d.CreatedAt = timestamppb.New(time.Now().UTC())
 	if user, ok := auth.UserFromContext(ctx); ok {
 		d.CreatedBy = user.GetId()
 	}
-	out, err := s.repo.CreateDaemonConfig(ctx, wsID, d)
+	out, err := s.repo.CreateDaemonRuntime(ctx, wsID, d)
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return connect.NewResponse(&agentsv1.CreateDaemonConfigResponse{Daemon: out}), nil
+	return connect.NewResponse(&agentsv1.CreateDaemonRuntimeResponse{Runtime: out}), nil
 }
 
-func (s *DaemonServiceServer) UpdateDaemonConfig(ctx context.Context, req *connect.Request[agentsv1.UpdateDaemonConfigRequest]) (*connect.Response[agentsv1.UpdateDaemonConfigResponse], error) {
+func (s *DaemonServiceServer) UpdateDaemonRuntime(ctx context.Context, req *connect.Request[agentsv1.UpdateDaemonRuntimeRequest]) (*connect.Response[agentsv1.UpdateDaemonRuntimeResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if req.Msg.GetDaemon() == nil {
-		return nil, connectx.RequiredArgument("daemon")
+	if req.Msg.GetRuntime() == nil {
+		return nil, connectx.RequiredArgument("runtime")
 	}
-	d := proto.Clone(req.Msg.GetDaemon()).(*agentsv1.DaemonConfig)
+	d := proto.Clone(req.Msg.GetRuntime()).(*agentsv1.DaemonRuntime)
 	d.Id = strings.TrimSpace(d.GetId())
 	d.Name = strings.TrimSpace(d.GetName())
 	d.Description = strings.TrimSpace(d.GetDescription())
-	d.AllowedCapabilities = normalizeCapabilities(d.GetAllowedCapabilities())
 	if d.GetId() == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
 	if d.GetName() == "" {
 		return nil, connectx.RequiredArgument("name")
 	}
-	if len(d.GetAllowedCapabilities()) == 0 {
-		return nil, connectx.RequiredArgument("allowed_capabilities")
-	}
-	prev, err := s.repo.GetDaemonConfig(ctx, wsID, d.GetId())
+	prev, err := s.repo.GetDaemonRuntime(ctx, wsID, d.GetId())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
 	d.WorkspaceId = wsID
 	d.CreatedAt = prev.GetCreatedAt()
 	d.CreatedBy = prev.GetCreatedBy()
-	out, err := s.repo.UpdateDaemonConfig(ctx, wsID, d)
+	out, err := s.repo.UpdateDaemonRuntime(ctx, wsID, d)
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return connect.NewResponse(&agentsv1.UpdateDaemonConfigResponse{Daemon: out}), nil
+	return connect.NewResponse(&agentsv1.UpdateDaemonRuntimeResponse{Runtime: out}), nil
 }
 
-func (s *DaemonServiceServer) DeleteDaemonConfig(ctx context.Context, req *connect.Request[agentsv1.DeleteDaemonConfigRequest]) (*connect.Response[agentsv1.DeleteDaemonConfigResponse], error) {
+func (s *DaemonServiceServer) DeleteDaemonRuntime(ctx context.Context, req *connect.Request[agentsv1.DeleteDaemonRuntimeRequest]) (*connect.Response[agentsv1.DeleteDaemonRuntimeResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
@@ -141,13 +133,13 @@ func (s *DaemonServiceServer) DeleteDaemonConfig(ctx context.Context, req *conne
 	if req.Msg.GetId() == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
-	if err := s.repo.DeleteDaemonConfig(ctx, wsID, req.Msg.GetId()); err != nil {
+	if err := s.repo.DeleteDaemonRuntime(ctx, wsID, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
-	return connect.NewResponse(&agentsv1.DeleteDaemonConfigResponse{}), nil
+	return connect.NewResponse(&agentsv1.DeleteDaemonRuntimeResponse{}), nil
 }
 
-func (s *DaemonServiceServer) CreateDaemonCredential(ctx context.Context, req *connect.Request[agentsv1.CreateDaemonCredentialRequest]) (*connect.Response[agentsv1.CreateDaemonCredentialResponse], error) {
+func (s *DaemonServiceServer) CreateDaemonRuntimeToken(ctx context.Context, req *connect.Request[agentsv1.CreateDaemonRuntimeTokenRequest]) (*connect.Response[agentsv1.CreateDaemonRuntimeTokenResponse], error) {
 	if s.tokenRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("api token store not available"))
 	}
@@ -155,30 +147,30 @@ func (s *DaemonServiceServer) CreateDaemonCredential(ctx context.Context, req *c
 	if err != nil {
 		return nil, err
 	}
-	daemonID := strings.TrimSpace(req.Msg.GetDaemonId())
-	if daemonID == "" {
-		return nil, connectx.RequiredArgument("daemon_id")
+	runtimeID := strings.TrimSpace(req.Msg.GetDaemonRuntimeId())
+	if runtimeID == "" {
+		return nil, connectx.RequiredArgument("daemon_runtime_id")
 	}
-	if _, err := s.repo.GetDaemonConfig(ctx, wsID, daemonID); err != nil {
+	if _, err := s.repo.GetDaemonRuntime(ctx, wsID, runtimeID); err != nil {
 		return nil, toConnectError(err)
 	}
 	name := strings.TrimSpace(req.Msg.GetName())
 	if name == "" {
-		name = "daemon " + daemonID
+		name = "daemon runtime " + runtimeID
 	}
 	secret, err := generateSecret()
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
 	token := &agentsv1.APIToken{
-		Id:          uuid.NewString(),
-		Name:        name,
-		Prefix:      tokenPrefix(secret),
-		CreatedAt:   timestamppb.New(time.Now().UTC()),
-		WorkspaceId: wsID,
-		Kind:        agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON,
-		Scopes:      []string{"daemon:connect"},
-		DaemonId:    daemonID,
+		Id:              uuid.NewString(),
+		Name:            name,
+		Prefix:          tokenPrefix(secret),
+		CreatedAt:       timestamppb.New(time.Now().UTC()),
+		WorkspaceId:     wsID,
+		Kind:            agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON,
+		Scopes:          []string{"daemon:connect"},
+		DaemonRuntimeId: runtimeID,
 	}
 	if ttl := req.Msg.GetTtl(); ttl != nil && ttl.AsDuration() > 0 {
 		token.ExpiresAt = timestamppb.New(time.Now().UTC().Add(ttl.AsDuration()))
@@ -186,24 +178,7 @@ func (s *DaemonServiceServer) CreateDaemonCredential(ctx context.Context, req *c
 	if err := s.tokenRepo.Create(ctx, token, HashAPITokenSecret(secret)); err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	return connect.NewResponse(&agentsv1.CreateDaemonCredentialResponse{Token: token, Secret: secret}), nil
-}
-
-func normalizeCapabilities(caps []string) []string {
-	out := make([]string, 0, len(caps))
-	seen := make(map[string]struct{}, len(caps))
-	for _, cap := range caps {
-		cap = strings.TrimSpace(cap)
-		if cap == "" {
-			continue
-		}
-		if _, ok := seen[cap]; ok {
-			continue
-		}
-		seen[cap] = struct{}{}
-		out = append(out, cap)
-	}
-	return out
+	return connect.NewResponse(&agentsv1.CreateDaemonRuntimeTokenResponse{Token: token, Secret: secret}), nil
 }
 
 func (s *DaemonServiceServer) ListDaemons(ctx context.Context, _ *connect.Request[agentsv1.ListDaemonsRequest]) (*connect.Response[agentsv1.ListDaemonsResponse], error) {
@@ -231,7 +206,7 @@ func (s *DaemonServiceServer) GetDaemon(ctx context.Context, req *connect.Reques
 	if s.registry == nil {
 		return nil, connectx.NotFound("daemon not found")
 	}
-	conn := s.registry.Get(wsID, req.Msg.GetDaemonId())
+	conn := s.registry.Get(wsID, req.Msg.GetDaemonRuntimeId())
 	if conn == nil {
 		return nil, connectx.NotFound("daemon not found")
 	}
@@ -251,7 +226,7 @@ func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *connect
 	}
 
 	var target *daemon.Connection
-	if hint := req.Msg.GetDaemonId(); hint != "" {
+	if hint := req.Msg.GetDaemonRuntimeId(); hint != "" {
 		conn := s.registry.Get(wsID, hint)
 		if conn == nil || !conn.HasTask(req.Msg.GetTaskId()) {
 			return nil, connectx.NotFound("task not found on daemon")
@@ -272,19 +247,19 @@ func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *connect
 	logger := log.FromContext(ctx)
 	logger.Info("cancelling daemon task",
 		"task_id", req.Msg.GetTaskId(),
-		"daemon_id", target.Info.GetDaemonId(),
+		"daemon_runtime_id", target.Info.GetDaemonRuntimeId(),
 		"daemon_name", target.Info.GetName(),
 	)
 	if err := target.CancelTask(req.Msg.GetTaskId()); err != nil {
 		logger.Error("cancel daemon task failed",
 			"task_id", req.Msg.GetTaskId(),
-			"daemon_id", target.Info.GetDaemonId(),
+			"daemon_runtime_id", target.Info.GetDaemonRuntimeId(),
 			"err", err,
 		)
 		return nil, connectx.InternalWith(err)
 	}
-	logger.Info("daemon task cancelled", "task_id", req.Msg.GetTaskId(), "daemon_id", target.Info.GetDaemonId())
-	return connect.NewResponse(&agentsv1.CancelDaemonTaskResponse{DaemonId: target.Info.GetDaemonId()}), nil
+	logger.Info("daemon task cancelled", "task_id", req.Msg.GetTaskId(), "daemon_runtime_id", target.Info.GetDaemonRuntimeId())
+	return connect.NewResponse(&agentsv1.CancelDaemonTaskResponse{DaemonRuntimeId: target.Info.GetDaemonRuntimeId()}), nil
 }
 
 func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *connect.Request[agentsv1.ListDaemonTasksRequest]) (*connect.Response[agentsv1.ListDaemonTasksResponse], error) {
@@ -296,7 +271,7 @@ func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *connect.
 		return connect.NewResponse(&agentsv1.ListDaemonTasksResponse{}), nil
 	}
 	var conns []*daemon.Connection
-	if hint := req.Msg.GetDaemonId(); hint != "" {
+	if hint := req.Msg.GetDaemonRuntimeId(); hint != "" {
 		if c := s.registry.Get(wsID, hint); c != nil {
 			conns = []*daemon.Connection{c}
 		}
@@ -307,21 +282,21 @@ func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *connect.
 	var out []*agentsv1.DaemonTaskInFlight
 	for _, c := range conns {
 		for _, snap := range c.ActiveTaskSnapshots() {
-			cap := snap.Capability
-			if cap == "" {
-				if caps := c.Info.GetCapabilities(); len(caps) > 0 {
-					cap = caps[0]
+			acpRuntime := snap.AcpRuntime
+			if acpRuntime == "" {
+				if runtimes := c.Info.GetAcpRuntimes(); len(runtimes) > 0 {
+					acpRuntime = runtimes[0]
 				}
 			}
 			task := &agentsv1.DaemonTaskInFlight{
-				TaskId:      snap.TaskID,
-				DaemonId:    c.Info.GetDaemonId(),
-				DaemonName:  c.Info.GetName(),
-				Capability:  cap,
-				AgentName:   snap.AgentName,
-				CurrentStep: snap.CurrentStep,
-				Progress:    snap.Progress,
-				WorkspaceId: snap.WorkspaceID,
+				TaskId:          snap.TaskID,
+				DaemonRuntimeId: c.Info.GetDaemonRuntimeId(),
+				DaemonName:      c.Info.GetName(),
+				AcpRuntime:      acpRuntime,
+				AgentName:       snap.AgentName,
+				CurrentStep:     snap.CurrentStep,
+				Progress:        snap.Progress,
+				WorkspaceId:     snap.WorkspaceID,
 			}
 			if !snap.StartedAt.IsZero() {
 				task.StartedAt = timestamppb.New(snap.StartedAt)
@@ -364,18 +339,18 @@ func connectionToStatus(c *daemon.Connection, now time.Time) *agentsv1.DaemonSta
 		state = agentsv1.DaemonStatus_STATE_IDLE
 	}
 	return &agentsv1.DaemonStatus{
-		DaemonId:     c.Info.GetDaemonId(),
-		Name:         c.Info.GetName(),
-		Capabilities: c.Info.GetCapabilities(),
-		Labels:       c.Info.GetLabels(),
-		State:        state,
-		ConnectedAt:  timestamppb.New(c.ConnectedAt),
-		Uptime:       durationpb.New(now.Sub(c.ConnectedAt)),
-		ActiveTasks:  int32(active),
-		Version:      c.Info.GetVersion(),
-		Os:           c.Info.GetOs(),
-		Executors:    c.Info.GetExecutors(),
-		RemoteAddr:   c.RemoteAddr,
-		WorkspaceId:  c.WorkspaceID,
+		DaemonRuntimeId: c.Info.GetDaemonRuntimeId(),
+		Name:            c.Info.GetName(),
+		AcpRuntimes:     c.Info.GetAcpRuntimes(),
+		Labels:          c.Info.GetLabels(),
+		State:           state,
+		ConnectedAt:     timestamppb.New(c.ConnectedAt),
+		Uptime:          durationpb.New(now.Sub(c.ConnectedAt)),
+		ActiveTasks:     int32(active),
+		Version:         c.Info.GetVersion(),
+		Os:              c.Info.GetOs(),
+		Executors:       c.Info.GetExecutors(),
+		RemoteAddr:      c.RemoteAddr,
+		WorkspaceId:     c.WorkspaceID,
 	}
 }

@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/daemon.proto.
  */
 export const file_agents_v1_daemon: GenFile = /*@__PURE__*/
-  fileDesc("ChZhZ2VudHMvdjEvZGFlbW9uLnByb3RvEglhZ2VudHMudjEi6wEKCkRhZW1vbkluZm8SEQoJZGFlbW9uX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFAoMY2FwYWJpbGl0aWVzGAMgAygJEjEKBmxhYmVscxgEIAMoCzIhLmFnZW50cy52MS5EYWVtb25JbmZvLkxhYmVsc0VudHJ5Eg8KB3ZlcnNpb24YBSABKAkSCgoCb3MYBiABKAkSEQoJZXhlY3V0b3JzGAcgAygJEhQKDHdvcmtzcGFjZV9pZBgIIAEoCRotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIvcBCgpEYWVtb25UYXNrEg8KB3Rhc2tfaWQYASABKAkSEgoKYWdlbnRfbmFtZRgCIAEoCRINCgVpbnB1dBgDIAEoCRISCgpzZXNzaW9uX2lkGAQgASgJEg8KB3VzZXJfaWQYBSABKAkSNQoIbWV0YWRhdGEYBiADKAsyIy5hZ2VudHMudjEuRGFlbW9uVGFzay5NZXRhZGF0YUVudHJ5EhIKCmNhcGFiaWxpdHkYByABKAkSFAoMd29ya3NwYWNlX2lkGAggASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLGAQoQRGFlbW9uVGFza1VwZGF0ZRIPCgd0YXNrX2lkGAEgASgJEisKBnN0YXR1cxgCIAEoDjIbLmFnZW50cy52MS5EYWVtb25UYXNrU3RhdHVzEg4KBm91dHB1dBgDIAEoCRINCgVlcnJvchgEIAEoCRItCgl0aW1lc3RhbXAYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDGN1cnJlbnRfc3RlcBgGIAEoCRIQCghwcm9ncmVzcxgHIAEoBSIdCgpDYW5jZWxUYXNrEg8KB3Rhc2tfaWQYASABKAkiegoOQ29ubmVjdFJlcXVlc3QSKQoIcmVnaXN0ZXIYASABKAsyFS5hZ2VudHMudjEuRGFlbW9uSW5mb0gAEjIKC3Rhc2tfdXBkYXRlGAIgASgLMhsuYWdlbnRzLnYxLkRhZW1vblRhc2tVcGRhdGVIAEIJCgdtZXNzYWdlImwKD0Nvbm5lY3RSZXNwb25zZRIlCgR0YXNrGAEgASgLMhUuYWdlbnRzLnYxLkRhZW1vblRhc2tIABInCgZjYW5jZWwYAiABKAsyFS5hZ2VudHMudjEuQ2FuY2VsVGFza0gAQgkKB21lc3NhZ2Uq2gEKEERhZW1vblRhc2tTdGF0dXMSIgoeREFFTU9OX1RBU0tfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobREFFTU9OX1RBU0tfU1RBVFVTX0FDQ0VQVEVEEAESHgoaREFFTU9OX1RBU0tfU1RBVFVTX1JVTk5JTkcQAhIgChxEQUVNT05fVEFTS19TVEFUVVNfQ09NUExFVEVEEAMSHQoZREFFTU9OX1RBU0tfU1RBVFVTX0ZBSUxFRBAEEiAKHERBRU1PTl9UQVNLX1NUQVRVU19DQU5DRUxMRUQQBTJeChZEYWVtb25Db25uZWN0b3JTZXJ2aWNlEkQKB0Nvbm5lY3QSGS5hZ2VudHMudjEuQ29ubmVjdFJlcXVlc3QaGi5hZ2VudHMudjEuQ29ubmVjdFJlc3BvbnNlKAEwAUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChZhZ2VudHMvdjEvZGFlbW9uLnByb3RvEglhZ2VudHMudjEi8wEKCkRhZW1vbkluZm8SGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIUCgxhY3BfcnVudGltZXMYAyADKAkSMQoGbGFiZWxzGAQgAygLMiEuYWdlbnRzLnYxLkRhZW1vbkluZm8uTGFiZWxzRW50cnkSDwoHdmVyc2lvbhgFIAEoCRIKCgJvcxgGIAEoCRIRCglleGVjdXRvcnMYByADKAkSFAoMd29ya3NwYWNlX2lkGAggASgJGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEitwIKCkRhZW1vblRhc2sSDwoHdGFza19pZBgBIAEoCRISCgphZ2VudF9uYW1lGAIgASgJEg0KBWlucHV0GAMgASgJEhIKCnNlc3Npb25faWQYBCABKAkSDwoHdXNlcl9pZBgFIAEoCRI1CghtZXRhZGF0YRgGIAMoCzIjLmFnZW50cy52MS5EYWVtb25UYXNrLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGAggASgJEhkKEWRhZW1vbl9ydW50aW1lX2lkGAkgASgJEhMKC2FjcF9ydW50aW1lGAogASgJEhAKCHdvcmtfZGlyGAsgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUoECAcQCFIKY2FwYWJpbGl0eSLGAQoQRGFlbW9uVGFza1VwZGF0ZRIPCgd0YXNrX2lkGAEgASgJEisKBnN0YXR1cxgCIAEoDjIbLmFnZW50cy52MS5EYWVtb25UYXNrU3RhdHVzEg4KBm91dHB1dBgDIAEoCRINCgVlcnJvchgEIAEoCRItCgl0aW1lc3RhbXAYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDGN1cnJlbnRfc3RlcBgGIAEoCRIQCghwcm9ncmVzcxgHIAEoBSIdCgpDYW5jZWxUYXNrEg8KB3Rhc2tfaWQYASABKAkiegoOQ29ubmVjdFJlcXVlc3QSKQoIcmVnaXN0ZXIYASABKAsyFS5hZ2VudHMudjEuRGFlbW9uSW5mb0gAEjIKC3Rhc2tfdXBkYXRlGAIgASgLMhsuYWdlbnRzLnYxLkRhZW1vblRhc2tVcGRhdGVIAEIJCgdtZXNzYWdlImwKD0Nvbm5lY3RSZXNwb25zZRIlCgR0YXNrGAEgASgLMhUuYWdlbnRzLnYxLkRhZW1vblRhc2tIABInCgZjYW5jZWwYAiABKAsyFS5hZ2VudHMudjEuQ2FuY2VsVGFza0gAQgkKB21lc3NhZ2Uq2gEKEERhZW1vblRhc2tTdGF0dXMSIgoeREFFTU9OX1RBU0tfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobREFFTU9OX1RBU0tfU1RBVFVTX0FDQ0VQVEVEEAESHgoaREFFTU9OX1RBU0tfU1RBVFVTX1JVTk5JTkcQAhIgChxEQUVNT05fVEFTS19TVEFUVVNfQ09NUExFVEVEEAMSHQoZREFFTU9OX1RBU0tfU1RBVFVTX0ZBSUxFRBAEEiAKHERBRU1PTl9UQVNLX1NUQVRVU19DQU5DRUxMRUQQBTJeChZEYWVtb25Db25uZWN0b3JTZXJ2aWNlEkQKB0Nvbm5lY3QSGS5hZ2VudHMudjEuQ29ubmVjdFJlcXVlc3QaGi5hZ2VudHMudjEuQ29ubmVjdFJlc3BvbnNlKAEwAUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * DaemonInfo is sent by the daemon client as the first message on the
@@ -22,12 +22,13 @@ export const file_agents_v1_daemon: GenFile = /*@__PURE__*/
  */
 export type DaemonInfo = Message<"agents.v1.DaemonInfo"> & {
   /**
-   * Unique identifier for this daemon instance.
-   * @gotags: json:"daemon_id,omitempty" yaml:"daemon_id,omitempty"
+   * Runtime this daemon connection serves. The server derives the
+   * authoritative value from the daemon token and overwrites any client value.
+   * @gotags: json:"daemon_runtime_id,omitempty" yaml:"daemon_runtime_id,omitempty"
    *
-   * @generated from field: string daemon_id = 1;
+   * @generated from field: string daemon_runtime_id = 1;
    */
-  daemonId: string;
+  daemonRuntimeId: string;
 
   /**
    * Human-readable name for this daemon.
@@ -38,12 +39,13 @@ export type DaemonInfo = Message<"agents.v1.DaemonInfo"> & {
   name: string;
 
   /**
-   * Execution capabilities this daemon supports (e.g. "opencode", "shell").
-   * @gotags: json:"capabilities,omitempty" yaml:"capabilities,omitempty"
+   * ACP runtimes supported by this daemon binary. In v1 this is fixed to
+   * ["opencode", "codex"] by the client.
+   * @gotags: json:"acp_runtimes,omitempty" yaml:"acp_runtimes,omitempty"
    *
-   * @generated from field: repeated string capabilities = 3;
+   * @generated from field: repeated string acp_runtimes = 3;
    */
-  capabilities: string[];
+  acpRuntimes: string[];
 
   /**
    * Routing labels (reserved for future use; not used for selection in Phase 1).
@@ -70,9 +72,8 @@ export type DaemonInfo = Message<"agents.v1.DaemonInfo"> & {
   os: string;
 
   /**
-   * Optional executor names the daemon will use (e.g. "shell", "open-code",
-   * "claude-code"). Surfaced to the dashboard for diagnostics. Capabilities
-   * remain the routing primitive; this is purely informational.
+   * Optional executor names the daemon will use. Surfaced to the dashboard for
+   * diagnostics. ACP runtime remains the routing primitive.
    * @gotags: json:"executors,omitempty" yaml:"executors,omitempty"
    *
    * @generated from field: repeated string executors = 7;
@@ -80,7 +81,7 @@ export type DaemonInfo = Message<"agents.v1.DaemonInfo"> & {
   executors: string[];
 
   /**
-   * Workspace this daemon belongs to. The server derives the authoritative
+   * Workspace this runtime belongs to. The server derives the authoritative
    * workspace from the daemon credential and rejects mismatches.
    * @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
    *
@@ -147,21 +148,38 @@ export type DaemonTask = Message<"agents.v1.DaemonTask"> & {
   metadata: { [key: string]: string };
 
   /**
-   * Capability routing key. The daemon uses this to select the executor.
-   * Populated by the server from RemoteAgent.daemon_capability.
-   * @gotags: json:"capability,omitempty" yaml:"capability,omitempty"
-   *
-   * @generated from field: string capability = 7;
-   */
-  capability: string;
-
-  /**
    * Workspace that owns this task.
    * @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
    *
    * @generated from field: string workspace_id = 8;
    */
   workspaceId: string;
+
+  /**
+   * Runtime that should execute this task.
+   * @gotags: json:"daemon_runtime_id,omitempty" yaml:"daemon_runtime_id,omitempty"
+   *
+   * @generated from field: string daemon_runtime_id = 9;
+   */
+  daemonRuntimeId: string;
+
+  /**
+   * ACP runtime selected by the daemon-backed remote agent, e.g. "opencode"
+   * or "codex".
+   * @gotags: json:"acp_runtime,omitempty" yaml:"acp_runtime,omitempty"
+   *
+   * @generated from field: string acp_runtime = 10;
+   */
+  acpRuntime: string;
+
+  /**
+   * Working directory for this invocation. The first implementation generates
+   * this under /tmp from workspace + session identity.
+   * @gotags: json:"work_dir,omitempty" yaml:"work_dir,omitempty"
+   *
+   * @generated from field: string work_dir = 11;
+   */
+  workDir: string;
 };
 
 /**

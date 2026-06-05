@@ -9,17 +9,19 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 // DaemonInfo is sent by the daemon client as the first message on the
 // Connect stream to register itself with the server.
 message DaemonInfo {
-  // Unique identifier for this daemon instance.
-  // @gotags: json:"daemon_id,omitempty" yaml:"daemon_id,omitempty"
-  string daemon_id = 1;
+  // Runtime this daemon connection serves. The server derives the
+  // authoritative value from the daemon token and overwrites any client value.
+  // @gotags: json:"daemon_runtime_id,omitempty" yaml:"daemon_runtime_id,omitempty"
+  string daemon_runtime_id = 1;
 
   // Human-readable name for this daemon.
   // @gotags: json:"name,omitempty" yaml:"name,omitempty"
   string name = 2;
 
-  // Execution capabilities this daemon supports (e.g. "opencode", "shell").
-  // @gotags: json:"capabilities,omitempty" yaml:"capabilities,omitempty"
-  repeated string capabilities = 3;
+  // ACP runtimes supported by this daemon binary. In v1 this is fixed to
+  // ["opencode", "codex"] by the client.
+  // @gotags: json:"acp_runtimes,omitempty" yaml:"acp_runtimes,omitempty"
+  repeated string acp_runtimes = 3;
 
   // Routing labels (reserved for future use; not used for selection in Phase 1).
   // @gotags: json:"labels,omitempty" yaml:"labels,omitempty"
@@ -33,13 +35,12 @@ message DaemonInfo {
   // @gotags: json:"os,omitempty" yaml:"os,omitempty"
   string os = 6;
 
-  // Optional executor names the daemon will use (e.g. "shell", "open-code",
-  // "claude-code"). Surfaced to the dashboard for diagnostics. Capabilities
-  // remain the routing primitive; this is purely informational.
+  // Optional executor names the daemon will use. Surfaced to the dashboard for
+  // diagnostics. ACP runtime remains the routing primitive.
   // @gotags: json:"executors,omitempty" yaml:"executors,omitempty"
   repeated string executors = 7;
 
-  // Workspace this daemon belongs to. The server derives the authoritative
+  // Workspace this runtime belongs to. The server derives the authoritative
   // workspace from the daemon credential and rejects mismatches.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
   string workspace_id = 8;
@@ -67,14 +68,26 @@ message DaemonTask {
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 6;
 
-  // Capability routing key. The daemon uses this to select the executor.
-  // Populated by the server from RemoteAgent.daemon_capability.
-  // @gotags: json:"capability,omitempty" yaml:"capability,omitempty"
-  string capability = 7;
+  reserved 7;
+  reserved "capability";
 
   // Workspace that owns this task.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"
   string workspace_id = 8;
+
+  // Runtime that should execute this task.
+  // @gotags: json:"daemon_runtime_id,omitempty" yaml:"daemon_runtime_id,omitempty"
+  string daemon_runtime_id = 9;
+
+  // ACP runtime selected by the daemon-backed remote agent, e.g. "opencode"
+  // or "codex".
+  // @gotags: json:"acp_runtime,omitempty" yaml:"acp_runtime,omitempty"
+  string acp_runtime = 10;
+
+  // Working directory for this invocation. The first implementation generates
+  // this under /tmp from workspace + session identity.
+  // @gotags: json:"work_dir,omitempty" yaml:"work_dir,omitempty"
+  string work_dir = 11;
 }
 
 // DaemonTaskUpdate is sent from daemon to server to report task progress or results.

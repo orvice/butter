@@ -57,9 +57,9 @@ message APIToken {
   // @gotags: json:"expires_at,omitempty" yaml:"expires_at,omitempty" bson:"expires_at,omitempty"
   google.protobuf.Timestamp expires_at = 9;
 
-  // For daemon tokens, the daemon id this token may connect as.
-  // @gotags: json:"daemon_id,omitempty" yaml:"daemon_id,omitempty" bson:"daemon_id,omitempty"
-  string daemon_id = 10;
+  // For daemon tokens, the daemon runtime id this token may connect as.
+  // @gotags: json:"daemon_runtime_id,omitempty" yaml:"daemon_runtime_id,omitempty" bson:"daemon_runtime_id,omitempty"
+  string daemon_runtime_id = 10;
 
   // ID of the workspace this token belongs to. Tokens authenticate within
   // a single workspace.

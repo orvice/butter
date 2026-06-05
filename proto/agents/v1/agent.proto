@@ -298,10 +298,18 @@ message RemoteAgent {
   // @gotags: json:"protocol,omitempty" yaml:"protocol,omitempty"
   RemoteAgentProtocol protocol = 4;
 
-  // Capability identifier for daemon protocol routing.
-  // Required when protocol is DAEMON; matches DaemonInfo.capabilities.
-  // @gotags: json:"daemon_capability,omitempty" yaml:"daemon_capability,omitempty"
-  string daemon_capability = 5;
+  reserved 5;
+  reserved "daemon_capability";
+
+  // Runtime identifier for daemon protocol routing.
+  // Required when protocol is DAEMON; references a workspace DaemonRuntime.
+  // @gotags: json:"daemon_runtime_id,omitempty" yaml:"daemon_runtime_id,omitempty"
+  string daemon_runtime_id = 6;
+
+  // ACP runtime to launch through the selected DaemonRuntime.
+  // Required when protocol is DAEMON. v1 supports "opencode" and "codex".
+  // @gotags: json:"acp_runtime,omitempty" yaml:"acp_runtime,omitempty"
+  string acp_runtime = 7;
 
   // ID of the workspace this remote agent belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"

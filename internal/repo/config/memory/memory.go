@@ -18,7 +18,7 @@ type Store struct {
 	globalMCP      map[string]*agentsv1.MCPServer
 	mcpServers     map[string]map[string]*agentsv1.MCPServer
 	remoteAgents   map[string]map[string]*agentsv1.RemoteAgent
-	daemonConfigs  map[string]map[string]*agentsv1.DaemonConfig
+	daemonRuntimes map[string]map[string]*agentsv1.DaemonRuntime
 	channels       map[string]map[string]*agentsv1.AgentChannel
 	modelProviders map[string]map[string]*agentsv1.ModelProvider
 	notifyGroups   map[string]map[string]*agentsv1.NotifyGroup
@@ -30,7 +30,7 @@ func New() *Store {
 		globalMCP:      make(map[string]*agentsv1.MCPServer),
 		mcpServers:     make(map[string]map[string]*agentsv1.MCPServer),
 		remoteAgents:   make(map[string]map[string]*agentsv1.RemoteAgent),
-		daemonConfigs:  make(map[string]map[string]*agentsv1.DaemonConfig),
+		daemonRuntimes: make(map[string]map[string]*agentsv1.DaemonRuntime),
 		channels:       make(map[string]map[string]*agentsv1.AgentChannel),
 		modelProviders: make(map[string]map[string]*agentsv1.ModelProvider),
 		notifyGroups:   make(map[string]map[string]*agentsv1.NotifyGroup),
@@ -44,8 +44,8 @@ func cloneMCP(m *agentsv1.MCPServer) *agentsv1.MCPServer {
 func cloneRemote(r *agentsv1.RemoteAgent) *agentsv1.RemoteAgent {
 	return proto.Clone(r).(*agentsv1.RemoteAgent)
 }
-func cloneDaemonConfig(d *agentsv1.DaemonConfig) *agentsv1.DaemonConfig {
-	return proto.Clone(d).(*agentsv1.DaemonConfig)
+func cloneDaemonRuntime(d *agentsv1.DaemonRuntime) *agentsv1.DaemonRuntime {
+	return proto.Clone(d).(*agentsv1.DaemonRuntime)
 }
 func cloneChannel(c *agentsv1.AgentChannel) *agentsv1.AgentChannel {
 	return proto.Clone(c).(*agentsv1.AgentChannel)
@@ -381,85 +381,85 @@ func (s *Store) DeleteRemoteAgent(_ context.Context, workspaceID, id string) err
 
 // --- Daemon Configs ---
 
-func (s *Store) ListDaemonConfigs(_ context.Context, workspaceID string) ([]*agentsv1.DaemonConfig, error) {
+func (s *Store) ListDaemonRuntimes(_ context.Context, workspaceID string) ([]*agentsv1.DaemonRuntime, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	bucket := s.daemonConfigs[workspaceID]
-	out := make([]*agentsv1.DaemonConfig, 0, len(bucket))
+	bucket := s.daemonRuntimes[workspaceID]
+	out := make([]*agentsv1.DaemonRuntime, 0, len(bucket))
 	for _, d := range bucket {
-		out = append(out, cloneDaemonConfig(d))
+		out = append(out, cloneDaemonRuntime(d))
 	}
 	return out, nil
 }
 
-func (s *Store) ListDaemonConfigsAcrossWorkspaces(_ context.Context) ([]*agentsv1.DaemonConfig, error) {
+func (s *Store) ListDaemonRuntimesAcrossWorkspaces(_ context.Context) ([]*agentsv1.DaemonRuntime, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var out []*agentsv1.DaemonConfig
-	for _, bucket := range s.daemonConfigs {
+	var out []*agentsv1.DaemonRuntime
+	for _, bucket := range s.daemonRuntimes {
 		for _, d := range bucket {
-			out = append(out, cloneDaemonConfig(d))
+			out = append(out, cloneDaemonRuntime(d))
 		}
 	}
 	return out, nil
 }
 
-func (s *Store) GetDaemonConfig(_ context.Context, workspaceID, id string) (*agentsv1.DaemonConfig, error) {
+func (s *Store) GetDaemonRuntime(_ context.Context, workspaceID, id string) (*agentsv1.DaemonRuntime, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	bucket, ok := s.daemonConfigs[workspaceID]
+	bucket, ok := s.daemonRuntimes[workspaceID]
 	if !ok {
-		return nil, notFound("daemon config", workspaceID, id)
+		return nil, notFound("daemon runtime", workspaceID, id)
 	}
 	d, ok := bucket[id]
 	if !ok {
-		return nil, notFound("daemon config", workspaceID, id)
+		return nil, notFound("daemon runtime", workspaceID, id)
 	}
-	return cloneDaemonConfig(d), nil
+	return cloneDaemonRuntime(d), nil
 }
 
-func (s *Store) CreateDaemonConfig(_ context.Context, workspaceID string, daemon *agentsv1.DaemonConfig) (*agentsv1.DaemonConfig, error) {
+func (s *Store) CreateDaemonRuntime(_ context.Context, workspaceID string, daemon *agentsv1.DaemonRuntime) (*agentsv1.DaemonRuntime, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	bucket := s.daemonConfigs[workspaceID]
+	bucket := s.daemonRuntimes[workspaceID]
 	if bucket == nil {
-		bucket = make(map[string]*agentsv1.DaemonConfig)
-		s.daemonConfigs[workspaceID] = bucket
+		bucket = make(map[string]*agentsv1.DaemonRuntime)
+		s.daemonRuntimes[workspaceID] = bucket
 	}
 	if _, ok := bucket[daemon.GetId()]; ok {
-		return nil, alreadyExists("daemon config", workspaceID, daemon.GetId())
+		return nil, alreadyExists("daemon runtime", workspaceID, daemon.GetId())
 	}
-	stored := cloneDaemonConfig(daemon)
+	stored := cloneDaemonRuntime(daemon)
 	stored.WorkspaceId = workspaceID
 	bucket[daemon.GetId()] = stored
-	return cloneDaemonConfig(stored), nil
+	return cloneDaemonRuntime(stored), nil
 }
 
-func (s *Store) UpdateDaemonConfig(_ context.Context, workspaceID string, daemon *agentsv1.DaemonConfig) (*agentsv1.DaemonConfig, error) {
+func (s *Store) UpdateDaemonRuntime(_ context.Context, workspaceID string, daemon *agentsv1.DaemonRuntime) (*agentsv1.DaemonRuntime, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	bucket, ok := s.daemonConfigs[workspaceID]
+	bucket, ok := s.daemonRuntimes[workspaceID]
 	if !ok {
-		return nil, notFound("daemon config", workspaceID, daemon.GetId())
+		return nil, notFound("daemon runtime", workspaceID, daemon.GetId())
 	}
 	if _, ok := bucket[daemon.GetId()]; !ok {
-		return nil, notFound("daemon config", workspaceID, daemon.GetId())
+		return nil, notFound("daemon runtime", workspaceID, daemon.GetId())
 	}
-	stored := cloneDaemonConfig(daemon)
+	stored := cloneDaemonRuntime(daemon)
 	stored.WorkspaceId = workspaceID
 	bucket[daemon.GetId()] = stored
-	return cloneDaemonConfig(stored), nil
+	return cloneDaemonRuntime(stored), nil
 }
 
-func (s *Store) DeleteDaemonConfig(_ context.Context, workspaceID, id string) error {
+func (s *Store) DeleteDaemonRuntime(_ context.Context, workspaceID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	bucket, ok := s.daemonConfigs[workspaceID]
+	bucket, ok := s.daemonRuntimes[workspaceID]
 	if !ok {
-		return notFound("daemon config", workspaceID, id)
+		return notFound("daemon runtime", workspaceID, id)
 	}
 	if _, ok := bucket[id]; !ok {
-		return notFound("daemon config", workspaceID, id)
+		return notFound("daemon runtime", workspaceID, id)
 	}
 	delete(bucket, id)
 	return nil

@@ -45,16 +45,18 @@ func TestValidateRemoteAgentURL(t *testing.T) {
 		{
 			name: "daemon ignores empty url",
 			ra: &agentsv1.RemoteAgent{
-				Protocol:         agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON,
-				DaemonCapability: "search",
+				Protocol:        agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON,
+				DaemonRuntimeId: "runtime-1",
+				AcpRuntime:      "opencode",
 			},
 		},
 		{
 			name: "daemon validates non-empty url",
 			ra: &agentsv1.RemoteAgent{
-				Protocol:         agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON,
-				DaemonCapability: "search",
-				Url:              "gopher://localhost",
+				Protocol:        agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON,
+				DaemonRuntimeId: "runtime-1",
+				AcpRuntime:      "opencode",
+				Url:             "gopher://localhost",
 			},
 			wantErr: true,
 		},

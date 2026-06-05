@@ -9,7 +9,7 @@ import (
 // Registry tracks connected daemon instances.
 type Registry struct {
 	mu      sync.RWMutex
-	conns   map[string]map[string]*Connection // workspace_id → daemon_id → connection
+	conns   map[string]map[string]*Connection // workspace_id → daemon_runtime_id → connection
 	metrics *Metrics
 }
 
@@ -30,7 +30,7 @@ func (r *Registry) Metrics() *Metrics {
 }
 
 // Register adds a connected daemon to the registry.
-func (r *Registry) Register(conn *Connection) {
+func (r *Registry) Register(conn *Connection) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	workspaceID := conn.WorkspaceID
@@ -38,41 +38,31 @@ func (r *Registry) Register(conn *Connection) {
 		workspaceID = conn.Info.GetWorkspaceId()
 	}
 	if workspaceID == "" {
-		return
+		return nil
 	}
 	bucket := r.conns[workspaceID]
 	if bucket == nil {
 		bucket = make(map[string]*Connection)
 		r.conns[workspaceID] = bucket
 	}
-	bucket[conn.Info.DaemonId] = conn
+	runtimeID := conn.Info.GetDaemonRuntimeId()
+	if _, exists := bucket[runtimeID]; exists {
+		return ErrRuntimeAlreadyConnected
+	}
+	bucket[runtimeID] = conn
+	return nil
 }
 
 // Unregister removes a daemon from the registry by its ID.
-func (r *Registry) Unregister(workspaceID, daemonID string) {
+func (r *Registry) Unregister(workspaceID, runtimeID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if bucket := r.conns[workspaceID]; bucket != nil {
-		delete(bucket, daemonID)
+		delete(bucket, runtimeID)
 		if len(bucket) == 0 {
 			delete(r.conns, workspaceID)
 		}
 	}
-}
-
-// FindByCapability returns the first connected daemon that declares the given
-// capability, or nil if none is available.
-func (r *Registry) FindByCapability(workspaceID, capability string) *Connection {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for _, conn := range r.conns[workspaceID] {
-		for _, cap := range conn.Info.Capabilities {
-			if cap == capability {
-				return conn
-			}
-		}
-	}
-	return nil
 }
 
 // ListConnected returns info for all currently connected daemons.
@@ -115,12 +105,12 @@ func (r *Registry) ListConnections(workspaceID string) []*Connection {
 	return result
 }
 
-// Get returns the connection for the given daemon id, or nil if not found.
-func (r *Registry) Get(workspaceID, daemonID string) *Connection {
+// Get returns the connection for the given runtime id, or nil if not found.
+func (r *Registry) Get(workspaceID, runtimeID string) *Connection {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if bucket := r.conns[workspaceID]; bucket != nil {
-		return bucket[daemonID]
+		return bucket[runtimeID]
 	}
 	return nil
 }

@@ -20,7 +20,7 @@ const defaultGRPCPort = 9090
 // SetupGRPCServer creates a gRPC server with the DaemonConnectorService service
 // registered. It returns the server and a listener. The caller is responsible
 // for calling srv.Serve(lis).
-func SetupGRPCServer(cfg *config.AppConfig, registry *daemon.Registry, tokenRepo apitoken.Repository, daemonRepo configrepo.DaemonConfigRepository) (*grpc.Server, net.Listener, error) {
+func SetupGRPCServer(cfg *config.AppConfig, registry *daemon.Registry, tokenRepo apitoken.Repository, daemonRepo configrepo.DaemonRuntimeRepository) (*grpc.Server, net.Listener, error) {
 	port := cfg.GRPCPort
 	if port == 0 {
 		port = defaultGRPCPort

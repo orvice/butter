@@ -18,8 +18,9 @@ import (
 // Config holds daemon configuration.
 type Config struct {
 	Server     string            `yaml:"server"`
+	URL        string            `yaml:"url"`
 	Credential string            `yaml:"credential"`
-	DaemonID   string            `yaml:"daemon_id"`
+	Token      string            `yaml:"token"`
 	Name       string            `yaml:"name"`
 	Labels     map[string]string `yaml:"labels"`
 
@@ -46,26 +47,39 @@ type ShellConfig struct {
 }
 
 func main() {
-	configPath := flag.String("config", "daemon.yaml", "path to config file")
+	configPath := flag.String("config", "", "optional path to config file")
+	url := flag.String("url", "", "daemon gRPC URL")
+	token := flag.String("token", "", "daemon runtime token")
 	flag.Parse()
 
 	cfg, err := loadConfig(*configPath)
-	if err != nil {
+	if err != nil && *configPath != "" {
 		slog.Error("failed to load config", "err", err)
 		os.Exit(1)
 	}
+	if cfg == nil {
+		cfg = &Config{}
+	}
+	if *url != "" {
+		cfg.Server = *url
+	}
+	if cfg.Server == "" && cfg.URL != "" {
+		cfg.Server = cfg.URL
+	}
+	if *token != "" {
+		cfg.Credential = *token
+	}
+	if cfg.Credential == "" && cfg.Token != "" {
+		cfg.Credential = cfg.Token
+	}
 
 	if cfg.Server == "" {
-		slog.Error("server address is required")
+		slog.Error("url is required")
 		os.Exit(1)
 	}
 	if cfg.Credential == "" {
-		slog.Error("daemon credential is required")
+		slog.Error("token is required")
 		os.Exit(1)
-	}
-	if cfg.DaemonID == "" {
-		hostname, _ := os.Hostname()
-		cfg.DaemonID = hostname
 	}
 
 	executors, err := buildExecutors(cfg)
@@ -85,7 +99,6 @@ func main() {
 
 	slog.Info("starting butter-daemon",
 		"server", cfg.Server,
-		"daemon_id", cfg.DaemonID,
 		"name", cfg.Name,
 	)
 
@@ -98,6 +111,9 @@ func main() {
 }
 
 func loadConfig(path string) (*Config, error) {
+	if path == "" {
+		return nil, nil
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -136,7 +152,11 @@ func buildExecutors(cfg *Config) ([]executor.Executor, error) {
 }
 
 func acpProfilesFromConfig(cfg *Config) ([]executor.ACPConfig, error) {
-	profiles := append([]executor.ACPConfig(nil), cfg.Executors.ACP...)
+	raw := []executor.ACPConfig{
+		defaultACPProfile("opencode", "opencode", []string{"acp"}),
+		defaultACPProfile("codex", "codex-acp", nil),
+	}
+	raw = append(raw, cfg.Executors.ACP...)
 
 	if cfg.Executors.OpenCode != nil {
 		binary := cfg.Executors.OpenCode.Binary
@@ -144,8 +164,8 @@ func acpProfilesFromConfig(cfg *Config) ([]executor.ACPConfig, error) {
 			binary = "opencode"
 		}
 		slog.Warn("executors.opencode is deprecated; use executors.acp with command 'opencode' and args ['acp']")
-		profiles = append(profiles, executor.ACPConfig{
-			Capability:       "opencode",
+		raw = append(raw, executor.ACPConfig{
+			Runtime:          "opencode",
 			Command:          binary,
 			Args:             []string{"acp"},
 			WorkDir:          cfg.Executors.OpenCode.WorkDir,
@@ -158,21 +178,47 @@ func acpProfilesFromConfig(cfg *Config) ([]executor.ACPConfig, error) {
 		})
 	}
 
-	for i := range profiles {
-		if profiles[i].Capability == "" {
-			return nil, fmt.Errorf("acp executor %d: capability is required", i)
+	var profiles []executor.ACPConfig
+	indexByRuntime := make(map[string]int)
+	for i := range raw {
+		profile := raw[i]
+		if profile.Runtime == "" {
+			profile.Runtime = profile.Capability
 		}
-		if profiles[i].Command == "" {
-			return nil, fmt.Errorf("acp executor %q: command is required", profiles[i].Capability)
+		if profile.Runtime == "" {
+			return nil, fmt.Errorf("acp executor %d: runtime is required", i)
 		}
-		workDir, err := normalizeWorkDir(profiles[i].WorkDir)
+		if profile.Command == "" {
+			return nil, fmt.Errorf("acp executor %q: command is required", profile.Runtime)
+		}
+		workDir, err := normalizeWorkDir(profile.WorkDir)
 		if err != nil {
-			return nil, fmt.Errorf("acp executor %q work_dir: %w", profiles[i].Capability, err)
+			return nil, fmt.Errorf("acp executor %q work_dir: %w", profile.Runtime, err)
 		}
-		profiles[i].WorkDir = workDir
+		profile.WorkDir = workDir
+		if idx, ok := indexByRuntime[profile.Runtime]; ok {
+			profiles[idx] = profile
+			continue
+		}
+		indexByRuntime[profile.Runtime] = len(profiles)
+		profiles = append(profiles, profile)
 	}
 
 	return profiles, nil
+}
+
+func defaultACPProfile(runtimeName, command string, args []string) executor.ACPConfig {
+	return executor.ACPConfig{
+		Runtime:          runtimeName,
+		Command:          command,
+		Args:             args,
+		PermissionPolicy: executor.PermissionPolicyDeny,
+		FS: executor.ACPFSConfig{
+			Read:  true,
+			Write: true,
+		},
+		Terminal: true,
+	}
 }
 
 func normalizeWorkDir(path string) (string, error) {

@@ -93,7 +93,9 @@ function RemoteAgentCard({ agent }: { agent: RemoteAgent }) {
           <div className="min-w-0">
             <h3 className="truncate font-semibold">{agent.name}</h3>
             <p className="truncate font-mono text-xs text-muted-foreground">
-              {isDaemon ? agent.daemon_capability || "daemon bridge" : agent.url}
+              {isDaemon
+                ? `${agent.daemon_runtime_id || "runtime"} / ${agent.acp_runtime || "acp"}`
+                : agent.url}
             </p>
           </div>
         </div>

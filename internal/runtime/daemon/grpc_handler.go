@@ -3,6 +3,7 @@ package daemon
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -24,17 +25,17 @@ import (
 type GRPCHandler struct {
 	agentsv1.UnimplementedDaemonConnectorServiceServer
 
-	registry   *Registry
-	tokenRepo  apitoken.Repository
-	daemonRepo configrepo.DaemonConfigRepository
+	registry    *Registry
+	tokenRepo   apitoken.Repository
+	runtimeRepo configrepo.DaemonRuntimeRepository
 }
 
 // NewGRPCHandler creates a new handler for daemon connections.
-func NewGRPCHandler(registry *Registry, tokenRepo apitoken.Repository, daemonRepo configrepo.DaemonConfigRepository) *GRPCHandler {
+func NewGRPCHandler(registry *Registry, tokenRepo apitoken.Repository, runtimeRepo configrepo.DaemonRuntimeRepository) *GRPCHandler {
 	return &GRPCHandler{
-		registry:   registry,
-		tokenRepo:  tokenRepo,
-		daemonRepo: daemonRepo,
+		registry:    registry,
+		tokenRepo:   tokenRepo,
+		runtimeRepo: runtimeRepo,
 	}
 }
 
@@ -52,35 +53,37 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 	if regInfo == nil {
 		return status.Errorf(codes.InvalidArgument, "first message must be a register")
 	}
-	if regInfo.DaemonId == "" {
-		return status.Errorf(codes.InvalidArgument, "daemon_id is required")
-	}
 	authInfo, err := h.authenticate(stream, regInfo)
 	if err != nil {
 		return err
 	}
 	regInfo.WorkspaceId = authInfo.workspaceID
-	regInfo.Capabilities = filterAllowedCapabilities(regInfo.GetCapabilities(), authInfo.allowedCapabilities)
-	if len(regInfo.GetCapabilities()) == 0 {
-		return status.Errorf(codes.PermissionDenied, "daemon has no allowed capabilities")
+	regInfo.DaemonRuntimeId = authInfo.runtimeID
+	if len(regInfo.GetAcpRuntimes()) == 0 {
+		regInfo.AcpRuntimes = []string{"opencode", "codex"}
 	}
 
 	conn := NewConnection(regInfo)
 	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
 		conn.RemoteAddr = p.Addr.String()
 	}
-	h.registry.Register(conn)
+	if err := h.registry.Register(conn); err != nil {
+		if errors.Is(err, ErrRuntimeAlreadyConnected) {
+			return status.Errorf(codes.AlreadyExists, "daemon runtime already connected")
+		}
+		return status.Errorf(codes.Internal, "register daemon runtime: %v", err)
+	}
 	defer func() {
 		conn.Close()
-		h.registry.Unregister(regInfo.GetWorkspaceId(), regInfo.DaemonId)
-		logger.Info("daemon disconnected", "workspace_id", regInfo.GetWorkspaceId(), "daemon_id", regInfo.DaemonId)
+		h.registry.Unregister(regInfo.GetWorkspaceId(), regInfo.GetDaemonRuntimeId())
+		logger.Info("daemon disconnected", "workspace_id", regInfo.GetWorkspaceId(), "daemon_runtime_id", regInfo.GetDaemonRuntimeId())
 	}()
 
 	logger.Info("daemon connected",
 		"workspace_id", regInfo.GetWorkspaceId(),
-		"daemon_id", regInfo.DaemonId,
+		"daemon_runtime_id", regInfo.GetDaemonRuntimeId(),
 		"name", regInfo.Name,
-		"capabilities", regInfo.Capabilities,
+		"acp_runtimes", regInfo.AcpRuntimes,
 	)
 
 	var wg sync.WaitGroup
@@ -124,7 +127,7 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 	// Wait for either loop to finish or context to cancel.
 	select {
 	case err := <-errCh:
-		logger.Debug("daemon stream error", "daemon_id", regInfo.DaemonId, "err", err)
+		logger.Debug("daemon stream error", "daemon_runtime_id", regInfo.GetDaemonRuntimeId(), "err", err)
 	case <-ctx.Done():
 	}
 
@@ -133,12 +136,12 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 }
 
 type authResult struct {
-	workspaceID         string
-	allowedCapabilities []string
+	workspaceID string
+	runtimeID   string
 }
 
 func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnectorService_ConnectServer, regInfo *agentsv1.DaemonInfo) (*authResult, error) {
-	if h.tokenRepo == nil || h.daemonRepo == nil {
+	if h.tokenRepo == nil || h.runtimeRepo == nil {
 		return nil, status.Errorf(codes.FailedPrecondition, "daemon auth repositories not wired")
 	}
 
@@ -158,31 +161,33 @@ func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnectorService_Connec
 		return nil, status.Errorf(codes.Unauthenticated, "invalid token")
 	}
 	if stored.GetKind() != agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON {
-		return nil, status.Errorf(codes.PermissionDenied, "token is not a daemon credential")
+		return nil, status.Errorf(codes.PermissionDenied, "token is not a daemon runtime token")
 	}
 	if stored.GetWorkspaceId() == "" {
-		return nil, status.Errorf(codes.PermissionDenied, "daemon credential has no workspace")
+		return nil, status.Errorf(codes.PermissionDenied, "daemon runtime token has no workspace")
 	}
-	if stored.GetDaemonId() != regInfo.GetDaemonId() {
-		return nil, status.Errorf(codes.PermissionDenied, "daemon credential does not match daemon_id")
+	if stored.GetDaemonRuntimeId() == "" {
+		return nil, status.Errorf(codes.PermissionDenied, "daemon runtime token has no runtime")
+	}
+	if regInfo.GetDaemonRuntimeId() != "" && stored.GetDaemonRuntimeId() != regInfo.GetDaemonRuntimeId() {
+		return nil, status.Errorf(codes.PermissionDenied, "daemon_runtime_id does not match daemon runtime token")
 	}
 	if expires := stored.GetExpiresAt(); expires != nil && time.Now().UTC().After(expires.AsTime()) {
-		return nil, status.Errorf(codes.Unauthenticated, "daemon credential expired")
+		return nil, status.Errorf(codes.Unauthenticated, "daemon runtime token expired")
 	}
 	if !hasScope(stored.GetScopes(), "daemon:connect") {
-		return nil, status.Errorf(codes.PermissionDenied, "daemon credential lacks daemon:connect scope")
+		return nil, status.Errorf(codes.PermissionDenied, "daemon runtime token lacks daemon:connect scope")
 	}
 	if regInfo.GetWorkspaceId() != "" && regInfo.GetWorkspaceId() != stored.GetWorkspaceId() {
-		return nil, status.Errorf(codes.PermissionDenied, "workspace_id does not match daemon credential")
+		return nil, status.Errorf(codes.PermissionDenied, "workspace_id does not match daemon runtime token")
 	}
 
-	cfg, err := h.daemonRepo.GetDaemonConfig(stream.Context(), stored.GetWorkspaceId(), stored.GetDaemonId())
-	if err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "daemon is not registered in workspace")
+	if _, err := h.runtimeRepo.GetDaemonRuntime(stream.Context(), stored.GetWorkspaceId(), stored.GetDaemonRuntimeId()); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "daemon runtime is not registered in workspace")
 	}
 
 	_ = h.tokenRepo.TouchLastUsed(stream.Context(), stored.GetId())
-	return &authResult{workspaceID: stored.GetWorkspaceId(), allowedCapabilities: cfg.GetAllowedCapabilities()}, nil
+	return &authResult{workspaceID: stored.GetWorkspaceId(), runtimeID: stored.GetDaemonRuntimeId()}, nil
 }
 
 func hashSecret(secret string) string {
@@ -197,20 +202,4 @@ func hasScope(scopes []string, want string) bool {
 		}
 	}
 	return false
-}
-
-func filterAllowedCapabilities(offered, allowed []string) []string {
-	allowedSet := make(map[string]struct{}, len(allowed))
-	for _, cap := range allowed {
-		if cap != "" {
-			allowedSet[cap] = struct{}{}
-		}
-	}
-	var out []string
-	for _, cap := range offered {
-		if _, ok := allowedSet[cap]; ok {
-			out = append(out, cap)
-		}
-	}
-	return out
 }

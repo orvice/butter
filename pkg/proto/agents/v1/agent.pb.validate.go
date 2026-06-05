@@ -1138,7 +1138,9 @@ func (m *RemoteAgent) validate(all bool) error {
 
 	// no validation rules for Protocol
 
-	// no validation rules for DaemonCapability
+	// no validation rules for DaemonRuntimeId
+
+	// no validation rules for AcpRuntime
 
 	// no validation rules for WorkspaceId
 

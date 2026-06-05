@@ -35,7 +35,8 @@ const (
 
 // ACPConfig configures one ACP-backed daemon executor.
 type ACPConfig struct {
-	Capability       string            `yaml:"capability"`
+	Runtime          string            `yaml:"runtime"`
+	Capability       string            `yaml:"capability"` // legacy alias for Runtime
 	Command          string            `yaml:"command"`
 	Args             []string          `yaml:"args"`
 	Env              map[string]string `yaml:"env"`
@@ -59,11 +60,14 @@ type ACPExecutor struct {
 
 // NewACPExecutor validates config and creates an ACP executor.
 func NewACPExecutor(cfg ACPConfig) (*ACPExecutor, error) {
-	if cfg.Capability == "" {
-		return nil, errors.New("acp capability is required")
+	if cfg.Runtime == "" {
+		cfg.Runtime = cfg.Capability
+	}
+	if cfg.Runtime == "" {
+		return nil, errors.New("acp runtime is required")
 	}
 	if cfg.Command == "" {
-		return nil, fmt.Errorf("acp executor %q: command is required", cfg.Capability)
+		return nil, fmt.Errorf("acp executor %q: command is required", cfg.Runtime)
 	}
 	if cfg.WorkDir == "" {
 		wd, err := os.Getwd()
@@ -85,12 +89,12 @@ func NewACPExecutor(cfg ACPConfig) (*ACPExecutor, error) {
 		cfg.PermissionPolicy = PermissionPolicyDeny
 	case PermissionPolicyAllow:
 	default:
-		return nil, fmt.Errorf("acp executor %q: unsupported permission_policy %q", cfg.Capability, cfg.PermissionPolicy)
+		return nil, fmt.Errorf("acp executor %q: unsupported permission_policy %q", cfg.Runtime, cfg.PermissionPolicy)
 	}
 	return &ACPExecutor{cfg: cfg}, nil
 }
 
-func (e *ACPExecutor) Capability() string { return e.cfg.Capability }
+func (e *ACPExecutor) Runtime() string { return e.cfg.Runtime }
 
 func (e *ACPExecutor) Execute(ctx context.Context, task *agentsv1.DaemonTask, onUpdate func(*agentsv1.DaemonTaskUpdate)) error {
 	onUpdate(&agentsv1.DaemonTaskUpdate{
@@ -98,8 +102,13 @@ func (e *ACPExecutor) Execute(ctx context.Context, task *agentsv1.DaemonTask, on
 		Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_ACCEPTED,
 	})
 
+	workDir := task.GetWorkDir()
+	if workDir == "" {
+		workDir = e.cfg.WorkDir
+	}
+
 	cmd := exec.CommandContext(ctx, e.cfg.Command, e.cfg.Args...)
-	cmd.Dir = e.cfg.WorkDir
+	cmd.Dir = workDir
 	cmd.Env = mergeEnv(e.cfg.Env)
 	cmd.Stderr = newLogWriter("acp stderr", task.TaskId)
 
@@ -116,7 +125,7 @@ func (e *ACPExecutor) Execute(ctx context.Context, task *agentsv1.DaemonTask, on
 	}
 	defer terminateProcess(cmd, acpKillTimeout)
 
-	taskClient := newACPTaskClient(ctx, task, e.cfg, onUpdate)
+	taskClient := newACPTaskClient(ctx, task, e.cfg, workDir, onUpdate)
 	defer taskClient.cleanupTerminals(acpKillTimeout)
 	conn := acp.NewClientSideConnection(taskClient, stdin, stdout)
 	conn.SetLogger(slog.Default())
@@ -145,12 +154,12 @@ func (e *ACPExecutor) Execute(ctx context.Context, task *agentsv1.DaemonTask, on
 	}
 	slog.Info("acp agent initialized",
 		"task_id", task.TaskId,
-		"capability", e.cfg.Capability,
+		"acp_runtime", e.cfg.Runtime,
 		"protocol_version", initResp.ProtocolVersion,
 	)
 
 	session, err := conn.NewSession(ctx, acp.NewSessionRequest{
-		Cwd:        e.cfg.WorkDir,
+		Cwd:        workDir,
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
@@ -242,7 +251,8 @@ type acpTaskClient struct {
 	nextTerm  atomic.Uint64
 }
 
-func newACPTaskClient(ctx context.Context, task *agentsv1.DaemonTask, cfg ACPConfig, onUpdate func(*agentsv1.DaemonTaskUpdate)) *acpTaskClient {
+func newACPTaskClient(ctx context.Context, task *agentsv1.DaemonTask, cfg ACPConfig, workDir string, onUpdate func(*agentsv1.DaemonTaskUpdate)) *acpTaskClient {
+	cfg.WorkDir = workDir
 	return &acpTaskClient{
 		ctx:      ctx,
 		task:     task,

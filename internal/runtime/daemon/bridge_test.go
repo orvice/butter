@@ -8,7 +8,7 @@ import (
 
 func TestBridgeBuildAgent(t *testing.T) {
 	registry := NewRegistry()
-	bridge := NewBridge(registry, "ws-1", "opencode")
+	bridge := NewBridge(registry, "ws-1", "d1", "opencode")
 
 	ag, err := bridge.BuildAgent("test-daemon", "A test daemon agent")
 	if err != nil {
@@ -24,7 +24,7 @@ func TestBridgeBuildAgent(t *testing.T) {
 
 func TestBridgeNoDaemonAvailable(t *testing.T) {
 	registry := NewRegistry()
-	bridge := NewBridge(registry, "ws-1", "opencode")
+	bridge := NewBridge(registry, "ws-1", "d1", "opencode")
 
 	ag, err := bridge.BuildAgent("test", "test")
 	if err != nil {
@@ -64,22 +64,24 @@ func TestExtractText(t *testing.T) {
 func TestBridgeEndToEndViaConnection(t *testing.T) {
 	registry := NewRegistry()
 	conn := NewConnection(&agentsv1.DaemonInfo{
-		WorkspaceId:  "ws-1",
-		DaemonId:     "d1",
-		Capabilities: []string{"opencode"},
+		WorkspaceId:     "ws-1",
+		DaemonRuntimeId: "d1",
+		AcpRuntimes:     []string{"opencode"},
 	})
-	registry.Register(conn)
+	if err := registry.Register(conn); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
-	bridge := NewBridge(registry, "ws-1", "opencode")
+	bridge := NewBridge(registry, "ws-1", "d1", "opencode")
 
 	// Verify the bridge can find the daemon.
-	found := bridge.registry.FindByCapability("ws-1", "opencode")
+	found := bridge.registry.Get("ws-1", "d1")
 	if found == nil {
 		t.Fatal("bridge's registry should find daemon")
 	}
 
 	// Send a task and verify the round-trip via connection.
-	task := &agentsv1.DaemonTask{TaskId: "t1", Capability: "opencode", Input: "test"}
+	task := &agentsv1.DaemonTask{TaskId: "t1", AcpRuntime: "opencode", Input: "test"}
 	resultCh, err := found.SendTask(task)
 	if err != nil {
 		t.Fatalf("SendTask: %v", err)

@@ -209,31 +209,31 @@ var DashboardService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	DaemonService_ListDaemonConfigs_FullMethodName      = "/agents.v1.DaemonService/ListDaemonConfigs"
-	DaemonService_GetDaemonConfig_FullMethodName        = "/agents.v1.DaemonService/GetDaemonConfig"
-	DaemonService_CreateDaemonConfig_FullMethodName     = "/agents.v1.DaemonService/CreateDaemonConfig"
-	DaemonService_UpdateDaemonConfig_FullMethodName     = "/agents.v1.DaemonService/UpdateDaemonConfig"
-	DaemonService_DeleteDaemonConfig_FullMethodName     = "/agents.v1.DaemonService/DeleteDaemonConfig"
-	DaemonService_CreateDaemonCredential_FullMethodName = "/agents.v1.DaemonService/CreateDaemonCredential"
-	DaemonService_ListDaemons_FullMethodName            = "/agents.v1.DaemonService/ListDaemons"
-	DaemonService_GetDaemon_FullMethodName              = "/agents.v1.DaemonService/GetDaemon"
-	DaemonService_CancelDaemonTask_FullMethodName       = "/agents.v1.DaemonService/CancelDaemonTask"
-	DaemonService_ListDaemonTasks_FullMethodName        = "/agents.v1.DaemonService/ListDaemonTasks"
-	DaemonService_GetBridgeDiagnostics_FullMethodName   = "/agents.v1.DaemonService/GetBridgeDiagnostics"
+	DaemonService_ListDaemonRuntimes_FullMethodName       = "/agents.v1.DaemonService/ListDaemonRuntimes"
+	DaemonService_GetDaemonRuntime_FullMethodName         = "/agents.v1.DaemonService/GetDaemonRuntime"
+	DaemonService_CreateDaemonRuntime_FullMethodName      = "/agents.v1.DaemonService/CreateDaemonRuntime"
+	DaemonService_UpdateDaemonRuntime_FullMethodName      = "/agents.v1.DaemonService/UpdateDaemonRuntime"
+	DaemonService_DeleteDaemonRuntime_FullMethodName      = "/agents.v1.DaemonService/DeleteDaemonRuntime"
+	DaemonService_CreateDaemonRuntimeToken_FullMethodName = "/agents.v1.DaemonService/CreateDaemonRuntimeToken"
+	DaemonService_ListDaemons_FullMethodName              = "/agents.v1.DaemonService/ListDaemons"
+	DaemonService_GetDaemon_FullMethodName                = "/agents.v1.DaemonService/GetDaemon"
+	DaemonService_CancelDaemonTask_FullMethodName         = "/agents.v1.DaemonService/CancelDaemonTask"
+	DaemonService_ListDaemonTasks_FullMethodName          = "/agents.v1.DaemonService/ListDaemonTasks"
+	DaemonService_GetBridgeDiagnostics_FullMethodName     = "/agents.v1.DaemonService/GetBridgeDiagnostics"
 )
 
 // DaemonServiceClient is the client API for DaemonService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DaemonServiceClient interface {
-	// Workspace-scoped daemon configuration. A daemon must have a stored config
-	// before a worker credential can be issued or a runtime connection accepted.
-	ListDaemonConfigs(ctx context.Context, in *ListDaemonConfigsRequest, opts ...grpc.CallOption) (*ListDaemonConfigsResponse, error)
-	GetDaemonConfig(ctx context.Context, in *GetDaemonConfigRequest, opts ...grpc.CallOption) (*GetDaemonConfigResponse, error)
-	CreateDaemonConfig(ctx context.Context, in *CreateDaemonConfigRequest, opts ...grpc.CallOption) (*CreateDaemonConfigResponse, error)
-	UpdateDaemonConfig(ctx context.Context, in *UpdateDaemonConfigRequest, opts ...grpc.CallOption) (*UpdateDaemonConfigResponse, error)
-	DeleteDaemonConfig(ctx context.Context, in *DeleteDaemonConfigRequest, opts ...grpc.CallOption) (*DeleteDaemonConfigResponse, error)
-	CreateDaemonCredential(ctx context.Context, in *CreateDaemonCredentialRequest, opts ...grpc.CallOption) (*CreateDaemonCredentialResponse, error)
+	// Workspace-scoped daemon runtime configuration. A runtime must exist before
+	// a worker credential can be issued or a runtime connection accepted.
+	ListDaemonRuntimes(ctx context.Context, in *ListDaemonRuntimesRequest, opts ...grpc.CallOption) (*ListDaemonRuntimesResponse, error)
+	GetDaemonRuntime(ctx context.Context, in *GetDaemonRuntimeRequest, opts ...grpc.CallOption) (*GetDaemonRuntimeResponse, error)
+	CreateDaemonRuntime(ctx context.Context, in *CreateDaemonRuntimeRequest, opts ...grpc.CallOption) (*CreateDaemonRuntimeResponse, error)
+	UpdateDaemonRuntime(ctx context.Context, in *UpdateDaemonRuntimeRequest, opts ...grpc.CallOption) (*UpdateDaemonRuntimeResponse, error)
+	DeleteDaemonRuntime(ctx context.Context, in *DeleteDaemonRuntimeRequest, opts ...grpc.CallOption) (*DeleteDaemonRuntimeResponse, error)
+	CreateDaemonRuntimeToken(ctx context.Context, in *CreateDaemonRuntimeTokenRequest, opts ...grpc.CallOption) (*CreateDaemonRuntimeTokenResponse, error)
 	ListDaemons(ctx context.Context, in *ListDaemonsRequest, opts ...grpc.CallOption) (*ListDaemonsResponse, error)
 	GetDaemon(ctx context.Context, in *GetDaemonRequest, opts ...grpc.CallOption) (*GetDaemonResponse, error)
 	// CancelDaemonTask requests cancellation of a running task on any connected
@@ -254,60 +254,60 @@ func NewDaemonServiceClient(cc grpc.ClientConnInterface) DaemonServiceClient {
 	return &daemonServiceClient{cc}
 }
 
-func (c *daemonServiceClient) ListDaemonConfigs(ctx context.Context, in *ListDaemonConfigsRequest, opts ...grpc.CallOption) (*ListDaemonConfigsResponse, error) {
+func (c *daemonServiceClient) ListDaemonRuntimes(ctx context.Context, in *ListDaemonRuntimesRequest, opts ...grpc.CallOption) (*ListDaemonRuntimesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListDaemonConfigsResponse)
-	err := c.cc.Invoke(ctx, DaemonService_ListDaemonConfigs_FullMethodName, in, out, cOpts...)
+	out := new(ListDaemonRuntimesResponse)
+	err := c.cc.Invoke(ctx, DaemonService_ListDaemonRuntimes_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *daemonServiceClient) GetDaemonConfig(ctx context.Context, in *GetDaemonConfigRequest, opts ...grpc.CallOption) (*GetDaemonConfigResponse, error) {
+func (c *daemonServiceClient) GetDaemonRuntime(ctx context.Context, in *GetDaemonRuntimeRequest, opts ...grpc.CallOption) (*GetDaemonRuntimeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetDaemonConfigResponse)
-	err := c.cc.Invoke(ctx, DaemonService_GetDaemonConfig_FullMethodName, in, out, cOpts...)
+	out := new(GetDaemonRuntimeResponse)
+	err := c.cc.Invoke(ctx, DaemonService_GetDaemonRuntime_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *daemonServiceClient) CreateDaemonConfig(ctx context.Context, in *CreateDaemonConfigRequest, opts ...grpc.CallOption) (*CreateDaemonConfigResponse, error) {
+func (c *daemonServiceClient) CreateDaemonRuntime(ctx context.Context, in *CreateDaemonRuntimeRequest, opts ...grpc.CallOption) (*CreateDaemonRuntimeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateDaemonConfigResponse)
-	err := c.cc.Invoke(ctx, DaemonService_CreateDaemonConfig_FullMethodName, in, out, cOpts...)
+	out := new(CreateDaemonRuntimeResponse)
+	err := c.cc.Invoke(ctx, DaemonService_CreateDaemonRuntime_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *daemonServiceClient) UpdateDaemonConfig(ctx context.Context, in *UpdateDaemonConfigRequest, opts ...grpc.CallOption) (*UpdateDaemonConfigResponse, error) {
+func (c *daemonServiceClient) UpdateDaemonRuntime(ctx context.Context, in *UpdateDaemonRuntimeRequest, opts ...grpc.CallOption) (*UpdateDaemonRuntimeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdateDaemonConfigResponse)
-	err := c.cc.Invoke(ctx, DaemonService_UpdateDaemonConfig_FullMethodName, in, out, cOpts...)
+	out := new(UpdateDaemonRuntimeResponse)
+	err := c.cc.Invoke(ctx, DaemonService_UpdateDaemonRuntime_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *daemonServiceClient) DeleteDaemonConfig(ctx context.Context, in *DeleteDaemonConfigRequest, opts ...grpc.CallOption) (*DeleteDaemonConfigResponse, error) {
+func (c *daemonServiceClient) DeleteDaemonRuntime(ctx context.Context, in *DeleteDaemonRuntimeRequest, opts ...grpc.CallOption) (*DeleteDaemonRuntimeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteDaemonConfigResponse)
-	err := c.cc.Invoke(ctx, DaemonService_DeleteDaemonConfig_FullMethodName, in, out, cOpts...)
+	out := new(DeleteDaemonRuntimeResponse)
+	err := c.cc.Invoke(ctx, DaemonService_DeleteDaemonRuntime_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *daemonServiceClient) CreateDaemonCredential(ctx context.Context, in *CreateDaemonCredentialRequest, opts ...grpc.CallOption) (*CreateDaemonCredentialResponse, error) {
+func (c *daemonServiceClient) CreateDaemonRuntimeToken(ctx context.Context, in *CreateDaemonRuntimeTokenRequest, opts ...grpc.CallOption) (*CreateDaemonRuntimeTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateDaemonCredentialResponse)
-	err := c.cc.Invoke(ctx, DaemonService_CreateDaemonCredential_FullMethodName, in, out, cOpts...)
+	out := new(CreateDaemonRuntimeTokenResponse)
+	err := c.cc.Invoke(ctx, DaemonService_CreateDaemonRuntimeToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -368,14 +368,14 @@ func (c *daemonServiceClient) GetBridgeDiagnostics(ctx context.Context, in *GetB
 // All implementations must embed UnimplementedDaemonServiceServer
 // for forward compatibility.
 type DaemonServiceServer interface {
-	// Workspace-scoped daemon configuration. A daemon must have a stored config
-	// before a worker credential can be issued or a runtime connection accepted.
-	ListDaemonConfigs(context.Context, *ListDaemonConfigsRequest) (*ListDaemonConfigsResponse, error)
-	GetDaemonConfig(context.Context, *GetDaemonConfigRequest) (*GetDaemonConfigResponse, error)
-	CreateDaemonConfig(context.Context, *CreateDaemonConfigRequest) (*CreateDaemonConfigResponse, error)
-	UpdateDaemonConfig(context.Context, *UpdateDaemonConfigRequest) (*UpdateDaemonConfigResponse, error)
-	DeleteDaemonConfig(context.Context, *DeleteDaemonConfigRequest) (*DeleteDaemonConfigResponse, error)
-	CreateDaemonCredential(context.Context, *CreateDaemonCredentialRequest) (*CreateDaemonCredentialResponse, error)
+	// Workspace-scoped daemon runtime configuration. A runtime must exist before
+	// a worker credential can be issued or a runtime connection accepted.
+	ListDaemonRuntimes(context.Context, *ListDaemonRuntimesRequest) (*ListDaemonRuntimesResponse, error)
+	GetDaemonRuntime(context.Context, *GetDaemonRuntimeRequest) (*GetDaemonRuntimeResponse, error)
+	CreateDaemonRuntime(context.Context, *CreateDaemonRuntimeRequest) (*CreateDaemonRuntimeResponse, error)
+	UpdateDaemonRuntime(context.Context, *UpdateDaemonRuntimeRequest) (*UpdateDaemonRuntimeResponse, error)
+	DeleteDaemonRuntime(context.Context, *DeleteDaemonRuntimeRequest) (*DeleteDaemonRuntimeResponse, error)
+	CreateDaemonRuntimeToken(context.Context, *CreateDaemonRuntimeTokenRequest) (*CreateDaemonRuntimeTokenResponse, error)
 	ListDaemons(context.Context, *ListDaemonsRequest) (*ListDaemonsResponse, error)
 	GetDaemon(context.Context, *GetDaemonRequest) (*GetDaemonResponse, error)
 	// CancelDaemonTask requests cancellation of a running task on any connected
@@ -396,23 +396,23 @@ type DaemonServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDaemonServiceServer struct{}
 
-func (UnimplementedDaemonServiceServer) ListDaemonConfigs(context.Context, *ListDaemonConfigsRequest) (*ListDaemonConfigsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListDaemonConfigs not implemented")
+func (UnimplementedDaemonServiceServer) ListDaemonRuntimes(context.Context, *ListDaemonRuntimesRequest) (*ListDaemonRuntimesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDaemonRuntimes not implemented")
 }
-func (UnimplementedDaemonServiceServer) GetDaemonConfig(context.Context, *GetDaemonConfigRequest) (*GetDaemonConfigResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetDaemonConfig not implemented")
+func (UnimplementedDaemonServiceServer) GetDaemonRuntime(context.Context, *GetDaemonRuntimeRequest) (*GetDaemonRuntimeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDaemonRuntime not implemented")
 }
-func (UnimplementedDaemonServiceServer) CreateDaemonConfig(context.Context, *CreateDaemonConfigRequest) (*CreateDaemonConfigResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateDaemonConfig not implemented")
+func (UnimplementedDaemonServiceServer) CreateDaemonRuntime(context.Context, *CreateDaemonRuntimeRequest) (*CreateDaemonRuntimeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateDaemonRuntime not implemented")
 }
-func (UnimplementedDaemonServiceServer) UpdateDaemonConfig(context.Context, *UpdateDaemonConfigRequest) (*UpdateDaemonConfigResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UpdateDaemonConfig not implemented")
+func (UnimplementedDaemonServiceServer) UpdateDaemonRuntime(context.Context, *UpdateDaemonRuntimeRequest) (*UpdateDaemonRuntimeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateDaemonRuntime not implemented")
 }
-func (UnimplementedDaemonServiceServer) DeleteDaemonConfig(context.Context, *DeleteDaemonConfigRequest) (*DeleteDaemonConfigResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method DeleteDaemonConfig not implemented")
+func (UnimplementedDaemonServiceServer) DeleteDaemonRuntime(context.Context, *DeleteDaemonRuntimeRequest) (*DeleteDaemonRuntimeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteDaemonRuntime not implemented")
 }
-func (UnimplementedDaemonServiceServer) CreateDaemonCredential(context.Context, *CreateDaemonCredentialRequest) (*CreateDaemonCredentialResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateDaemonCredential not implemented")
+func (UnimplementedDaemonServiceServer) CreateDaemonRuntimeToken(context.Context, *CreateDaemonRuntimeTokenRequest) (*CreateDaemonRuntimeTokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateDaemonRuntimeToken not implemented")
 }
 func (UnimplementedDaemonServiceServer) ListDaemons(context.Context, *ListDaemonsRequest) (*ListDaemonsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListDaemons not implemented")
@@ -450,110 +450,110 @@ func RegisterDaemonServiceServer(s grpc.ServiceRegistrar, srv DaemonServiceServe
 	s.RegisterService(&DaemonService_ServiceDesc, srv)
 }
 
-func _DaemonService_ListDaemonConfigs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListDaemonConfigsRequest)
+func _DaemonService_ListDaemonRuntimes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDaemonRuntimesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DaemonServiceServer).ListDaemonConfigs(ctx, in)
+		return srv.(DaemonServiceServer).ListDaemonRuntimes(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DaemonService_ListDaemonConfigs_FullMethodName,
+		FullMethod: DaemonService_ListDaemonRuntimes_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServiceServer).ListDaemonConfigs(ctx, req.(*ListDaemonConfigsRequest))
+		return srv.(DaemonServiceServer).ListDaemonRuntimes(ctx, req.(*ListDaemonRuntimesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DaemonService_GetDaemonConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDaemonConfigRequest)
+func _DaemonService_GetDaemonRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDaemonRuntimeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DaemonServiceServer).GetDaemonConfig(ctx, in)
+		return srv.(DaemonServiceServer).GetDaemonRuntime(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DaemonService_GetDaemonConfig_FullMethodName,
+		FullMethod: DaemonService_GetDaemonRuntime_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServiceServer).GetDaemonConfig(ctx, req.(*GetDaemonConfigRequest))
+		return srv.(DaemonServiceServer).GetDaemonRuntime(ctx, req.(*GetDaemonRuntimeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DaemonService_CreateDaemonConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateDaemonConfigRequest)
+func _DaemonService_CreateDaemonRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDaemonRuntimeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DaemonServiceServer).CreateDaemonConfig(ctx, in)
+		return srv.(DaemonServiceServer).CreateDaemonRuntime(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DaemonService_CreateDaemonConfig_FullMethodName,
+		FullMethod: DaemonService_CreateDaemonRuntime_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServiceServer).CreateDaemonConfig(ctx, req.(*CreateDaemonConfigRequest))
+		return srv.(DaemonServiceServer).CreateDaemonRuntime(ctx, req.(*CreateDaemonRuntimeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DaemonService_UpdateDaemonConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateDaemonConfigRequest)
+func _DaemonService_UpdateDaemonRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateDaemonRuntimeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DaemonServiceServer).UpdateDaemonConfig(ctx, in)
+		return srv.(DaemonServiceServer).UpdateDaemonRuntime(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DaemonService_UpdateDaemonConfig_FullMethodName,
+		FullMethod: DaemonService_UpdateDaemonRuntime_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServiceServer).UpdateDaemonConfig(ctx, req.(*UpdateDaemonConfigRequest))
+		return srv.(DaemonServiceServer).UpdateDaemonRuntime(ctx, req.(*UpdateDaemonRuntimeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DaemonService_DeleteDaemonConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteDaemonConfigRequest)
+func _DaemonService_DeleteDaemonRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteDaemonRuntimeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DaemonServiceServer).DeleteDaemonConfig(ctx, in)
+		return srv.(DaemonServiceServer).DeleteDaemonRuntime(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DaemonService_DeleteDaemonConfig_FullMethodName,
+		FullMethod: DaemonService_DeleteDaemonRuntime_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServiceServer).DeleteDaemonConfig(ctx, req.(*DeleteDaemonConfigRequest))
+		return srv.(DaemonServiceServer).DeleteDaemonRuntime(ctx, req.(*DeleteDaemonRuntimeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DaemonService_CreateDaemonCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateDaemonCredentialRequest)
+func _DaemonService_CreateDaemonRuntimeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDaemonRuntimeTokenRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DaemonServiceServer).CreateDaemonCredential(ctx, in)
+		return srv.(DaemonServiceServer).CreateDaemonRuntimeToken(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DaemonService_CreateDaemonCredential_FullMethodName,
+		FullMethod: DaemonService_CreateDaemonRuntimeToken_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServiceServer).CreateDaemonCredential(ctx, req.(*CreateDaemonCredentialRequest))
+		return srv.(DaemonServiceServer).CreateDaemonRuntimeToken(ctx, req.(*CreateDaemonRuntimeTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -656,28 +656,28 @@ var DaemonService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*DaemonServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ListDaemonConfigs",
-			Handler:    _DaemonService_ListDaemonConfigs_Handler,
+			MethodName: "ListDaemonRuntimes",
+			Handler:    _DaemonService_ListDaemonRuntimes_Handler,
 		},
 		{
-			MethodName: "GetDaemonConfig",
-			Handler:    _DaemonService_GetDaemonConfig_Handler,
+			MethodName: "GetDaemonRuntime",
+			Handler:    _DaemonService_GetDaemonRuntime_Handler,
 		},
 		{
-			MethodName: "CreateDaemonConfig",
-			Handler:    _DaemonService_CreateDaemonConfig_Handler,
+			MethodName: "CreateDaemonRuntime",
+			Handler:    _DaemonService_CreateDaemonRuntime_Handler,
 		},
 		{
-			MethodName: "UpdateDaemonConfig",
-			Handler:    _DaemonService_UpdateDaemonConfig_Handler,
+			MethodName: "UpdateDaemonRuntime",
+			Handler:    _DaemonService_UpdateDaemonRuntime_Handler,
 		},
 		{
-			MethodName: "DeleteDaemonConfig",
-			Handler:    _DaemonService_DeleteDaemonConfig_Handler,
+			MethodName: "DeleteDaemonRuntime",
+			Handler:    _DaemonService_DeleteDaemonRuntime_Handler,
 		},
 		{
-			MethodName: "CreateDaemonCredential",
-			Handler:    _DaemonService_CreateDaemonCredential_Handler,
+			MethodName: "CreateDaemonRuntimeToken",
+			Handler:    _DaemonService_CreateDaemonRuntimeToken_Handler,
 		},
 		{
 			MethodName: "ListDaemons",

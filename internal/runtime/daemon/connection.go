@@ -12,12 +12,16 @@ import (
 // task is in progress.
 var ErrDaemonDisconnected = errors.New("daemon disconnected")
 
+// ErrRuntimeAlreadyConnected is returned when a second connection tries to
+// register the same workspace/runtime pair.
+var ErrRuntimeAlreadyConnected = errors.New("daemon runtime already connected")
+
 // taskState tracks a single in-flight task on a daemon connection.
 type taskState struct {
 	resultCh    chan *agentsv1.DaemonTaskUpdate
 	startedAt   time.Time
 	agentName   string
-	capability  string
+	acpRuntime  string
 	workspaceID string
 	currentStep string
 	progress    int32
@@ -28,7 +32,7 @@ type taskState struct {
 type TaskSnapshot struct {
 	TaskID      string
 	AgentName   string
-	Capability  string
+	AcpRuntime  string
 	WorkspaceID string
 	StartedAt   time.Time
 	CurrentStep string
@@ -75,7 +79,7 @@ func (c *Connection) SendTask(task *agentsv1.DaemonTask) (<-chan *agentsv1.Daemo
 		resultCh:    resultCh,
 		startedAt:   time.Now(),
 		agentName:   task.GetAgentName(),
-		capability:  task.GetCapability(),
+		acpRuntime:  task.GetAcpRuntime(),
 		workspaceID: task.GetWorkspaceId(),
 	}
 	c.mu.Unlock()
@@ -166,7 +170,7 @@ func (c *Connection) ActiveTaskSnapshots() []TaskSnapshot {
 		out = append(out, TaskSnapshot{
 			TaskID:      id,
 			AgentName:   t.agentName,
-			Capability:  t.capability,
+			AcpRuntime:  t.acpRuntime,
 			WorkspaceID: t.workspaceID,
 			StartedAt:   t.startedAt,
 			CurrentStep: t.currentStep,

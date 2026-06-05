@@ -17,7 +17,7 @@ export function toAPIToken(t: PbAPIToken): APIToken {
     kind: APITokenKind[t.kind],
     scopes: t.scopes,
     expires_at: tsToISO(t.expiresAt),
-    daemon_id: t.daemonId,
+    daemon_runtime_id: t.daemonRuntimeId,
     workspace_id: t.workspaceId,
   };
 }

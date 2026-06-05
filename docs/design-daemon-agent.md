@@ -1,17 +1,160 @@
 # Daemon Agent 设计方案
 
-> **状态：历史设计文档（已落地）。** 本文是 daemon agent 设计阶段的方案稿，
+> **状态：历史设计文档（已落地）+ 下一轮重构需求记录。** 本文是 daemon agent 设计阶段的方案稿，
 > 描述当时的 Twirp + Gin 架构与拟新增的 daemon 服务。daemon 已全部落地；
 > 自 2026-06-02 起 RPC 层迁移到 ConnectRPC（见 `migration-connectrpc.md`），
 > daemon 自身仍走独立 gRPC 端口 `:9090`。RPC 部分提到的 Twirp 文件 / Twirp
 > 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。自
 > 2026-06-05 起，daemon coding agent 执行器已从 opencode 专用 CLI 调用迁移为
 > 通用 ACP executor（`github.com/coder/acp-go-sdk`），opencode 通过 `opencode acp`
-> 接入；旧 `executors.opencode` 配置仅作为兼容入口保留。
+> 接入；旧 `executors.opencode` 配置仅作为兼容入口保留。自 2026-06-06 起，
+> 下一轮目标是用 workspace-scoped `DaemonRuntime` 完全替代 `DaemonConfig` /
+> `daemon_capability` 模型，详见下方「DaemonRuntime 重构目标」。
 
 ## 背景
 
 Butter 当前已支持通过 ADK Go 封装的本地执行 agent（LLM、Loop、Sequential、Parallel），以及通过 A2A 协议调用的远程 agent。本文档描述支持第三种执行模式——**Daemon Agent**：Client 作为长驻进程与 Server 建立持久连接，Server 将任务下发给 Client，Client 通过 CLI 调用 opencode/claude-code 等工具执行任务并回传结果。
+
+## DaemonRuntime 重构目标（2026-06-06）
+
+这一节记录下一轮产品与架构目标。它不是在现有 `DaemonConfig` 上小修小补，而是允许对 daemon 资源模型、RPC、仓储、前端页面和 daemon 启动方式做完整重构。
+
+### 已确认需求
+
+- `DaemonRuntime` 完全替代当前 `DaemonConfig`。旧的 `allowed_capabilities` / `daemon_capability` 模型可以迁移或废弃，不要求保持内部结构兼容。
+- Workspace 可以创建 `DaemonRuntime`。创建后服务端签发 daemon token，并展示一条最小启动命令：
+
+```bash
+butter-daemon --url <daemon-grpc-url> --token <daemon-runtime-token>
+```
+
+- daemon token 绑定 `workspace_id + daemon_runtime_id`。`cmd/butter-daemon` 启动时只需要 `url + token` 即可连接；服务端从 token 推导 authoritative workspace/runtime，不信任客户端自报。token 生命周期暂时与普通 API token 一致：默认可长期使用，后续如需 rotate/revoke/expiry 再扩展。
+- `cmd/butter-daemon` 连接成功后代表一个 runtime 执行面，而不是一个 agent。它负责接收任务、启动对应 ACP runtime、回传 `DaemonTaskUpdate`。
+- 当 workspace 有 `DaemonRuntime` 后，可以基于该 runtime 创建 daemon-backed `RemoteAgent`。重构后仍保留 `RemoteAgent` 作为 agent 配置入口，但 DAEMON 协议不再通过 `daemon_capability` 路由，而是引用 `daemon_runtime_id` 并选择 `acp_runtime`。
+- `acp_runtime` 是创建 daemon agent 时选择的执行器类型。第一版写死支持 `opencode` 和 `codex`，后续再扩展为可配置 runtime catalog。同一个 `DaemonRuntime` 可以支持多个 ACP runtime，并由它派生多个 daemon agent。
+- `work_dir` 不属于 daemon 启动参数，也不应该固定在 runtime 连接配置里。临时方案是运行 agent 时按 session id 在 `/tmp` 下自动创建隔离工作目录；后续再升级为由 request/context/channel 配置显式传入。
+- 同一个 `DaemonRuntime` 不允许多个 daemon 同时在线连接。Registry 发现 `workspace_id + daemon_runtime_id` 已在线时，应拒绝新的连接；断开后可用同一个 token 重连。
+- 第一阶段 ADK 行为保持当前模式：daemon bridge 等待 terminal update，最终 yield 一个 `session.Event`。`RUNNING` 进度只记录为 daemon task 状态，不强制映射成 ADK streaming event。
+
+### 目标资源模型
+
+重构后的核心关系：
+
+```
+Workspace
+  └── DaemonRuntime
+        ├── token: daemon:connect, binds workspace_id + runtime_id
+        ├── single online connection: butter-daemon --url ... --token ...
+        └── supported ACP runtimes: opencode, codex (hardcoded in v1)
+
+RemoteAgent(protocol=DAEMON)
+  ├── daemon_runtime_id
+  ├── acp_runtime: opencode | codex | ...
+  └── normal Agent config references it via remote_agent_ids
+
+Agent invocation
+  ├── user input
+  ├── work_dir generated from session id under /tmp
+  └── Bridge dispatches DaemonTask(runtime_id, acp_runtime, work_dir, input)
+```
+
+Suggested proto shape:
+
+```protobuf
+message DaemonRuntime {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  map<string, string> labels = 4;
+  string workspace_id = 100;
+}
+
+message RemoteAgent {
+  string id = 1;
+  string name = 2;
+  string url = 3; // A2A only
+  RemoteAgentProtocol protocol = 4;
+
+  reserved 5;
+  reserved "daemon_capability";
+
+  string daemon_runtime_id = 6; // DAEMON only
+  string acp_runtime = 7;       // DAEMON only, e.g. "opencode" or "codex"
+  string workspace_id = 100;
+}
+
+message DaemonTask {
+  string task_id = 1;
+  string agent_name = 2;
+  string input = 3;
+  string session_id = 4;
+  string user_id = 5;
+  map<string, string> metadata = 6;
+
+  reserved 7;
+  reserved "capability";
+
+  string workspace_id = 8;
+  string daemon_runtime_id = 9;
+  string acp_runtime = 10;
+  string work_dir = 11;
+}
+```
+
+字段命名可以在实现前再统一，但语义应保持：`DaemonRuntime` 负责连接和执行面身份；`RemoteAgent` 负责从 runtime 派生一个可被 ADK runner 调度的 agent；`DaemonTask` 负责传递本次调用才知道的运行上下文。
+
+### 服务端流程
+
+1. 用户在 workspace 内创建 `DaemonRuntime`。
+2. 服务端创建 runtime 资源，并通过 `CreateDaemonRuntimeToken` 或等价 RPC 签发一次性可见的 daemon token。token 默认长期有效，语义跟现有 API token 一致。
+3. UI 展示启动命令：`butter-daemon --url <grpc-url> --token <token>`。
+4. daemon 使用 token 连接 `DaemonConnectorService.Connect`。服务端校验 token，注册到 `Registry`，键为 `workspace_id + daemon_runtime_id`。
+5. 如果该 runtime 已有在线连接，服务端拒绝第二个连接。runtime 断开后允许用同一个 token 重连。
+6. 用户基于该 runtime 创建 `RemoteAgent(protocol=DAEMON, daemon_runtime_id=..., acp_runtime=...)`；第一版 `acp_runtime` 只能是 `opencode` 或 `codex`。
+7. 普通 `Agent` 仍通过 `remote_agent_ids` 引用这个 remote agent。
+8. `internal/agent/resolveRemoteAgents()` 为 DAEMON remote agent 构造 ADK `agent.Agent`，bridge 中持有 `workspace_id + daemon_runtime_id + acp_runtime`。
+9. 运行时，bridge 根据 session id 生成 `/tmp` 下的临时 `work_dir`，构造 `DaemonTask` 并投递给对应 runtime connection。后续可把 `work_dir` 来源替换为 invocation/context metadata。
+
+### Daemon 端职责
+
+`cmd/butter-daemon` 重构后优先支持最小启动参数：
+
+```bash
+butter-daemon --url localhost:9090 --token bt_daemon_runtime_xxx
+```
+
+daemon 本地不再用 `daemon_id/name/allowed_capabilities` 声明 agent 能力。它连接成功后作为 runtime 执行面接收任务，并根据 `DaemonTask.acp_runtime` 选择内置 ACP adapter：
+
+| `acp_runtime` | 默认命令建议 | 说明 |
+|---------------|--------------|------|
+| `opencode` | `opencode acp` | 现有 ACP executor 的默认 profile |
+| `codex` | `codex-acp` | 参考 `zed-industries/codex-acp`；也可通过 `npx @zed-industries/codex-acp` 启动 |
+
+如果后续需要自定义命令、环境变量或权限策略，可以再引入本地 optional config 或 server-side runtime policy；但当前已确认的产品目标是 daemon 可先用 `url + token` 启动。
+
+### ADK Agent 适配
+
+daemon-backed `RemoteAgent` 仍必须实现为 ADK agent。由于 ADK `agent.Agent` 接口有未导出的 internal 方法，外部包仍通过 `agent.New(agent.Config{Run: ...})` 构造：
+
+```go
+bridge := daemon.NewRuntimeBridge(registry, workspaceID, runtimeID, acpRuntime)
+adkAgent, err := bridge.BuildAgent(remoteAgentName, description)
+```
+
+`Run` 行为保持第一阶段简单模型：
+
+1. 从 `InvocationContext.UserContent()` 提取用户输入。
+2. 根据 session id 在 `/tmp` 下生成或复用临时 `work_dir`。
+3. 按 `workspace_id + daemon_runtime_id` 查找在线 runtime。
+4. 下发 `DaemonTask{acp_runtime, work_dir, input}`。
+5. 等待 `COMPLETED/FAILED/CANCELLED`。
+6. 成功时 yield 一个最终 `session.Event`。
+
+### 待确认问题
+
+- `/tmp` 临时 `work_dir` 的目录命名与安全约束。建议目录名只使用 hash 后的 `workspace_id + session_id`，避免直接拼接用户输入。
+- `/tmp` 临时 `work_dir` 暂时不清理；需要记录后续 GC 需求，包括 TTL、手动清理、按 workspace/session 清理、失败任务是否保留现场。
+- `codex-acp` 的权限策略、文件 callback、terminal callback 与现有 ACP executor 的具体映射细节。
 
 ## 目标架构（参考 agent-gw 模块拆分）
 

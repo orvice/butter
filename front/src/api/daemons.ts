@@ -3,20 +3,20 @@ import { create } from "@bufbuild/protobuf";
 import { durationFromMs } from "@bufbuild/protobuf/wkt";
 import { WORKSPACE_KEY } from "@/lib/constants";
 import {
-  DaemonConfigSchema,
+  DaemonRuntimeSchema,
   DaemonService,
   DaemonStatus_State,
   type BridgeDiagnostics as PbBridgeDiagnostics,
-  type DaemonConfig as PbDaemonConfig,
+  type DaemonRuntime as PbDaemonRuntime,
   type DaemonStatus as PbDaemonStatus,
   type DaemonTaskInFlight as PbDaemonTaskInFlight,
   type LatencyPoint as PbLatencyPoint,
 } from "@/gen/agents/v1/dashboard_pb";
 import type {
   BridgeDiagnostics,
-  CreateDaemonCredentialInput,
-  CreateDaemonCredentialResult,
-  DaemonConfig,
+  CreateDaemonRuntimeTokenInput,
+  CreateDaemonRuntimeTokenResult,
+  DaemonRuntime,
   DaemonState,
   DaemonStatus,
   DaemonTaskInFlight,
@@ -63,9 +63,9 @@ function toDiagnostics(d: PbBridgeDiagnostics | undefined): BridgeDiagnostics {
 
 function toDaemonStatus(s: PbDaemonStatus): DaemonStatus {
   return {
-    daemon_id: s.daemonId,
+    daemon_runtime_id: s.daemonRuntimeId,
     name: s.name,
-    capabilities: s.capabilities,
+    acp_runtimes: s.acpRuntimes,
     labels: s.labels,
     state: toDaemonState(s.state),
     connected_at: tsToISO(s.connectedAt),
@@ -79,12 +79,11 @@ function toDaemonStatus(s: PbDaemonStatus): DaemonStatus {
   };
 }
 
-function toDaemonConfig(d: PbDaemonConfig): DaemonConfig {
+function toDaemonRuntime(d: PbDaemonRuntime): DaemonRuntime {
   return {
     id: d.id,
     name: d.name,
     description: d.description,
-    allowed_capabilities: d.allowedCapabilities,
     labels: d.labels,
     created_at: tsToISO(d.createdAt),
     created_by: d.createdBy,
@@ -92,12 +91,11 @@ function toDaemonConfig(d: PbDaemonConfig): DaemonConfig {
   };
 }
 
-function toDaemonConfigProto(d: DaemonConfig): PbDaemonConfig {
-  return create(DaemonConfigSchema, {
+function toDaemonRuntimeProto(d: DaemonRuntime): PbDaemonRuntime {
+  return create(DaemonRuntimeSchema, {
     id: d.id,
     name: d.name,
     description: d.description ?? "",
-    allowedCapabilities: d.allowed_capabilities ?? [],
     labels: d.labels ?? {},
   });
 }
@@ -105,9 +103,9 @@ function toDaemonConfigProto(d: DaemonConfig): PbDaemonConfig {
 function toTaskInFlight(t: PbDaemonTaskInFlight): DaemonTaskInFlight {
   return {
     task_id: t.taskId,
-    daemon_id: t.daemonId,
+    daemon_runtime_id: t.daemonRuntimeId,
     daemon_name: t.daemonName,
-    capability: t.capability,
+    acp_runtime: t.acpRuntime,
     started_at: tsToISO(t.startedAt),
     elapsed: durationToString(t.elapsed),
     current_step: t.currentStep,
@@ -117,37 +115,37 @@ function toTaskInFlight(t: PbDaemonTaskInFlight): DaemonTaskInFlight {
   };
 }
 
-async function listDaemonConfigs(): Promise<{ daemons: DaemonConfig[] }> {
-  const res = await client.listDaemonConfigs({});
-  return { daemons: res.daemons.map(toDaemonConfig) };
+async function listDaemonRuntimes(): Promise<{ runtimes: DaemonRuntime[] }> {
+  const res = await client.listDaemonRuntimes({});
+  return { runtimes: res.runtimes.map(toDaemonRuntime) };
 }
 
-async function getDaemonConfig(id: string): Promise<{ daemon: DaemonConfig }> {
-  const res = await client.getDaemonConfig({ id });
-  if (!res.daemon) throw new Error("daemon config not found");
-  return { daemon: toDaemonConfig(res.daemon) };
+async function getDaemonRuntime(id: string): Promise<{ runtime: DaemonRuntime }> {
+  const res = await client.getDaemonRuntime({ id });
+  if (!res.runtime) throw new Error("daemon runtime not found");
+  return { runtime: toDaemonRuntime(res.runtime) };
 }
 
-async function createDaemonConfig(daemon: DaemonConfig): Promise<{ daemon: DaemonConfig }> {
-  const res = await client.createDaemonConfig({ daemon: toDaemonConfigProto(daemon) });
-  if (!res.daemon) throw new Error("server returned no daemon config");
-  return { daemon: toDaemonConfig(res.daemon) };
+async function createDaemonRuntime(runtime: DaemonRuntime): Promise<{ runtime: DaemonRuntime }> {
+  const res = await client.createDaemonRuntime({ runtime: toDaemonRuntimeProto(runtime) });
+  if (!res.runtime) throw new Error("server returned no daemon runtime");
+  return { runtime: toDaemonRuntime(res.runtime) };
 }
 
-async function updateDaemonConfig(daemon: DaemonConfig): Promise<{ daemon: DaemonConfig }> {
-  const res = await client.updateDaemonConfig({ daemon: toDaemonConfigProto(daemon) });
-  if (!res.daemon) throw new Error("server returned no daemon config");
-  return { daemon: toDaemonConfig(res.daemon) };
+async function updateDaemonRuntime(runtime: DaemonRuntime): Promise<{ runtime: DaemonRuntime }> {
+  const res = await client.updateDaemonRuntime({ runtime: toDaemonRuntimeProto(runtime) });
+  if (!res.runtime) throw new Error("server returned no daemon runtime");
+  return { runtime: toDaemonRuntime(res.runtime) };
 }
 
-async function deleteDaemonConfig(id: string): Promise<void> {
-  await client.deleteDaemonConfig({ id });
+async function deleteDaemonRuntime(id: string): Promise<void> {
+  await client.deleteDaemonRuntime({ id });
 }
 
-async function createDaemonCredential(input: CreateDaemonCredentialInput): Promise<CreateDaemonCredentialResult> {
+async function createDaemonRuntimeToken(input: CreateDaemonRuntimeTokenInput): Promise<CreateDaemonRuntimeTokenResult> {
   const ttl = input.ttl_hours && input.ttl_hours > 0 ? durationFromMs(input.ttl_hours * 60 * 60 * 1000) : undefined;
-  const res = await client.createDaemonCredential({
-    daemonId: input.daemon_id,
+  const res = await client.createDaemonRuntimeToken({
+    daemonRuntimeId: input.daemon_runtime_id,
     name: input.name ?? "",
     ttl,
   });
@@ -162,19 +160,19 @@ async function listDaemons(): Promise<{ daemons: DaemonStatus[] }> {
   return { daemons: res.daemons.map(toDaemonStatus) };
 }
 
-async function getDaemon(daemonId: string): Promise<{ daemon: DaemonStatus }> {
-  const res = await client.getDaemon({ daemonId });
+async function getDaemon(daemonRuntimeId: string): Promise<{ daemon: DaemonStatus }> {
+  const res = await client.getDaemon({ daemonRuntimeId });
   if (!res.daemon) throw new Error("daemon not found");
   return { daemon: toDaemonStatus(res.daemon) };
 }
 
-async function listDaemonTasks(daemonId?: string): Promise<{ tasks: DaemonTaskInFlight[] }> {
-  const res = await client.listDaemonTasks({ daemonId: daemonId ?? "" });
+async function listDaemonTasks(daemonRuntimeId?: string): Promise<{ tasks: DaemonTaskInFlight[] }> {
+  const res = await client.listDaemonTasks({ daemonRuntimeId: daemonRuntimeId ?? "" });
   return { tasks: res.tasks.map(toTaskInFlight) };
 }
 
-async function cancelDaemonTask(taskId: string, daemonId?: string): Promise<void> {
-  await client.cancelDaemonTask({ taskId, daemonId: daemonId ?? "" });
+async function cancelDaemonTask(taskId: string, daemonRuntimeId?: string): Promise<void> {
+  await client.cancelDaemonTask({ taskId, daemonRuntimeId: daemonRuntimeId ?? "" });
 }
 
 async function getBridgeDiagnostics(): Promise<{ diagnostics: BridgeDiagnostics }> {
@@ -192,76 +190,76 @@ export function useDaemons() {
   });
 }
 
-export function useDaemonConfigs() {
+export function useDaemonRuntimes() {
   const workspaceId = localStorage.getItem(WORKSPACE_KEY);
   return useQuery({
-    queryKey: ["daemon-configs", workspaceId],
-    queryFn: listDaemonConfigs,
+    queryKey: ["daemon-runtimes", workspaceId],
+    queryFn: listDaemonRuntimes,
     enabled: !!workspaceId,
   });
 }
 
-export function useDaemonConfig(id: string) {
+export function useDaemonRuntime(id: string) {
   const workspaceId = localStorage.getItem(WORKSPACE_KEY);
   return useQuery({
-    queryKey: ["daemon-configs", workspaceId, id],
-    queryFn: () => getDaemonConfig(id),
+    queryKey: ["daemon-runtimes", workspaceId, id],
+    queryFn: () => getDaemonRuntime(id),
     enabled: !!workspaceId && !!id,
   });
 }
 
-export function useCreateDaemonConfig() {
+export function useCreateDaemonRuntime() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: createDaemonConfig,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["daemon-configs"] }),
+    mutationFn: createDaemonRuntime,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["daemon-runtimes"] }),
   });
 }
 
-export function useUpdateDaemonConfig() {
+export function useUpdateDaemonRuntime() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: updateDaemonConfig,
-    onSuccess: (_res, daemon) => {
-      qc.invalidateQueries({ queryKey: ["daemon-configs"] });
-      qc.invalidateQueries({ queryKey: ["daemon-configs", localStorage.getItem(WORKSPACE_KEY), daemon.id] });
+    mutationFn: updateDaemonRuntime,
+    onSuccess: (_res, runtime) => {
+      qc.invalidateQueries({ queryKey: ["daemon-runtimes"] });
+      qc.invalidateQueries({ queryKey: ["daemon-runtimes", localStorage.getItem(WORKSPACE_KEY), runtime.id] });
     },
   });
 }
 
-export function useDeleteDaemonConfig() {
+export function useDeleteDaemonRuntime() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: deleteDaemonConfig,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["daemon-configs"] }),
+    mutationFn: deleteDaemonRuntime,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["daemon-runtimes"] }),
   });
 }
 
-export function useCreateDaemonCredential() {
+export function useCreateDaemonRuntimeToken() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: createDaemonCredential,
+    mutationFn: createDaemonRuntimeToken,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["daemon-configs"] });
+      qc.invalidateQueries({ queryKey: ["daemon-runtimes"] });
       qc.invalidateQueries({ queryKey: ["api-tokens"] });
     },
   });
 }
 
-export function useDaemon(daemonId: string) {
+export function useDaemon(daemonRuntimeId: string) {
   const workspaceId = localStorage.getItem(WORKSPACE_KEY);
   return useQuery({
-    queryKey: ["daemons", workspaceId, daemonId],
-    queryFn: () => getDaemon(daemonId),
-    enabled: !!workspaceId && !!daemonId,
+    queryKey: ["daemons", workspaceId, daemonRuntimeId],
+    queryFn: () => getDaemon(daemonRuntimeId),
+    enabled: !!workspaceId && !!daemonRuntimeId,
   });
 }
 
-export function useDaemonTasks(daemonId?: string) {
+export function useDaemonTasks(daemonRuntimeId?: string) {
   const workspaceId = localStorage.getItem(WORKSPACE_KEY);
   return useQuery({
-    queryKey: ["daemons", workspaceId, "tasks", daemonId ?? "all"],
-    queryFn: () => listDaemonTasks(daemonId),
+    queryKey: ["daemons", workspaceId, "tasks", daemonRuntimeId ?? "all"],
+    queryFn: () => listDaemonTasks(daemonRuntimeId),
     enabled: !!workspaceId,
     refetchInterval: 5_000,
   });
@@ -270,8 +268,8 @@ export function useDaemonTasks(daemonId?: string) {
 export function useCancelDaemonTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ taskId, daemonId }: { taskId: string; daemonId?: string }) =>
-      cancelDaemonTask(taskId, daemonId),
+    mutationFn: ({ taskId, daemonRuntimeId }: { taskId: string; daemonRuntimeId?: string }) =>
+      cancelDaemonTask(taskId, daemonRuntimeId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["daemons"] }),
   });
 }

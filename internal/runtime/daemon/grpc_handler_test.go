@@ -34,25 +34,24 @@ func startTestServer(t *testing.T, registry *Registry, seed bool) (agentsv1.Daem
 	}
 
 	tokenRepo := tokenmem.New()
-	daemonRepo := configmem.New()
+	runtimeRepo := configmem.New()
 	if seed {
-		_, err := daemonRepo.CreateDaemonConfig(context.Background(), testWorkspaceID, &agentsv1.DaemonConfig{
-			Id:                  "test-daemon",
-			Name:                "Test",
-			AllowedCapabilities: []string{"opencode", "test"},
-			WorkspaceId:         testWorkspaceID,
+		_, err := runtimeRepo.CreateDaemonRuntime(context.Background(), testWorkspaceID, &agentsv1.DaemonRuntime{
+			Id:          "test-daemon",
+			Name:        "Test",
+			WorkspaceId: testWorkspaceID,
 		})
 		if err != nil {
-			t.Fatalf("seed daemon config: %v", err)
+			t.Fatalf("seed daemon runtime: %v", err)
 		}
 		err = tokenRepo.Create(context.Background(), &agentsv1.APIToken{
-			Id:          "tok-1",
-			Name:        "daemon",
-			WorkspaceId: testWorkspaceID,
-			Kind:        agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON,
-			Scopes:      []string{"daemon:connect"},
-			DaemonId:    "test-daemon",
-			CreatedAt:   timestamppb.New(time.Now().UTC()),
+			Id:              "tok-1",
+			Name:            "daemon",
+			WorkspaceId:     testWorkspaceID,
+			Kind:            agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON,
+			Scopes:          []string{"daemon:connect"},
+			DaemonRuntimeId: "test-daemon",
+			CreatedAt:       timestamppb.New(time.Now().UTC()),
 		}, hashTestSecret(testSecret))
 		if err != nil {
 			t.Fatalf("seed daemon credential: %v", err)
@@ -60,7 +59,7 @@ func startTestServer(t *testing.T, registry *Registry, seed bool) (agentsv1.Daem
 	}
 
 	srv := grpc.NewServer()
-	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, tokenRepo, daemonRepo))
+	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, tokenRepo, runtimeRepo))
 	go srv.Serve(lis)
 
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -100,10 +99,10 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 	err = stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{
-				DaemonId:     "test-daemon",
-				Name:         "Test",
-				Capabilities: []string{"opencode"},
-				WorkspaceId:  testWorkspaceID,
+				DaemonRuntimeId: "test-daemon",
+				Name:            "Test",
+				AcpRuntimes:     []string{"opencode"},
+				WorkspaceId:     testWorkspaceID,
 			},
 		},
 	})
@@ -114,13 +113,13 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 	// Wait for registration to propagate.
 	time.Sleep(100 * time.Millisecond)
 
-	conn := registry.FindByCapability(testWorkspaceID, "opencode")
+	conn := registry.Get(testWorkspaceID, "test-daemon")
 	if conn == nil {
 		t.Fatal("daemon not found in registry after register")
 	}
 
 	// Send a task via the registry connection.
-	task := &agentsv1.DaemonTask{TaskId: "t1", AgentName: "coder", Input: "hello", Capability: "opencode", WorkspaceId: testWorkspaceID}
+	task := &agentsv1.DaemonTask{TaskId: "t1", AgentName: "coder", Input: "hello", AcpRuntime: "opencode", WorkspaceId: testWorkspaceID}
 	resultCh, err := conn.SendTask(task)
 	if err != nil {
 		t.Fatalf("SendTask: %v", err)
@@ -178,7 +177,7 @@ func TestGRPCHandlerAuthRejectsInvalidToken(t *testing.T) {
 	}
 	err = stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
-			Register: &agentsv1.DaemonInfo{DaemonId: "d1"},
+			Register: &agentsv1.DaemonInfo{DaemonRuntimeId: "d1"},
 		},
 	})
 	if err != nil {
@@ -215,7 +214,7 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 
 	err = stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
-			Register: &agentsv1.DaemonInfo{DaemonId: "test-daemon", Capabilities: []string{"test"}},
+			Register: &agentsv1.DaemonInfo{DaemonRuntimeId: "test-daemon", AcpRuntimes: []string{"test"}},
 		},
 	})
 	if err != nil {
@@ -223,7 +222,7 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 	}
 
 	time.Sleep(100 * time.Millisecond)
-	if conn := registry.FindByCapability(testWorkspaceID, "test"); conn == nil {
+	if conn := registry.Get(testWorkspaceID, "test-daemon"); conn == nil {
 		t.Fatal("expected daemon to be registered with valid token")
 	}
 }

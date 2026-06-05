@@ -243,7 +243,8 @@ export interface RemoteAgent {
   name: string;
   url: string;
   protocol?: RemoteAgentProtocol;
-  daemon_capability?: string;
+  daemon_runtime_id?: string;
+  acp_runtime?: string;
 }
 
 export interface ModelConfig {
@@ -445,9 +446,9 @@ export interface HealthSummary {
 }
 
 export interface DaemonHandshake {
-  daemon_id?: string;
+  daemon_runtime_id?: string;
   name?: string;
-  capabilities?: string[];
+  acp_runtimes?: string[];
   connected_at?: string;
   os?: string;
 }
@@ -475,9 +476,9 @@ export interface CronExecutionBucket {
 // --- Daemons ---
 
 export interface DaemonStatus {
-  daemon_id: string;
+  daemon_runtime_id: string;
   name?: string;
-  capabilities?: string[];
+  acp_runtimes?: string[];
   labels?: Record<string, string>;
   state?: DaemonState;
   connected_at?: string;
@@ -490,33 +491,32 @@ export interface DaemonStatus {
   workspace_id?: string;
 }
 
-export interface DaemonConfig {
+export interface DaemonRuntime {
   id: string;
   name: string;
   description?: string;
-  allowed_capabilities?: string[];
   labels?: Record<string, string>;
   created_at?: string;
   created_by?: string;
   workspace_id?: string;
 }
 
-export interface CreateDaemonCredentialInput {
-  daemon_id: string;
+export interface CreateDaemonRuntimeTokenInput {
+  daemon_runtime_id: string;
   name?: string;
   ttl_hours?: number;
 }
 
-export interface CreateDaemonCredentialResult {
+export interface CreateDaemonRuntimeTokenResult {
   token?: APIToken;
   secret: string;
 }
 
 export interface DaemonTaskInFlight {
   task_id: string;
-  daemon_id?: string;
+  daemon_runtime_id?: string;
   daemon_name?: string;
-  capability?: string;
+  acp_runtime?: string;
   started_at?: string;
   elapsed?: string;
   current_step?: string;
@@ -573,7 +573,7 @@ export interface RemoteAgentStatus {
   protocol?: RemoteAgentProtocol;
   state?: RemoteAgentState;
   detail?: string;
-  serving_daemon_id?: string;
+  serving_daemon_runtime_id?: string;
   checked_at?: string;
   latency_ms?: number;
 }
@@ -590,7 +590,7 @@ export interface APIToken {
   kind?: string;
   scopes?: string[];
   expires_at?: string;
-  daemon_id?: string;
+  daemon_runtime_id?: string;
   workspace_id?: string;
 }
 

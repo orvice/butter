@@ -185,10 +185,16 @@ func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req
 
 	switch ra.GetProtocol() {
 	case agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON:
-		cap := ra.GetDaemonCapability()
-		if cap == "" {
+		runtimeID := strings.TrimSpace(ra.GetDaemonRuntimeId())
+		if runtimeID == "" {
 			status.State = agentsv1.RemoteAgentStatus_STATE_ERROR
-			status.Detail = "daemon_capability is required for DAEMON protocol"
+			status.Detail = "daemon_runtime_id is required for DAEMON protocol"
+			return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
+		}
+		acpRuntime := strings.TrimSpace(ra.GetAcpRuntime())
+		if acpRuntime != "opencode" && acpRuntime != "codex" {
+			status.State = agentsv1.RemoteAgentStatus_STATE_ERROR
+			status.Detail = "acp_runtime must be opencode or codex for DAEMON protocol"
 			return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
 		}
 		if s.daemonReg == nil {
@@ -196,13 +202,13 @@ func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req
 			status.Detail = "daemon registry not wired"
 			return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
 		}
-		conn := s.daemonReg.FindByCapability(wsID, cap)
+		conn := s.daemonReg.Get(wsID, runtimeID)
 		if conn == nil {
 			status.State = agentsv1.RemoteAgentStatus_STATE_UNREACHABLE
-			status.Detail = fmt.Sprintf("no online daemon serves capability %q", cap)
+			status.Detail = fmt.Sprintf("daemon runtime %q is not online", runtimeID)
 			return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
 		}
-		status.ServingDaemonId = conn.Info.GetDaemonId()
+		status.ServingDaemonRuntimeId = conn.Info.GetDaemonRuntimeId()
 		if conn.ActiveTaskCount() > 0 {
 			status.State = agentsv1.RemoteAgentStatus_STATE_ACTIVE
 		} else {

@@ -19,7 +19,7 @@ type configBackend interface {
 	configrepo.GlobalMCPServerRepository
 	configrepo.MCPServerRepository
 	configrepo.RemoteAgentRepository
-	configrepo.DaemonConfigRepository
+	configrepo.DaemonRuntimeRepository
 	configrepo.ChannelRepository
 	configrepo.ModelProviderRepository
 	configrepo.NotifyGroupRepository
@@ -259,28 +259,28 @@ func (s *ConfigStore) DeleteRemoteAgent(ctx context.Context, workspaceID, id str
 
 // --- Daemon Configs ---
 
-func (s *ConfigStore) ListDaemonConfigs(ctx context.Context, workspaceID string) ([]*agentsv1.DaemonConfig, error) {
-	return s.current().ListDaemonConfigs(ctx, workspaceID)
+func (s *ConfigStore) ListDaemonRuntimes(ctx context.Context, workspaceID string) ([]*agentsv1.DaemonRuntime, error) {
+	return s.current().ListDaemonRuntimes(ctx, workspaceID)
 }
 
-func (s *ConfigStore) ListDaemonConfigsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.DaemonConfig, error) {
-	return s.current().ListDaemonConfigsAcrossWorkspaces(ctx)
+func (s *ConfigStore) ListDaemonRuntimesAcrossWorkspaces(ctx context.Context) ([]*agentsv1.DaemonRuntime, error) {
+	return s.current().ListDaemonRuntimesAcrossWorkspaces(ctx)
 }
 
-func (s *ConfigStore) GetDaemonConfig(ctx context.Context, workspaceID, id string) (*agentsv1.DaemonConfig, error) {
-	return s.current().GetDaemonConfig(ctx, workspaceID, id)
+func (s *ConfigStore) GetDaemonRuntime(ctx context.Context, workspaceID, id string) (*agentsv1.DaemonRuntime, error) {
+	return s.current().GetDaemonRuntime(ctx, workspaceID, id)
 }
 
-func (s *ConfigStore) CreateDaemonConfig(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonConfig) (*agentsv1.DaemonConfig, error) {
-	return s.current().CreateDaemonConfig(ctx, workspaceID, daemon)
+func (s *ConfigStore) CreateDaemonRuntime(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonRuntime) (*agentsv1.DaemonRuntime, error) {
+	return s.current().CreateDaemonRuntime(ctx, workspaceID, daemon)
 }
 
-func (s *ConfigStore) UpdateDaemonConfig(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonConfig) (*agentsv1.DaemonConfig, error) {
-	return s.current().UpdateDaemonConfig(ctx, workspaceID, daemon)
+func (s *ConfigStore) UpdateDaemonRuntime(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonRuntime) (*agentsv1.DaemonRuntime, error) {
+	return s.current().UpdateDaemonRuntime(ctx, workspaceID, daemon)
 }
 
-func (s *ConfigStore) DeleteDaemonConfig(ctx context.Context, workspaceID, id string) error {
-	return s.current().DeleteDaemonConfig(ctx, workspaceID, id)
+func (s *ConfigStore) DeleteDaemonRuntime(ctx context.Context, workspaceID, id string) error {
+	return s.current().DeleteDaemonRuntime(ctx, workspaceID, id)
 }
 
 // --- Channels ---

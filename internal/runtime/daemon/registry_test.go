@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -8,56 +9,61 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-func TestRegistryRegisterAndFind(t *testing.T) {
+func TestRegistryRegisterAndGet(t *testing.T) {
 	r := NewRegistry()
 	conn := NewConnection(&agentsv1.DaemonInfo{
-		WorkspaceId:  "ws-1",
-		DaemonId:     "d1",
-		Name:         "daemon-1",
-		Capabilities: []string{"opencode", "shell"},
+		WorkspaceId:     "ws-1",
+		DaemonRuntimeId: "d1",
+		Name:            "daemon-1",
+		AcpRuntimes:     []string{"opencode", "codex"},
 	})
-	r.Register(conn)
+	if err := r.Register(conn); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
-	got := r.FindByCapability("ws-1", "opencode")
+	got := r.Get("ws-1", "d1")
 	if got != conn {
 		t.Fatalf("expected conn, got %v", got)
 	}
 
-	got = r.FindByCapability("ws-1", "shell")
-	if got != conn {
-		t.Fatalf("expected conn for shell, got %v", got)
-	}
-
-	got = r.FindByCapability("ws-1", "unknown")
-	if got != nil {
-		t.Fatalf("expected nil for unknown capability, got %v", got)
-	}
-
-	got = r.FindByCapability("ws-2", "opencode")
-	if got != nil {
+	if got := r.Get("ws-2", "d1"); got != nil {
 		t.Fatalf("expected nil for other workspace, got %v", got)
+	}
+}
+
+func TestRegistryRejectsDuplicateRuntime(t *testing.T) {
+	r := NewRegistry()
+	info := &agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonRuntimeId: "d1"}
+	if err := r.Register(NewConnection(info)); err != nil {
+		t.Fatalf("Register first: %v", err)
+	}
+	err := r.Register(NewConnection(info))
+	if !errors.Is(err, ErrRuntimeAlreadyConnected) {
+		t.Fatalf("expected ErrRuntimeAlreadyConnected, got %v", err)
 	}
 }
 
 func TestRegistryUnregister(t *testing.T) {
 	r := NewRegistry()
 	conn := NewConnection(&agentsv1.DaemonInfo{
-		WorkspaceId:  "ws-1",
-		DaemonId:     "d1",
-		Capabilities: []string{"opencode"},
+		WorkspaceId:     "ws-1",
+		DaemonRuntimeId: "d1",
+		AcpRuntimes:     []string{"opencode"},
 	})
-	r.Register(conn)
+	if err := r.Register(conn); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 	r.Unregister("ws-1", "d1")
 
-	if got := r.FindByCapability("ws-1", "opencode"); got != nil {
+	if got := r.Get("ws-1", "d1"); got != nil {
 		t.Fatalf("expected nil after unregister, got %v", got)
 	}
 }
 
 func TestRegistryListConnected(t *testing.T) {
 	r := NewRegistry()
-	r.Register(NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonId: "d1", Capabilities: []string{"a"}}))
-	r.Register(NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-2", DaemonId: "d2", Capabilities: []string{"a"}}))
+	_ = r.Register(NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonRuntimeId: "d1", AcpRuntimes: []string{"a"}}))
+	_ = r.Register(NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-2", DaemonRuntimeId: "d2", AcpRuntimes: []string{"a"}}))
 
 	list := r.ListConnected("")
 	if len(list) != 2 {
@@ -65,12 +71,8 @@ func TestRegistryListConnected(t *testing.T) {
 	}
 
 	list = r.ListConnected("ws-1")
-	if len(list) != 1 || list[0].GetDaemonId() != "d1" {
-		t.Fatalf("expected only ws-1 daemon, got %#v", list)
-	}
-
-	if got := r.FindByCapability("ws-2", "a"); got == nil || got.Info.GetDaemonId() != "d2" {
-		t.Fatalf("expected ws-2 capability lookup to find d2, got %v", got)
+	if len(list) != 1 || list[0].GetDaemonRuntimeId() != "d1" {
+		t.Fatalf("expected only ws-1 runtime, got %#v", list)
 	}
 }
 
@@ -83,9 +85,9 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			id := fmt.Sprintf("d-%d", i)
-			conn := NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonId: id, Capabilities: []string{"cap"}})
-			r.Register(conn)
-			r.FindByCapability("ws-1", "cap")
+			conn := NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonRuntimeId: id, AcpRuntimes: []string{"opencode"}})
+			_ = r.Register(conn)
+			_ = r.Get("ws-1", id)
 			r.ListConnected("ws-1")
 			r.Unregister("ws-1", id)
 		}(i)

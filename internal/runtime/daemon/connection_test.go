@@ -7,9 +7,9 @@ import (
 )
 
 func TestConnectionSendAndDispatch(t *testing.T) {
-	conn := NewConnection(&agentsv1.DaemonInfo{DaemonId: "d1", Capabilities: []string{"opencode"}})
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1", AcpRuntimes: []string{"opencode"}})
 
-	task := &agentsv1.DaemonTask{TaskId: "t1", AgentName: "coder", Input: "fix bug", Capability: "opencode"}
+	task := &agentsv1.DaemonTask{TaskId: "t1", AgentName: "coder", Input: "fix bug", AcpRuntime: "opencode"}
 	resultCh, err := conn.SendTask(task)
 	if err != nil {
 		t.Fatalf("SendTask: %v", err)
@@ -56,7 +56,7 @@ func TestConnectionSendAndDispatch(t *testing.T) {
 }
 
 func TestConnectionCloseNotifiesWaiters(t *testing.T) {
-	conn := NewConnection(&agentsv1.DaemonInfo{DaemonId: "d1"})
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1"})
 	task := &agentsv1.DaemonTask{TaskId: "t1"}
 	resultCh, err := conn.SendTask(task)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestConnectionCloseNotifiesWaiters(t *testing.T) {
 }
 
 func TestConnectionSendTaskAfterClose(t *testing.T) {
-	conn := NewConnection(&agentsv1.DaemonInfo{DaemonId: "d1"})
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1"})
 	conn.Close()
 
 	_, err := conn.SendTask(&agentsv1.DaemonTask{TaskId: "t1"})
@@ -86,7 +86,7 @@ func TestConnectionSendTaskAfterClose(t *testing.T) {
 }
 
 func TestConnectionDispatchUnknownTask(t *testing.T) {
-	conn := NewConnection(&agentsv1.DaemonInfo{DaemonId: "d1"})
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1"})
 	// Should not panic when dispatching for an unknown task.
 	conn.DispatchUpdate(&agentsv1.DaemonTaskUpdate{TaskId: "unknown", Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_COMPLETED})
 }

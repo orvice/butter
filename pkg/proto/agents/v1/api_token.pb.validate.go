@@ -154,7 +154,7 @@ func (m *APIToken) validate(all bool) error {
 		}
 	}
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	// no validation rules for WorkspaceId
 

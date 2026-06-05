@@ -76,31 +76,26 @@ Butter can delegate work to daemon-backed remote agents. Start a daemon client
 with:
 
 ```bash
-go run ./cmd/butter-daemon -config daemon.yaml
+go run ./cmd/butter-daemon --url grpc://localhost:9090 --token bt_daemon_runtime_secret
 ```
 
-Before starting a worker, create a workspace-scoped daemon config with the
-allowed capabilities, then issue a daemon credential for that daemon. The
-credential is a dedicated `API_TOKEN_KIND_DAEMON` token with `daemon:connect`
-scope; it is accepted only by the daemon gRPC endpoint and cannot call the HTTP
-API. The credential determines the authoritative workspace and daemon id during
-registration.
+Before starting a worker, create a workspace-scoped `DaemonRuntime`, then issue
+a runtime token for it. The token is a dedicated `API_TOKEN_KIND_DAEMON` token
+with `daemon:connect` scope; it is accepted only by the daemon gRPC endpoint and
+cannot call the HTTP API. The token determines the authoritative workspace and
+daemon runtime id during registration.
 
-Daemon executors are configured locally. ACP-compatible coding agents such as
-opencode should be exposed through the generic ACP executor:
+Daemon-backed remote agents choose a runtime plus an ACP runtime (`opencode` or
+`codex`). The server sends that choice in each task. The daemon has built-in ACP
+profiles for `opencode acp` and `codex-acp`; custom local config can override or
+extend those profiles:
 
 ```yaml
-server: localhost:9090
-credential: bt_daemon_credential_secret
-daemon_id: local-dev
-name: Local Dev Daemon
-
 executors:
   acp:
-    - capability: opencode
+    - runtime: opencode
       command: opencode
       args: ["acp"]
-      work_dir: /path/to/repo
       permission_policy: deny
       fs:
         read: true
@@ -110,8 +105,9 @@ executors:
     work_dir: /path/to/repo
 ```
 
-Legacy `executors.opencode` config is still accepted and is translated to the
-ACP form above (`opencode acp`), but new configs should use `executors.acp`.
+`work_dir` is currently provided by the server per session under `/tmp` for ACP
+tasks. Legacy `executors.opencode` config and `capability` in ACP profiles are
+still accepted, but new configs should use `executors.acp[].runtime`.
 
 ## Development
 

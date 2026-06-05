@@ -1,8 +1,12 @@
 package daemon
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"iter"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,19 +21,23 @@ import (
 
 // Bridge wraps daemon execution behind the ADK agent interface.
 type Bridge struct {
-	registry   *Registry
+	registry    *Registry
 	workspaceID string
-	capability string
-	metrics    *Metrics
+	runtimeID   string
+	acpRuntime  string
+	workDirRoot string
+	metrics     *Metrics
 }
 
-// NewBridge creates a new bridge for the given capability. It pulls the
-// metrics collector off the registry so bridge invocations are recorded.
-func NewBridge(registry *Registry, workspaceID, capability string) *Bridge {
+// NewBridge creates a bridge for a daemon runtime and ACP runtime pair. It
+// pulls the metrics collector off the registry so bridge invocations are recorded.
+func NewBridge(registry *Registry, workspaceID, runtimeID, acpRuntime string) *Bridge {
 	b := &Bridge{
-		registry:   registry,
+		registry:    registry,
 		workspaceID: workspaceID,
-		capability: capability,
+		runtimeID:   runtimeID,
+		acpRuntime:  acpRuntime,
+		workDirRoot: filepath.Join(os.TempDir(), "butter-daemon-workdirs"),
 	}
 	if registry != nil {
 		b.metrics = registry.Metrics()
@@ -65,20 +73,27 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 
 		input := extractText(ctx.UserContent())
 
-		conn := b.registry.FindByCapability(b.workspaceID, b.capability)
+		conn := b.registry.Get(b.workspaceID, b.runtimeID)
 		if conn == nil {
-			yield(nil, fmt.Errorf("no daemon available for capability %q", b.capability))
+			yield(nil, fmt.Errorf("daemon runtime %q is not online", b.runtimeID))
+			return
+		}
+		workDir, err := b.workDir(ctx.Session().ID())
+		if err != nil {
+			yield(nil, err)
 			return
 		}
 
 		task := &agentsv1.DaemonTask{
-			TaskId:     uuid.NewString(),
-			AgentName:  ctx.Agent().Name(),
-			Input:      input,
-			Capability: b.capability,
-			SessionId:  ctx.Session().ID(),
-			UserId:     ctx.Session().UserID(),
-			WorkspaceId: b.workspaceID,
+			TaskId:          uuid.NewString(),
+			AgentName:       ctx.Agent().Name(),
+			Input:           input,
+			SessionId:       ctx.Session().ID(),
+			UserId:          ctx.Session().UserID(),
+			WorkspaceId:     b.workspaceID,
+			DaemonRuntimeId: b.runtimeID,
+			AcpRuntime:      b.acpRuntime,
+			WorkDir:         workDir,
 		}
 
 		resultCh, err := conn.SendTask(task)
@@ -127,6 +142,20 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 			}
 		}
 	}
+}
+
+func (b *Bridge) workDir(sessionID string) (string, error) {
+	seed := b.workspaceID + ":" + sessionID
+	if seed == ":" {
+		seed = b.workspaceID + ":" + uuid.NewString()
+	}
+	sum := sha256.Sum256([]byte(seed))
+	name := hex.EncodeToString(sum[:])[:32]
+	dir := filepath.Join(b.workDirRoot, name)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("create daemon work_dir: %w", err)
+	}
+	return dir, nil
 }
 
 // extractText pulls text from a genai.Content, joining all text parts.

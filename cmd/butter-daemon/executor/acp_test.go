@@ -20,7 +20,7 @@ import (
 
 func TestACPExecutorSuccess(t *testing.T) {
 	exec := testACPExecutor(t, "success")
-	task := &agentsv1.DaemonTask{TaskId: "task-1", Capability: "test-acp", Input: "hello"}
+	task := &agentsv1.DaemonTask{TaskId: "task-1", AcpRuntime: "test-acp", Input: "hello"}
 	updates, onUpdate := collectUpdates()
 
 	if err := exec.Execute(context.Background(), task, onUpdate); err != nil {
@@ -47,7 +47,7 @@ func TestACPExecutorFailures(t *testing.T) {
 	for _, mode := range []string{"init-error", "session-error", "prompt-error"} {
 		t.Run(mode, func(t *testing.T) {
 			exec := testACPExecutor(t, mode)
-			task := &agentsv1.DaemonTask{TaskId: "task-1", Capability: "test-acp", Input: "hello"}
+			task := &agentsv1.DaemonTask{TaskId: "task-1", AcpRuntime: "test-acp", Input: "hello"}
 			updates, onUpdate := collectUpdates()
 
 			if err := exec.Execute(context.Background(), task, onUpdate); err == nil {
@@ -68,7 +68,7 @@ func TestACPExecutorFailures(t *testing.T) {
 
 func TestACPExecutorCancellation(t *testing.T) {
 	exec := testACPExecutor(t, "block")
-	task := &agentsv1.DaemonTask{TaskId: "task-1", Capability: "test-acp", Input: "hello"}
+	task := &agentsv1.DaemonTask{TaskId: "task-1", AcpRuntime: "test-acp", Input: "hello"}
 	updates, onUpdate := collectUpdates()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -101,7 +101,7 @@ func TestACPExecutorCancellation(t *testing.T) {
 
 func TestACPExecutorStopReasonCancelled(t *testing.T) {
 	exec := testACPExecutor(t, "cancel-stop")
-	task := &agentsv1.DaemonTask{TaskId: "task-1", Capability: "test-acp", Input: "hello"}
+	task := &agentsv1.DaemonTask{TaskId: "task-1", AcpRuntime: "test-acp", Input: "hello"}
 	updates, onUpdate := collectUpdates()
 
 	if err := exec.Execute(context.Background(), task, onUpdate); err != nil {
@@ -125,7 +125,7 @@ func TestACPTaskClientPermissionPolicy(t *testing.T) {
 		},
 	}
 
-	client := newACPTaskClient(context.Background(), task, ACPConfig{PermissionPolicy: PermissionPolicyAllow}, onUpdate)
+	client := newACPTaskClient(context.Background(), task, ACPConfig{PermissionPolicy: PermissionPolicyAllow}, "", onUpdate)
 	resp, err := client.RequestPermission(context.Background(), req)
 	if err != nil {
 		t.Fatalf("RequestPermission allow: %v", err)
@@ -134,7 +134,7 @@ func TestACPTaskClientPermissionPolicy(t *testing.T) {
 		t.Fatalf("expected allow selection, got %+v", resp.Outcome)
 	}
 
-	client = newACPTaskClient(context.Background(), task, ACPConfig{PermissionPolicy: PermissionPolicyDeny}, onUpdate)
+	client = newACPTaskClient(context.Background(), task, ACPConfig{PermissionPolicy: PermissionPolicyDeny}, "", onUpdate)
 	resp, err = client.RequestPermission(context.Background(), req)
 	if err != nil {
 		t.Fatalf("RequestPermission deny: %v", err)
@@ -152,7 +152,7 @@ func TestACPTaskClientFileCallbacks(t *testing.T) {
 	client := newACPTaskClient(context.Background(), &agentsv1.DaemonTask{TaskId: "task-1"}, ACPConfig{
 		WorkDir: root,
 		FS:      ACPFSConfig{Read: true, Write: true},
-	}, func(*agentsv1.DaemonTaskUpdate) {})
+	}, root, func(*agentsv1.DaemonTaskUpdate) {})
 
 	read, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
 		Path:  "notes.txt",
@@ -185,10 +185,11 @@ func TestACPTaskClientFileCallbacks(t *testing.T) {
 }
 
 func TestACPTaskClientTerminalCallbacks(t *testing.T) {
+	root := t.TempDir()
 	client := newACPTaskClient(context.Background(), &agentsv1.DaemonTask{TaskId: "task-1"}, ACPConfig{
-		WorkDir:  t.TempDir(),
+		WorkDir:  root,
 		Terminal: true,
-	}, func(*agentsv1.DaemonTaskUpdate) {})
+	}, root, func(*agentsv1.DaemonTaskUpdate) {})
 	resp, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
 		Command: "sh",
 		Args:    []string{"-c", "printf hello"},
@@ -352,7 +353,7 @@ func (a *testAgent) SetSessionMode(context.Context, acp.SetSessionModeRequest) (
 func testACPExecutor(t *testing.T, mode string) *ACPExecutor {
 	t.Helper()
 	exec, err := NewACPExecutor(ACPConfig{
-		Capability:       "test-acp",
+		Runtime:          "test-acp",
 		Command:          os.Args[0],
 		Args:             []string{"-test.run=TestHelperProcessACPAgent"},
 		Env:              map[string]string{"BUTTER_ACP_HELPER": "1", "BUTTER_ACP_HELPER_MODE": mode},

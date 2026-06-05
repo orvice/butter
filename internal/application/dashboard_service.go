@@ -347,11 +347,11 @@ func (s *DashboardServiceServer) latestHandshake() *agentsv1.DaemonHandshake {
 		}
 	}
 	return &agentsv1.DaemonHandshake{
-		DaemonId:     latest.Info.GetDaemonId(),
-		Name:         latest.Info.GetName(),
-		Capabilities: latest.Info.GetCapabilities(),
-		ConnectedAt:  timestamppb.New(latest.ConnectedAt),
-		Os:           latest.Info.GetOs(),
+		DaemonRuntimeId: latest.Info.GetDaemonRuntimeId(),
+		Name:            latest.Info.GetName(),
+		AcpRuntimes:     latest.Info.GetAcpRuntimes(),
+		ConnectedAt:     timestamppb.New(latest.ConnectedAt),
+		Os:              latest.Info.GetOs(),
 	}
 }
 
