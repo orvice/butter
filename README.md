@@ -105,9 +105,13 @@ executors:
     work_dir: /path/to/repo
 ```
 
-`work_dir` is currently provided by the server per session under `/tmp` for ACP
-tasks. Legacy `executors.opencode` config and `capability` in ACP profiles are
-still accepted, but new configs should use `executors.acp[].runtime`.
+`work_dir` is currently created by the server per session under `/tmp` and sent
+as an absolute path for ACP tasks. In this interim model, the daemon must run on
+the same host/container filesystem as the server, or both processes must mount a
+shared volume at the same absolute path, otherwise the local ACP process will not
+be able to `chdir` into the server-created directory. Legacy
+`executors.opencode` config and `capability` in ACP profiles are still accepted,
+but new configs should use `executors.acp[].runtime`.
 
 ## Development
 

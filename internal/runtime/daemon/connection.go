@@ -18,13 +18,46 @@ var ErrRuntimeAlreadyConnected = errors.New("daemon runtime already connected")
 
 // taskState tracks a single in-flight task on a daemon connection.
 type taskState struct {
+	mu          sync.Mutex
 	resultCh    chan *agentsv1.DaemonTaskUpdate
+	closed      bool
 	startedAt   time.Time
 	agentName   string
 	acpRuntime  string
 	workspaceID string
 	currentStep string
 	progress    int32
+}
+
+func (t *taskState) deliver(update *agentsv1.DaemonTaskUpdate, closeAfter bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		return
+	}
+	select {
+	case t.resultCh <- update:
+	default:
+		// Do not let a stopped or slow consumer wedge the connection. Drop one
+		// stale buffered progress update so the latest update (including terminal
+		// or disconnect) can be observed.
+		select {
+		case <-t.resultCh:
+		default:
+		}
+		select {
+		case t.resultCh <- update:
+		default:
+		}
+	}
+	if closeAfter {
+		t.closed = true
+		close(t.resultCh)
+	}
+}
+
+func (t *taskState) closeWith(update *agentsv1.DaemonTaskUpdate) {
+	t.deliver(update, true)
 }
 
 // TaskSnapshot is a point-in-time view of a single in-flight task suitable
@@ -109,6 +142,8 @@ func (c *Connection) CancelTask(taskID string) error {
 // result channel. If the task is not found (already completed or cancelled),
 // the update is silently dropped.
 func (c *Connection) DispatchUpdate(update *agentsv1.DaemonTaskUpdate) {
+	terminal := isTerminal(update.Status)
+
 	c.mu.Lock()
 	t, ok := c.activeTasks[update.TaskId]
 	if ok {
@@ -118,17 +153,14 @@ func (c *Connection) DispatchUpdate(update *agentsv1.DaemonTaskUpdate) {
 		if p := update.GetProgress(); p > 0 {
 			t.progress = p
 		}
-		if isTerminal(update.Status) {
+		if terminal {
 			delete(c.activeTasks, update.TaskId)
 		}
 	}
 	c.mu.Unlock()
 
 	if ok {
-		t.resultCh <- update
-		if isTerminal(update.Status) {
-			close(t.resultCh)
-		}
+		t.deliver(update, terminal)
 	}
 }
 
@@ -184,20 +216,25 @@ func (c *Connection) ActiveTaskSnapshots() []TaskSnapshot {
 // that the daemon has disconnected.
 func (c *Connection) Close() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.closed {
+		c.mu.Unlock()
 		return
 	}
 	c.closed = true
 
+	tasks := make(map[string]*taskState, len(c.activeTasks))
 	for id, t := range c.activeTasks {
-		t.resultCh <- &agentsv1.DaemonTaskUpdate{
+		tasks[id] = t
+		delete(c.activeTasks, id)
+	}
+	c.mu.Unlock()
+
+	for id, t := range tasks {
+		t.closeWith(&agentsv1.DaemonTaskUpdate{
 			TaskId: id,
 			Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED,
 			Error:  "daemon disconnected",
-		}
-		close(t.resultCh)
-		delete(c.activeTasks, id)
+		})
 	}
 }
 

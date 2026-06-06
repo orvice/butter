@@ -152,7 +152,7 @@ adkAgent, err := bridge.BuildAgent(remoteAgentName, description)
 
 ### 待确认问题
 
-- `/tmp` 临时 `work_dir` 的目录命名与安全约束。建议目录名只使用 hash 后的 `workspace_id + session_id`，避免直接拼接用户输入。
+- 当前 `/tmp` 临时 `work_dir` 是由 server 创建并以绝对路径下发给 daemon；因此第一阶段隐含要求 daemon 与 server 在同一主机/容器文件系统内运行，或在相同绝对路径挂载共享 volume。独立容器/远程主机部署在未共享该路径时会因本地 executor 无法进入目录而失败；后续需要把 `work_dir` 来源改为 daemon-local 创建或显式 workspace mount 配置。
 - `/tmp` 临时 `work_dir` 暂时不清理；需要记录后续 GC 需求，包括 TTL、手动清理、按 workspace/session 清理、失败任务是否保留现场。
 - `codex-acp` 的权限策略、文件 callback、terminal callback 与现有 ACP executor 的具体映射细节。
 
