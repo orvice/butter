@@ -226,3 +226,49 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 		t.Fatal("expected daemon to be registered with valid token")
 	}
 }
+
+func TestGRPCHandlerUnregistersOnCleanClientClose(t *testing.T) {
+	registry := NewRegistry()
+	client, cleanup := startTestServer(t, registry, true)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+testSecret)
+
+	stream, err := client.Connect(ctx)
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	if err := stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_Register{
+			Register: &agentsv1.DaemonInfo{DaemonRuntimeId: "test-daemon", AcpRuntimes: []string{"opencode"}},
+		},
+	}); err != nil {
+		t.Fatalf("Send register: %v", err)
+	}
+
+	deadline := time.After(2 * time.Second)
+	for registry.Get(testWorkspaceID, "test-daemon") == nil {
+		select {
+		case <-deadline:
+			t.Fatal("daemon was not registered")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	if err := stream.CloseSend(); err != nil {
+		t.Fatalf("CloseSend: %v", err)
+	}
+
+	deadline = time.After(2 * time.Second)
+	for registry.Get(testWorkspaceID, "test-daemon") != nil {
+		select {
+		case <-deadline:
+			t.Fatal("daemon remained registered after clean client close")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}

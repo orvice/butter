@@ -88,6 +88,7 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
+	done := make(chan struct{})
 
 	// Send loop: conn.SendCh → stream.Send().
 	wg.Add(1)
@@ -100,6 +101,8 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 					errCh <- fmt.Errorf("send: %w", err)
 					return
 				}
+			case <-done:
+				return
 			case <-ctx.Done():
 				return
 			}
@@ -113,7 +116,9 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 		for {
 			msg, err := stream.Recv()
 			if err != nil {
-				if err != io.EOF {
+				if err == io.EOF {
+					errCh <- nil
+				} else {
 					errCh <- fmt.Errorf("recv: %w", err)
 				}
 				return
@@ -127,10 +132,13 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 	// Wait for either loop to finish or context to cancel.
 	select {
 	case err := <-errCh:
-		logger.Debug("daemon stream error", "daemon_runtime_id", regInfo.GetDaemonRuntimeId(), "err", err)
+		if err != nil {
+			logger.Debug("daemon stream error", "daemon_runtime_id", regInfo.GetDaemonRuntimeId(), "err", err)
+		}
 	case <-ctx.Done():
 	}
 
+	close(done)
 	wg.Wait()
 	return nil
 }
