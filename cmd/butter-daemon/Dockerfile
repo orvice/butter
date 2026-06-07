@@ -36,7 +36,7 @@ RUN set -eux; \
       -o "$tmpdir/codex.tar.gz" \
       "https://github.com/openai/codex/releases/download/rust-v${OPENAI_CODEX_VERSION}/codex-${codex_arch}-unknown-linux-musl.tar.gz"; \
     tar -xzf "$tmpdir/codex.tar.gz" -C "$tmpdir"; \
-    find "$tmpdir" -type f -name codex -exec mv {} /usr/local/bin/codex \; ; \
+    mv "$tmpdir/codex-${codex_arch}-unknown-linux-musl" /usr/local/bin/codex; \
     chmod 755 /usr/local/bin/codex; \
     rm -rf "$tmpdir"; \
     codex --version
