@@ -7,9 +7,12 @@ import {
   useDaemons,
   useDaemonRuntimes,
   useDaemonTasks,
+  useDeleteDaemonRuntime,
+  useUpdateDaemonRuntime,
 } from "@/api/daemons";
 import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data-table";
+import { DeleteDialog } from "@/components/delete-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,12 +24,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { DaemonRuntime, DaemonStatus, DaemonTaskInFlight } from "@/types/api";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
-import { AlertCircle, Cpu, MemoryStick, Activity, X, Terminal, Router, Copy, KeyRound, Plus } from "lucide-react";
+import { AlertCircle, Cpu, MemoryStick, Activity, X, Terminal, Router, Copy, KeyRound, Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 
 const DAEMON_URL = `${window.location.hostname || "localhost"}:9090`;
 
@@ -60,6 +70,41 @@ function fmtDuration(d?: string): string {
   return `${s}s`;
 }
 
+function parseLabels(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if (key) out[key] = value;
+  }
+  return out;
+}
+
+function serializeLabels(labels?: Record<string, string>): string {
+  if (!labels) return "";
+  return Object.entries(labels)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n");
+}
+
+function LabelBadges({ labels }: { labels?: Record<string, string> }) {
+  const entries = Object.entries(labels ?? {});
+  if (entries.length === 0) return <span className="text-xs text-muted-foreground">-</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {entries.map(([k, v]) => (
+        <Badge key={k} variant="outline" className="text-xs font-normal">
+          {k}={v}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
 function DaemonStateBadge({ state }: { state?: DaemonStatus["state"] }) {
   const variant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     STATE_ONLINE: "default",
@@ -87,15 +132,20 @@ function DaemonStateBadge({ state }: { state?: DaemonStatus["state"] }) {
 
 export default function DaemonListPage() {
   const [runtimeOpen, setRuntimeOpen] = useState(false);
+  const [editingRuntime, setEditingRuntime] = useState<DaemonRuntime | null>(null);
   const [tokenTarget, setTokenTarget] = useState<DaemonRuntime | null>(null);
-  const [newRuntime, setNewRuntime] = useState({ id: "", name: "", description: "" });
+  const [deleteTarget, setDeleteTarget] = useState<DaemonRuntime | null>(null);
+  const [runtimeForm, setRuntimeForm] = useState({ id: "", name: "", description: "", labels: "" });
   const [tokenName, setTokenName] = useState("");
+  const [tokenTtl, setTokenTtl] = useState("");
   const [runtimeSecret, setRuntimeSecret] = useState<{ runtime: DaemonRuntime; secret: string } | null>(null);
   const { data: runtimeData, isLoading: loadingRuntimes, error: runtimeError } = useDaemonRuntimes();
   const { data: daemonData, isLoading: loadingDaemons, error: daemonError } = useDaemons();
   const { data: taskData, error: taskError } = useDaemonTasks();
   const { data: bridgeData, error: bridgeError } = useBridgeDiagnostics();
   const createRuntime = useCreateDaemonRuntime();
+  const updateRuntime = useUpdateDaemonRuntime();
+  const deleteRuntime = useDeleteDaemonRuntime();
   const createToken = useCreateDaemonRuntimeToken();
   const cancelTask = useCancelDaemonTask();
 
@@ -124,6 +174,7 @@ export default function DaemonListPage() {
         </div>
       ),
     },
+    { header: "Labels", cell: (r) => <LabelBadges labels={r.labels} /> },
     { header: "In-flight", cell: (r) => <Badge variant="secondary">{r.active_tasks ?? 0}</Badge> },
   ];
 
@@ -150,19 +201,41 @@ export default function DaemonListPage() {
       cell: (r) => <span className="text-xs text-muted-foreground">{r.description || "-"}</span>,
     },
     {
-      header: "Actions",
+      header: "Labels",
+      cell: (r) => <LabelBadges labels={r.labels} />,
+    },
+    {
+      header: "",
       cell: (r) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            setTokenTarget(r);
-            setTokenName(`${r.name || r.id} daemon`);
-          }}
-        >
-          <KeyRound className="mr-1 h-3.5 w-3.5" />
-          Token
-        </Button>
+        <div className="flex justify-end gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setTokenTarget(r);
+              setTokenName(`${r.name || r.id} daemon`);
+              setTokenTtl("");
+            }}
+          >
+            <KeyRound className="mr-1 h-3.5 w-3.5" />
+            Token
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => openEditRuntime(r)}>
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(r)}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];
@@ -216,20 +289,51 @@ export default function DaemonListPage() {
     ms: p.latency_ms ?? 0,
   }));
 
-  function createRuntimeSubmit() {
-    const id = newRuntime.id.trim();
-    const name = newRuntime.name.trim();
-    if (!id || !name) {
-      toast.error("Runtime ID and name are required");
+  function openCreateRuntime() {
+    setEditingRuntime(null);
+    setRuntimeForm({ id: "", name: "", description: "", labels: "" });
+    setRuntimeOpen(true);
+  }
+
+  function openEditRuntime(r: DaemonRuntime) {
+    setEditingRuntime(r);
+    setRuntimeForm({
+      id: r.id,
+      name: r.name || "",
+      description: r.description || "",
+      labels: serializeLabels(r.labels),
+    });
+    setRuntimeOpen(true);
+  }
+
+  function runtimeSubmit() {
+    const name = runtimeForm.name.trim();
+    if (!name) {
+      toast.error("Name is required");
+      return;
+    }
+    const labels = parseLabels(runtimeForm.labels);
+    if (editingRuntime) {
+      updateRuntime.mutate(
+        { ...editingRuntime, name, description: runtimeForm.description.trim(), labels },
+        {
+          onSuccess: () => {
+            toast.success("Daemon runtime updated");
+            setRuntimeOpen(false);
+            setEditingRuntime(null);
+          },
+          onError: (e) => toast.error(e.message),
+        },
+      );
       return;
     }
     createRuntime.mutate(
-      { id, name, description: newRuntime.description.trim() },
+      { id: runtimeForm.id.trim(), name, description: runtimeForm.description.trim(), labels },
       {
         onSuccess: () => {
           toast.success("Daemon runtime created");
           setRuntimeOpen(false);
-          setNewRuntime({ id: "", name: "", description: "" });
+          setRuntimeForm({ id: "", name: "", description: "", labels: "" });
         },
         onError: (e) => toast.error(e.message),
       },
@@ -238,16 +342,23 @@ export default function DaemonListPage() {
 
   function createTokenSubmit() {
     if (!tokenTarget) return;
+    const ttlHours = tokenTtl.trim() ? Number(tokenTtl) : undefined;
+    if (ttlHours !== undefined && (!Number.isFinite(ttlHours) || ttlHours <= 0)) {
+      toast.error("TTL must be a positive number of hours");
+      return;
+    }
     createToken.mutate(
       {
         daemon_runtime_id: tokenTarget.id,
         name: tokenName.trim() || `${tokenTarget.name || tokenTarget.id} daemon`,
+        ttl_hours: ttlHours,
       },
       {
         onSuccess: (res) => {
           setRuntimeSecret({ runtime: tokenTarget, secret: res.secret });
           setTokenTarget(null);
           setTokenName("");
+          setTokenTtl("");
         },
         onError: (e) => toast.error(e.message),
       },
@@ -293,7 +404,7 @@ export default function DaemonListPage() {
             <Router className="h-4 w-4 text-muted-foreground" />
             Daemon Runtimes
           </CardTitle>
-          <Button className="w-full sm:w-auto" onClick={() => setRuntimeOpen(true)}>
+          <Button className="w-full sm:w-auto" onClick={openCreateRuntime}>
             <Plus className="mr-2 h-4 w-4" />
             Add Runtime
           </Button>
@@ -333,9 +444,6 @@ export default function DaemonListPage() {
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground"><MemoryStick className="h-4 w-4" /> Router Memory</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{fmtBytes(diag?.memory_used_bytes)}</div>
-            {diag?.memory_limit_bytes ? (
-              <p className="text-xs text-muted-foreground">of {fmtBytes(diag.memory_limit_bytes)}</p>
-            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -352,10 +460,10 @@ export default function DaemonListPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-[#374151] bg-[#111827] text-gray-200">
-        <CardHeader className="border-b border-gray-800 bg-gray-900 pb-4">
-          <CardTitle className="flex items-center gap-2 text-gray-200">
-            <Activity className="h-4 w-4 text-primary" />
+      <Card>
+        <CardHeader className="border-b bg-muted/30 pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-muted-foreground" />
             Active Tasks
           </CardTitle>
         </CardHeader>
@@ -377,7 +485,7 @@ export default function DaemonListPage() {
               <XAxis dataKey="ts" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} unit="ms" />
               <Tooltip />
-              <Line type="monotone" dataKey="ms" stroke="#3b82f6" dot={false} />
+              <Line type="monotone" dataKey="ms" stroke="var(--chart-1)" dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
@@ -386,28 +494,31 @@ export default function DaemonListPage() {
       <Dialog open={runtimeOpen} onOpenChange={setRuntimeOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Daemon Runtime</DialogTitle>
+            <DialogTitle>{editingRuntime ? "Edit Daemon Runtime" : "Add Daemon Runtime"}</DialogTitle>
             <DialogDescription>
               Create a workspace runtime before starting butter-daemon with a runtime token.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="runtime-id">Runtime ID</Label>
-              <Input
-                id="runtime-id"
-                placeholder="dev-machine-1"
-                value={newRuntime.id}
-                onChange={(e) => setNewRuntime((v) => ({ ...v, id: e.target.value }))}
-              />
-            </div>
+            {editingRuntime ? null : (
+              <div className="space-y-2">
+                <Label htmlFor="runtime-id">Runtime ID</Label>
+                <Input
+                  id="runtime-id"
+                  placeholder="Leave blank to auto-generate"
+                  value={runtimeForm.id}
+                  onChange={(e) => setRuntimeForm((v) => ({ ...v, id: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">Optional. A unique ID is generated if left blank.</p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="runtime-name">Name</Label>
               <Input
                 id="runtime-name"
                 placeholder="Dev machine"
-                value={newRuntime.name}
-                onChange={(e) => setNewRuntime((v) => ({ ...v, name: e.target.value }))}
+                value={runtimeForm.name}
+                onChange={(e) => setRuntimeForm((v) => ({ ...v, name: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -415,15 +526,33 @@ export default function DaemonListPage() {
               <Input
                 id="runtime-description"
                 placeholder="Local daemon runtime"
-                value={newRuntime.description}
-                onChange={(e) => setNewRuntime((v) => ({ ...v, description: e.target.value }))}
+                value={runtimeForm.description}
+                onChange={(e) => setRuntimeForm((v) => ({ ...v, description: e.target.value }))}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="runtime-labels">Labels</Label>
+              <Textarea
+                id="runtime-labels"
+                placeholder={"repo=butter\nenv=dev"}
+                rows={3}
+                className="font-mono text-xs"
+                value={runtimeForm.labels}
+                onChange={(e) => setRuntimeForm((v) => ({ ...v, labels: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">One key=value per line.</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRuntimeOpen(false)}>Cancel</Button>
-            <Button onClick={createRuntimeSubmit} disabled={createRuntime.isPending}>
-              {createRuntime.isPending ? "Creating..." : "Create"}
+            <Button onClick={runtimeSubmit} disabled={createRuntime.isPending || updateRuntime.isPending}>
+              {editingRuntime
+                ? updateRuntime.isPending
+                  ? "Saving..."
+                  : "Save"
+                : createRuntime.isPending
+                  ? "Creating..."
+                  : "Create"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -437,13 +566,27 @@ export default function DaemonListPage() {
               Use this token when starting butter-daemon for {tokenTarget?.name || tokenTarget?.id}.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="runtime-token-name">Token name</Label>
-            <Input
-              id="runtime-token-name"
-              value={tokenName}
-              onChange={(e) => setTokenName(e.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="runtime-token-name">Token name</Label>
+              <Input
+                id="runtime-token-name"
+                value={tokenName}
+                onChange={(e) => setTokenName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="runtime-token-ttl">Expires in (hours)</Label>
+              <Input
+                id="runtime-token-ttl"
+                type="number"
+                min={1}
+                placeholder="Never expires"
+                value={tokenTtl}
+                onChange={(e) => setTokenTtl(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Optional. Leave blank for a long-lived token.</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTokenTarget(null)}>Cancel</Button>
@@ -453,6 +596,24 @@ export default function DaemonListPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete Daemon Runtime"
+        description="Delete this daemon runtime? Tokens issued for it will stop working. This action cannot be undone."
+        loading={deleteRuntime.isPending}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteRuntime.mutate(deleteTarget.id, {
+            onSuccess: () => {
+              toast.success("Daemon runtime deleted");
+              setDeleteTarget(null);
+            },
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
 
       <Dialog open={!!runtimeSecret} onOpenChange={(open) => !open && setRuntimeSecret(null)}>
         <DialogContent className="sm:max-w-xl">
