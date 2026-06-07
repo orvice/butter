@@ -3,24 +3,26 @@ package app
 import (
 	"fmt"
 	"net"
+	"net/http"
 
 	"log/slog"
 
-	"google.golang.org/grpc"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
-	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
 const defaultGRPCPort = 9090
 
-// SetupGRPCServer creates a gRPC server with the DaemonConnectorService service
-// registered. It returns the server and a listener. The caller is responsible
-// for calling srv.Serve(lis).
-func SetupGRPCServer(cfg *config.AppConfig, registry *daemon.Registry, tokenRepo apitoken.Repository, daemonRepo configrepo.DaemonRuntimeRepository) (*grpc.Server, net.Listener, error) {
+// SetupGRPCServer creates an HTTP/2 (h2c) server exposing the
+// DaemonConnectorService over ConnectRPC. It returns the server and a listener;
+// the caller is responsible for calling srv.Serve(lis).
+func SetupGRPCServer(cfg *config.AppConfig, registry *daemon.Registry, tokenRepo apitoken.Repository, daemonRepo configrepo.DaemonRuntimeRepository) (*http.Server, net.Listener, error) {
 	port := cfg.GRPCPort
 	if port == 0 {
 		port = defaultGRPCPort
@@ -32,10 +34,15 @@ func SetupGRPCServer(cfg *config.AppConfig, registry *daemon.Registry, tokenRepo
 		return nil, nil, fmt.Errorf("grpc listen on %s: %w", addr, err)
 	}
 
-	srv := grpc.NewServer()
 	handler := daemon.NewGRPCHandler(registry, tokenRepo, daemonRepo)
-	agentsv1.RegisterDaemonConnectorServiceServer(srv, handler)
+	mux := http.NewServeMux()
+	path, h := agentsv1connect.NewDaemonConnectorServiceHandler(handler)
+	mux.Handle(path, h)
 
-	slog.Info("gRPC server configured", "addr", addr)
+	srv := &http.Server{
+		Handler: h2c.NewHandler(mux, &http2.Server{}),
+	}
+
+	slog.Info("daemon connect server configured", "addr", addr)
 	return srv, lis, nil
 }

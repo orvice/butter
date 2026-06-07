@@ -3,21 +3,24 @@ package daemon
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
+	"connectrpc.com/connect"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	tokenmem "go.orx.me/apps/butter/internal/repo/apitoken/memory"
 	configmem "go.orx.me/apps/butter/internal/repo/config/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -26,12 +29,8 @@ const (
 	testSecret      = "daemon-secret"
 )
 
-func startTestServer(t *testing.T, registry *Registry, seed bool) (agentsv1.DaemonConnectorServiceClient, func()) {
+func startTestServer(t *testing.T, registry *Registry, seed bool) (agentsv1connect.DaemonConnectorServiceClient, func()) {
 	t.Helper()
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
 
 	tokenRepo := tokenmem.New()
 	runtimeRepo := configmem.New()
@@ -58,20 +57,25 @@ func startTestServer(t *testing.T, registry *Registry, seed bool) (agentsv1.Daem
 		}
 	}
 
-	srv := grpc.NewServer()
-	agentsv1.RegisterDaemonConnectorServiceServer(srv, NewGRPCHandler(registry, tokenRepo, runtimeRepo))
-	go srv.Serve(lis)
+	mux := http.NewServeMux()
+	path, h := agentsv1connect.NewDaemonConnectorServiceHandler(NewGRPCHandler(registry, tokenRepo, runtimeRepo))
+	mux.Handle(path, h)
 
-	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		srv.Stop()
-		t.Fatalf("dial: %v", err)
+	srv := httptest.NewServer(h2c.NewHandler(mux, &http2.Server{}))
+
+	httpClient := &http.Client{
+		Transport: &http2.Transport{
+			AllowHTTP: true,
+			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, network, addr)
+			},
+		},
 	}
 
-	client := agentsv1.NewDaemonConnectorServiceClient(conn)
+	client := agentsv1connect.NewDaemonConnectorServiceClient(httpClient, srv.URL)
 	cleanup := func() {
-		conn.Close()
-		srv.Stop()
+		srv.Close()
 	}
 	return client, cleanup
 }
@@ -88,15 +92,12 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+testSecret)
 
-	stream, err := client.Connect(ctx)
-	if err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
+	stream := client.Connect(ctx)
+	stream.RequestHeader().Set("Authorization", "Bearer "+testSecret)
 
 	// Register.
-	err = stream.Send(&agentsv1.ConnectRequest{
+	err := stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{
 				DaemonRuntimeId: "test-daemon",
@@ -111,9 +112,7 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 	}
 
 	// Wait for registration to propagate.
-	time.Sleep(100 * time.Millisecond)
-
-	conn := registry.Get(testWorkspaceID, "test-daemon")
+	conn := waitForConn(registry, testWorkspaceID, "test-daemon", 2*time.Second)
 	if conn == nil {
 		t.Fatal("daemon not found in registry after register")
 	}
@@ -126,7 +125,7 @@ func TestGRPCHandlerConnectAndTask(t *testing.T) {
 	}
 
 	// Daemon receives the task.
-	msg, err := stream.Recv()
+	msg, err := stream.Receive()
 	if err != nil {
 		t.Fatalf("Recv task: %v", err)
 	}
@@ -171,28 +170,25 @@ func TestGRPCHandlerAuthRejectsInvalidToken(t *testing.T) {
 	defer cancel()
 
 	// Connect without token.
-	stream, err := client.Connect(ctx)
-	if err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
-	err = stream.Send(&agentsv1.ConnectRequest{
+	stream := client.Connect(ctx)
+	err := stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{DaemonRuntimeId: "d1"},
 		},
 	})
 	if err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return
 		}
 		t.Fatalf("Send: %v", err)
 	}
 
 	// Should get an error on recv.
-	_, err = stream.Recv()
+	_, err = stream.Receive()
 	if err == nil {
 		t.Fatal("expected auth error")
 	}
-	if code := status.Code(err); code != codes.Unauthenticated {
+	if code := connect.CodeOf(err); code != connect.CodeUnauthenticated {
 		t.Fatalf("expected unauthenticated error, got %v: %v", code, err)
 	}
 }
@@ -206,13 +202,10 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 	defer cancel()
 
 	// Connect with valid token.
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+testSecret)
-	stream, err := client.Connect(ctx)
-	if err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
+	stream := client.Connect(ctx)
+	stream.RequestHeader().Set("Authorization", "Bearer "+testSecret)
 
-	err = stream.Send(&agentsv1.ConnectRequest{
+	err := stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{DaemonRuntimeId: "test-daemon", AcpRuntimes: []string{"test"}},
 		},
@@ -221,8 +214,7 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 		t.Fatalf("Send: %v", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
-	if conn := registry.Get(testWorkspaceID, "test-daemon"); conn == nil {
+	if conn := waitForConn(registry, testWorkspaceID, "test-daemon", 2*time.Second); conn == nil {
 		t.Fatal("expected daemon to be registered with valid token")
 	}
 }
@@ -234,12 +226,9 @@ func TestGRPCHandlerUnregistersOnCleanClientClose(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+testSecret)
 
-	stream, err := client.Connect(ctx)
-	if err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
+	stream := client.Connect(ctx)
+	stream.RequestHeader().Set("Authorization", "Bearer "+testSecret)
 	if err := stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{DaemonRuntimeId: "test-daemon", AcpRuntimes: []string{"opencode"}},
@@ -248,27 +237,35 @@ func TestGRPCHandlerUnregistersOnCleanClientClose(t *testing.T) {
 		t.Fatalf("Send register: %v", err)
 	}
 
+	if waitForConn(registry, testWorkspaceID, "test-daemon", 2*time.Second) == nil {
+		t.Fatal("daemon was not registered")
+	}
+
+	if err := stream.CloseRequest(); err != nil {
+		t.Fatalf("CloseRequest: %v", err)
+	}
+
 	deadline := time.After(2 * time.Second)
-	for registry.Get(testWorkspaceID, "test-daemon") == nil {
-		select {
-		case <-deadline:
-			t.Fatal("daemon was not registered")
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-
-	if err := stream.CloseSend(); err != nil {
-		t.Fatalf("CloseSend: %v", err)
-	}
-
-	deadline = time.After(2 * time.Second)
 	for registry.Get(testWorkspaceID, "test-daemon") != nil {
 		select {
 		case <-deadline:
 			t.Fatal("daemon remained registered after clean client close")
 		default:
 			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func waitForConn(registry *Registry, workspaceID, runtimeID string, timeout time.Duration) *Connection {
+	deadline := time.After(timeout)
+	for {
+		if conn := registry.Get(workspaceID, runtimeID); conn != nil {
+			return conn
+		}
+		select {
+		case <-deadline:
+			return nil
+		case <-time.After(10 * time.Millisecond):
 		}
 	}
 }
