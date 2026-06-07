@@ -11,7 +11,6 @@ import { BrandMark } from "@/components/brand-mark";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLayoutDensity } from "@/hooks/use-layout-density";
 import { cn } from "@/lib/utils";
@@ -394,12 +393,6 @@ export default function DashboardLayout() {
           </Button>
         </div>
         <SidebarNav isAdmin={isAdmin} />
-        <Separator />
-        <div className={cn("flex justify-end border-t", isCompact ? "p-3" : "p-4")}>
-          <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -422,12 +415,6 @@ export default function DashboardLayout() {
                   </Button>
                 </div>
                 <SidebarNav isAdmin={isAdmin} />
-                <Separator />
-                <div className="flex justify-end border-t p-3">
-                  <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </div>
               </SheetContent>
             </Sheet>
             <Brand />
@@ -452,6 +439,9 @@ export default function DashboardLayout() {
               <Bell className="h-4 w-4" />
             </Button>
             <UserAvatarLink user={user} />
+            <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </header>
         <main className={cn("flex-1 overflow-auto p-4", isCompact ? "sm:p-5" : "sm:p-8")}>
