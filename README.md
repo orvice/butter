@@ -92,6 +92,9 @@ docker run -d \
   ghcr.io/orvice/butter-daemon:main
 ```
 
+See [docs/daemon.md](docs/daemon.md) for the full daemon setup and deployment
+guide.
+
 Before starting a worker, create a workspace-scoped `DaemonRuntime`, then issue
 a runtime token for it. The token is a dedicated `API_TOKEN_KIND_DAEMON` token
 with `daemon:connect` scope; it is accepted only by the daemon gRPC endpoint and
