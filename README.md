@@ -76,7 +76,20 @@ Butter can delegate work to daemon-backed remote agents. Start a daemon client
 with:
 
 ```bash
-go run ./cmd/butter-daemon --url grpc://localhost:9090 --token bt_daemon_runtime_secret
+go run ./cmd/butter-daemon --url localhost:9090 --token bt_daemon_runtime_secret
+```
+
+For container deployments, `--url` and `--token` can also be supplied through
+environment variables:
+
+```bash
+docker run -d \
+  --name butter-daemon \
+  --restart unless-stopped \
+  -e BUTTER_DAEMON_URL=host.docker.internal:9090 \
+  -e BUTTER_DAEMON_TOKEN=bt_daemon_runtime_secret \
+  -v /tmp/butter-daemon-workdirs:/tmp/butter-daemon-workdirs \
+  ghcr.io/orvice/butter-daemon:main
 ```
 
 Before starting a worker, create a workspace-scoped `DaemonRuntime`, then issue
