@@ -31,7 +31,7 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { AGENT_TYPE_LABELS } from "@/lib/constants";
+import { AGENT_TYPE_LABELS, enumLabel } from "@/lib/constants";
 import { useTheme } from "next-themes";
 import { AgentModelSelect } from "./model-select";
 import { AgentIconUpload } from "./icon-upload";
@@ -353,7 +353,7 @@ export default function AgentEditPage() {
                                   {isSelected && <Badge>Selected</Badge>}
                                 </div>
                                 <div className="mt-1 text-xs text-muted-foreground">
-                                  {server.transport ?? "transport unspecified"}{server.url ? ` · ${server.url}` : ""}
+                                  {enumLabel(server.transport, "Transport unspecified")}{server.url ? ` · ${server.url}` : ""}
                                 </div>
                               </button>
                             );
