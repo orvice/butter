@@ -1,27 +1,27 @@
 # Daemon Agent 设计方案
 
-> **状态：历史设计文档（已落地）+ 下一轮重构需求记录。** 本文是 daemon agent 设计阶段的方案稿，
+> **状态：历史设计文档（已落地，正文保留旧方案记录）。** 本文是 daemon agent 设计阶段的方案稿，
 > 描述当时的 Twirp + Gin 架构与拟新增的 daemon 服务。daemon 已全部落地；
-> 自 2026-06-02 起 RPC 层迁移到 ConnectRPC（见 `migration-connectrpc.md`），
-> daemon 自身仍走独立 gRPC 端口 `:9090`。RPC 部分提到的 Twirp 文件 / Twirp
+> 自 2026-06-02 起 RPC 层已迁移到 ConnectRPC，daemon 自身仍走独立 gRPC
+> 端口 `:9090`。RPC 部分提到的 Twirp 文件 / Twirp
 > 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。自
 > 2026-06-05 起，daemon coding agent 执行器已从 opencode 专用 CLI 调用迁移为
 > 通用 ACP executor（`github.com/coder/acp-go-sdk`），opencode 通过 `opencode acp`
 > 接入；旧 `executors.opencode` 配置仅作为兼容入口保留。自 2026-06-06 起，
-> 下一轮目标是用 workspace-scoped `DaemonRuntime` 完全替代 `DaemonConfig` /
-> `daemon_capability` 模型，详见下方「DaemonRuntime 重构目标」。
+> 当前实现已使用 workspace-scoped `DaemonRuntime` 替代旧 `DaemonConfig` /
+> `daemon_capability` 模型；正文中仍出现的旧名均为历史方案语境。
 
 ## 背景
 
-Butter 当前已支持通过 ADK Go 封装的本地执行 agent（LLM、Loop、Sequential、Parallel），以及通过 A2A 协议调用的远程 agent。本文档描述支持第三种执行模式——**Daemon Agent**：Client 作为长驻进程与 Server 建立持久连接，Server 将任务下发给 Client，Client 通过 CLI 调用 opencode/claude-code 等工具执行任务并回传结果。
+Butter 当前已支持通过 ADK Go 封装的本地执行 agent（LLM、Loop、Sequential、Parallel），以及通过 A2A 协议调用的远程 agent。本文档描述支持第三种执行模式——**Daemon Agent**：Client 作为长驻进程与 Server 建立持久连接，Server 将任务下发给 Client，Client 通过 ACP executor 调用 opencode / codex 等本地 coding agent 并回传结果。
 
-## DaemonRuntime 重构目标（2026-06-06）
+## DaemonRuntime 重构目标（2026-06-06，已落地）
 
-这一节记录下一轮产品与架构目标。它不是在现有 `DaemonConfig` 上小修小补，而是允许对 daemon 资源模型、RPC、仓储、前端页面和 daemon 启动方式做完整重构。
+这一节记录已经落地的产品与架构目标。它不是在旧 `DaemonConfig` 上小修小补，而是对 daemon 资源模型、RPC、仓储、前端页面和 daemon 启动方式做完整重构。
 
 ### 已确认需求
 
-- `DaemonRuntime` 完全替代当前 `DaemonConfig`。旧的 `allowed_capabilities` / `daemon_capability` 模型可以迁移或废弃，不要求保持内部结构兼容。
+- `DaemonRuntime` 完全替代旧 `DaemonConfig`。旧的 `allowed_capabilities` / `daemon_capability` 模型已经废弃，不要求保持内部结构兼容。
 - Workspace 可以创建 `DaemonRuntime`。创建后服务端签发 daemon token，并展示一条最小启动命令：
 
 ```bash
@@ -521,13 +521,13 @@ type GRPCHandler struct {
     agentsv1.UnimplementedDaemonConnectorServer
     registry *Registry
     tokenRepo apitoken.Repository
-    daemonRepo configrepo.DaemonConfigRepository
+    runtimeRepo configrepo.DaemonRuntimeRepository
 }
 
 func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnector_ConnectServer) error {
     // 1. 接收首条消息（必须是 register）
     // 2. 鉴权（从 gRPC metadata 提取 daemon credential）
-    // 3. 使用 credential 绑定的 workspace_id + daemon_id 覆盖 register，并按 DaemonConfig.allowed_capabilities 过滤能力
+    // 3. 使用 credential 绑定的 workspace_id + daemon_runtime_id 覆盖 register
     // 4. 创建 Connection，注册到 Registry
     // 5. 启动两个 goroutine:
     //    - sendLoop: conn.sendCh → stream.Send()
@@ -652,19 +652,18 @@ daemon executor 的键；opencode 不再由 `opencode.go` 直调 CLI，而是配
 callbacks、terminal callbacks、任务取消与进程清理；文件回调默认限制在 `work_dir`
 内，并会解析 symlink 防止通过工作区内链接逃逸。
 
-**服务端 DaemonConfig**（通过 `DaemonService` 写入 workspace 配置仓库）：
+**服务端 DaemonRuntime**（通过 `DaemonService` 写入 workspace 配置仓库）：
 
 ```yaml
 id: "dev-machine-1"
 name: "orvice-dev"
 description: "Local development worker"
-allowed_capabilities: ["opencode", "claude-code"]
 labels:
   repo: "butter"
   env: "dev"
 ```
 
-随后调用 `CreateDaemonCredential` 为该 `daemon_id` 签发 worker credential。credential token 为 `API_TOKEN_KIND_DAEMON`，scope 为 `daemon:connect`，并绑定 workspace + daemon_id。
+随后调用 `CreateDaemonRuntimeToken` 为该 `daemon_runtime_id` 签发 worker credential。credential token 为 `API_TOKEN_KIND_DAEMON`，scope 为 `daemon:connect`，并绑定 workspace + daemon_runtime_id。
 
 **Daemon 本地配置**（YAML 或 flags）：
 
@@ -966,7 +965,7 @@ Telegram → Poller.handleMessage()
 
 ## 实施建议
 
-1. **正式资源模型优先**：先落地 workspace-scoped `DaemonConfig`、daemon credential、registry workspace 隔离，再实现 daemon 连接 + 任务执行。
+1. **正式资源模型优先**：当前基线是 workspace-scoped `DaemonRuntime`、runtime token、registry workspace 隔离和 ACP runtime dispatch 同步演进。
 2. **gRPC 端口**：建议独立端口（如 9090），避免与 Gin HTTP server 冲突。go.mod 中已有 `google.golang.org/grpc v1.79.3`。
 3. **鉴权**：daemon gRPC 只接受 `API_TOKEN_KIND_DAEMON` + `daemon:connect` credential，通过 gRPC metadata 传递 `authorization: Bearer <credential>`；root token 与普通 API token 不进入 daemon connector。
 4. **测试策略**：Phase 1 完成后用集成测试验证：mock daemon client → gRPC 连接 → 收到任务 → 返回结果 → 验证 runner 拿到输出。

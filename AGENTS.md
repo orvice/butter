@@ -66,12 +66,11 @@ Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plug
 Docs directory layout:
 
 - `docs/api.md` — App developer API reference and handoff doc: auth, workspace headers, ConnectRPC URL/field conventions, TypeScript Connect-Web examples, REST uploads (`/api/uploads/*`), `AgentService.StreamAgent` chat stream, and errors.
-- `docs/migration-connectrpc.md` — Twirp → ConnectRPC migration plan + status (phases 0–3.5, chat `StreamAgent` complete).
-- `docs/connectrpc-followups.md` — Post-migration follow-ups (runtime smoke test, wire-format notes).
 - `docs/app.md` — Product/function overview in Chinese, including workspace multi-tenancy, agent orchestration, model management, MCP tools, remote agents, daemon execution, and channel entry points.
 - `docs/architecture.md` — System architecture overview covering multi-tenancy, process entry, layered structure, startup wiring, agent construction, and runner execution flow.
 - `docs/dashboard-api-gap.md` — Dashboard backend API gap analysis, including current coverage, recommended API extensions, persistence additions, phased implementation, and compatibility notes.
+- `docs/daemon.md` — Current daemon runtime setup, token flow, Docker usage, RemoteAgent configuration, executors, workdir constraints, and troubleshooting.
 - `docs/design-daemon-agent.md` — Daemon Agent design proposal with background, goals, architecture analysis, core challenges, incremental implementation plan, end-to-end flow, and file change list.
+- `docs/postgres-migration-analysis.md` — PostgreSQL migration analysis covering current MongoDB/Redis usage, fit by repository area, and recommended migration order.
 - `docs/project-structure.md` — Project directory structure documentation and maintenance guidance.
 - `docs/storage.md` — S3 object storage + static asset / avatar upload configuration and HTTP endpoints.
-- `docs/structure-review.md` — Directory structure review with strengths, issues, and refactoring recommendations such as renaming, bootstrap split, and runtime organization.

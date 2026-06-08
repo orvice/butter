@@ -180,7 +180,9 @@ make buf
 - [docs/app.md](docs/app.md) - product and capability overview
 - [docs/architecture.md](docs/architecture.md) - system architecture
 - [docs/api.md](docs/api.md) - API reference
+- [docs/daemon.md](docs/daemon.md) - daemon runtime setup and deployment
 - [docs/storage.md](docs/storage.md) - object storage, static assets, and artifacts
+- [docs/postgres-migration-analysis.md](docs/postgres-migration-analysis.md) - PostgreSQL migration analysis
 - [docs/project-structure.md](docs/project-structure.md) - repository layout
 
 ## License

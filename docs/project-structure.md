@@ -16,16 +16,12 @@ butter/
 │   ├── api.md
 │   ├── app.md
 │   ├── architecture.md
-│   ├── connectrpc-followups.md
 │   ├── dashboard-api-gap.md
+│   ├── daemon.md
 │   ├── design-daemon-agent.md
-│   ├── frontend-required-apis.md
-│   ├── migration-connectrpc.md
 │   ├── postgres-migration-analysis.md
 │   ├── project-structure.md
-│   ├── security-review.md
-│   ├── storage.md
-│   └── structure-review.md
+│   └── storage.md
 ├── front/
 │   ├── Dockerfile
 │   ├── nginx.conf
@@ -184,6 +180,7 @@ butter/
 ├── .github/
 │   └── workflows/
 │       ├── buf.yml
+│       ├── daemon-publish.yml # daemon image → ghcr.io/<owner>/<repo>-daemon
 │       ├── docker-publish.yml   # backend image → ghcr.io/<owner>/<repo>
 │       ├── front-publish.yml    # frontend image → ghcr.io/<owner>/<repo>-front
 │       └── go.yml

@@ -274,7 +274,7 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 
 - ADK sessions（`adk_sessions` / `adk_events`）。`session/mongo.Service.CountSessions` 给 dashboard overview 用。
 - ADK memories。
-- 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemons` / `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键，并对 `(workspace_id, name)` 建索引。
+- 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemon_runtimes` / `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键，并对 `(workspace_id, name)` 建索引。
 - Agent Files：`agent_file_spaces` / `agent_files` / `agent_file_versions`。
 - Forum：`forum_threads` / `forum_posts`。
 - `workspaces`：workspace 元数据，`slug` 唯一索引。
