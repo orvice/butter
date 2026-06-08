@@ -63,7 +63,9 @@ export default function RemoteAgentListPage() {
             <div>
               <div className="font-medium">{row.name}</div>
               <div className="text-xs text-muted-foreground line-clamp-1 max-w-md">
-                {isDaemon ? `Cap: ${row.daemon_capability ?? "-"}` : row.url}
+                {isDaemon
+                  ? `${row.daemon_runtime_id ?? "-"} / ${row.acp_runtime ?? "-"}`
+                  : row.url}
               </div>
             </div>
           </div>

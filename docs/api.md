@@ -233,7 +233,7 @@ Three token sources are accepted by `AuthMiddleware` (tried in order):
 
 1. **Dashboard user session** — issued by `AuthService.Login`. The middleware looks up the hashed token in **Redis** (key `butter:auth:session:<sha256(token)>`) and asynchronously updates `last_used_at`.
 2. **Root token** — the single value of `apiToken` in `config.yaml`. Compared with constant-time. Intended for ops / CLI.
-3. **DB-stored API tokens** — managed at runtime via `APITokenService` (see below). Stored as `sha256` hashes; only the prefix is visible. Each token is bound to one workspace. Successful auth updates `last_used_at` asynchronously.
+3. **DB-stored API tokens** — managed at runtime via `APITokenService` and daemon credential issuance. Stored as `sha256` hashes; only the prefix is visible. User API tokens are `kind=API_TOKEN_KIND_USER` with `api:*` scope and are bound to one workspace. Daemon credentials are `kind=API_TOKEN_KIND_DAEMON` with `daemon:connect` scope and are only accepted by daemon gRPC. Successful auth updates `last_used_at` asynchronously.
 
 `401 Unauthorized` on failure.
 
@@ -260,9 +260,10 @@ The header is required for most methods on these app-facing services:
 | `CronJobService` | Workspace cron jobs and executions |
 | `ForumService` | Workspace forum threads/posts and agent replies |
 | `APITokenService` | Tokens are created/listed/revoked within the selected workspace |
+| `DaemonService` | Workspace daemon configs, credentials, online daemon/task views |
 
 The header is not required for `AuthService`, `WorkspaceService`,
-`DashboardService`, or `DaemonService`. `SessionService` creates, reads, lists,
+or `DashboardService`. `SessionService` creates, reads, lists,
 and deletes sessions by `app_name` + `user_id` + `session_id`; include
 `X-Workspace-ID` when calling `ReplySession` so the runner resolves agents in
 the intended workspace. `GlobalMCPServerService` list/create/update/delete are
@@ -1545,7 +1546,7 @@ POST /api/agents.v1.RemoteAgentService/GetRemoteAgentStatus
 Probes the endpoint and reports liveness.
 
 * `REMOTE_AGENT_PROTOCOL_A2A`: HTTP GET `<url>/.well-known/agent.json` (5-second timeout).
-* `REMOTE_AGENT_PROTOCOL_DAEMON`: resolves `daemon_capability` against the daemon registry.
+* `REMOTE_AGENT_PROTOCOL_DAEMON`: resolves `daemon_runtime_id` against the daemon registry and dispatches with `acp_runtime`.
 
 **Request:** `{ "id": "<id>" }`
 
@@ -1557,7 +1558,7 @@ Probes the endpoint and reports liveness.
 | `protocol` | enum | Echoed from config |
 | `state` | enum | `STATE_CONFIGURED`, `STATE_ACTIVE`, `STATE_IDLE`, `STATE_UNREACHABLE`, `STATE_ERROR` |
 | `detail` | string | Error message or extra context |
-| `serving_daemon_id` | string | For DAEMON protocol: id of the daemon currently serving the capability |
+| `serving_daemon_runtime_id` | string | For DAEMON protocol: id of the runtime currently serving the agent |
 | `checked_at` | timestamp |  |
 | `latency_ms` | int64 | Probe latency (A2A only) |
 
@@ -1569,7 +1570,8 @@ Probes the endpoint and reports liveness.
 | `name` | string | Human-readable name (required) |
 | `url` | string | Endpoint URL (required for A2A) |
 | `protocol` | enum | `REMOTE_AGENT_PROTOCOL_A2A`, `REMOTE_AGENT_PROTOCOL_DAEMON` |
-| `daemon_capability` | string | Required for DAEMON protocol |
+| `daemon_runtime_id` | string | Required for DAEMON protocol |
+| `acp_runtime` | string | Required for DAEMON protocol; v1 supports `opencode` and `codex` |
 | `workspace_id` | string | Owning workspace |
 
 ---
@@ -2059,9 +2061,9 @@ POST /api/agents.v1.DashboardService/GetOverview
 
 | DaemonHandshake | Type | Description |
 |-------|------|-------------|
-| `daemon_id` | string |  |
+| `daemon_runtime_id` | string |  |
 | `name` | string |  |
-| `capabilities` | string[] |  |
+| `acp_runtimes` | string[] | Supported ACP runtimes |
 | `connected_at` | timestamp |  |
 | `os` | string | e.g. `linux-amd64` |
 
@@ -2112,9 +2114,74 @@ Aggregates `cron_executions` into time buckets for the Overview chart.
 
 ### DaemonService
 
-Read-only views and control over connected daemons.
+Workspace-scoped daemon runtime configuration, token issuance, and control over
+connected daemons. A daemon must have a stored `DaemonRuntime` in the active
+workspace before a runtime token can be issued or a worker connection can be
+accepted.
 
 > `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's gRPC bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is not exposed as a regular `/api` ConnectRPC JSON endpoint; dashboard / ops clients should use the `DaemonService` endpoints below.
+
+#### ListDaemonRuntimes
+
+```
+POST /api/agents.v1.DaemonService/ListDaemonRuntimes
+```
+
+**Response:** `{ "runtimes": DaemonRuntime[] }`
+
+#### GetDaemonRuntime
+
+```
+POST /api/agents.v1.DaemonService/GetDaemonRuntime
+```
+
+**Request:** `{ "id": "<daemon-runtime-id>" }`
+
+**Response:** `{ "runtime": DaemonRuntime }`
+
+#### CreateDaemonRuntime / UpdateDaemonRuntime
+
+```
+POST /api/agents.v1.DaemonService/CreateDaemonRuntime
+POST /api/agents.v1.DaemonService/UpdateDaemonRuntime
+```
+
+**Request:** `{ "runtime": DaemonRuntime }`
+
+`id` and `name` are required. The server writes `workspace_id`, `created_at`,
+and `created_by`.
+
+#### DeleteDaemonRuntime
+
+```
+POST /api/agents.v1.DaemonService/DeleteDaemonRuntime
+```
+
+**Request:** `{ "id": "<daemon-runtime-id>" }`
+
+#### CreateDaemonRuntimeToken
+
+```
+POST /api/agents.v1.DaemonService/CreateDaemonRuntimeToken
+```
+
+Issues a daemon runtime token for an existing runtime in the active workspace.
+The returned secret should be passed to `cmd/butter-daemon --token`; the server
+uses it to derive the authoritative workspace and daemon runtime id.
+
+**Request:** `{ "daemon_runtime_id": "<id>", "name": "<label>"?, "ttl": "720h"? }`
+
+**Response:** `{ "token": APIToken, "secret": "bt_<...>" }`
+
+| DaemonRuntime | Type | Description |
+|-------|------|-------------|
+| `id` | string | Workspace-local runtime id |
+| `name` | string | Display name |
+| `description` | string |  |
+| `labels` | map\<string,string\> | Operator metadata |
+| `created_at` | timestamp |  |
+| `created_by` | string | User id that created the config |
+| `workspace_id` | string | Owning workspace |
 
 #### ListDaemons
 
@@ -2130,15 +2197,15 @@ POST /api/agents.v1.DaemonService/ListDaemons
 POST /api/agents.v1.DaemonService/GetDaemon
 ```
 
-**Request:** `{ "daemon_id": "<id>" }`
+**Request:** `{ "daemon_runtime_id": "<id>" }`
 
 **Response:** `{ "daemon": DaemonStatus }`
 
 | DaemonStatus | Type | Description |
 |-------|------|-------------|
-| `daemon_id` | string |  |
+| `daemon_runtime_id` | string |  |
 | `name` | string |  |
-| `capabilities` | string[] |  |
+| `acp_runtimes` | string[] | Supported ACP runtimes |
 | `labels` | map\<string,string\> |  |
 | `state` | enum | `STATE_ONLINE`, `STATE_IDLE`, `STATE_OFFLINE` |
 | `connected_at` | timestamp |  |
@@ -2148,6 +2215,7 @@ POST /api/agents.v1.DaemonService/GetDaemon
 | `os` | string | e.g. `linux-amd64` |
 | `executors` | string[] | Informational executor names |
 | `remote_addr` | string | Peer address captured by the server |
+| `workspace_id` | string | Owning workspace |
 
 #### CancelDaemonTask
 
@@ -2155,16 +2223,16 @@ POST /api/agents.v1.DaemonService/GetDaemon
 POST /api/agents.v1.DaemonService/CancelDaemonTask
 ```
 
-Cancels a task on any connected daemon (or the supplied `daemon_id`). Returns `not_found` if no online daemon is tracking the task.
+Cancels a task on any connected daemon (or the supplied `daemon_runtime_id`). Returns `not_found` if no online daemon is tracking the task.
 
 **Request:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `task_id` | string | Required |
-| `daemon_id` | string | Optional hint |
+| `daemon_runtime_id` | string | Optional hint |
 
-**Response:** `{ "daemon_id": "<id>" }` (the daemon that received the cancel)
+**Response:** `{ "daemon_runtime_id": "<id>" }` (the runtime that received the cancel)
 
 #### ListDaemonTasks
 
@@ -2174,21 +2242,22 @@ POST /api/agents.v1.DaemonService/ListDaemonTasks
 
 Tasks currently in flight across connected daemons.
 
-**Request:** `{ "daemon_id": "<id>"? }`
+**Request:** `{ "daemon_runtime_id": "<id>"? }`
 
 **Response:** `{ "tasks": DaemonTaskInFlight[] }`
 
 | DaemonTaskInFlight | Type | Description |
 |-------|------|-------------|
 | `task_id` | string |  |
-| `daemon_id` | string |  |
+| `daemon_runtime_id` | string |  |
 | `daemon_name` | string |  |
-| `capability` | string | Capability used to dispatch the task |
+| `acp_runtime` | string | ACP runtime used to dispatch the task |
 | `started_at` | timestamp | When the task was dispatched |
 | `elapsed` | duration | Wallclock since dispatch |
 | `current_step` | string | Latest progress label reported by the daemon |
 | `progress` | int32 | 0–100; 0 when unknown |
 | `agent_name` | string | Agent that triggered the dispatch |
+| `workspace_id` | string | Owning workspace |
 
 #### GetBridgeDiagnostics
 
@@ -2230,20 +2299,20 @@ grpc agents.v1.DaemonConnectorService/Connect
 
 Establishes a long-lived stream. The daemon sends a `register` message first, then sends `task_update` messages. The server sends task assignments and cancellation requests on the response stream.
 
-When `apiToken` is configured, the client must include gRPC metadata `authorization: Bearer <apiToken>`. The server validates this metadata before reading the first `register` message and returns `Unauthenticated` when it is missing or invalid.
+The client must include gRPC metadata `authorization: Bearer <daemon-runtime-token>`. The server validates the hashed token before accepting the registration: the token must be `API_TOKEN_KIND_DAEMON`, carry `daemon:connect`, belong to a workspace, and reference an existing `DaemonRuntime`. The token's workspace and `daemon_runtime_id` are authoritative; if the daemon self-reports a different `workspace_id` or runtime id, the server overwrites/rejects accordingly. If the daemon does not report `acp_runtimes`, the server defaults it to `opencode` and `codex`.
 
 **Client stream (`ConnectRequest`):**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `register` | DaemonInfo | First message only; registers daemon id, name, capabilities, labels, version, OS, and executor names |
+| `register` | DaemonInfo | First message only; registers daemon runtime id, name, acp runtimes, labels, version, OS, executor names, and optional workspace id |
 | `task_update` | DaemonTaskUpdate | Subsequent task lifecycle, output, error, current step, and progress updates |
 
 **Server stream (`ConnectResponse`):**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `task` | DaemonTask | Task assignment, including agent name, input, session/user ids, metadata, and capability |
+| `task` | DaemonTask | Task assignment, including agent name, input, session/user ids, metadata, daemon runtime id, acp runtime, and work dir |
 | `cancel` | CancelTask | Cancellation request by `task_id` |
 
 ---
@@ -2433,6 +2502,10 @@ POST /api/agents.v1.APITokenService/RevokeAPIToken
 | `name` | string | Label |
 | `prefix` | string | First 12 chars of the secret, for display only |
 | `workspace_id` | string | Workspace the token authenticates into |
+| `kind` | enum | `API_TOKEN_KIND_USER` or `API_TOKEN_KIND_DAEMON` |
+| `scopes` | string[] | `api:*` for user API tokens, `daemon:connect` for daemon credentials |
+| `expires_at` | timestamp | Optional expiry; empty means no expiry |
+| `daemon_runtime_id` | string | Set for daemon runtime tokens |
 | `created_at` | timestamp |  |
 | `last_used_at` | timestamp | Updated async after successful auth |
 | `revoked` | bool | Revoked tokens cannot authenticate |

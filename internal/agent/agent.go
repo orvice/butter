@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -427,13 +428,25 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
 			agents = append(agents, a)
 
 		case agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON:
-			if ra.GetDaemonCapability() == "" {
-				return nil, fmt.Errorf("remote agent %q: DAEMON protocol requires non-empty daemon_capability", ra.GetName())
+			runtimeID := strings.TrimSpace(ra.GetDaemonRuntimeId())
+			if runtimeID == "" {
+				return nil, fmt.Errorf("remote agent %q: DAEMON protocol requires non-empty daemon_runtime_id", ra.GetName())
+			}
+			acpRuntime := strings.TrimSpace(ra.GetAcpRuntime())
+			if !isSupportedAcpRuntime(acpRuntime) {
+				return nil, fmt.Errorf("remote agent %q: DAEMON protocol requires acp_runtime to be one of opencode, codex", ra.GetName())
 			}
 			if daemonRegistry == nil {
 				return nil, fmt.Errorf("remote agent %q: daemon registry not available", ra.GetName())
 			}
-			bridge := daemon.NewBridge(daemonRegistry, ra.GetDaemonCapability())
+			workspaceID := ra.GetWorkspaceId()
+			if workspaceID == "" {
+				workspaceID = pb.GetWorkspaceId()
+			}
+			if workspaceID == "" {
+				return nil, fmt.Errorf("remote agent %q: DAEMON protocol requires workspace_id", ra.GetName())
+			}
+			bridge := daemon.NewBridge(daemonRegistry, workspaceID, runtimeID, acpRuntime)
 			a, err := bridge.BuildAgent(ra.GetName(), fmt.Sprintf("Daemon agent: %s", ra.GetName()))
 			if err != nil {
 				return nil, fmt.Errorf("creating daemon agent %q: %w", ra.GetName(), err)
@@ -446,4 +459,13 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
 	}
 
 	return agents, nil
+}
+
+func isSupportedAcpRuntime(runtime string) bool {
+	switch runtime {
+	case "opencode", "codex":
+		return true
+	default:
+		return false
+	}
 }

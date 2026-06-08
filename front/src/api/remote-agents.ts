@@ -55,7 +55,8 @@ function fromProto(a: PbRemoteAgent): RemoteAgent {
     name: a.name,
     url: a.url,
     protocol: protocolFromProto(a.protocol),
-    daemon_capability: a.daemonCapability,
+    daemon_runtime_id: a.daemonRuntimeId,
+    acp_runtime: a.acpRuntime,
   };
 }
 
@@ -65,7 +66,8 @@ function toProto(a: RemoteAgent): PbRemoteAgent {
     name: a.name,
     url: a.url,
     protocol: protocolToProto(a.protocol),
-    daemonCapability: a.daemon_capability ?? "",
+    daemonRuntimeId: a.daemon_runtime_id ?? "",
+    acpRuntime: a.acp_runtime ?? "",
   });
 }
 
@@ -75,7 +77,7 @@ function statusFromProto(s: PbRemoteAgentStatus): RemoteAgentStatus {
     protocol: protocolFromProto(s.protocol),
     state: stateFromProto(s.state),
     detail: s.detail,
-    serving_daemon_id: s.servingDaemonId,
+    serving_daemon_runtime_id: s.servingDaemonRuntimeId,
     checked_at: tsToISO(s.checkedAt),
     latency_ms: bigintToNumber(s.latencyMs),
   };

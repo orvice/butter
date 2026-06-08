@@ -4,6 +4,7 @@ package agents.v1;
 
 import "agents/v1/agent.proto";
 import "agents/v1/agentchannel.proto";
+import "agents/v1/api_token.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -115,9 +116,9 @@ message ComponentHealth {
 }
 
 message DaemonHandshake {
-  string daemon_id = 1;
+  string daemon_runtime_id = 1;
   string name = 2;
-  repeated string capabilities = 3;
+  repeated string acp_runtimes = 3;
   google.protobuf.Timestamp connected_at = 4;
   // OS identifier reported by the daemon at handshake (e.g. "linux-amd64").
   string os = 5;
@@ -129,6 +130,15 @@ message DaemonHandshake {
 // =============================================================================
 
 service DaemonService {
+  // Workspace-scoped daemon runtime configuration. A runtime must exist before
+  // a worker credential can be issued or a runtime connection accepted.
+  rpc ListDaemonRuntimes(ListDaemonRuntimesRequest) returns (ListDaemonRuntimesResponse);
+  rpc GetDaemonRuntime(GetDaemonRuntimeRequest) returns (GetDaemonRuntimeResponse);
+  rpc CreateDaemonRuntime(CreateDaemonRuntimeRequest) returns (CreateDaemonRuntimeResponse);
+  rpc UpdateDaemonRuntime(UpdateDaemonRuntimeRequest) returns (UpdateDaemonRuntimeResponse);
+  rpc DeleteDaemonRuntime(DeleteDaemonRuntimeRequest) returns (DeleteDaemonRuntimeResponse);
+  rpc CreateDaemonRuntimeToken(CreateDaemonRuntimeTokenRequest) returns (CreateDaemonRuntimeTokenResponse);
+
   rpc ListDaemons(ListDaemonsRequest) returns (ListDaemonsResponse);
   rpc GetDaemon(GetDaemonRequest) returns (GetDaemonResponse);
   // CancelDaemonTask requests cancellation of a running task on any connected
@@ -167,6 +177,67 @@ message LatencyPoint {
   int64 latency_ms = 2;
 }
 
+message DaemonRuntime {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  reserved 4;
+  reserved "allowed_capabilities";
+  map<string, string> labels = 5;
+  google.protobuf.Timestamp created_at = 6;
+  string created_by = 7;
+
+  // ID of the workspace this daemon runtime belongs to.
+  string workspace_id = 100;
+}
+
+message ListDaemonRuntimesRequest {}
+
+message ListDaemonRuntimesResponse {
+  repeated DaemonRuntime runtimes = 1;
+}
+
+message GetDaemonRuntimeRequest {
+  string id = 1;
+}
+
+message GetDaemonRuntimeResponse {
+  DaemonRuntime runtime = 1;
+}
+
+message CreateDaemonRuntimeRequest {
+  DaemonRuntime runtime = 1;
+}
+
+message CreateDaemonRuntimeResponse {
+  DaemonRuntime runtime = 1;
+}
+
+message UpdateDaemonRuntimeRequest {
+  DaemonRuntime runtime = 1;
+}
+
+message UpdateDaemonRuntimeResponse {
+  DaemonRuntime runtime = 1;
+}
+
+message DeleteDaemonRuntimeRequest {
+  string id = 1;
+}
+
+message DeleteDaemonRuntimeResponse {}
+
+message CreateDaemonRuntimeTokenRequest {
+  string daemon_runtime_id = 1;
+  string name = 2;
+  google.protobuf.Duration ttl = 3;
+}
+
+message CreateDaemonRuntimeTokenResponse {
+  APIToken token = 1;
+  string secret = 2;
+}
+
 message ListDaemonsRequest {}
 
 message ListDaemonsResponse {
@@ -174,7 +245,7 @@ message ListDaemonsResponse {
 }
 
 message GetDaemonRequest {
-  string daemon_id = 1;
+  string daemon_runtime_id = 1;
 }
 
 message GetDaemonResponse {
@@ -184,18 +255,18 @@ message GetDaemonResponse {
 message CancelDaemonTaskRequest {
   // Task id to cancel.
   string task_id = 1;
-  // Optional daemon id hint; if empty the registry is scanned.
-  string daemon_id = 2;
+  // Optional daemon runtime id hint; if empty the registry is scanned.
+  string daemon_runtime_id = 2;
 }
 
 message CancelDaemonTaskResponse {
-  // Daemon id that received the cancel signal.
-  string daemon_id = 1;
+  // Runtime id that received the cancel signal.
+  string daemon_runtime_id = 1;
 }
 
 message ListDaemonTasksRequest {
-  // Optional: only return tasks served by this daemon id.
-  string daemon_id = 1;
+  // Optional: only return tasks served by this daemon runtime id.
+  string daemon_runtime_id = 1;
 }
 
 message ListDaemonTasksResponse {
@@ -204,10 +275,9 @@ message ListDaemonTasksResponse {
 
 message DaemonTaskInFlight {
   string task_id = 1;
-  string daemon_id = 2;
+  string daemon_runtime_id = 2;
   string daemon_name = 3;
-  // Capability used to dispatch this task.
-  string capability = 4;
+  string acp_runtime = 4;
   // When the task was dispatched to the daemon.
   google.protobuf.Timestamp started_at = 5;
   // Wallclock elapsed since started_at.
@@ -218,12 +288,13 @@ message DaemonTaskInFlight {
   int32 progress = 8;
   // Agent name that triggered the dispatch.
   string agent_name = 9;
+  string workspace_id = 10;
 }
 
 message DaemonStatus {
-  string daemon_id = 1;
+  string daemon_runtime_id = 1;
   string name = 2;
-  repeated string capabilities = 3;
+  repeated string acp_runtimes = 3;
   map<string, string> labels = 4;
 
   enum State {
@@ -244,6 +315,7 @@ message DaemonStatus {
   repeated string executors = 11;
   // Captured by the server from the gRPC peer (best-effort, may be empty).
   string remote_addr = 12;
+  string workspace_id = 13;
 }
 
 // =============================================================================
@@ -281,9 +353,9 @@ message RemoteAgentStatus {
   State state = 3;
 
   string detail = 4;
-  // For DAEMON protocol only: id of the daemon currently serving the
-  // configured daemon_capability, if one is online.
-  string serving_daemon_id = 5;
+  // For DAEMON protocol only: id of the runtime currently serving the
+  // configured daemon_runtime_id, if one is online.
+  string serving_daemon_runtime_id = 5;
   google.protobuf.Timestamp checked_at = 6;
   int64 latency_ms = 7;
 }

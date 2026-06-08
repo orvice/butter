@@ -44,6 +44,24 @@ const (
 	// DashboardServiceGetCronExecutionTimeseriesProcedure is the fully-qualified name of the
 	// DashboardService's GetCronExecutionTimeseries RPC.
 	DashboardServiceGetCronExecutionTimeseriesProcedure = "/agents.v1.DashboardService/GetCronExecutionTimeseries"
+	// DaemonServiceListDaemonRuntimesProcedure is the fully-qualified name of the DaemonService's
+	// ListDaemonRuntimes RPC.
+	DaemonServiceListDaemonRuntimesProcedure = "/agents.v1.DaemonService/ListDaemonRuntimes"
+	// DaemonServiceGetDaemonRuntimeProcedure is the fully-qualified name of the DaemonService's
+	// GetDaemonRuntime RPC.
+	DaemonServiceGetDaemonRuntimeProcedure = "/agents.v1.DaemonService/GetDaemonRuntime"
+	// DaemonServiceCreateDaemonRuntimeProcedure is the fully-qualified name of the DaemonService's
+	// CreateDaemonRuntime RPC.
+	DaemonServiceCreateDaemonRuntimeProcedure = "/agents.v1.DaemonService/CreateDaemonRuntime"
+	// DaemonServiceUpdateDaemonRuntimeProcedure is the fully-qualified name of the DaemonService's
+	// UpdateDaemonRuntime RPC.
+	DaemonServiceUpdateDaemonRuntimeProcedure = "/agents.v1.DaemonService/UpdateDaemonRuntime"
+	// DaemonServiceDeleteDaemonRuntimeProcedure is the fully-qualified name of the DaemonService's
+	// DeleteDaemonRuntime RPC.
+	DaemonServiceDeleteDaemonRuntimeProcedure = "/agents.v1.DaemonService/DeleteDaemonRuntime"
+	// DaemonServiceCreateDaemonRuntimeTokenProcedure is the fully-qualified name of the DaemonService's
+	// CreateDaemonRuntimeToken RPC.
+	DaemonServiceCreateDaemonRuntimeTokenProcedure = "/agents.v1.DaemonService/CreateDaemonRuntimeToken"
 	// DaemonServiceListDaemonsProcedure is the fully-qualified name of the DaemonService's ListDaemons
 	// RPC.
 	DaemonServiceListDaemonsProcedure = "/agents.v1.DaemonService/ListDaemons"
@@ -196,6 +214,14 @@ func (UnimplementedDashboardServiceHandler) GetCronExecutionTimeseries(context.C
 
 // DaemonServiceClient is a client for the agents.v1.DaemonService service.
 type DaemonServiceClient interface {
+	// Workspace-scoped daemon runtime configuration. A runtime must exist before
+	// a worker credential can be issued or a runtime connection accepted.
+	ListDaemonRuntimes(context.Context, *connect.Request[v1.ListDaemonRuntimesRequest]) (*connect.Response[v1.ListDaemonRuntimesResponse], error)
+	GetDaemonRuntime(context.Context, *connect.Request[v1.GetDaemonRuntimeRequest]) (*connect.Response[v1.GetDaemonRuntimeResponse], error)
+	CreateDaemonRuntime(context.Context, *connect.Request[v1.CreateDaemonRuntimeRequest]) (*connect.Response[v1.CreateDaemonRuntimeResponse], error)
+	UpdateDaemonRuntime(context.Context, *connect.Request[v1.UpdateDaemonRuntimeRequest]) (*connect.Response[v1.UpdateDaemonRuntimeResponse], error)
+	DeleteDaemonRuntime(context.Context, *connect.Request[v1.DeleteDaemonRuntimeRequest]) (*connect.Response[v1.DeleteDaemonRuntimeResponse], error)
+	CreateDaemonRuntimeToken(context.Context, *connect.Request[v1.CreateDaemonRuntimeTokenRequest]) (*connect.Response[v1.CreateDaemonRuntimeTokenResponse], error)
 	ListDaemons(context.Context, *connect.Request[v1.ListDaemonsRequest]) (*connect.Response[v1.ListDaemonsResponse], error)
 	GetDaemon(context.Context, *connect.Request[v1.GetDaemonRequest]) (*connect.Response[v1.GetDaemonResponse], error)
 	// CancelDaemonTask requests cancellation of a running task on any connected
@@ -219,6 +245,42 @@ func NewDaemonServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 	baseURL = strings.TrimRight(baseURL, "/")
 	daemonServiceMethods := v1.File_agents_v1_dashboard_proto.Services().ByName("DaemonService").Methods()
 	return &daemonServiceClient{
+		listDaemonRuntimes: connect.NewClient[v1.ListDaemonRuntimesRequest, v1.ListDaemonRuntimesResponse](
+			httpClient,
+			baseURL+DaemonServiceListDaemonRuntimesProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("ListDaemonRuntimes")),
+			connect.WithClientOptions(opts...),
+		),
+		getDaemonRuntime: connect.NewClient[v1.GetDaemonRuntimeRequest, v1.GetDaemonRuntimeResponse](
+			httpClient,
+			baseURL+DaemonServiceGetDaemonRuntimeProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("GetDaemonRuntime")),
+			connect.WithClientOptions(opts...),
+		),
+		createDaemonRuntime: connect.NewClient[v1.CreateDaemonRuntimeRequest, v1.CreateDaemonRuntimeResponse](
+			httpClient,
+			baseURL+DaemonServiceCreateDaemonRuntimeProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("CreateDaemonRuntime")),
+			connect.WithClientOptions(opts...),
+		),
+		updateDaemonRuntime: connect.NewClient[v1.UpdateDaemonRuntimeRequest, v1.UpdateDaemonRuntimeResponse](
+			httpClient,
+			baseURL+DaemonServiceUpdateDaemonRuntimeProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("UpdateDaemonRuntime")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteDaemonRuntime: connect.NewClient[v1.DeleteDaemonRuntimeRequest, v1.DeleteDaemonRuntimeResponse](
+			httpClient,
+			baseURL+DaemonServiceDeleteDaemonRuntimeProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("DeleteDaemonRuntime")),
+			connect.WithClientOptions(opts...),
+		),
+		createDaemonRuntimeToken: connect.NewClient[v1.CreateDaemonRuntimeTokenRequest, v1.CreateDaemonRuntimeTokenResponse](
+			httpClient,
+			baseURL+DaemonServiceCreateDaemonRuntimeTokenProcedure,
+			connect.WithSchema(daemonServiceMethods.ByName("CreateDaemonRuntimeToken")),
+			connect.WithClientOptions(opts...),
+		),
 		listDaemons: connect.NewClient[v1.ListDaemonsRequest, v1.ListDaemonsResponse](
 			httpClient,
 			baseURL+DaemonServiceListDaemonsProcedure,
@@ -254,11 +316,47 @@ func NewDaemonServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // daemonServiceClient implements DaemonServiceClient.
 type daemonServiceClient struct {
-	listDaemons          *connect.Client[v1.ListDaemonsRequest, v1.ListDaemonsResponse]
-	getDaemon            *connect.Client[v1.GetDaemonRequest, v1.GetDaemonResponse]
-	cancelDaemonTask     *connect.Client[v1.CancelDaemonTaskRequest, v1.CancelDaemonTaskResponse]
-	listDaemonTasks      *connect.Client[v1.ListDaemonTasksRequest, v1.ListDaemonTasksResponse]
-	getBridgeDiagnostics *connect.Client[v1.GetBridgeDiagnosticsRequest, v1.GetBridgeDiagnosticsResponse]
+	listDaemonRuntimes       *connect.Client[v1.ListDaemonRuntimesRequest, v1.ListDaemonRuntimesResponse]
+	getDaemonRuntime         *connect.Client[v1.GetDaemonRuntimeRequest, v1.GetDaemonRuntimeResponse]
+	createDaemonRuntime      *connect.Client[v1.CreateDaemonRuntimeRequest, v1.CreateDaemonRuntimeResponse]
+	updateDaemonRuntime      *connect.Client[v1.UpdateDaemonRuntimeRequest, v1.UpdateDaemonRuntimeResponse]
+	deleteDaemonRuntime      *connect.Client[v1.DeleteDaemonRuntimeRequest, v1.DeleteDaemonRuntimeResponse]
+	createDaemonRuntimeToken *connect.Client[v1.CreateDaemonRuntimeTokenRequest, v1.CreateDaemonRuntimeTokenResponse]
+	listDaemons              *connect.Client[v1.ListDaemonsRequest, v1.ListDaemonsResponse]
+	getDaemon                *connect.Client[v1.GetDaemonRequest, v1.GetDaemonResponse]
+	cancelDaemonTask         *connect.Client[v1.CancelDaemonTaskRequest, v1.CancelDaemonTaskResponse]
+	listDaemonTasks          *connect.Client[v1.ListDaemonTasksRequest, v1.ListDaemonTasksResponse]
+	getBridgeDiagnostics     *connect.Client[v1.GetBridgeDiagnosticsRequest, v1.GetBridgeDiagnosticsResponse]
+}
+
+// ListDaemonRuntimes calls agents.v1.DaemonService.ListDaemonRuntimes.
+func (c *daemonServiceClient) ListDaemonRuntimes(ctx context.Context, req *connect.Request[v1.ListDaemonRuntimesRequest]) (*connect.Response[v1.ListDaemonRuntimesResponse], error) {
+	return c.listDaemonRuntimes.CallUnary(ctx, req)
+}
+
+// GetDaemonRuntime calls agents.v1.DaemonService.GetDaemonRuntime.
+func (c *daemonServiceClient) GetDaemonRuntime(ctx context.Context, req *connect.Request[v1.GetDaemonRuntimeRequest]) (*connect.Response[v1.GetDaemonRuntimeResponse], error) {
+	return c.getDaemonRuntime.CallUnary(ctx, req)
+}
+
+// CreateDaemonRuntime calls agents.v1.DaemonService.CreateDaemonRuntime.
+func (c *daemonServiceClient) CreateDaemonRuntime(ctx context.Context, req *connect.Request[v1.CreateDaemonRuntimeRequest]) (*connect.Response[v1.CreateDaemonRuntimeResponse], error) {
+	return c.createDaemonRuntime.CallUnary(ctx, req)
+}
+
+// UpdateDaemonRuntime calls agents.v1.DaemonService.UpdateDaemonRuntime.
+func (c *daemonServiceClient) UpdateDaemonRuntime(ctx context.Context, req *connect.Request[v1.UpdateDaemonRuntimeRequest]) (*connect.Response[v1.UpdateDaemonRuntimeResponse], error) {
+	return c.updateDaemonRuntime.CallUnary(ctx, req)
+}
+
+// DeleteDaemonRuntime calls agents.v1.DaemonService.DeleteDaemonRuntime.
+func (c *daemonServiceClient) DeleteDaemonRuntime(ctx context.Context, req *connect.Request[v1.DeleteDaemonRuntimeRequest]) (*connect.Response[v1.DeleteDaemonRuntimeResponse], error) {
+	return c.deleteDaemonRuntime.CallUnary(ctx, req)
+}
+
+// CreateDaemonRuntimeToken calls agents.v1.DaemonService.CreateDaemonRuntimeToken.
+func (c *daemonServiceClient) CreateDaemonRuntimeToken(ctx context.Context, req *connect.Request[v1.CreateDaemonRuntimeTokenRequest]) (*connect.Response[v1.CreateDaemonRuntimeTokenResponse], error) {
+	return c.createDaemonRuntimeToken.CallUnary(ctx, req)
 }
 
 // ListDaemons calls agents.v1.DaemonService.ListDaemons.
@@ -288,6 +386,14 @@ func (c *daemonServiceClient) GetBridgeDiagnostics(ctx context.Context, req *con
 
 // DaemonServiceHandler is an implementation of the agents.v1.DaemonService service.
 type DaemonServiceHandler interface {
+	// Workspace-scoped daemon runtime configuration. A runtime must exist before
+	// a worker credential can be issued or a runtime connection accepted.
+	ListDaemonRuntimes(context.Context, *connect.Request[v1.ListDaemonRuntimesRequest]) (*connect.Response[v1.ListDaemonRuntimesResponse], error)
+	GetDaemonRuntime(context.Context, *connect.Request[v1.GetDaemonRuntimeRequest]) (*connect.Response[v1.GetDaemonRuntimeResponse], error)
+	CreateDaemonRuntime(context.Context, *connect.Request[v1.CreateDaemonRuntimeRequest]) (*connect.Response[v1.CreateDaemonRuntimeResponse], error)
+	UpdateDaemonRuntime(context.Context, *connect.Request[v1.UpdateDaemonRuntimeRequest]) (*connect.Response[v1.UpdateDaemonRuntimeResponse], error)
+	DeleteDaemonRuntime(context.Context, *connect.Request[v1.DeleteDaemonRuntimeRequest]) (*connect.Response[v1.DeleteDaemonRuntimeResponse], error)
+	CreateDaemonRuntimeToken(context.Context, *connect.Request[v1.CreateDaemonRuntimeTokenRequest]) (*connect.Response[v1.CreateDaemonRuntimeTokenResponse], error)
 	ListDaemons(context.Context, *connect.Request[v1.ListDaemonsRequest]) (*connect.Response[v1.ListDaemonsResponse], error)
 	GetDaemon(context.Context, *connect.Request[v1.GetDaemonRequest]) (*connect.Response[v1.GetDaemonResponse], error)
 	// CancelDaemonTask requests cancellation of a running task on any connected
@@ -307,6 +413,42 @@ type DaemonServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewDaemonServiceHandler(svc DaemonServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	daemonServiceMethods := v1.File_agents_v1_dashboard_proto.Services().ByName("DaemonService").Methods()
+	daemonServiceListDaemonRuntimesHandler := connect.NewUnaryHandler(
+		DaemonServiceListDaemonRuntimesProcedure,
+		svc.ListDaemonRuntimes,
+		connect.WithSchema(daemonServiceMethods.ByName("ListDaemonRuntimes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonServiceGetDaemonRuntimeHandler := connect.NewUnaryHandler(
+		DaemonServiceGetDaemonRuntimeProcedure,
+		svc.GetDaemonRuntime,
+		connect.WithSchema(daemonServiceMethods.ByName("GetDaemonRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonServiceCreateDaemonRuntimeHandler := connect.NewUnaryHandler(
+		DaemonServiceCreateDaemonRuntimeProcedure,
+		svc.CreateDaemonRuntime,
+		connect.WithSchema(daemonServiceMethods.ByName("CreateDaemonRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonServiceUpdateDaemonRuntimeHandler := connect.NewUnaryHandler(
+		DaemonServiceUpdateDaemonRuntimeProcedure,
+		svc.UpdateDaemonRuntime,
+		connect.WithSchema(daemonServiceMethods.ByName("UpdateDaemonRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonServiceDeleteDaemonRuntimeHandler := connect.NewUnaryHandler(
+		DaemonServiceDeleteDaemonRuntimeProcedure,
+		svc.DeleteDaemonRuntime,
+		connect.WithSchema(daemonServiceMethods.ByName("DeleteDaemonRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonServiceCreateDaemonRuntimeTokenHandler := connect.NewUnaryHandler(
+		DaemonServiceCreateDaemonRuntimeTokenProcedure,
+		svc.CreateDaemonRuntimeToken,
+		connect.WithSchema(daemonServiceMethods.ByName("CreateDaemonRuntimeToken")),
+		connect.WithHandlerOptions(opts...),
+	)
 	daemonServiceListDaemonsHandler := connect.NewUnaryHandler(
 		DaemonServiceListDaemonsProcedure,
 		svc.ListDaemons,
@@ -339,6 +481,18 @@ func NewDaemonServiceHandler(svc DaemonServiceHandler, opts ...connect.HandlerOp
 	)
 	return "/agents.v1.DaemonService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case DaemonServiceListDaemonRuntimesProcedure:
+			daemonServiceListDaemonRuntimesHandler.ServeHTTP(w, r)
+		case DaemonServiceGetDaemonRuntimeProcedure:
+			daemonServiceGetDaemonRuntimeHandler.ServeHTTP(w, r)
+		case DaemonServiceCreateDaemonRuntimeProcedure:
+			daemonServiceCreateDaemonRuntimeHandler.ServeHTTP(w, r)
+		case DaemonServiceUpdateDaemonRuntimeProcedure:
+			daemonServiceUpdateDaemonRuntimeHandler.ServeHTTP(w, r)
+		case DaemonServiceDeleteDaemonRuntimeProcedure:
+			daemonServiceDeleteDaemonRuntimeHandler.ServeHTTP(w, r)
+		case DaemonServiceCreateDaemonRuntimeTokenProcedure:
+			daemonServiceCreateDaemonRuntimeTokenHandler.ServeHTTP(w, r)
 		case DaemonServiceListDaemonsProcedure:
 			daemonServiceListDaemonsHandler.ServeHTTP(w, r)
 		case DaemonServiceGetDaemonProcedure:
@@ -357,6 +511,30 @@ func NewDaemonServiceHandler(svc DaemonServiceHandler, opts ...connect.HandlerOp
 
 // UnimplementedDaemonServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedDaemonServiceHandler struct{}
+
+func (UnimplementedDaemonServiceHandler) ListDaemonRuntimes(context.Context, *connect.Request[v1.ListDaemonRuntimesRequest]) (*connect.Response[v1.ListDaemonRuntimesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.ListDaemonRuntimes is not implemented"))
+}
+
+func (UnimplementedDaemonServiceHandler) GetDaemonRuntime(context.Context, *connect.Request[v1.GetDaemonRuntimeRequest]) (*connect.Response[v1.GetDaemonRuntimeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.GetDaemonRuntime is not implemented"))
+}
+
+func (UnimplementedDaemonServiceHandler) CreateDaemonRuntime(context.Context, *connect.Request[v1.CreateDaemonRuntimeRequest]) (*connect.Response[v1.CreateDaemonRuntimeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.CreateDaemonRuntime is not implemented"))
+}
+
+func (UnimplementedDaemonServiceHandler) UpdateDaemonRuntime(context.Context, *connect.Request[v1.UpdateDaemonRuntimeRequest]) (*connect.Response[v1.UpdateDaemonRuntimeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.UpdateDaemonRuntime is not implemented"))
+}
+
+func (UnimplementedDaemonServiceHandler) DeleteDaemonRuntime(context.Context, *connect.Request[v1.DeleteDaemonRuntimeRequest]) (*connect.Response[v1.DeleteDaemonRuntimeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.DeleteDaemonRuntime is not implemented"))
+}
+
+func (UnimplementedDaemonServiceHandler) CreateDaemonRuntimeToken(context.Context, *connect.Request[v1.CreateDaemonRuntimeTokenRequest]) (*connect.Response[v1.CreateDaemonRuntimeTokenResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.CreateDaemonRuntimeToken is not implemented"))
+}
 
 func (UnimplementedDaemonServiceHandler) ListDaemons(context.Context, *connect.Request[v1.ListDaemonsRequest]) (*connect.Response[v1.ListDaemonsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonService.ListDaemons is not implemented"))

@@ -18,14 +18,18 @@ const collectionName = "api_tokens"
 
 // tokenDoc is the MongoDB row for an API token.
 type tokenDoc struct {
-	ID          string    `bson:"_id"`
-	WorkspaceID string    `bson:"workspace_id,omitempty"`
-	Name        string    `bson:"name"`
-	Prefix      string    `bson:"prefix"`
-	SecretHash  string    `bson:"secret_hash"`
-	CreatedAt   time.Time `bson:"created_at"`
-	LastUsedAt  time.Time `bson:"last_used_at,omitempty"`
-	Revoked     bool      `bson:"revoked,omitempty"`
+	ID              string    `bson:"_id"`
+	WorkspaceID     string    `bson:"workspace_id,omitempty"`
+	Name            string    `bson:"name"`
+	Prefix          string    `bson:"prefix"`
+	SecretHash      string    `bson:"secret_hash"`
+	CreatedAt       time.Time `bson:"created_at"`
+	LastUsedAt      time.Time `bson:"last_used_at,omitempty"`
+	Revoked         bool      `bson:"revoked,omitempty"`
+	Kind            int32     `bson:"kind,omitempty"`
+	Scopes          []string  `bson:"scopes,omitempty"`
+	ExpiresAt       time.Time `bson:"expires_at,omitempty"`
+	DaemonRuntimeID string    `bson:"daemon_runtime_id,omitempty"`
 }
 
 // Store is a MongoDB-backed implementation of apitoken.Repository.
@@ -73,12 +77,18 @@ func (s *Store) Get(ctx context.Context, id string) (*agentsv1.APIToken, error) 
 
 func (s *Store) Create(ctx context.Context, token *agentsv1.APIToken, secretHash string) error {
 	doc := tokenDoc{
-		ID:          token.GetId(),
-		WorkspaceID: token.GetWorkspaceId(),
-		Name:        token.GetName(),
-		Prefix:      token.GetPrefix(),
-		SecretHash:  secretHash,
-		CreatedAt:   token.GetCreatedAt().AsTime(),
+		ID:              token.GetId(),
+		WorkspaceID:     token.GetWorkspaceId(),
+		Name:            token.GetName(),
+		Prefix:          token.GetPrefix(),
+		SecretHash:      secretHash,
+		CreatedAt:       token.GetCreatedAt().AsTime(),
+		Kind:            int32(token.GetKind()),
+		Scopes:          token.GetScopes(),
+		DaemonRuntimeID: token.GetDaemonRuntimeId(),
+	}
+	if token.GetExpiresAt() != nil {
+		doc.ExpiresAt = token.GetExpiresAt().AsTime()
 	}
 	if _, err := s.coll.InsertOne(ctx, doc); err != nil {
 		return fmt.Errorf("insert api_token: %w", err)
@@ -118,15 +128,21 @@ func (s *Store) TouchLastUsed(ctx context.Context, id string) error {
 
 func docToProto(doc *tokenDoc) *agentsv1.APIToken {
 	t := &agentsv1.APIToken{
-		Id:          doc.ID,
-		WorkspaceId: doc.WorkspaceID,
-		Name:        doc.Name,
-		Prefix:      doc.Prefix,
-		CreatedAt:   timestamppb.New(doc.CreatedAt),
-		Revoked:     doc.Revoked,
+		Id:              doc.ID,
+		WorkspaceId:     doc.WorkspaceID,
+		Name:            doc.Name,
+		Prefix:          doc.Prefix,
+		CreatedAt:       timestamppb.New(doc.CreatedAt),
+		Revoked:         doc.Revoked,
+		Kind:            agentsv1.APITokenKind(doc.Kind),
+		Scopes:          append([]string(nil), doc.Scopes...),
+		DaemonRuntimeId: doc.DaemonRuntimeID,
 	}
 	if !doc.LastUsedAt.IsZero() {
 		t.LastUsedAt = timestamppb.New(doc.LastUsedAt)
+	}
+	if !doc.ExpiresAt.IsZero() {
+		t.ExpiresAt = timestamppb.New(doc.ExpiresAt)
 	}
 	return t
 }

@@ -1,14 +1,160 @@
 # Daemon Agent 设计方案
 
-> **状态：历史设计文档（已落地）。** 本文是 daemon agent 设计阶段的方案稿，
+> **状态：历史设计文档（已落地）+ 下一轮重构需求记录。** 本文是 daemon agent 设计阶段的方案稿，
 > 描述当时的 Twirp + Gin 架构与拟新增的 daemon 服务。daemon 已全部落地；
 > 自 2026-06-02 起 RPC 层迁移到 ConnectRPC（见 `migration-connectrpc.md`），
 > daemon 自身仍走独立 gRPC 端口 `:9090`。RPC 部分提到的 Twirp 文件 / Twirp
-> 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。
+> 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。自
+> 2026-06-05 起，daemon coding agent 执行器已从 opencode 专用 CLI 调用迁移为
+> 通用 ACP executor（`github.com/coder/acp-go-sdk`），opencode 通过 `opencode acp`
+> 接入；旧 `executors.opencode` 配置仅作为兼容入口保留。自 2026-06-06 起，
+> 下一轮目标是用 workspace-scoped `DaemonRuntime` 完全替代 `DaemonConfig` /
+> `daemon_capability` 模型，详见下方「DaemonRuntime 重构目标」。
 
 ## 背景
 
 Butter 当前已支持通过 ADK Go 封装的本地执行 agent（LLM、Loop、Sequential、Parallel），以及通过 A2A 协议调用的远程 agent。本文档描述支持第三种执行模式——**Daemon Agent**：Client 作为长驻进程与 Server 建立持久连接，Server 将任务下发给 Client，Client 通过 CLI 调用 opencode/claude-code 等工具执行任务并回传结果。
+
+## DaemonRuntime 重构目标（2026-06-06）
+
+这一节记录下一轮产品与架构目标。它不是在现有 `DaemonConfig` 上小修小补，而是允许对 daemon 资源模型、RPC、仓储、前端页面和 daemon 启动方式做完整重构。
+
+### 已确认需求
+
+- `DaemonRuntime` 完全替代当前 `DaemonConfig`。旧的 `allowed_capabilities` / `daemon_capability` 模型可以迁移或废弃，不要求保持内部结构兼容。
+- Workspace 可以创建 `DaemonRuntime`。创建后服务端签发 daemon token，并展示一条最小启动命令：
+
+```bash
+butter-daemon --url <daemon-grpc-url> --token <daemon-runtime-token>
+```
+
+- daemon token 绑定 `workspace_id + daemon_runtime_id`。`cmd/butter-daemon` 启动时只需要 `url + token` 即可连接；服务端从 token 推导 authoritative workspace/runtime，不信任客户端自报。token 生命周期暂时与普通 API token 一致：默认可长期使用，后续如需 rotate/revoke/expiry 再扩展。
+- `cmd/butter-daemon` 连接成功后代表一个 runtime 执行面，而不是一个 agent。它负责接收任务、启动对应 ACP runtime、回传 `DaemonTaskUpdate`。
+- 当 workspace 有 `DaemonRuntime` 后，可以基于该 runtime 创建 daemon-backed `RemoteAgent`。重构后仍保留 `RemoteAgent` 作为 agent 配置入口，但 DAEMON 协议不再通过 `daemon_capability` 路由，而是引用 `daemon_runtime_id` 并选择 `acp_runtime`。
+- `acp_runtime` 是创建 daemon agent 时选择的执行器类型。第一版写死支持 `opencode` 和 `codex`，后续再扩展为可配置 runtime catalog。同一个 `DaemonRuntime` 可以支持多个 ACP runtime，并由它派生多个 daemon agent。
+- `work_dir` 不属于 daemon 启动参数，也不应该固定在 runtime 连接配置里。临时方案是运行 agent 时按 session id 在 `/tmp` 下自动创建隔离工作目录；后续再升级为由 request/context/channel 配置显式传入。
+- 同一个 `DaemonRuntime` 不允许多个 daemon 同时在线连接。Registry 发现 `workspace_id + daemon_runtime_id` 已在线时，应拒绝新的连接；断开后可用同一个 token 重连。
+- 第一阶段 ADK 行为保持当前模式：daemon bridge 等待 terminal update，最终 yield 一个 `session.Event`。`RUNNING` 进度只记录为 daemon task 状态，不强制映射成 ADK streaming event。
+
+### 目标资源模型
+
+重构后的核心关系：
+
+```
+Workspace
+  └── DaemonRuntime
+        ├── token: daemon:connect, binds workspace_id + runtime_id
+        ├── single online connection: butter-daemon --url ... --token ...
+        └── supported ACP runtimes: opencode, codex (hardcoded in v1)
+
+RemoteAgent(protocol=DAEMON)
+  ├── daemon_runtime_id
+  ├── acp_runtime: opencode | codex | ...
+  └── normal Agent config references it via remote_agent_ids
+
+Agent invocation
+  ├── user input
+  ├── work_dir generated from session id under /tmp
+  └── Bridge dispatches DaemonTask(runtime_id, acp_runtime, work_dir, input)
+```
+
+Suggested proto shape:
+
+```protobuf
+message DaemonRuntime {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  map<string, string> labels = 4;
+  string workspace_id = 100;
+}
+
+message RemoteAgent {
+  string id = 1;
+  string name = 2;
+  string url = 3; // A2A only
+  RemoteAgentProtocol protocol = 4;
+
+  reserved 5;
+  reserved "daemon_capability";
+
+  string daemon_runtime_id = 6; // DAEMON only
+  string acp_runtime = 7;       // DAEMON only, e.g. "opencode" or "codex"
+  string workspace_id = 100;
+}
+
+message DaemonTask {
+  string task_id = 1;
+  string agent_name = 2;
+  string input = 3;
+  string session_id = 4;
+  string user_id = 5;
+  map<string, string> metadata = 6;
+
+  reserved 7;
+  reserved "capability";
+
+  string workspace_id = 8;
+  string daemon_runtime_id = 9;
+  string acp_runtime = 10;
+  string work_dir = 11;
+}
+```
+
+字段命名可以在实现前再统一，但语义应保持：`DaemonRuntime` 负责连接和执行面身份；`RemoteAgent` 负责从 runtime 派生一个可被 ADK runner 调度的 agent；`DaemonTask` 负责传递本次调用才知道的运行上下文。
+
+### 服务端流程
+
+1. 用户在 workspace 内创建 `DaemonRuntime`。
+2. 服务端创建 runtime 资源，并通过 `CreateDaemonRuntimeToken` 或等价 RPC 签发一次性可见的 daemon token。token 默认长期有效，语义跟现有 API token 一致。
+3. UI 展示启动命令：`butter-daemon --url <grpc-url> --token <token>`。
+4. daemon 使用 token 连接 `DaemonConnectorService.Connect`。服务端校验 token，注册到 `Registry`，键为 `workspace_id + daemon_runtime_id`。
+5. 如果该 runtime 已有在线连接，服务端拒绝第二个连接。runtime 断开后允许用同一个 token 重连。
+6. 用户基于该 runtime 创建 `RemoteAgent(protocol=DAEMON, daemon_runtime_id=..., acp_runtime=...)`；第一版 `acp_runtime` 只能是 `opencode` 或 `codex`。
+7. 普通 `Agent` 仍通过 `remote_agent_ids` 引用这个 remote agent。
+8. `internal/agent/resolveRemoteAgents()` 为 DAEMON remote agent 构造 ADK `agent.Agent`，bridge 中持有 `workspace_id + daemon_runtime_id + acp_runtime`。
+9. 运行时，bridge 根据 session id 生成 `/tmp` 下的临时 `work_dir`，构造 `DaemonTask` 并投递给对应 runtime connection。后续可把 `work_dir` 来源替换为 invocation/context metadata。
+
+### Daemon 端职责
+
+`cmd/butter-daemon` 重构后优先支持最小启动参数：
+
+```bash
+butter-daemon --url localhost:9090 --token bt_daemon_runtime_xxx
+```
+
+daemon 本地不再用 `daemon_id/name/allowed_capabilities` 声明 agent 能力。它连接成功后作为 runtime 执行面接收任务，并根据 `DaemonTask.acp_runtime` 选择内置 ACP adapter：
+
+| `acp_runtime` | 默认命令建议 | 说明 |
+|---------------|--------------|------|
+| `opencode` | `opencode acp` | 现有 ACP executor 的默认 profile |
+| `codex` | `codex-acp` | 参考 `zed-industries/codex-acp`；也可通过 `npx @zed-industries/codex-acp` 启动 |
+
+如果后续需要自定义命令、环境变量或权限策略，可以再引入本地 optional config 或 server-side runtime policy；但当前已确认的产品目标是 daemon 可先用 `url + token` 启动。
+
+### ADK Agent 适配
+
+daemon-backed `RemoteAgent` 仍必须实现为 ADK agent。由于 ADK `agent.Agent` 接口有未导出的 internal 方法，外部包仍通过 `agent.New(agent.Config{Run: ...})` 构造：
+
+```go
+bridge := daemon.NewRuntimeBridge(registry, workspaceID, runtimeID, acpRuntime)
+adkAgent, err := bridge.BuildAgent(remoteAgentName, description)
+```
+
+`Run` 行为保持第一阶段简单模型：
+
+1. 从 `InvocationContext.UserContent()` 提取用户输入。
+2. 根据 session id 在 `/tmp` 下生成或复用临时 `work_dir`。
+3. 按 `workspace_id + daemon_runtime_id` 查找在线 runtime。
+4. 下发 `DaemonTask{acp_runtime, work_dir, input}`。
+5. 等待 `COMPLETED/FAILED/CANCELLED`。
+6. 成功时 yield 一个最终 `session.Event`。
+
+### 待确认问题
+
+- 当前 `/tmp` 临时 `work_dir` 是由 server 创建并以绝对路径下发给 daemon；因此第一阶段隐含要求 daemon 与 server 在同一主机/容器文件系统内运行，或在相同绝对路径挂载共享 volume。独立容器/远程主机部署在未共享该路径时会因本地 executor 无法进入目录而失败；后续需要把 `work_dir` 来源改为 daemon-local 创建或显式 workspace mount 配置。
+- `/tmp` 临时 `work_dir` 暂时不清理；需要记录后续 GC 需求，包括 TTL、手动清理、按 workspace/session 清理、失败任务是否保留现场。
+- `codex-acp` 的权限策略、文件 callback、terminal callback 与现有 ACP executor 的具体映射细节。
 
 ## 目标架构（参考 agent-gw 模块拆分）
 
@@ -134,9 +280,9 @@ func (s *Service) Run(
 
 避免一次性大规模重构现有工作代码，采用增量方式：先在现有架构上扩展 daemon 能力，后续按需向目标架构演进。
 
-### Phase 1：Daemon Execution Plane（最小可行方案）
+### Phase 1：Workspace-scoped Daemon Execution Plane
 
-**目标**：daemon client 能连接 server，接收任务，执行并返回结果。不改动现有 runner/channel 流程。
+**目标**：daemon 作为 workspace-scoped DB 配置资源存在；daemon client 通过专用 credential 连接 server，接收任务，执行并返回结果。不改动现有 runner/channel 流程。
 
 #### 1.1 Proto 定义
 
@@ -154,6 +300,10 @@ message DaemonInfo {
   string name = 2;                   // 人类可读名称
   repeated string capabilities = 3;  // 支持的执行能力 e.g. ["opencode", "claude-code"]
   map<string, string> labels = 4;    // 路由标签 e.g. {"repo": "butter", "env": "prod"}
+  string version = 5;
+  string os = 6;
+  repeated string executors = 7;
+  string workspace_id = 8;           // 可自报；服务端以 daemon credential 绑定的 workspace 为准
 }
 
 // Server 下发给 Daemon 的任务
@@ -165,6 +315,7 @@ message DaemonTask {
   string user_id = 5;
   map<string, string> metadata = 6;
   string capability = 7;              // 执行能力路由键，daemon 据此选择 executor
+  string workspace_id = 8;            // 任务所属 workspace
 }
 
 // Daemon 回传的任务进度/结果
@@ -246,17 +397,17 @@ internal/runtime/daemon/
 ```go
 type Registry struct {
     mu    sync.RWMutex
-    conns map[string]*Connection  // daemon_id → connection
+    conns map[string]map[string]*Connection  // workspace_id → daemon_id → connection
 }
 
 // Register 在 daemon 连接时调用
 func (r *Registry) Register(conn *Connection)
 // Unregister 在 daemon 断开时调用
-func (r *Registry) Unregister(daemonID string)
-// FindByCapability 查找具有指定能力的可用 daemon
-func (r *Registry) FindByCapability(capability string) *Connection
-// ListConnected 列出所有在线 daemon
-func (r *Registry) ListConnected() []*DaemonInfo
+func (r *Registry) Unregister(workspaceID, daemonID string)
+// FindByCapability 在指定 workspace 查找具有指定能力的可用 daemon
+func (r *Registry) FindByCapability(workspaceID, capability string) *Connection
+// ListConnected 列出指定 workspace 的在线 daemon；workspaceID 为空时列出全部（admin/内部使用）
+func (r *Registry) ListConnected(workspaceID string) []*DaemonInfo
 ```
 
 **Connection**：
@@ -264,6 +415,7 @@ func (r *Registry) ListConnected() []*DaemonInfo
 ```go
 type Connection struct {
     Info          *DaemonInfo
+    WorkspaceID   string
     sendCh        chan *ServerMessage    // server → daemon
     activeTasks   sync.Map              // task_id → chan *DaemonTaskUpdate
     ConnectedAt   time.Time
@@ -368,18 +520,20 @@ func (b *Bridge) daemonRunFunc(ctx agent.InvocationContext) iter.Seq2[*session.E
 type GRPCHandler struct {
     agentsv1.UnimplementedDaemonConnectorServer
     registry *Registry
-    authFn   func(ctx context.Context) error  // 复用现有 APIToken 鉴权
+    tokenRepo apitoken.Repository
+    daemonRepo configrepo.DaemonConfigRepository
 }
 
 func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnector_ConnectServer) error {
     // 1. 接收首条消息（必须是 register）
-    // 2. 鉴权（从 gRPC metadata 提取 token）
-    // 3. 创建 Connection，注册到 Registry
-    // 4. 启动两个 goroutine:
+    // 2. 鉴权（从 gRPC metadata 提取 daemon credential）
+    // 3. 使用 credential 绑定的 workspace_id + daemon_id 覆盖 register，并按 DaemonConfig.allowed_capabilities 过滤能力
+    // 4. 创建 Connection，注册到 Registry
+    // 5. 启动两个 goroutine:
     //    - sendLoop: conn.sendCh → stream.Send()
     //    - recvLoop: stream.Recv() → conn.DispatchUpdate()
-    // 5. 等待 stream 关闭或 ctx 取消
-    // 6. Unregister + 清理 activeTasks（通知等待方 daemon 已断开）
+    // 6. 等待 stream 关闭或 ctx 取消
+    // 7. Unregister + 清理 activeTasks（通知等待方 daemon 已断开）
 }
 ```
 
@@ -409,7 +563,11 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
             if daemonRegistry == nil {
                 return nil, fmt.Errorf("remote agent %q: daemon registry not available", ra.GetName())
             }
-            bridge := daemon.NewBridge(daemonRegistry, ra.GetDaemonCapability())
+            workspaceID := ra.GetWorkspaceId()
+            if workspaceID == "" {
+                workspaceID = pb.GetWorkspaceId()
+            }
+            bridge := daemon.NewBridge(daemonRegistry, workspaceID, ra.GetDaemonCapability())
             a, err := bridge.BuildAgent(ra.GetName(), fmt.Sprintf("Daemon agent: %s", ra.GetName()))
             if err != nil {
                 return nil, fmt.Errorf("remote agent %q: building daemon bridge: %w", ra.GetName(), err)
@@ -449,10 +607,9 @@ agentsv1.RegisterDaemonConnectorServer(grpcServer, daemonGRPCHandler)
 cmd/butter-daemon/
 ├── main.go           # CLI 入口，读取配置
 ├── connector.go      # gRPC 连接 + 自动重连（指数退避）
-├── dispatcher.go     # 接收任务，分发给 executor
 └── executor/
     ├── executor.go   # Executor 接口
-    ├── opencode.go   # opencode CLI executor
+    ├── acp.go        # 通用 ACP stdio executor
     └── shell.go      # 通用 shell command executor
 ```
 
@@ -467,49 +624,84 @@ type Executor interface {
 }
 ```
 
-**OpenCode Executor**：
+**ACP Executor（现状）**：
 
 ```go
-type OpenCodeExecutor struct {
-    WorkDir string
-    Binary  string  // 默认 "opencode"
+type ACPConfig struct {
+    Capability       string            `yaml:"capability"`
+    Command          string            `yaml:"command"`
+    Args             []string          `yaml:"args"`
+    Env              map[string]string `yaml:"env"`
+    WorkDir          string            `yaml:"work_dir"`
+    PermissionPolicy string            `yaml:"permission_policy"` // deny | allow
+    FS               ACPFSConfig       `yaml:"fs"`
+    Terminal         bool              `yaml:"terminal"`
 }
 
-func (e *OpenCodeExecutor) Capability() string { return "opencode" }
-
-func (e *OpenCodeExecutor) Execute(ctx context.Context, task *DaemonTask, onUpdate func(*DaemonTaskUpdate)) error {
-    cmd := exec.CommandContext(ctx, e.Binary, "--non-interactive", "--prompt", task.Input)
-    cmd.Dir = e.WorkDir
-
-    // 合并 stdout + stderr
-    output, _ := cmd.CombinedOutput()
-
-    // 流式版本应使用 pipe + scanner 逐行回传
-    onUpdate(&DaemonTaskUpdate{
-        TaskId: task.TaskId,
-        Status: DAEMON_TASK_STATUS_COMPLETED,
-        Output: string(output),
-    })
-    return nil
+type ACPFSConfig struct {
+    Read               bool `yaml:"read"`
+    Write              bool `yaml:"write"`
+    AllowAbsolutePaths bool `yaml:"allow_absolute_paths"`
 }
 ```
 
-**Daemon 配置**（YAML 或 flags）：
+当前 `ACPExecutor` 使用 `github.com/coder/acp-go-sdk` 通过 stdio 启动 ACP agent，并按
+`Initialize → NewSession → Prompt` 生命周期执行任务。`capability` 仍是 server 路由到
+daemon executor 的键；opencode 不再由 `opencode.go` 直调 CLI，而是配置成
+`command: opencode` + `args: ["acp"]`。executor 支持 ACP permission、file
+callbacks、terminal callbacks、任务取消与进程清理；文件回调默认限制在 `work_dir`
+内，并会解析 symlink 防止通过工作区内链接逃逸。
+
+**服务端 DaemonConfig**（通过 `DaemonService` 写入 workspace 配置仓库）：
 
 ```yaml
-server: "butter.example.com:9090"  # gRPC 地址
-token: "xxx"                        # API token
-daemon_id: "dev-machine-1"
+id: "dev-machine-1"
 name: "orvice-dev"
-capabilities: ["opencode", "claude-code"]
+description: "Local development worker"
+allowed_capabilities: ["opencode", "claude-code"]
 labels:
   repo: "butter"
   env: "dev"
+```
+
+随后调用 `CreateDaemonCredential` 为该 `daemon_id` 签发 worker credential。credential token 为 `API_TOKEN_KIND_DAEMON`，scope 为 `daemon:connect`，并绑定 workspace + daemon_id。
+
+**Daemon 本地配置**（YAML 或 flags）：
+
+```yaml
+server: "butter.example.com:9090"  # gRPC 地址
+credential: "bt_xxx"                # daemon credential
+daemon_id: "dev-machine-1"
+name: "orvice-dev"
+labels:
+  repo: "butter"
+  env: "dev"
+executors:
+  acp:
+    - capability: opencode
+      command: opencode
+      args: ["acp"]
+      work_dir: "/home/user/workspace/butter"
+      permission_policy: deny
+      fs:
+        read: true
+        write: true
+      terminal: true
+  shell:
+    work_dir: "/home/user/workspace/butter"
+```
+
+旧的本地配置形态仍可兼容：
+
+```yaml
 executors:
   opencode:
     work_dir: "/home/user/workspace/butter"
     binary: "opencode"
 ```
+
+daemon 启动时会把它转换成 `capability: opencode`、`command: opencode`、
+`args: ["acp"]` 的 ACP profile；新配置应直接使用 `executors.acp`。
 
 **连接流程**：
 
@@ -705,10 +897,10 @@ Telegram → Poller.handleMessage()
   → runner.Run("coding-agent", parts, model, ctxInfo, onEvent, nil)
     → agent 树中的 daemon sub-agent 被 ADK 调度
     → Bridge.Run()
-      → Registry.FindByCapability("opencode")
-      → Connection.SendTask(DaemonTask)
+      → Registry.FindByCapability(workspace_id, "opencode")
+      → Connection.SendTask(DaemonTask{workspace_id: ...})
         → gRPC stream → Daemon Client
-        → Daemon: opencode 执行
+        → Daemon: ACP executor 调用 opencode acp
         → DaemonTaskUpdate (RUNNING → COMPLETED)
       ← final output
     ← response text
@@ -722,8 +914,8 @@ Telegram → Poller.handleMessage()
   → 识别 daemon agent
   → sendReply("Task submitted")
   → Bridge.RunAsync(task, onProgress, onComplete)
-    → Registry.FindByCapability("opencode")
-    → Connection.SendTask(DaemonTask)
+    → Registry.FindByCapability(workspace_id, "opencode")
+    → Connection.SendTask(DaemonTask{workspace_id: ...})
     → (后台) Daemon Client 执行
     → DaemonTaskUpdate (RUNNING, partial output)
       → onProgress → Telegram editMessage("Progress: ...")
@@ -774,8 +966,8 @@ Telegram → Poller.handleMessage()
 
 ## 实施建议
 
-1. **Phase 1 优先**：实现最小可行的 daemon 连接 + 任务执行。可以先用同步阻塞模式验证端到端流程。
+1. **正式资源模型优先**：先落地 workspace-scoped `DaemonConfig`、daemon credential、registry workspace 隔离，再实现 daemon 连接 + 任务执行。
 2. **gRPC 端口**：建议独立端口（如 9090），避免与 Gin HTTP server 冲突。go.mod 中已有 `google.golang.org/grpc v1.79.3`。
-3. **鉴权**：复用现有 APIToken，通过 gRPC metadata 传递 `authorization: Bearer <token>`。
+3. **鉴权**：daemon gRPC 只接受 `API_TOKEN_KIND_DAEMON` + `daemon:connect` credential，通过 gRPC metadata 传递 `authorization: Bearer <credential>`；root token 与普通 API token 不进入 daemon connector。
 4. **测试策略**：Phase 1 完成后用集成测试验证：mock daemon client → gRPC 连接 → 收到任务 → 返回结果 → 验证 runner 拿到输出。
 5. **Phase 4/5 按需引入**：除非 agent 类型超过 3 种或入口超过 5 个，否则不必急于引入 Adapter/Gateway 层。

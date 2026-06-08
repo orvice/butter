@@ -1550,7 +1550,7 @@ func (m *DaemonHandshake) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	// no validation rules for Name
 
@@ -2230,6 +2230,1625 @@ var _ interface {
 	ErrorName() string
 } = LatencyPointValidationError{}
 
+// Validate checks the field values on DaemonRuntime with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *DaemonRuntime) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DaemonRuntime with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in DaemonRuntimeMultiError, or
+// nil if none found.
+func (m *DaemonRuntime) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonRuntime) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for Name
+
+	// no validation rules for Description
+
+	// no validation rules for Labels
+
+	if all {
+		switch v := interface{}(m.GetCreatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DaemonRuntimeValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DaemonRuntimeValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCreatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DaemonRuntimeValidationError{
+				field:  "CreatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for CreatedBy
+
+	// no validation rules for WorkspaceId
+
+	if len(errors) > 0 {
+		return DaemonRuntimeMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonRuntimeMultiError is an error wrapping multiple validation errors
+// returned by DaemonRuntime.ValidateAll() if the designated constraints
+// aren't met.
+type DaemonRuntimeMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonRuntimeMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonRuntimeMultiError) AllErrors() []error { return m }
+
+// DaemonRuntimeValidationError is the validation error returned by
+// DaemonRuntime.Validate if the designated constraints aren't met.
+type DaemonRuntimeValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonRuntimeValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonRuntimeValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DaemonRuntimeValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonRuntimeValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonRuntimeValidationError) ErrorName() string { return "DaemonRuntimeValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DaemonRuntimeValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonRuntime.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonRuntimeValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonRuntimeValidationError{}
+
+// Validate checks the field values on ListDaemonRuntimesRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListDaemonRuntimesRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListDaemonRuntimesRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListDaemonRuntimesRequestMultiError, or nil if none found.
+func (m *ListDaemonRuntimesRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListDaemonRuntimesRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return ListDaemonRuntimesRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListDaemonRuntimesRequestMultiError is an error wrapping multiple validation
+// errors returned by ListDaemonRuntimesRequest.ValidateAll() if the
+// designated constraints aren't met.
+type ListDaemonRuntimesRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListDaemonRuntimesRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListDaemonRuntimesRequestMultiError) AllErrors() []error { return m }
+
+// ListDaemonRuntimesRequestValidationError is the validation error returned by
+// ListDaemonRuntimesRequest.Validate if the designated constraints aren't met.
+type ListDaemonRuntimesRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListDaemonRuntimesRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListDaemonRuntimesRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListDaemonRuntimesRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListDaemonRuntimesRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListDaemonRuntimesRequestValidationError) ErrorName() string {
+	return "ListDaemonRuntimesRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListDaemonRuntimesRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListDaemonRuntimesRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListDaemonRuntimesRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListDaemonRuntimesRequestValidationError{}
+
+// Validate checks the field values on ListDaemonRuntimesResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListDaemonRuntimesResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListDaemonRuntimesResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListDaemonRuntimesResponseMultiError, or nil if none found.
+func (m *ListDaemonRuntimesResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListDaemonRuntimesResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetRuntimes() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListDaemonRuntimesResponseValidationError{
+						field:  fmt.Sprintf("Runtimes[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListDaemonRuntimesResponseValidationError{
+						field:  fmt.Sprintf("Runtimes[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListDaemonRuntimesResponseValidationError{
+					field:  fmt.Sprintf("Runtimes[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListDaemonRuntimesResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListDaemonRuntimesResponseMultiError is an error wrapping multiple
+// validation errors returned by ListDaemonRuntimesResponse.ValidateAll() if
+// the designated constraints aren't met.
+type ListDaemonRuntimesResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListDaemonRuntimesResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListDaemonRuntimesResponseMultiError) AllErrors() []error { return m }
+
+// ListDaemonRuntimesResponseValidationError is the validation error returned
+// by ListDaemonRuntimesResponse.Validate if the designated constraints aren't met.
+type ListDaemonRuntimesResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListDaemonRuntimesResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListDaemonRuntimesResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListDaemonRuntimesResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListDaemonRuntimesResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListDaemonRuntimesResponseValidationError) ErrorName() string {
+	return "ListDaemonRuntimesResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListDaemonRuntimesResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListDaemonRuntimesResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListDaemonRuntimesResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListDaemonRuntimesResponseValidationError{}
+
+// Validate checks the field values on GetDaemonRuntimeRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetDaemonRuntimeRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetDaemonRuntimeRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetDaemonRuntimeRequestMultiError, or nil if none found.
+func (m *GetDaemonRuntimeRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetDaemonRuntimeRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	if len(errors) > 0 {
+		return GetDaemonRuntimeRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetDaemonRuntimeRequestMultiError is an error wrapping multiple validation
+// errors returned by GetDaemonRuntimeRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetDaemonRuntimeRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetDaemonRuntimeRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetDaemonRuntimeRequestMultiError) AllErrors() []error { return m }
+
+// GetDaemonRuntimeRequestValidationError is the validation error returned by
+// GetDaemonRuntimeRequest.Validate if the designated constraints aren't met.
+type GetDaemonRuntimeRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetDaemonRuntimeRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetDaemonRuntimeRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetDaemonRuntimeRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetDaemonRuntimeRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetDaemonRuntimeRequestValidationError) ErrorName() string {
+	return "GetDaemonRuntimeRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetDaemonRuntimeRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetDaemonRuntimeRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetDaemonRuntimeRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetDaemonRuntimeRequestValidationError{}
+
+// Validate checks the field values on GetDaemonRuntimeResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetDaemonRuntimeResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetDaemonRuntimeResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetDaemonRuntimeResponseMultiError, or nil if none found.
+func (m *GetDaemonRuntimeResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetDaemonRuntimeResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetDaemonRuntimeResponseValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetDaemonRuntimeResponseValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetDaemonRuntimeResponseValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetDaemonRuntimeResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetDaemonRuntimeResponseMultiError is an error wrapping multiple validation
+// errors returned by GetDaemonRuntimeResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetDaemonRuntimeResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetDaemonRuntimeResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetDaemonRuntimeResponseMultiError) AllErrors() []error { return m }
+
+// GetDaemonRuntimeResponseValidationError is the validation error returned by
+// GetDaemonRuntimeResponse.Validate if the designated constraints aren't met.
+type GetDaemonRuntimeResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetDaemonRuntimeResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetDaemonRuntimeResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetDaemonRuntimeResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetDaemonRuntimeResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetDaemonRuntimeResponseValidationError) ErrorName() string {
+	return "GetDaemonRuntimeResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetDaemonRuntimeResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetDaemonRuntimeResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetDaemonRuntimeResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetDaemonRuntimeResponseValidationError{}
+
+// Validate checks the field values on CreateDaemonRuntimeRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CreateDaemonRuntimeRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateDaemonRuntimeRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateDaemonRuntimeRequestMultiError, or nil if none found.
+func (m *CreateDaemonRuntimeRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateDaemonRuntimeRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateDaemonRuntimeRequestValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateDaemonRuntimeRequestValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CreateDaemonRuntimeRequestValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CreateDaemonRuntimeRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// CreateDaemonRuntimeRequestMultiError is an error wrapping multiple
+// validation errors returned by CreateDaemonRuntimeRequest.ValidateAll() if
+// the designated constraints aren't met.
+type CreateDaemonRuntimeRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateDaemonRuntimeRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateDaemonRuntimeRequestMultiError) AllErrors() []error { return m }
+
+// CreateDaemonRuntimeRequestValidationError is the validation error returned
+// by CreateDaemonRuntimeRequest.Validate if the designated constraints aren't met.
+type CreateDaemonRuntimeRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CreateDaemonRuntimeRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CreateDaemonRuntimeRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CreateDaemonRuntimeRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CreateDaemonRuntimeRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CreateDaemonRuntimeRequestValidationError) ErrorName() string {
+	return "CreateDaemonRuntimeRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CreateDaemonRuntimeRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCreateDaemonRuntimeRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CreateDaemonRuntimeRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CreateDaemonRuntimeRequestValidationError{}
+
+// Validate checks the field values on CreateDaemonRuntimeResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CreateDaemonRuntimeResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateDaemonRuntimeResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateDaemonRuntimeResponseMultiError, or nil if none found.
+func (m *CreateDaemonRuntimeResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateDaemonRuntimeResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateDaemonRuntimeResponseValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateDaemonRuntimeResponseValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CreateDaemonRuntimeResponseValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CreateDaemonRuntimeResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// CreateDaemonRuntimeResponseMultiError is an error wrapping multiple
+// validation errors returned by CreateDaemonRuntimeResponse.ValidateAll() if
+// the designated constraints aren't met.
+type CreateDaemonRuntimeResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateDaemonRuntimeResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateDaemonRuntimeResponseMultiError) AllErrors() []error { return m }
+
+// CreateDaemonRuntimeResponseValidationError is the validation error returned
+// by CreateDaemonRuntimeResponse.Validate if the designated constraints
+// aren't met.
+type CreateDaemonRuntimeResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CreateDaemonRuntimeResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CreateDaemonRuntimeResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CreateDaemonRuntimeResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CreateDaemonRuntimeResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CreateDaemonRuntimeResponseValidationError) ErrorName() string {
+	return "CreateDaemonRuntimeResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CreateDaemonRuntimeResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCreateDaemonRuntimeResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CreateDaemonRuntimeResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CreateDaemonRuntimeResponseValidationError{}
+
+// Validate checks the field values on UpdateDaemonRuntimeRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateDaemonRuntimeRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateDaemonRuntimeRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UpdateDaemonRuntimeRequestMultiError, or nil if none found.
+func (m *UpdateDaemonRuntimeRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateDaemonRuntimeRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateDaemonRuntimeRequestValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateDaemonRuntimeRequestValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateDaemonRuntimeRequestValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateDaemonRuntimeRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateDaemonRuntimeRequestMultiError is an error wrapping multiple
+// validation errors returned by UpdateDaemonRuntimeRequest.ValidateAll() if
+// the designated constraints aren't met.
+type UpdateDaemonRuntimeRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateDaemonRuntimeRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateDaemonRuntimeRequestMultiError) AllErrors() []error { return m }
+
+// UpdateDaemonRuntimeRequestValidationError is the validation error returned
+// by UpdateDaemonRuntimeRequest.Validate if the designated constraints aren't met.
+type UpdateDaemonRuntimeRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateDaemonRuntimeRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateDaemonRuntimeRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateDaemonRuntimeRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateDaemonRuntimeRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateDaemonRuntimeRequestValidationError) ErrorName() string {
+	return "UpdateDaemonRuntimeRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateDaemonRuntimeRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateDaemonRuntimeRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateDaemonRuntimeRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateDaemonRuntimeRequestValidationError{}
+
+// Validate checks the field values on UpdateDaemonRuntimeResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateDaemonRuntimeResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateDaemonRuntimeResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UpdateDaemonRuntimeResponseMultiError, or nil if none found.
+func (m *UpdateDaemonRuntimeResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateDaemonRuntimeResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateDaemonRuntimeResponseValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateDaemonRuntimeResponseValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateDaemonRuntimeResponseValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateDaemonRuntimeResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateDaemonRuntimeResponseMultiError is an error wrapping multiple
+// validation errors returned by UpdateDaemonRuntimeResponse.ValidateAll() if
+// the designated constraints aren't met.
+type UpdateDaemonRuntimeResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateDaemonRuntimeResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateDaemonRuntimeResponseMultiError) AllErrors() []error { return m }
+
+// UpdateDaemonRuntimeResponseValidationError is the validation error returned
+// by UpdateDaemonRuntimeResponse.Validate if the designated constraints
+// aren't met.
+type UpdateDaemonRuntimeResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateDaemonRuntimeResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateDaemonRuntimeResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateDaemonRuntimeResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateDaemonRuntimeResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateDaemonRuntimeResponseValidationError) ErrorName() string {
+	return "UpdateDaemonRuntimeResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateDaemonRuntimeResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateDaemonRuntimeResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateDaemonRuntimeResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateDaemonRuntimeResponseValidationError{}
+
+// Validate checks the field values on DeleteDaemonRuntimeRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteDaemonRuntimeRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteDaemonRuntimeRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeleteDaemonRuntimeRequestMultiError, or nil if none found.
+func (m *DeleteDaemonRuntimeRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteDaemonRuntimeRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	if len(errors) > 0 {
+		return DeleteDaemonRuntimeRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteDaemonRuntimeRequestMultiError is an error wrapping multiple
+// validation errors returned by DeleteDaemonRuntimeRequest.ValidateAll() if
+// the designated constraints aren't met.
+type DeleteDaemonRuntimeRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteDaemonRuntimeRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteDaemonRuntimeRequestMultiError) AllErrors() []error { return m }
+
+// DeleteDaemonRuntimeRequestValidationError is the validation error returned
+// by DeleteDaemonRuntimeRequest.Validate if the designated constraints aren't met.
+type DeleteDaemonRuntimeRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteDaemonRuntimeRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteDaemonRuntimeRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteDaemonRuntimeRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteDaemonRuntimeRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteDaemonRuntimeRequestValidationError) ErrorName() string {
+	return "DeleteDaemonRuntimeRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteDaemonRuntimeRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteDaemonRuntimeRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteDaemonRuntimeRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteDaemonRuntimeRequestValidationError{}
+
+// Validate checks the field values on DeleteDaemonRuntimeResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteDaemonRuntimeResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteDaemonRuntimeResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeleteDaemonRuntimeResponseMultiError, or nil if none found.
+func (m *DeleteDaemonRuntimeResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteDaemonRuntimeResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return DeleteDaemonRuntimeResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteDaemonRuntimeResponseMultiError is an error wrapping multiple
+// validation errors returned by DeleteDaemonRuntimeResponse.ValidateAll() if
+// the designated constraints aren't met.
+type DeleteDaemonRuntimeResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteDaemonRuntimeResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteDaemonRuntimeResponseMultiError) AllErrors() []error { return m }
+
+// DeleteDaemonRuntimeResponseValidationError is the validation error returned
+// by DeleteDaemonRuntimeResponse.Validate if the designated constraints
+// aren't met.
+type DeleteDaemonRuntimeResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteDaemonRuntimeResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteDaemonRuntimeResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteDaemonRuntimeResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteDaemonRuntimeResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteDaemonRuntimeResponseValidationError) ErrorName() string {
+	return "DeleteDaemonRuntimeResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteDaemonRuntimeResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteDaemonRuntimeResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteDaemonRuntimeResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteDaemonRuntimeResponseValidationError{}
+
+// Validate checks the field values on CreateDaemonRuntimeTokenRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CreateDaemonRuntimeTokenRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateDaemonRuntimeTokenRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// CreateDaemonRuntimeTokenRequestMultiError, or nil if none found.
+func (m *CreateDaemonRuntimeTokenRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateDaemonRuntimeTokenRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for DaemonRuntimeId
+
+	// no validation rules for Name
+
+	if all {
+		switch v := interface{}(m.GetTtl()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateDaemonRuntimeTokenRequestValidationError{
+					field:  "Ttl",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateDaemonRuntimeTokenRequestValidationError{
+					field:  "Ttl",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTtl()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CreateDaemonRuntimeTokenRequestValidationError{
+				field:  "Ttl",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CreateDaemonRuntimeTokenRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// CreateDaemonRuntimeTokenRequestMultiError is an error wrapping multiple
+// validation errors returned by CreateDaemonRuntimeTokenRequest.ValidateAll()
+// if the designated constraints aren't met.
+type CreateDaemonRuntimeTokenRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateDaemonRuntimeTokenRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateDaemonRuntimeTokenRequestMultiError) AllErrors() []error { return m }
+
+// CreateDaemonRuntimeTokenRequestValidationError is the validation error
+// returned by CreateDaemonRuntimeTokenRequest.Validate if the designated
+// constraints aren't met.
+type CreateDaemonRuntimeTokenRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CreateDaemonRuntimeTokenRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CreateDaemonRuntimeTokenRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CreateDaemonRuntimeTokenRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CreateDaemonRuntimeTokenRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CreateDaemonRuntimeTokenRequestValidationError) ErrorName() string {
+	return "CreateDaemonRuntimeTokenRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CreateDaemonRuntimeTokenRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCreateDaemonRuntimeTokenRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CreateDaemonRuntimeTokenRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CreateDaemonRuntimeTokenRequestValidationError{}
+
+// Validate checks the field values on CreateDaemonRuntimeTokenResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *CreateDaemonRuntimeTokenResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateDaemonRuntimeTokenResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// CreateDaemonRuntimeTokenResponseMultiError, or nil if none found.
+func (m *CreateDaemonRuntimeTokenResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateDaemonRuntimeTokenResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetToken()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateDaemonRuntimeTokenResponseValidationError{
+					field:  "Token",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateDaemonRuntimeTokenResponseValidationError{
+					field:  "Token",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetToken()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CreateDaemonRuntimeTokenResponseValidationError{
+				field:  "Token",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for Secret
+
+	if len(errors) > 0 {
+		return CreateDaemonRuntimeTokenResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// CreateDaemonRuntimeTokenResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// CreateDaemonRuntimeTokenResponse.ValidateAll() if the designated
+// constraints aren't met.
+type CreateDaemonRuntimeTokenResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateDaemonRuntimeTokenResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateDaemonRuntimeTokenResponseMultiError) AllErrors() []error { return m }
+
+// CreateDaemonRuntimeTokenResponseValidationError is the validation error
+// returned by CreateDaemonRuntimeTokenResponse.Validate if the designated
+// constraints aren't met.
+type CreateDaemonRuntimeTokenResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CreateDaemonRuntimeTokenResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CreateDaemonRuntimeTokenResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CreateDaemonRuntimeTokenResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CreateDaemonRuntimeTokenResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CreateDaemonRuntimeTokenResponseValidationError) ErrorName() string {
+	return "CreateDaemonRuntimeTokenResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CreateDaemonRuntimeTokenResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCreateDaemonRuntimeTokenResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CreateDaemonRuntimeTokenResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CreateDaemonRuntimeTokenResponseValidationError{}
+
 // Validate checks the field values on ListDaemonsRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
@@ -2490,7 +4109,7 @@ func (m *GetDaemonRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	if len(errors) > 0 {
 		return GetDaemonRequestMultiError(errors)
@@ -2725,7 +4344,7 @@ func (m *CancelDaemonTaskRequest) validate(all bool) error {
 
 	// no validation rules for TaskId
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	if len(errors) > 0 {
 		return CancelDaemonTaskRequestMultiError(errors)
@@ -2829,7 +4448,7 @@ func (m *CancelDaemonTaskResponse) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	if len(errors) > 0 {
 		return CancelDaemonTaskResponseMultiError(errors)
@@ -2933,7 +4552,7 @@ func (m *ListDaemonTasksRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	if len(errors) > 0 {
 		return ListDaemonTasksRequestMultiError(errors)
@@ -3175,11 +4794,11 @@ func (m *DaemonTaskInFlight) validate(all bool) error {
 
 	// no validation rules for TaskId
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	// no validation rules for DaemonName
 
-	// no validation rules for Capability
+	// no validation rules for AcpRuntime
 
 	if all {
 		switch v := interface{}(m.GetStartedAt()).(type) {
@@ -3244,6 +4863,8 @@ func (m *DaemonTaskInFlight) validate(all bool) error {
 	// no validation rules for Progress
 
 	// no validation rules for AgentName
+
+	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
 		return DaemonTaskInFlightMultiError(errors)
@@ -3347,7 +4968,7 @@ func (m *DaemonStatus) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	// no validation rules for Name
 
@@ -3420,6 +5041,8 @@ func (m *DaemonStatus) validate(all bool) error {
 	// no validation rules for Os
 
 	// no validation rules for RemoteAddr
+
+	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
 		return DaemonStatusMultiError(errors)
@@ -4000,7 +5623,7 @@ func (m *RemoteAgentStatus) validate(all bool) error {
 
 	// no validation rules for Detail
 
-	// no validation rules for ServingDaemonId
+	// no validation rules for ServingDaemonRuntimeId
 
 	if all {
 		switch v := interface{}(m.GetCheckedAt()).(type) {

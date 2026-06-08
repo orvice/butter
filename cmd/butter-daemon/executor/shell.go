@@ -13,7 +13,7 @@ type ShellExecutor struct {
 	WorkDir string
 }
 
-func (e *ShellExecutor) Capability() string { return "shell" }
+func (e *ShellExecutor) Runtime() string { return "shell" }
 
 func (e *ShellExecutor) Execute(ctx context.Context, task *agentsv1.DaemonTask, onUpdate func(*agentsv1.DaemonTaskUpdate)) error {
 	onUpdate(&agentsv1.DaemonTaskUpdate{
@@ -22,8 +22,12 @@ func (e *ShellExecutor) Execute(ctx context.Context, task *agentsv1.DaemonTask, 
 	})
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", task.Input)
-	if e.WorkDir != "" {
-		cmd.Dir = e.WorkDir
+	workDir := task.GetWorkDir()
+	if workDir == "" {
+		workDir = e.WorkDir
+	}
+	if workDir != "" {
+		cmd.Dir = workDir
 	}
 
 	onUpdate(&agentsv1.DaemonTaskUpdate{

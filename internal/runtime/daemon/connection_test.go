@@ -1,15 +1,17 @@
 package daemon
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 func TestConnectionSendAndDispatch(t *testing.T) {
-	conn := NewConnection(&agentsv1.DaemonInfo{DaemonId: "d1", Capabilities: []string{"opencode"}})
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1", AcpRuntimes: []string{"opencode"}})
 
-	task := &agentsv1.DaemonTask{TaskId: "t1", AgentName: "coder", Input: "fix bug", Capability: "opencode"}
+	task := &agentsv1.DaemonTask{TaskId: "t1", AgentName: "coder", Input: "fix bug", AcpRuntime: "opencode"}
 	resultCh, err := conn.SendTask(task)
 	if err != nil {
 		t.Fatalf("SendTask: %v", err)
@@ -56,7 +58,7 @@ func TestConnectionSendAndDispatch(t *testing.T) {
 }
 
 func TestConnectionCloseNotifiesWaiters(t *testing.T) {
-	conn := NewConnection(&agentsv1.DaemonInfo{DaemonId: "d1"})
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1"})
 	task := &agentsv1.DaemonTask{TaskId: "t1"}
 	resultCh, err := conn.SendTask(task)
 	if err != nil {
@@ -76,7 +78,7 @@ func TestConnectionCloseNotifiesWaiters(t *testing.T) {
 }
 
 func TestConnectionSendTaskAfterClose(t *testing.T) {
-	conn := NewConnection(&agentsv1.DaemonInfo{DaemonId: "d1"})
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1"})
 	conn.Close()
 
 	_, err := conn.SendTask(&agentsv1.DaemonTask{TaskId: "t1"})
@@ -86,7 +88,73 @@ func TestConnectionSendTaskAfterClose(t *testing.T) {
 }
 
 func TestConnectionDispatchUnknownTask(t *testing.T) {
-	conn := NewConnection(&agentsv1.DaemonInfo{DaemonId: "d1"})
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1"})
 	// Should not panic when dispatching for an unknown task.
 	conn.DispatchUpdate(&agentsv1.DaemonTaskUpdate{TaskId: "unknown", Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_COMPLETED})
+}
+
+func TestConnectionCloseDoesNotBlockWithFullResultBuffer(t *testing.T) {
+	conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1"})
+	resultCh, err := conn.SendTask(&agentsv1.DaemonTask{TaskId: "t1"})
+	if err != nil {
+		t.Fatalf("SendTask: %v", err)
+	}
+	<-conn.SendCh // drain
+
+	for i := 0; i < 16; i++ {
+		conn.DispatchUpdate(&agentsv1.DaemonTaskUpdate{
+			TaskId: "t1",
+			Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_RUNNING,
+			Output: "progress",
+		})
+	}
+
+	done := make(chan struct{})
+	go func() {
+		conn.Close()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Close blocked with a full task result buffer")
+	}
+
+	var sawDisconnect bool
+	for update := range resultCh {
+		if update.Status == agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED && update.Error == "daemon disconnected" {
+			sawDisconnect = true
+		}
+	}
+	if !sawDisconnect {
+		t.Fatal("expected disconnect update before result channel closed")
+	}
+}
+
+func TestConnectionDispatchUpdateConcurrentWithClose(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		conn := NewConnection(&agentsv1.DaemonInfo{DaemonRuntimeId: "d1"})
+		if _, err := conn.SendTask(&agentsv1.DaemonTask{TaskId: "t1"}); err != nil {
+			t.Fatalf("SendTask: %v", err)
+		}
+		<-conn.SendCh // drain
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 32; j++ {
+				conn.DispatchUpdate(&agentsv1.DaemonTaskUpdate{
+					TaskId: "t1",
+					Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_RUNNING,
+				})
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			conn.Close()
+		}()
+		wg.Wait()
+	}
 }

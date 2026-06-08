@@ -1,78 +1,92 @@
 package daemon
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"butterfly.orx.me/core/log"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
+	"connectrpc.com/connect"
 
+	"go.orx.me/apps/butter/internal/repo/apitoken"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
-// GRPCHandler implements the DaemonConnectorService gRPC service.
+// GRPCHandler implements the DaemonConnectorService over ConnectRPC.
 type GRPCHandler struct {
-	agentsv1.UnimplementedDaemonConnectorServiceServer
+	agentsv1connect.UnimplementedDaemonConnectorServiceHandler
 
-	registry *Registry
-	apiToken string
+	registry    *Registry
+	tokenRepo   apitoken.Repository
+	runtimeRepo configrepo.DaemonRuntimeRepository
 }
 
 // NewGRPCHandler creates a new handler for daemon connections.
-func NewGRPCHandler(registry *Registry, apiToken string) *GRPCHandler {
+func NewGRPCHandler(registry *Registry, tokenRepo apitoken.Repository, runtimeRepo configrepo.DaemonRuntimeRepository) *GRPCHandler {
 	return &GRPCHandler{
-		registry: registry,
-		apiToken: apiToken,
+		registry:    registry,
+		tokenRepo:   tokenRepo,
+		runtimeRepo: runtimeRepo,
 	}
 }
 
 // Connect implements the bidirectional streaming RPC.
-func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServer) error {
-	ctx := stream.Context()
+func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse]) error {
 	logger := log.FromContext(ctx)
 
-	// Authenticate.
-	if err := h.authenticate(stream); err != nil {
-		return err
-	}
-
 	// First message must be a register.
-	firstMsg, err := stream.Recv()
+	firstMsg, err := stream.Receive()
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "failed to receive first message: %v", err)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("failed to receive first message: %w", err))
 	}
 	regInfo := firstMsg.GetRegister()
 	if regInfo == nil {
-		return status.Errorf(codes.InvalidArgument, "first message must be a register")
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("first message must be a register"))
 	}
-	if regInfo.DaemonId == "" {
-		return status.Errorf(codes.InvalidArgument, "daemon_id is required")
+	authInfo, err := h.authenticate(ctx, stream, regInfo)
+	if err != nil {
+		return err
+	}
+	regInfo.WorkspaceId = authInfo.workspaceID
+	regInfo.DaemonRuntimeId = authInfo.runtimeID
+	if len(regInfo.GetAcpRuntimes()) == 0 {
+		regInfo.AcpRuntimes = []string{"opencode", "codex"}
 	}
 
 	conn := NewConnection(regInfo)
-	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
-		conn.RemoteAddr = p.Addr.String()
+	if peer := stream.Peer(); peer.Addr != "" {
+		conn.RemoteAddr = peer.Addr
 	}
-	h.registry.Register(conn)
+	if err := h.registry.Register(conn); err != nil {
+		if errors.Is(err, ErrRuntimeAlreadyConnected) {
+			return connect.NewError(connect.CodeAlreadyExists, errors.New("daemon runtime already connected"))
+		}
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("register daemon runtime: %w", err))
+	}
 	defer func() {
 		conn.Close()
-		h.registry.Unregister(regInfo.DaemonId)
-		logger.Info("daemon disconnected", "daemon_id", regInfo.DaemonId)
+		h.registry.Unregister(regInfo.GetWorkspaceId(), regInfo.GetDaemonRuntimeId())
+		logger.Info("daemon disconnected", "workspace_id", regInfo.GetWorkspaceId(), "daemon_runtime_id", regInfo.GetDaemonRuntimeId())
 	}()
 
 	logger.Info("daemon connected",
-		"daemon_id", regInfo.DaemonId,
+		"workspace_id", regInfo.GetWorkspaceId(),
+		"daemon_runtime_id", regInfo.GetDaemonRuntimeId(),
 		"name", regInfo.Name,
-		"capabilities", regInfo.Capabilities,
+		"acp_runtimes", regInfo.AcpRuntimes,
 	)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
+	done := make(chan struct{})
 
 	// Send loop: conn.SendCh → stream.Send().
 	wg.Add(1)
@@ -85,20 +99,24 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 					errCh <- fmt.Errorf("send: %w", err)
 					return
 				}
+			case <-done:
+				return
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
 
-	// Recv loop: stream.Recv() → conn.DispatchUpdate().
+	// Recv loop: stream.Receive() → conn.DispatchUpdate().
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for {
-			msg, err := stream.Recv()
+			msg, err := stream.Receive()
 			if err != nil {
-				if err != io.EOF {
+				if errors.Is(err, io.EOF) {
+					errCh <- nil
+				} else {
 					errCh <- fmt.Errorf("recv: %w", err)
 				}
 				return
@@ -112,33 +130,77 @@ func (h *GRPCHandler) Connect(stream agentsv1.DaemonConnectorService_ConnectServ
 	// Wait for either loop to finish or context to cancel.
 	select {
 	case err := <-errCh:
-		logger.Debug("daemon stream error", "daemon_id", regInfo.DaemonId, "err", err)
+		if err != nil {
+			logger.Debug("daemon stream error", "daemon_runtime_id", regInfo.GetDaemonRuntimeId(), "err", err)
+		}
 	case <-ctx.Done():
 	}
 
+	close(done)
 	wg.Wait()
 	return nil
 }
 
-func (h *GRPCHandler) authenticate(stream agentsv1.DaemonConnectorService_ConnectServer) error {
-	if h.apiToken == "" {
-		return nil
+type authResult struct {
+	workspaceID string
+	runtimeID   string
+}
+
+func (h *GRPCHandler) authenticate(ctx context.Context, stream *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse], regInfo *agentsv1.DaemonInfo) (*authResult, error) {
+	if h.tokenRepo == nil || h.runtimeRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("daemon auth repositories not wired"))
 	}
 
-	md, ok := metadata.FromIncomingContext(stream.Context())
-	if !ok {
-		return status.Errorf(codes.Unauthenticated, "missing metadata")
+	authz := stream.RequestHeader().Get("Authorization")
+	if authz == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("missing authorization header"))
 	}
 
-	values := md.Get("authorization")
-	if len(values) == 0 {
-		return status.Errorf(codes.Unauthenticated, "missing authorization header")
+	token := strings.TrimPrefix(authz, "Bearer ")
+	stored, err := h.tokenRepo.Lookup(ctx, hashSecret(token))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid token"))
+	}
+	if stored.GetKind() != agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("token is not a daemon runtime token"))
+	}
+	if stored.GetWorkspaceId() == "" {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("daemon runtime token has no workspace"))
+	}
+	if stored.GetDaemonRuntimeId() == "" {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("daemon runtime token has no runtime"))
+	}
+	if regInfo.GetDaemonRuntimeId() != "" && stored.GetDaemonRuntimeId() != regInfo.GetDaemonRuntimeId() {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("daemon_runtime_id does not match daemon runtime token"))
+	}
+	if expires := stored.GetExpiresAt(); expires != nil && time.Now().UTC().After(expires.AsTime()) {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("daemon runtime token expired"))
+	}
+	if !hasScope(stored.GetScopes(), "daemon:connect") {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("daemon runtime token lacks daemon:connect scope"))
+	}
+	if regInfo.GetWorkspaceId() != "" && regInfo.GetWorkspaceId() != stored.GetWorkspaceId() {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("workspace_id does not match daemon runtime token"))
 	}
 
-	token := strings.TrimPrefix(values[0], "Bearer ")
-	if token != h.apiToken {
-		return status.Errorf(codes.Unauthenticated, "invalid token")
+	if _, err := h.runtimeRepo.GetDaemonRuntime(ctx, stored.GetWorkspaceId(), stored.GetDaemonRuntimeId()); err != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("daemon runtime is not registered in workspace"))
 	}
 
-	return nil
+	_ = h.tokenRepo.TouchLastUsed(ctx, stored.GetId())
+	return &authResult{workspaceID: stored.GetWorkspaceId(), runtimeID: stored.GetDaemonRuntimeId()}, nil
+}
+
+func hashSecret(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:])
+}
+
+func hasScope(scopes []string, want string) bool {
+	for _, scope := range scopes {
+		if scope == want || scope == "daemon:*" {
+			return true
+		}
+	}
+	return false
 }

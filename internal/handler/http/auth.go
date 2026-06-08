@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 // unauthenticatedFallbackWarn ensures the loud "no auth wired" warning is
@@ -137,6 +138,30 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 		if apiTokenRepo != nil {
 			stored, err := apiTokenRepo.Lookup(c.Request.Context(), hashSecret(token))
 			if err == nil {
+				if stored.GetKind() == agentsv1.APITokenKind_API_TOKEN_KIND_DAEMON {
+					log.FromContext(c.Request.Context()).Warn(
+						"daemon token attempted HTTP API access; rejecting",
+						"token_id", stored.GetId(),
+					)
+					unauthorized(c)
+					return
+				}
+				if stored.GetKind() != agentsv1.APITokenKind_API_TOKEN_KIND_USER || !hasAPIScope(stored.GetScopes()) {
+					log.FromContext(c.Request.Context()).Warn(
+						"api token lacks HTTP API scope; rejecting",
+						"token_id", stored.GetId(),
+					)
+					unauthorized(c)
+					return
+				}
+				if expires := stored.GetExpiresAt(); expires != nil && time.Now().UTC().After(expires.AsTime()) {
+					log.FromContext(c.Request.Context()).Warn(
+						"expired api token rejected",
+						"token_id", stored.GetId(),
+					)
+					unauthorized(c)
+					return
+				}
 				// API tokens are workspace-scoped by design. A stored token
 				// without a workspace_id signals data corruption or a
 				// creation-time bug; previously such a token would silently
@@ -164,6 +189,15 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 
 		unauthorized(c)
 	}
+}
+
+func hasAPIScope(scopes []string) bool {
+	for _, scope := range scopes {
+		if scope == "api:*" {
+			return true
+		}
+	}
+	return false
 }
 
 func applyCORSHeaders(c *gin.Context) {

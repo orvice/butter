@@ -124,13 +124,13 @@ export default function DashboardPage() {
     success: b.success ?? 0,
     error: b.error ?? 0,
   }));
-  const handshakeJson = handshake?.daemon_id
+  const handshakeJson = handshake?.daemon_runtime_id
     ? formatJsonWithLineNumbers({
         event: "daemon.connect",
-        daemon_id: handshake.daemon_id,
+        daemon_runtime_id: handshake.daemon_runtime_id,
         name: handshake.name,
         os: handshake.os,
-        capabilities: handshake.capabilities,
+        acp_runtimes: handshake.acp_runtimes,
         connected_at: handshake.connected_at,
       })
     : "";
@@ -264,7 +264,7 @@ export default function DashboardPage() {
           </Button>
         </CardHeader>
         <CardContent className="pt-5">
-          {handshake?.daemon_id ? (
+          {handshake?.daemon_runtime_id ? (
             <pre className="overflow-x-auto text-[13px] leading-6 text-gray-300">
               {handshakeJson}
             </pre>

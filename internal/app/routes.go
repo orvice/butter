@@ -166,6 +166,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if h.apiTokenSvcServer != nil {
 			h.apiTokenSvcServer.SetRepo(result.APITokenRepo)
 		}
+		if h.daemonSvcServer != nil {
+			h.daemonSvcServer.SetAPITokenRepo(result.APITokenRepo)
+		}
 	}
 	if result.AuthRepo != nil {
 		h.authRepo.Store(result.AuthRepo)
@@ -231,6 +234,11 @@ func (h *Handlers) NotifyGroupRepo() configrepo.NotifyGroupRepository {
 	return h.notifyGroupRepo
 }
 
+// ConfigStore returns the shared workspace-scoped configuration repository.
+func (h *Handlers) ConfigStore() *ConfigStore {
+	return h.configStore
+}
+
 // SeedConfig initializes and seeds the config repositories from AppConfig.
 func (h *Handlers) SeedConfig(ctx context.Context, cfg *config.AppConfig) error {
 	if h.configStore == nil {
@@ -285,7 +293,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	cronConnectPath, cronConnectHandler := agentsv1connect.NewCronJobServiceHandler(cronSvcServer, connectOpts...)
 	dashboardSvcServer := application.NewDashboardServiceServer(configStore, daemonRegistry)
 	dashboardConnectPath, dashboardConnectHandler := agentsv1connect.NewDashboardServiceHandler(dashboardSvcServer, connectOpts...)
-	daemonSvcServer := application.NewDaemonServiceServer(daemonRegistry)
+	daemonSvcServer := application.NewDaemonServiceServer(configStore, daemonRegistry)
 	daemonConnectPath, daemonConnectHandler := agentsv1connect.NewDaemonServiceHandler(daemonSvcServer, connectOpts...)
 	apiTokenSvcServer := application.NewAPITokenServiceServer(nil)
 	apiTokenConnectPath, apiTokenConnectHandler := agentsv1connect.NewAPITokenServiceHandler(apiTokenSvcServer, connectOpts...)

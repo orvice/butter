@@ -57,7 +57,7 @@ func (m *DaemonInfo) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for DaemonId
+	// no validation rules for DaemonRuntimeId
 
 	// no validation rules for Name
 
@@ -66,6 +66,8 @@ func (m *DaemonInfo) validate(all bool) error {
 	// no validation rules for Version
 
 	// no validation rules for Os
+
+	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
 		return DaemonInfoMultiError(errors)
@@ -178,7 +180,13 @@ func (m *DaemonTask) validate(all bool) error {
 
 	// no validation rules for Metadata
 
-	// no validation rules for Capability
+	// no validation rules for WorkspaceId
+
+	// no validation rules for DaemonRuntimeId
+
+	// no validation rules for AcpRuntime
+
+	// no validation rules for WorkDir
 
 	if len(errors) > 0 {
 		return DaemonTaskMultiError(errors)

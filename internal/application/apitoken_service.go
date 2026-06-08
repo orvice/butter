@@ -80,6 +80,8 @@ func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *connect
 		Prefix:      tokenPrefix(secret),
 		CreatedAt:   timestamppb.New(time.Now().UTC()),
 		WorkspaceId: wsID,
+		Kind:        agentsv1.APITokenKind_API_TOKEN_KIND_USER,
+		Scopes:      []string{"api:*"},
 	}
 	logger := log.FromContext(ctx)
 	if err := s.repo.Create(ctx, token, hash); err != nil {

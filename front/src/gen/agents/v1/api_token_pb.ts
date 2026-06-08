@@ -2,8 +2,8 @@
 // @generated from file agents/v1/api_token.proto (package agents.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import { file_validate_validate } from "../../validate/validate_pb";
@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/api_token.proto.
  */
 export const file_agents_v1_api_token: GenFile = /*@__PURE__*/
-  fileDesc("ChlhZ2VudHMvdjEvYXBpX3Rva2VuLnByb3RvEglhZ2VudHMudjEivQEKCEFQSVRva2VuEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGcHJlZml4GAMgASgJEi4KCmNyZWF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHcmV2b2tlZBgGIAEoCBIUCgx3b3Jrc3BhY2VfaWQYZCABKAkiFgoUTGlzdEFQSVRva2Vuc1JlcXVlc3QiPAoVTGlzdEFQSVRva2Vuc1Jlc3BvbnNlEiMKBnRva2VucxgBIAMoCzITLmFnZW50cy52MS5BUElUb2tlbiIuChVDcmVhdGVBUElUb2tlblJlcXVlc3QSFQoEbmFtZRgBIAEoCUIH+kIEcgIQASJMChZDcmVhdGVBUElUb2tlblJlc3BvbnNlEiIKBXRva2VuGAEgASgLMhMuYWdlbnRzLnYxLkFQSVRva2VuEg4KBnNlY3JldBgCIAEoCSIsChVSZXZva2VBUElUb2tlblJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiPAoWUmV2b2tlQVBJVG9rZW5SZXNwb25zZRIiCgV0b2tlbhgBIAEoCzITLmFnZW50cy52MS5BUElUb2tlbjKTAgoPQVBJVG9rZW5TZXJ2aWNlElIKDUxpc3RBUElUb2tlbnMSHy5hZ2VudHMudjEuTGlzdEFQSVRva2Vuc1JlcXVlc3QaIC5hZ2VudHMudjEuTGlzdEFQSVRva2Vuc1Jlc3BvbnNlElUKDkNyZWF0ZUFQSVRva2VuEiAuYWdlbnRzLnYxLkNyZWF0ZUFQSVRva2VuUmVxdWVzdBohLmFnZW50cy52MS5DcmVhdGVBUElUb2tlblJlc3BvbnNlElUKDlJldm9rZUFQSVRva2VuEiAuYWdlbnRzLnYxLlJldm9rZUFQSVRva2VuUmVxdWVzdBohLmFnZW50cy52MS5SZXZva2VBUElUb2tlblJlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChlhZ2VudHMvdjEvYXBpX3Rva2VuLnByb3RvEglhZ2VudHMudjEivwIKCEFQSVRva2VuEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGcHJlZml4GAMgASgJEi4KCmNyZWF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHcmV2b2tlZBgGIAEoCBIlCgRraW5kGAcgASgOMhcuYWdlbnRzLnYxLkFQSVRva2VuS2luZBIOCgZzY29wZXMYCCADKAkSLgoKZXhwaXJlc19hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGQoRZGFlbW9uX3J1bnRpbWVfaWQYCiABKAkSFAoMd29ya3NwYWNlX2lkGGQgASgJIhYKFExpc3RBUElUb2tlbnNSZXF1ZXN0IjwKFUxpc3RBUElUb2tlbnNSZXNwb25zZRIjCgZ0b2tlbnMYASADKAsyEy5hZ2VudHMudjEuQVBJVG9rZW4iLgoVQ3JlYXRlQVBJVG9rZW5SZXF1ZXN0EhUKBG5hbWUYASABKAlCB/pCBHICEAEiTAoWQ3JlYXRlQVBJVG9rZW5SZXNwb25zZRIiCgV0b2tlbhgBIAEoCzITLmFnZW50cy52MS5BUElUb2tlbhIOCgZzZWNyZXQYAiABKAkiLAoVUmV2b2tlQVBJVG9rZW5SZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIjwKFlJldm9rZUFQSVRva2VuUmVzcG9uc2USIgoFdG9rZW4YASABKAsyEy5hZ2VudHMudjEuQVBJVG9rZW4qYgoMQVBJVG9rZW5LaW5kEh4KGkFQSV9UT0tFTl9LSU5EX1VOU1BFQ0lGSUVEEAASFwoTQVBJX1RPS0VOX0tJTkRfVVNFUhABEhkKFUFQSV9UT0tFTl9LSU5EX0RBRU1PThACMpMCCg9BUElUb2tlblNlcnZpY2USUgoNTGlzdEFQSVRva2VucxIfLmFnZW50cy52MS5MaXN0QVBJVG9rZW5zUmVxdWVzdBogLmFnZW50cy52MS5MaXN0QVBJVG9rZW5zUmVzcG9uc2USVQoOQ3JlYXRlQVBJVG9rZW4SIC5hZ2VudHMudjEuQ3JlYXRlQVBJVG9rZW5SZXF1ZXN0GiEuYWdlbnRzLnYxLkNyZWF0ZUFQSVRva2VuUmVzcG9uc2USVQoOUmV2b2tlQVBJVG9rZW4SIC5hZ2VudHMudjEuUmV2b2tlQVBJVG9rZW5SZXF1ZXN0GiEuYWdlbnRzLnYxLlJldm9rZUFQSVRva2VuUmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * APIToken represents a stored API token. The plaintext secret is only
@@ -69,6 +69,38 @@ export type APIToken = Message<"agents.v1.APIToken"> & {
    * @generated from field: bool revoked = 6;
    */
   revoked: boolean;
+
+  /**
+   * Token kind controls which entrypoints may accept this secret.
+   * @gotags: json:"kind,omitempty" yaml:"kind,omitempty" bson:"kind,omitempty"
+   *
+   * @generated from field: agents.v1.APITokenKind kind = 7;
+   */
+  kind: APITokenKind;
+
+  /**
+   * Fine-grained permission labels such as "api:*" or "daemon:connect".
+   * @gotags: json:"scopes,omitempty" yaml:"scopes,omitempty" bson:"scopes,omitempty"
+   *
+   * @generated from field: repeated string scopes = 8;
+   */
+  scopes: string[];
+
+  /**
+   * Optional expiry time. Empty means the token does not expire.
+   * @gotags: json:"expires_at,omitempty" yaml:"expires_at,omitempty" bson:"expires_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp expires_at = 9;
+   */
+  expiresAt?: Timestamp;
+
+  /**
+   * For daemon tokens, the daemon runtime id this token may connect as.
+   * @gotags: json:"daemon_runtime_id,omitempty" yaml:"daemon_runtime_id,omitempty" bson:"daemon_runtime_id,omitempty"
+   *
+   * @generated from field: string daemon_runtime_id = 10;
+   */
+  daemonRuntimeId: string;
 
   /**
    * ID of the workspace this token belongs to. Tokens authenticate within
@@ -195,6 +227,32 @@ export type RevokeAPITokenResponse = Message<"agents.v1.RevokeAPITokenResponse">
  */
 export const RevokeAPITokenResponseSchema: GenMessage<RevokeAPITokenResponse> = /*@__PURE__*/
   messageDesc(file_agents_v1_api_token, 6);
+
+/**
+ * @generated from enum agents.v1.APITokenKind
+ */
+export enum APITokenKind {
+  /**
+   * @generated from enum value: API_TOKEN_KIND_UNSPECIFIED = 0;
+   */
+  API_TOKEN_KIND_UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: API_TOKEN_KIND_USER = 1;
+   */
+  API_TOKEN_KIND_USER = 1,
+
+  /**
+   * @generated from enum value: API_TOKEN_KIND_DAEMON = 2;
+   */
+  API_TOKEN_KIND_DAEMON = 2,
+}
+
+/**
+ * Describes the enum agents.v1.APITokenKind.
+ */
+export const APITokenKindSchema: GenEnum<APITokenKind> = /*@__PURE__*/
+  enumDesc(file_agents_v1_api_token, 0);
 
 /**
  * @generated from service agents.v1.APITokenService

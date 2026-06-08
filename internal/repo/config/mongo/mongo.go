@@ -19,6 +19,7 @@ const (
 	globalMCPCollection      = "config_global_mcpservers"
 	mcpServersCollection     = "config_mcpservers"
 	remoteAgentsCollection   = "config_remoteagents"
+	daemonRuntimesCollection = "config_daemon_runtimes"
 	channelsCollection       = "config_channels"
 	modelProvidersCollection = "config_modelproviders"
 	notifyGroupsCollection   = "config_notifygroups"
@@ -40,6 +41,7 @@ type Store struct {
 	globalMCP      *mongo.Collection
 	mcpServers     *mongo.Collection
 	remoteAgents   *mongo.Collection
+	daemonRuntimes *mongo.Collection
 	channels       *mongo.Collection
 	modelProviders *mongo.Collection
 	notifyGroups   *mongo.Collection
@@ -51,6 +53,7 @@ func New(db *mongo.Database) *Store {
 		globalMCP:      db.Collection(globalMCPCollection),
 		mcpServers:     db.Collection(mcpServersCollection),
 		remoteAgents:   db.Collection(remoteAgentsCollection),
+		daemonRuntimes: db.Collection(daemonRuntimesCollection),
 		channels:       db.Collection(channelsCollection),
 		modelProviders: db.Collection(modelProvidersCollection),
 		notifyGroups:   db.Collection(notifyGroupsCollection),
@@ -60,7 +63,7 @@ func New(db *mongo.Database) *Store {
 // EnsureIndexes creates the (workspace_id, name) compound indexes for fast
 // per-workspace listings.
 func (s *Store) EnsureIndexes(ctx context.Context) error {
-	collections := []*mongo.Collection{s.agents, s.globalMCP, s.mcpServers, s.remoteAgents, s.channels, s.modelProviders, s.notifyGroups}
+	collections := []*mongo.Collection{s.agents, s.globalMCP, s.mcpServers, s.remoteAgents, s.daemonRuntimes, s.channels, s.modelProviders, s.notifyGroups}
 	for _, c := range collections {
 		_, err := c.Indexes().CreateOne(ctx, mongo.IndexModel{
 			Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "name", Value: 1}},
@@ -471,6 +474,96 @@ func (s *Store) DeleteRemoteAgent(ctx context.Context, workspaceID, id string) e
 	}
 	if res.DeletedCount == 0 {
 		return mapError("remote agent", workspaceID, id, mongo.ErrNoDocuments)
+	}
+	return nil
+}
+
+// --- Daemon Configs ---
+
+func (s *Store) ListDaemonRuntimes(ctx context.Context, workspaceID string) ([]*agentsv1.DaemonRuntime, error) {
+	docs, err := listInWorkspace(ctx, s.daemonRuntimes, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentsv1.DaemonRuntime, 0, len(docs))
+	for _, d := range docs {
+		daemon := &agentsv1.DaemonRuntime{}
+		if err := unmarshal(d.Spec, daemon); err != nil {
+			return nil, fmt.Errorf("unmarshal daemon runtime %q: %w", d.ID, err)
+		}
+		out = append(out, daemon)
+	}
+	return out, nil
+}
+
+func (s *Store) ListDaemonRuntimesAcrossWorkspaces(ctx context.Context) ([]*agentsv1.DaemonRuntime, error) {
+	docs, err := listAll(ctx, s.daemonRuntimes)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentsv1.DaemonRuntime, 0, len(docs))
+	for _, d := range docs {
+		daemon := &agentsv1.DaemonRuntime{}
+		if err := unmarshal(d.Spec, daemon); err != nil {
+			return nil, fmt.Errorf("unmarshal daemon runtime %q: %w", d.ID, err)
+		}
+		out = append(out, daemon)
+	}
+	return out, nil
+}
+
+func (s *Store) GetDaemonRuntime(ctx context.Context, workspaceID, id string) (*agentsv1.DaemonRuntime, error) {
+	var doc configDoc
+	err := s.daemonRuntimes.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, id)}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("daemon runtime", workspaceID, id, err)
+	}
+	daemon := &agentsv1.DaemonRuntime{}
+	if err := unmarshal(doc.Spec, daemon); err != nil {
+		return nil, fmt.Errorf("unmarshal daemon runtime %q: %w", id, err)
+	}
+	return daemon, nil
+}
+
+func (s *Store) CreateDaemonRuntime(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonRuntime) (*agentsv1.DaemonRuntime, error) {
+	clone := proto.Clone(daemon).(*agentsv1.DaemonRuntime)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetId()), WorkspaceID: workspaceID, Name: clone.GetId(), Spec: spec}
+	if _, err := s.daemonRuntimes.InsertOne(ctx, doc); err != nil {
+		return nil, mapError("daemon runtime", workspaceID, clone.GetId(), err)
+	}
+	return clone, nil
+}
+
+func (s *Store) UpdateDaemonRuntime(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonRuntime) (*agentsv1.DaemonRuntime, error) {
+	clone := proto.Clone(daemon).(*agentsv1.DaemonRuntime)
+	clone.WorkspaceId = workspaceID
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetId()), WorkspaceID: workspaceID, Name: clone.GetId(), Spec: spec}
+	res, err := s.daemonRuntimes.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
+	if err != nil {
+		return nil, mapError("daemon runtime", workspaceID, clone.GetId(), err)
+	}
+	if res.MatchedCount == 0 {
+		return nil, mapError("daemon runtime", workspaceID, clone.GetId(), mongo.ErrNoDocuments)
+	}
+	return clone, nil
+}
+
+func (s *Store) DeleteDaemonRuntime(ctx context.Context, workspaceID, id string) error {
+	res, err := s.daemonRuntimes.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, id)})
+	if err != nil {
+		return mapError("daemon runtime", workspaceID, id, err)
+	}
+	if res.DeletedCount == 0 {
+		return mapError("daemon runtime", workspaceID, id, mongo.ErrNoDocuments)
 	}
 	return nil
 }

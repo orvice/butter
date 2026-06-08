@@ -41,9 +41,10 @@ The sample `.env.example` uses `BUTTERFLY_CONFIG_FILE_PATH=./config/butter.yaml`
 You can either place your runtime config there or change the variable to an
 existing file such as `./config.yaml`.
 
-Most service settings live in the YAML config, including agents, model
-providers, MCP servers, channels, auth bootstrap, storage, daemon settings, and
-the optional root `apiToken`.
+Most service settings live in the YAML config, including auth bootstrap,
+storage, tracing, and the optional root `apiToken`. Workspace-scoped agent,
+MCP, remote agent, channel, model provider, cron, API token, and daemon
+configuration is stored through the runtime config repository.
 
 ### Run
 
@@ -75,11 +76,42 @@ Butter can delegate work to daemon-backed remote agents. Start a daemon client
 with:
 
 ```bash
-go run ./cmd/butter-daemon -config daemon.yaml
+go run ./cmd/butter-daemon --url grpc://localhost:9090 --token bt_daemon_runtime_secret
 ```
 
-The daemon connects back to the server's daemon gRPC endpoint and uses the root
-`apiToken` as authorization metadata.
+Before starting a worker, create a workspace-scoped `DaemonRuntime`, then issue
+a runtime token for it. The token is a dedicated `API_TOKEN_KIND_DAEMON` token
+with `daemon:connect` scope; it is accepted only by the daemon gRPC endpoint and
+cannot call the HTTP API. The token determines the authoritative workspace and
+daemon runtime id during registration.
+
+Daemon-backed remote agents choose a runtime plus an ACP runtime (`opencode` or
+`codex`). The server sends that choice in each task. The daemon has built-in ACP
+profiles for `opencode acp` and `codex-acp`; custom local config can override or
+extend those profiles:
+
+```yaml
+executors:
+  acp:
+    - runtime: opencode
+      command: opencode
+      args: ["acp"]
+      permission_policy: deny
+      fs:
+        read: true
+        write: true
+      terminal: true
+  shell:
+    work_dir: /path/to/repo
+```
+
+`work_dir` is currently created by the server per session under `/tmp` and sent
+as an absolute path for ACP tasks. In this interim model, the daemon must run on
+the same host/container filesystem as the server, or both processes must mount a
+shared volume at the same absolute path, otherwise the local ACP process will not
+be able to `chdir` into the server-created directory. Legacy
+`executors.opencode` config and `capability` in ACP profiles are still accepted,
+but new configs should use `executors.acp[].runtime`.
 
 ## Development
 

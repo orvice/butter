@@ -88,9 +88,9 @@ function healthFromProto(h: PbHealthSummary | undefined): HealthSummary | undefi
 function handshakeFromProto(d: PbDaemonHandshake | undefined): DaemonHandshake | undefined {
   if (!d) return undefined;
   return {
-    daemon_id: d.daemonId,
+    daemon_runtime_id: d.daemonRuntimeId,
     name: d.name,
-    capabilities: d.capabilities,
+    acp_runtimes: d.acpRuntimes,
     connected_at: tsToISO(d.connectedAt),
     os: d.os,
   };

@@ -19,6 +19,7 @@ type configBackend interface {
 	configrepo.GlobalMCPServerRepository
 	configrepo.MCPServerRepository
 	configrepo.RemoteAgentRepository
+	configrepo.DaemonRuntimeRepository
 	configrepo.ChannelRepository
 	configrepo.ModelProviderRepository
 	configrepo.NotifyGroupRepository
@@ -254,6 +255,32 @@ func (s *ConfigStore) UpdateRemoteAgent(ctx context.Context, workspaceID string,
 
 func (s *ConfigStore) DeleteRemoteAgent(ctx context.Context, workspaceID, id string) error {
 	return s.current().DeleteRemoteAgent(ctx, workspaceID, id)
+}
+
+// --- Daemon Configs ---
+
+func (s *ConfigStore) ListDaemonRuntimes(ctx context.Context, workspaceID string) ([]*agentsv1.DaemonRuntime, error) {
+	return s.current().ListDaemonRuntimes(ctx, workspaceID)
+}
+
+func (s *ConfigStore) ListDaemonRuntimesAcrossWorkspaces(ctx context.Context) ([]*agentsv1.DaemonRuntime, error) {
+	return s.current().ListDaemonRuntimesAcrossWorkspaces(ctx)
+}
+
+func (s *ConfigStore) GetDaemonRuntime(ctx context.Context, workspaceID, id string) (*agentsv1.DaemonRuntime, error) {
+	return s.current().GetDaemonRuntime(ctx, workspaceID, id)
+}
+
+func (s *ConfigStore) CreateDaemonRuntime(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonRuntime) (*agentsv1.DaemonRuntime, error) {
+	return s.current().CreateDaemonRuntime(ctx, workspaceID, daemon)
+}
+
+func (s *ConfigStore) UpdateDaemonRuntime(ctx context.Context, workspaceID string, daemon *agentsv1.DaemonRuntime) (*agentsv1.DaemonRuntime, error) {
+	return s.current().UpdateDaemonRuntime(ctx, workspaceID, daemon)
+}
+
+func (s *ConfigStore) DeleteDaemonRuntime(ctx context.Context, workspaceID, id string) error {
+	return s.current().DeleteDaemonRuntime(ctx, workspaceID, id)
 }
 
 // --- Channels ---

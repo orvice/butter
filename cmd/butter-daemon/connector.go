@@ -2,39 +2,48 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
+	"connectrpc.com/connect"
+	"golang.org/x/net/http2"
 
 	"go.orx.me/apps/butter/cmd/butter-daemon/executor"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
 // daemonVersion is the semantic version of the daemon client binary. It is
 // surfaced at registration so the server-side dashboard can display it.
 const daemonVersion = "v0.1.0"
 
-// Connector manages the gRPC connection to the butter server.
+type connectStream = connect.BidiStreamForClient[agentsv1.ConnectRequest, agentsv1.ConnectResponse]
+
+// Connector manages the ConnectRPC connection to the butter server.
 type Connector struct {
 	cfg       *Config
 	executors map[string]executor.Executor
 
 	mu          sync.Mutex
 	cancelFuncs map[string]context.CancelFunc // task_id → cancel
+
+	sendMu sync.Mutex // serializes stream.Send across concurrent tasks/callbacks
 }
 
 // NewConnector creates a new daemon connector.
 func NewConnector(cfg *Config, executors []executor.Executor) *Connector {
 	execMap := make(map[string]executor.Executor, len(executors))
 	for _, e := range executors {
-		execMap[e.Capability()] = e
+		execMap[e.Runtime()] = e
 	}
 	return &Connector{
 		cfg:         cfg,
@@ -71,40 +80,29 @@ func (c *Connector) Run(ctx context.Context) error {
 }
 
 func (c *Connector) connectAndServe(ctx context.Context) error {
-	conn, err := grpc.NewClient(c.cfg.Server, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return fmt.Errorf("dial: %w", err)
-	}
-	defer conn.Close()
+	baseURL := normalizeBaseURL(c.cfg.Server)
+	client := agentsv1connect.NewDaemonConnectorServiceClient(newHTTPClient(baseURL), baseURL)
 
-	// Attach auth token.
-	streamCtx := ctx
-	if c.cfg.Token != "" {
-		streamCtx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+c.cfg.Token)
-	}
-
-	client := agentsv1.NewDaemonConnectorServiceClient(conn)
-	stream, err := client.Connect(streamCtx)
-	if err != nil {
-		return fmt.Errorf("connect: %w", err)
+	stream := client.Connect(ctx)
+	if c.cfg.Credential != "" {
+		stream.RequestHeader().Set("Authorization", "Bearer "+c.cfg.Credential)
 	}
 
 	// Send registration.
-	capabilities := make([]string, 0, len(c.executors))
-	for cap := range c.executors {
-		capabilities = append(capabilities, cap)
+	runtimes := make([]string, 0, len(c.executors))
+	for runtime := range c.executors {
+		runtimes = append(runtimes, runtime)
 	}
 
-	err = stream.Send(&agentsv1.ConnectRequest{
+	err := stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_Register{
 			Register: &agentsv1.DaemonInfo{
-				DaemonId:     c.cfg.DaemonID,
-				Name:         c.cfg.Name,
-				Capabilities: capabilities,
-				Labels:       c.cfg.Labels,
-				Version:      daemonVersion,
-				Os:           runtime.GOOS + "-" + runtime.GOARCH,
-				Executors:    capabilities,
+				Name:        c.cfg.Name,
+				AcpRuntimes: runtimes,
+				Labels:      c.cfg.Labels,
+				Version:     daemonVersion,
+				Os:          runtime.GOOS + "-" + runtime.GOARCH,
+				Executors:   runtimes,
 			},
 		},
 	})
@@ -113,15 +111,14 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 	}
 
 	slog.Info("registered with server",
-		"daemon_id", c.cfg.DaemonID,
-		"capabilities", capabilities,
+		"acp_runtimes", runtimes,
 	)
 
 	// Receive loop.
 	for {
-		msg, err := stream.Recv()
+		msg, err := stream.Receive()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return fmt.Errorf("server closed stream")
 			}
 			return fmt.Errorf("recv: %w", err)
@@ -136,15 +133,15 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 	}
 }
 
-func (c *Connector) handleTask(ctx context.Context, stream agentsv1.DaemonConnectorService_ConnectClient, task *agentsv1.DaemonTask) {
-	slog.Info("task received", "task_id", task.TaskId, "capability", task.Capability, "input_len", len(task.Input))
+func (c *Connector) handleTask(ctx context.Context, stream *connectStream, task *agentsv1.DaemonTask) {
+	slog.Info("task received", "task_id", task.TaskId, "acp_runtime", task.AcpRuntime, "work_dir", task.WorkDir, "input_len", len(task.Input))
 
-	exec, ok := c.executors[task.Capability]
+	exec, ok := c.executors[task.AcpRuntime]
 	if !ok {
 		c.sendUpdate(stream, &agentsv1.DaemonTaskUpdate{
 			TaskId: task.TaskId,
 			Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED,
-			Error:  fmt.Sprintf("unsupported capability: %s", task.Capability),
+			Error:  fmt.Sprintf("unsupported acp_runtime: %s", task.AcpRuntime),
 		})
 		return
 	}
@@ -181,10 +178,39 @@ func (c *Connector) handleCancel(taskID string) {
 	}
 }
 
-func (c *Connector) sendUpdate(stream agentsv1.DaemonConnectorService_ConnectClient, update *agentsv1.DaemonTaskUpdate) {
+func (c *Connector) sendUpdate(stream *connectStream, update *agentsv1.DaemonTaskUpdate) {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
 	if err := stream.Send(&agentsv1.ConnectRequest{
 		Message: &agentsv1.ConnectRequest_TaskUpdate{TaskUpdate: update},
 	}); err != nil {
 		slog.Error("failed to send update", "task_id", update.TaskId, "err", err)
+	}
+}
+
+// normalizeBaseURL turns a bare host:port (as accepted by the legacy gRPC
+// client) into a ConnectRPC base URL, defaulting to cleartext h2c.
+func normalizeBaseURL(server string) string {
+	if strings.HasPrefix(server, "http://") || strings.HasPrefix(server, "https://") {
+		return server
+	}
+	return "http://" + server
+}
+
+// newHTTPClient builds an HTTP/2 client. For https URLs it relies on ALPN; for
+// http URLs it speaks h2c (prior-knowledge cleartext HTTP/2) to match the
+// daemon connect server.
+func newHTTPClient(baseURL string) *http.Client {
+	if strings.HasPrefix(baseURL, "https://") {
+		return &http.Client{Transport: &http2.Transport{}}
+	}
+	return &http.Client{
+		Transport: &http2.Transport{
+			AllowHTTP: true,
+			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, network, addr)
+			},
+		},
 	}
 }
