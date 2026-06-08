@@ -57,6 +57,80 @@ go run ./cmd/butter-daemon
 2. 配置文件字段：`server` / `url`、`credential` / `token`
 3. 环境变量：`BUTTER_DAEMON_URL`、`BUTTER_DAEMON_TOKEN`
 
+### systemd
+
+Linux 服务器上可以用 systemd 托管本地二进制。先构建并安装 daemon：
+
+```bash
+make build
+sudo install -m 0755 bin/butter-daemon /usr/local/bin/butter-daemon
+```
+
+建议用独立系统用户运行 daemon，并准备配置目录：
+
+```bash
+sudo useradd --system --home /var/lib/butter-daemon --shell /usr/sbin/nologin butter || true
+sudo install -d -o butter -g butter /var/lib/butter-daemon
+sudo install -d -m 0755 /etc/butter
+sudo install -d -o butter -g butter /tmp/butter-daemon-workdirs
+```
+
+把连接信息和运行 ACP executor 需要的凭证写入 `/etc/butter/butter-daemon.env`：
+
+```dotenv
+BUTTER_DAEMON_URL=127.0.0.1:9090
+BUTTER_DAEMON_TOKEN=bt_daemon_runtime_xxx
+OPENAI_API_KEY=sk-xxx
+GH_TOKEN=ghp_xxx
+```
+
+保护 token 文件权限：
+
+```bash
+sudo chown root:butter /etc/butter/butter-daemon.env
+sudo chmod 0640 /etc/butter/butter-daemon.env
+```
+
+创建 `/etc/systemd/system/butter-daemon.service`：
+
+```ini
+[Unit]
+Description=Butter daemon worker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=butter
+Group=butter
+WorkingDirectory=/var/lib/butter-daemon
+EnvironmentFile=/etc/butter/butter-daemon.env
+ExecStart=/usr/local/bin/butter-daemon
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启动并设置开机自启：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now butter-daemon
+sudo systemctl status butter-daemon
+```
+
+查看日志：
+
+```bash
+journalctl -u butter-daemon -f
+```
+
+如果 Butter server 和 daemon 不在同一个文件系统中，systemd 部署同样需要保证
+`/tmp/butter-daemon-workdirs` 是两边可访问的同一个绝对路径；否则 daemon 收到任务后无法
+`chdir` 到服务端创建的 workdir。
+
 ### Docker Image
 
 daemon 镜像由 `.github/workflows/daemon-publish.yml` 发布：
@@ -210,4 +284,3 @@ butter-daemon --config ./daemon.yaml
 - `daemon runtime already connected`：同一个 workspace/runtime 已经有 daemon 在线。
 - `unsupported acp_runtime`：RemoteAgent 选择的 `acp_runtime` 不在 daemon 注册的 executor 列表中。
 - 任务无法进入目录：检查 server 和 daemon 是否共享 `/tmp/butter-daemon-workdirs`。
-
