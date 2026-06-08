@@ -60,6 +60,9 @@ func (s *GlobalMCPServerServiceServer) CreateGlobalMCPServer(ctx context.Context
 		return nil, connectx.RequiredArgument("mcp_server")
 	}
 	server.WorkspaceId = ""
+	if err := validateMCPServerConfig(server); err != nil {
+		return nil, err
+	}
 	created, err := s.repo.CreateGlobalMCPServer(ctx, server)
 	if err != nil {
 		return nil, connectx.InternalWith(err)
@@ -82,6 +85,9 @@ func (s *GlobalMCPServerServiceServer) UpdateGlobalMCPServer(ctx context.Context
 		return nil, connectx.RequiredArgument("mcp_server.id")
 	}
 	server.WorkspaceId = ""
+	if err := validateMCPServerConfig(server); err != nil {
+		return nil, err
+	}
 	updated, err := s.repo.UpdateGlobalMCPServer(ctx, server)
 	if err != nil {
 		return nil, connectx.InternalWith(err)
@@ -140,6 +146,21 @@ func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Contex
 	MarkInstalledGlobalMCPPreset(server, preset.GetId())
 
 	installCtx := wsctx.WithID(ctx, targetWorkspaceID)
+	existing, err := s.mcpSvc.repo.GetMCPServer(ctx, targetWorkspaceID, server.GetId())
+	if err == nil {
+		if existing.GetMetadata()[globalMCPPresetMetadataKey] != preset.GetId() {
+			return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("mcp server id is already used by a workspace server not installed from this global preset"))
+		}
+		updated, err := s.mcpSvc.UpdateMCPServer(installCtx, connect.NewRequest(&agentsv1.UpdateMCPServerRequest{McpServer: server}))
+		if err != nil {
+			return nil, err
+		}
+		return connect.NewResponse(&agentsv1.InstallGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(updated.Msg.GetMcpServer(), true)}), nil
+	}
+	if !errors.Is(err, configrepo.ErrNotFound) {
+		return nil, toConnectError(err)
+	}
+
 	created, err := s.mcpSvc.CreateMCPServer(installCtx, connect.NewRequest(&agentsv1.CreateMCPServerRequest{McpServer: server}))
 	if err != nil {
 		return nil, err
