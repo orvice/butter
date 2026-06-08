@@ -21,4 +21,9 @@ jobs:
           setup_only: false
           # Optional GitHub token for API requests. Ensures requests aren't rate limited.
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          breaking: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'proto-breaking-ok') }}
+          # A first push to a new branch has an all-zero "before" SHA, which buf cannot clone as a baseline.
+          breaking: >-
+            ${{
+              (github.event_name != 'pull_request' && github.event.before != '0000000000000000000000000000000000000000') ||
+              (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'proto-breaking-ok'))
+            }}

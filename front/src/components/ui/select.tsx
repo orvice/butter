@@ -3,10 +3,56 @@
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
+import { enumLabel } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+function Select<Value, Multiple extends boolean | undefined = false>({
+  children,
+  items,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const derivedItems = React.useMemo(() => items ?? deriveEnumItems(children), [children, items]);
+  return (
+    <SelectPrimitive.Root items={derivedItems} {...props}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
+
+function deriveEnumItems(children: React.ReactNode): Record<string, React.ReactNode> | undefined {
+  const labels: Record<string, React.ReactNode> = {};
+  collectEnumItems(children, labels);
+  return Object.keys(labels).length > 0 ? labels : undefined;
+}
+
+function collectEnumItems(node: React.ReactNode, labels: Record<string, React.ReactNode>) {
+  React.Children.forEach(node, (child) => {
+    if (!React.isValidElement(child)) return;
+    const props = child.props as { children?: React.ReactNode; value?: unknown };
+
+    if (child.type === SelectItem && isProtoEnumValue(props.value)) {
+      const value = props.value;
+      labels[value] = textFromNode(props.children) || enumLabel(value, "");
+      return;
+    }
+
+    collectEnumItems(props.children, labels);
+  });
+}
+
+function isProtoEnumValue(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Z][A-Z0-9_]*_[A-Z0-9_]+$/.test(value);
+}
+
+function textFromNode(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textFromNode).join("").trim();
+  if (React.isValidElement(node)) {
+    return textFromNode((node.props as { children?: React.ReactNode }).children);
+  }
+  return "";
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

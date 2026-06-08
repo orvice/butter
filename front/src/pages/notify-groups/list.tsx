@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { enumLabel } from "@/lib/constants";
 import type { NotifyGroup } from "@/types/api";
 
 export default function NotifyGroupListPage() {
@@ -45,7 +46,7 @@ export default function NotifyGroupListPage() {
         <div className="flex flex-wrap gap-1">
           {(row.targets ?? []).slice(0, 4).map((target, index) => (
             <Badge key={`${target.name ?? index}:${target.type}`} variant="outline" className="text-[10px]">
-              {target.name || target.type || "target"}
+              {target.name || enumLabel(target.type, "Target")}
             </Badge>
           ))}
           {(row.targets?.length ?? 0) > 4 && (

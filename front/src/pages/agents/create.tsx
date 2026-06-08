@@ -30,6 +30,7 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { enumLabel } from "@/lib/constants";
 import type { AgentFileMountPermission, AgentType } from "@/types/api";
 
 const MOUNT_PERMISSIONS = [
@@ -249,7 +250,7 @@ export default function AgentCreatePage() {
                               {isSelected && <Badge>Selected</Badge>}
                             </div>
                             <div className="mt-1 text-xs text-muted-foreground">
-                              {server.transport ?? "transport unspecified"}{server.url ? ` · ${server.url}` : ""}
+                              {enumLabel(server.transport, "Transport unspecified")}{server.url ? ` · ${server.url}` : ""}
                             </div>
                           </button>
                         );

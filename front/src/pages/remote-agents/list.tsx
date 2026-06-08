@@ -22,6 +22,7 @@ import {
   Plus,
 } from "lucide-react";
 import type { RemoteAgent, RemoteAgentState } from "@/types/api";
+import { enumLabel } from "@/lib/constants";
 
 const STATE_LABEL: Record<RemoteAgentState, { cls: string; label: string }> = {
   STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "Unknown" },
@@ -76,11 +77,7 @@ export default function RemoteAgentListPage() {
       header: "Protocol",
       cell: (row) => (
         <Badge variant="outline" className="font-mono text-[10px]">
-          {row.protocol === "REMOTE_AGENT_PROTOCOL_A2A"
-            ? "A2A"
-            : row.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON"
-              ? "Daemon"
-              : "Unknown"}
+          {enumLabel(row.protocol, "Unknown")}
         </Badge>
       ),
     },
