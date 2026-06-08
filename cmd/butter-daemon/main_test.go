@@ -7,6 +7,57 @@ import (
 	"go.orx.me/apps/butter/cmd/butter-daemon/executor"
 )
 
+func TestApplyRuntimeConfigUsesEnvFallbacks(t *testing.T) {
+	t.Setenv(envDaemonURL, "env-host:9090")
+	t.Setenv(envDaemonToken, "env-token")
+
+	cfg := &Config{}
+	applyRuntimeConfig(cfg, "", "")
+
+	if cfg.Server != "env-host:9090" {
+		t.Fatalf("expected env url, got %q", cfg.Server)
+	}
+	if cfg.Credential != "env-token" {
+		t.Fatalf("expected env token, got %q", cfg.Credential)
+	}
+}
+
+func TestApplyRuntimeConfigKeepsConfigOverEnv(t *testing.T) {
+	t.Setenv(envDaemonURL, "env-host:9090")
+	t.Setenv(envDaemonToken, "env-token")
+
+	cfg := &Config{
+		URL:   "config-host:9090",
+		Token: "config-token",
+	}
+	applyRuntimeConfig(cfg, "", "")
+
+	if cfg.Server != "config-host:9090" {
+		t.Fatalf("expected config url, got %q", cfg.Server)
+	}
+	if cfg.Credential != "config-token" {
+		t.Fatalf("expected config token, got %q", cfg.Credential)
+	}
+}
+
+func TestApplyRuntimeConfigFlagsOverrideConfigAndEnv(t *testing.T) {
+	t.Setenv(envDaemonURL, "env-host:9090")
+	t.Setenv(envDaemonToken, "env-token")
+
+	cfg := &Config{
+		Server:     "config-host:9090",
+		Credential: "config-token",
+	}
+	applyRuntimeConfig(cfg, "flag-host:9090", "flag-token")
+
+	if cfg.Server != "flag-host:9090" {
+		t.Fatalf("expected flag url, got %q", cfg.Server)
+	}
+	if cfg.Credential != "flag-token" {
+		t.Fatalf("expected flag token, got %q", cfg.Credential)
+	}
+}
+
 func TestACPProfilesFromConfig(t *testing.T) {
 	workDir := t.TempDir()
 	cfg := &Config{

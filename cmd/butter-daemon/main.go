@@ -15,6 +15,11 @@ import (
 	"go.orx.me/apps/butter/cmd/butter-daemon/executor"
 )
 
+const (
+	envDaemonURL   = "BUTTER_DAEMON_URL"
+	envDaemonToken = "BUTTER_DAEMON_TOKEN"
+)
+
 // Config holds daemon configuration.
 type Config struct {
 	Server     string            `yaml:"server"`
@@ -60,18 +65,7 @@ func main() {
 	if cfg == nil {
 		cfg = &Config{}
 	}
-	if *url != "" {
-		cfg.Server = *url
-	}
-	if cfg.Server == "" && cfg.URL != "" {
-		cfg.Server = cfg.URL
-	}
-	if *token != "" {
-		cfg.Credential = *token
-	}
-	if cfg.Credential == "" && cfg.Token != "" {
-		cfg.Credential = cfg.Token
-	}
+	applyRuntimeConfig(cfg, *url, *token)
 
 	if cfg.Server == "" {
 		slog.Error("url is required")
@@ -108,6 +102,27 @@ func main() {
 	}
 
 	slog.Info("daemon stopped")
+}
+
+func applyRuntimeConfig(cfg *Config, urlFlag, tokenFlag string) {
+	if cfg.Server == "" && cfg.URL != "" {
+		cfg.Server = cfg.URL
+	}
+	if cfg.Credential == "" && cfg.Token != "" {
+		cfg.Credential = cfg.Token
+	}
+	if cfg.Server == "" {
+		cfg.Server = os.Getenv(envDaemonURL)
+	}
+	if cfg.Credential == "" {
+		cfg.Credential = os.Getenv(envDaemonToken)
+	}
+	if urlFlag != "" {
+		cfg.Server = urlFlag
+	}
+	if tokenFlag != "" {
+		cfg.Credential = tokenFlag
+	}
 }
 
 func loadConfig(path string) (*Config, error) {
