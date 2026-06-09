@@ -12,7 +12,10 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 )
 
-const serviceName = "butter"
+const (
+	serviceName = "butter"
+	h2cAddr     = ":8081"
+)
 
 func main() {
 	cfg := new(appconfig.AppConfig)
@@ -38,6 +41,10 @@ func main() {
 				handlers.Wire(result)
 
 				return nil
+			},
+			func() error {
+				_, err := butterapp.StartH2CServer(h2cAddr, router)
+				return err
 			},
 		},
 		TeardownFunc: []func() error{

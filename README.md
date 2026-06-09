@@ -76,8 +76,12 @@ Butter can delegate work to daemon-backed remote agents. Start a daemon client
 with:
 
 ```bash
-go run ./cmd/butter-daemon --url localhost:9090 --token bt_daemon_runtime_secret
+go run ./cmd/butter-daemon --url http://localhost:8081/api --token bt_daemon_runtime_secret
 ```
+
+The main HTTP/dashboard API continues to listen on `:8080`. The daemon worker
+uses the h2c listener on `:8081` so bidirectional ConnectRPC streams can run over
+cleartext HTTP/2.
 
 For container deployments, `--url` and `--token` can also be supplied through
 environment variables:
@@ -86,7 +90,7 @@ environment variables:
 docker run -d \
   --name butter-daemon \
   --restart unless-stopped \
-  -e BUTTER_DAEMON_URL=host.docker.internal:9090 \
+  -e BUTTER_DAEMON_URL=http://host.docker.internal:8081/api \
   -e BUTTER_DAEMON_TOKEN=bt_daemon_runtime_secret \
   -v /tmp/butter-daemon-workdirs:/tmp/butter-daemon-workdirs \
   ghcr.io/orvice/butter-daemon:main

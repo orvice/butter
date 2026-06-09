@@ -121,7 +121,7 @@ message DaemonTask {
 `cmd/butter-daemon` 重构后优先支持最小启动参数：
 
 ```bash
-butter-daemon --url http://localhost:8080/api --token bt_daemon_runtime_xxx
+butter-daemon --url http://localhost:8081/api --token bt_daemon_runtime_xxx
 ```
 
 daemon 本地不再用 `daemon_id/name/allowed_capabilities` 声明 agent 能力。它连接成功后作为 runtime 执行面接收任务，并根据 `DaemonTask.acp_runtime` 选择内置 ACP adapter：
@@ -968,7 +968,7 @@ Telegram → Poller.handleMessage()
 ## 实施建议
 
 1. **正式资源模型优先**：先落地 workspace-scoped `DaemonConfig`、daemon credential、registry workspace 隔离，再实现 daemon 连接 + 任务执行。
-2. **统一入口**：当前实现已改为复用 Gin HTTP server 的 `/api/agents.v1.DaemonConnectorService/Connect` 路径，不再需要独立 daemon 端口。
+2. **h2c 入口**：当前实现复用 Gin 路由，但通过独立 `:8081` h2c listener 暴露 `/api/agents.v1.DaemonConnectorService/Connect`，用于 daemon 双向流。
 3. **鉴权**：daemon connector 只接受 `API_TOKEN_KIND_DAEMON` + `daemon:connect` credential，通过 `authorization: Bearer <credential>` 传递；root token 与普通 API token 不进入 daemon connector。
 4. **测试策略**：Phase 1 完成后用集成测试验证：mock daemon client → gRPC 连接 → 收到任务 → 返回结果 → 验证 runner 拿到输出。
 5. **Phase 4/5 按需引入**：除非 agent 类型超过 3 种或入口超过 5 个，否则不必急于引入 Adapter/Gateway 层。

@@ -474,8 +474,9 @@ simultaneously speaks three protocols on the same URL:
 - **gRPC-Web** — `application/grpc-web` / `application/grpc-web+proto`, usable
   from browsers without HTTP/2.
 - **gRPC / HTTP/2-compatible Connect streams** — long-lived streams such as
-  `DaemonConnectorService.Connect` use the same `/api` base URL as the
-  dashboard.
+  `DaemonConnectorService.Connect` use the h2c listener at
+  `http://localhost:8081/api` for local cleartext HTTP/2, or an HTTPS endpoint
+  that preserves HTTP/2 in production.
 
 For the dashboard, **`application/proto` (binary protobuf)** is the canonical
 wire format (`useBinaryFormat: true` in `front/src/api/transport.ts`). The
@@ -2119,7 +2120,7 @@ connected daemons. A daemon must have a stored `DaemonRuntime` in the active
 workspace before a runtime token can be issued or a worker connection can be
 accepted.
 
-> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is mounted under the same `/api` ConnectRPC prefix as the dashboard APIs, but it authenticates daemon runtime tokens itself and is intended for `cmd/butter-daemon`, not dashboard / ops CRUD clients.
+> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is mounted under the same `/api` ConnectRPC prefix as the dashboard APIs, and the local server exposes it on the dedicated `:8081` h2c listener. It authenticates daemon runtime tokens itself and is intended for `cmd/butter-daemon`, not dashboard / ops CRUD clients.
 
 #### ListDaemonRuntimes
 
@@ -2290,8 +2291,9 @@ Process-level diagnostics for the daemon bridge.
 ### DaemonConnectorService
 
 Daemon client connection protocol. This is a bidirectional ConnectRPC streaming
-service under `/api`; `cmd/butter-daemon` should use a base URL such as
-`https://butter.example.com/api`.
+service under `/api`; local cleartext workers should use
+`http://localhost:8081/api`, while production workers can use an HTTPS/HTTP2
+base URL such as `https://butter.example.com/api`.
 
 Reverse proxies in front of this path must allow long-lived streaming requests:
 disable request/response buffering for `/api/agents.v1.DaemonConnectorService/`
