@@ -3,7 +3,8 @@
 > **状态：历史设计文档（已落地）+ 下一轮重构需求记录。** 本文是 daemon agent 设计阶段的方案稿，
 > 描述当时的 Twirp + Gin 架构与拟新增的 daemon 服务。daemon 已全部落地；
 > 自 2026-06-02 起 RPC 层迁移到 ConnectRPC（见 `migration-connectrpc.md`），
-> daemon 自身仍走独立 gRPC 端口 `:9090`。RPC 部分提到的 Twirp 文件 / Twirp
+> 自 2026-06-09 起 daemon connector 也统一挂载在主服务 `/api` ConnectRPC 入口下。
+> RPC 部分提到的 Twirp 文件 / Twirp
 > 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。自
 > 2026-06-05 起，daemon coding agent 执行器已从 opencode 专用 CLI 调用迁移为
 > 通用 ACP executor（`github.com/coder/acp-go-sdk`），opencode 通过 `opencode acp`
@@ -120,7 +121,7 @@ message DaemonTask {
 `cmd/butter-daemon` 重构后优先支持最小启动参数：
 
 ```bash
-butter-daemon --url localhost:9090 --token bt_daemon_runtime_xxx
+butter-daemon --url http://localhost:8080/api --token bt_daemon_runtime_xxx
 ```
 
 daemon 本地不再用 `daemon_id/name/allowed_capabilities` 声明 agent 能力。它连接成功后作为 runtime 执行面接收任务，并根据 `DaemonTask.acp_runtime` 选择内置 ACP adapter：
@@ -599,7 +600,7 @@ agentsv1.RegisterDaemonConnectorServer(grpcServer, daemonGRPCHandler)
 // Gin 路由中挂载 gRPC（通过 cmux 或独立端口）
 ```
 
-注意：Butter 当前使用 Gin + Twirp（HTTP），gRPC 需要独立端口或使用 cmux 多路复用。推荐独立端口，通过 `AppConfig` 新增 `GRPCPort` 配置。
+注意：上面的独立 gRPC 端口方案是历史设计稿。当前实现复用主 Gin HTTP 服务的 `/api` ConnectRPC 路径，不再通过 `AppConfig` 配置独立 daemon 端口。
 
 #### 1.5 Client 端：Daemon
 
@@ -669,7 +670,7 @@ labels:
 **Daemon 本地配置**（YAML 或 flags）：
 
 ```yaml
-server: "butter.example.com:9090"  # gRPC 地址
+server: "https://butter.example.com/api" # ConnectRPC base URL
 credential: "bt_xxx"                # daemon credential
 daemon_id: "dev-machine-1"
 name: "orvice-dev"
@@ -938,8 +939,8 @@ Telegram → Poller.handleMessage()
 | `internal/agent/agent.go` | 修改 | resolveRemoteAgents() 增加 DAEMON case |
 | `internal/runtime/runner/runner.go` | 修改 | NewService() 接收 daemon.Registry 参数 |
 | `internal/app/channels.go` | 修改 | StartChannels() 接收 daemon.Registry 参数 |
-| `internal/config/config.go` | 修改 | AppConfig 增加 GRPCPort |
-| `cmd/butter/main.go` | 修改 | 创建 daemon.Registry（顶层单例），启动 gRPC server，传 registry 给 StartChannels |
+| `internal/config/config.go` | 修改 | 历史方案曾计划增加独立 daemon 端口配置；当前实现不再需要 |
+| `cmd/butter/main.go` | 修改 | 创建 daemon.Registry（顶层单例），通过 `/api` ConnectRPC route 暴露 connector，传 registry 给 StartChannels |
 | `cmd/butter-daemon/` | **新增** | Daemon client binary |
 
 ### 可选改动（Phase 2-3）
@@ -967,7 +968,7 @@ Telegram → Poller.handleMessage()
 ## 实施建议
 
 1. **正式资源模型优先**：先落地 workspace-scoped `DaemonConfig`、daemon credential、registry workspace 隔离，再实现 daemon 连接 + 任务执行。
-2. **gRPC 端口**：建议独立端口（如 9090），避免与 Gin HTTP server 冲突。go.mod 中已有 `google.golang.org/grpc v1.79.3`。
-3. **鉴权**：daemon gRPC 只接受 `API_TOKEN_KIND_DAEMON` + `daemon:connect` credential，通过 gRPC metadata 传递 `authorization: Bearer <credential>`；root token 与普通 API token 不进入 daemon connector。
+2. **统一入口**：当前实现已改为复用 Gin HTTP server 的 `/api/agents.v1.DaemonConnectorService/Connect` 路径，不再需要独立 daemon 端口。
+3. **鉴权**：daemon connector 只接受 `API_TOKEN_KIND_DAEMON` + `daemon:connect` credential，通过 `authorization: Bearer <credential>` 传递；root token 与普通 API token 不进入 daemon connector。
 4. **测试策略**：Phase 1 完成后用集成测试验证：mock daemon client → gRPC 连接 → 收到任务 → 返回结果 → 验证 runner 拿到输出。
 5. **Phase 4/5 按需引入**：除非 agent 类型超过 3 种或入口超过 5 个，否则不必急于引入 Adapter/Gateway 层。

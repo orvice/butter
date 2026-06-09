@@ -30,7 +30,6 @@ type AppConfig struct {
 	AgentFiles     AgentFilesConfig `yaml:"agent_files"`
 	MCPOAuth       MCPOAuthConfig   `yaml:"mcp_oauth"`
 	StorageBackend string           `yaml:"storage_backend"` // "mongo" (default) or "memory"
-	GRPCPort       int              `yaml:"grpc_port"`       // daemon gRPC server port (default 9090)
 }
 
 // ArtifactConfig configures the S3-backed ADK artifact service. Artifacts are

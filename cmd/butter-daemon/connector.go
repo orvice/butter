@@ -188,8 +188,8 @@ func (c *Connector) sendUpdate(stream *connectStream, update *agentsv1.DaemonTas
 	}
 }
 
-// normalizeBaseURL turns a bare host:port (as accepted by the legacy gRPC
-// client) into a ConnectRPC base URL, defaulting to cleartext h2c.
+// normalizeBaseURL turns a bare host/path into a ConnectRPC base URL,
+// defaulting to cleartext HTTP.
 func normalizeBaseURL(server string) string {
 	if strings.HasPrefix(server, "http://") || strings.HasPrefix(server, "https://") {
 		return server

@@ -2,10 +2,7 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
-	"net/http"
-	"time"
 
 	"butterfly.orx.me/core"
 	"butterfly.orx.me/core/app"
@@ -24,8 +21,6 @@ func main() {
 
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 
-	var daemonServer *http.Server
-
 	svc := core.New(&app.Config{
 		Namespace: "ai",
 		Service:   serviceName,
@@ -42,29 +37,11 @@ func main() {
 				}
 				handlers.Wire(result)
 
-				// Start daemon connect (h2c) server for daemon connections.
-				srv, lis, err := butterapp.SetupGRPCServer(cfg, daemonRegistry, result.APITokenRepo, handlers.ConfigStore())
-				if err != nil {
-					return err
-				}
-				daemonServer = srv
-				go func() {
-					slog.Info("daemon connect server starting", "addr", lis.Addr().String())
-					if err := srv.Serve(lis); err != nil && !errors.Is(err, http.ErrServerClosed) {
-						slog.Error("daemon connect server error", "err", err)
-					}
-				}()
-
 				return nil
 			},
 		},
 		TeardownFunc: []func() error{
 			func() error {
-				if daemonServer != nil {
-					shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					_ = daemonServer.Shutdown(shutdownCtx)
-				}
 				channelCancel()
 				return nil
 			},

@@ -233,7 +233,7 @@ Three token sources are accepted by `AuthMiddleware` (tried in order):
 
 1. **Dashboard user session** — issued by `AuthService.Login`. The middleware looks up the hashed token in **Redis** (key `butter:auth:session:<sha256(token)>`) and asynchronously updates `last_used_at`.
 2. **Root token** — the single value of `apiToken` in `config.yaml`. Compared with constant-time. Intended for ops / CLI.
-3. **DB-stored API tokens** — managed at runtime via `APITokenService` and daemon credential issuance. Stored as `sha256` hashes; only the prefix is visible. User API tokens are `kind=API_TOKEN_KIND_USER` with `api:*` scope and are bound to one workspace. Daemon credentials are `kind=API_TOKEN_KIND_DAEMON` with `daemon:connect` scope and are only accepted by daemon gRPC. Successful auth updates `last_used_at` asynchronously.
+3. **DB-stored API tokens** — managed at runtime via `APITokenService` and daemon credential issuance. Stored as `sha256` hashes; only the prefix is visible. User API tokens are `kind=API_TOKEN_KIND_USER` with `api:*` scope and are bound to one workspace. Daemon credentials are `kind=API_TOKEN_KIND_DAEMON` with `daemon:connect` scope and are only accepted by `DaemonConnectorService.Connect`. Successful auth updates `last_used_at` asynchronously.
 
 `401 Unauthorized` on failure.
 
@@ -473,9 +473,9 @@ simultaneously speaks three protocols on the same URL:
 - **Connect** — JSON or binary protobuf, the default for the dashboard.
 - **gRPC-Web** — `application/grpc-web` / `application/grpc-web+proto`, usable
   from browsers without HTTP/2.
-- **gRPC (h2c)** — only when the deployment terminates HTTP/2 in front of
-  Butter; the daemon service has its own native gRPC listener on a separate
-  port (`internal/app/grpc.go`).
+- **gRPC / HTTP/2-compatible Connect streams** — long-lived streams such as
+  `DaemonConnectorService.Connect` use the same `/api` base URL as the
+  dashboard.
 
 For the dashboard, **`application/proto` (binary protobuf)** is the canonical
 wire format (`useBinaryFormat: true` in `front/src/api/transport.ts`). The
@@ -2119,7 +2119,7 @@ connected daemons. A daemon must have a stored `DaemonRuntime` in the active
 workspace before a runtime token can be issued or a worker connection can be
 accepted.
 
-> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's gRPC bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is not exposed as a regular `/api` ConnectRPC JSON endpoint; dashboard / ops clients should use the `DaemonService` endpoints below.
+> `DaemonConnectorService` in `proto/agents/v1/daemon.proto` is the daemon worker's bidirectional streaming API (`Connect`) used for task dispatch and progress updates. It is mounted under the same `/api` ConnectRPC prefix as the dashboard APIs, but it authenticates daemon runtime tokens itself and is intended for `cmd/butter-daemon`, not dashboard / ops CRUD clients.
 
 #### ListDaemonRuntimes
 
@@ -2289,17 +2289,23 @@ Process-level diagnostics for the daemon bridge.
 
 ### DaemonConnectorService
 
-Daemon client connection protocol. This is a bidirectional gRPC streaming service, not a ConnectRPC JSON endpoint under `/api`.
+Daemon client connection protocol. This is a bidirectional ConnectRPC streaming
+service under `/api`; `cmd/butter-daemon` should use a base URL such as
+`https://butter.example.com/api`.
+
+Reverse proxies in front of this path must allow long-lived streaming requests:
+disable request/response buffering for `/api/agents.v1.DaemonConnectorService/`
+and set read/send timeouts high enough for an idle daemon connection.
 
 #### Connect
 
 ```
-grpc agents.v1.DaemonConnectorService/Connect
+POST /api/agents.v1.DaemonConnectorService/Connect
 ```
 
 Establishes a long-lived stream. The daemon sends a `register` message first, then sends `task_update` messages. The server sends task assignments and cancellation requests on the response stream.
 
-The client must include gRPC metadata `authorization: Bearer <daemon-runtime-token>`. The server validates the hashed token before accepting the registration: the token must be `API_TOKEN_KIND_DAEMON`, carry `daemon:connect`, belong to a workspace, and reference an existing `DaemonRuntime`. The token's workspace and `daemon_runtime_id` are authoritative; if the daemon self-reports a different `workspace_id` or runtime id, the server overwrites/rejects accordingly. If the daemon does not report `acp_runtimes`, the server defaults it to `opencode` and `codex`.
+The client must include `authorization: Bearer <daemon-runtime-token>`. The server validates the hashed token before accepting the registration: the token must be `API_TOKEN_KIND_DAEMON`, carry `daemon:connect`, belong to a workspace, and reference an existing `DaemonRuntime`. The token's workspace and `daemon_runtime_id` are authoritative; if the daemon self-reports a different `workspace_id` or runtime id, the server overwrites/rejects accordingly. If the daemon does not report `acp_runtimes`, the server defaults it to `opencode` and `codex`.
 
 **Client stream (`ConnectRequest`):**
 

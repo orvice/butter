@@ -358,7 +358,7 @@ message CreateAPITokenResponse {
 }
 ```
 
-`AuthMiddleware` 从 token collection 校验普通 API token（`API_TOKEN_KIND_USER` + `api:*`），daemon gRPC connector 独立校验 daemon credential（`API_TOKEN_KIND_DAEMON` + `daemon:connect`）。
+`AuthMiddleware` 从 token collection 校验普通 API token（`API_TOKEN_KIND_USER` + `api:*`），daemon connector 独立校验 daemon credential（`API_TOKEN_KIND_DAEMON` + `daemon:connect`）。
 
 ### 2.8 CronJobService 扩展
 
