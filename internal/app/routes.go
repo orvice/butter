@@ -40,6 +40,7 @@ type Handlers struct {
 	channelSvcServer       *application.ChannelServiceServer
 	dashboardSvcServer     *application.DashboardServiceServer
 	daemonSvcServer        *application.DaemonServiceServer
+	daemonConnectorHandler *daemon.GRPCHandler
 	apiTokenSvcServer      *application.APITokenServiceServer
 	authSvcServer          *application.AuthServiceServer
 	workspaceSvcServer     *application.WorkspaceServiceServer
@@ -169,6 +170,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if h.daemonSvcServer != nil {
 			h.daemonSvcServer.SetAPITokenRepo(result.APITokenRepo)
 		}
+		if h.daemonConnectorHandler != nil {
+			h.daemonConnectorHandler.SetAPITokenRepo(result.APITokenRepo)
+		}
 	}
 	if result.AuthRepo != nil {
 		h.authRepo.Store(result.AuthRepo)
@@ -295,6 +299,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	dashboardConnectPath, dashboardConnectHandler := agentsv1connect.NewDashboardServiceHandler(dashboardSvcServer, connectOpts...)
 	daemonSvcServer := application.NewDaemonServiceServer(configStore, daemonRegistry)
 	daemonConnectPath, daemonConnectHandler := agentsv1connect.NewDaemonServiceHandler(daemonSvcServer, connectOpts...)
+	daemonConnectorHandler := daemon.NewGRPCHandler(daemonRegistry, nil, configStore)
+	daemonConnectorConnectPath, daemonConnectorConnectHandler := agentsv1connect.NewDaemonConnectorServiceHandler(daemonConnectorHandler, connectOpts...)
 	apiTokenSvcServer := application.NewAPITokenServiceServer(nil)
 	apiTokenConnectPath, apiTokenConnectHandler := agentsv1connect.NewAPITokenServiceHandler(apiTokenSvcServer, connectOpts...)
 	globalMCPSvcServer := application.NewGlobalMCPServerServiceServer(configStore, mcpSvcServer)
@@ -319,6 +325,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		channelSvcServer:       channelSvcServer,
 		dashboardSvcServer:     dashboardSvcServer,
 		daemonSvcServer:        daemonSvcServer,
+		daemonConnectorHandler: daemonConnectorHandler,
 		apiTokenSvcServer:      apiTokenSvcServer,
 		authSvcServer:          authSvcServer,
 		workspaceSvcServer:     workspaceSvcServer,
@@ -380,10 +387,18 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+cronConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", cronConnectHandler)))
 		r.Any("/api"+dashboardConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", dashboardConnectHandler)))
 		r.Any("/api"+daemonConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", daemonConnectHandler)))
+		r.Any("/api"+daemonConnectorConnectPath+"*path", gin.WrapH(enableFullDuplex(http.StripPrefix("/api", daemonConnectorConnectHandler))))
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 	}
 
 	return router, handlers
+}
+
+func enableFullDuplex(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = http.NewResponseController(w).EnableFullDuplex()
+		handler.ServeHTTP(w, r)
+	})
 }
 
 func oauthCallbackFallback(cfg *config.AppConfig) string {

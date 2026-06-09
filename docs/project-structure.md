@@ -207,8 +207,8 @@ butter/
 
 ## 目录说明
 
-- `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 gRPC 反连服务端的 daemon client（自报 version / os / executors）。
-- `internal/app/`：应用装配与初始化（路由、gRPC、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
+- `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 `/api` ConnectRPC 反连服务端的 daemon client（自报 version / os / executors）。
+- `internal/app/`：应用装配与初始化（路由、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
 - `internal/application/`：RPC 服务实现（Agent / AgentFile / MCPServer / GlobalMCPServer / ModelProvider / NotifyGroup / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken / Auth / Forum / Workspace）。每个服务一个 `*_service.go`，方法签名是原生 ConnectRPC 形式 `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，直接满足 `agentsv1connect.XxxServiceHandler` 接口，由 `routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载。错误用 `connect.NewError` 或 `connectx` helper 构造。
 - `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` / `InternalWith` 是 `connect.Error` 的常用构造短手；`HandlerOptions()` 含 snake_case JSON codec（`UseProtoNames=true`）供 curl/非浏览器调用；dashboard 浏览器默认 binary protobuf（`front/src/api/transport.ts`）。
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。

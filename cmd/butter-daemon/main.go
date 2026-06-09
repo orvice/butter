@@ -53,7 +53,7 @@ type ShellConfig struct {
 
 func main() {
 	configPath := flag.String("config", "", "optional path to config file")
-	url := flag.String("url", "", "daemon gRPC URL")
+	url := flag.String("url", "", "Butter API base URL for daemon connector")
 	token := flag.String("token", "", "daemon runtime token")
 	flag.Parse()
 

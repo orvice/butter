@@ -8,13 +8,13 @@ import (
 )
 
 func TestApplyRuntimeConfigUsesEnvFallbacks(t *testing.T) {
-	t.Setenv(envDaemonURL, "env-host:9090")
+	t.Setenv(envDaemonURL, "https://env-host/api")
 	t.Setenv(envDaemonToken, "env-token")
 
 	cfg := &Config{}
 	applyRuntimeConfig(cfg, "", "")
 
-	if cfg.Server != "env-host:9090" {
+	if cfg.Server != "https://env-host/api" {
 		t.Fatalf("expected env url, got %q", cfg.Server)
 	}
 	if cfg.Credential != "env-token" {
@@ -23,16 +23,16 @@ func TestApplyRuntimeConfigUsesEnvFallbacks(t *testing.T) {
 }
 
 func TestApplyRuntimeConfigKeepsConfigOverEnv(t *testing.T) {
-	t.Setenv(envDaemonURL, "env-host:9090")
+	t.Setenv(envDaemonURL, "https://env-host/api")
 	t.Setenv(envDaemonToken, "env-token")
 
 	cfg := &Config{
-		URL:   "config-host:9090",
+		URL:   "https://config-host/api",
 		Token: "config-token",
 	}
 	applyRuntimeConfig(cfg, "", "")
 
-	if cfg.Server != "config-host:9090" {
+	if cfg.Server != "https://config-host/api" {
 		t.Fatalf("expected config url, got %q", cfg.Server)
 	}
 	if cfg.Credential != "config-token" {
@@ -41,16 +41,16 @@ func TestApplyRuntimeConfigKeepsConfigOverEnv(t *testing.T) {
 }
 
 func TestApplyRuntimeConfigFlagsOverrideConfigAndEnv(t *testing.T) {
-	t.Setenv(envDaemonURL, "env-host:9090")
+	t.Setenv(envDaemonURL, "https://env-host/api")
 	t.Setenv(envDaemonToken, "env-token")
 
 	cfg := &Config{
-		Server:     "config-host:9090",
+		Server:     "https://config-host/api",
 		Credential: "config-token",
 	}
-	applyRuntimeConfig(cfg, "flag-host:9090", "flag-token")
+	applyRuntimeConfig(cfg, "https://flag-host/api", "flag-token")
 
-	if cfg.Server != "flag-host:9090" {
+	if cfg.Server != "https://flag-host/api" {
 		t.Fatalf("expected flag url, got %q", cfg.Server)
 	}
 	if cfg.Credential != "flag-token" {

@@ -38,6 +38,13 @@ func NewGRPCHandler(registry *Registry, tokenRepo apitoken.Repository, runtimeRe
 	}
 }
 
+// SetAPITokenRepo swaps the repository used to authenticate daemon runtime
+// tokens. Routes are registered before bootstrap wires persistent storage, so
+// the app layer calls this once the token repository is available.
+func (h *GRPCHandler) SetAPITokenRepo(repo apitoken.Repository) {
+	h.tokenRepo = repo
+}
+
 // Connect implements the bidirectional streaming RPC.
 func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse]) error {
 	logger := log.FromContext(ctx)

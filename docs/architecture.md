@@ -4,13 +4,13 @@
 
 ## 概览
 
-Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/gRPC/channel 输入统一转为 ADK agent 执行，并通过 MongoDB、Redis、运行时配置仓库和 daemon 长连接支撑会话、记忆、渠道状态、定时任务、远程执行、invocation 历史与运维面板。
+Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel 输入统一转为 ADK agent 执行，并通过 MongoDB、Redis、运行时配置仓库和 daemon 长连接支撑会话、记忆、渠道状态、定时任务、远程执行、invocation 历史与运维面板。
 
 核心能力：
 
 - 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Notify Group / Agent File / Forum / Cron / API Token / Invocation / Cron Execution 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
 - Agent 配置化：从 YAML 或配置仓库加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel agent。
-- 多入口接入：Gin HTTP、ConnectRPC（同 endpoint 同时支持 Connect/gRPC-Web/gRPC）、Telegram、Discord、Cron、A2A 和 daemon gRPC。
+- 多入口接入：Gin HTTP、ConnectRPC（同 endpoint 同时支持 Connect/gRPC-Web/gRPC）、Telegram、Discord、Cron、A2A 和 daemon connector。
 - 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload；`AgentService.ReloadAgents` 公开触发。
 - 多执行面：本地 ADK agent、A2A 远程 agent、daemon 反向连接 agent；A2A 与 MCP 提供 live probing。
 - 持久化运行时：MongoDB 保存 ADK session/memory、配置、cron 执行记录、invocation 历史、API tokens、workspaces 与 workspace_members；Redis 保存渠道内活跃 agent/model 选择。
@@ -41,20 +41,18 @@ cmd/butter/main.go
   -> SeedConfig(ctx, cfg)
   -> StartChannels(...)
   -> Wire(bootstrap result)
-  -> SetupGRPCServer(...)
 ```
 
-`cmd/butter` 是主服务进程，负责启动 Butterfly HTTP 服务和 daemon gRPC 服务。
+`cmd/butter` 是主服务进程，负责启动 Butterfly HTTP 服务；dashboard API 和 daemon connector 都挂载在同一个 `/api` ConnectRPC 入口下。
 
-`cmd/butter-daemon` 是 daemon client 进程，携带 workspace-scoped daemon credential 主动连接服务端 gRPC `DaemonConnectorService.Connect`，注册自身能力，接收任务并通过本地 executor 执行。coding agent 类工具优先通过通用 ACP executor 接入，例如 `opencode acp`；shell executor 仍作为独立能力保留。
+`cmd/butter-daemon` 是 daemon client 进程，携带 workspace-scoped daemon credential 主动连接服务端 `DaemonConnectorService.Connect`，注册自身能力，接收任务并通过本地 executor 执行。coding agent 类工具优先通过通用 ACP executor 接入，例如 `opencode acp`；shell executor 仍作为独立能力保留。
 
 ## 分层结构
 
 ```text
 Access Layer
 ├── Gin HTTP handlers: /ping, /a2a/:agent_name/...
-├── ConnectRPC: /api/agents.v1.*Service/*    # Connect / gRPC-Web / gRPC
-├── gRPC: DaemonConnectorService.Connect
+├── ConnectRPC: /api/agents.v1.*Service/*    # dashboard API + daemon connector
 ├── Telegram poller
 ├── Discord poller
 └── Cron scheduler
@@ -108,7 +106,6 @@ Persistence
 - `config_runtime.go` 在配置变更后同步 `AppConfig`，并触发 runner/channel reload。
 - `runtime.go` 初始化 MongoDB、Redis 和 Langfuse plugin。
 - `channels.go` 创建 ADK session/memory、runner、cron scheduler、system agent 和 channel manager。
-- `grpc.go` 启动 daemon gRPC server，默认端口 `9090`。
 - `cron.go` 创建 cron repository 和 scheduler。
 - `system_agent.go` 注册内置系统 agent。
 
