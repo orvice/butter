@@ -219,6 +219,48 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 	}
 }
 
+func TestGRPCHandlerSendsHeartbeat(t *testing.T) {
+	oldInterval := daemonHeartbeatInterval
+	daemonHeartbeatInterval = 20 * time.Millisecond
+	defer func() {
+		daemonHeartbeatInterval = oldInterval
+	}()
+
+	registry := NewRegistry()
+	client, cleanup := startTestServer(t, registry, true)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stream := client.Connect(ctx)
+	stream.RequestHeader().Set("Authorization", "Bearer "+testSecret)
+
+	if err := stream.Send(&agentsv1.ConnectRequest{
+		Message: &agentsv1.ConnectRequest_Register{
+			Register: &agentsv1.DaemonInfo{DaemonRuntimeId: "test-daemon", AcpRuntimes: []string{"opencode"}},
+		},
+	}); err != nil {
+		t.Fatalf("Send register: %v", err)
+	}
+
+	if waitForConn(registry, testWorkspaceID, "test-daemon", 2*time.Second) == nil {
+		t.Fatal("daemon was not registered")
+	}
+
+	msg, err := stream.Receive()
+	if err != nil {
+		t.Fatalf("Receive heartbeat: %v", err)
+	}
+	if msg.Message != nil {
+		t.Fatalf("expected empty heartbeat response, got %T", msg.Message)
+	}
+
+	if err := stream.CloseRequest(); err != nil {
+		t.Fatalf("CloseRequest: %v", err)
+	}
+}
+
 func TestGRPCHandlerUnregistersOnCleanClientClose(t *testing.T) {
 	registry := NewRegistry()
 	client, cleanup := startTestServer(t, registry, true)

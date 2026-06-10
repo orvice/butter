@@ -20,6 +20,8 @@ import (
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
+var daemonHeartbeatInterval = 20 * time.Second
+
 // GRPCHandler implements the DaemonConnectorService over ConnectRPC.
 type GRPCHandler struct {
 	agentsv1connect.UnimplementedDaemonConnectorServiceHandler
@@ -99,11 +101,18 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		heartbeat := time.NewTicker(daemonHeartbeatInterval)
+		defer heartbeat.Stop()
 		for {
 			select {
 			case msg := <-conn.SendCh:
 				if err := stream.Send(msg); err != nil {
 					errCh <- fmt.Errorf("send: %w", err)
+					return
+				}
+			case <-heartbeat.C:
+				if err := stream.Send(&agentsv1.ConnectResponse{}); err != nil {
+					errCh <- fmt.Errorf("heartbeat: %w", err)
 					return
 				}
 			case <-done:
