@@ -4,15 +4,15 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { Empty, Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_empty, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file agents/v1/daemon.proto.
  */
 export const file_agents_v1_daemon: GenFile = /*@__PURE__*/
-  fileDesc("ChZhZ2VudHMvdjEvZGFlbW9uLnByb3RvEglhZ2VudHMudjEi8wEKCkRhZW1vbkluZm8SGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIUCgxhY3BfcnVudGltZXMYAyADKAkSMQoGbGFiZWxzGAQgAygLMiEuYWdlbnRzLnYxLkRhZW1vbkluZm8uTGFiZWxzRW50cnkSDwoHdmVyc2lvbhgFIAEoCRIKCgJvcxgGIAEoCRIRCglleGVjdXRvcnMYByADKAkSFAoMd29ya3NwYWNlX2lkGAggASgJGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEitwIKCkRhZW1vblRhc2sSDwoHdGFza19pZBgBIAEoCRISCgphZ2VudF9uYW1lGAIgASgJEg0KBWlucHV0GAMgASgJEhIKCnNlc3Npb25faWQYBCABKAkSDwoHdXNlcl9pZBgFIAEoCRI1CghtZXRhZGF0YRgGIAMoCzIjLmFnZW50cy52MS5EYWVtb25UYXNrLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGAggASgJEhkKEWRhZW1vbl9ydW50aW1lX2lkGAkgASgJEhMKC2FjcF9ydW50aW1lGAogASgJEhAKCHdvcmtfZGlyGAsgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUoECAcQCFIKY2FwYWJpbGl0eSLGAQoQRGFlbW9uVGFza1VwZGF0ZRIPCgd0YXNrX2lkGAEgASgJEisKBnN0YXR1cxgCIAEoDjIbLmFnZW50cy52MS5EYWVtb25UYXNrU3RhdHVzEg4KBm91dHB1dBgDIAEoCRINCgVlcnJvchgEIAEoCRItCgl0aW1lc3RhbXAYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDGN1cnJlbnRfc3RlcBgGIAEoCRIQCghwcm9ncmVzcxgHIAEoBSIdCgpDYW5jZWxUYXNrEg8KB3Rhc2tfaWQYASABKAkiegoOQ29ubmVjdFJlcXVlc3QSKQoIcmVnaXN0ZXIYASABKAsyFS5hZ2VudHMudjEuRGFlbW9uSW5mb0gAEjIKC3Rhc2tfdXBkYXRlGAIgASgLMhsuYWdlbnRzLnYxLkRhZW1vblRhc2tVcGRhdGVIAEIJCgdtZXNzYWdlImwKD0Nvbm5lY3RSZXNwb25zZRIlCgR0YXNrGAEgASgLMhUuYWdlbnRzLnYxLkRhZW1vblRhc2tIABInCgZjYW5jZWwYAiABKAsyFS5hZ2VudHMudjEuQ2FuY2VsVGFza0gAQgkKB21lc3NhZ2Uq2gEKEERhZW1vblRhc2tTdGF0dXMSIgoeREFFTU9OX1RBU0tfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobREFFTU9OX1RBU0tfU1RBVFVTX0FDQ0VQVEVEEAESHgoaREFFTU9OX1RBU0tfU1RBVFVTX1JVTk5JTkcQAhIgChxEQUVNT05fVEFTS19TVEFUVVNfQ09NUExFVEVEEAMSHQoZREFFTU9OX1RBU0tfU1RBVFVTX0ZBSUxFRBAEEiAKHERBRU1PTl9UQVNLX1NUQVRVU19DQU5DRUxMRUQQBTJeChZEYWVtb25Db25uZWN0b3JTZXJ2aWNlEkQKB0Nvbm5lY3QSGS5hZ2VudHMudjEuQ29ubmVjdFJlcXVlc3QaGi5hZ2VudHMudjEuQ29ubmVjdFJlc3BvbnNlKAEwAUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChZhZ2VudHMvdjEvZGFlbW9uLnByb3RvEglhZ2VudHMudjEi8wEKCkRhZW1vbkluZm8SGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIUCgxhY3BfcnVudGltZXMYAyADKAkSMQoGbGFiZWxzGAQgAygLMiEuYWdlbnRzLnYxLkRhZW1vbkluZm8uTGFiZWxzRW50cnkSDwoHdmVyc2lvbhgFIAEoCRIKCgJvcxgGIAEoCRIRCglleGVjdXRvcnMYByADKAkSFAoMd29ya3NwYWNlX2lkGAggASgJGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEitwIKCkRhZW1vblRhc2sSDwoHdGFza19pZBgBIAEoCRISCgphZ2VudF9uYW1lGAIgASgJEg0KBWlucHV0GAMgASgJEhIKCnNlc3Npb25faWQYBCABKAkSDwoHdXNlcl9pZBgFIAEoCRI1CghtZXRhZGF0YRgGIAMoCzIjLmFnZW50cy52MS5EYWVtb25UYXNrLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGAggASgJEhkKEWRhZW1vbl9ydW50aW1lX2lkGAkgASgJEhMKC2FjcF9ydW50aW1lGAogASgJEhAKCHdvcmtfZGlyGAsgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUoECAcQCFIKY2FwYWJpbGl0eSLGAQoQRGFlbW9uVGFza1VwZGF0ZRIPCgd0YXNrX2lkGAEgASgJEisKBnN0YXR1cxgCIAEoDjIbLmFnZW50cy52MS5EYWVtb25UYXNrU3RhdHVzEg4KBm91dHB1dBgDIAEoCRINCgVlcnJvchgEIAEoCRItCgl0aW1lc3RhbXAYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDGN1cnJlbnRfc3RlcBgGIAEoCRIQCghwcm9ncmVzcxgHIAEoBSIdCgpDYW5jZWxUYXNrEg8KB3Rhc2tfaWQYASABKAkipwEKDkNvbm5lY3RSZXF1ZXN0EikKCHJlZ2lzdGVyGAEgASgLMhUuYWdlbnRzLnYxLkRhZW1vbkluZm9IABIyCgt0YXNrX3VwZGF0ZRgCIAEoCzIbLmFnZW50cy52MS5EYWVtb25UYXNrVXBkYXRlSAASKwoJaGVhcnRiZWF0GAMgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SABCCQoHbWVzc2FnZSKZAQoPQ29ubmVjdFJlc3BvbnNlEiUKBHRhc2sYASABKAsyFS5hZ2VudHMudjEuRGFlbW9uVGFza0gAEicKBmNhbmNlbBgCIAEoCzIVLmFnZW50cy52MS5DYW5jZWxUYXNrSAASKwoJaGVhcnRiZWF0GAMgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SABCCQoHbWVzc2FnZSraAQoQRGFlbW9uVGFza1N0YXR1cxIiCh5EQUVNT05fVEFTS19TVEFUVVNfVU5TUEVDSUZJRUQQABIfChtEQUVNT05fVEFTS19TVEFUVVNfQUNDRVBURUQQARIeChpEQUVNT05fVEFTS19TVEFUVVNfUlVOTklORxACEiAKHERBRU1PTl9UQVNLX1NUQVRVU19DT01QTEVURUQQAxIdChlEQUVNT05fVEFTS19TVEFUVVNfRkFJTEVEEAQSIAocREFFTU9OX1RBU0tfU1RBVFVTX0NBTkNFTExFRBAFMl4KFkRhZW1vbkNvbm5lY3RvclNlcnZpY2USRAoHQ29ubmVjdBIZLmFnZW50cy52MS5Db25uZWN0UmVxdWVzdBoaLmFnZW50cy52MS5Db25uZWN0UmVzcG9uc2UoATABQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_google_protobuf_empty]);
 
 /**
  * DaemonInfo is sent by the daemon client as the first message on the
@@ -302,6 +302,14 @@ export type ConnectRequest = Message<"agents.v1.ConnectRequest"> & {
      */
     value: DaemonTaskUpdate;
     case: "taskUpdate";
+  } | {
+    /**
+     * Heartbeat keeps long-lived streams active through proxies.
+     *
+     * @generated from field: google.protobuf.Empty heartbeat = 3;
+     */
+    value: Empty;
+    case: "heartbeat";
   } | { case: undefined; value?: undefined };
 };
 
@@ -337,6 +345,14 @@ export type ConnectResponse = Message<"agents.v1.ConnectResponse"> & {
      */
     value: CancelTask;
     case: "cancel";
+  } | {
+    /**
+     * Heartbeat keeps long-lived streams active through proxies.
+     *
+     * @generated from field: google.protobuf.Empty heartbeat = 3;
+     */
+    value: Empty;
+    case: "heartbeat";
   } | { case: undefined; value?: undefined };
 };
 

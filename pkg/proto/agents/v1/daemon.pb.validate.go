@@ -612,6 +612,47 @@ func (m *ConnectRequest) validate(all bool) error {
 			}
 		}
 
+	case *ConnectRequest_Heartbeat:
+		if v == nil {
+			err := ConnectRequestValidationError{
+				field:  "Message",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetHeartbeat()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConnectRequestValidationError{
+						field:  "Heartbeat",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConnectRequestValidationError{
+						field:  "Heartbeat",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetHeartbeat()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConnectRequestValidationError{
+					field:  "Heartbeat",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	default:
 		_ = v // ensures v is used
 	}
@@ -793,6 +834,47 @@ func (m *ConnectResponse) validate(all bool) error {
 			if err := v.Validate(); err != nil {
 				return ConnectResponseValidationError{
 					field:  "Cancel",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *ConnectResponse_Heartbeat:
+		if v == nil {
+			err := ConnectResponseValidationError{
+				field:  "Message",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetHeartbeat()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConnectResponseValidationError{
+						field:  "Heartbeat",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConnectResponseValidationError{
+						field:  "Heartbeat",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetHeartbeat()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConnectResponseValidationError{
+					field:  "Heartbeat",
 					reason: "embedded message failed validation",
 					cause:  err,
 				}

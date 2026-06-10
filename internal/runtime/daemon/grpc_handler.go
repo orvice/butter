@@ -13,6 +13,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
@@ -103,6 +104,7 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 		defer wg.Done()
 		heartbeat := time.NewTicker(daemonHeartbeatInterval)
 		defer heartbeat.Stop()
+		heartbeatCount := 0
 		for {
 			select {
 			case msg := <-conn.SendCh:
@@ -111,9 +113,19 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 					return
 				}
 			case <-heartbeat.C:
-				if err := stream.Send(&agentsv1.ConnectResponse{}); err != nil {
+				if err := stream.Send(&agentsv1.ConnectResponse{
+					Message: &agentsv1.ConnectResponse_Heartbeat{Heartbeat: &emptypb.Empty{}},
+				}); err != nil {
 					errCh <- fmt.Errorf("heartbeat: %w", err)
 					return
+				}
+				heartbeatCount++
+				if heartbeatCount <= 3 {
+					logger.Info("daemon heartbeat sent",
+						"workspace_id", regInfo.GetWorkspaceId(),
+						"daemon_runtime_id", regInfo.GetDaemonRuntimeId(),
+						"count", heartbeatCount,
+					)
 				}
 			case <-done:
 				return
@@ -127,6 +139,7 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		heartbeatCount := 0
 		for {
 			msg, err := stream.Receive()
 			if err != nil {
@@ -139,6 +152,15 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 			}
 			if update := msg.GetTaskUpdate(); update != nil {
 				conn.DispatchUpdate(update)
+			} else if msg.GetHeartbeat() != nil {
+				heartbeatCount++
+				if heartbeatCount <= 3 {
+					logger.Info("daemon heartbeat received",
+						"workspace_id", regInfo.GetWorkspaceId(),
+						"daemon_runtime_id", regInfo.GetDaemonRuntimeId(),
+						"count", heartbeatCount,
+					)
+				}
 			}
 		}
 	}()

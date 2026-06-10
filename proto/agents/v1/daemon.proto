@@ -3,6 +3,7 @@ syntax = "proto3";
 package agents.v1;
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 
@@ -149,6 +150,8 @@ message ConnectRequest {
     DaemonInfo register = 1;
     // Subsequent messages are task updates.
     DaemonTaskUpdate task_update = 2;
+    // Heartbeat keeps long-lived streams active through proxies.
+    google.protobuf.Empty heartbeat = 3;
   }
 }
 
@@ -159,5 +162,7 @@ message ConnectResponse {
     DaemonTask task = 1;
     // Cancel a running task.
     CancelTask cancel = 2;
+    // Heartbeat keeps long-lived streams active through proxies.
+    google.protobuf.Empty heartbeat = 3;
   }
 }

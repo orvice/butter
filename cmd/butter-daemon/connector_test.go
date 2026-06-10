@@ -45,7 +45,7 @@ func TestConnectorSendsHeartbeat(t *testing.T) {
 					errCh <- err
 					return err
 				}
-				if msg.Message == nil {
+				if msg.GetHeartbeat() != nil {
 					close(heartbeatCh)
 					return nil
 				}

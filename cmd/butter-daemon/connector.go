@@ -16,6 +16,7 @@ import (
 
 	"connectrpc.com/connect"
 	"golang.org/x/net/http2"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"go.orx.me/apps/butter/cmd/butter-daemon/executor"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -131,6 +132,8 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 			go c.handleTask(ctx, stream, m.Task)
 		case *agentsv1.ConnectResponse_Cancel:
 			c.handleCancel(m.Cancel.TaskId)
+		case *agentsv1.ConnectResponse_Heartbeat:
+			// Heartbeat response keeps the downstream side of the stream active.
 		}
 	}
 }
@@ -139,15 +142,22 @@ func (c *Connector) sendHeartbeat(ctx context.Context, stream *connectStream) {
 	ticker := time.NewTicker(daemonClientHeartbeatInterval)
 	defer ticker.Stop()
 
+	count := 0
 	for {
 		select {
 		case <-ticker.C:
 			c.sendMu.Lock()
-			err := stream.Send(&agentsv1.ConnectRequest{})
+			err := stream.Send(&agentsv1.ConnectRequest{
+				Message: &agentsv1.ConnectRequest_Heartbeat{Heartbeat: &emptypb.Empty{}},
+			})
 			c.sendMu.Unlock()
 			if err != nil {
-				slog.Debug("failed to send heartbeat", "err", err)
+				slog.Warn("failed to send daemon heartbeat", "err", err)
 				return
+			}
+			count++
+			if count <= 3 {
+				slog.Info("daemon heartbeat sent", "count", count)
 			}
 		case <-ctx.Done():
 			return

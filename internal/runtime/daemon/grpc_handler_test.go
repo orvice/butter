@@ -252,8 +252,8 @@ func TestGRPCHandlerSendsHeartbeat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Receive heartbeat: %v", err)
 	}
-	if msg.Message != nil {
-		t.Fatalf("expected empty heartbeat response, got %T", msg.Message)
+	if msg.GetHeartbeat() == nil {
+		t.Fatalf("expected heartbeat response, got %T", msg.Message)
 	}
 
 	if err := stream.CloseRequest(); err != nil {
