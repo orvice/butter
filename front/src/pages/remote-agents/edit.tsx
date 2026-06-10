@@ -35,8 +35,13 @@ const schema = z.object({
       ctx.addIssue({ code: "custom", path: ["url"], message: "Must be a valid URL" });
     }
   }
-  if (values.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON" && !values.daemon_runtime_id) {
-    ctx.addIssue({ code: "custom", path: ["daemon_runtime_id"], message: "Daemon runtime is required" });
+  if (values.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON") {
+    if (!values.daemon_runtime_id) {
+      ctx.addIssue({ code: "custom", path: ["daemon_runtime_id"], message: "Daemon runtime is required" });
+    }
+    if (!values.acp_runtime) {
+      ctx.addIssue({ code: "custom", path: ["acp_runtime"], message: "ACP runtime is required" });
+    }
   }
 });
 

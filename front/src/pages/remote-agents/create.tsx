@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -33,8 +33,13 @@ const schema = z.object({
       ctx.addIssue({ code: "custom", path: ["url"], message: "Must be a valid URL" });
     }
   }
-  if (values.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON" && !values.daemon_runtime_id) {
-    ctx.addIssue({ code: "custom", path: ["daemon_runtime_id"], message: "Daemon runtime is required" });
+  if (values.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON") {
+    if (!values.daemon_runtime_id) {
+      ctx.addIssue({ code: "custom", path: ["daemon_runtime_id"], message: "Daemon runtime is required" });
+    }
+    if (!values.acp_runtime) {
+      ctx.addIssue({ code: "custom", path: ["acp_runtime"], message: "ACP runtime is required" });
+    }
   }
 });
 
@@ -42,6 +47,9 @@ type FormValues = z.infer<typeof schema>;
 
 export default function RemoteAgentCreatePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialDaemonRuntimeId = searchParams.get("daemon_runtime_id") ?? "";
+  const initialAcpRuntime = searchParams.get("acp_runtime") === "codex" ? "codex" : "opencode";
   const createMutation = useCreateRemoteAgent();
   const { data: runtimeData } = useDaemonRuntimes();
   const form = useForm<FormValues>({
@@ -49,10 +57,10 @@ export default function RemoteAgentCreatePage() {
     defaultValues: {
       id: "",
       name: "",
-      protocol: "REMOTE_AGENT_PROTOCOL_A2A",
+      protocol: initialDaemonRuntimeId ? "REMOTE_AGENT_PROTOCOL_DAEMON" : "REMOTE_AGENT_PROTOCOL_A2A",
       url: "",
-      daemon_runtime_id: "",
-      acp_runtime: "opencode",
+      daemon_runtime_id: initialDaemonRuntimeId,
+      acp_runtime: initialAcpRuntime,
     },
   });
   const protocol = form.watch("protocol") as RemoteAgentProtocol;

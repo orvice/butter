@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   useBridgeDiagnostics,
   useCancelDaemonTask,
@@ -131,6 +132,7 @@ function DaemonStateBadge({ state }: { state?: DaemonStatus["state"] }) {
 }
 
 export default function DaemonListPage() {
+  const navigate = useNavigate();
   const [runtimeOpen, setRuntimeOpen] = useState(false);
   const [editingRuntime, setEditingRuntime] = useState<DaemonRuntime | null>(null);
   const [tokenTarget, setTokenTarget] = useState<DaemonRuntime | null>(null);
@@ -208,6 +210,14 @@ export default function DaemonListPage() {
       header: "",
       cell: (r) => (
         <div className="flex justify-end gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate(`/remote-agents/create?daemon_runtime_id=${encodeURIComponent(r.id)}`)}
+          >
+            <Cpu className="mr-1 h-3.5 w-3.5" />
+            Agent
+          </Button>
           <Button
             size="sm"
             variant="outline"

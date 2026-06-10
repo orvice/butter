@@ -227,6 +227,71 @@ func TestRemoteAgentServiceServer_CRUD(t *testing.T) {
 	}
 }
 
+func TestRemoteAgentServiceServer_DaemonValidation(t *testing.T) {
+	store := memory.New()
+	svc := NewRemoteAgentServiceServer(store)
+	ctx := testCtx()
+
+	_, err := svc.CreateRemoteAgent(ctx, connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
+		RemoteAgent: &agentsv1.RemoteAgent{
+			Id:       "daemon-agent",
+			Name:     "Daemon Agent",
+			Protocol: agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON,
+		},
+	}))
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument for missing daemon_runtime_id, got %v", err)
+	}
+
+	_, err = svc.CreateRemoteAgent(ctx, connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
+		RemoteAgent: &agentsv1.RemoteAgent{
+			Id:              "daemon-agent",
+			Name:            "Daemon Agent",
+			Protocol:        agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON,
+			DaemonRuntimeId: "runtime-1",
+			AcpRuntime:      "shell",
+		},
+	}))
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument for unsupported acp_runtime, got %v", err)
+	}
+
+	_, err = svc.CreateRemoteAgent(ctx, connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
+		RemoteAgent: &agentsv1.RemoteAgent{
+			Id:              "daemon-agent",
+			Name:            "Daemon Agent",
+			Protocol:        agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON,
+			DaemonRuntimeId: "runtime-1",
+			AcpRuntime:      "opencode",
+		},
+	}))
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
+		t.Fatalf("expected NotFound for missing daemon runtime, got %v", err)
+	}
+
+	if _, err := store.CreateDaemonRuntime(ctx, wsTest, &agentsv1.DaemonRuntime{
+		Id:   "runtime-1",
+		Name: "Runtime 1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	created, err := svc.CreateRemoteAgent(ctx, connect.NewRequest(&agentsv1.CreateRemoteAgentRequest{
+		RemoteAgent: &agentsv1.RemoteAgent{
+			Id:              "daemon-agent",
+			Name:            "Daemon Agent",
+			Protocol:        agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON,
+			DaemonRuntimeId: "runtime-1",
+			AcpRuntime:      "opencode",
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Msg.GetRemoteAgent().GetDaemonRuntimeId() != "runtime-1" {
+		t.Fatalf("expected runtime-1, got %q", created.Msg.GetRemoteAgent().GetDaemonRuntimeId())
+	}
+}
+
 func TestChannelServiceServer_ReloadsRuntime(t *testing.T) {
 	store := memory.New()
 	svc := NewChannelServiceServer(store)
