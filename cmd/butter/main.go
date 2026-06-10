@@ -55,6 +55,6 @@ func main() {
 		},
 	})
 
-	slog.Info("starting butterfly service", "service", serviceName)
+	slog.Info("starting butterfly service", "service", serviceName, "commit", serverBuildCommit())
 	svc.Run()
 }
