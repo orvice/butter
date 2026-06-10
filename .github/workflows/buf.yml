@@ -1,6 +1,7 @@
 name: Buf
 on:
   push:
+    branches: [ "main" ]
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   delete:
@@ -27,3 +28,4 @@ jobs:
               (github.event_name != 'pull_request' && github.event.before != '0000000000000000000000000000000000000000') ||
               (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'proto-breaking-ok'))
             }}
+          push: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
