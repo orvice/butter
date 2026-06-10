@@ -19,17 +19,26 @@ import (
 )
 
 type RemoteAgentServiceServer struct {
-	repo      configrepo.RemoteAgentRepository
-	runtime   ConfigRuntime
-	daemonReg *daemon.Registry
+	repo              configrepo.RemoteAgentRepository
+	daemonRuntimeRepo configrepo.DaemonRuntimeRepository
+	runtime           ConfigRuntime
+	daemonReg         *daemon.Registry
 }
 
 func NewRemoteAgentServiceServer(repo configrepo.RemoteAgentRepository) *RemoteAgentServiceServer {
-	return &RemoteAgentServiceServer{repo: repo}
+	s := &RemoteAgentServiceServer{repo: repo}
+	if daemonRuntimeRepo, ok := repo.(configrepo.DaemonRuntimeRepository); ok {
+		s.daemonRuntimeRepo = daemonRuntimeRepo
+	}
+	return s
 }
 
 func (s *RemoteAgentServiceServer) SetRuntime(runtime ConfigRuntime) {
 	s.runtime = runtime
+}
+
+func (s *RemoteAgentServiceServer) SetDaemonRuntimeRepository(repo configrepo.DaemonRuntimeRepository) {
+	s.daemonRuntimeRepo = repo
 }
 
 func (s *RemoteAgentServiceServer) SetDaemonRegistry(reg *daemon.Registry) {
@@ -65,7 +74,7 @@ func (s *RemoteAgentServiceServer) CreateRemoteAgent(ctx context.Context, req *c
 	if err != nil {
 		return nil, err
 	}
-	if err := validateRemoteAgentURL(req.Msg.GetRemoteAgent()); err != nil {
+	if err := s.validateRemoteAgent(ctx, wsID, req.Msg.GetRemoteAgent()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -101,7 +110,7 @@ func (s *RemoteAgentServiceServer) UpdateRemoteAgent(ctx context.Context, req *c
 	if err != nil {
 		return nil, err
 	}
-	if err := validateRemoteAgentURL(req.Msg.GetRemoteAgent()); err != nil {
+	if err := s.validateRemoteAgent(ctx, wsID, req.Msg.GetRemoteAgent()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -236,6 +245,34 @@ func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req
 		status.Detail = fmt.Sprintf("protocol %s not probed", ra.GetProtocol().String())
 		return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
 	}
+}
+
+func (s *RemoteAgentServiceServer) validateRemoteAgent(ctx context.Context, workspaceID string, ra *agentsv1.RemoteAgent) error {
+	if ra == nil {
+		return connectx.RequiredArgument("remote_agent")
+	}
+	if err := validateRemoteAgentURL(ra); err != nil {
+		return err
+	}
+	if ra.GetProtocol() != agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON {
+		return nil
+	}
+
+	runtimeID := strings.TrimSpace(ra.GetDaemonRuntimeId())
+	if runtimeID == "" {
+		return connectx.RequiredArgument("daemon_runtime_id")
+	}
+	acpRuntime := strings.TrimSpace(ra.GetAcpRuntime())
+	if acpRuntime != "opencode" && acpRuntime != "codex" {
+		return connectx.InvalidArgument("acp_runtime", "must be opencode or codex")
+	}
+	if s.daemonRuntimeRepo == nil {
+		return nil
+	}
+	if _, err := s.daemonRuntimeRepo.GetDaemonRuntime(ctx, workspaceID, runtimeID); err != nil {
+		return toConnectError(err)
+	}
+	return nil
 }
 
 // validateRemoteAgentURL enforces an absolute http(s) URL on the A2A
