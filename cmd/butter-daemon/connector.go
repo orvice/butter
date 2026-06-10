@@ -26,6 +26,8 @@ import (
 // surfaced at registration so the server-side dashboard can display it.
 const daemonVersion = "v0.1.0"
 
+var daemonClientHeartbeatInterval = 20 * time.Second
+
 type connectStream = connect.BidiStreamForClient[agentsv1.ConnectRequest, agentsv1.ConnectResponse]
 
 // Connector manages the ConnectRPC connection to the butter server.
@@ -114,6 +116,10 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 		"acp_runtimes", runtimes,
 	)
 
+	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
+	defer stopHeartbeat()
+	go c.sendHeartbeat(heartbeatCtx, stream)
+
 	// Receive loop.
 	for {
 		msg, err := stream.Receive()
@@ -129,6 +135,26 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 			go c.handleTask(ctx, stream, m.Task)
 		case *agentsv1.ConnectResponse_Cancel:
 			c.handleCancel(m.Cancel.TaskId)
+		}
+	}
+}
+
+func (c *Connector) sendHeartbeat(ctx context.Context, stream *connectStream) {
+	ticker := time.NewTicker(daemonClientHeartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.sendMu.Lock()
+			err := stream.Send(&agentsv1.ConnectRequest{})
+			c.sendMu.Unlock()
+			if err != nil {
+				slog.Debug("failed to send heartbeat", "err", err)
+				return
+			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }
