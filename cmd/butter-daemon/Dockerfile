@@ -6,7 +6,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build -o /app/butter-daemon ./cmd/butter-daemon
+ARG COMMIT=unknown
+RUN CGO_ENABLED=0 go build -ldflags "-X main.daemonCommit=${COMMIT}" -o /app/butter-daemon ./cmd/butter-daemon
 
 FROM node:24-slim
 

@@ -22,10 +22,6 @@ import (
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
-// daemonVersion is the semantic version of the daemon client binary. It is
-// surfaced at registration so the server-side dashboard can display it.
-const daemonVersion = "v0.1.0"
-
 var daemonClientHeartbeatInterval = 20 * time.Second
 
 type connectStream = connect.BidiStreamForClient[agentsv1.ConnectRequest, agentsv1.ConnectResponse]
@@ -102,7 +98,7 @@ func (c *Connector) connectAndServe(ctx context.Context) error {
 				Name:        c.cfg.Name,
 				AcpRuntimes: runtimes,
 				Labels:      c.cfg.Labels,
-				Version:     daemonVersion,
+				Version:     daemonBuildVersion(),
 				Os:          runtime.GOOS + "-" + runtime.GOARCH,
 				Executors:   runtimes,
 			},

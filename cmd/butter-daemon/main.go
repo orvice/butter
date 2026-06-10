@@ -94,6 +94,8 @@ func main() {
 	slog.Info("starting butter-daemon",
 		"server", cfg.Server,
 		"name", cfg.Name,
+		"version", daemonBuildVersion(),
+		"commit", daemonBuildCommit(),
 	)
 
 	if err := connector.Run(ctx); err != nil && ctx.Err() == nil {
