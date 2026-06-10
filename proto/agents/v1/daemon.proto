@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package agents.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -141,7 +142,43 @@ service DaemonConnectorService {
   // message first, then task updates. The server sends task assignments and
   // cancellation requests.
   rpc Connect(stream ConnectRequest) returns (stream ConnectResponse);
+
+  // Register announces a daemon runtime for unary long-poll transport.
+  rpc Register(DaemonConnectorServiceRegisterRequest) returns (DaemonConnectorServiceRegisterResponse);
+  // Poll waits briefly for queued task/cancel messages.
+  rpc Poll(DaemonConnectorServicePollRequest) returns (DaemonConnectorServicePollResponse);
+  // ReportTaskUpdate reports task progress or completion from a daemon.
+  rpc ReportTaskUpdate(DaemonConnectorServiceReportTaskUpdateRequest) returns (DaemonConnectorServiceReportTaskUpdateResponse);
+  // Unregister marks a daemon runtime offline for graceful shutdown.
+  rpc Unregister(DaemonConnectorServiceUnregisterRequest) returns (DaemonConnectorServiceUnregisterResponse);
 }
+
+message DaemonConnectorServiceRegisterRequest {
+  DaemonInfo daemon = 1;
+}
+
+message DaemonConnectorServiceRegisterResponse {
+  DaemonInfo daemon = 1;
+}
+
+message DaemonConnectorServicePollRequest {
+  // Maximum time the server should wait for a task before returning empty.
+  google.protobuf.Duration wait_timeout = 1;
+}
+
+message DaemonConnectorServicePollResponse {
+  repeated ConnectResponse messages = 1;
+}
+
+message DaemonConnectorServiceReportTaskUpdateRequest {
+  DaemonTaskUpdate update = 1;
+}
+
+message DaemonConnectorServiceReportTaskUpdateResponse {}
+
+message DaemonConnectorServiceUnregisterRequest {}
+
+message DaemonConnectorServiceUnregisterResponse {}
 
 // ConnectRequest is the client-to-server stream message for DaemonConnectorService.Connect.
 message ConnectRequest {

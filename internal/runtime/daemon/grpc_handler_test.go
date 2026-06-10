@@ -21,6 +21,7 @@ import (
 	configmem "go.orx.me/apps/butter/internal/repo/config/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -83,6 +84,10 @@ func startTestServer(t *testing.T, registry *Registry, seed bool) (agentsv1conne
 func hashTestSecret(secret string) string {
 	sum := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(sum[:])
+}
+
+func authorizeTestDaemon(req interface{ Header() http.Header }) {
+	req.Header().Set("Authorization", "Bearer "+testSecret)
 }
 
 func TestGRPCHandlerConnectAndTask(t *testing.T) {
@@ -216,6 +221,104 @@ func TestGRPCHandlerAuthAcceptsValidToken(t *testing.T) {
 
 	if conn := waitForConn(registry, testWorkspaceID, "test-daemon", 2*time.Second); conn == nil {
 		t.Fatal("expected daemon to be registered with valid token")
+	}
+}
+
+func TestGRPCHandlerLongPollLifecycle(t *testing.T) {
+	registry := NewRegistry()
+	client, cleanup := startTestServer(t, registry, true)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	registerReq := connect.NewRequest(&agentsv1.DaemonConnectorServiceRegisterRequest{
+		Daemon: &agentsv1.DaemonInfo{
+			DaemonRuntimeId: "test-daemon",
+			Name:            "Test Poll",
+			AcpRuntimes:     []string{"opencode"},
+			WorkspaceId:     testWorkspaceID,
+		},
+	})
+	authorizeTestDaemon(registerReq)
+	registerResp, err := client.Register(ctx, registerReq)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if registerResp.Msg.GetDaemon().GetWorkspaceId() != testWorkspaceID {
+		t.Fatalf("expected workspace %q, got %q", testWorkspaceID, registerResp.Msg.GetDaemon().GetWorkspaceId())
+	}
+	if registerResp.Msg.GetDaemon().GetDaemonRuntimeId() != "test-daemon" {
+		t.Fatalf("expected runtime test-daemon, got %q", registerResp.Msg.GetDaemon().GetDaemonRuntimeId())
+	}
+
+	conn := waitForConn(registry, testWorkspaceID, "test-daemon", 2*time.Second)
+	if conn == nil {
+		t.Fatal("daemon not found in registry after register")
+	}
+	conn.mu.Lock()
+	pollMode := conn.PollMode
+	conn.mu.Unlock()
+	if !pollMode {
+		t.Fatal("expected poll-mode connection")
+	}
+
+	task := &agentsv1.DaemonTask{
+		TaskId:      "poll-task-1",
+		AgentName:   "coder",
+		Input:       "hello",
+		AcpRuntime:  "opencode",
+		WorkspaceId: testWorkspaceID,
+	}
+	resultCh, err := conn.SendTask(task)
+	if err != nil {
+		t.Fatalf("SendTask: %v", err)
+	}
+
+	pollReq := connect.NewRequest(&agentsv1.DaemonConnectorServicePollRequest{WaitTimeout: durationpb.New(0)})
+	authorizeTestDaemon(pollReq)
+	pollResp, err := client.Poll(ctx, pollReq)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if got := len(pollResp.Msg.GetMessages()); got != 1 {
+		t.Fatalf("expected 1 poll message, got %d", got)
+	}
+	if got := pollResp.Msg.GetMessages()[0].GetTask().GetTaskId(); got != "poll-task-1" {
+		t.Fatalf("expected task poll-task-1, got %q", got)
+	}
+
+	updateReq := connect.NewRequest(&agentsv1.DaemonConnectorServiceReportTaskUpdateRequest{
+		Update: &agentsv1.DaemonTaskUpdate{
+			TaskId: "poll-task-1",
+			Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_COMPLETED,
+			Output: "done",
+		},
+	})
+	authorizeTestDaemon(updateReq)
+	if _, err := client.ReportTaskUpdate(ctx, updateReq); err != nil {
+		t.Fatalf("ReportTaskUpdate: %v", err)
+	}
+
+	select {
+	case update := <-resultCh:
+		if update.GetStatus() != agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_COMPLETED {
+			t.Fatalf("expected COMPLETED, got %v", update.GetStatus())
+		}
+		if update.GetOutput() != "done" {
+			t.Fatalf("expected output done, got %q", update.GetOutput())
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for task update")
+	}
+
+	unregisterReq := connect.NewRequest(&agentsv1.DaemonConnectorServiceUnregisterRequest{})
+	authorizeTestDaemon(unregisterReq)
+	if _, err := client.Unregister(ctx, unregisterReq); err != nil {
+		t.Fatalf("Unregister: %v", err)
+	}
+	if conn := registry.Get(testWorkspaceID, "test-daemon"); conn != nil {
+		t.Fatal("daemon remained registered after unregister")
 	}
 }
 

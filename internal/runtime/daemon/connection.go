@@ -79,6 +79,8 @@ type Connection struct {
 	WorkspaceID string
 	SendCh      chan *agentsv1.ConnectResponse // server → daemon
 	ConnectedAt time.Time
+	LastSeen    time.Time
+	PollMode    bool
 	// RemoteAddr is the peer address captured at handshake; empty if the gRPC
 	// transport did not surface peer info.
 	RemoteAddr string
@@ -90,13 +92,38 @@ type Connection struct {
 
 // NewConnection creates a connection for the given daemon info.
 func NewConnection(info *agentsv1.DaemonInfo) *Connection {
+	now := time.Now()
 	return &Connection{
 		Info:        info,
 		WorkspaceID: info.GetWorkspaceId(),
 		SendCh:      make(chan *agentsv1.ConnectResponse, 16),
-		ConnectedAt: time.Now(),
+		ConnectedAt: now,
+		LastSeen:    now,
 		activeTasks: make(map[string]*taskState),
 	}
+}
+
+// MarkPollMode identifies this connection as backed by unary long polling.
+func (c *Connection) MarkPollMode() {
+	c.mu.Lock()
+	c.PollMode = true
+	c.LastSeen = time.Now()
+	c.mu.Unlock()
+}
+
+// Touch records daemon activity for poll-mode liveness checks.
+func (c *Connection) Touch() {
+	c.mu.Lock()
+	if !c.closed {
+		c.LastSeen = time.Now()
+	}
+	c.mu.Unlock()
+}
+
+func (c *Connection) stalePollConnection(now time.Time, maxIdle time.Duration) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.PollMode && !c.closed && maxIdle > 0 && now.Sub(c.LastSeen) > maxIdle
 }
 
 // SendTask pushes a task to the daemon and returns a channel that will receive

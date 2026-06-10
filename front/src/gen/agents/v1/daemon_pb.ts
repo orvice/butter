@@ -4,15 +4,15 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { Empty, Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_empty, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { Duration, Empty, Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_duration, file_google_protobuf_empty, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file agents/v1/daemon.proto.
  */
 export const file_agents_v1_daemon: GenFile = /*@__PURE__*/
-  fileDesc("ChZhZ2VudHMvdjEvZGFlbW9uLnByb3RvEglhZ2VudHMudjEi8wEKCkRhZW1vbkluZm8SGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIUCgxhY3BfcnVudGltZXMYAyADKAkSMQoGbGFiZWxzGAQgAygLMiEuYWdlbnRzLnYxLkRhZW1vbkluZm8uTGFiZWxzRW50cnkSDwoHdmVyc2lvbhgFIAEoCRIKCgJvcxgGIAEoCRIRCglleGVjdXRvcnMYByADKAkSFAoMd29ya3NwYWNlX2lkGAggASgJGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEitwIKCkRhZW1vblRhc2sSDwoHdGFza19pZBgBIAEoCRISCgphZ2VudF9uYW1lGAIgASgJEg0KBWlucHV0GAMgASgJEhIKCnNlc3Npb25faWQYBCABKAkSDwoHdXNlcl9pZBgFIAEoCRI1CghtZXRhZGF0YRgGIAMoCzIjLmFnZW50cy52MS5EYWVtb25UYXNrLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGAggASgJEhkKEWRhZW1vbl9ydW50aW1lX2lkGAkgASgJEhMKC2FjcF9ydW50aW1lGAogASgJEhAKCHdvcmtfZGlyGAsgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUoECAcQCFIKY2FwYWJpbGl0eSLGAQoQRGFlbW9uVGFza1VwZGF0ZRIPCgd0YXNrX2lkGAEgASgJEisKBnN0YXR1cxgCIAEoDjIbLmFnZW50cy52MS5EYWVtb25UYXNrU3RhdHVzEg4KBm91dHB1dBgDIAEoCRINCgVlcnJvchgEIAEoCRItCgl0aW1lc3RhbXAYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDGN1cnJlbnRfc3RlcBgGIAEoCRIQCghwcm9ncmVzcxgHIAEoBSIdCgpDYW5jZWxUYXNrEg8KB3Rhc2tfaWQYASABKAkipwEKDkNvbm5lY3RSZXF1ZXN0EikKCHJlZ2lzdGVyGAEgASgLMhUuYWdlbnRzLnYxLkRhZW1vbkluZm9IABIyCgt0YXNrX3VwZGF0ZRgCIAEoCzIbLmFnZW50cy52MS5EYWVtb25UYXNrVXBkYXRlSAASKwoJaGVhcnRiZWF0GAMgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SABCCQoHbWVzc2FnZSKZAQoPQ29ubmVjdFJlc3BvbnNlEiUKBHRhc2sYASABKAsyFS5hZ2VudHMudjEuRGFlbW9uVGFza0gAEicKBmNhbmNlbBgCIAEoCzIVLmFnZW50cy52MS5DYW5jZWxUYXNrSAASKwoJaGVhcnRiZWF0GAMgASgLMhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5SABCCQoHbWVzc2FnZSraAQoQRGFlbW9uVGFza1N0YXR1cxIiCh5EQUVNT05fVEFTS19TVEFUVVNfVU5TUEVDSUZJRUQQABIfChtEQUVNT05fVEFTS19TVEFUVVNfQUNDRVBURUQQARIeChpEQUVNT05fVEFTS19TVEFUVVNfUlVOTklORxACEiAKHERBRU1PTl9UQVNLX1NUQVRVU19DT01QTEVURUQQAxIdChlEQUVNT05fVEFTS19TVEFUVVNfRkFJTEVEEAQSIAocREFFTU9OX1RBU0tfU1RBVFVTX0NBTkNFTExFRBAFMl4KFkRhZW1vbkNvbm5lY3RvclNlcnZpY2USRAoHQ29ubmVjdBIZLmFnZW50cy52MS5Db25uZWN0UmVxdWVzdBoaLmFnZW50cy52MS5Db25uZWN0UmVzcG9uc2UoATABQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_google_protobuf_empty]);
+  fileDesc("ChZhZ2VudHMvdjEvZGFlbW9uLnByb3RvEglhZ2VudHMudjEi8wEKCkRhZW1vbkluZm8SGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIUCgxhY3BfcnVudGltZXMYAyADKAkSMQoGbGFiZWxzGAQgAygLMiEuYWdlbnRzLnYxLkRhZW1vbkluZm8uTGFiZWxzRW50cnkSDwoHdmVyc2lvbhgFIAEoCRIKCgJvcxgGIAEoCRIRCglleGVjdXRvcnMYByADKAkSFAoMd29ya3NwYWNlX2lkGAggASgJGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEitwIKCkRhZW1vblRhc2sSDwoHdGFza19pZBgBIAEoCRISCgphZ2VudF9uYW1lGAIgASgJEg0KBWlucHV0GAMgASgJEhIKCnNlc3Npb25faWQYBCABKAkSDwoHdXNlcl9pZBgFIAEoCRI1CghtZXRhZGF0YRgGIAMoCzIjLmFnZW50cy52MS5EYWVtb25UYXNrLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGAggASgJEhkKEWRhZW1vbl9ydW50aW1lX2lkGAkgASgJEhMKC2FjcF9ydW50aW1lGAogASgJEhAKCHdvcmtfZGlyGAsgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUoECAcQCFIKY2FwYWJpbGl0eSLGAQoQRGFlbW9uVGFza1VwZGF0ZRIPCgd0YXNrX2lkGAEgASgJEisKBnN0YXR1cxgCIAEoDjIbLmFnZW50cy52MS5EYWVtb25UYXNrU3RhdHVzEg4KBm91dHB1dBgDIAEoCRINCgVlcnJvchgEIAEoCRItCgl0aW1lc3RhbXAYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDGN1cnJlbnRfc3RlcBgGIAEoCRIQCghwcm9ncmVzcxgHIAEoBSIdCgpDYW5jZWxUYXNrEg8KB3Rhc2tfaWQYASABKAkiTgolRGFlbW9uQ29ubmVjdG9yU2VydmljZVJlZ2lzdGVyUmVxdWVzdBIlCgZkYWVtb24YASABKAsyFS5hZ2VudHMudjEuRGFlbW9uSW5mbyJPCiZEYWVtb25Db25uZWN0b3JTZXJ2aWNlUmVnaXN0ZXJSZXNwb25zZRIlCgZkYWVtb24YASABKAsyFS5hZ2VudHMudjEuRGFlbW9uSW5mbyJUCiFEYWVtb25Db25uZWN0b3JTZXJ2aWNlUG9sbFJlcXVlc3QSLwoMd2FpdF90aW1lb3V0GAEgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uIlIKIkRhZW1vbkNvbm5lY3RvclNlcnZpY2VQb2xsUmVzcG9uc2USLAoIbWVzc2FnZXMYASADKAsyGi5hZ2VudHMudjEuQ29ubmVjdFJlc3BvbnNlIlwKLURhZW1vbkNvbm5lY3RvclNlcnZpY2VSZXBvcnRUYXNrVXBkYXRlUmVxdWVzdBIrCgZ1cGRhdGUYASABKAsyGy5hZ2VudHMudjEuRGFlbW9uVGFza1VwZGF0ZSIwCi5EYWVtb25Db25uZWN0b3JTZXJ2aWNlUmVwb3J0VGFza1VwZGF0ZVJlc3BvbnNlIikKJ0RhZW1vbkNvbm5lY3RvclNlcnZpY2VVbnJlZ2lzdGVyUmVxdWVzdCIqCihEYWVtb25Db25uZWN0b3JTZXJ2aWNlVW5yZWdpc3RlclJlc3BvbnNlIqcBCg5Db25uZWN0UmVxdWVzdBIpCghyZWdpc3RlchgBIAEoCzIVLmFnZW50cy52MS5EYWVtb25JbmZvSAASMgoLdGFza191cGRhdGUYAiABKAsyGy5hZ2VudHMudjEuRGFlbW9uVGFza1VwZGF0ZUgAEisKCWhlYXJ0YmVhdBgDIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAQgkKB21lc3NhZ2UimQEKD0Nvbm5lY3RSZXNwb25zZRIlCgR0YXNrGAEgASgLMhUuYWdlbnRzLnYxLkRhZW1vblRhc2tIABInCgZjYW5jZWwYAiABKAsyFS5hZ2VudHMudjEuQ2FuY2VsVGFza0gAEisKCWhlYXJ0YmVhdBgDIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAQgkKB21lc3NhZ2Uq2gEKEERhZW1vblRhc2tTdGF0dXMSIgoeREFFTU9OX1RBU0tfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobREFFTU9OX1RBU0tfU1RBVFVTX0FDQ0VQVEVEEAESHgoaREFFTU9OX1RBU0tfU1RBVFVTX1JVTk5JTkcQAhIgChxEQUVNT05fVEFTS19TVEFUVVNfQ09NUExFVEVEEAMSHQoZREFFTU9OX1RBU0tfU1RBVFVTX0ZBSUxFRBAEEiAKHERBRU1PTl9UQVNLX1NUQVRVU19DQU5DRUxMRUQQBTK1BAoWRGFlbW9uQ29ubmVjdG9yU2VydmljZRJECgdDb25uZWN0EhkuYWdlbnRzLnYxLkNvbm5lY3RSZXF1ZXN0GhouYWdlbnRzLnYxLkNvbm5lY3RSZXNwb25zZSgBMAESbwoIUmVnaXN0ZXISMC5hZ2VudHMudjEuRGFlbW9uQ29ubmVjdG9yU2VydmljZVJlZ2lzdGVyUmVxdWVzdBoxLmFnZW50cy52MS5EYWVtb25Db25uZWN0b3JTZXJ2aWNlUmVnaXN0ZXJSZXNwb25zZRJjCgRQb2xsEiwuYWdlbnRzLnYxLkRhZW1vbkNvbm5lY3RvclNlcnZpY2VQb2xsUmVxdWVzdBotLmFnZW50cy52MS5EYWVtb25Db25uZWN0b3JTZXJ2aWNlUG9sbFJlc3BvbnNlEocBChBSZXBvcnRUYXNrVXBkYXRlEjguYWdlbnRzLnYxLkRhZW1vbkNvbm5lY3RvclNlcnZpY2VSZXBvcnRUYXNrVXBkYXRlUmVxdWVzdBo5LmFnZW50cy52MS5EYWVtb25Db25uZWN0b3JTZXJ2aWNlUmVwb3J0VGFza1VwZGF0ZVJlc3BvbnNlEnUKClVucmVnaXN0ZXISMi5hZ2VudHMudjEuRGFlbW9uQ29ubmVjdG9yU2VydmljZVVucmVnaXN0ZXJSZXF1ZXN0GjMuYWdlbnRzLnYxLkRhZW1vbkNvbm5lY3RvclNlcnZpY2VVbnJlZ2lzdGVyUmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_google_protobuf_empty, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * DaemonInfo is sent by the daemon client as the first message on the
@@ -278,6 +278,132 @@ export const CancelTaskSchema: GenMessage<CancelTask> = /*@__PURE__*/
   messageDesc(file_agents_v1_daemon, 3);
 
 /**
+ * @generated from message agents.v1.DaemonConnectorServiceRegisterRequest
+ */
+export type DaemonConnectorServiceRegisterRequest = Message<"agents.v1.DaemonConnectorServiceRegisterRequest"> & {
+  /**
+   * @generated from field: agents.v1.DaemonInfo daemon = 1;
+   */
+  daemon?: DaemonInfo;
+};
+
+/**
+ * Describes the message agents.v1.DaemonConnectorServiceRegisterRequest.
+ * Use `create(DaemonConnectorServiceRegisterRequestSchema)` to create a new message.
+ */
+export const DaemonConnectorServiceRegisterRequestSchema: GenMessage<DaemonConnectorServiceRegisterRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_daemon, 4);
+
+/**
+ * @generated from message agents.v1.DaemonConnectorServiceRegisterResponse
+ */
+export type DaemonConnectorServiceRegisterResponse = Message<"agents.v1.DaemonConnectorServiceRegisterResponse"> & {
+  /**
+   * @generated from field: agents.v1.DaemonInfo daemon = 1;
+   */
+  daemon?: DaemonInfo;
+};
+
+/**
+ * Describes the message agents.v1.DaemonConnectorServiceRegisterResponse.
+ * Use `create(DaemonConnectorServiceRegisterResponseSchema)` to create a new message.
+ */
+export const DaemonConnectorServiceRegisterResponseSchema: GenMessage<DaemonConnectorServiceRegisterResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_daemon, 5);
+
+/**
+ * @generated from message agents.v1.DaemonConnectorServicePollRequest
+ */
+export type DaemonConnectorServicePollRequest = Message<"agents.v1.DaemonConnectorServicePollRequest"> & {
+  /**
+   * Maximum time the server should wait for a task before returning empty.
+   *
+   * @generated from field: google.protobuf.Duration wait_timeout = 1;
+   */
+  waitTimeout?: Duration;
+};
+
+/**
+ * Describes the message agents.v1.DaemonConnectorServicePollRequest.
+ * Use `create(DaemonConnectorServicePollRequestSchema)` to create a new message.
+ */
+export const DaemonConnectorServicePollRequestSchema: GenMessage<DaemonConnectorServicePollRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_daemon, 6);
+
+/**
+ * @generated from message agents.v1.DaemonConnectorServicePollResponse
+ */
+export type DaemonConnectorServicePollResponse = Message<"agents.v1.DaemonConnectorServicePollResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.ConnectResponse messages = 1;
+   */
+  messages: ConnectResponse[];
+};
+
+/**
+ * Describes the message agents.v1.DaemonConnectorServicePollResponse.
+ * Use `create(DaemonConnectorServicePollResponseSchema)` to create a new message.
+ */
+export const DaemonConnectorServicePollResponseSchema: GenMessage<DaemonConnectorServicePollResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_daemon, 7);
+
+/**
+ * @generated from message agents.v1.DaemonConnectorServiceReportTaskUpdateRequest
+ */
+export type DaemonConnectorServiceReportTaskUpdateRequest = Message<"agents.v1.DaemonConnectorServiceReportTaskUpdateRequest"> & {
+  /**
+   * @generated from field: agents.v1.DaemonTaskUpdate update = 1;
+   */
+  update?: DaemonTaskUpdate;
+};
+
+/**
+ * Describes the message agents.v1.DaemonConnectorServiceReportTaskUpdateRequest.
+ * Use `create(DaemonConnectorServiceReportTaskUpdateRequestSchema)` to create a new message.
+ */
+export const DaemonConnectorServiceReportTaskUpdateRequestSchema: GenMessage<DaemonConnectorServiceReportTaskUpdateRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_daemon, 8);
+
+/**
+ * @generated from message agents.v1.DaemonConnectorServiceReportTaskUpdateResponse
+ */
+export type DaemonConnectorServiceReportTaskUpdateResponse = Message<"agents.v1.DaemonConnectorServiceReportTaskUpdateResponse"> & {
+};
+
+/**
+ * Describes the message agents.v1.DaemonConnectorServiceReportTaskUpdateResponse.
+ * Use `create(DaemonConnectorServiceReportTaskUpdateResponseSchema)` to create a new message.
+ */
+export const DaemonConnectorServiceReportTaskUpdateResponseSchema: GenMessage<DaemonConnectorServiceReportTaskUpdateResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_daemon, 9);
+
+/**
+ * @generated from message agents.v1.DaemonConnectorServiceUnregisterRequest
+ */
+export type DaemonConnectorServiceUnregisterRequest = Message<"agents.v1.DaemonConnectorServiceUnregisterRequest"> & {
+};
+
+/**
+ * Describes the message agents.v1.DaemonConnectorServiceUnregisterRequest.
+ * Use `create(DaemonConnectorServiceUnregisterRequestSchema)` to create a new message.
+ */
+export const DaemonConnectorServiceUnregisterRequestSchema: GenMessage<DaemonConnectorServiceUnregisterRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_daemon, 10);
+
+/**
+ * @generated from message agents.v1.DaemonConnectorServiceUnregisterResponse
+ */
+export type DaemonConnectorServiceUnregisterResponse = Message<"agents.v1.DaemonConnectorServiceUnregisterResponse"> & {
+};
+
+/**
+ * Describes the message agents.v1.DaemonConnectorServiceUnregisterResponse.
+ * Use `create(DaemonConnectorServiceUnregisterResponseSchema)` to create a new message.
+ */
+export const DaemonConnectorServiceUnregisterResponseSchema: GenMessage<DaemonConnectorServiceUnregisterResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_daemon, 11);
+
+/**
  * ConnectRequest is the client-to-server stream message for DaemonConnectorService.Connect.
  *
  * @generated from message agents.v1.ConnectRequest
@@ -318,7 +444,7 @@ export type ConnectRequest = Message<"agents.v1.ConnectRequest"> & {
  * Use `create(ConnectRequestSchema)` to create a new message.
  */
 export const ConnectRequestSchema: GenMessage<ConnectRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_daemon, 4);
+  messageDesc(file_agents_v1_daemon, 12);
 
 /**
  * ConnectResponse is the server-to-client stream message for DaemonConnectorService.Connect.
@@ -361,7 +487,7 @@ export type ConnectResponse = Message<"agents.v1.ConnectResponse"> & {
  * Use `create(ConnectResponseSchema)` to create a new message.
  */
 export const ConnectResponseSchema: GenMessage<ConnectResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_daemon, 5);
+  messageDesc(file_agents_v1_daemon, 13);
 
 /**
  * DaemonTaskStatus tracks the lifecycle of a daemon task.
@@ -423,6 +549,46 @@ export const DaemonConnectorService: GenService<{
     methodKind: "bidi_streaming";
     input: typeof ConnectRequestSchema;
     output: typeof ConnectResponseSchema;
+  },
+  /**
+   * Register announces a daemon runtime for unary long-poll transport.
+   *
+   * @generated from rpc agents.v1.DaemonConnectorService.Register
+   */
+  register: {
+    methodKind: "unary";
+    input: typeof DaemonConnectorServiceRegisterRequestSchema;
+    output: typeof DaemonConnectorServiceRegisterResponseSchema;
+  },
+  /**
+   * Poll waits briefly for queued task/cancel messages.
+   *
+   * @generated from rpc agents.v1.DaemonConnectorService.Poll
+   */
+  poll: {
+    methodKind: "unary";
+    input: typeof DaemonConnectorServicePollRequestSchema;
+    output: typeof DaemonConnectorServicePollResponseSchema;
+  },
+  /**
+   * ReportTaskUpdate reports task progress or completion from a daemon.
+   *
+   * @generated from rpc agents.v1.DaemonConnectorService.ReportTaskUpdate
+   */
+  reportTaskUpdate: {
+    methodKind: "unary";
+    input: typeof DaemonConnectorServiceReportTaskUpdateRequestSchema;
+    output: typeof DaemonConnectorServiceReportTaskUpdateResponseSchema;
+  },
+  /**
+   * Unregister marks a daemon runtime offline for graceful shutdown.
+   *
+   * @generated from rpc agents.v1.DaemonConnectorService.Unregister
+   */
+  unregister: {
+    methodKind: "unary";
+    input: typeof DaemonConnectorServiceUnregisterRequestSchema;
+    output: typeof DaemonConnectorServiceUnregisterResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_daemon, 0);

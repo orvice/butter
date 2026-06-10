@@ -17,39 +17,39 @@ import (
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
-func TestConnectorSendsHeartbeat(t *testing.T) {
-	oldInterval := daemonClientHeartbeatInterval
-	daemonClientHeartbeatInterval = 20 * time.Millisecond
-	defer func() {
-		daemonClientHeartbeatInterval = oldInterval
-	}()
-
-	heartbeatCh := make(chan struct{})
+func TestConnectorRegistersAndPolls(t *testing.T) {
+	registeredCh := make(chan struct{})
+	pollCh := make(chan struct{})
+	unregisterCh := make(chan struct{})
 	errCh := make(chan error, 1)
 
 	mux := http.NewServeMux()
 	path, handler := agentsv1connect.NewDaemonConnectorServiceHandler(testDaemonConnectorHandler{
-		connect: func(_ context.Context, stream *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse]) error {
-			msg, err := stream.Receive()
-			if err != nil {
+		register: func(_ context.Context, req *connect.Request[agentsv1.DaemonConnectorServiceRegisterRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceRegisterResponse], error) {
+			if req.Msg.GetDaemon() == nil {
+				err := connect.NewError(connect.CodeInvalidArgument, errors.New("daemon is required"))
 				errCh <- err
-				return err
+				return nil, err
 			}
-			if msg.GetRegister() == nil {
-				errCh <- errExpectedRegister
-				return errExpectedRegister
-			}
-			for {
-				msg, err := stream.Receive()
-				if err != nil {
-					errCh <- err
-					return err
-				}
-				if msg.GetHeartbeat() != nil {
-					close(heartbeatCh)
-					return nil
-				}
-			}
+			close(registeredCh)
+			return connect.NewResponse(&agentsv1.DaemonConnectorServiceRegisterResponse{Daemon: req.Msg.GetDaemon()}), nil
+		},
+		poll: func(ctx context.Context, _ *connect.Request[agentsv1.DaemonConnectorServicePollRequest]) (*connect.Response[agentsv1.DaemonConnectorServicePollResponse], error) {
+			close(pollCh)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+		unregister: func(context.Context, *connect.Request[agentsv1.DaemonConnectorServiceUnregisterRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceUnregisterResponse], error) {
+			close(unregisterCh)
+			return connect.NewResponse(&agentsv1.DaemonConnectorServiceUnregisterResponse{}), nil
+		},
+		reportTaskUpdate: func(context.Context, *connect.Request[agentsv1.DaemonConnectorServiceReportTaskUpdateRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceReportTaskUpdateResponse], error) {
+			return connect.NewResponse(&agentsv1.DaemonConnectorServiceReportTaskUpdateResponse{}), nil
+		},
+		connect: func(context.Context, *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse]) error {
+			err := connect.NewError(connect.CodeUnimplemented, errors.New("stream transport should not be used"))
+			errCh <- err
+			return err
 		},
 	})
 	mux.Handle(path, handler)
@@ -66,25 +66,60 @@ func TestConnectorSendsHeartbeat(t *testing.T) {
 	}()
 
 	select {
-	case <-heartbeatCh:
+	case <-registeredCh:
 	case err := <-errCh:
-		t.Fatalf("server receive error: %v", err)
+		t.Fatalf("server register error: %v", err)
 	case err := <-connectorErrCh:
-		t.Fatalf("connector exited before heartbeat: %v", err)
+		t.Fatalf("connector exited before register: %v", err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for heartbeat")
+		t.Fatal("timeout waiting for register")
+	}
+
+	select {
+	case <-pollCh:
+	case err := <-errCh:
+		t.Fatalf("server poll error: %v", err)
+	case err := <-connectorErrCh:
+		t.Fatalf("connector exited before poll: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for poll")
+	}
+
+	cancel()
+	select {
+	case <-unregisterCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for unregister")
 	}
 }
 
-var errExpectedRegister = errors.New("expected register")
-
 type testDaemonConnectorHandler struct {
 	agentsv1connect.UnimplementedDaemonConnectorServiceHandler
-	connect func(context.Context, *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse]) error
+	connect          func(context.Context, *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse]) error
+	register         func(context.Context, *connect.Request[agentsv1.DaemonConnectorServiceRegisterRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceRegisterResponse], error)
+	poll             func(context.Context, *connect.Request[agentsv1.DaemonConnectorServicePollRequest]) (*connect.Response[agentsv1.DaemonConnectorServicePollResponse], error)
+	reportTaskUpdate func(context.Context, *connect.Request[agentsv1.DaemonConnectorServiceReportTaskUpdateRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceReportTaskUpdateResponse], error)
+	unregister       func(context.Context, *connect.Request[agentsv1.DaemonConnectorServiceUnregisterRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceUnregisterResponse], error)
 }
 
 func (h testDaemonConnectorHandler) Connect(ctx context.Context, stream *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse]) error {
 	return h.connect(ctx, stream)
+}
+
+func (h testDaemonConnectorHandler) Register(ctx context.Context, req *connect.Request[agentsv1.DaemonConnectorServiceRegisterRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceRegisterResponse], error) {
+	return h.register(ctx, req)
+}
+
+func (h testDaemonConnectorHandler) Poll(ctx context.Context, req *connect.Request[agentsv1.DaemonConnectorServicePollRequest]) (*connect.Response[agentsv1.DaemonConnectorServicePollResponse], error) {
+	return h.poll(ctx, req)
+}
+
+func (h testDaemonConnectorHandler) ReportTaskUpdate(ctx context.Context, req *connect.Request[agentsv1.DaemonConnectorServiceReportTaskUpdateRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceReportTaskUpdateResponse], error) {
+	return h.reportTaskUpdate(ctx, req)
+}
+
+func (h testDaemonConnectorHandler) Unregister(ctx context.Context, req *connect.Request[agentsv1.DaemonConnectorServiceUnregisterRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceUnregisterResponse], error) {
+	return h.unregister(ctx, req)
 }
 
 type testConnectorExecutor struct{}

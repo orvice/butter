@@ -507,6 +507,1007 @@ var _ interface {
 	ErrorName() string
 } = CancelTaskValidationError{}
 
+// Validate checks the field values on DaemonConnectorServiceRegisterRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the first error encountered is returned, or nil if
+// there are no violations.
+func (m *DaemonConnectorServiceRegisterRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DaemonConnectorServiceRegisterRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// DaemonConnectorServiceRegisterRequestMultiError, or nil if none found.
+func (m *DaemonConnectorServiceRegisterRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonConnectorServiceRegisterRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetDaemon()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DaemonConnectorServiceRegisterRequestValidationError{
+					field:  "Daemon",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DaemonConnectorServiceRegisterRequestValidationError{
+					field:  "Daemon",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDaemon()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DaemonConnectorServiceRegisterRequestValidationError{
+				field:  "Daemon",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return DaemonConnectorServiceRegisterRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonConnectorServiceRegisterRequestMultiError is an error wrapping
+// multiple validation errors returned by
+// DaemonConnectorServiceRegisterRequest.ValidateAll() if the designated
+// constraints aren't met.
+type DaemonConnectorServiceRegisterRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonConnectorServiceRegisterRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonConnectorServiceRegisterRequestMultiError) AllErrors() []error { return m }
+
+// DaemonConnectorServiceRegisterRequestValidationError is the validation error
+// returned by DaemonConnectorServiceRegisterRequest.Validate if the
+// designated constraints aren't met.
+type DaemonConnectorServiceRegisterRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonConnectorServiceRegisterRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonConnectorServiceRegisterRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DaemonConnectorServiceRegisterRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonConnectorServiceRegisterRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonConnectorServiceRegisterRequestValidationError) ErrorName() string {
+	return "DaemonConnectorServiceRegisterRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DaemonConnectorServiceRegisterRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonConnectorServiceRegisterRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonConnectorServiceRegisterRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonConnectorServiceRegisterRequestValidationError{}
+
+// Validate checks the field values on DaemonConnectorServiceRegisterResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the first error encountered is returned, or nil if
+// there are no violations.
+func (m *DaemonConnectorServiceRegisterResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// DaemonConnectorServiceRegisterResponse with the rules defined in the proto
+// definition for this message. If any rules are violated, the result is a
+// list of violation errors wrapped in
+// DaemonConnectorServiceRegisterResponseMultiError, or nil if none found.
+func (m *DaemonConnectorServiceRegisterResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonConnectorServiceRegisterResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetDaemon()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DaemonConnectorServiceRegisterResponseValidationError{
+					field:  "Daemon",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DaemonConnectorServiceRegisterResponseValidationError{
+					field:  "Daemon",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDaemon()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DaemonConnectorServiceRegisterResponseValidationError{
+				field:  "Daemon",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return DaemonConnectorServiceRegisterResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonConnectorServiceRegisterResponseMultiError is an error wrapping
+// multiple validation errors returned by
+// DaemonConnectorServiceRegisterResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DaemonConnectorServiceRegisterResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonConnectorServiceRegisterResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonConnectorServiceRegisterResponseMultiError) AllErrors() []error { return m }
+
+// DaemonConnectorServiceRegisterResponseValidationError is the validation
+// error returned by DaemonConnectorServiceRegisterResponse.Validate if the
+// designated constraints aren't met.
+type DaemonConnectorServiceRegisterResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonConnectorServiceRegisterResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonConnectorServiceRegisterResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DaemonConnectorServiceRegisterResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonConnectorServiceRegisterResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonConnectorServiceRegisterResponseValidationError) ErrorName() string {
+	return "DaemonConnectorServiceRegisterResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DaemonConnectorServiceRegisterResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonConnectorServiceRegisterResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonConnectorServiceRegisterResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonConnectorServiceRegisterResponseValidationError{}
+
+// Validate checks the field values on DaemonConnectorServicePollRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *DaemonConnectorServicePollRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DaemonConnectorServicePollRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// DaemonConnectorServicePollRequestMultiError, or nil if none found.
+func (m *DaemonConnectorServicePollRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonConnectorServicePollRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetWaitTimeout()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DaemonConnectorServicePollRequestValidationError{
+					field:  "WaitTimeout",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DaemonConnectorServicePollRequestValidationError{
+					field:  "WaitTimeout",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetWaitTimeout()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DaemonConnectorServicePollRequestValidationError{
+				field:  "WaitTimeout",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return DaemonConnectorServicePollRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonConnectorServicePollRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// DaemonConnectorServicePollRequest.ValidateAll() if the designated
+// constraints aren't met.
+type DaemonConnectorServicePollRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonConnectorServicePollRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonConnectorServicePollRequestMultiError) AllErrors() []error { return m }
+
+// DaemonConnectorServicePollRequestValidationError is the validation error
+// returned by DaemonConnectorServicePollRequest.Validate if the designated
+// constraints aren't met.
+type DaemonConnectorServicePollRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonConnectorServicePollRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonConnectorServicePollRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DaemonConnectorServicePollRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonConnectorServicePollRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonConnectorServicePollRequestValidationError) ErrorName() string {
+	return "DaemonConnectorServicePollRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DaemonConnectorServicePollRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonConnectorServicePollRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonConnectorServicePollRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonConnectorServicePollRequestValidationError{}
+
+// Validate checks the field values on DaemonConnectorServicePollResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *DaemonConnectorServicePollResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DaemonConnectorServicePollResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// DaemonConnectorServicePollResponseMultiError, or nil if none found.
+func (m *DaemonConnectorServicePollResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonConnectorServicePollResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetMessages() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DaemonConnectorServicePollResponseValidationError{
+						field:  fmt.Sprintf("Messages[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DaemonConnectorServicePollResponseValidationError{
+						field:  fmt.Sprintf("Messages[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return DaemonConnectorServicePollResponseValidationError{
+					field:  fmt.Sprintf("Messages[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return DaemonConnectorServicePollResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonConnectorServicePollResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// DaemonConnectorServicePollResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DaemonConnectorServicePollResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonConnectorServicePollResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonConnectorServicePollResponseMultiError) AllErrors() []error { return m }
+
+// DaemonConnectorServicePollResponseValidationError is the validation error
+// returned by DaemonConnectorServicePollResponse.Validate if the designated
+// constraints aren't met.
+type DaemonConnectorServicePollResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonConnectorServicePollResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonConnectorServicePollResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DaemonConnectorServicePollResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonConnectorServicePollResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonConnectorServicePollResponseValidationError) ErrorName() string {
+	return "DaemonConnectorServicePollResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DaemonConnectorServicePollResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonConnectorServicePollResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonConnectorServicePollResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonConnectorServicePollResponseValidationError{}
+
+// Validate checks the field values on
+// DaemonConnectorServiceReportTaskUpdateRequest with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *DaemonConnectorServiceReportTaskUpdateRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// DaemonConnectorServiceReportTaskUpdateRequest with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in
+// DaemonConnectorServiceReportTaskUpdateRequestMultiError, or nil if none found.
+func (m *DaemonConnectorServiceReportTaskUpdateRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonConnectorServiceReportTaskUpdateRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetUpdate()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DaemonConnectorServiceReportTaskUpdateRequestValidationError{
+					field:  "Update",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DaemonConnectorServiceReportTaskUpdateRequestValidationError{
+					field:  "Update",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdate()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DaemonConnectorServiceReportTaskUpdateRequestValidationError{
+				field:  "Update",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return DaemonConnectorServiceReportTaskUpdateRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonConnectorServiceReportTaskUpdateRequestMultiError is an error wrapping
+// multiple validation errors returned by
+// DaemonConnectorServiceReportTaskUpdateRequest.ValidateAll() if the
+// designated constraints aren't met.
+type DaemonConnectorServiceReportTaskUpdateRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonConnectorServiceReportTaskUpdateRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonConnectorServiceReportTaskUpdateRequestMultiError) AllErrors() []error { return m }
+
+// DaemonConnectorServiceReportTaskUpdateRequestValidationError is the
+// validation error returned by
+// DaemonConnectorServiceReportTaskUpdateRequest.Validate if the designated
+// constraints aren't met.
+type DaemonConnectorServiceReportTaskUpdateRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonConnectorServiceReportTaskUpdateRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonConnectorServiceReportTaskUpdateRequestValidationError) Reason() string {
+	return e.reason
+}
+
+// Cause function returns cause value.
+func (e DaemonConnectorServiceReportTaskUpdateRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonConnectorServiceReportTaskUpdateRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonConnectorServiceReportTaskUpdateRequestValidationError) ErrorName() string {
+	return "DaemonConnectorServiceReportTaskUpdateRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DaemonConnectorServiceReportTaskUpdateRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonConnectorServiceReportTaskUpdateRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonConnectorServiceReportTaskUpdateRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonConnectorServiceReportTaskUpdateRequestValidationError{}
+
+// Validate checks the field values on
+// DaemonConnectorServiceReportTaskUpdateResponse with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *DaemonConnectorServiceReportTaskUpdateResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// DaemonConnectorServiceReportTaskUpdateResponse with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in
+// DaemonConnectorServiceReportTaskUpdateResponseMultiError, or nil if none found.
+func (m *DaemonConnectorServiceReportTaskUpdateResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonConnectorServiceReportTaskUpdateResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return DaemonConnectorServiceReportTaskUpdateResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonConnectorServiceReportTaskUpdateResponseMultiError is an error
+// wrapping multiple validation errors returned by
+// DaemonConnectorServiceReportTaskUpdateResponse.ValidateAll() if the
+// designated constraints aren't met.
+type DaemonConnectorServiceReportTaskUpdateResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonConnectorServiceReportTaskUpdateResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonConnectorServiceReportTaskUpdateResponseMultiError) AllErrors() []error { return m }
+
+// DaemonConnectorServiceReportTaskUpdateResponseValidationError is the
+// validation error returned by
+// DaemonConnectorServiceReportTaskUpdateResponse.Validate if the designated
+// constraints aren't met.
+type DaemonConnectorServiceReportTaskUpdateResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonConnectorServiceReportTaskUpdateResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonConnectorServiceReportTaskUpdateResponseValidationError) Reason() string {
+	return e.reason
+}
+
+// Cause function returns cause value.
+func (e DaemonConnectorServiceReportTaskUpdateResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonConnectorServiceReportTaskUpdateResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonConnectorServiceReportTaskUpdateResponseValidationError) ErrorName() string {
+	return "DaemonConnectorServiceReportTaskUpdateResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DaemonConnectorServiceReportTaskUpdateResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonConnectorServiceReportTaskUpdateResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonConnectorServiceReportTaskUpdateResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonConnectorServiceReportTaskUpdateResponseValidationError{}
+
+// Validate checks the field values on DaemonConnectorServiceUnregisterRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the first error encountered is returned, or nil if
+// there are no violations.
+func (m *DaemonConnectorServiceUnregisterRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// DaemonConnectorServiceUnregisterRequest with the rules defined in the proto
+// definition for this message. If any rules are violated, the result is a
+// list of violation errors wrapped in
+// DaemonConnectorServiceUnregisterRequestMultiError, or nil if none found.
+func (m *DaemonConnectorServiceUnregisterRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonConnectorServiceUnregisterRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return DaemonConnectorServiceUnregisterRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonConnectorServiceUnregisterRequestMultiError is an error wrapping
+// multiple validation errors returned by
+// DaemonConnectorServiceUnregisterRequest.ValidateAll() if the designated
+// constraints aren't met.
+type DaemonConnectorServiceUnregisterRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonConnectorServiceUnregisterRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonConnectorServiceUnregisterRequestMultiError) AllErrors() []error { return m }
+
+// DaemonConnectorServiceUnregisterRequestValidationError is the validation
+// error returned by DaemonConnectorServiceUnregisterRequest.Validate if the
+// designated constraints aren't met.
+type DaemonConnectorServiceUnregisterRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonConnectorServiceUnregisterRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonConnectorServiceUnregisterRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DaemonConnectorServiceUnregisterRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonConnectorServiceUnregisterRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonConnectorServiceUnregisterRequestValidationError) ErrorName() string {
+	return "DaemonConnectorServiceUnregisterRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DaemonConnectorServiceUnregisterRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonConnectorServiceUnregisterRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonConnectorServiceUnregisterRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonConnectorServiceUnregisterRequestValidationError{}
+
+// Validate checks the field values on DaemonConnectorServiceUnregisterResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the first error encountered is returned, or nil if
+// there are no violations.
+func (m *DaemonConnectorServiceUnregisterResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// DaemonConnectorServiceUnregisterResponse with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in
+// DaemonConnectorServiceUnregisterResponseMultiError, or nil if none found.
+func (m *DaemonConnectorServiceUnregisterResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DaemonConnectorServiceUnregisterResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return DaemonConnectorServiceUnregisterResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DaemonConnectorServiceUnregisterResponseMultiError is an error wrapping
+// multiple validation errors returned by
+// DaemonConnectorServiceUnregisterResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DaemonConnectorServiceUnregisterResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DaemonConnectorServiceUnregisterResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DaemonConnectorServiceUnregisterResponseMultiError) AllErrors() []error { return m }
+
+// DaemonConnectorServiceUnregisterResponseValidationError is the validation
+// error returned by DaemonConnectorServiceUnregisterResponse.Validate if the
+// designated constraints aren't met.
+type DaemonConnectorServiceUnregisterResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DaemonConnectorServiceUnregisterResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DaemonConnectorServiceUnregisterResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DaemonConnectorServiceUnregisterResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DaemonConnectorServiceUnregisterResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DaemonConnectorServiceUnregisterResponseValidationError) ErrorName() string {
+	return "DaemonConnectorServiceUnregisterResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DaemonConnectorServiceUnregisterResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDaemonConnectorServiceUnregisterResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DaemonConnectorServiceUnregisterResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DaemonConnectorServiceUnregisterResponseValidationError{}
+
 // Validate checks the field values on ConnectRequest with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

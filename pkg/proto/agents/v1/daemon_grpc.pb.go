@@ -19,7 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DaemonConnectorService_Connect_FullMethodName = "/agents.v1.DaemonConnectorService/Connect"
+	DaemonConnectorService_Connect_FullMethodName          = "/agents.v1.DaemonConnectorService/Connect"
+	DaemonConnectorService_Register_FullMethodName         = "/agents.v1.DaemonConnectorService/Register"
+	DaemonConnectorService_Poll_FullMethodName             = "/agents.v1.DaemonConnectorService/Poll"
+	DaemonConnectorService_ReportTaskUpdate_FullMethodName = "/agents.v1.DaemonConnectorService/ReportTaskUpdate"
+	DaemonConnectorService_Unregister_FullMethodName       = "/agents.v1.DaemonConnectorService/Unregister"
 )
 
 // DaemonConnectorServiceClient is the client API for DaemonConnectorService service.
@@ -32,6 +36,14 @@ type DaemonConnectorServiceClient interface {
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
 	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectRequest, ConnectResponse], error)
+	// Register announces a daemon runtime for unary long-poll transport.
+	Register(ctx context.Context, in *DaemonConnectorServiceRegisterRequest, opts ...grpc.CallOption) (*DaemonConnectorServiceRegisterResponse, error)
+	// Poll waits briefly for queued task/cancel messages.
+	Poll(ctx context.Context, in *DaemonConnectorServicePollRequest, opts ...grpc.CallOption) (*DaemonConnectorServicePollResponse, error)
+	// ReportTaskUpdate reports task progress or completion from a daemon.
+	ReportTaskUpdate(ctx context.Context, in *DaemonConnectorServiceReportTaskUpdateRequest, opts ...grpc.CallOption) (*DaemonConnectorServiceReportTaskUpdateResponse, error)
+	// Unregister marks a daemon runtime offline for graceful shutdown.
+	Unregister(ctx context.Context, in *DaemonConnectorServiceUnregisterRequest, opts ...grpc.CallOption) (*DaemonConnectorServiceUnregisterResponse, error)
 }
 
 type daemonConnectorServiceClient struct {
@@ -55,6 +67,46 @@ func (c *daemonConnectorServiceClient) Connect(ctx context.Context, opts ...grpc
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DaemonConnectorService_ConnectClient = grpc.BidiStreamingClient[ConnectRequest, ConnectResponse]
 
+func (c *daemonConnectorServiceClient) Register(ctx context.Context, in *DaemonConnectorServiceRegisterRequest, opts ...grpc.CallOption) (*DaemonConnectorServiceRegisterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DaemonConnectorServiceRegisterResponse)
+	err := c.cc.Invoke(ctx, DaemonConnectorService_Register_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonConnectorServiceClient) Poll(ctx context.Context, in *DaemonConnectorServicePollRequest, opts ...grpc.CallOption) (*DaemonConnectorServicePollResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DaemonConnectorServicePollResponse)
+	err := c.cc.Invoke(ctx, DaemonConnectorService_Poll_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonConnectorServiceClient) ReportTaskUpdate(ctx context.Context, in *DaemonConnectorServiceReportTaskUpdateRequest, opts ...grpc.CallOption) (*DaemonConnectorServiceReportTaskUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DaemonConnectorServiceReportTaskUpdateResponse)
+	err := c.cc.Invoke(ctx, DaemonConnectorService_ReportTaskUpdate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonConnectorServiceClient) Unregister(ctx context.Context, in *DaemonConnectorServiceUnregisterRequest, opts ...grpc.CallOption) (*DaemonConnectorServiceUnregisterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DaemonConnectorServiceUnregisterResponse)
+	err := c.cc.Invoke(ctx, DaemonConnectorService_Unregister_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DaemonConnectorServiceServer is the server API for DaemonConnectorService service.
 // All implementations must embed UnimplementedDaemonConnectorServiceServer
 // for forward compatibility.
@@ -65,6 +117,14 @@ type DaemonConnectorServiceServer interface {
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
 	Connect(grpc.BidiStreamingServer[ConnectRequest, ConnectResponse]) error
+	// Register announces a daemon runtime for unary long-poll transport.
+	Register(context.Context, *DaemonConnectorServiceRegisterRequest) (*DaemonConnectorServiceRegisterResponse, error)
+	// Poll waits briefly for queued task/cancel messages.
+	Poll(context.Context, *DaemonConnectorServicePollRequest) (*DaemonConnectorServicePollResponse, error)
+	// ReportTaskUpdate reports task progress or completion from a daemon.
+	ReportTaskUpdate(context.Context, *DaemonConnectorServiceReportTaskUpdateRequest) (*DaemonConnectorServiceReportTaskUpdateResponse, error)
+	// Unregister marks a daemon runtime offline for graceful shutdown.
+	Unregister(context.Context, *DaemonConnectorServiceUnregisterRequest) (*DaemonConnectorServiceUnregisterResponse, error)
 	mustEmbedUnimplementedDaemonConnectorServiceServer()
 }
 
@@ -77,6 +137,18 @@ type UnimplementedDaemonConnectorServiceServer struct{}
 
 func (UnimplementedDaemonConnectorServiceServer) Connect(grpc.BidiStreamingServer[ConnectRequest, ConnectResponse]) error {
 	return status.Error(codes.Unimplemented, "method Connect not implemented")
+}
+func (UnimplementedDaemonConnectorServiceServer) Register(context.Context, *DaemonConnectorServiceRegisterRequest) (*DaemonConnectorServiceRegisterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Register not implemented")
+}
+func (UnimplementedDaemonConnectorServiceServer) Poll(context.Context, *DaemonConnectorServicePollRequest) (*DaemonConnectorServicePollResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Poll not implemented")
+}
+func (UnimplementedDaemonConnectorServiceServer) ReportTaskUpdate(context.Context, *DaemonConnectorServiceReportTaskUpdateRequest) (*DaemonConnectorServiceReportTaskUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportTaskUpdate not implemented")
+}
+func (UnimplementedDaemonConnectorServiceServer) Unregister(context.Context, *DaemonConnectorServiceUnregisterRequest) (*DaemonConnectorServiceUnregisterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Unregister not implemented")
 }
 func (UnimplementedDaemonConnectorServiceServer) mustEmbedUnimplementedDaemonConnectorServiceServer() {
 }
@@ -107,13 +179,102 @@ func _DaemonConnectorService_Connect_Handler(srv interface{}, stream grpc.Server
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DaemonConnectorService_ConnectServer = grpc.BidiStreamingServer[ConnectRequest, ConnectResponse]
 
+func _DaemonConnectorService_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DaemonConnectorServiceRegisterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonConnectorServiceServer).Register(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonConnectorService_Register_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonConnectorServiceServer).Register(ctx, req.(*DaemonConnectorServiceRegisterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DaemonConnectorService_Poll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DaemonConnectorServicePollRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonConnectorServiceServer).Poll(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonConnectorService_Poll_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonConnectorServiceServer).Poll(ctx, req.(*DaemonConnectorServicePollRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DaemonConnectorService_ReportTaskUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DaemonConnectorServiceReportTaskUpdateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonConnectorServiceServer).ReportTaskUpdate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonConnectorService_ReportTaskUpdate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonConnectorServiceServer).ReportTaskUpdate(ctx, req.(*DaemonConnectorServiceReportTaskUpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DaemonConnectorService_Unregister_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DaemonConnectorServiceUnregisterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonConnectorServiceServer).Unregister(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DaemonConnectorService_Unregister_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonConnectorServiceServer).Unregister(ctx, req.(*DaemonConnectorServiceUnregisterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DaemonConnectorService_ServiceDesc is the grpc.ServiceDesc for DaemonConnectorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var DaemonConnectorService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "agents.v1.DaemonConnectorService",
 	HandlerType: (*DaemonConnectorServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Register",
+			Handler:    _DaemonConnectorService_Register_Handler,
+		},
+		{
+			MethodName: "Poll",
+			Handler:    _DaemonConnectorService_Poll_Handler,
+		},
+		{
+			MethodName: "ReportTaskUpdate",
+			Handler:    _DaemonConnectorService_ReportTaskUpdate_Handler,
+		},
+		{
+			MethodName: "Unregister",
+			Handler:    _DaemonConnectorService_Unregister_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Connect",

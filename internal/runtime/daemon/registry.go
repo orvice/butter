@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"sync"
+	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -53,6 +54,40 @@ func (r *Registry) Register(conn *Connection) error {
 	return nil
 }
 
+// RegisterOrReplace adds a daemon connection, replacing any existing
+// connection for the same workspace/runtime. This is used by poll transport,
+// where a daemon restart may reconnect before the stale connection expires.
+func (r *Registry) RegisterOrReplace(conn *Connection) bool {
+	var replaced *Connection
+
+	r.mu.Lock()
+	workspaceID := conn.WorkspaceID
+	if workspaceID == "" {
+		workspaceID = conn.Info.GetWorkspaceId()
+	}
+	if workspaceID == "" {
+		r.mu.Unlock()
+		return false
+	}
+	bucket := r.conns[workspaceID]
+	if bucket == nil {
+		bucket = make(map[string]*Connection)
+		r.conns[workspaceID] = bucket
+	}
+	runtimeID := conn.Info.GetDaemonRuntimeId()
+	if existing := bucket[runtimeID]; existing != nil {
+		replaced = existing
+	}
+	bucket[runtimeID] = conn
+	r.mu.Unlock()
+
+	if replaced != nil {
+		replaced.Close()
+		return true
+	}
+	return false
+}
+
 // Unregister removes a daemon from the registry by its ID.
 func (r *Registry) Unregister(workspaceID, runtimeID string) {
 	r.mu.Lock()
@@ -62,6 +97,35 @@ func (r *Registry) Unregister(workspaceID, runtimeID string) {
 		if len(bucket) == 0 {
 			delete(r.conns, workspaceID)
 		}
+	}
+}
+
+// PruneStalePollConnections removes poll-mode connections that have not
+// checked in within maxIdle.
+func (r *Registry) PruneStalePollConnections(maxIdle time.Duration) {
+	if maxIdle <= 0 {
+		return
+	}
+
+	now := time.Now()
+	var stale []*Connection
+
+	r.mu.Lock()
+	for workspaceID, bucket := range r.conns {
+		for runtimeID, conn := range bucket {
+			if conn.stalePollConnection(now, maxIdle) {
+				delete(bucket, runtimeID)
+				stale = append(stale, conn)
+			}
+		}
+		if len(bucket) == 0 {
+			delete(r.conns, workspaceID)
+		}
+	}
+	r.mu.Unlock()
+
+	for _, conn := range stale {
+		conn.Close()
 	}
 }
 

@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -16,16 +14,14 @@ import (
 
 	"connectrpc.com/connect"
 	"golang.org/x/net/http2"
-	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"go.orx.me/apps/butter/cmd/butter-daemon/executor"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
-var daemonClientHeartbeatInterval = 20 * time.Second
-
-type connectStream = connect.BidiStreamForClient[agentsv1.ConnectRequest, agentsv1.ConnectResponse]
+var daemonPollWaitTimeout = 25 * time.Second
 
 // Connector manages the ConnectRPC connection to the butter server.
 type Connector struct {
@@ -34,8 +30,6 @@ type Connector struct {
 
 	mu          sync.Mutex
 	cancelFuncs map[string]context.CancelFunc // task_id → cancel
-
-	sendMu sync.Mutex // serializes stream.Send across concurrent tasks/callbacks
 }
 
 // NewConnector creates a new daemon connector.
@@ -81,96 +75,79 @@ func (c *Connector) Run(ctx context.Context) error {
 func (c *Connector) connectAndServe(ctx context.Context) error {
 	baseURL := normalizeBaseURL(c.cfg.Server)
 	client := agentsv1connect.NewDaemonConnectorServiceClient(newHTTPClient(baseURL), baseURL)
+	serveCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	stream := client.Connect(ctx)
-	if c.cfg.Credential != "" {
-		stream.RequestHeader().Set("Authorization", "Bearer "+c.cfg.Credential)
-	}
-
-	// Send registration.
 	runtimes := make([]string, 0, len(c.executors))
 	for runtime := range c.executors {
 		runtimes = append(runtimes, runtime)
 	}
 
-	err := stream.Send(&agentsv1.ConnectRequest{
-		Message: &agentsv1.ConnectRequest_Register{
-			Register: &agentsv1.DaemonInfo{
-				Name:        c.cfg.Name,
-				AcpRuntimes: runtimes,
-				Labels:      c.cfg.Labels,
-				Version:     daemonBuildVersion(),
-				Os:          runtime.GOOS + "-" + runtime.GOARCH,
-				Executors:   runtimes,
-			},
+	registerReq := connect.NewRequest(&agentsv1.DaemonConnectorServiceRegisterRequest{
+		Daemon: &agentsv1.DaemonInfo{
+			Name:        c.cfg.Name,
+			AcpRuntimes: runtimes,
+			Labels:      c.cfg.Labels,
+			Version:     daemonBuildVersion(),
+			Os:          runtime.GOOS + "-" + runtime.GOARCH,
+			Executors:   runtimes,
 		},
 	})
-	if err != nil {
+	c.authorize(registerReq)
+	if _, err := client.Register(serveCtx, registerReq); err != nil {
 		return fmt.Errorf("register: %w", err)
 	}
+	defer c.unregister(client)
 
-	slog.Info("registered with server",
-		"acp_runtimes", runtimes,
-	)
+	slog.Info("registered with server", "acp_runtimes", runtimes, "transport", "poll")
 
-	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
-	defer stopHeartbeat()
-	go c.sendHeartbeat(heartbeatCtx, stream)
-
-	// Receive loop.
 	for {
-		msg, err := stream.Receive()
+		pollReq := connect.NewRequest(&agentsv1.DaemonConnectorServicePollRequest{
+			WaitTimeout: durationpb.New(daemonPollWaitTimeout),
+		})
+		c.authorize(pollReq)
+		resp, err := client.Poll(serveCtx, pollReq)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return fmt.Errorf("server closed stream")
-			}
-			return fmt.Errorf("recv: %w", err)
+			return fmt.Errorf("poll: %w", err)
 		}
-
-		switch m := msg.Message.(type) {
-		case *agentsv1.ConnectResponse_Task:
-			go c.handleTask(ctx, stream, m.Task)
-		case *agentsv1.ConnectResponse_Cancel:
-			c.handleCancel(m.Cancel.TaskId)
-		case *agentsv1.ConnectResponse_Heartbeat:
-			// Heartbeat response keeps the downstream side of the stream active.
+		for _, msg := range resp.Msg.GetMessages() {
+			c.handleMessage(serveCtx, client, msg)
 		}
 	}
 }
 
-func (c *Connector) sendHeartbeat(ctx context.Context, stream *connectStream) {
-	ticker := time.NewTicker(daemonClientHeartbeatInterval)
-	defer ticker.Stop()
-
-	count := 0
-	for {
-		select {
-		case <-ticker.C:
-			c.sendMu.Lock()
-			err := stream.Send(&agentsv1.ConnectRequest{
-				Message: &agentsv1.ConnectRequest_Heartbeat{Heartbeat: &emptypb.Empty{}},
-			})
-			c.sendMu.Unlock()
-			if err != nil {
-				slog.Warn("failed to send daemon heartbeat", "err", err)
-				return
-			}
-			count++
-			if count <= 3 {
-				slog.Info("daemon heartbeat sent", "count", count)
-			}
-		case <-ctx.Done():
-			return
-		}
+func (c *Connector) authorize(req interface{ Header() http.Header }) {
+	if c.cfg.Credential != "" {
+		req.Header().Set("Authorization", "Bearer "+c.cfg.Credential)
 	}
 }
 
-func (c *Connector) handleTask(ctx context.Context, stream *connectStream, task *agentsv1.DaemonTask) {
+func (c *Connector) unregister(client agentsv1connect.DaemonConnectorServiceClient) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := connect.NewRequest(&agentsv1.DaemonConnectorServiceUnregisterRequest{})
+	c.authorize(req)
+	if _, err := client.Unregister(ctx, req); err != nil {
+		slog.Debug("failed to unregister daemon", "err", err)
+	}
+}
+
+func (c *Connector) handleMessage(ctx context.Context, client agentsv1connect.DaemonConnectorServiceClient, msg *agentsv1.ConnectResponse) {
+	switch m := msg.GetMessage().(type) {
+	case *agentsv1.ConnectResponse_Task:
+		go c.handleTask(ctx, client, m.Task)
+	case *agentsv1.ConnectResponse_Cancel:
+		c.handleCancel(m.Cancel.TaskId)
+	}
+}
+
+func (c *Connector) handleTask(ctx context.Context, client agentsv1connect.DaemonConnectorServiceClient, task *agentsv1.DaemonTask) {
 	slog.Info("task received", "task_id", task.TaskId, "acp_runtime", task.AcpRuntime, "work_dir", task.WorkDir, "input_len", len(task.Input))
 
 	exec, ok := c.executors[task.AcpRuntime]
 	if !ok {
-		c.sendUpdate(stream, &agentsv1.DaemonTaskUpdate{
+		c.sendUpdate(ctx, client, &agentsv1.DaemonTaskUpdate{
 			TaskId: task.TaskId,
 			Status: agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED,
 			Error:  fmt.Sprintf("unsupported acp_runtime: %s", task.AcpRuntime),
@@ -191,7 +168,7 @@ func (c *Connector) handleTask(ctx context.Context, stream *connectStream, task 
 	}()
 
 	onUpdate := func(update *agentsv1.DaemonTaskUpdate) {
-		c.sendUpdate(stream, update)
+		c.sendUpdate(ctx, client, update)
 	}
 
 	if err := exec.Execute(taskCtx, task, onUpdate); err != nil {
@@ -210,12 +187,10 @@ func (c *Connector) handleCancel(taskID string) {
 	}
 }
 
-func (c *Connector) sendUpdate(stream *connectStream, update *agentsv1.DaemonTaskUpdate) {
-	c.sendMu.Lock()
-	defer c.sendMu.Unlock()
-	if err := stream.Send(&agentsv1.ConnectRequest{
-		Message: &agentsv1.ConnectRequest_TaskUpdate{TaskUpdate: update},
-	}); err != nil {
+func (c *Connector) sendUpdate(ctx context.Context, client agentsv1connect.DaemonConnectorServiceClient, update *agentsv1.DaemonTaskUpdate) {
+	req := connect.NewRequest(&agentsv1.DaemonConnectorServiceReportTaskUpdateRequest{Update: update})
+	c.authorize(req)
+	if _, err := client.ReportTaskUpdate(ctx, req); err != nil {
 		slog.Error("failed to send update", "task_id", update.TaskId, "err", err)
 	}
 }

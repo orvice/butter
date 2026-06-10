@@ -73,6 +73,7 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 
 		input := extractText(ctx.UserContent())
 
+		b.registry.PruneStalePollConnections(daemonPollIdleTimeout)
 		conn := b.registry.Get(b.workspaceID, b.runtimeID)
 		if conn == nil {
 			yield(nil, fmt.Errorf("daemon runtime %q is not online", b.runtimeID))
