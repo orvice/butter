@@ -1,10 +1,11 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { useCreateAgent } from "@/api/agents";
 import { useMCPServers } from "@/api/mcp-servers";
+import { useRemoteAgents } from "@/api/remote-agents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AgentModelSelect } from "./model-select";
 import { AgentIconUpload } from "./icon-upload";
 import { AgentFileMountsField } from "./file-mounts-field";
+import { AgentRemoteAgentsField } from "./remote-agents-field";
 import {
   Form,
   FormControl,
@@ -47,6 +49,7 @@ const agentSchema = z.object({
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
+  remote_agent_ids: z.array(z.string()).optional(),
   file_mounts: z.array(z.object({
     space_id: z.string().min(1),
     mount_path: z.string().optional(),
@@ -59,8 +62,11 @@ type AgentFormValues = z.infer<typeof agentSchema>;
 
 export default function AgentCreatePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialRemoteAgentId = searchParams.get("remote_agent_id") ?? "";
   const createMutation = useCreateAgent();
   const { data: mcpData, isLoading: isLoadingMCPServers } = useMCPServers();
+  const { data: remoteData, isLoading: isLoadingRemoteAgents } = useRemoteAgents();
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
@@ -72,6 +78,7 @@ export default function AgentCreatePage() {
       model: "",
       instruction: "",
       mcp_server_ids: [],
+      remote_agent_ids: initialRemoteAgentId ? [initialRemoteAgentId] : [],
       file_mounts: [],
       icon_url: "",
     },
@@ -91,6 +98,7 @@ export default function AgentCreatePage() {
           model: values.model,
           instruction: values.instruction,
           mcp_server_ids: values.mcp_server_ids ?? [],
+          remote_agent_ids: values.remote_agent_ids ?? [],
           file_mounts: values.file_mounts ?? [],
         },
       },
@@ -259,6 +267,26 @@ export default function AgentCreatePage() {
                   </FormItem>
                 );
               }} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Remote Agents</CardTitle>
+              <CardDescription>Daemon and A2A agents this agent can delegate work to.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FormField control={form.control} name="remote_agent_ids" render={({ field }) => (
+                <FormItem>
+                  <AgentRemoteAgentsField
+                    value={field.value}
+                    onChange={field.onChange}
+                    remoteAgents={remoteData?.remote_agents}
+                    isLoading={isLoadingRemoteAgents}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )} />
             </CardContent>
           </Card>
 

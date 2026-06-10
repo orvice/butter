@@ -36,6 +36,7 @@ import { useTheme } from "next-themes";
 import { AgentModelSelect } from "./model-select";
 import { AgentIconUpload } from "./icon-upload";
 import { AgentFileMountsField } from "./file-mounts-field";
+import { AgentRemoteAgentsField } from "./remote-agents-field";
 import { agentIconUrl } from "./icon-utils";
 import type { Agent, AgentFileMount, AgentFileMountPermission, AgentType } from "@/types/api";
 
@@ -53,6 +54,7 @@ const agentSchema = z.object({
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
+  remote_agent_ids: z.array(z.string()).optional(),
   file_mounts: z.array(z.object({
     space_id: z.string().min(1),
     mount_path: z.string().optional(),
@@ -91,7 +93,7 @@ export default function AgentEditPage() {
   const { theme } = useTheme();
   const { data, isLoading } = useAgent(name ?? "");
   const { data: mcpData } = useMCPServers();
-  const { data: remoteData } = useRemoteAgents();
+  const { data: remoteData, isLoading: isLoadingRemoteAgents } = useRemoteAgents();
   const updateMutation = useUpdateAgent();
   const initialJsonValue = useMemo(() => (data?.agent ? JSON.stringify(data.agent, null, 2) : ""), [data]);
   const [jsonValue, setJsonValue] = useState<string | null>(null);
@@ -107,6 +109,7 @@ export default function AgentEditPage() {
       model: "",
       instruction: "",
       mcp_server_ids: [],
+      remote_agent_ids: [],
       file_mounts: [],
       icon_url: "",
     },
@@ -125,6 +128,7 @@ export default function AgentEditPage() {
         model: a.config?.model ?? "",
         instruction: a.config?.instruction ?? "",
         mcp_server_ids: a.config?.mcp_server_ids ?? [],
+        remote_agent_ids: a.config?.remote_agent_ids ?? [],
         file_mounts: toAgentFileMountFormValues(a.config?.file_mounts),
         icon_url: agentIconUrl(a),
       });
@@ -144,6 +148,7 @@ export default function AgentEditPage() {
         model: values.model,
         instruction: values.instruction,
         mcp_server_ids: values.mcp_server_ids ?? [],
+        remote_agent_ids: values.remote_agent_ids ?? [],
         file_mounts: values.file_mounts ?? [],
       },
     };
@@ -181,6 +186,7 @@ export default function AgentEditPage() {
           model: values.model,
           instruction: values.instruction,
           mcp_server_ids: values.mcp_server_ids ?? [],
+          remote_agent_ids: values.remote_agent_ids ?? [],
           file_mounts: values.file_mounts ?? [],
         },
       };
@@ -196,6 +202,7 @@ export default function AgentEditPage() {
           model: agent.config?.model ?? "",
           instruction: agent.config?.instruction ?? "",
           mcp_server_ids: agent.config?.mcp_server_ids ?? [],
+          remote_agent_ids: agent.config?.remote_agent_ids ?? [],
           file_mounts: toAgentFileMountFormValues(agent.config?.file_mounts),
           icon_url: agentIconUrl(agent),
         });
@@ -367,6 +374,25 @@ export default function AgentEditPage() {
 
               <Card>
                 <CardHeader>
+                  <CardTitle>Remote Agents</CardTitle>
+                  <CardDescription>Daemon and A2A agents this agent can delegate work to.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FormField control={form.control} name="remote_agent_ids" render={({ field }) => (
+                    <FormItem>
+                      <AgentRemoteAgentsField
+                        value={field.value}
+                        onChange={field.onChange}
+                        remoteAgents={remoteData?.remote_agents}
+                        isLoading={isLoadingRemoteAgents}
+                      />
+                    </FormItem>
+                  )} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
                   <CardTitle>Agent Files</CardTitle>
                   <CardDescription>Review file-space mounts and permissions before saving.</CardDescription>
                 </CardHeader>
@@ -381,19 +407,6 @@ export default function AgentEditPage() {
                   )} />
                 </CardContent>
               </Card>
-
-              {/* Remote Agent IDs - read-only display */}
-              {data?.agent?.config?.remote_agent_ids && data.agent.config.remote_agent_ids.length > 0 && (
-                <Card>
-                  <CardHeader><CardTitle>Remote Agents</CardTitle></CardHeader>
-                  <CardContent className="flex flex-wrap gap-2">
-                    {data.agent.config.remote_agent_ids.map((id) => {
-                      const ra = remoteData?.remote_agents?.find((r) => r.id === id);
-                      return <Badge key={id} variant="secondary">{ra?.name ?? id}</Badge>;
-                    })}
-                  </CardContent>
-                </Card>
-              )}
 
               {/* Sub-agents - read-only list */}
               {data?.agent?.sub_agents && data.agent.sub_agents.length > 0 && (
