@@ -36,6 +36,18 @@ const (
 	// DaemonConnectorServiceConnectProcedure is the fully-qualified name of the
 	// DaemonConnectorService's Connect RPC.
 	DaemonConnectorServiceConnectProcedure = "/agents.v1.DaemonConnectorService/Connect"
+	// DaemonConnectorServiceRegisterProcedure is the fully-qualified name of the
+	// DaemonConnectorService's Register RPC.
+	DaemonConnectorServiceRegisterProcedure = "/agents.v1.DaemonConnectorService/Register"
+	// DaemonConnectorServicePollProcedure is the fully-qualified name of the DaemonConnectorService's
+	// Poll RPC.
+	DaemonConnectorServicePollProcedure = "/agents.v1.DaemonConnectorService/Poll"
+	// DaemonConnectorServiceReportTaskUpdateProcedure is the fully-qualified name of the
+	// DaemonConnectorService's ReportTaskUpdate RPC.
+	DaemonConnectorServiceReportTaskUpdateProcedure = "/agents.v1.DaemonConnectorService/ReportTaskUpdate"
+	// DaemonConnectorServiceUnregisterProcedure is the fully-qualified name of the
+	// DaemonConnectorService's Unregister RPC.
+	DaemonConnectorServiceUnregisterProcedure = "/agents.v1.DaemonConnectorService/Unregister"
 )
 
 // DaemonConnectorServiceClient is a client for the agents.v1.DaemonConnectorService service.
@@ -44,6 +56,14 @@ type DaemonConnectorServiceClient interface {
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
 	Connect(context.Context) *connect.BidiStreamForClient[v1.ConnectRequest, v1.ConnectResponse]
+	// Register announces a daemon runtime for unary long-poll transport.
+	Register(context.Context, *connect.Request[v1.DaemonConnectorServiceRegisterRequest]) (*connect.Response[v1.DaemonConnectorServiceRegisterResponse], error)
+	// Poll waits briefly for queued task/cancel messages.
+	Poll(context.Context, *connect.Request[v1.DaemonConnectorServicePollRequest]) (*connect.Response[v1.DaemonConnectorServicePollResponse], error)
+	// ReportTaskUpdate reports task progress or completion from a daemon.
+	ReportTaskUpdate(context.Context, *connect.Request[v1.DaemonConnectorServiceReportTaskUpdateRequest]) (*connect.Response[v1.DaemonConnectorServiceReportTaskUpdateResponse], error)
+	// Unregister marks a daemon runtime offline for graceful shutdown.
+	Unregister(context.Context, *connect.Request[v1.DaemonConnectorServiceUnregisterRequest]) (*connect.Response[v1.DaemonConnectorServiceUnregisterResponse], error)
 }
 
 // NewDaemonConnectorServiceClient constructs a client for the agents.v1.DaemonConnectorService
@@ -63,17 +83,65 @@ func NewDaemonConnectorServiceClient(httpClient connect.HTTPClient, baseURL stri
 			connect.WithSchema(daemonConnectorServiceMethods.ByName("Connect")),
 			connect.WithClientOptions(opts...),
 		),
+		register: connect.NewClient[v1.DaemonConnectorServiceRegisterRequest, v1.DaemonConnectorServiceRegisterResponse](
+			httpClient,
+			baseURL+DaemonConnectorServiceRegisterProcedure,
+			connect.WithSchema(daemonConnectorServiceMethods.ByName("Register")),
+			connect.WithClientOptions(opts...),
+		),
+		poll: connect.NewClient[v1.DaemonConnectorServicePollRequest, v1.DaemonConnectorServicePollResponse](
+			httpClient,
+			baseURL+DaemonConnectorServicePollProcedure,
+			connect.WithSchema(daemonConnectorServiceMethods.ByName("Poll")),
+			connect.WithClientOptions(opts...),
+		),
+		reportTaskUpdate: connect.NewClient[v1.DaemonConnectorServiceReportTaskUpdateRequest, v1.DaemonConnectorServiceReportTaskUpdateResponse](
+			httpClient,
+			baseURL+DaemonConnectorServiceReportTaskUpdateProcedure,
+			connect.WithSchema(daemonConnectorServiceMethods.ByName("ReportTaskUpdate")),
+			connect.WithClientOptions(opts...),
+		),
+		unregister: connect.NewClient[v1.DaemonConnectorServiceUnregisterRequest, v1.DaemonConnectorServiceUnregisterResponse](
+			httpClient,
+			baseURL+DaemonConnectorServiceUnregisterProcedure,
+			connect.WithSchema(daemonConnectorServiceMethods.ByName("Unregister")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // daemonConnectorServiceClient implements DaemonConnectorServiceClient.
 type daemonConnectorServiceClient struct {
-	connect *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	connect          *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	register         *connect.Client[v1.DaemonConnectorServiceRegisterRequest, v1.DaemonConnectorServiceRegisterResponse]
+	poll             *connect.Client[v1.DaemonConnectorServicePollRequest, v1.DaemonConnectorServicePollResponse]
+	reportTaskUpdate *connect.Client[v1.DaemonConnectorServiceReportTaskUpdateRequest, v1.DaemonConnectorServiceReportTaskUpdateResponse]
+	unregister       *connect.Client[v1.DaemonConnectorServiceUnregisterRequest, v1.DaemonConnectorServiceUnregisterResponse]
 }
 
 // Connect calls agents.v1.DaemonConnectorService.Connect.
 func (c *daemonConnectorServiceClient) Connect(ctx context.Context) *connect.BidiStreamForClient[v1.ConnectRequest, v1.ConnectResponse] {
 	return c.connect.CallBidiStream(ctx)
+}
+
+// Register calls agents.v1.DaemonConnectorService.Register.
+func (c *daemonConnectorServiceClient) Register(ctx context.Context, req *connect.Request[v1.DaemonConnectorServiceRegisterRequest]) (*connect.Response[v1.DaemonConnectorServiceRegisterResponse], error) {
+	return c.register.CallUnary(ctx, req)
+}
+
+// Poll calls agents.v1.DaemonConnectorService.Poll.
+func (c *daemonConnectorServiceClient) Poll(ctx context.Context, req *connect.Request[v1.DaemonConnectorServicePollRequest]) (*connect.Response[v1.DaemonConnectorServicePollResponse], error) {
+	return c.poll.CallUnary(ctx, req)
+}
+
+// ReportTaskUpdate calls agents.v1.DaemonConnectorService.ReportTaskUpdate.
+func (c *daemonConnectorServiceClient) ReportTaskUpdate(ctx context.Context, req *connect.Request[v1.DaemonConnectorServiceReportTaskUpdateRequest]) (*connect.Response[v1.DaemonConnectorServiceReportTaskUpdateResponse], error) {
+	return c.reportTaskUpdate.CallUnary(ctx, req)
+}
+
+// Unregister calls agents.v1.DaemonConnectorService.Unregister.
+func (c *daemonConnectorServiceClient) Unregister(ctx context.Context, req *connect.Request[v1.DaemonConnectorServiceUnregisterRequest]) (*connect.Response[v1.DaemonConnectorServiceUnregisterResponse], error) {
+	return c.unregister.CallUnary(ctx, req)
 }
 
 // DaemonConnectorServiceHandler is an implementation of the agents.v1.DaemonConnectorService
@@ -83,6 +151,14 @@ type DaemonConnectorServiceHandler interface {
 	// message first, then task updates. The server sends task assignments and
 	// cancellation requests.
 	Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error
+	// Register announces a daemon runtime for unary long-poll transport.
+	Register(context.Context, *connect.Request[v1.DaemonConnectorServiceRegisterRequest]) (*connect.Response[v1.DaemonConnectorServiceRegisterResponse], error)
+	// Poll waits briefly for queued task/cancel messages.
+	Poll(context.Context, *connect.Request[v1.DaemonConnectorServicePollRequest]) (*connect.Response[v1.DaemonConnectorServicePollResponse], error)
+	// ReportTaskUpdate reports task progress or completion from a daemon.
+	ReportTaskUpdate(context.Context, *connect.Request[v1.DaemonConnectorServiceReportTaskUpdateRequest]) (*connect.Response[v1.DaemonConnectorServiceReportTaskUpdateResponse], error)
+	// Unregister marks a daemon runtime offline for graceful shutdown.
+	Unregister(context.Context, *connect.Request[v1.DaemonConnectorServiceUnregisterRequest]) (*connect.Response[v1.DaemonConnectorServiceUnregisterResponse], error)
 }
 
 // NewDaemonConnectorServiceHandler builds an HTTP handler from the service implementation. It
@@ -98,10 +174,42 @@ func NewDaemonConnectorServiceHandler(svc DaemonConnectorServiceHandler, opts ..
 		connect.WithSchema(daemonConnectorServiceMethods.ByName("Connect")),
 		connect.WithHandlerOptions(opts...),
 	)
+	daemonConnectorServiceRegisterHandler := connect.NewUnaryHandler(
+		DaemonConnectorServiceRegisterProcedure,
+		svc.Register,
+		connect.WithSchema(daemonConnectorServiceMethods.ByName("Register")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonConnectorServicePollHandler := connect.NewUnaryHandler(
+		DaemonConnectorServicePollProcedure,
+		svc.Poll,
+		connect.WithSchema(daemonConnectorServiceMethods.ByName("Poll")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonConnectorServiceReportTaskUpdateHandler := connect.NewUnaryHandler(
+		DaemonConnectorServiceReportTaskUpdateProcedure,
+		svc.ReportTaskUpdate,
+		connect.WithSchema(daemonConnectorServiceMethods.ByName("ReportTaskUpdate")),
+		connect.WithHandlerOptions(opts...),
+	)
+	daemonConnectorServiceUnregisterHandler := connect.NewUnaryHandler(
+		DaemonConnectorServiceUnregisterProcedure,
+		svc.Unregister,
+		connect.WithSchema(daemonConnectorServiceMethods.ByName("Unregister")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.DaemonConnectorService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DaemonConnectorServiceConnectProcedure:
 			daemonConnectorServiceConnectHandler.ServeHTTP(w, r)
+		case DaemonConnectorServiceRegisterProcedure:
+			daemonConnectorServiceRegisterHandler.ServeHTTP(w, r)
+		case DaemonConnectorServicePollProcedure:
+			daemonConnectorServicePollHandler.ServeHTTP(w, r)
+		case DaemonConnectorServiceReportTaskUpdateProcedure:
+			daemonConnectorServiceReportTaskUpdateHandler.ServeHTTP(w, r)
+		case DaemonConnectorServiceUnregisterProcedure:
+			daemonConnectorServiceUnregisterHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -113,4 +221,20 @@ type UnimplementedDaemonConnectorServiceHandler struct{}
 
 func (UnimplementedDaemonConnectorServiceHandler) Connect(context.Context, *connect.BidiStream[v1.ConnectRequest, v1.ConnectResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonConnectorService.Connect is not implemented"))
+}
+
+func (UnimplementedDaemonConnectorServiceHandler) Register(context.Context, *connect.Request[v1.DaemonConnectorServiceRegisterRequest]) (*connect.Response[v1.DaemonConnectorServiceRegisterResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonConnectorService.Register is not implemented"))
+}
+
+func (UnimplementedDaemonConnectorServiceHandler) Poll(context.Context, *connect.Request[v1.DaemonConnectorServicePollRequest]) (*connect.Response[v1.DaemonConnectorServicePollResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonConnectorService.Poll is not implemented"))
+}
+
+func (UnimplementedDaemonConnectorServiceHandler) ReportTaskUpdate(context.Context, *connect.Request[v1.DaemonConnectorServiceReportTaskUpdateRequest]) (*connect.Response[v1.DaemonConnectorServiceReportTaskUpdateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonConnectorService.ReportTaskUpdate is not implemented"))
+}
+
+func (UnimplementedDaemonConnectorServiceHandler) Unregister(context.Context, *connect.Request[v1.DaemonConnectorServiceUnregisterRequest]) (*connect.Response[v1.DaemonConnectorServiceUnregisterResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DaemonConnectorService.Unregister is not implemented"))
 }

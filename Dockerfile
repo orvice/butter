@@ -6,7 +6,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build -o /app/butter ./cmd/butter
+ARG COMMIT=unknown
+RUN CGO_ENABLED=0 go build -ldflags "-X main.serverCommit=${COMMIT}" -o /app/butter ./cmd/butter
 
 FROM gcr.io/distroless/static-debian12
 

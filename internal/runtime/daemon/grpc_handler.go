@@ -13,6 +13,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
@@ -21,6 +22,9 @@ import (
 )
 
 var daemonHeartbeatInterval = 20 * time.Second
+var daemonPollDefaultWait = 25 * time.Second
+var daemonPollMaxWait = 30 * time.Second
+var daemonPollIdleTimeout = 90 * time.Second
 
 // GRPCHandler implements the DaemonConnectorService over ConnectRPC.
 type GRPCHandler struct {
@@ -103,6 +107,7 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 		defer wg.Done()
 		heartbeat := time.NewTicker(daemonHeartbeatInterval)
 		defer heartbeat.Stop()
+		heartbeatCount := 0
 		for {
 			select {
 			case msg := <-conn.SendCh:
@@ -111,9 +116,19 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 					return
 				}
 			case <-heartbeat.C:
-				if err := stream.Send(&agentsv1.ConnectResponse{}); err != nil {
+				if err := stream.Send(&agentsv1.ConnectResponse{
+					Message: &agentsv1.ConnectResponse_Heartbeat{Heartbeat: &emptypb.Empty{}},
+				}); err != nil {
 					errCh <- fmt.Errorf("heartbeat: %w", err)
 					return
+				}
+				heartbeatCount++
+				if heartbeatCount <= 3 {
+					logger.Info("daemon heartbeat sent",
+						"workspace_id", regInfo.GetWorkspaceId(),
+						"daemon_runtime_id", regInfo.GetDaemonRuntimeId(),
+						"count", heartbeatCount,
+					)
 				}
 			case <-done:
 				return
@@ -127,6 +142,7 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		heartbeatCount := 0
 		for {
 			msg, err := stream.Receive()
 			if err != nil {
@@ -139,6 +155,15 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 			}
 			if update := msg.GetTaskUpdate(); update != nil {
 				conn.DispatchUpdate(update)
+			} else if msg.GetHeartbeat() != nil {
+				heartbeatCount++
+				if heartbeatCount <= 3 {
+					logger.Info("daemon heartbeat received",
+						"workspace_id", regInfo.GetWorkspaceId(),
+						"daemon_runtime_id", regInfo.GetDaemonRuntimeId(),
+						"count", heartbeatCount,
+					)
+				}
 			}
 		}
 	}()
@@ -157,17 +182,161 @@ func (h *GRPCHandler) Connect(ctx context.Context, stream *connect.BidiStream[ag
 	return nil
 }
 
+// Register announces a daemon runtime using unary long-poll transport.
+func (h *GRPCHandler) Register(ctx context.Context, req *connect.Request[agentsv1.DaemonConnectorServiceRegisterRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceRegisterResponse], error) {
+	logger := log.FromContext(ctx)
+	regInfo := req.Msg.GetDaemon()
+	if regInfo == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("daemon is required"))
+	}
+	authInfo, err := h.authenticateDaemon(ctx, req.Header().Get("Authorization"), regInfo)
+	if err != nil {
+		return nil, err
+	}
+	regInfo.WorkspaceId = authInfo.workspaceID
+	regInfo.DaemonRuntimeId = authInfo.runtimeID
+	if len(regInfo.GetAcpRuntimes()) == 0 {
+		regInfo.AcpRuntimes = []string{"opencode", "codex"}
+	}
+
+	conn := NewConnection(regInfo)
+	conn.MarkPollMode()
+	replaced := h.registry.RegisterOrReplace(conn)
+	logger.Info("daemon registered",
+		"workspace_id", regInfo.GetWorkspaceId(),
+		"daemon_runtime_id", regInfo.GetDaemonRuntimeId(),
+		"name", regInfo.GetName(),
+		"acp_runtimes", regInfo.GetAcpRuntimes(),
+		"transport", "poll",
+		"replaced", replaced,
+	)
+
+	return connect.NewResponse(&agentsv1.DaemonConnectorServiceRegisterResponse{Daemon: regInfo}), nil
+}
+
+// Poll waits briefly for queued task/cancel messages for a daemon runtime.
+func (h *GRPCHandler) Poll(ctx context.Context, req *connect.Request[agentsv1.DaemonConnectorServicePollRequest]) (*connect.Response[agentsv1.DaemonConnectorServicePollResponse], error) {
+	authInfo, err := h.authenticateDaemon(ctx, req.Header().Get("Authorization"), nil)
+	if err != nil {
+		return nil, err
+	}
+	h.registry.PruneStalePollConnections(daemonPollIdleTimeout)
+
+	conn := h.registry.Get(authInfo.workspaceID, authInfo.runtimeID)
+	if conn == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("daemon is not registered"))
+	}
+	conn.Touch()
+
+	wait := daemonPollDefaultWait
+	if req.Msg.GetWaitTimeout() != nil {
+		wait = req.Msg.GetWaitTimeout().AsDuration()
+	}
+	if wait < 0 {
+		wait = 0
+	}
+	if wait > daemonPollMaxWait {
+		wait = daemonPollMaxWait
+	}
+
+	messages, err := pollMessages(ctx, conn, wait)
+	if err != nil {
+		return nil, err
+	}
+	conn.Touch()
+	return connect.NewResponse(&agentsv1.DaemonConnectorServicePollResponse{Messages: messages}), nil
+}
+
+// ReportTaskUpdate routes a daemon task update to the waiting bridge.
+func (h *GRPCHandler) ReportTaskUpdate(ctx context.Context, req *connect.Request[agentsv1.DaemonConnectorServiceReportTaskUpdateRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceReportTaskUpdateResponse], error) {
+	update := req.Msg.GetUpdate()
+	if update == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("update is required"))
+	}
+	authInfo, err := h.authenticateDaemon(ctx, req.Header().Get("Authorization"), nil)
+	if err != nil {
+		return nil, err
+	}
+	conn := h.registry.Get(authInfo.workspaceID, authInfo.runtimeID)
+	if conn == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("daemon is not registered"))
+	}
+	conn.Touch()
+	conn.DispatchUpdate(update)
+	return connect.NewResponse(&agentsv1.DaemonConnectorServiceReportTaskUpdateResponse{}), nil
+}
+
+// Unregister marks a poll-mode daemon runtime offline on graceful shutdown.
+func (h *GRPCHandler) Unregister(ctx context.Context, req *connect.Request[agentsv1.DaemonConnectorServiceUnregisterRequest]) (*connect.Response[agentsv1.DaemonConnectorServiceUnregisterResponse], error) {
+	logger := log.FromContext(ctx)
+	authInfo, err := h.authenticateDaemon(ctx, req.Header().Get("Authorization"), nil)
+	if err != nil {
+		return nil, err
+	}
+	if conn := h.registry.Get(authInfo.workspaceID, authInfo.runtimeID); conn != nil {
+		conn.Close()
+		h.registry.Unregister(authInfo.workspaceID, authInfo.runtimeID)
+		logger.Info("daemon unregistered", "workspace_id", authInfo.workspaceID, "daemon_runtime_id", authInfo.runtimeID, "transport", "poll")
+	}
+	return connect.NewResponse(&agentsv1.DaemonConnectorServiceUnregisterResponse{}), nil
+}
+
+func pollMessages(ctx context.Context, conn *Connection, wait time.Duration) ([]*agentsv1.ConnectResponse, error) {
+	messages := make([]*agentsv1.ConnectResponse, 0, 4)
+	if wait <= 0 {
+		select {
+		case msg := <-conn.SendCh:
+			if msg != nil {
+				messages = append(messages, msg)
+			}
+		default:
+		}
+		return drainMessages(conn, messages), nil
+	}
+
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+
+	select {
+	case msg := <-conn.SendCh:
+		if msg != nil {
+			messages = append(messages, msg)
+		}
+	case <-timer.C:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return drainMessages(conn, messages), nil
+}
+
+func drainMessages(conn *Connection, messages []*agentsv1.ConnectResponse) []*agentsv1.ConnectResponse {
+	for len(messages) < 8 {
+		select {
+		case msg := <-conn.SendCh:
+			if msg != nil {
+				messages = append(messages, msg)
+			}
+		default:
+			return messages
+		}
+	}
+	return messages
+}
+
 type authResult struct {
 	workspaceID string
 	runtimeID   string
 }
 
 func (h *GRPCHandler) authenticate(ctx context.Context, stream *connect.BidiStream[agentsv1.ConnectRequest, agentsv1.ConnectResponse], regInfo *agentsv1.DaemonInfo) (*authResult, error) {
+	return h.authenticateDaemon(ctx, stream.RequestHeader().Get("Authorization"), regInfo)
+}
+
+func (h *GRPCHandler) authenticateDaemon(ctx context.Context, authz string, regInfo *agentsv1.DaemonInfo) (*authResult, error) {
 	if h.tokenRepo == nil || h.runtimeRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("daemon auth repositories not wired"))
 	}
 
-	authz := stream.RequestHeader().Get("Authorization")
 	if authz == "" {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("missing authorization header"))
 	}
@@ -186,7 +355,7 @@ func (h *GRPCHandler) authenticate(ctx context.Context, stream *connect.BidiStre
 	if stored.GetDaemonRuntimeId() == "" {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("daemon runtime token has no runtime"))
 	}
-	if regInfo.GetDaemonRuntimeId() != "" && stored.GetDaemonRuntimeId() != regInfo.GetDaemonRuntimeId() {
+	if regInfo != nil && regInfo.GetDaemonRuntimeId() != "" && stored.GetDaemonRuntimeId() != regInfo.GetDaemonRuntimeId() {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("daemon_runtime_id does not match daemon runtime token"))
 	}
 	if expires := stored.GetExpiresAt(); expires != nil && time.Now().UTC().After(expires.AsTime()) {
@@ -195,7 +364,7 @@ func (h *GRPCHandler) authenticate(ctx context.Context, stream *connect.BidiStre
 	if !hasScope(stored.GetScopes(), "daemon:connect") {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("daemon runtime token lacks daemon:connect scope"))
 	}
-	if regInfo.GetWorkspaceId() != "" && regInfo.GetWorkspaceId() != stored.GetWorkspaceId() {
+	if regInfo != nil && regInfo.GetWorkspaceId() != "" && regInfo.GetWorkspaceId() != stored.GetWorkspaceId() {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("workspace_id does not match daemon runtime token"))
 	}
 

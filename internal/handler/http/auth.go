@@ -259,6 +259,10 @@ func isPublicPath(path string) bool {
 		"/api/agents.v1.AuthService/BeginOAuthFlow",
 		"/api/agents.v1.AuthService/CompleteOAuthFlow",
 		"/api/agents.v1.DaemonConnectorService/Connect",
+		"/api/agents.v1.DaemonConnectorService/Register",
+		"/api/agents.v1.DaemonConnectorService/Poll",
+		"/api/agents.v1.DaemonConnectorService/ReportTaskUpdate",
+		"/api/agents.v1.DaemonConnectorService/Unregister",
 		"/api/mcp/oauth/callback":
 		return true
 	}

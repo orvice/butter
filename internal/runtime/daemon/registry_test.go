@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -57,6 +58,69 @@ func TestRegistryUnregister(t *testing.T) {
 
 	if got := r.Get("ws-1", "d1"); got != nil {
 		t.Fatalf("expected nil after unregister, got %v", got)
+	}
+}
+
+func TestRegistryRegisterOrReplaceClosesPreviousConnection(t *testing.T) {
+	r := NewRegistry()
+	first := NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonRuntimeId: "d1", AcpRuntimes: []string{"opencode"}})
+	replaced := r.RegisterOrReplace(first)
+	if replaced {
+		t.Fatal("first register should not replace an existing connection")
+	}
+
+	resultCh, err := first.SendTask(&agentsv1.DaemonTask{TaskId: "t1", WorkspaceId: "ws-1", AcpRuntime: "opencode"})
+	if err != nil {
+		t.Fatalf("SendTask: %v", err)
+	}
+
+	second := NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonRuntimeId: "d1", AcpRuntimes: []string{"opencode"}})
+	replaced = r.RegisterOrReplace(second)
+	if !replaced {
+		t.Fatal("second register should replace existing connection")
+	}
+	if got := r.Get("ws-1", "d1"); got != second {
+		t.Fatalf("expected replacement connection, got %v", got)
+	}
+
+	select {
+	case update := <-resultCh:
+		if update.GetStatus() != agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED {
+			t.Fatalf("expected FAILED update from closed connection, got %v", update.GetStatus())
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for disconnect update")
+	}
+}
+
+func TestRegistryPruneStalePollConnections(t *testing.T) {
+	r := NewRegistry()
+
+	pollConn := NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonRuntimeId: "poll", AcpRuntimes: []string{"opencode"}})
+	pollConn.MarkPollMode()
+	pollConn.mu.Lock()
+	pollConn.LastSeen = time.Now().Add(-2 * time.Minute)
+	pollConn.mu.Unlock()
+	r.RegisterOrReplace(pollConn)
+
+	streamConn := NewConnection(&agentsv1.DaemonInfo{WorkspaceId: "ws-1", DaemonRuntimeId: "stream", AcpRuntimes: []string{"opencode"}})
+	streamConn.mu.Lock()
+	streamConn.LastSeen = time.Now().Add(-2 * time.Minute)
+	streamConn.mu.Unlock()
+	if err := r.Register(streamConn); err != nil {
+		t.Fatalf("Register stream conn: %v", err)
+	}
+
+	r.PruneStalePollConnections(time.Minute)
+
+	if got := r.Get("ws-1", "poll"); got != nil {
+		t.Fatalf("expected stale poll connection to be pruned, got %v", got)
+	}
+	if got := r.Get("ws-1", "stream"); got != streamConn {
+		t.Fatalf("expected stream connection to remain, got %v", got)
+	}
+	if _, err := pollConn.SendTask(&agentsv1.DaemonTask{TaskId: "after-prune"}); !errors.Is(err, ErrDaemonDisconnected) {
+		t.Fatalf("expected pruned connection to be closed, got %v", err)
 	}
 }
 
