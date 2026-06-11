@@ -94,3 +94,21 @@ func TestAPITokenAuthMiddleware_PingBypass(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 }
+
+func TestIsPublicPathAllowsDaemonConnectorRPCs(t *testing.T) {
+	paths := []string{
+		"/api/agents.v1.DaemonConnectorService/Connect",
+		"/api/agents.v1.DaemonConnectorService/Register",
+		"/api/agents.v1.DaemonConnectorService/Poll",
+		"/api/agents.v1.DaemonConnectorService/ReportTaskUpdate",
+		"/api/agents.v1.DaemonConnectorService/Unregister",
+	}
+
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			if !isPublicPath(path) {
+				t.Fatalf("expected %q to bypass HTTP API auth", path)
+			}
+		})
+	}
+}
