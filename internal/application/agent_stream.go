@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
@@ -42,6 +43,10 @@ func (s *AgentServiceServer) StreamAgent(
 	}
 	if req.Msg.GetMessage() == "" {
 		return connectx.RequiredArgument("message")
+	}
+	if len(req.Msg.GetMessage()) > maxInvokeAgentInputBytes {
+		return connectx.InvalidArgument("message",
+			"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
 	}
 
 	appName := req.Msg.GetAppName()

@@ -98,7 +98,12 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 				)
 			})
 			ctx := auth.WithAdmin(c.Request.Context())
-			c.Request = c.Request.WithContext(applyWorkspaceHeader(ctx, c, workspaceRepo, "", true))
+			ctx, ok := applyWorkspaceHeader(ctx, c, workspaceRepo, "", true)
+			if !ok {
+				forbiddenWorkspace(c)
+				return
+			}
+			c.Request = c.Request.WithContext(ctx)
 			c.Next()
 			return
 		}
@@ -117,7 +122,11 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 				if user.GetRole() == "admin" {
 					ctx = auth.WithAdmin(ctx)
 				}
-				ctx = applyWorkspaceHeader(ctx, c, workspaceRepo, user.GetId(), user.GetRole() == "admin")
+				ctx, wsOK := applyWorkspaceHeader(ctx, c, workspaceRepo, user.GetId(), user.GetRole() == "admin")
+				if !wsOK {
+					forbiddenWorkspace(c)
+					return
+				}
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 				return
@@ -130,7 +139,12 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 		// Try root token (constant-time compare) for ops/daemon/API compatibility.
 		if rootToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(rootToken)) == 1 {
 			ctx := auth.WithAdmin(c.Request.Context())
-			c.Request = c.Request.WithContext(applyWorkspaceHeader(ctx, c, workspaceRepo, "", true))
+			ctx, wsOK := applyWorkspaceHeader(ctx, c, workspaceRepo, "", true)
+			if !wsOK {
+				forbiddenWorkspace(c)
+				return
+			}
+			c.Request = c.Request.WithContext(ctx)
 			c.Next()
 			return
 		}
@@ -214,36 +228,44 @@ func applyCORSHeaders(c *gin.Context) {
 
 // applyWorkspaceHeader resolves the X-Workspace-ID header (if set) and
 // validates that the authenticated user is a member of that workspace.
-// Returns a context with the workspace id attached, or the original context
-// when no header is present (the workspace remains implicit until a
-// downstream service requires it).
-func applyWorkspaceHeader(ctx context.Context, c *gin.Context, repo workspace.Repository, userID string, isAdmin bool) context.Context {
+// Returns a context with the workspace id attached and ok=true, the original
+// context with ok=true when no header is present (the workspace remains
+// implicit until a downstream service requires it), or ok=false when the
+// header names an unknown workspace or one the user is not a member of —
+// callers must reject the request rather than silently dropping the header.
+func applyWorkspaceHeader(ctx context.Context, c *gin.Context, repo workspace.Repository, userID string, isAdmin bool) (context.Context, bool) {
 	header := strings.TrimSpace(c.GetHeader(wsctx.HeaderName))
 	if header == "" {
-		return ctx
+		return ctx, true
 	}
 	if repo == nil {
 		// No repo wired yet: accept the header verbatim. This keeps
 		// development/test setups working before bootstrap completes.
-		return wsctx.WithID(ctx, header)
+		return wsctx.WithID(ctx, header), true
 	}
 	ws, err := repo.GetWorkspace(ctx, header)
 	if err != nil {
 		log.FromContext(ctx).Warn("workspace header rejected", "workspace_id", header, "err", err)
-		return ctx
+		return ctx, false
 	}
 	if !isAdmin && userID != "" {
 		member, err := repo.IsMember(ctx, ws.GetId(), userID)
 		if err != nil {
 			log.FromContext(ctx).Warn("workspace membership check failed", "workspace_id", ws.GetId(), "user_id", userID, "err", err)
-			return ctx
+			return ctx, false
 		}
 		if !member {
 			log.FromContext(ctx).Warn("workspace access denied", "workspace_id", ws.GetId(), "user_id", userID)
-			return ctx
+			return ctx, false
 		}
 	}
-	return wsctx.WithID(ctx, ws.GetId())
+	return wsctx.WithID(ctx, ws.GetId()), true
+}
+
+// forbiddenWorkspace rejects a request whose X-Workspace-ID header failed
+// validation (unknown workspace, membership denied, or lookup error).
+func forbiddenWorkspace(c *gin.Context) {
+	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "workspace access denied"})
 }
 
 // APITokenAuthMiddleware is kept for tests/backward compatibility.

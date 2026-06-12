@@ -35,6 +35,7 @@ type doc struct {
 	AgentName   string    `bson:"agent_name,omitempty"`
 	SessionID   string    `bson:"session_id,omitempty"`
 	StartedAt   time.Time `bson:"started_at,omitempty"`
+	Status      string    `bson:"status,omitempty"`
 	Spec        string    `bson:"spec"`
 }
 
@@ -66,6 +67,7 @@ func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 		WorkspaceID: inv.GetWorkspaceId(),
 		AgentName:   inv.GetAgentName(),
 		SessionID:   inv.GetSessionId(),
+		Status:      inv.GetStatus().String(),
 		Spec:        string(b),
 	}
 	if ts := inv.GetStartedAt(); ts != nil {
@@ -164,6 +166,56 @@ func (s *Store) ListRecent(ctx context.Context, limit int32, pageToken string) (
 		next = encodeToken(offset + len(out))
 	}
 	return out, next, nil
+}
+
+// StatusSummaries aggregates each agent's latest invocation and RUNNING count
+// in a single query. Documents written before the status field was
+// denormalized have no `status` and therefore never count as RUNNING.
+func (s *Store) StatusSummaries(ctx context.Context, workspaceID string, agentNames []string) (map[string]invocation.StatusSummary, error) {
+	if len(agentNames) == 0 {
+		return map[string]invocation.StatusSummary{}, nil
+	}
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"workspace_id": workspaceID,
+			"agent_name":   bson.M{"$in": agentNames},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":    "$agent_name",
+			"latest": bson.M{"$first": "$spec"},
+			"running": bson.M{"$sum": bson.M{"$cond": bson.A{
+				bson.M{"$eq": bson.A{"$status", agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING.String()}},
+				1, 0,
+			}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("aggregate invocation summaries: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	out := make(map[string]invocation.StatusSummary, len(agentNames))
+	for cursor.Next(ctx) {
+		var row struct {
+			AgentName string `bson:"_id"`
+			Latest    string `bson:"latest"`
+			Running   int32  `bson:"running"`
+		}
+		if err := cursor.Decode(&row); err != nil {
+			return nil, fmt.Errorf("decode invocation summary: %w", err)
+		}
+		inv := &agentsv1.Invocation{}
+		if err := protojson.Unmarshal([]byte(row.Latest), inv); err != nil {
+			return nil, fmt.Errorf("unmarshal invocation: %w", err)
+		}
+		out[row.AgentName] = invocation.StatusSummary{Latest: inv, Running: row.Running}
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("aggregate invocation summaries: %w", err)
+	}
+	return out, nil
 }
 
 func drain(ctx context.Context, cursor *mongo.Cursor) ([]*agentsv1.Invocation, error) {

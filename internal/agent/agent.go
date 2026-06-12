@@ -56,8 +56,10 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 		return nil, fmt.Errorf("agent config is nil")
 	}
 
-	// Resolve shared MCP servers and merge with inline ones.
-	if err := resolveMCPServers(pb, mcpRegistry); err != nil {
+	// Resolve shared MCP servers and merge with inline ones. The merged list
+	// is passed alongside the proto so the shared config is never mutated.
+	mcpServers, err := resolveMCPServers(pb, mcpRegistry)
+	if err != nil {
 		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
 	}
 
@@ -80,7 +82,7 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 
 	switch pb.GetType() {
 	case agentsv1.AgentType_AGENT_TYPE_LLM, agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED:
-		return newLLMAgent(ctx, pb, subAgents, providers, httpFactory, toolsetFactory)
+		return newLLMAgent(ctx, pb, mcpServers, subAgents, providers, httpFactory, toolsetFactory)
 	case agentsv1.AgentType_AGENT_TYPE_LOOP:
 		return newLoopAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL:
@@ -92,11 +94,10 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 	}
 }
 
-func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
+func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1.MCPServer, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
 	logger := log.FromContext(ctx)
 	acfg := pb.GetConfig()
 
-	mcpServers := acfg.GetMcpServers()
 	mcpNames := make([]string, 0, len(mcpServers))
 	for _, s := range mcpServers {
 		mcpNames = append(mcpNames, s.GetName())
@@ -122,7 +123,7 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agen
 		return nil, fmt.Errorf("agent %q: creating model %q: %w", pb.GetName(), acfg.GetModel(), err)
 	}
 
-	toolsets, err := buildMCPToolsets(ctx, acfg.GetMcpServers(), httpFactory)
+	toolsets, err := buildMCPToolsets(ctx, mcpServers, httpFactory)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: building MCP toolsets: %w", pb.GetName(), err)
 	}
@@ -190,13 +191,17 @@ func newParallelAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 	})
 }
 
-// resolveMCPServers looks up mcp_server_ids in the registry and merges them
-// into the agent's inline mcp_servers. Inline servers with the same name win.
-func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) error {
+// resolveMCPServers looks up mcp_server_ids in the registry and returns the
+// agent's inline mcp_servers merged with the resolved entries. Inline servers
+// with the same name win. The agent proto is never mutated.
+func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) ([]*agentsv1.MCPServer, error) {
 	cfg := pb.GetConfig()
+	merged := cfg.GetMcpServers()
 	if cfg == nil || len(cfg.GetMcpServerIds()) == 0 {
-		return nil
+		return merged, nil
 	}
+	// Copy so appends never write into the proto's backing array.
+	merged = append([]*agentsv1.MCPServer(nil), merged...)
 
 	// Build lookup from registry.
 	byID := make(map[string]*agentsv1.MCPServer, len(registry))
@@ -207,8 +212,8 @@ func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) error 
 	}
 
 	// Collect inline server names for collision detection.
-	inlineNames := make(map[string]struct{}, len(cfg.GetMcpServers()))
-	for _, s := range cfg.GetMcpServers() {
+	inlineNames := make(map[string]struct{}, len(merged))
+	for _, s := range merged {
 		inlineNames[s.GetName()] = struct{}{}
 	}
 
@@ -216,17 +221,17 @@ func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) error 
 	for _, id := range cfg.GetMcpServerIds() {
 		srv, ok := byID[id]
 		if !ok {
-			return fmt.Errorf("unknown mcp_server_id %q", id)
+			return nil, fmt.Errorf("unknown mcp_server_id %q", id)
 		}
 		// Skip if an inline server already has the same name.
 		if _, exists := inlineNames[srv.GetName()]; exists {
 			continue
 		}
-		cfg.McpServers = append(cfg.McpServers, srv)
+		merged = append(merged, srv)
 		inlineNames[srv.GetName()] = struct{}{}
 	}
 
-	return nil
+	return merged, nil
 }
 
 // buildMCPToolsets creates ADK toolsets from the agent's MCP server configs.

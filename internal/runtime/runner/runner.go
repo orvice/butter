@@ -485,19 +485,38 @@ func (s *Service) GetAgentStatus(name string) *AgentStatus {
 	if !ok {
 		return nil
 	}
-	return buildAgentStatus(pb)
+	mcpNamesByID := make(map[string]string, len(s.mcpRegistry))
+	for i := range s.mcpRegistry {
+		if id := s.mcpRegistry[i].GetId(); id != "" {
+			mcpNamesByID[id] = s.mcpRegistry[i].GetName()
+		}
+	}
+	return buildAgentStatus(pb, mcpNamesByID)
 }
 
-func buildAgentStatus(pb *agentsv1.Agent) *AgentStatus {
+func buildAgentStatus(pb *agentsv1.Agent, mcpNamesByID map[string]string) *AgentStatus {
 	st := &AgentStatus{
 		Name:        pb.GetName(),
 		Description: pb.GetDescription(),
 	}
+	seen := make(map[string]struct{})
 	for _, srv := range pb.GetConfig().GetMcpServers() {
 		st.MCPServers = append(st.MCPServers, srv.GetName())
+		seen[srv.GetName()] = struct{}{}
+	}
+	for _, id := range pb.GetConfig().GetMcpServerIds() {
+		name, ok := mcpNamesByID[id]
+		if !ok {
+			continue
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		st.MCPServers = append(st.MCPServers, name)
+		seen[name] = struct{}{}
 	}
 	for _, sub := range pb.GetSubAgents() {
-		st.SubAgents = append(st.SubAgents, buildAgentStatus(sub))
+		st.SubAgents = append(st.SubAgents, buildAgentStatus(sub, mcpNamesByID))
 	}
 	return st
 }
@@ -962,6 +981,9 @@ func summarizeEvent(evt *session.Event) eventSummary {
 	}
 
 	for _, part := range evt.Content.Parts {
+		if part == nil {
+			continue
+		}
 		switch {
 		case part.Text != "":
 			summary.textParts++
