@@ -329,9 +329,17 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 	if req.Msg.GetInvocationId() == "" {
 		return nil, connectx.RequiredArgument("invocation_id")
 	}
-	cancelled := s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId())
+	// Scope the cancel to the caller's workspace; admins without a workspace
+	// header keep the global (system) cancel path.
+	wsID, hasWorkspace := workspace.FromContext(ctx)
+	if !hasWorkspace && !auth.IsAdmin(ctx) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("workspace required (set X-Workspace-ID header)"))
+	}
+	cancelled := s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
 	log.FromContext(ctx).Info("cancel agent invocation requested",
 		"invocation_id", req.Msg.GetInvocationId(),
+		"workspace_id", wsID,
 		"cancelled", cancelled,
 	)
 	return connect.NewResponse(&agentsv1.CancelAgentInvocationResponse{Cancelled: cancelled}), nil

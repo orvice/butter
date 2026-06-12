@@ -2,7 +2,9 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -360,6 +362,25 @@ func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPH
 		}
 	}
 
+	// An explicitly configured timeout_seconds also bounds runtime calls:
+	// a server that accepts the connection but never sends response headers
+	// would otherwise hang an agent run indefinitely (cron runs have no
+	// request deadline). Streaming responses are unaffected once headers
+	// have arrived, so this is safe for SSE / streamable HTTP.
+	if secs := srv.GetTimeoutSeconds(); secs > 0 {
+		if httpClient == nil {
+			httpClient = &http.Client{}
+		}
+		base := httpClient.Transport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		httpClient.Transport = &responseHeaderTimeoutTransport{
+			base:    base,
+			timeout: time.Duration(secs) * time.Second,
+		}
+	}
+
 	switch srv.GetTransport() {
 	case agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP:
 		return &mcp.StreamableClientTransport{
@@ -374,6 +395,46 @@ func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPH
 	default:
 		return nil, fmt.Errorf("unsupported transport %v, only streamable_http and sse are supported", srv.GetTransport())
 	}
+}
+
+// responseHeaderTimeoutTransport cancels a request when the server has not
+// sent response headers within timeout. Unlike http.Client.Timeout it does
+// not bound the body read, so long-lived streaming responses keep working.
+type responseHeaderTimeoutTransport struct {
+	base    http.RoundTripper
+	timeout time.Duration
+}
+
+func (t *responseHeaderTimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, cancel := context.WithCancelCause(req.Context())
+	timer := time.AfterFunc(t.timeout, func() {
+		cancel(fmt.Errorf("no response headers within %s", t.timeout))
+	})
+	resp, err := t.base.RoundTrip(req.WithContext(ctx))
+	if err != nil {
+		timer.Stop()
+		cancel(nil)
+		if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
+			return nil, fmt.Errorf("%w: %w", cause, err)
+		}
+		return nil, err
+	}
+	timer.Stop()
+	// Keep the context alive until the body is consumed; cancel on close to
+	// release it.
+	resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() { cancel(nil) }}
+	return resp, nil
+}
+
+type cancelOnCloseBody struct {
+	io.ReadCloser
+	cancel func()
+}
+
+func (b *cancelOnCloseBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.cancel()
+	return err
 }
 
 // headerTransport is an http.RoundTripper that injects custom headers.

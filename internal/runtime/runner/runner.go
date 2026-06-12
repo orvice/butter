@@ -72,7 +72,12 @@ type Service struct {
 	invRecorder InvocationRecorder
 
 	cancelMu  sync.Mutex
-	cancelers map[string]context.CancelFunc
+	cancelers map[string]cancelEntry
+}
+
+type cancelEntry struct {
+	cancel      context.CancelFunc
+	workspaceID string
 }
 
 // SetInvocationRecorder attaches a recorder that observes every Run call.
@@ -90,24 +95,30 @@ func (s *Service) recorder() InvocationRecorder {
 }
 
 // CancelInvocation signals the in-flight invocation with the given id to stop.
-// Returns true if the invocation was found and the cancel signal was delivered.
-func (s *Service) CancelInvocation(id string) bool {
+// workspaceID scopes the cancel to the caller's tenant: an empty value is the
+// admin/system path and may cancel any invocation, otherwise the invocation
+// must have been started in the same workspace. Returns true if the
+// invocation was found and the cancel signal was delivered.
+func (s *Service) CancelInvocation(id, workspaceID string) bool {
 	s.cancelMu.Lock()
-	cancel, ok := s.cancelers[id]
+	entry, ok := s.cancelers[id]
 	s.cancelMu.Unlock()
 	if !ok {
 		return false
 	}
-	cancel()
+	if workspaceID != "" && entry.workspaceID != workspaceID {
+		return false
+	}
+	entry.cancel()
 	return true
 }
 
-func (s *Service) registerCancel(id string, cancel context.CancelFunc) {
+func (s *Service) registerCancel(id, workspaceID string, cancel context.CancelFunc) {
 	s.cancelMu.Lock()
 	if s.cancelers == nil {
-		s.cancelers = make(map[string]context.CancelFunc)
+		s.cancelers = make(map[string]cancelEntry)
 	}
-	s.cancelers[id] = cancel
+	s.cancelers[id] = cancelEntry{cancel: cancel, workspaceID: workspaceID}
 	s.cancelMu.Unlock()
 }
 
@@ -450,6 +461,8 @@ func (s *Service) HasAgentInWorkspace(workspaceID, name string) bool {
 
 // ModelProviders returns the configured model providers.
 func (s *Service) ModelProviders() []agentsv1.ModelProvider {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.providers
 }
 
@@ -533,10 +546,17 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 		)
 		return cached, nil
 	}
+	pb, hasProto := s.agentsProto[agentName]
+	builder, hasBuilder := s.agentBuilders[agentName]
+	providers := s.providers
+	mcpRegistry := s.mcpRegistry
+	remoteAgents := s.remoteAgents
+	agentFileRepo := s.agentFileRepo
+	agentFileMaxBytes := s.agentFileMaxBytes
 	s.mu.Unlock()
 
 	// Resolve the model alias to get the actual model name.
-	resolvedName, _ := internalagent.ResolveModelAlias(modelOverride, s.providers)
+	resolvedName, _ := internalagent.ResolveModelAlias(modelOverride, providers)
 	logger.Info("building model-overridden agent",
 		"agent", agentName,
 		"model_override", modelOverride,
@@ -546,15 +566,6 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	var a agent.Agent
 	var err error
 
-	s.mu.Lock()
-	pb, hasProto := s.agentsProto[agentName]
-	builder, hasBuilder := s.agentBuilders[agentName]
-	mcpRegistry := s.mcpRegistry
-	remoteAgents := s.remoteAgents
-	agentFileRepo := s.agentFileRepo
-	agentFileMaxBytes := s.agentFileMaxBytes
-	s.mu.Unlock()
-
 	if hasProto {
 		// Proto-based agent: clone proto and override model. Workflow agents
 		// (loop/sequential/parallel) may have no config block at all.
@@ -563,7 +574,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 			clone.Config = &agentsv1.AgentConfig{}
 		}
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, s.providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(agentFileRepo, agentFileMaxBytes))
+		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(agentFileRepo, agentFileMaxBytes))
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)
@@ -647,7 +658,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	if inv != nil {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithCancel(ctx)
-		s.registerCancel(inv.GetId(), cancel)
+		s.registerCancel(inv.GetId(), ctxInfo.GetWorkspaceId(), cancel)
 		defer func() {
 			s.deregisterCancel(inv.GetId())
 			cancel()

@@ -75,6 +75,38 @@ func TestTruncateUTF8Boundary(t *testing.T) {
 	}
 }
 
+func TestCancelInvocationWorkspaceScope(t *testing.T) {
+	s := &Service{}
+	cancelled := false
+	s.registerCancel("inv-1", "ws-a", func() { cancelled = true })
+
+	if s.CancelInvocation("inv-1", "ws-b") {
+		t.Fatal("cross-workspace cancel should be rejected")
+	}
+	if cancelled {
+		t.Fatal("cancel func must not run for a rejected request")
+	}
+	if !s.CancelInvocation("inv-1", "ws-a") {
+		t.Fatal("same-workspace cancel should succeed")
+	}
+	if !cancelled {
+		t.Fatal("cancel func should have run")
+	}
+
+	systemCancelled := false
+	s.registerCancel("inv-2", "ws-a", func() { systemCancelled = true })
+	if !s.CancelInvocation("inv-2", "") {
+		t.Fatal("system path (empty workspace) should cancel any invocation")
+	}
+	if !systemCancelled {
+		t.Fatal("cancel func should have run for system path")
+	}
+
+	if s.CancelInvocation("missing", "") {
+		t.Fatal("unknown invocation id should return false")
+	}
+}
+
 func TestNewServiceRejectsCrossWorkspaceDuplicateNames(t *testing.T) {
 	providers := []agentsv1.ModelProvider{{
 		Name:   "p",
