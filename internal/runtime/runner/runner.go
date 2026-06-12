@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"butterfly.orx.me/core/log"
 	"github.com/achetronic/adk-utils-go/plugin/contextguard"
@@ -147,6 +148,12 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 			"type", agents[i].GetType().String(),
 			"description", agents[i].GetDescription(),
 		)
+
+		// The registry is keyed by name only; a cross-workspace duplicate
+		// would silently shadow the other workspace's agent.
+		if prev, ok := protoRegistry[name]; ok {
+			return nil, fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
+		}
 
 		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory)
 		if err != nil {
@@ -322,6 +329,9 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 
 	for i := range agents {
 		name := agents[i].GetName()
+		if prev, ok := protoRegistry[name]; ok {
+			return fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
+		}
 		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory)
 		if err != nil {
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
@@ -546,8 +556,12 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	s.mu.Unlock()
 
 	if hasProto {
-		// Proto-based agent: clone proto and override model.
+		// Proto-based agent: clone proto and override model. Workflow agents
+		// (loop/sequential/parallel) may have no config block at all.
 		clone := proto.Clone(pb).(*agentsv1.Agent)
+		if clone.Config == nil {
+			clone.Config = &agentsv1.AgentConfig{}
+		}
 		clone.Config.Model = resolvedName
 		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, s.providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(agentFileRepo, agentFileMaxBytes))
 	} else if hasBuilder {
@@ -838,6 +852,11 @@ func (s *Service) finishInvocation(ctx context.Context, inv *agentsv1.Invocation
 	if rec == nil {
 		return
 	}
+	// The request context may already be canceled (client disconnect, user
+	// cancel); detach so the terminal status is still persisted, otherwise the
+	// invocation stays RUNNING forever.
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
 	now := time.Now().UTC()
 	inv.FinishedAt = timestamppb.New(now)
 	inv.LatencyMs = now.Sub(inv.GetStartedAt().AsTime()).Milliseconds()
@@ -850,7 +869,7 @@ func (s *Service) finishInvocation(ctx context.Context, inv *agentsv1.Invocation
 	if output != nil {
 		inv.Output = truncate(*output, 4096)
 	}
-	if err := rec.Save(ctx, inv); err != nil {
+	if err := rec.Save(saveCtx, inv); err != nil {
 		log.FromContext(ctx).Warn("failed to record invocation completion", "err", err)
 	}
 }
@@ -869,11 +888,17 @@ func joinTextParts(parts []*genai.Part) string {
 	return b.String()
 }
 
+// truncate cuts s to at most max bytes on a rune boundary so the result stays
+// valid UTF-8 (proto strings reject invalid UTF-8 when marshaled).
 func truncate(s string, max int) string {
 	if max <= 0 || len(s) <= max {
 		return s
 	}
-	return s[:max] + "…"
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
 }
 
 type inputPartSummary struct {

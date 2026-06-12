@@ -1,8 +1,12 @@
 package runner
 
 import (
+	"context"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
+	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
 
@@ -44,6 +48,46 @@ func TestDeriveSessionID(t *testing.T) {
 				t.Errorf("DeriveSessionID() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTruncateUTF8Boundary(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		max  int
+	}{
+		{name: "ascii", in: strings.Repeat("a", 10), max: 4},
+		{name: "cjk cut mid-rune", in: strings.Repeat("中", 10), max: 4},
+		{name: "emoji cut mid-rune", in: strings.Repeat("🙂", 10), max: 5},
+		{name: "no truncation needed", in: "中文", max: 100},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncate(tt.in, tt.max)
+			if !utf8.ValidString(got) {
+				t.Fatalf("truncate(%q, %d) = %q is not valid UTF-8", tt.in, tt.max, got)
+			}
+			if len(tt.in) <= tt.max && got != tt.in {
+				t.Fatalf("truncate(%q, %d) = %q, want unchanged input", tt.in, tt.max, got)
+			}
+		})
+	}
+}
+
+func TestNewServiceRejectsCrossWorkspaceDuplicateNames(t *testing.T) {
+	providers := []agentsv1.ModelProvider{{
+		Name:   "p",
+		Type:   "openai",
+		Models: []*agentsv1.ModelConfig{{Name: "m1"}},
+	}}
+	agents := []agentsv1.Agent{
+		{Name: "dup", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "m1"}},
+		{Name: "dup", WorkspaceId: "ws-b", Config: &agentsv1.AgentConfig{Model: "m1"}},
+	}
+	_, err := NewService(context.Background(), agents, providers, nil, nil, nil, nil, nil, nil, adkrunner.PluginConfig{})
+	if err == nil || !strings.Contains(err.Error(), "unique across workspaces") {
+		t.Fatalf("expected cross-workspace duplicate name error, got %v", err)
 	}
 }
 

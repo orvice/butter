@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -249,7 +250,14 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 		sessionID = "invoke-" + uuid.NewString()
 	}
 
-	wsID, _ := workspace.FromContext(ctx)
+	// An empty workspace on ctxInfo makes the runner treat the call as a
+	// system path and skip the tenant boundary check, so non-admin callers
+	// must always carry a validated workspace.
+	wsID, hasWorkspace := workspace.FromContext(ctx)
+	if !hasWorkspace && !auth.IsAdmin(ctx) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("workspace required (set X-Workspace-ID header)"))
+	}
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        uuid.NewString(),
 		SessionId:   sessionID,
