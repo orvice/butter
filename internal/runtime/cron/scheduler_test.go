@@ -13,6 +13,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/genai"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -160,8 +161,54 @@ func (r *testNotifyGroupRepo) ListNotifyGroupsAcrossWorkspaces(context.Context) 
 	return []*agentsv1.NotifyGroup{r.group}, nil
 }
 
+type testChannelRepo struct {
+	channel *agentsv1.AgentChannel
+}
+
+func (r *testChannelRepo) ListChannels(context.Context, string) ([]*agentsv1.AgentChannel, error) {
+	return []*agentsv1.AgentChannel{r.channel}, nil
+}
+
+func (r *testChannelRepo) GetChannel(_ context.Context, workspaceID, name string) (*agentsv1.AgentChannel, error) {
+	if r.channel == nil || r.channel.GetWorkspaceId() != workspaceID || r.channel.GetName() != name {
+		return nil, configrepo.ErrNotFound
+	}
+	return r.channel, nil
+}
+
+func (r *testChannelRepo) CreateChannel(context.Context, string, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *testChannelRepo) UpdateChannel(context.Context, string, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *testChannelRepo) DeleteChannel(context.Context, string, string) error {
+	return errors.New("not implemented")
+}
+
+func (r *testChannelRepo) ListChannelsAcrossWorkspaces(context.Context) ([]*agentsv1.AgentChannel, error) {
+	return []*agentsv1.AgentChannel{r.channel}, nil
+}
+
+type testChannelSender struct {
+	channel *agentsv1.AgentChannel
+	chatID  string
+	text    string
+}
+
+func (s *testChannelSender) Send(_ context.Context, channel *agentsv1.AgentChannel, chatID, text string) error {
+	s.channel = channel
+	s.chatID = chatID
+	s.text = text
+	return nil
+}
+
 type testCronRunner struct {
 	output      string
+	errs        []error
+	block       chan struct{}
 	runSSECalls int
 }
 
@@ -169,8 +216,22 @@ func (r *testCronRunner) HasAgentInWorkspace(string, string) bool {
 	return true
 }
 
-func (r *testCronRunner) RunSSE(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (string, error) {
+func (r *testCronRunner) RunSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (string, error) {
 	r.runSSECalls++
+	if r.block != nil {
+		select {
+		case <-r.block:
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	if len(r.errs) > 0 {
+		err := r.errs[0]
+		r.errs = r.errs[1:]
+		if err != nil {
+			return "", err
+		}
+	}
 	return r.output, nil
 }
 
@@ -223,6 +284,168 @@ func TestExecuteJobUsesSSERunner(t *testing.T) {
 	}
 	if execRepo.saved != exec {
 		t.Fatal("execution was not saved")
+	}
+}
+
+func TestLegacyCronDefaultsPreservePreviousBehavior(t *testing.T) {
+	cronRunner := &testCronRunner{output: "done"}
+	execRepo := &testExecutionRepo{}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: execRepo,
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "legacy",
+		WorkspaceId: "ws1",
+		AgentName:   "assistant",
+		Schedule:    "@daily",
+	})
+
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+		t.Fatalf("status = %s, want success", exec.GetStatus())
+	}
+	if exec.GetInput() != "execute" {
+		t.Fatalf("input = %q, want execute", exec.GetInput())
+	}
+	if exec.GetAttemptCount() != 1 {
+		t.Fatalf("attempt_count = %d, want 1", exec.GetAttemptCount())
+	}
+	if exec.GetTruncated() {
+		t.Fatal("legacy default should not truncate output")
+	}
+	if cronRunner.runSSECalls != 1 {
+		t.Fatalf("RunSSE calls = %d, want 1", cronRunner.runSSECalls)
+	}
+	if execRepo.saved != exec {
+		t.Fatal("execution was not saved")
+	}
+}
+
+func TestExecuteJobRetriesUntilSuccess(t *testing.T) {
+	cronRunner := &testCronRunner{output: "done", errs: []error{errors.New("temporary failure"), nil}}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: &testExecutionRepo{},
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "retry-job",
+		WorkspaceId: "ws1",
+		AgentName:   "assistant",
+		Schedule:    "@daily",
+		Retry:       &agentsv1.CronRetryPolicy{MaxAttempts: 1},
+	})
+
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+		t.Fatalf("status = %s, want success", exec.GetStatus())
+	}
+	if exec.GetAttemptCount() != 2 {
+		t.Fatalf("attempt_count = %d, want 2", exec.GetAttemptCount())
+	}
+	if cronRunner.runSSECalls != 2 {
+		t.Fatalf("RunSSE calls = %d, want 2", cronRunner.runSSECalls)
+	}
+}
+
+func TestExecuteJobTimeoutCancelsInvocation(t *testing.T) {
+	cronRunner := &testCronRunner{block: make(chan struct{})}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: &testExecutionRepo{},
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "timeout-job",
+		WorkspaceId: "ws1",
+		AgentName:   "assistant",
+		Schedule:    "@daily",
+		Timeout:     durationpb.New(10 * time.Millisecond),
+	})
+
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR {
+		t.Fatalf("status = %s, want error", exec.GetStatus())
+	}
+	if exec.GetError() == "" {
+		t.Fatal("expected timeout error text")
+	}
+	if exec.GetAttemptCount() != 1 {
+		t.Fatalf("attempt_count = %d, want 1", exec.GetAttemptCount())
+	}
+}
+
+func TestExecuteJobConcurrencySkipRecordsSkipped(t *testing.T) {
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   &testCronRunner{output: "done"},
+		execRepo: &testExecutionRepo{},
+		notifier: notify.NewSender(nil),
+		running: map[string]*runningJob{
+			jobKey("ws1", "skip-job"): {cancel: func() {}, done: make(chan struct{})},
+		},
+	}
+
+	exec := s.executeJobWithTrigger(&agentsv1.CronJob{
+		Name:        "skip-job",
+		WorkspaceId: "ws1",
+		AgentName:   "assistant",
+		Schedule:    "@daily",
+	}, agentsv1.CronExecutionTriggerType_CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE)
+
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SKIPPED {
+		t.Fatalf("status = %s, want skipped", exec.GetStatus())
+	}
+	if exec.GetSkippedReason() == "" {
+		t.Fatal("skipped reason should be recorded")
+	}
+}
+
+func TestExecuteJobConcurrencyAllowStartsOverlapping(t *testing.T) {
+	cronRunner := &testCronRunner{output: "done"}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: &testExecutionRepo{},
+		notifier: notify.NewSender(nil),
+		running: map[string]*runningJob{
+			jobKey("ws1", "allow-job"): {cancel: func() {}, done: make(chan struct{})},
+		},
+	}
+
+	exec := s.executeJobWithTrigger(&agentsv1.CronJob{
+		Name:              "allow-job",
+		WorkspaceId:       "ws1",
+		AgentName:         "assistant",
+		Schedule:          "@daily",
+		ConcurrencyPolicy: agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_ALLOW,
+	}, agentsv1.CronExecutionTriggerType_CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE)
+
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+		t.Fatalf("status = %s, want success", exec.GetStatus())
+	}
+	if cronRunner.runSSECalls != 1 {
+		t.Fatalf("RunSSE calls = %d, want 1", cronRunner.runSSECalls)
+	}
+}
+
+func TestShouldDeliverNotifyPolicy(t *testing.T) {
+	success := &agentsv1.CronExecution{Status: agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS}
+	failure := &agentsv1.CronExecution{Status: agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR}
+
+	if shouldDeliver(&agentsv1.CronJob{NotifyOn: agentsv1.CronNotifyOn_CRON_NOTIFY_ON_FAILURE}, success) {
+		t.Fatal("failure-only policy should not deliver successful execution")
+	}
+	if !shouldDeliver(&agentsv1.CronJob{NotifyOn: agentsv1.CronNotifyOn_CRON_NOTIFY_ON_FAILURE}, failure) {
+		t.Fatal("failure-only policy should deliver failed execution")
+	}
+	if shouldDeliver(&agentsv1.CronJob{NotifyOn: agentsv1.CronNotifyOn_CRON_NOTIFY_ON_SUCCESS}, failure) {
+		t.Fatal("success-only policy should not deliver failed execution")
 	}
 }
 
@@ -345,5 +568,44 @@ func TestDeliverNotifyGroupTimeoutFailureContinuesFanout(t *testing.T) {
 	}
 	if !transport.saw("/ok") {
 		t.Fatal("expected fan-out to continue to later successful target after failure")
+	}
+}
+
+func TestDeliverChannelSendsThroughConfiguredAgentChannel(t *testing.T) {
+	sender := &testChannelSender{}
+	s := &Scheduler{
+		ctx: context.Background(),
+		channelRepo: &testChannelRepo{channel: &agentsv1.AgentChannel{
+			Name:        "ops-chat",
+			WorkspaceId: "ws1",
+			Enabled:     true,
+			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD,
+		}},
+		channelSender: sender,
+	}
+
+	s.deliverChannel(&agentsv1.CronJob{
+		Name:        "job1",
+		WorkspaceId: "ws1",
+		Delivery: &agentsv1.CronDelivery{
+			Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
+			ChannelName: "ops-chat",
+			ChatId:      "chan-123",
+		},
+	}, &agentsv1.CronExecution{
+		Id:      "exec-1",
+		JobName: "job1",
+		Status:  agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
+		Output:  "done",
+	})
+
+	if sender.channel == nil || sender.channel.GetName() != "ops-chat" {
+		t.Fatalf("sender channel = %v, want ops-chat", sender.channel)
+	}
+	if sender.chatID != "chan-123" {
+		t.Fatalf("chatID = %q, want chan-123", sender.chatID)
+	}
+	if sender.text == "" {
+		t.Fatal("expected non-empty delivery message")
 	}
 }

@@ -124,7 +124,71 @@ func (m *CronJob) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetTimeout()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CronJobValidationError{
+					field:  "Timeout",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CronJobValidationError{
+					field:  "Timeout",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTimeout()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CronJobValidationError{
+				field:  "Timeout",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetRetry()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CronJobValidationError{
+					field:  "Retry",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CronJobValidationError{
+					field:  "Retry",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRetry()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CronJobValidationError{
+				field:  "Retry",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	// no validation rules for Metadata
+
+	// no validation rules for ConcurrencyPolicy
+
+	// no validation rules for NotifyOn
+
+	// no validation rules for MaxOutputBytes
 
 	// no validation rules for WorkspaceId
 
@@ -204,6 +268,137 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = CronJobValidationError{}
+
+// Validate checks the field values on CronRetryPolicy with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *CronRetryPolicy) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CronRetryPolicy with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CronRetryPolicyMultiError, or nil if none found.
+func (m *CronRetryPolicy) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CronRetryPolicy) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for MaxAttempts
+
+	if all {
+		switch v := interface{}(m.GetBackoff()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CronRetryPolicyValidationError{
+					field:  "Backoff",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CronRetryPolicyValidationError{
+					field:  "Backoff",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBackoff()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CronRetryPolicyValidationError{
+				field:  "Backoff",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CronRetryPolicyMultiError(errors)
+	}
+
+	return nil
+}
+
+// CronRetryPolicyMultiError is an error wrapping multiple validation errors
+// returned by CronRetryPolicy.ValidateAll() if the designated constraints
+// aren't met.
+type CronRetryPolicyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CronRetryPolicyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CronRetryPolicyMultiError) AllErrors() []error { return m }
+
+// CronRetryPolicyValidationError is the validation error returned by
+// CronRetryPolicy.Validate if the designated constraints aren't met.
+type CronRetryPolicyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CronRetryPolicyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CronRetryPolicyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CronRetryPolicyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CronRetryPolicyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CronRetryPolicyValidationError) ErrorName() string { return "CronRetryPolicyValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CronRetryPolicyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCronRetryPolicy.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CronRetryPolicyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CronRetryPolicyValidationError{}
 
 // Validate checks the field values on CronDelivery with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
@@ -405,6 +600,18 @@ func (m *CronExecution) validate(all bool) error {
 			}
 		}
 	}
+
+	// no validation rules for Error
+
+	// no validation rules for DurationMs
+
+	// no validation rules for AttemptCount
+
+	// no validation rules for TriggerType
+
+	// no validation rules for SkippedReason
+
+	// no validation rules for Truncated
 
 	// no validation rules for WorkspaceId
 

@@ -35,6 +35,7 @@ type Handlers struct {
 	modelProviderSvcServer *application.ModelProviderServiceServer
 	notifyGroupSvcServer   *application.NotifyGroupServiceServer
 	remoteSvcServer        *application.RemoteAgentServiceServer
+	automationSvcServer    *application.AutomationServiceServer
 	sessionSvcServer       *application.SessionServiceServer
 	cronSvcServer          *application.CronJobServiceServer
 	channelSvcServer       *application.ChannelServiceServer
@@ -145,6 +146,17 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.CronRepo != nil {
 		h.cronSvcServer.SetExecutionRepo(result.CronRepo)
+	}
+	if h.automationSvcServer != nil {
+		if result.AutomationDefRepo != nil || result.AutomationRunRepo != nil || result.AutomationStepRepo != nil {
+			h.automationSvcServer.SetRepos(result.AutomationDefRepo, result.AutomationRunRepo, result.AutomationStepRepo)
+		}
+		if result.AutomationEngine != nil {
+			h.automationSvcServer.SetEngine(result.AutomationEngine)
+		}
+		if result.AutomationScheduler != nil {
+			h.automationSvcServer.SetScheduler(result.AutomationScheduler)
+		}
 	}
 	if h.configRuntime != nil {
 		if result.RunnerSvc != nil {
@@ -275,6 +287,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	notifyGroupSvcServer := application.NewNotifyGroupServiceServer(configStore)
 	remoteSvcServer := application.NewRemoteAgentServiceServer(configStore)
 	remoteSvcServer.SetDaemonRegistry(daemonRegistry)
+	automationSvcServer := application.NewAutomationServiceServer()
 	// Every Connect handler shares the same option set so the wire format
 	// matches the pre-migration Twirp behavior (snake_case JSON). Without
 	// this, dashboard callers that still read response fields like
@@ -289,6 +302,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	modelProviderConnectPath, modelProviderConnectHandler := agentsv1connect.NewModelProviderServiceHandler(modelProviderSvcServer, connectOpts...)
 	notifyGroupConnectPath, notifyGroupConnectHandler := agentsv1connect.NewNotifyGroupServiceHandler(notifyGroupSvcServer, connectOpts...)
 	remoteConnectPath, remoteConnectHandler := agentsv1connect.NewRemoteAgentServiceHandler(remoteSvcServer, connectOpts...)
+	automationConnectPath, automationConnectHandler := agentsv1connect.NewAutomationServiceHandler(automationSvcServer, connectOpts...)
 	channelSvcServer := application.NewChannelServiceServer(configStore)
 	channelConnectPath, channelConnectHandler := agentsv1connect.NewChannelServiceHandler(channelSvcServer, connectOpts...)
 	sessionSvcServer := application.NewSessionServiceServer()
@@ -320,6 +334,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		modelProviderSvcServer: modelProviderSvcServer,
 		notifyGroupSvcServer:   notifyGroupSvcServer,
 		remoteSvcServer:        remoteSvcServer,
+		automationSvcServer:    automationSvcServer,
 		sessionSvcServer:       sessionSvcServer,
 		cronSvcServer:          cronSvcServer,
 		channelSvcServer:       channelSvcServer,
@@ -380,6 +395,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+modelProviderConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", modelProviderConnectHandler)))
 		r.Any("/api"+notifyGroupConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", notifyGroupConnectHandler)))
 		r.Any("/api"+remoteConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", remoteConnectHandler)))
+		r.Any("/api"+automationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", automationConnectHandler)))
 		r.Any("/api"+channelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", channelConnectHandler)))
 		r.Any("/api"+forumConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", forumConnectHandler)))
 		r.Any("/api"+agentFileConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", agentFileConnectHandler)))

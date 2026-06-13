@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -21,42 +22,60 @@ const (
 
 // executionDoc is the MongoDB document for a cron execution record.
 type executionDoc struct {
-	ID          string `bson:"_id"`
-	WorkspaceID string `bson:"workspace_id"`
-	JobName     string `bson:"job_name"`
-	AgentName   string `bson:"agent_name"`
-	Status      int32  `bson:"status"`
-	Input       string `bson:"input"`
-	Output      string `bson:"output"`
-	StartedAt   int64  `bson:"started_at"`  // unix seconds
-	FinishedAt  int64  `bson:"finished_at"` // unix seconds
+	ID            string `bson:"_id"`
+	WorkspaceID   string `bson:"workspace_id"`
+	JobName       string `bson:"job_name"`
+	AgentName     string `bson:"agent_name"`
+	Status        int32  `bson:"status"`
+	Input         string `bson:"input"`
+	Output        string `bson:"output"`
+	Error         string `bson:"error,omitempty"`
+	StartedAt     int64  `bson:"started_at"`  // unix seconds
+	FinishedAt    int64  `bson:"finished_at"` // unix seconds
+	DurationMs    int64  `bson:"duration_ms,omitempty"`
+	AttemptCount  int32  `bson:"attempt_count,omitempty"`
+	TriggerType   int32  `bson:"trigger_type,omitempty"`
+	SkippedReason string `bson:"skipped_reason,omitempty"`
+	Truncated     bool   `bson:"truncated,omitempty"`
 }
 
 func docFromProto(e *agentsv1.CronExecution) *executionDoc {
 	return &executionDoc{
-		ID:          e.GetId(),
-		WorkspaceID: e.GetWorkspaceId(),
-		JobName:     e.GetJobName(),
-		AgentName:   e.GetAgentName(),
-		Status:      int32(e.GetStatus()),
-		Input:       e.GetInput(),
-		Output:      e.GetOutput(),
-		StartedAt:   e.GetStartedAt().GetSeconds(),
-		FinishedAt:  e.GetFinishedAt().GetSeconds(),
+		ID:            e.GetId(),
+		WorkspaceID:   e.GetWorkspaceId(),
+		JobName:       e.GetJobName(),
+		AgentName:     e.GetAgentName(),
+		Status:        int32(e.GetStatus()),
+		Input:         e.GetInput(),
+		Output:        e.GetOutput(),
+		Error:         e.GetError(),
+		StartedAt:     e.GetStartedAt().GetSeconds(),
+		FinishedAt:    e.GetFinishedAt().GetSeconds(),
+		DurationMs:    e.GetDurationMs(),
+		AttemptCount:  e.GetAttemptCount(),
+		TriggerType:   int32(e.GetTriggerType()),
+		SkippedReason: e.GetSkippedReason(),
+		Truncated:     e.GetTruncated(),
 	}
 }
 
 func docToProto(d *executionDoc) *agentsv1.CronExecution {
 	return &agentsv1.CronExecution{
-		Id:          d.ID,
-		WorkspaceId: d.WorkspaceID,
-		JobName:     d.JobName,
-		AgentName:   d.AgentName,
-		Status:      agentsv1.CronExecutionStatus(d.Status),
-		Input:       d.Input,
-		Output:      d.Output,
-		StartedAt:   &timestamppb.Timestamp{Seconds: d.StartedAt},
-		FinishedAt:  &timestamppb.Timestamp{Seconds: d.FinishedAt},
+		Id:            d.ID,
+		WorkspaceId:   d.WorkspaceID,
+		JobName:       d.JobName,
+		AgentName:     d.AgentName,
+		Status:        agentsv1.CronExecutionStatus(d.Status),
+		Input:         d.Input,
+		Output:        d.Output,
+		Error:         d.Error,
+		StartedAt:     &timestamppb.Timestamp{Seconds: d.StartedAt},
+		FinishedAt:    &timestamppb.Timestamp{Seconds: d.FinishedAt},
+		DurationMs:    d.DurationMs,
+		AttemptCount:  d.AttemptCount,
+		TriggerType:   agentsv1.CronExecutionTriggerType(d.TriggerType),
+		SkippedReason: d.SkippedReason,
+		Truncated:     d.Truncated,
 	}
 }
 
@@ -177,6 +196,12 @@ type cronJobDoc struct {
 	ChannelName     string            `bson:"channel_name"`
 	ChatID          string            `bson:"chat_id"`
 	NotifyGroupName string            `bson:"notify_group_name"`
+	TimeoutMs       int64             `bson:"timeout_ms,omitempty"`
+	RetryMaxAttempts int32            `bson:"retry_max_attempts,omitempty"`
+	RetryBackoffMs  int64             `bson:"retry_backoff_ms,omitempty"`
+	ConcurrencyPolicy int32           `bson:"concurrency_policy,omitempty"`
+	NotifyOn        int32             `bson:"notify_on,omitempty"`
+	MaxOutputBytes  int32             `bson:"max_output_bytes,omitempty"`
 	Metadata        map[string]string `bson:"metadata,omitempty"`
 }
 
@@ -193,6 +218,18 @@ func jobDocFromProto(j *agentsv1.CronJob) *cronJobDoc {
 		Timezone:    j.GetTimezone(),
 		Enabled:     j.GetEnabled(),
 		Metadata:    j.GetMetadata(),
+		ConcurrencyPolicy: int32(j.GetConcurrencyPolicy()),
+		NotifyOn:    int32(j.GetNotifyOn()),
+		MaxOutputBytes: j.GetMaxOutputBytes(),
+	}
+	if timeout := j.GetTimeout(); timeout != nil {
+		doc.TimeoutMs = timeout.AsDuration().Milliseconds()
+	}
+	if retry := j.GetRetry(); retry != nil {
+		doc.RetryMaxAttempts = retry.GetMaxAttempts()
+		if retry.GetBackoff() != nil {
+			doc.RetryBackoffMs = retry.GetBackoff().AsDuration().Milliseconds()
+		}
 	}
 	if d := j.GetDelivery(); d != nil {
 		doc.DeliveryType = int32(d.GetType())
@@ -214,6 +251,18 @@ func jobDocToProto(d *cronJobDoc) *agentsv1.CronJob {
 		Enabled:     d.Enabled,
 		Metadata:    d.Metadata,
 		WorkspaceId: d.WorkspaceID,
+		ConcurrencyPolicy: agentsv1.CronConcurrencyPolicy(d.ConcurrencyPolicy),
+		NotifyOn:    agentsv1.CronNotifyOn(d.NotifyOn),
+		MaxOutputBytes: d.MaxOutputBytes,
+	}
+	if d.TimeoutMs > 0 {
+		job.Timeout = durationpb.New(time.Duration(d.TimeoutMs) * time.Millisecond)
+	}
+	if d.RetryMaxAttempts > 0 || d.RetryBackoffMs > 0 {
+		job.Retry = &agentsv1.CronRetryPolicy{
+			MaxAttempts: d.RetryMaxAttempts,
+			Backoff:     durationpb.New(time.Duration(d.RetryBackoffMs) * time.Millisecond),
+		}
 	}
 	if d.DeliveryType != 0 || d.WebhookURL != "" || d.ChannelName != "" || d.NotifyGroupName != "" {
 		job.Delivery = &agentsv1.CronDelivery{

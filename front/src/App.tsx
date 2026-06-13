@@ -37,6 +37,10 @@ import CronJobListPage from "@/pages/cron/list";
 import CronJobCreatePage from "@/pages/cron/create";
 import CronJobEditPage from "@/pages/cron/edit";
 import CronExecutionsPage from "@/pages/cron/executions";
+import AutomationListPage from "@/pages/automations/list";
+import AutomationCreatePage from "@/pages/automations/create";
+import AutomationDetailPage from "@/pages/automations/detail";
+import AutomationEditPage from "@/pages/automations/edit";
 import DaemonListPage from "@/pages/daemons/list";
 import ChannelListPage from "@/pages/channels/list";
 import ChannelCreatePage from "@/pages/channels/create";
@@ -93,6 +97,10 @@ export default function App() {
                     <Route path="sessions" element={<SessionListPage />} />
                     <Route path="sessions/detail" element={<SessionDetailPage />} />
                     <Route path="operations" element={<OperationsPage />} />
+                    <Route path="automations" element={<AutomationListPage />} />
+                    <Route path="automations/create" element={<AutomationCreatePage />} />
+                    <Route path="automations/:name" element={<AutomationDetailPage />} />
+                    <Route path="automations/:name/edit" element={<AutomationEditPage />} />
                     <Route path="cron" element={<CronJobListPage />} />
                     <Route path="cron/create" element={<CronJobCreatePage />} />
                     <Route path="cron/:name/edit" element={<CronJobEditPage />} />

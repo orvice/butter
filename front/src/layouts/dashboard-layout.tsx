@@ -82,7 +82,7 @@ const PRIMARY_NAV: NavItem[] = [
     to: "/operations",
     icon: Settings2,
     label: "Operations",
-    activePrefixes: ["/operations", "/cron", "/sessions", "/notify-groups"],
+    activePrefixes: ["/operations", "/automations", "/cron", "/sessions", "/notify-groups"],
   },
 ];
 

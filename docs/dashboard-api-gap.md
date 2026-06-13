@@ -1,10 +1,11 @@
 # Dashboard 后端接口缺口分析
 
-更新时间：2026-05-16
+更新时间：2026-06-13
 
 > **状态：历史快照（全部 closed）。**
 >
 > 这份文档是在 PR #25 开工前对照 Stitch 设计稿做的差距清单，列出了 13 项后端缺口与 5 个分阶段实施分组。截至 2026-05-16，文档中提出的接口与字段全部已落地，对应 RPC 见 `docs/api.md`，功能总览见 `docs/app.md`。
+> 2026-06-13 起，Operations 不再只有 cron 自动化：`AutomationService`、`automation_runs`、`automation_step_runs` 与 Automations dashboard 页面已补齐，Cron 也扩展了 timeout / retry / concurrency / notify / output policy 和更丰富的 execution 状态。本文仍只作为历史 gap 记录。
 >
 > 保留本文作为当时的决策记录与 RPC 命名依据；不再用作工作清单。新增能力请直接更新 `api.md` / `app.md` / `architecture.md`。
 
@@ -19,7 +20,7 @@
 | MCP & Remote Integrations | MCP server 状态/工具数、tool whitelist、Remote Agent 状态 |
 | Execution & Daemon Monitoring | Daemon 列表、active tasks、cancel、bridge 诊断 |
 | Channels & Connectivity | Channel 状态/last poll、Restart/Resume、API token 管理 |
-| Operations & Sessions | Cron CRUD/Run now、Session 过滤、Memory/Event log、Langfuse 链接 |
+| Operations & Sessions | Automation CRUD/Run history、Cron CRUD/Run now、Session 过滤、Memory/Event log、Langfuse 链接 |
 
 ## 1. 现状覆盖矩阵
 
@@ -29,6 +30,7 @@
 | MCP Server CRUD | ✅ | `MCPServerService` |
 | Remote Agent CRUD | ✅ | `RemoteAgentService` |
 | Channel CRUD | ✅ | `ChannelService` |
+| Automation CRUD + 运行历史 | ✅ | `AutomationService` + `ListAutomationRuns` / `ListAutomationStepRuns` |
 | Cron CRUD + 历史 | ✅ | `CronJobService` + `ListCronExecutions` |
 | Session CRUD + Reply | ✅ | `SessionService`，含过滤/分页 |
 | Daemon 连接（gRPC） | ✅ | `DaemonConnectorService.Connect`（仅供 daemon client 接入） |
@@ -38,7 +40,7 @@
 | 活动流 / 最近事件 | ✅ | `GetActivityFeed` + `invocations` |
 | Agent 运行状态/last_run | ✅ | `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` |
 | 调用日志 / 调用历史 | ✅ | `ListAgentInvocations` |
-| 手动触发 Agent / Cron | ✅ | `InvokeAgent` / `RunCronJobNow` |
+| 手动触发 Agent / Automation / Cron | ✅ | `InvokeAgent` / `RunAutomationNow` / `RunCronJobNow` |
 | 取消运行中任务 | ✅ | `CancelAgentInvocation` / `CancelDaemonTask` |
 | Daemon 列表 / 详情 | ✅ | `DaemonService.ListDaemons` / `GetDaemon` |
 | Daemon 任务监控 | ✅ | `DaemonService.ListDaemonTasks` |
@@ -436,6 +438,9 @@ message SessionDetail {
 | Collection | 用途 | 触发写入位置 |
 |---|---|---|
 | `invocations` | Agent / Daemon 任务调用记录 | `runner.Service.Run` finally |
+| `automations` | Workspace 自动化定义 | AutomationService |
+| `automation_runs` | 自动化 run 历史 | automation.Engine |
+| `automation_step_runs` | 自动化 step-run 历史 | automation.Engine |
 | `activity_events` | 仪表盘活动流 | runner / channel / daemon callback |
 | `api_tokens` | 多 token 管理 | APITokenService |
 | `config_daemons` | Workspace daemon 配置 | DaemonService |

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package agents.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "validate/validate.proto";
 
@@ -37,12 +38,58 @@ message CronJob {
   // @gotags: json:"delivery,omitempty" yaml:"delivery,omitempty"
   CronDelivery delivery = 7;
 
+  // Maximum duration for a single logical execution. 0 means no explicit
+  // cron-level timeout beyond the caller context.
+  // @gotags: json:"timeout,omitempty" yaml:"timeout,omitempty"
+  google.protobuf.Duration timeout = 8;
+
+  // Retry behavior for failed invocations.
+  // @gotags: json:"retry,omitempty" yaml:"retry,omitempty"
+  CronRetryPolicy retry = 9;
+
   // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
   map<string, string> metadata = 10;
+
+  // Controls overlapping executions of the same job.
+  // @gotags: json:"concurrency_policy,omitempty" yaml:"concurrency_policy,omitempty"
+  CronConcurrencyPolicy concurrency_policy = 11;
+
+  // Controls which execution outcomes are delivered to configured targets.
+  // @gotags: json:"notify_on,omitempty" yaml:"notify_on,omitempty"
+  CronNotifyOn notify_on = 12;
+
+  // Maximum bytes stored for execution output previews. 0 uses server default.
+  // @gotags: json:"max_output_bytes,omitempty" yaml:"max_output_bytes,omitempty"
+  int32 max_output_bytes = 13;
 
   // ID of the workspace this cron job belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
+}
+
+message CronRetryPolicy {
+  // Number of retries after the initial attempt. 0 disables retries.
+  // @gotags: json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"
+  int32 max_attempts = 1;
+
+  // Backoff between retry attempts. 0 means immediate retry.
+  // @gotags: json:"backoff,omitempty" yaml:"backoff,omitempty"
+  google.protobuf.Duration backoff = 2;
+}
+
+enum CronConcurrencyPolicy {
+  CRON_CONCURRENCY_POLICY_UNSPECIFIED = 0;
+  CRON_CONCURRENCY_POLICY_SKIP = 1;
+  CRON_CONCURRENCY_POLICY_QUEUE = 2;
+  CRON_CONCURRENCY_POLICY_REPLACE = 3;
+  CRON_CONCURRENCY_POLICY_ALLOW = 4;
+}
+
+enum CronNotifyOn {
+  CRON_NOTIFY_ON_UNSPECIFIED = 0;
+  CRON_NOTIFY_ON_ALWAYS = 1;
+  CRON_NOTIFY_ON_FAILURE = 2;
+  CRON_NOTIFY_ON_SUCCESS = 3;
 }
 
 // CronDelivery defines how cron execution results are delivered.
@@ -110,6 +157,30 @@ message CronExecution {
   // @gotags: json:"finished_at,omitempty" yaml:"finished_at,omitempty" bson:"finished_at,omitempty"
   google.protobuf.Timestamp finished_at = 8;
 
+  // Error text when status is ERROR.
+  // @gotags: json:"error,omitempty" yaml:"error,omitempty" bson:"error,omitempty"
+  string error = 9;
+
+  // Execution duration in milliseconds.
+  // @gotags: json:"duration_ms,omitempty" yaml:"duration_ms,omitempty" bson:"duration_ms,omitempty"
+  int64 duration_ms = 10;
+
+  // Number of attempts used for this logical execution.
+  // @gotags: json:"attempt_count,omitempty" yaml:"attempt_count,omitempty" bson:"attempt_count,omitempty"
+  int32 attempt_count = 11;
+
+  // What initiated this execution.
+  // @gotags: json:"trigger_type,omitempty" yaml:"trigger_type,omitempty" bson:"trigger_type,omitempty"
+  CronExecutionTriggerType trigger_type = 12;
+
+  // Reason populated when status is SKIPPED.
+  // @gotags: json:"skipped_reason,omitempty" yaml:"skipped_reason,omitempty" bson:"skipped_reason,omitempty"
+  string skipped_reason = 13;
+
+  // True when the stored output was truncated by max_output_bytes.
+  // @gotags: json:"truncated,omitempty" yaml:"truncated,omitempty" bson:"truncated,omitempty"
+  bool truncated = 14;
+
   // ID of the workspace this execution belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
@@ -120,6 +191,14 @@ enum CronExecutionStatus {
   CRON_EXECUTION_STATUS_UNSPECIFIED = 0;
   CRON_EXECUTION_STATUS_SUCCESS = 1;
   CRON_EXECUTION_STATUS_ERROR = 2;
+  CRON_EXECUTION_STATUS_SKIPPED = 3;
+  CRON_EXECUTION_STATUS_CANCELLED = 4;
+}
+
+enum CronExecutionTriggerType {
+  CRON_EXECUTION_TRIGGER_TYPE_UNSPECIFIED = 0;
+  CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE = 1;
+  CRON_EXECUTION_TRIGGER_TYPE_MANUAL = 2;
 }
 
 // CronJobService manages cron jobs and their execution history.

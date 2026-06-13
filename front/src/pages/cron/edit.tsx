@@ -17,7 +17,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduleBuilder } from "@/components/schedule-builder";
-import type { CronDeliveryType } from "@/types/api";
+import type { CronConcurrencyPolicy, CronDeliveryType, CronNotifyOn } from "@/types/api";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -31,6 +31,12 @@ const schema = z.object({
   channel_name: z.string().optional(),
   chat_id: z.string().optional(),
   notify_group_name: z.string().optional(),
+  timeout_seconds: z.number().optional(),
+  retry_attempts: z.number().optional(),
+  retry_backoff_seconds: z.number().optional(),
+  concurrency_policy: z.string(),
+  notify_on: z.string(),
+  max_output_bytes: z.number().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -56,6 +62,12 @@ export default function CronJobEditPage() {
       channel_name: "",
       chat_id: "",
       notify_group_name: "",
+      timeout_seconds: 0,
+      retry_attempts: 0,
+      retry_backoff_seconds: 0,
+      concurrency_policy: "CRON_CONCURRENCY_POLICY_SKIP",
+      notify_on: "CRON_NOTIFY_ON_ALWAYS",
+      max_output_bytes: 4096,
     },
   });
   const deliveryType = useWatch({ control: form.control, name: "delivery_type" });
@@ -75,6 +87,12 @@ export default function CronJobEditPage() {
         channel_name: j.delivery?.channel_name ?? "",
         chat_id: j.delivery?.chat_id ?? "",
         notify_group_name: j.delivery?.notify_group_name ?? "",
+        timeout_seconds: j.timeout_seconds ?? 0,
+        retry_attempts: j.retry?.max_attempts ?? 0,
+        retry_backoff_seconds: j.retry?.backoff_seconds ?? 0,
+        concurrency_policy: j.concurrency_policy ?? "CRON_CONCURRENCY_POLICY_SKIP",
+        notify_on: j.notify_on ?? "CRON_NOTIFY_ON_ALWAYS",
+        max_output_bytes: j.max_output_bytes ?? 4096,
       });
     }
   }, [data, form]);
@@ -95,6 +113,11 @@ export default function CronJobEditPage() {
           chat_id: values.chat_id,
           notify_group_name: values.notify_group_name,
         },
+        timeout_seconds: values.timeout_seconds || undefined,
+        retry: values.retry_attempts ? { max_attempts: values.retry_attempts, backoff_seconds: values.retry_backoff_seconds || undefined } : undefined,
+        concurrency_policy: values.concurrency_policy as CronConcurrencyPolicy,
+        notify_on: values.notify_on as CronNotifyOn,
+        max_output_bytes: values.max_output_bytes || undefined,
       },
       {
         onSuccess: () => { toast.success("Cron job updated"); navigate("/cron"); },
@@ -162,6 +185,53 @@ export default function CronJobEditPage() {
                 <FormItem className="flex items-center gap-3">
                   <FormLabel>Enabled</FormLabel>
                   <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                </FormItem>
+              )} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Reliability</CardTitle>
+              <CardDescription>Adjust timeout, retry, overlap handling, and result notification policy.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <FormField control={form.control} name="timeout_seconds" render={({ field }) => (
+                <FormItem><FormLabel>Timeout Seconds</FormLabel><FormControl><Input type="number" min={0} value={field.value ?? 0} onChange={(event) => field.onChange(event.currentTarget.valueAsNumber || 0)} /></FormControl></FormItem>
+              )} />
+              <FormField control={form.control} name="retry_attempts" render={({ field }) => (
+                <FormItem><FormLabel>Retry Attempts</FormLabel><FormControl><Input type="number" min={0} value={field.value ?? 0} onChange={(event) => field.onChange(event.currentTarget.valueAsNumber || 0)} /></FormControl></FormItem>
+              )} />
+              <FormField control={form.control} name="retry_backoff_seconds" render={({ field }) => (
+                <FormItem><FormLabel>Retry Backoff Seconds</FormLabel><FormControl><Input type="number" min={0} value={field.value ?? 0} onChange={(event) => field.onChange(event.currentTarget.valueAsNumber || 0)} /></FormControl></FormItem>
+              )} />
+              <FormField control={form.control} name="max_output_bytes" render={({ field }) => (
+                <FormItem><FormLabel>Max Output Bytes</FormLabel><FormControl><Input type="number" min={0} value={field.value ?? 0} onChange={(event) => field.onChange(event.currentTarget.valueAsNumber || 0)} /></FormControl></FormItem>
+              )} />
+              <FormField control={form.control} name="concurrency_policy" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Concurrency</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="CRON_CONCURRENCY_POLICY_SKIP">Skip</SelectItem>
+                      <SelectItem value="CRON_CONCURRENCY_POLICY_QUEUE">Queue</SelectItem>
+                      <SelectItem value="CRON_CONCURRENCY_POLICY_REPLACE">Replace</SelectItem>
+                      <SelectItem value="CRON_CONCURRENCY_POLICY_ALLOW">Allow</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="notify_on" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notify On</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="CRON_NOTIFY_ON_ALWAYS">Always</SelectItem>
+                      <SelectItem value="CRON_NOTIFY_ON_FAILURE">Failure</SelectItem>
+                      <SelectItem value="CRON_NOTIFY_ON_SUCCESS">Success</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </FormItem>
               )} />
             </CardContent>
