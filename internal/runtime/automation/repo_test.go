@@ -6,6 +6,7 @@ import (
 	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -80,9 +81,9 @@ func TestMemoryRunRepoPaginationAndStatusUpdate(t *testing.T) {
 		t.Fatalf("next token = %q, want empty", next)
 	}
 
-	updated := *runs[1]
+	updated := proto.Clone(runs[1]).(*agentsv1.AutomationRun)
 	updated.Status = agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED
-	if err := repo.Save(ctx, &updated); err != nil {
+	if err := repo.Save(ctx, updated); err != nil {
 		t.Fatalf("Save update: %v", err)
 	}
 	got, err := repo.Get(ctx, "ws-a", "new")
