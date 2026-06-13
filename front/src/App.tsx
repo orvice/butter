@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -7,49 +8,50 @@ import { ColorThemeProvider } from "@/hooks/use-color-theme";
 import { LayoutDensityProvider } from "@/hooks/use-layout-density";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import DashboardLayout from "@/layouts/dashboard-layout";
-import LoginPage from "@/pages/login";
-import OAuthCallbackPage from "@/pages/auth-oauth-callback";
-import DashboardPage from "@/pages/dashboard";
-import IntegrationsPage from "@/pages/integrations";
-import OperationsPage from "@/pages/operations";
-import AgentListPage from "@/pages/agents/list";
-import AgentCreatePage from "@/pages/agents/create";
-import AgentEditPage from "@/pages/agents/edit";
-import AgentFilesPage from "@/pages/agent-files/list";
-import MCPServerListPage from "@/pages/mcp-servers/list";
-import MCPServerCreatePage from "@/pages/mcp-servers/create";
-import MCPServerEditPage from "@/pages/mcp-servers/edit";
-import ModelProviderListPage from "@/pages/model-providers/list";
-import ModelProviderCreatePage from "@/pages/model-providers/create";
-import ModelProviderEditPage from "@/pages/model-providers/edit";
-import NotifyGroupListPage from "@/pages/notify-groups/list";
-import NotifyGroupCreatePage from "@/pages/notify-groups/create";
-import NotifyGroupEditPage from "@/pages/notify-groups/edit";
-import RemoteAgentListPage from "@/pages/remote-agents/list";
-import RemoteAgentCreatePage from "@/pages/remote-agents/create";
-import RemoteAgentEditPage from "@/pages/remote-agents/edit";
-import SessionListPage from "@/pages/sessions/list";
-import SessionDetailPage from "@/pages/sessions/detail";
-import ChatPage from "@/pages/chat";
-import ForumListPage from "@/pages/forum/list";
-import ForumThreadPage from "@/pages/forum/thread";
-import CronJobListPage from "@/pages/cron/list";
-import CronJobCreatePage from "@/pages/cron/create";
-import CronJobEditPage from "@/pages/cron/edit";
-import CronExecutionsPage from "@/pages/cron/executions";
-import AutomationListPage from "@/pages/automations/list";
-import AutomationCreatePage from "@/pages/automations/create";
-import AutomationDetailPage from "@/pages/automations/detail";
-import AutomationEditPage from "@/pages/automations/edit";
-import DaemonListPage from "@/pages/daemons/list";
-import ChannelListPage from "@/pages/channels/list";
-import ChannelCreatePage from "@/pages/channels/create";
-import ChannelEditPage from "@/pages/channels/edit";
-import APITokenListPage from "@/pages/api-tokens/list";
-import UserListPage from "@/pages/users/list";
-import AdminGlobalMCPServersPage from "@/pages/admin/global-mcp-servers";
-import ProfilePage from "@/pages/profile";
-import WorkspacePage from "@/pages/workspaces";
+
+const LoginPage = lazy(() => import("@/pages/login"));
+const OAuthCallbackPage = lazy(() => import("@/pages/auth-oauth-callback"));
+const DashboardPage = lazy(() => import("@/pages/dashboard"));
+const IntegrationsPage = lazy(() => import("@/pages/integrations"));
+const OperationsPage = lazy(() => import("@/pages/operations"));
+const AgentListPage = lazy(() => import("@/pages/agents/list"));
+const AgentCreatePage = lazy(() => import("@/pages/agents/create"));
+const AgentEditPage = lazy(() => import("@/pages/agents/edit"));
+const AgentFilesPage = lazy(() => import("@/pages/agent-files/list"));
+const MCPServerListPage = lazy(() => import("@/pages/mcp-servers/list"));
+const MCPServerCreatePage = lazy(() => import("@/pages/mcp-servers/create"));
+const MCPServerEditPage = lazy(() => import("@/pages/mcp-servers/edit"));
+const ModelProviderListPage = lazy(() => import("@/pages/model-providers/list"));
+const ModelProviderCreatePage = lazy(() => import("@/pages/model-providers/create"));
+const ModelProviderEditPage = lazy(() => import("@/pages/model-providers/edit"));
+const NotifyGroupListPage = lazy(() => import("@/pages/notify-groups/list"));
+const NotifyGroupCreatePage = lazy(() => import("@/pages/notify-groups/create"));
+const NotifyGroupEditPage = lazy(() => import("@/pages/notify-groups/edit"));
+const RemoteAgentListPage = lazy(() => import("@/pages/remote-agents/list"));
+const RemoteAgentCreatePage = lazy(() => import("@/pages/remote-agents/create"));
+const RemoteAgentEditPage = lazy(() => import("@/pages/remote-agents/edit"));
+const SessionListPage = lazy(() => import("@/pages/sessions/list"));
+const SessionDetailPage = lazy(() => import("@/pages/sessions/detail"));
+const ChatPage = lazy(() => import("@/pages/chat"));
+const ForumListPage = lazy(() => import("@/pages/forum/list"));
+const ForumThreadPage = lazy(() => import("@/pages/forum/thread"));
+const CronJobListPage = lazy(() => import("@/pages/cron/list"));
+const CronJobCreatePage = lazy(() => import("@/pages/cron/create"));
+const CronJobEditPage = lazy(() => import("@/pages/cron/edit"));
+const CronExecutionsPage = lazy(() => import("@/pages/cron/executions"));
+const AutomationListPage = lazy(() => import("@/pages/automations/list"));
+const AutomationCreatePage = lazy(() => import("@/pages/automations/create"));
+const AutomationDetailPage = lazy(() => import("@/pages/automations/detail"));
+const AutomationEditPage = lazy(() => import("@/pages/automations/edit"));
+const DaemonListPage = lazy(() => import("@/pages/daemons/list"));
+const ChannelListPage = lazy(() => import("@/pages/channels/list"));
+const ChannelCreatePage = lazy(() => import("@/pages/channels/create"));
+const ChannelEditPage = lazy(() => import("@/pages/channels/edit"));
+const APITokenListPage = lazy(() => import("@/pages/api-tokens/list"));
+const UserListPage = lazy(() => import("@/pages/users/list"));
+const AdminGlobalMCPServersPage = lazy(() => import("@/pages/admin/global-mcp-servers"));
+const ProfilePage = lazy(() => import("@/pages/profile"));
+const WorkspacePage = lazy(() => import("@/pages/workspaces"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,54 +71,56 @@ export default function App() {
             <QueryClientProvider client={queryClient}>
               <AuthProvider>
                 <WorkspaceProvider>
-                  <Routes>
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/auth/oauth/callback/:provider" element={<OAuthCallbackPage />} />
-                  <Route element={<DashboardLayout />}>
-                    <Route index element={<DashboardPage />} />
-                    <Route path="agents" element={<AgentListPage />} />
-                    <Route path="agents/create" element={<AgentCreatePage />} />
-                    <Route path="agents/:name/edit" element={<AgentEditPage />} />
-                    <Route path="agent-files" element={<AgentFilesPage />} />
-                    <Route path="mcp-servers" element={<MCPServerListPage />} />
-                    <Route path="mcp-servers/create" element={<MCPServerCreatePage />} />
-                    <Route path="mcp-servers/:id/edit" element={<MCPServerEditPage />} />
-                    <Route path="model-providers" element={<ModelProviderListPage />} />
-                    <Route path="model-providers/create" element={<ModelProviderCreatePage />} />
-                    <Route path="model-providers/:name/edit" element={<ModelProviderEditPage />} />
-                    <Route path="notify-groups" element={<NotifyGroupListPage />} />
-                    <Route path="notify-groups/create" element={<NotifyGroupCreatePage />} />
-                    <Route path="notify-groups/:name/edit" element={<NotifyGroupEditPage />} />
-                    <Route path="remote-agents" element={<RemoteAgentListPage />} />
-                    <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
-                    <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />
-                    <Route path="integrations" element={<IntegrationsPage />} />
-                    <Route path="chat" element={<ChatPage />} />
-                    <Route path="forum" element={<ForumListPage />} />
-                    <Route path="forum/:id" element={<ForumThreadPage />} />
-                    <Route path="sessions" element={<SessionListPage />} />
-                    <Route path="sessions/detail" element={<SessionDetailPage />} />
-                    <Route path="operations" element={<OperationsPage />} />
-                    <Route path="automations" element={<AutomationListPage />} />
-                    <Route path="automations/create" element={<AutomationCreatePage />} />
-                    <Route path="automations/:name" element={<AutomationDetailPage />} />
-                    <Route path="automations/:name/edit" element={<AutomationEditPage />} />
-                    <Route path="cron" element={<CronJobListPage />} />
-                    <Route path="cron/create" element={<CronJobCreatePage />} />
-                    <Route path="cron/:name/edit" element={<CronJobEditPage />} />
-                    <Route path="cron/:name/executions" element={<CronExecutionsPage />} />
-                    <Route path="daemons" element={<DaemonListPage />} />
-                    <Route path="channels" element={<ChannelListPage />} />
-                    <Route path="channels/create" element={<ChannelCreatePage />} />
-                    <Route path="channels/:name/edit" element={<ChannelEditPage />} />
-                    <Route path="api-tokens" element={<APITokenListPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="users" element={<UserListPage />} />
-                    <Route path="admin/users" element={<UserListPage />} />
-                    <Route path="admin/global-mcp-servers" element={<AdminGlobalMCPServersPage />} />
-                    <Route path="workspaces" element={<WorkspacePage />} />
-                  </Route>
-                  </Routes>
+                  <Suspense fallback={null}>
+                    <Routes>
+                      <Route path="/login" element={<LoginPage />} />
+                      <Route path="/auth/oauth/callback/:provider" element={<OAuthCallbackPage />} />
+                      <Route element={<DashboardLayout />}>
+                        <Route index element={<DashboardPage />} />
+                        <Route path="agents" element={<AgentListPage />} />
+                        <Route path="agents/create" element={<AgentCreatePage />} />
+                        <Route path="agents/:name/edit" element={<AgentEditPage />} />
+                        <Route path="agent-files" element={<AgentFilesPage />} />
+                        <Route path="mcp-servers" element={<MCPServerListPage />} />
+                        <Route path="mcp-servers/create" element={<MCPServerCreatePage />} />
+                        <Route path="mcp-servers/:id/edit" element={<MCPServerEditPage />} />
+                        <Route path="model-providers" element={<ModelProviderListPage />} />
+                        <Route path="model-providers/create" element={<ModelProviderCreatePage />} />
+                        <Route path="model-providers/:name/edit" element={<ModelProviderEditPage />} />
+                        <Route path="notify-groups" element={<NotifyGroupListPage />} />
+                        <Route path="notify-groups/create" element={<NotifyGroupCreatePage />} />
+                        <Route path="notify-groups/:name/edit" element={<NotifyGroupEditPage />} />
+                        <Route path="remote-agents" element={<RemoteAgentListPage />} />
+                        <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
+                        <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />
+                        <Route path="integrations" element={<IntegrationsPage />} />
+                        <Route path="chat" element={<ChatPage />} />
+                        <Route path="forum" element={<ForumListPage />} />
+                        <Route path="forum/:id" element={<ForumThreadPage />} />
+                        <Route path="sessions" element={<SessionListPage />} />
+                        <Route path="sessions/detail" element={<SessionDetailPage />} />
+                        <Route path="operations" element={<OperationsPage />} />
+                        <Route path="automations" element={<AutomationListPage />} />
+                        <Route path="automations/create" element={<AutomationCreatePage />} />
+                        <Route path="automations/:name" element={<AutomationDetailPage />} />
+                        <Route path="automations/:name/edit" element={<AutomationEditPage />} />
+                        <Route path="cron" element={<CronJobListPage />} />
+                        <Route path="cron/create" element={<CronJobCreatePage />} />
+                        <Route path="cron/:name/edit" element={<CronJobEditPage />} />
+                        <Route path="cron/:name/executions" element={<CronExecutionsPage />} />
+                        <Route path="daemons" element={<DaemonListPage />} />
+                        <Route path="channels" element={<ChannelListPage />} />
+                        <Route path="channels/create" element={<ChannelCreatePage />} />
+                        <Route path="channels/:name/edit" element={<ChannelEditPage />} />
+                        <Route path="api-tokens" element={<APITokenListPage />} />
+                        <Route path="profile" element={<ProfilePage />} />
+                        <Route path="users" element={<UserListPage />} />
+                        <Route path="admin/users" element={<UserListPage />} />
+                        <Route path="admin/global-mcp-servers" element={<AdminGlobalMCPServersPage />} />
+                        <Route path="workspaces" element={<WorkspacePage />} />
+                      </Route>
+                    </Routes>
+                  </Suspense>
                   <Toaster />
                 </WorkspaceProvider>
               </AuthProvider>

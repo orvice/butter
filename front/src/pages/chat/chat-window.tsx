@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import ReactMarkdown from "react-markdown";
+import { memo, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,7 @@ import type { SessionInfo } from "@/types/api";
 
 const APP_NAME = "web-chat";
 const EMPTY_STREAMING_EVENTS: ParsedEvent[] = [];
+const MARKDOWN_REMARK_PLUGINS = [remarkGfm];
 
 interface ChatWindowProps {
   session: SessionInfo | null;
@@ -371,6 +372,43 @@ function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError";
 }
 
+function buildMarkdownComponents(isCompact: boolean): Components {
+  return {
+    a: MarkdownLink,
+    code: MarkdownCode,
+    pre: ({ children }) => <MarkdownPre isCompact={isCompact}>{children}</MarkdownPre>,
+    table: ({ children }) => <MarkdownTable isCompact={isCompact}>{children}</MarkdownTable>,
+    th: MarkdownTableHeader,
+    td: MarkdownTableCell,
+    p: ({ children }) => <p className={cn(isCompact ? "mb-1.5" : "mb-2", "last:mb-0")}>{children}</p>,
+    ul: ({ children }) => (
+      <ul className={cn(isCompact ? "mb-1.5 space-y-0.5" : "mb-2 space-y-1", "list-disc pl-5 last:mb-0")}>
+        {children}
+      </ul>
+    ),
+    ol: ({ children }) => (
+      <ol className={cn(isCompact ? "mb-1.5 space-y-0.5" : "mb-2 space-y-1", "list-decimal pl-5 last:mb-0")}>
+        {children}
+      </ol>
+    ),
+    li: ({ children }) => <li className="pl-1">{children}</li>,
+    blockquote: ({ children }) => (
+      <blockquote className={cn(isCompact ? "mb-1.5" : "mb-2", "border-l-2 border-current/30 pl-3 italic opacity-90 last:mb-0")}>
+        {children}
+      </blockquote>
+    ),
+    hr: () => <hr className={cn(isCompact ? "my-2" : "my-3", "border-current/20")} />,
+    h1: ({ children }) => <h1 className={cn(isCompact ? "mb-1.5 text-base" : "mb-2 text-lg", "font-semibold last:mb-0")}>{children}</h1>,
+    h2: ({ children }) => <h2 className={cn(isCompact ? "mb-1.5 text-sm" : "mb-2 text-base", "font-semibold last:mb-0")}>{children}</h2>,
+    h3: ({ children }) => <h3 className={cn(isCompact ? "mb-1 text-sm" : "mb-2 text-sm", "font-semibold last:mb-0")}>{children}</h3>,
+  };
+}
+
+// Two stable component maps cover the only variable (layout density), so the
+// closures aren't rebuilt on every streaming token.
+const MARKDOWN_COMPONENTS_COMPACT = buildMarkdownComponents(true);
+const MARKDOWN_COMPONENTS_REGULAR = buildMarkdownComponents(false);
+
 function MarkdownMessage({ text, isUser, isCompact }: { text: string; isUser: boolean; isCompact: boolean }) {
   return (
     <div
@@ -381,36 +419,8 @@ function MarkdownMessage({ text, isUser, isCompact }: { text: string; isUser: bo
       )}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          a: MarkdownLink,
-          code: MarkdownCode,
-          pre: ({ children }) => <MarkdownPre isCompact={isCompact}>{children}</MarkdownPre>,
-          table: ({ children }) => <MarkdownTable isCompact={isCompact}>{children}</MarkdownTable>,
-          th: MarkdownTableHeader,
-          td: MarkdownTableCell,
-          p: ({ children }) => <p className={cn(isCompact ? "mb-1.5" : "mb-2", "last:mb-0")}>{children}</p>,
-          ul: ({ children }) => (
-            <ul className={cn(isCompact ? "mb-1.5 space-y-0.5" : "mb-2 space-y-1", "list-disc pl-5 last:mb-0")}>
-              {children}
-            </ul>
-          ),
-          ol: ({ children }) => (
-            <ol className={cn(isCompact ? "mb-1.5 space-y-0.5" : "mb-2 space-y-1", "list-decimal pl-5 last:mb-0")}>
-              {children}
-            </ol>
-          ),
-          li: ({ children }) => <li className="pl-1">{children}</li>,
-          blockquote: ({ children }) => (
-            <blockquote className={cn(isCompact ? "mb-1.5" : "mb-2", "border-l-2 border-current/30 pl-3 italic opacity-90 last:mb-0")}>
-              {children}
-            </blockquote>
-          ),
-          hr: () => <hr className={cn(isCompact ? "my-2" : "my-3", "border-current/20")} />,
-          h1: ({ children }) => <h1 className={cn(isCompact ? "mb-1.5 text-base" : "mb-2 text-lg", "font-semibold last:mb-0")}>{children}</h1>,
-          h2: ({ children }) => <h2 className={cn(isCompact ? "mb-1.5 text-sm" : "mb-2 text-base", "font-semibold last:mb-0")}>{children}</h2>,
-          h3: ({ children }) => <h3 className={cn(isCompact ? "mb-1 text-sm" : "mb-2 text-sm", "font-semibold last:mb-0")}>{children}</h3>,
-        }}
+        remarkPlugins={MARKDOWN_REMARK_PLUGINS}
+        components={isCompact ? MARKDOWN_COMPONENTS_COMPACT : MARKDOWN_COMPONENTS_REGULAR}
       >
         {text}
       </ReactMarkdown>
@@ -466,7 +476,7 @@ function MarkdownTableCell({ children }: ComponentProps<"td">) {
   return <td className="border border-current/20 px-2 py-1 align-top">{children}</td>;
 }
 
-function MessageBubble({ event, isCompact }: { event: ParsedEvent; isCompact: boolean }) {
+const MessageBubble = memo(function MessageBubble({ event, isCompact }: { event: ParsedEvent; isCompact: boolean }) {
   const isUser = event.role === "user";
   const hasText = event.text.trim().length > 0;
   const hasTools = event.toolCalls.length > 0 || event.toolResponses.length > 0;
@@ -541,4 +551,4 @@ function MessageBubble({ event, isCompact }: { event: ParsedEvent; isCompact: bo
       ) : null}
     </div>
   );
-}
+});

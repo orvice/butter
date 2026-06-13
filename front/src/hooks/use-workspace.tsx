@@ -44,6 +44,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Switching workspace must refetch workspace-scoped data, but not the
+  // workspace list itself (we already have it) — refetching it would also
+  // re-trigger the selection effect that depends on `workspaces`.
+  const invalidateWorkspaceScopedQueries = useCallback(() => {
+    void queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[0] !== "workspaces",
+    });
+  }, [queryClient]);
+
   useEffect(() => {
     if (!isAuthenticated) {
       localStorage.removeItem(WORKSPACE_KEY);
@@ -86,25 +95,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(WORKSPACE_KEY, next);
     queueMicrotask(() => {
       setSelectedWorkspaceIdState(next);
-      void queryClient.invalidateQueries();
+      invalidateWorkspaceScopedQueries();
     });
-  }, [isAuthenticated, queryClient, selectedWorkspaceId, workspaces]);
+  }, [isAuthenticated, invalidateWorkspaceScopedQueries, selectedWorkspaceId, workspaces]);
 
   const setSelectedWorkspaceId = useCallback(
     (id: string) => {
       if (!id || id === selectedWorkspaceId) return;
       localStorage.setItem(WORKSPACE_KEY, id);
       setSelectedWorkspaceIdState(id);
-      void queryClient.invalidateQueries();
+      invalidateWorkspaceScopedQueries();
     },
-    [queryClient, selectedWorkspaceId],
+    [invalidateWorkspaceScopedQueries, selectedWorkspaceId],
   );
 
   const clearSelectedWorkspace = useCallback(() => {
     localStorage.removeItem(WORKSPACE_KEY);
     setSelectedWorkspaceIdState("");
-    void queryClient.invalidateQueries();
-  }, [queryClient]);
+    invalidateWorkspaceScopedQueries();
+  }, [invalidateWorkspaceScopedQueries]);
 
   const createWorkspace = useCallback(
     async (input: CreateWorkspaceInput) => {
