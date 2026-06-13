@@ -77,6 +77,29 @@ func TestResponseHeaderTimeoutTransport(t *testing.T) {
 		}
 	})
 
+	t.Run("legacy SSE handshake that sends a partial event then stalls times out", func(t *testing.T) {
+		client := timeoutClient(agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_SSE)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			f := w.(http.Flusher)
+			// Incomplete event: no blank-line terminator, so Connect can't return.
+			_, _ = w.Write([]byte("event: endpoint\n"))
+			f.Flush()
+			<-r.Context().Done()
+		}))
+		defer srv.Close()
+
+		resp, err := client.Get(srv.URL)
+		if err != nil {
+			t.Fatalf("get: %v", err)
+		}
+		_, err = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err == nil {
+			t.Fatal("expected partial-event handshake to time out, got nil")
+		}
+	})
+
 	t.Run("legacy SSE stream unbounded after first event", func(t *testing.T) {
 		client := timeoutClient(agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_SSE)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

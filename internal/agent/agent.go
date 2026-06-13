@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -450,9 +451,10 @@ func (t *responseHeaderTimeoutTransport) RoundTrip(req *http.Request) (*http.Res
 		timer.Stop()
 		resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() { cancel(nil) }}
 	case req.Method == http.MethodGet:
-		// Legacy SSE stream: bound the handshake (time to the first event),
-		// then leave the long-lived stream unbounded.
-		resp.Body = &stopTimerOnFirstReadBody{
+		// Legacy SSE stream: bound the handshake until the first complete SSE
+		// event (the endpoint event the SDK waits on) has been delivered, then
+		// leave the long-lived stream unbounded.
+		resp.Body = &stopTimerOnSSEEventBody{
 			ReadCloser: resp.Body,
 			stop:       func() { timer.Stop() },
 			cancel:     func() { cancel(nil) },
@@ -479,25 +481,49 @@ func (b *cancelOnCloseBody) Close() error {
 	return err
 }
 
-// stopTimerOnFirstReadBody stops the handshake timer once the first bytes of a
-// long-lived SSE stream arrive, then leaves the stream unbounded. The context
-// is released on Close.
-type stopTimerOnFirstReadBody struct {
+// stopTimerOnSSEEventBody stops the handshake timer once a complete SSE event
+// (delimited by a blank line) has been read from a long-lived SSE stream — the
+// MCP SDK only returns from Connect after the full endpoint event, so stopping
+// on the first partial bytes could let a stalled mid-event server hang. After
+// the first complete event the stream is left unbounded. The context is
+// released on Close.
+type stopTimerOnSSEEventBody struct {
 	io.ReadCloser
 	once   sync.Once
 	stop   func()
 	cancel func()
+	tail   []byte // trailing bytes carried between reads to catch a split delimiter
+	done   bool   // a complete event boundary has been seen
 }
 
-func (b *stopTimerOnFirstReadBody) Read(p []byte) (int, error) {
+func (b *stopTimerOnSSEEventBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
-	if n > 0 {
-		b.once.Do(b.stop)
+	if n > 0 && !b.done {
+		b.scan(p[:n])
 	}
 	return n, err
 }
 
-func (b *stopTimerOnFirstReadBody) Close() error {
+// scan looks for an SSE event boundary (a blank line) across read chunks,
+// keeping a few trailing bytes so a delimiter split between reads is detected.
+func (b *stopTimerOnSSEEventBody) scan(data []byte) {
+	buf := make([]byte, 0, len(b.tail)+len(data))
+	buf = append(buf, b.tail...)
+	buf = append(buf, data...)
+	if bytes.Contains(buf, []byte("\n\n")) || bytes.Contains(buf, []byte("\r\n\r\n")) {
+		b.done = true
+		b.tail = nil
+		b.once.Do(b.stop)
+		return
+	}
+	const keep = 3 // longest delimiter prefix worth carrying ("\r\n\r")
+	if len(buf) > keep {
+		buf = buf[len(buf)-keep:]
+	}
+	b.tail = buf
+}
+
+func (b *stopTimerOnSSEEventBody) Close() error {
 	err := b.ReadCloser.Close()
 	b.once.Do(b.stop)
 	b.cancel()
