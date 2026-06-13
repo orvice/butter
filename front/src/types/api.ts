@@ -687,12 +687,6 @@ export type AutomationConcurrencyPolicy =
   | "AUTOMATION_CONCURRENCY_POLICY_REPLACE"
   | "AUTOMATION_CONCURRENCY_POLICY_ALLOW";
 
-export type AutomationNotifyOn =
-  | "AUTOMATION_NOTIFY_ON_UNSPECIFIED"
-  | "AUTOMATION_NOTIFY_ON_ALWAYS"
-  | "AUTOMATION_NOTIFY_ON_FAILURE"
-  | "AUTOMATION_NOTIFY_ON_SUCCESS";
-
 export type AutomationRunStatus =
   | "AUTOMATION_RUN_STATUS_UNSPECIFIED"
   | "AUTOMATION_RUN_STATUS_RUNNING"
@@ -725,7 +719,6 @@ export interface AutomationPolicy {
   retry?: { max_attempts?: number; backoff_seconds?: number };
   concurrency?: AutomationConcurrencyPolicy;
   max_output_bytes?: number;
-  notify_on?: AutomationNotifyOn;
 }
 
 export interface AutomationStep {

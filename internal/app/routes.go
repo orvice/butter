@@ -154,6 +154,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if result.AutomationEngine != nil {
 			h.automationSvcServer.SetEngine(result.AutomationEngine)
 		}
+		if result.RunnerSvc != nil {
+			h.automationSvcServer.SetAgentValidator(result.RunnerSvc)
+		}
 		if result.AutomationScheduler != nil {
 			h.automationSvcServer.SetScheduler(result.AutomationScheduler)
 		}

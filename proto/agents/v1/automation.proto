@@ -204,9 +204,6 @@ message AutomationPolicy {
   // Maximum bytes persisted for run/step output previews. 0 uses server default.
   // @gotags: json:"max_output_bytes,omitempty" yaml:"max_output_bytes,omitempty" bson:"max_output_bytes,omitempty"
   int32 max_output_bytes = 4;
-
-  // @gotags: json:"notify_on,omitempty" yaml:"notify_on,omitempty" bson:"notify_on,omitempty"
-  AutomationNotifyOn notify_on = 5;
 }
 
 message AutomationRetryPolicy {
@@ -224,13 +221,6 @@ enum AutomationConcurrencyPolicy {
   AUTOMATION_CONCURRENCY_POLICY_QUEUE = 2;
   AUTOMATION_CONCURRENCY_POLICY_REPLACE = 3;
   AUTOMATION_CONCURRENCY_POLICY_ALLOW = 4;
-}
-
-enum AutomationNotifyOn {
-  AUTOMATION_NOTIFY_ON_UNSPECIFIED = 0;
-  AUTOMATION_NOTIFY_ON_ALWAYS = 1;
-  AUTOMATION_NOTIFY_ON_FAILURE = 2;
-  AUTOMATION_NOTIFY_ON_SUCCESS = 3;
 }
 
 message AutomationRun {

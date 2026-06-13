@@ -671,7 +671,6 @@ func effectiveStepPolicy(base, override *agentsv1.AutomationPolicy) *agentsv1.Au
 		out.Retry = base.GetRetry()
 		out.Concurrency = base.GetConcurrency()
 		out.MaxOutputBytes = base.GetMaxOutputBytes()
-		out.NotifyOn = base.GetNotifyOn()
 	}
 	if override != nil {
 		if override.GetTimeout() != nil {
@@ -682,9 +681,6 @@ func effectiveStepPolicy(base, override *agentsv1.AutomationPolicy) *agentsv1.Au
 		}
 		if override.GetMaxOutputBytes() > 0 {
 			out.MaxOutputBytes = override.GetMaxOutputBytes()
-		}
-		if override.GetNotifyOn() != agentsv1.AutomationNotifyOn_AUTOMATION_NOTIFY_ON_UNSPECIFIED {
-			out.NotifyOn = override.GetNotifyOn()
 		}
 	}
 	if out.Timeout != nil && out.Timeout.AsDuration() < 0 {

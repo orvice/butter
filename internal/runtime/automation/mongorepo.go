@@ -149,7 +149,7 @@ func (r *MongoDefinitionRepo) Create(ctx context.Context, automation *agentsv1.A
 	_, err = r.coll.InsertOne(ctx, d)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			return fmt.Errorf("automation %q already exists in workspace %q", automation.GetName(), automation.GetWorkspaceId())
+			return fmt.Errorf("automation %q already exists in workspace %q: %w", automation.GetName(), automation.GetWorkspaceId(), ErrAutomationAlreadyExists)
 		}
 		return fmt.Errorf("create automation: %w", err)
 	}

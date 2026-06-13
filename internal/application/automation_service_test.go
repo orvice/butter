@@ -36,6 +36,7 @@ func newAutomationTestService() (*AutomationServiceServer, *runtimeautomation.Me
 	svc := NewAutomationServiceServer()
 	svc.SetRepos(defRepo, runRepo, stepRepo)
 	svc.SetEngine(engine)
+	svc.SetAgentValidator(runnerSvc)
 	return svc, defRepo, runRepo, stepRepo, runnerSvc
 }
 
@@ -160,6 +161,28 @@ func TestAutomationServiceValidationAndErrorMapping(t *testing.T) {
 	_, err = svc.ListAutomations(context.Background(), connect.NewRequest(&agentsv1.ListAutomationsRequest{}))
 	if codeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("expected failed precondition for missing workspace, got %v", err)
+	}
+}
+
+func TestAutomationServiceRejectsInvokeAgentOutsideWorkspace(t *testing.T) {
+	svc, _, _, _, _ := newAutomationTestService()
+	ctx := testCtx()
+	automation := validAutomation("bad-agent")
+	automation.Steps[0].InvokeAgent.AgentName = "missing-agent"
+
+	_, err := svc.CreateAutomation(ctx, connect.NewRequest(&agentsv1.CreateAutomationRequest{Automation: automation}))
+	if codeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("CreateAutomation code = %v, want invalid argument", err)
+	}
+
+	if _, err := svc.CreateAutomation(ctx, connect.NewRequest(&agentsv1.CreateAutomationRequest{Automation: validAutomation("daily")})); err != nil {
+		t.Fatalf("CreateAutomation valid: %v", err)
+	}
+	update := validAutomation("daily")
+	update.Steps[0].InvokeAgent.AgentName = "missing-agent"
+	_, err = svc.UpdateAutomation(ctx, connect.NewRequest(&agentsv1.UpdateAutomationRequest{Automation: update}))
+	if codeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("UpdateAutomation code = %v, want invalid argument", err)
 	}
 }
 

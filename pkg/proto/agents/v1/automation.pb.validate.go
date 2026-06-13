@@ -1789,8 +1789,6 @@ func (m *AutomationPolicy) validate(all bool) error {
 
 	// no validation rules for MaxOutputBytes
 
-	// no validation rules for NotifyOn
-
 	if len(errors) > 0 {
 		return AutomationPolicyMultiError(errors)
 	}

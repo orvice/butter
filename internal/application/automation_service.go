@@ -28,6 +28,11 @@ type AutomationServiceServer struct {
 	stepRepo  runtimeautomation.StepRunRepo
 	engine    *runtimeautomation.Engine
 	scheduler *runtimeautomation.Scheduler
+	agent     automationAgentValidator
+}
+
+type automationAgentValidator interface {
+	HasAgentInWorkspace(workspaceID, name string) bool
 }
 
 func NewAutomationServiceServer() *AutomationServiceServer {
@@ -54,10 +59,16 @@ func (s *AutomationServiceServer) SetScheduler(scheduler *runtimeautomation.Sche
 	s.scheduler = scheduler
 }
 
-func (s *AutomationServiceServer) deps() (runtimeautomation.DefinitionRepo, runtimeautomation.RunRepo, runtimeautomation.StepRunRepo, *runtimeautomation.Engine, *runtimeautomation.Scheduler) {
+func (s *AutomationServiceServer) SetAgentValidator(agent automationAgentValidator) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agent = agent
+}
+
+func (s *AutomationServiceServer) deps() (runtimeautomation.DefinitionRepo, runtimeautomation.RunRepo, runtimeautomation.StepRunRepo, *runtimeautomation.Engine, *runtimeautomation.Scheduler, automationAgentValidator) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.defRepo, s.runRepo, s.stepRepo, s.engine, s.scheduler
+	return s.defRepo, s.runRepo, s.stepRepo, s.engine, s.scheduler, s.agent
 }
 
 func automationNotInitialized() error {
@@ -69,7 +80,7 @@ func (s *AutomationServiceServer) ListAutomations(ctx context.Context, _ *connec
 	if err != nil {
 		return nil, err
 	}
-	defRepo, _, _, _, _ := s.deps()
+	defRepo, _, _, _, _, _ := s.deps()
 	if defRepo == nil {
 		return nil, automationNotInitialized()
 	}
@@ -85,7 +96,7 @@ func (s *AutomationServiceServer) GetAutomation(ctx context.Context, req *connec
 	if err != nil {
 		return nil, err
 	}
-	defRepo, _, _, _, _ := s.deps()
+	defRepo, _, _, _, _, _ := s.deps()
 	if defRepo == nil {
 		return nil, automationNotInitialized()
 	}
@@ -101,7 +112,7 @@ func (s *AutomationServiceServer) CreateAutomation(ctx context.Context, req *con
 	if err != nil {
 		return nil, err
 	}
-	defRepo, _, _, _, scheduler := s.deps()
+	defRepo, _, _, _, scheduler, agent := s.deps()
 	if defRepo == nil {
 		return nil, automationNotInitialized()
 	}
@@ -113,7 +124,7 @@ func (s *AutomationServiceServer) CreateAutomation(ctx context.Context, req *con
 	now := timestamppb.New(time.Now().UTC())
 	a.CreatedAt = now
 	a.UpdatedAt = now
-	if err := validateAutomation(a); err != nil {
+	if err := validateAutomation(a, agent); err != nil {
 		return nil, err
 	}
 	if err := defRepo.Create(ctx, a); err != nil {
@@ -133,7 +144,7 @@ func (s *AutomationServiceServer) UpdateAutomation(ctx context.Context, req *con
 	if err != nil {
 		return nil, err
 	}
-	defRepo, _, _, _, scheduler := s.deps()
+	defRepo, _, _, _, scheduler, agent := s.deps()
 	if defRepo == nil {
 		return nil, automationNotInitialized()
 	}
@@ -150,7 +161,7 @@ func (s *AutomationServiceServer) UpdateAutomation(ctx context.Context, req *con
 		a.CreatedAt = existing.GetCreatedAt()
 	}
 	a.UpdatedAt = timestamppb.New(time.Now().UTC())
-	if err := validateAutomation(a); err != nil {
+	if err := validateAutomation(a, agent); err != nil {
 		return nil, err
 	}
 	if err := defRepo.Update(ctx, a); err != nil {
@@ -170,7 +181,7 @@ func (s *AutomationServiceServer) DeleteAutomation(ctx context.Context, req *con
 	if err != nil {
 		return nil, err
 	}
-	defRepo, _, _, _, scheduler := s.deps()
+	defRepo, _, _, _, scheduler, _ := s.deps()
 	if defRepo == nil {
 		return nil, automationNotInitialized()
 	}
@@ -190,7 +201,7 @@ func (s *AutomationServiceServer) RunAutomationNow(ctx context.Context, req *con
 	if err != nil {
 		return nil, err
 	}
-	_, _, _, engine, _ := s.deps()
+	_, _, _, engine, _, _ := s.deps()
 	if engine == nil {
 		return nil, automationNotInitialized()
 	}
@@ -209,7 +220,7 @@ func (s *AutomationServiceServer) ListAutomationRuns(ctx context.Context, req *c
 	if err != nil {
 		return nil, err
 	}
-	_, runRepo, _, _, _ := s.deps()
+	_, runRepo, _, _, _, _ := s.deps()
 	if runRepo == nil {
 		return nil, automationNotInitialized()
 	}
@@ -225,7 +236,7 @@ func (s *AutomationServiceServer) GetAutomationRun(ctx context.Context, req *con
 	if err != nil {
 		return nil, err
 	}
-	_, runRepo, _, _, _ := s.deps()
+	_, runRepo, _, _, _, _ := s.deps()
 	if runRepo == nil {
 		return nil, automationNotInitialized()
 	}
@@ -241,7 +252,7 @@ func (s *AutomationServiceServer) ListAutomationStepRuns(ctx context.Context, re
 	if err != nil {
 		return nil, err
 	}
-	_, _, stepRepo, _, _ := s.deps()
+	_, _, stepRepo, _, _, _ := s.deps()
 	if stepRepo == nil {
 		return nil, automationNotInitialized()
 	}
@@ -252,7 +263,7 @@ func (s *AutomationServiceServer) ListAutomationStepRuns(ctx context.Context, re
 	return connect.NewResponse(&agentsv1.ListAutomationStepRunsResponse{StepRuns: stepRuns}), nil
 }
 
-func validateAutomation(a *agentsv1.Automation) error {
+func validateAutomation(a *agentsv1.Automation, agent automationAgentValidator) error {
 	if strings.TrimSpace(a.GetName()) == "" {
 		return connectx.RequiredArgument("automation.name")
 	}
@@ -298,6 +309,9 @@ func validateAutomation(a *agentsv1.Automation) error {
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT:
 			if strings.TrimSpace(step.GetInvokeAgent().GetAgentName()) == "" {
 				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_name", i))
+			}
+			if agent != nil && !agent.HasAgentInWorkspace(a.GetWorkspaceId(), step.GetInvokeAgent().GetAgentName()) {
+				return connectx.InvalidArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_name", i), fmt.Sprintf("agent %q does not exist in workspace %q", step.GetInvokeAgent().GetAgentName(), a.GetWorkspaceId()))
 			}
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CALL_WEBHOOK:
 			if strings.TrimSpace(step.GetCallWebhook().GetUrl()) == "" {
@@ -357,14 +371,6 @@ func validateAutomationPolicy(policy *agentsv1.AutomationPolicy, prefix string) 
 	}
 	if policy.GetMaxOutputBytes() < 0 {
 		return connectx.InvalidArgument(prefix+".max_output_bytes", "must be non-negative")
-	}
-	switch policy.GetNotifyOn() {
-	case agentsv1.AutomationNotifyOn_AUTOMATION_NOTIFY_ON_UNSPECIFIED,
-		agentsv1.AutomationNotifyOn_AUTOMATION_NOTIFY_ON_ALWAYS,
-		agentsv1.AutomationNotifyOn_AUTOMATION_NOTIFY_ON_FAILURE,
-		agentsv1.AutomationNotifyOn_AUTOMATION_NOTIFY_ON_SUCCESS:
-	default:
-		return connectx.InvalidArgument(prefix+".notify_on", "is unsupported")
 	}
 	return nil
 }

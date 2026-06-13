@@ -175,7 +175,7 @@ Automation trigger
   -> finish AutomationRun(SUCCEEDED / FAILED / SKIPPED / CANCELLED)
 ```
 
-Engine 使用 automation definition/run/step-run repositories 按 workspace 写入 MongoDB。Automation 级 policy 提供 timeout、retry、concurrency、output truncation 与 notify 行为；step policy 可覆盖 automation policy。v1 是线性顺序执行，默认首个失败 step 会停止后续 steps。
+Engine 使用 automation definition/run/step-run repositories 按 workspace 写入 MongoDB。Automation 级 policy 提供 timeout、retry、concurrency 与 output truncation 行为；step policy 可覆盖 automation policy。v1 是线性顺序执行，默认首个失败 step 会停止后续 steps。
 
 ## Channel 执行流
 

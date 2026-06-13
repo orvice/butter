@@ -8,7 +8,6 @@ import {
   AutomationConditionSchema,
   AutomationCreateForumPostStepSchema,
   AutomationInvokeAgentStepSchema,
-  AutomationNotifyOn,
   AutomationPolicySchema,
   AutomationRetryPolicySchema,
   AutomationSchema,
@@ -29,7 +28,6 @@ import type {
   AutomationCondition,
   AutomationConditionOperator as LegacyConditionOperator,
   AutomationConcurrencyPolicy as LegacyConcurrencyPolicy,
-  AutomationNotifyOn as LegacyNotifyOn,
   AutomationPolicy,
   AutomationRun,
   AutomationRunStatus as LegacyRunStatus,
@@ -80,13 +78,6 @@ const CONCURRENCY_NAMES: LegacyConcurrencyPolicy[] = [
   "AUTOMATION_CONCURRENCY_POLICY_ALLOW",
 ];
 
-const NOTIFY_NAMES: LegacyNotifyOn[] = [
-  "AUTOMATION_NOTIFY_ON_UNSPECIFIED",
-  "AUTOMATION_NOTIFY_ON_ALWAYS",
-  "AUTOMATION_NOTIFY_ON_FAILURE",
-  "AUTOMATION_NOTIFY_ON_SUCCESS",
-];
-
 const RUN_STATUS_NAMES: LegacyRunStatus[] = [
   "AUTOMATION_RUN_STATUS_UNSPECIFIED",
   "AUTOMATION_RUN_STATUS_RUNNING",
@@ -133,7 +124,6 @@ function policyFromProto(p: PbAutomation["policy"]): AutomationPolicy | undefine
       : undefined,
     concurrency: enumName(CONCURRENCY_NAMES, p.concurrency, "AUTOMATION_CONCURRENCY_POLICY_UNSPECIFIED"),
     max_output_bytes: p.maxOutputBytes,
-    notify_on: enumName(NOTIFY_NAMES, p.notifyOn, "AUTOMATION_NOTIFY_ON_UNSPECIFIED"),
   };
 }
 
@@ -149,7 +139,6 @@ function policyToProto(p?: AutomationPolicy): PbAutomation["policy"] | undefined
       : undefined,
     concurrency: enumValue(CONCURRENCY_NAMES, p.concurrency) as AutomationConcurrencyPolicy,
     maxOutputBytes: p.max_output_bytes ?? 0,
-    notifyOn: enumValue(NOTIFY_NAMES, p.notify_on) as AutomationNotifyOn,
   });
 }
 

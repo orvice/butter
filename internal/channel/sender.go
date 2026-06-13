@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/go-telegram/bot"
@@ -83,12 +84,19 @@ func splitDiscordOutboundMessage(text string, maxLen int) []string {
 		return []string{text}
 	}
 	chunks := make([]string, 0, len(text)/maxLen+1)
-	for len(text) > maxLen {
-		chunks = append(chunks, text[:maxLen])
-		text = text[maxLen:]
+	var current strings.Builder
+	current.Grow(maxLen)
+	for _, r := range text {
+		runeLen := len(string(r))
+		if current.Len() > 0 && current.Len()+runeLen > maxLen {
+			chunks = append(chunks, current.String())
+			current.Reset()
+			current.Grow(maxLen)
+		}
+		current.WriteRune(r)
 	}
-	if text != "" {
-		chunks = append(chunks, text)
+	if current.Len() > 0 {
+		chunks = append(chunks, current.String())
 	}
 	return chunks
 }

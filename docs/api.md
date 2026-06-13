@@ -1918,8 +1918,7 @@ scheduled.
       "timeout": "300s",
       "retry": { "max_attempts": 1, "backoff": "5s" },
       "concurrency": "AUTOMATION_CONCURRENCY_POLICY_SKIP",
-      "max_output_bytes": 4096,
-      "notify_on": "AUTOMATION_NOTIFY_ON_FAILURE"
+      "max_output_bytes": 4096
     }
   }
 }
@@ -2004,7 +2003,7 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 | `trigger` | AutomationTrigger | Manual, schedule, or reserved event trigger configuration |
 | `conditions` | AutomationCondition[] | All conditions must pass before steps execute |
 | `steps` | AutomationStep[] | Ordered linear workflow steps |
-| `policy` | AutomationPolicy | Run-level timeout/retry/concurrency/output/notify policy |
+| `policy` | AutomationPolicy | Run-level timeout/retry/concurrency/output policy |
 | `metadata` | map\<string,string\> | Custom metadata |
 | `created_at` / `updated_at` | timestamp | Server-managed timestamps |
 | `workspace_id` | string | Owning workspace |
@@ -2049,7 +2048,6 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 | `retry.backoff` | duration | Backoff between attempts |
 | `concurrency` | enum | `SKIP`, `QUEUE`, `REPLACE`, `ALLOW`; `SKIP` preserves non-overlap defaults |
 | `max_output_bytes` | int32 | Stored output preview cap; 0 uses server default |
-| `notify_on` | enum | `ALWAYS`, `FAILURE`, `SUCCESS` |
 
 #### AutomationRun Object
 
