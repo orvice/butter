@@ -6,6 +6,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"google.golang.org/adk/agent"
 	adkrunner "google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
@@ -120,6 +121,50 @@ func TestNewServiceRejectsCrossWorkspaceDuplicateNames(t *testing.T) {
 	_, err := NewService(context.Background(), agents, providers, nil, nil, nil, nil, nil, nil, adkrunner.PluginConfig{})
 	if err == nil || !strings.Contains(err.Error(), "unique across workspaces") {
 		t.Fatalf("expected cross-workspace duplicate name error, got %v", err)
+	}
+}
+
+func TestReloadProtoAgentsSkipsReservedBuilderNames(t *testing.T) {
+	providers := []agentsv1.ModelProvider{{
+		Name:   "p",
+		Type:   "openai",
+		Models: []*agentsv1.ModelConfig{{Name: "m1"}},
+	}}
+	svc, err := NewService(context.Background(), nil, providers, nil, nil, nil, nil, nil, nil, adkrunner.PluginConfig{})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	svc.RegisterAgentWithBuilder("system", nil, func(context.Context, string) (agent.Agent, error) {
+		return nil, nil
+	})
+	if !svc.IsReservedAgentName("system") {
+		t.Fatal("system should be a reserved builder name")
+	}
+
+	// A proto agent that collides with the builder name must be skipped so the
+	// builder stays authoritative and no stale proto entry is registered.
+	reload := []agentsv1.Agent{
+		{Name: "system", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "m1"}},
+	}
+	if err := svc.ReloadProtoAgents(context.Background(), reload, providers, nil, nil); err != nil {
+		t.Fatalf("ReloadProtoAgents: %v", err)
+	}
+
+	svc.mu.Lock()
+	_, hasProto := svc.agentsProto["system"]
+	_, hasAgent := svc.agents["system"]
+	_, hasBuilder := svc.agentBuilders["system"]
+	svc.mu.Unlock()
+
+	if hasProto {
+		t.Fatal("reserved name must not be registered as a proto agent")
+	}
+	if !hasAgent {
+		t.Fatal("builder agent must remain registered after reload")
+	}
+	if !hasBuilder {
+		t.Fatal("builder func must remain registered after reload")
 	}
 }
 

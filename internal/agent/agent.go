@@ -367,11 +367,15 @@ func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPH
 		}
 	}
 
-	// An explicitly configured timeout_seconds also bounds runtime calls:
-	// a server that accepts the connection but never sends response headers
-	// would otherwise hang an agent run indefinitely (cron runs have no
-	// request deadline). Streaming responses are unaffected once headers
-	// have arrived, so this is safe for SSE / streamable HTTP.
+	// An explicitly configured timeout_seconds bounds runtime calls: a server
+	// that accepts the connection but never finishes the response would
+	// otherwise hang an agent run indefinitely (cron runs have no request
+	// deadline). The timeout applies to the whole request/response exchange of
+	// message POSTs (which carry tool-call responses, including the streamable
+	// HTTP / SSE body the MCP SDK waits on), so a server that streams headers
+	// and then stalls the body still gets cancelled. The long-lived standalone
+	// SSE listener (a GET) is exempted so server-initiated messages keep
+	// flowing for the agent's lifetime.
 	if secs := srv.GetTimeoutSeconds(); secs > 0 {
 		if httpClient == nil {
 			httpClient = &http.Client{}
@@ -402,9 +406,12 @@ func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPH
 	}
 }
 
-// responseHeaderTimeoutTransport cancels a request when the server has not
-// sent response headers within timeout. Unlike http.Client.Timeout it does
-// not bound the body read, so long-lived streaming responses keep working.
+// responseHeaderTimeoutTransport bounds MCP requests by timeout. For message
+// POSTs the whole exchange (headers plus the response body the MCP SDK reads)
+// must complete within timeout, so a server that streams headers then stalls
+// the body cannot hang the agent. The standalone SSE listener (a GET) is
+// exempted once headers arrive: it is a long-lived stream of server-initiated
+// messages and must stay open for the agent's lifetime.
 type responseHeaderTimeoutTransport struct {
 	base    http.RoundTripper
 	timeout time.Duration
@@ -412,8 +419,11 @@ type responseHeaderTimeoutTransport struct {
 
 func (t *responseHeaderTimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx, cancel := context.WithCancelCause(req.Context())
+	// The standalone SSE listener uses GET; everything else (message sends,
+	// tool calls) is a POST whose body carries the response we must bound.
+	headerOnly := req.Method == http.MethodGet
 	timer := time.AfterFunc(t.timeout, func() {
-		cancel(fmt.Errorf("no response headers within %s", t.timeout))
+		cancel(fmt.Errorf("mcp request exceeded %s", t.timeout))
 	})
 	resp, err := t.base.RoundTrip(req.WithContext(ctx))
 	if err != nil {
@@ -424,10 +434,18 @@ func (t *responseHeaderTimeoutTransport) RoundTrip(req *http.Request) (*http.Res
 		}
 		return nil, err
 	}
-	timer.Stop()
-	// Keep the context alive until the body is consumed; cancel on close to
-	// release it.
-	resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() { cancel(nil) }}
+	if headerOnly {
+		// Long-lived listener: stop bounding once headers have arrived.
+		timer.Stop()
+		resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() { cancel(nil) }}
+		return resp, nil
+	}
+	// Message exchange: keep the timer running so an unfinished body read is
+	// cancelled. A normally consumed body stops the timer on close.
+	resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() {
+		timer.Stop()
+		cancel(nil)
+	}}
 	return resp, nil
 }
 

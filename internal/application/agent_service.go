@@ -134,6 +134,11 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, err
 	}
+	name := req.Msg.GetAgent().GetName()
+	if s.runnerSvc != nil && s.runnerSvc.IsReservedAgentName(name) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("agent name %q is reserved by a built-in agent", name))
+	}
 	logger := log.FromContext(ctx)
 	logger.Info("creating agent", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "type", req.Msg.GetAgent().GetType().String())
 	a, err := mutateWithRuntime(

@@ -327,6 +327,16 @@ func (s *Service) RegisterAgentWithBuilder(name string, ag agent.Agent, builder 
 	s.agentBuilders[name] = builder
 }
 
+// IsReservedAgentName reports whether name belongs to a dynamically registered
+// builder agent (e.g. the built-in system agent). Proto agents must not use
+// these names, as they would collide with the runtime entry.
+func (s *Service) IsReservedAgentName(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.agentBuilders[name]
+	return ok
+}
+
 // ReloadProtoAgents rebuilds all proto-configured agents and refreshes runtime registries.
 func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) error {
 	logger := log.FromContext(ctx)
@@ -338,10 +348,26 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 		return fmt.Errorf("model config validation: %w", err)
 	}
 
+	s.mu.Lock()
+	reserved := make(map[string]struct{}, len(s.agentBuilders))
+	for name := range s.agentBuilders {
+		reserved[name] = struct{}{}
+	}
+	s.mu.Unlock()
+
 	for i := range agents {
 		name := agents[i].GetName()
 		if prev, ok := protoRegistry[name]; ok {
 			return fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
+		}
+		// A proto agent must never shadow a reserved builder agent (e.g. the
+		// built-in system agent); doing so would leave registry[name] pointing
+		// at the proto build while agentBuilders[name] still rebuilds the
+		// builder agent, an inconsistent state. Skip it so the builder stays
+		// authoritative.
+		if _, isReserved := reserved[name]; isReserved {
+			logger.Warn("skipping proto agent that collides with a reserved builder name", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
+			continue
 		}
 		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory)
 		if err != nil {
