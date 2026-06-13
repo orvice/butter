@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -72,6 +74,9 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *connect.Reques
 	if pageSize <= 0 {
 		pageSize = 50
 	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
 	offset := 0
 	if token := req.Msg.GetPageToken(); token != "" {
 		if raw, err := base64.StdEncoding.DecodeString(token); err == nil {
@@ -128,6 +133,11 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
+	}
+	name := req.Msg.GetAgent().GetName()
+	if s.runnerSvc != nil && s.runnerSvc.IsReservedAgentName(name) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("agent name %q is reserved by a built-in agent", name))
 	}
 	logger := log.FromContext(ctx)
 	logger.Info("creating agent", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "type", req.Msg.GetAgent().GetType().String())
@@ -249,7 +259,14 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 		sessionID = "invoke-" + uuid.NewString()
 	}
 
-	wsID, _ := workspace.FromContext(ctx)
+	// An empty workspace on ctxInfo makes the runner treat the call as a
+	// system path and skip the tenant boundary check, so non-admin callers
+	// must always carry a validated workspace.
+	wsID, hasWorkspace := workspace.FromContext(ctx)
+	if !hasWorkspace && !auth.IsAdmin(ctx) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("workspace required (set X-Workspace-ID header)"))
+	}
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        uuid.NewString(),
 		SessionId:   sessionID,
@@ -321,9 +338,17 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 	if req.Msg.GetInvocationId() == "" {
 		return nil, connectx.RequiredArgument("invocation_id")
 	}
-	cancelled := s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId())
+	// Scope the cancel to the caller's workspace; admins without a workspace
+	// header keep the global (system) cancel path.
+	wsID, hasWorkspace := workspace.FromContext(ctx)
+	if !hasWorkspace && !auth.IsAdmin(ctx) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("workspace required (set X-Workspace-ID header)"))
+	}
+	cancelled := s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
 	log.FromContext(ctx).Info("cancel agent invocation requested",
 		"invocation_id", req.Msg.GetInvocationId(),
+		"workspace_id", wsID,
 		"cancelled", cancelled,
 	)
 	return connect.NewResponse(&agentsv1.CancelAgentInvocationResponse{Cancelled: cancelled}), nil
@@ -337,8 +362,11 @@ func (s *AgentServiceServer) GetAgentRuntimeStatus(ctx context.Context, req *con
 	if err != nil {
 		return nil, err
 	}
-	status := s.runtimeStatusFor(ctx, wsID, req.Msg.GetName())
-	return connect.NewResponse(&agentsv1.GetAgentRuntimeStatusResponse{Status: status}), nil
+	statuses, err := s.runtimeStatuses(ctx, wsID, []string{req.Msg.GetName()})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&agentsv1.GetAgentRuntimeStatusResponse{Status: statuses[0]}), nil
 }
 
 func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *connect.Request[agentsv1.ListAgentRuntimeStatusesRequest]) (*connect.Response[agentsv1.ListAgentRuntimeStatusesResponse], error) {
@@ -357,53 +385,57 @@ func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *
 			names = append(names, a.GetName())
 		}
 	}
-	out := make([]*agentsv1.AgentRuntimeStatus, 0, len(names))
-	for _, name := range names {
-		out = append(out, s.runtimeStatusFor(ctx, wsID, name))
+	statuses, err := s.runtimeStatuses(ctx, wsID, names)
+	if err != nil {
+		return nil, err
 	}
-	return connect.NewResponse(&agentsv1.ListAgentRuntimeStatusesResponse{Statuses: out}), nil
+	return connect.NewResponse(&agentsv1.ListAgentRuntimeStatusesResponse{Statuses: statuses}), nil
 }
 
-// runtimeStatusFor derives an AgentRuntimeStatus from the invocation repo. If
-// no invocations exist (or the repo is not wired) the agent is reported as IDLE.
-func (s *AgentServiceServer) runtimeStatusFor(ctx context.Context, workspaceID, name string) *agentsv1.AgentRuntimeStatus {
-	out := &agentsv1.AgentRuntimeStatus{
-		Name:  name,
-		State: agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_IDLE,
-	}
-	if s.invRepo == nil {
-		return out
-	}
-	// Pull the most recent 100 invocations for this agent — enough to derive
-	// last_run_at + in_flight count for the dashboard table.
-	invs, _, _, err := s.invRepo.List(ctx, invocation.ListFilter{WorkspaceID: workspaceID, AgentName: name}, 100, "")
-	if err != nil || len(invs) == 0 {
-		return out
-	}
-	latest := invs[0]
-	out.LastInvocationId = latest.GetId()
-	if ts := latest.GetFinishedAt(); ts != nil {
-		out.LastRunAt = ts
-	} else if ts := latest.GetStartedAt(); ts != nil {
-		out.LastRunAt = ts
-	}
-	switch latest.GetStatus() {
-	case agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED:
-		out.State = agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_FAILED
-	case agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING:
-		out.State = agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_RUNNING
-	default:
-		out.State = agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_IDLE
-	}
-	for _, inv := range invs {
-		if inv.GetStatus() == agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING {
-			out.InFlight++
+// runtimeStatuses derives AgentRuntimeStatus for the named agents from a single
+// invocation repo query. Agents with no invocations (or when the repo is not
+// wired) are reported as IDLE. The result preserves the order of names.
+func (s *AgentServiceServer) runtimeStatuses(ctx context.Context, workspaceID string, names []string) ([]*agentsv1.AgentRuntimeStatus, error) {
+	out := make([]*agentsv1.AgentRuntimeStatus, len(names))
+	for i, name := range names {
+		out[i] = &agentsv1.AgentRuntimeStatus{
+			Name:  name,
+			State: agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_IDLE,
 		}
 	}
-	if out.InFlight > 0 {
-		out.State = agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_RUNNING
+	if s.invRepo == nil || len(names) == 0 {
+		return out, nil
 	}
-	return out
+	summaries, err := s.invRepo.StatusSummaries(ctx, workspaceID, names)
+	if err != nil {
+		return nil, connectx.InternalWith(fmt.Errorf("query invocation status: %w", err))
+	}
+	for _, status := range out {
+		sum, ok := summaries[status.GetName()]
+		if !ok || sum.Latest == nil {
+			continue
+		}
+		latest := sum.Latest
+		status.LastInvocationId = latest.GetId()
+		if ts := latest.GetFinishedAt(); ts != nil {
+			status.LastRunAt = ts
+		} else if ts := latest.GetStartedAt(); ts != nil {
+			status.LastRunAt = ts
+		}
+		switch latest.GetStatus() {
+		case agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED:
+			status.State = agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_FAILED
+		case agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING:
+			status.State = agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_RUNNING
+		default:
+			status.State = agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_IDLE
+		}
+		status.InFlight = sum.Running
+		if status.InFlight > 0 {
+			status.State = agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_RUNNING
+		}
+	}
+	return out, nil
 }
 
 func (s *AgentServiceServer) reloadRuntime(ctx context.Context) error {

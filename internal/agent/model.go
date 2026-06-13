@@ -113,7 +113,14 @@ type ModelInfo struct {
 func createModelFromProvider(ctx context.Context, modelName string, p *agentsv1.ModelProvider) (model.LLM, error) {
 	switch p.GetType() {
 	case "gemini":
-		return gemini.NewModel(ctx, modelName, &genai.ClientConfig{})
+		cfg := &genai.ClientConfig{}
+		if key := p.GetApiKey(); key != "" {
+			cfg.APIKey = key
+		}
+		if base := p.GetBaseUrl(); base != "" {
+			cfg.HTTPOptions.BaseURL = base
+		}
+		return gemini.NewModel(ctx, modelName, cfg)
 	case "openai":
 		return adkopenai.New(adkopenai.Config{
 			APIKey:    p.GetApiKey(),

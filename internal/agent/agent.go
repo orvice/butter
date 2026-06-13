@@ -1,10 +1,14 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -54,8 +58,10 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 		return nil, fmt.Errorf("agent config is nil")
 	}
 
-	// Resolve shared MCP servers and merge with inline ones.
-	if err := resolveMCPServers(pb, mcpRegistry); err != nil {
+	// Resolve shared MCP servers and merge with inline ones. The merged list
+	// is passed alongside the proto so the shared config is never mutated.
+	mcpServers, err := resolveMCPServers(pb, mcpRegistry)
+	if err != nil {
 		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
 	}
 
@@ -78,7 +84,7 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 
 	switch pb.GetType() {
 	case agentsv1.AgentType_AGENT_TYPE_LLM, agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED:
-		return newLLMAgent(ctx, pb, subAgents, providers, httpFactory, toolsetFactory)
+		return newLLMAgent(ctx, pb, mcpServers, subAgents, providers, httpFactory, toolsetFactory)
 	case agentsv1.AgentType_AGENT_TYPE_LOOP:
 		return newLoopAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL:
@@ -90,11 +96,10 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 	}
 }
 
-func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
+func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1.MCPServer, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
 	logger := log.FromContext(ctx)
 	acfg := pb.GetConfig()
 
-	mcpServers := acfg.GetMcpServers()
 	mcpNames := make([]string, 0, len(mcpServers))
 	for _, s := range mcpServers {
 		mcpNames = append(mcpNames, s.GetName())
@@ -120,7 +125,7 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, subAgents []agent.Agen
 		return nil, fmt.Errorf("agent %q: creating model %q: %w", pb.GetName(), acfg.GetModel(), err)
 	}
 
-	toolsets, err := buildMCPToolsets(ctx, acfg.GetMcpServers(), httpFactory)
+	toolsets, err := buildMCPToolsets(ctx, mcpServers, httpFactory)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: building MCP toolsets: %w", pb.GetName(), err)
 	}
@@ -188,13 +193,17 @@ func newParallelAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 	})
 }
 
-// resolveMCPServers looks up mcp_server_ids in the registry and merges them
-// into the agent's inline mcp_servers. Inline servers with the same name win.
-func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) error {
+// resolveMCPServers looks up mcp_server_ids in the registry and returns the
+// agent's inline mcp_servers merged with the resolved entries. Inline servers
+// with the same name win. The agent proto is never mutated.
+func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) ([]*agentsv1.MCPServer, error) {
 	cfg := pb.GetConfig()
+	merged := cfg.GetMcpServers()
 	if cfg == nil || len(cfg.GetMcpServerIds()) == 0 {
-		return nil
+		return merged, nil
 	}
+	// Copy so appends never write into the proto's backing array.
+	merged = append([]*agentsv1.MCPServer(nil), merged...)
 
 	// Build lookup from registry.
 	byID := make(map[string]*agentsv1.MCPServer, len(registry))
@@ -205,8 +214,8 @@ func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) error 
 	}
 
 	// Collect inline server names for collision detection.
-	inlineNames := make(map[string]struct{}, len(cfg.GetMcpServers()))
-	for _, s := range cfg.GetMcpServers() {
+	inlineNames := make(map[string]struct{}, len(merged))
+	for _, s := range merged {
 		inlineNames[s.GetName()] = struct{}{}
 	}
 
@@ -214,17 +223,17 @@ func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) error 
 	for _, id := range cfg.GetMcpServerIds() {
 		srv, ok := byID[id]
 		if !ok {
-			return fmt.Errorf("unknown mcp_server_id %q", id)
+			return nil, fmt.Errorf("unknown mcp_server_id %q", id)
 		}
 		// Skip if an inline server already has the same name.
 		if _, exists := inlineNames[srv.GetName()]; exists {
 			continue
 		}
-		cfg.McpServers = append(cfg.McpServers, srv)
+		merged = append(merged, srv)
 		inlineNames[srv.GetName()] = struct{}{}
 	}
 
-	return nil
+	return merged, nil
 }
 
 // buildMCPToolsets creates ADK toolsets from the agent's MCP server configs.
@@ -360,6 +369,30 @@ func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPH
 		}
 	}
 
+	// An explicitly configured timeout_seconds bounds runtime calls: a server
+	// that accepts the connection but never finishes the response would
+	// otherwise hang an agent run indefinitely (cron runs have no request
+	// deadline). The timeout applies to the whole request/response exchange of
+	// message POSTs (which carry tool-call responses, including the streamable
+	// HTTP / SSE body the MCP SDK waits on), so a server that streams headers
+	// and then stalls the body still gets cancelled. The long-lived standalone
+	// SSE listener (a GET) is exempted so server-initiated messages keep
+	// flowing for the agent's lifetime.
+	if secs := srv.GetTimeoutSeconds(); secs > 0 {
+		if httpClient == nil {
+			httpClient = &http.Client{}
+		}
+		base := httpClient.Transport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		httpClient.Transport = &responseHeaderTimeoutTransport{
+			base:      base,
+			timeout:   time.Duration(secs) * time.Second,
+			transport: srv.GetTransport(),
+		}
+	}
+
 	switch srv.GetTransport() {
 	case agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP:
 		return &mcp.StreamableClientTransport{
@@ -374,6 +407,127 @@ func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPH
 	default:
 		return nil, fmt.Errorf("unsupported transport %v, only streamable_http and sse are supported", srv.GetTransport())
 	}
+}
+
+// responseHeaderTimeoutTransport bounds MCP requests by timeout. Exactly how
+// it bounds a request depends on the request and the MCP transport, because
+// the MCP SDK relies on long-lived streams that must not be killed:
+//
+//   - Message POSTs (streamable HTTP tool calls, SSE message sends): the whole
+//     exchange — headers plus the response body the SDK reads — must finish
+//     within timeout, so a server that streams headers then stalls the body
+//     cannot hang the agent.
+//   - The streamable HTTP standalone listener (a GET) is exempted once headers
+//     arrive: it is a long-lived stream of server-initiated messages that may
+//     stay idle for the agent's lifetime.
+//   - The legacy SSE stream (a GET) is also long-lived, but the SDK blocks on
+//     its body for the initial "endpoint" event before Connect returns. We
+//     bound it only until the first bytes arrive (the handshake), then leave
+//     the stream unbounded.
+type responseHeaderTimeoutTransport struct {
+	base      http.RoundTripper
+	timeout   time.Duration
+	transport agentsv1.MCPServerTransport
+}
+
+func (t *responseHeaderTimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, cancel := context.WithCancelCause(req.Context())
+	timer := time.AfterFunc(t.timeout, func() {
+		cancel(fmt.Errorf("mcp request exceeded %s", t.timeout))
+	})
+	resp, err := t.base.RoundTrip(req.WithContext(ctx))
+	if err != nil {
+		timer.Stop()
+		cancel(nil)
+		if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
+			return nil, fmt.Errorf("%w: %w", cause, err)
+		}
+		return nil, err
+	}
+
+	switch {
+	case req.Method == http.MethodGet && t.transport == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP:
+		// Standalone listener: may stay idle, so stop bounding at headers.
+		timer.Stop()
+		resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() { cancel(nil) }}
+	case req.Method == http.MethodGet:
+		// Legacy SSE stream: bound the handshake until the first complete SSE
+		// event (the endpoint event the SDK waits on) has been delivered, then
+		// leave the long-lived stream unbounded.
+		resp.Body = &stopTimerOnSSEEventBody{
+			ReadCloser: resp.Body,
+			stop:       func() { timer.Stop() },
+			cancel:     func() { cancel(nil) },
+		}
+	default:
+		// Message exchange: keep the timer running so an unfinished body read
+		// is cancelled. A normally consumed body stops the timer on close.
+		resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() {
+			timer.Stop()
+			cancel(nil)
+		}}
+	}
+	return resp, nil
+}
+
+type cancelOnCloseBody struct {
+	io.ReadCloser
+	cancel func()
+}
+
+func (b *cancelOnCloseBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.cancel()
+	return err
+}
+
+// stopTimerOnSSEEventBody stops the handshake timer once a complete SSE event
+// (delimited by a blank line) has been read from a long-lived SSE stream — the
+// MCP SDK only returns from Connect after the full endpoint event, so stopping
+// on the first partial bytes could let a stalled mid-event server hang. After
+// the first complete event the stream is left unbounded. The context is
+// released on Close.
+type stopTimerOnSSEEventBody struct {
+	io.ReadCloser
+	once   sync.Once
+	stop   func()
+	cancel func()
+	tail   []byte // trailing bytes carried between reads to catch a split delimiter
+	done   bool   // a complete event boundary has been seen
+}
+
+func (b *stopTimerOnSSEEventBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if n > 0 && !b.done {
+		b.scan(p[:n])
+	}
+	return n, err
+}
+
+// scan looks for an SSE event boundary (a blank line) across read chunks,
+// keeping a few trailing bytes so a delimiter split between reads is detected.
+func (b *stopTimerOnSSEEventBody) scan(data []byte) {
+	buf := make([]byte, 0, len(b.tail)+len(data))
+	buf = append(buf, b.tail...)
+	buf = append(buf, data...)
+	if bytes.Contains(buf, []byte("\n\n")) || bytes.Contains(buf, []byte("\r\n\r\n")) {
+		b.done = true
+		b.tail = nil
+		b.once.Do(b.stop)
+		return
+	}
+	const keep = 3 // longest delimiter prefix worth carrying ("\r\n\r")
+	if len(buf) > keep {
+		buf = buf[len(buf)-keep:]
+	}
+	b.tail = buf
+}
+
+func (b *stopTimerOnSSEEventBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.once.Do(b.stop)
+	b.cancel()
+	return err
 }
 
 // headerTransport is an http.RoundTripper that injects custom headers.

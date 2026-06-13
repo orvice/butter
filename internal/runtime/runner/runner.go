@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"butterfly.orx.me/core/log"
 	"github.com/achetronic/adk-utils-go/plugin/contextguard"
@@ -71,7 +72,12 @@ type Service struct {
 	invRecorder InvocationRecorder
 
 	cancelMu  sync.Mutex
-	cancelers map[string]context.CancelFunc
+	cancelers map[string]cancelEntry
+}
+
+type cancelEntry struct {
+	cancel      context.CancelFunc
+	workspaceID string
 }
 
 // SetInvocationRecorder attaches a recorder that observes every Run call.
@@ -89,24 +95,30 @@ func (s *Service) recorder() InvocationRecorder {
 }
 
 // CancelInvocation signals the in-flight invocation with the given id to stop.
-// Returns true if the invocation was found and the cancel signal was delivered.
-func (s *Service) CancelInvocation(id string) bool {
+// workspaceID scopes the cancel to the caller's tenant: an empty value is the
+// admin/system path and may cancel any invocation, otherwise the invocation
+// must have been started in the same workspace. Returns true if the
+// invocation was found and the cancel signal was delivered.
+func (s *Service) CancelInvocation(id, workspaceID string) bool {
 	s.cancelMu.Lock()
-	cancel, ok := s.cancelers[id]
+	entry, ok := s.cancelers[id]
 	s.cancelMu.Unlock()
 	if !ok {
 		return false
 	}
-	cancel()
+	if workspaceID != "" && entry.workspaceID != workspaceID {
+		return false
+	}
+	entry.cancel()
 	return true
 }
 
-func (s *Service) registerCancel(id string, cancel context.CancelFunc) {
+func (s *Service) registerCancel(id, workspaceID string, cancel context.CancelFunc) {
 	s.cancelMu.Lock()
 	if s.cancelers == nil {
-		s.cancelers = make(map[string]context.CancelFunc)
+		s.cancelers = make(map[string]cancelEntry)
 	}
-	s.cancelers[id] = cancel
+	s.cancelers[id] = cancelEntry{cancel: cancel, workspaceID: workspaceID}
 	s.cancelMu.Unlock()
 }
 
@@ -147,6 +159,12 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 			"type", agents[i].GetType().String(),
 			"description", agents[i].GetDescription(),
 		)
+
+		// The registry is keyed by name only; a cross-workspace duplicate
+		// would silently shadow the other workspace's agent.
+		if prev, ok := protoRegistry[name]; ok {
+			return nil, fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
+		}
 
 		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory)
 		if err != nil {
@@ -309,6 +327,16 @@ func (s *Service) RegisterAgentWithBuilder(name string, ag agent.Agent, builder 
 	s.agentBuilders[name] = builder
 }
 
+// IsReservedAgentName reports whether name belongs to a dynamically registered
+// builder agent (e.g. the built-in system agent). Proto agents must not use
+// these names, as they would collide with the runtime entry.
+func (s *Service) IsReservedAgentName(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.agentBuilders[name]
+	return ok
+}
+
 // ReloadProtoAgents rebuilds all proto-configured agents and refreshes runtime registries.
 func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent) error {
 	logger := log.FromContext(ctx)
@@ -320,8 +348,27 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 		return fmt.Errorf("model config validation: %w", err)
 	}
 
+	s.mu.Lock()
+	reserved := make(map[string]struct{}, len(s.agentBuilders))
+	for name := range s.agentBuilders {
+		reserved[name] = struct{}{}
+	}
+	s.mu.Unlock()
+
 	for i := range agents {
 		name := agents[i].GetName()
+		if prev, ok := protoRegistry[name]; ok {
+			return fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
+		}
+		// A proto agent must never shadow a reserved builder agent (e.g. the
+		// built-in system agent); doing so would leave registry[name] pointing
+		// at the proto build while agentBuilders[name] still rebuilds the
+		// builder agent, an inconsistent state. Skip it so the builder stays
+		// authoritative.
+		if _, isReserved := reserved[name]; isReserved {
+			logger.Warn("skipping proto agent that collides with a reserved builder name", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
+			continue
+		}
 		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory)
 		if err != nil {
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
@@ -440,6 +487,8 @@ func (s *Service) HasAgentInWorkspace(workspaceID, name string) bool {
 
 // ModelProviders returns the configured model providers.
 func (s *Service) ModelProviders() []agentsv1.ModelProvider {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.providers
 }
 
@@ -462,19 +511,38 @@ func (s *Service) GetAgentStatus(name string) *AgentStatus {
 	if !ok {
 		return nil
 	}
-	return buildAgentStatus(pb)
+	mcpNamesByID := make(map[string]string, len(s.mcpRegistry))
+	for i := range s.mcpRegistry {
+		if id := s.mcpRegistry[i].GetId(); id != "" {
+			mcpNamesByID[id] = s.mcpRegistry[i].GetName()
+		}
+	}
+	return buildAgentStatus(pb, mcpNamesByID)
 }
 
-func buildAgentStatus(pb *agentsv1.Agent) *AgentStatus {
+func buildAgentStatus(pb *agentsv1.Agent, mcpNamesByID map[string]string) *AgentStatus {
 	st := &AgentStatus{
 		Name:        pb.GetName(),
 		Description: pb.GetDescription(),
 	}
+	seen := make(map[string]struct{})
 	for _, srv := range pb.GetConfig().GetMcpServers() {
 		st.MCPServers = append(st.MCPServers, srv.GetName())
+		seen[srv.GetName()] = struct{}{}
+	}
+	for _, id := range pb.GetConfig().GetMcpServerIds() {
+		name, ok := mcpNamesByID[id]
+		if !ok {
+			continue
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		st.MCPServers = append(st.MCPServers, name)
+		seen[name] = struct{}{}
 	}
 	for _, sub := range pb.GetSubAgents() {
-		st.SubAgents = append(st.SubAgents, buildAgentStatus(sub))
+		st.SubAgents = append(st.SubAgents, buildAgentStatus(sub, mcpNamesByID))
 	}
 	return st
 }
@@ -523,10 +591,17 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 		)
 		return cached, nil
 	}
+	pb, hasProto := s.agentsProto[agentName]
+	builder, hasBuilder := s.agentBuilders[agentName]
+	providers := s.providers
+	mcpRegistry := s.mcpRegistry
+	remoteAgents := s.remoteAgents
+	agentFileRepo := s.agentFileRepo
+	agentFileMaxBytes := s.agentFileMaxBytes
 	s.mu.Unlock()
 
 	// Resolve the model alias to get the actual model name.
-	resolvedName, _ := internalagent.ResolveModelAlias(modelOverride, s.providers)
+	resolvedName, _ := internalagent.ResolveModelAlias(modelOverride, providers)
 	logger.Info("building model-overridden agent",
 		"agent", agentName,
 		"model_override", modelOverride,
@@ -536,20 +611,15 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	var a agent.Agent
 	var err error
 
-	s.mu.Lock()
-	pb, hasProto := s.agentsProto[agentName]
-	builder, hasBuilder := s.agentBuilders[agentName]
-	mcpRegistry := s.mcpRegistry
-	remoteAgents := s.remoteAgents
-	agentFileRepo := s.agentFileRepo
-	agentFileMaxBytes := s.agentFileMaxBytes
-	s.mu.Unlock()
-
 	if hasProto {
-		// Proto-based agent: clone proto and override model.
+		// Proto-based agent: clone proto and override model. Workflow agents
+		// (loop/sequential/parallel) may have no config block at all.
 		clone := proto.Clone(pb).(*agentsv1.Agent)
+		if clone.Config == nil {
+			clone.Config = &agentsv1.AgentConfig{}
+		}
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, s.providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(agentFileRepo, agentFileMaxBytes))
+		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(agentFileRepo, agentFileMaxBytes))
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)
@@ -633,7 +703,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	if inv != nil {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithCancel(ctx)
-		s.registerCancel(inv.GetId(), cancel)
+		s.registerCancel(inv.GetId(), ctxInfo.GetWorkspaceId(), cancel)
 		defer func() {
 			s.deregisterCancel(inv.GetId())
 			cancel()
@@ -838,6 +908,11 @@ func (s *Service) finishInvocation(ctx context.Context, inv *agentsv1.Invocation
 	if rec == nil {
 		return
 	}
+	// The request context may already be canceled (client disconnect, user
+	// cancel); detach so the terminal status is still persisted, otherwise the
+	// invocation stays RUNNING forever.
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
 	now := time.Now().UTC()
 	inv.FinishedAt = timestamppb.New(now)
 	inv.LatencyMs = now.Sub(inv.GetStartedAt().AsTime()).Milliseconds()
@@ -850,7 +925,7 @@ func (s *Service) finishInvocation(ctx context.Context, inv *agentsv1.Invocation
 	if output != nil {
 		inv.Output = truncate(*output, 4096)
 	}
-	if err := rec.Save(ctx, inv); err != nil {
+	if err := rec.Save(saveCtx, inv); err != nil {
 		log.FromContext(ctx).Warn("failed to record invocation completion", "err", err)
 	}
 }
@@ -869,11 +944,17 @@ func joinTextParts(parts []*genai.Part) string {
 	return b.String()
 }
 
+// truncate cuts s to at most max bytes on a rune boundary so the result stays
+// valid UTF-8 (proto strings reject invalid UTF-8 when marshaled).
 func truncate(s string, max int) string {
 	if max <= 0 || len(s) <= max {
 		return s
 	}
-	return s[:max] + "…"
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
 }
 
 type inputPartSummary struct {
@@ -926,6 +1007,9 @@ func summarizeEvent(evt *session.Event) eventSummary {
 	}
 
 	for _, part := range evt.Content.Parts {
+		if part == nil {
+			continue
+		}
 		switch {
 		case part.Text != "":
 			summary.textParts++

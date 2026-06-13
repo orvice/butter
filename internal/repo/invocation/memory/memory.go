@@ -68,6 +68,28 @@ func (s *Store) ListRecent(_ context.Context, limit int32, pageToken string) ([]
 	return page, next, nil
 }
 
+func (s *Store) StatusSummaries(_ context.Context, workspaceID string, agentNames []string) (map[string]invocation.StatusSummary, error) {
+	wanted := make(map[string]bool, len(agentNames))
+	for _, n := range agentNames {
+		wanted[n] = true
+	}
+	out := make(map[string]invocation.StatusSummary, len(agentNames))
+	for _, inv := range s.snapshotDesc() {
+		if inv.GetWorkspaceId() != workspaceID || !wanted[inv.GetAgentName()] {
+			continue
+		}
+		sum := out[inv.GetAgentName()]
+		if sum.Latest == nil {
+			sum.Latest = inv
+		}
+		if inv.GetStatus() == agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING {
+			sum.Running++
+		}
+		out[inv.GetAgentName()] = sum
+	}
+	return out, nil
+}
+
 func (s *Store) snapshotDesc() []*agentsv1.Invocation {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

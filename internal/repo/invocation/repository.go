@@ -17,6 +17,13 @@ type ListFilter struct {
 	SessionID   string
 }
 
+// StatusSummary describes the runtime-relevant view of one agent's
+// invocations: the most recent record and the number currently RUNNING.
+type StatusSummary struct {
+	Latest  *agentsv1.Invocation
+	Running int32
+}
+
 // Repository persists invocation records produced by runner.Service.
 //
 // Implementations must accept Upsert semantics in Save: the runner first
@@ -29,4 +36,8 @@ type Repository interface {
 	// ListRecent returns the most recent invocations across all agents, used
 	// to drive the dashboard activity feed.
 	ListRecent(ctx context.Context, limit int32, pageToken string) ([]*agentsv1.Invocation, string, error)
+	// StatusSummaries returns, for each named agent in the workspace, its most
+	// recent invocation and the count of currently RUNNING invocations.
+	// Agents with no invocations are absent from the returned map.
+	StatusSummaries(ctx context.Context, workspaceID string, agentNames []string) (map[string]StatusSummary, error)
 }
