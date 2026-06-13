@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -385,8 +386,9 @@ func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPH
 			base = http.DefaultTransport
 		}
 		httpClient.Transport = &responseHeaderTimeoutTransport{
-			base:    base,
-			timeout: time.Duration(secs) * time.Second,
+			base:      base,
+			timeout:   time.Duration(secs) * time.Second,
+			transport: srv.GetTransport(),
 		}
 	}
 
@@ -406,22 +408,29 @@ func mcpTransport(ctx context.Context, srv *agentsv1.MCPServer, httpFactory MCPH
 	}
 }
 
-// responseHeaderTimeoutTransport bounds MCP requests by timeout. For message
-// POSTs the whole exchange (headers plus the response body the MCP SDK reads)
-// must complete within timeout, so a server that streams headers then stalls
-// the body cannot hang the agent. The standalone SSE listener (a GET) is
-// exempted once headers arrive: it is a long-lived stream of server-initiated
-// messages and must stay open for the agent's lifetime.
+// responseHeaderTimeoutTransport bounds MCP requests by timeout. Exactly how
+// it bounds a request depends on the request and the MCP transport, because
+// the MCP SDK relies on long-lived streams that must not be killed:
+//
+//   - Message POSTs (streamable HTTP tool calls, SSE message sends): the whole
+//     exchange — headers plus the response body the SDK reads — must finish
+//     within timeout, so a server that streams headers then stalls the body
+//     cannot hang the agent.
+//   - The streamable HTTP standalone listener (a GET) is exempted once headers
+//     arrive: it is a long-lived stream of server-initiated messages that may
+//     stay idle for the agent's lifetime.
+//   - The legacy SSE stream (a GET) is also long-lived, but the SDK blocks on
+//     its body for the initial "endpoint" event before Connect returns. We
+//     bound it only until the first bytes arrive (the handshake), then leave
+//     the stream unbounded.
 type responseHeaderTimeoutTransport struct {
-	base    http.RoundTripper
-	timeout time.Duration
+	base      http.RoundTripper
+	timeout   time.Duration
+	transport agentsv1.MCPServerTransport
 }
 
 func (t *responseHeaderTimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx, cancel := context.WithCancelCause(req.Context())
-	// The standalone SSE listener uses GET; everything else (message sends,
-	// tool calls) is a POST whose body carries the response we must bound.
-	headerOnly := req.Method == http.MethodGet
 	timer := time.AfterFunc(t.timeout, func() {
 		cancel(fmt.Errorf("mcp request exceeded %s", t.timeout))
 	})
@@ -434,18 +443,28 @@ func (t *responseHeaderTimeoutTransport) RoundTrip(req *http.Request) (*http.Res
 		}
 		return nil, err
 	}
-	if headerOnly {
-		// Long-lived listener: stop bounding once headers have arrived.
+
+	switch {
+	case req.Method == http.MethodGet && t.transport == agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP:
+		// Standalone listener: may stay idle, so stop bounding at headers.
 		timer.Stop()
 		resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() { cancel(nil) }}
-		return resp, nil
+	case req.Method == http.MethodGet:
+		// Legacy SSE stream: bound the handshake (time to the first event),
+		// then leave the long-lived stream unbounded.
+		resp.Body = &stopTimerOnFirstReadBody{
+			ReadCloser: resp.Body,
+			stop:       func() { timer.Stop() },
+			cancel:     func() { cancel(nil) },
+		}
+	default:
+		// Message exchange: keep the timer running so an unfinished body read
+		// is cancelled. A normally consumed body stops the timer on close.
+		resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() {
+			timer.Stop()
+			cancel(nil)
+		}}
 	}
-	// Message exchange: keep the timer running so an unfinished body read is
-	// cancelled. A normally consumed body stops the timer on close.
-	resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: func() {
-		timer.Stop()
-		cancel(nil)
-	}}
 	return resp, nil
 }
 
@@ -456,6 +475,31 @@ type cancelOnCloseBody struct {
 
 func (b *cancelOnCloseBody) Close() error {
 	err := b.ReadCloser.Close()
+	b.cancel()
+	return err
+}
+
+// stopTimerOnFirstReadBody stops the handshake timer once the first bytes of a
+// long-lived SSE stream arrive, then leaves the stream unbounded. The context
+// is released on Close.
+type stopTimerOnFirstReadBody struct {
+	io.ReadCloser
+	once   sync.Once
+	stop   func()
+	cancel func()
+}
+
+func (b *stopTimerOnFirstReadBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if n > 0 {
+		b.once.Do(b.stop)
+	}
+	return n, err
+}
+
+func (b *stopTimerOnFirstReadBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.once.Do(b.stop)
 	b.cancel()
 	return err
 }

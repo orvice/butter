@@ -7,15 +7,21 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-func TestResponseHeaderTimeoutTransport(t *testing.T) {
-	client := &http.Client{Transport: &responseHeaderTimeoutTransport{
-		base:    http.DefaultTransport,
-		timeout: 100 * time.Millisecond,
+func timeoutClient(transport agentsv1.MCPServerTransport) *http.Client {
+	return &http.Client{Transport: &responseHeaderTimeoutTransport{
+		base:      http.DefaultTransport,
+		timeout:   100 * time.Millisecond,
+		transport: transport,
 	}}
+}
 
-	t.Run("server never sends headers", func(t *testing.T) {
+func TestResponseHeaderTimeoutTransport(t *testing.T) {
+	t.Run("server never sends headers times out", func(t *testing.T) {
+		client := timeoutClient(agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			<-r.Context().Done()
 		}))
@@ -27,11 +33,12 @@ func TestResponseHeaderTimeoutTransport(t *testing.T) {
 		}
 	})
 
-	t.Run("standalone listener (GET) body is unaffected after headers", func(t *testing.T) {
+	t.Run("streamable HTTP standalone listener (GET) unaffected after headers", func(t *testing.T) {
+		client := timeoutClient(agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.(http.Flusher).Flush()
-			time.Sleep(300 * time.Millisecond)
+			time.Sleep(300 * time.Millisecond) // idle listener, no data yet
 			_, _ = w.Write([]byte("done"))
 		}))
 		defer srv.Close()
@@ -50,7 +57,57 @@ func TestResponseHeaderTimeoutTransport(t *testing.T) {
 		}
 	})
 
+	t.Run("legacy SSE handshake (GET) that never sends endpoint times out", func(t *testing.T) {
+		client := timeoutClient(agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_SSE)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			<-r.Context().Done() // headers sent, but no endpoint event
+		}))
+		defer srv.Close()
+
+		resp, err := client.Get(srv.URL)
+		if err != nil {
+			t.Fatalf("get: %v", err)
+		}
+		_, err = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err == nil {
+			t.Fatal("expected handshake read to fail due to timeout, got nil")
+		}
+	})
+
+	t.Run("legacy SSE stream unbounded after first event", func(t *testing.T) {
+		client := timeoutClient(agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_SSE)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			f := w.(http.Flusher)
+			// First event (endpoint) arrives promptly.
+			_, _ = w.Write([]byte("event: endpoint\ndata: /msg\n\n"))
+			f.Flush()
+			// A later event arrives well past the handshake timeout.
+			time.Sleep(300 * time.Millisecond)
+			_, _ = w.Write([]byte("data: late\n\n"))
+			f.Flush()
+		}))
+		defer srv.Close()
+
+		resp, err := client.Get(srv.URL)
+		if err != nil {
+			t.Fatalf("get: %v", err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		if !strings.Contains(string(body), "late") {
+			t.Fatalf("expected late event to be read, got %q", body)
+		}
+	})
+
 	t.Run("message POST body that stalls after headers times out", func(t *testing.T) {
+		client := timeoutClient(agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.(http.Flusher).Flush()
@@ -70,6 +127,7 @@ func TestResponseHeaderTimeoutTransport(t *testing.T) {
 	})
 
 	t.Run("message POST that completes quickly succeeds", func(t *testing.T) {
+		client := timeoutClient(agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte("ok"))
 		}))
