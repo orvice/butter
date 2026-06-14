@@ -49,7 +49,7 @@ export function DataTable<T>({ columns, data, isLoading, emptyMessage = "No data
   }
 
   return (
-    <div className="rounded-lg border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+    <div className="rounded-[0.6rem] border bg-card shadow-card">
       <div className="hidden overflow-x-auto md:block">
         <Table className="min-w-full whitespace-nowrap">
           <TableHeader>

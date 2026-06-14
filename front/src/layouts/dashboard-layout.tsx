@@ -128,10 +128,10 @@ function StatusPill() {
   const { data } = useOverview();
   const status = worstStatus(data?.health?.mongodb, data?.health?.redis, data?.health?.runner);
   const palette = {
-    healthy: { cls: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20", label: "Healthy", icon: CircleCheck },
-    degraded: { cls: "bg-amber-500/10 text-amber-700 border-amber-500/20", label: "Degraded", icon: CircleAlert },
-    down: { cls: "bg-rose-500/10 text-rose-700 border-rose-500/20", label: "Down", icon: CircleAlert },
-    unknown: { cls: "bg-muted text-muted-foreground border-border", label: "Unknown", icon: CircleAlert },
+    healthy: { cls: "border-white/25 bg-white/15 text-primary-foreground", label: "Healthy", icon: CircleCheck },
+    degraded: { cls: "border-orange-200/40 bg-orange-300/20 text-primary-foreground", label: "Degraded", icon: CircleAlert },
+    down: { cls: "border-red-200/40 bg-red-400/25 text-primary-foreground", label: "Down", icon: CircleAlert },
+    unknown: { cls: "border-white/20 bg-white/10 text-primary-foreground/80", label: "Unknown", icon: CircleAlert },
   }[status];
   const Icon = palette.icon;
   return (
@@ -146,22 +146,22 @@ function WorkspaceSwitcher() {
   const { workspaces, selectedWorkspaceId, selectedWorkspace, isLoading, setSelectedWorkspaceId } = useWorkspace();
 
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-md border bg-card px-2 py-1">
-      <Building2 className="h-4 w-4 text-muted-foreground" />
+    <div className="flex min-w-0 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-2 py-1 text-primary-foreground">
+      <Building2 className="h-4 w-4 text-primary-foreground/75" />
       <div className="hidden leading-tight sm:block">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Workspace</div>
+        <div className="text-[10px] uppercase tracking-wide text-primary-foreground/70">Workspace</div>
         <div className="max-w-36 truncate text-xs font-medium">
           {selectedWorkspace?.name || selectedWorkspace?.slug || (isLoading ? "Loading..." : "Not selected")}
         </div>
       </div>
       <Select
-        value={selectedWorkspaceId || undefined}
+        value={selectedWorkspaceId || ""}
         onValueChange={(value) => {
           if (value) setSelectedWorkspaceId(value);
         }}
         disabled={isLoading || workspaces.length === 0}
       >
-        <SelectTrigger size="sm" className="w-36 sm:w-44">
+        <SelectTrigger size="sm" className="w-36 border-white/25 bg-white/10 text-primary-foreground hover:bg-white/15 sm:w-44">
           <SelectValue placeholder={isLoading ? "Loading workspaces" : "Select workspace"} />
         </SelectTrigger>
         <SelectContent align="end">
@@ -176,15 +176,6 @@ function WorkspaceSwitcher() {
         </SelectContent>
       </Select>
     </div>
-  );
-}
-
-function Brand() {
-  return (
-    <Link to="/" className="flex items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
-      <BrandMark size={30} />
-      <span className="text-base font-semibold leading-none tracking-tight text-foreground">Butter</span>
-    </Link>
   );
 }
 
@@ -206,10 +197,10 @@ function NavList({ items, isAdmin }: { items: NavItem[]; isAdmin: boolean }) {
             <Link
               key={to}
               to={to}
-              className={`flex items-center gap-3 rounded-md border-l-2 px-3 text-sm transition-colors ${isCompact ? "py-1.5" : "py-2.5"} ${
+              className={`flex items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors duration-200 ${isCompact ? "py-1.5" : "py-2.5"} ${
                 active
-                  ? "border-primary bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_18%,transparent)]"
-                  : "border-transparent text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-sidebar-accent/80 hover:text-foreground"
               }`}
             >
               <Icon className={cn("shrink-0 stroke-[1.7]", isCompact ? "h-4 w-4" : "h-5 w-5")} />
@@ -227,14 +218,14 @@ function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
     <nav className={cn("flex-1 overflow-y-auto px-3", isCompact ? "space-y-3 py-2" : "space-y-5 py-3")}>
       <NavList items={PRIMARY_NAV} isAdmin={isAdmin} />
       <div className={cn("border-t", isCompact ? "pt-3" : "pt-4")}>
-        <div className="px-3 pb-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        <div className="px-3 pb-2 text-[11px] font-medium text-muted-foreground">
           Settings
         </div>
         <NavList items={SECONDARY_NAV} isAdmin={isAdmin} />
       </div>
       {isAdmin ? (
         <div className={cn("border-t", isCompact ? "pt-3" : "pt-4")}>
-          <div className="px-3 pb-2 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          <div className="px-3 pb-2 text-[11px] font-medium text-muted-foreground">
             Admin
           </div>
           <NavList items={ADMIN_NAV} isAdmin={isAdmin} />
@@ -380,11 +371,17 @@ export default function DashboardLayout() {
     return <Navigate to="/login" replace />;
   }
 
+  const headerIconBtn =
+    "material-header-action";
+
   return (
-    <div className="flex min-h-[100dvh] bg-background">
-      <aside className={cn("hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex", isCompact ? "w-[228px]" : "w-[260px]")}>
-        <div className={cn("flex items-center gap-2 border-b px-5", isCompact ? "py-3" : "py-5")}>
-          <Brand />
+    <div className="flex min-h-[100dvh] overflow-hidden bg-background">
+      <aside className={cn("hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-sidebar md:flex", isCompact ? "w-64" : "w-72")}>
+        <div className={cn("flex items-center gap-2 border-b border-sidebar-border bg-primary px-5 text-primary-foreground", isCompact ? "h-16" : "h-[4.5rem]")}>
+          <Link to="/" className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-white/40">
+            <BrandMark size={30} />
+            <span className="text-base font-medium leading-none tracking-tight">Butter</span>
+          </Link>
         </div>
         <div className={cn("px-4", isCompact ? "py-3" : "py-4")}>
           <Button className="w-full" onClick={() => navigate("/agents/create")}>
@@ -396,16 +393,19 @@ export default function DashboardLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className={cn("sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur", isCompact ? "min-h-12 sm:px-5" : "min-h-16 sm:px-8")}>
+        <header className={cn("z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 bg-primary px-3 py-2 text-primary-foreground shadow-header", isCompact ? "min-h-16 sm:px-5" : "min-h-[4.5rem] sm:px-6")}>
           <div className="flex items-center gap-2 md:hidden">
             <Sheet>
-              <SheetTrigger render={<Button variant="ghost" size="icon" aria-label="Open navigation" />}>
+              <SheetTrigger render={<Button variant="ghost" size="icon" aria-label="Open navigation" className={headerIconBtn} />}>
                 <Menu className="h-4 w-4" />
               </SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0" showCloseButton={false}>
-                <SheetHeader className="border-b">
-                  <SheetTitle>
-                    <Brand />
+              <SheetContent side="left" className="w-72 gap-0 p-0" showCloseButton={false}>
+                <SheetHeader className="h-[4.5rem] justify-center border-b bg-primary text-primary-foreground">
+                  <SheetTitle className="text-primary-foreground">
+                    <Link to="/" className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-white/40">
+                      <BrandMark size={30} />
+                      <span className="text-base font-medium leading-none tracking-tight">Butter</span>
+                    </Link>
                   </SheetTitle>
                 </SheetHeader>
                 <div className="px-4 py-4">
@@ -417,34 +417,40 @@ export default function DashboardLayout() {
                 <SidebarNav isAdmin={isAdmin} />
               </SheetContent>
             </Sheet>
-            <Brand />
+            <Link to="/" className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-white/40">
+              <BrandMark size={30} />
+              <span className="text-base font-medium leading-none tracking-tight text-primary-foreground">Butter</span>
+            </Link>
           </div>
           <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex">
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Search..." />
+            <div className="content-search max-w-xl">
+              <Search className="h-4 w-4 text-current/70" />
+              <Input
+                className="h-full border-0 bg-transparent px-2 text-current shadow-none placeholder:text-current/80 focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+                placeholder="Search..."
+              />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <WorkspaceSwitcher />
             <StatusPill />
-            <ThemeControls mode="menu" />
-            <Button variant="ghost" size="icon" aria-label="Storage status">
+            <ThemeControls mode="menu" triggerClassName={headerIconBtn} />
+            <Button variant="ghost" size="icon" aria-label="Storage status" className={cn(headerIconBtn, "hidden sm:inline-flex")}>
               <Database className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Refresh status">
+            <Button variant="ghost" size="icon" aria-label="Refresh status" className={cn(headerIconBtn, "hidden sm:inline-flex")}>
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Notifications">
+            <Button variant="ghost" size="icon" aria-label="Notifications" className={cn(headerIconBtn, "hidden sm:inline-flex")}>
               <Bell className="h-4 w-4" />
             </Button>
             <UserAvatarLink user={user} />
-            <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out">
+            <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out" className={headerIconBtn}>
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </header>
-        <main className={cn("flex-1 overflow-auto p-4", isCompact ? "sm:p-5" : "sm:p-8")}>
+        <main className={cn("flex-1 overflow-auto p-4", isCompact ? "sm:p-4" : "sm:p-6")}>
           {selectedWorkspaceId ? (
             <Outlet />
           ) : isWorkspaceLoading ? (
