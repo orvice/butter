@@ -118,12 +118,16 @@ export default function CronJobListPage() {
       cell: (row) => {
         const exec = lastExecByJob.get(row.name);
         if (!exec) return <span className="text-xs text-muted-foreground">-</span>;
-        const ok = exec.status === "CRON_EXECUTION_STATUS_SUCCESS";
+        const status = exec.status.replace("CRON_EXECUTION_STATUS_", "");
+        const cls =
+          exec.status === "CRON_EXECUTION_STATUS_SUCCESS"
+            ? "bg-emerald-500/10 text-emerald-700"
+            : exec.status === "CRON_EXECUTION_STATUS_ERROR" || exec.status === "CRON_EXECUTION_STATUS_CANCELLED"
+              ? "bg-rose-500/10 text-rose-700"
+              : "bg-amber-500/10 text-amber-700";
         return (
           <div className="flex items-center gap-2">
-            <Badge className={ok ? "bg-emerald-500/10 text-emerald-700" : "bg-rose-500/10 text-rose-700"}>
-              {ok ? "Success" : "Error"}
-            </Badge>
+            <Badge className={cls}>{status}</Badge>
             <span className="text-xs text-muted-foreground">{timeAgo(exec.started_at)}</span>
           </div>
         );
@@ -133,6 +137,15 @@ export default function CronJobListPage() {
       header: "Enabled",
       cell: (row) => (
         <Switch checked={row.enabled ?? false} onCheckedChange={() => toggleEnabled(row)} />
+      ),
+    },
+    {
+      header: "Policy",
+      cell: (row) => (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <div>{(row.concurrency_policy ?? "CRON_CONCURRENCY_POLICY_SKIP").replace("CRON_CONCURRENCY_POLICY_", "")}</div>
+          <div>{(row.notify_on ?? "CRON_NOTIFY_ON_ALWAYS").replace("CRON_NOTIFY_ON_", "")}</div>
+        </div>
       ),
     },
     {

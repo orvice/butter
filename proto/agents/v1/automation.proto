@@ -1,0 +1,414 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// Automation defines a workspace-scoped ordered workflow.
+message Automation {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 1 [(validate.rules).string.min_len = 1];
+
+  // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty" bson:"enabled,omitempty"
+  bool enabled = 2;
+
+  // @gotags: json:"trigger,omitempty" yaml:"trigger,omitempty" bson:"trigger,omitempty"
+  AutomationTrigger trigger = 3;
+
+  // @gotags: json:"conditions,omitempty" yaml:"conditions,omitempty" bson:"conditions,omitempty"
+  repeated AutomationCondition conditions = 4;
+
+  // @gotags: json:"steps,omitempty" yaml:"steps,omitempty" bson:"steps,omitempty"
+  repeated AutomationStep steps = 5;
+
+  // @gotags: json:"policy,omitempty" yaml:"policy,omitempty" bson:"policy,omitempty"
+  AutomationPolicy policy = 6;
+
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty" bson:"metadata,omitempty"
+  map<string, string> metadata = 20;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 30;
+
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 31;
+
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+message AutomationTrigger {
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty" bson:"type,omitempty"
+  AutomationTriggerType type = 1;
+
+  // @gotags: json:"schedule,omitempty" yaml:"schedule,omitempty" bson:"schedule,omitempty"
+  AutomationScheduleTrigger schedule = 2;
+
+  // @gotags: json:"webhook,omitempty" yaml:"webhook,omitempty" bson:"webhook,omitempty"
+  AutomationWebhookTrigger webhook = 3;
+
+  // Future event trigger configuration. The initial runtime only executes
+  // MANUAL and SCHEDULE triggers, but these fields keep the resource shape
+  // stable for event-triggered workflows.
+  // @gotags: json:"event,omitempty" yaml:"event,omitempty" bson:"event,omitempty"
+  AutomationEventTrigger event = 4;
+}
+
+enum AutomationTriggerType {
+  AUTOMATION_TRIGGER_TYPE_UNSPECIFIED = 0;
+  AUTOMATION_TRIGGER_TYPE_MANUAL = 1;
+  AUTOMATION_TRIGGER_TYPE_SCHEDULE = 2;
+  AUTOMATION_TRIGGER_TYPE_WEBHOOK = 3;
+  AUTOMATION_TRIGGER_TYPE_FORUM_EVENT = 4;
+  AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT = 5;
+  AUTOMATION_TRIGGER_TYPE_DAEMON_EVENT = 6;
+}
+
+message AutomationScheduleTrigger {
+  // @gotags: json:"schedule,omitempty" yaml:"schedule,omitempty" bson:"schedule,omitempty"
+  string schedule = 1 [(validate.rules).string.min_len = 1];
+
+  // IANA timezone name. Defaults to UTC when empty.
+  // @gotags: json:"timezone,omitempty" yaml:"timezone,omitempty" bson:"timezone,omitempty"
+  string timezone = 2;
+}
+
+message AutomationWebhookTrigger {
+  // Stable path token used by future webhook trigger routing.
+  // @gotags: json:"token,omitempty" yaml:"token,omitempty" bson:"token,omitempty"
+  string token = 1;
+}
+
+message AutomationEventTrigger {
+  // Event kind, e.g. "forum.post.created" or "daemon.task.failed".
+  // @gotags: json:"event_type,omitempty" yaml:"event_type,omitempty" bson:"event_type,omitempty"
+  string event_type = 1;
+
+  // @gotags: json:"filters,omitempty" yaml:"filters,omitempty" bson:"filters,omitempty"
+  map<string, string> filters = 2;
+}
+
+message AutomationCondition {
+  // @gotags: json:"selector,omitempty" yaml:"selector,omitempty" bson:"selector,omitempty"
+  string selector = 1 [(validate.rules).string.min_len = 1];
+
+  // @gotags: json:"operator,omitempty" yaml:"operator,omitempty" bson:"operator,omitempty"
+  AutomationConditionOperator operator = 2;
+
+  // @gotags: json:"value,omitempty" yaml:"value,omitempty" bson:"value,omitempty"
+  string value = 3;
+}
+
+enum AutomationConditionOperator {
+  AUTOMATION_CONDITION_OPERATOR_UNSPECIFIED = 0;
+  AUTOMATION_CONDITION_OPERATOR_EQUALS = 1;
+  AUTOMATION_CONDITION_OPERATOR_NOT_EQUALS = 2;
+  AUTOMATION_CONDITION_OPERATOR_CONTAINS = 3;
+  AUTOMATION_CONDITION_OPERATOR_REGEX_MATCH = 4;
+  AUTOMATION_CONDITION_OPERATOR_EXISTS = 5;
+  AUTOMATION_CONDITION_OPERATOR_NOT_EXISTS = 6;
+}
+
+message AutomationStep {
+  // Stable name used in step-run records.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 1 [(validate.rules).string.min_len = 1];
+
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty" bson:"type,omitempty"
+  AutomationStepType type = 2;
+
+  // @gotags: json:"invoke_agent,omitempty" yaml:"invoke_agent,omitempty" bson:"invoke_agent,omitempty"
+  AutomationInvokeAgentStep invoke_agent = 3;
+
+  // @gotags: json:"call_webhook,omitempty" yaml:"call_webhook,omitempty" bson:"call_webhook,omitempty"
+  AutomationCallWebhookStep call_webhook = 4;
+
+  // @gotags: json:"send_notify_group,omitempty" yaml:"send_notify_group,omitempty" bson:"send_notify_group,omitempty"
+  AutomationSendNotifyGroupStep send_notify_group = 5;
+
+  // @gotags: json:"create_forum_post,omitempty" yaml:"create_forum_post,omitempty" bson:"create_forum_post,omitempty"
+  AutomationCreateForumPostStep create_forum_post = 6;
+
+  // Optional per-step overrides for retry/timeout/output policy.
+  // @gotags: json:"policy,omitempty" yaml:"policy,omitempty" bson:"policy,omitempty"
+  AutomationPolicy policy = 10;
+}
+
+enum AutomationStepType {
+  AUTOMATION_STEP_TYPE_UNSPECIFIED = 0;
+  AUTOMATION_STEP_TYPE_INVOKE_AGENT = 1;
+  AUTOMATION_STEP_TYPE_CALL_WEBHOOK = 2;
+  AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP = 3;
+  AUTOMATION_STEP_TYPE_CREATE_FORUM_POST = 4;
+}
+
+message AutomationInvokeAgentStep {
+  // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty" bson:"agent_name,omitempty"
+  string agent_name = 1 [(validate.rules).string.min_len = 1];
+
+  // @gotags: json:"input,omitempty" yaml:"input,omitempty" bson:"input,omitempty"
+  string input = 2;
+
+  // @gotags: json:"model_override,omitempty" yaml:"model_override,omitempty" bson:"model_override,omitempty"
+  string model_override = 3;
+}
+
+message AutomationCallWebhookStep {
+  // @gotags: json:"url,omitempty" yaml:"url,omitempty" bson:"url,omitempty"
+  string url = 1 [(validate.rules).string.min_len = 1];
+
+  // @gotags: json:"method,omitempty" yaml:"method,omitempty" bson:"method,omitempty"
+  string method = 2;
+
+  // JSON payload template or static JSON body.
+  // @gotags: json:"payload_json,omitempty" yaml:"payload_json,omitempty" bson:"payload_json,omitempty"
+  string payload_json = 3;
+
+  // @gotags: json:"headers,omitempty" yaml:"headers,omitempty" bson:"headers,omitempty"
+  map<string, string> headers = 4;
+}
+
+message AutomationSendNotifyGroupStep {
+  // @gotags: json:"notify_group_name,omitempty" yaml:"notify_group_name,omitempty" bson:"notify_group_name,omitempty"
+  string notify_group_name = 1 [(validate.rules).string.min_len = 1];
+
+  // @gotags: json:"title,omitempty" yaml:"title,omitempty" bson:"title,omitempty"
+  string title = 2;
+
+  // @gotags: json:"message,omitempty" yaml:"message,omitempty" bson:"message,omitempty"
+  string message = 3;
+}
+
+message AutomationCreateForumPostStep {
+  // @gotags: json:"thread_id,omitempty" yaml:"thread_id,omitempty" bson:"thread_id,omitempty"
+  string thread_id = 1 [(validate.rules).string.min_len = 1];
+
+  // @gotags: json:"body,omitempty" yaml:"body,omitempty" bson:"body,omitempty"
+  string body = 2 [(validate.rules).string.min_len = 1];
+}
+
+message AutomationPolicy {
+  // @gotags: json:"timeout,omitempty" yaml:"timeout,omitempty" bson:"timeout,omitempty"
+  google.protobuf.Duration timeout = 1;
+
+  // @gotags: json:"retry,omitempty" yaml:"retry,omitempty" bson:"retry,omitempty"
+  AutomationRetryPolicy retry = 2;
+
+  // @gotags: json:"concurrency,omitempty" yaml:"concurrency,omitempty" bson:"concurrency,omitempty"
+  AutomationConcurrencyPolicy concurrency = 3;
+
+  // Maximum bytes persisted for run/step output previews. 0 uses server default.
+  // @gotags: json:"max_output_bytes,omitempty" yaml:"max_output_bytes,omitempty" bson:"max_output_bytes,omitempty"
+  int32 max_output_bytes = 4;
+}
+
+message AutomationRetryPolicy {
+  // Number of retries after the initial attempt. 0 disables retries.
+  // @gotags: json:"max_attempts,omitempty" yaml:"max_attempts,omitempty" bson:"max_attempts,omitempty"
+  int32 max_attempts = 1;
+
+  // @gotags: json:"backoff,omitempty" yaml:"backoff,omitempty" bson:"backoff,omitempty"
+  google.protobuf.Duration backoff = 2;
+}
+
+enum AutomationConcurrencyPolicy {
+  AUTOMATION_CONCURRENCY_POLICY_UNSPECIFIED = 0;
+  AUTOMATION_CONCURRENCY_POLICY_SKIP = 1;
+  AUTOMATION_CONCURRENCY_POLICY_QUEUE = 2;
+  AUTOMATION_CONCURRENCY_POLICY_REPLACE = 3;
+  AUTOMATION_CONCURRENCY_POLICY_ALLOW = 4;
+}
+
+message AutomationRun {
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+
+  // @gotags: json:"automation_name,omitempty" yaml:"automation_name,omitempty" bson:"automation_name,omitempty"
+  string automation_name = 2;
+
+  // @gotags: json:"trigger_type,omitempty" yaml:"trigger_type,omitempty" bson:"trigger_type,omitempty"
+  AutomationTriggerType trigger_type = 3;
+
+  // @gotags: json:"status,omitempty" yaml:"status,omitempty" bson:"status,omitempty"
+  AutomationRunStatus status = 4;
+
+  // Truncated trigger payload preview.
+  // @gotags: json:"trigger_payload_json,omitempty" yaml:"trigger_payload_json,omitempty" bson:"trigger_payload_json,omitempty"
+  string trigger_payload_json = 5;
+
+  // @gotags: json:"error,omitempty" yaml:"error,omitempty" bson:"error,omitempty"
+  string error = 6;
+
+  // @gotags: json:"started_at,omitempty" yaml:"started_at,omitempty" bson:"started_at,omitempty"
+  google.protobuf.Timestamp started_at = 7;
+
+  // @gotags: json:"finished_at,omitempty" yaml:"finished_at,omitempty" bson:"finished_at,omitempty"
+  google.protobuf.Timestamp finished_at = 8;
+
+  // @gotags: json:"duration_ms,omitempty" yaml:"duration_ms,omitempty" bson:"duration_ms,omitempty"
+  int64 duration_ms = 9;
+
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+enum AutomationRunStatus {
+  AUTOMATION_RUN_STATUS_UNSPECIFIED = 0;
+  AUTOMATION_RUN_STATUS_RUNNING = 1;
+  AUTOMATION_RUN_STATUS_SUCCEEDED = 2;
+  AUTOMATION_RUN_STATUS_FAILED = 3;
+  AUTOMATION_RUN_STATUS_SKIPPED = 4;
+  AUTOMATION_RUN_STATUS_CANCELLED = 5;
+}
+
+message AutomationStepRun {
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+
+  // @gotags: json:"run_id,omitempty" yaml:"run_id,omitempty" bson:"run_id,omitempty"
+  string run_id = 2;
+
+  // @gotags: json:"automation_name,omitempty" yaml:"automation_name,omitempty" bson:"automation_name,omitempty"
+  string automation_name = 3;
+
+  // @gotags: json:"step_name,omitempty" yaml:"step_name,omitempty" bson:"step_name,omitempty"
+  string step_name = 4;
+
+  // @gotags: json:"step_type,omitempty" yaml:"step_type,omitempty" bson:"step_type,omitempty"
+  AutomationStepType step_type = 5;
+
+  // @gotags: json:"status,omitempty" yaml:"status,omitempty" bson:"status,omitempty"
+  AutomationStepRunStatus status = 6;
+
+  // @gotags: json:"attempt_count,omitempty" yaml:"attempt_count,omitempty" bson:"attempt_count,omitempty"
+  int32 attempt_count = 7;
+
+  // @gotags: json:"input_json,omitempty" yaml:"input_json,omitempty" bson:"input_json,omitempty"
+  string input_json = 8;
+
+  // @gotags: json:"output_json,omitempty" yaml:"output_json,omitempty" bson:"output_json,omitempty"
+  string output_json = 9;
+
+  // @gotags: json:"error,omitempty" yaml:"error,omitempty" bson:"error,omitempty"
+  string error = 10;
+
+  // @gotags: json:"invocation_id,omitempty" yaml:"invocation_id,omitempty" bson:"invocation_id,omitempty"
+  string invocation_id = 11;
+
+  // @gotags: json:"started_at,omitempty" yaml:"started_at,omitempty" bson:"started_at,omitempty"
+  google.protobuf.Timestamp started_at = 12;
+
+  // @gotags: json:"finished_at,omitempty" yaml:"finished_at,omitempty" bson:"finished_at,omitempty"
+  google.protobuf.Timestamp finished_at = 13;
+
+  // @gotags: json:"duration_ms,omitempty" yaml:"duration_ms,omitempty" bson:"duration_ms,omitempty"
+  int64 duration_ms = 14;
+
+  // @gotags: json:"order,omitempty" yaml:"order,omitempty" bson:"order,omitempty"
+  int32 order = 15;
+
+  // @gotags: json:"truncated,omitempty" yaml:"truncated,omitempty" bson:"truncated,omitempty"
+  bool truncated = 16;
+
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+enum AutomationStepRunStatus {
+  AUTOMATION_STEP_RUN_STATUS_UNSPECIFIED = 0;
+  AUTOMATION_STEP_RUN_STATUS_RUNNING = 1;
+  AUTOMATION_STEP_RUN_STATUS_SUCCEEDED = 2;
+  AUTOMATION_STEP_RUN_STATUS_FAILED = 3;
+  AUTOMATION_STEP_RUN_STATUS_SKIPPED = 4;
+  AUTOMATION_STEP_RUN_STATUS_CANCELLED = 5;
+}
+
+service AutomationService {
+  rpc ListAutomations(ListAutomationsRequest) returns (ListAutomationsResponse);
+  rpc GetAutomation(GetAutomationRequest) returns (GetAutomationResponse);
+  rpc CreateAutomation(CreateAutomationRequest) returns (CreateAutomationResponse);
+  rpc UpdateAutomation(UpdateAutomationRequest) returns (UpdateAutomationResponse);
+  rpc DeleteAutomation(DeleteAutomationRequest) returns (DeleteAutomationResponse);
+  rpc RunAutomationNow(RunAutomationNowRequest) returns (RunAutomationNowResponse);
+  rpc ListAutomationRuns(ListAutomationRunsRequest) returns (ListAutomationRunsResponse);
+  rpc GetAutomationRun(GetAutomationRunRequest) returns (GetAutomationRunResponse);
+  rpc ListAutomationStepRuns(ListAutomationStepRunsRequest) returns (ListAutomationStepRunsResponse);
+}
+
+message ListAutomationsRequest {}
+
+message ListAutomationsResponse {
+  repeated Automation automations = 1;
+}
+
+message GetAutomationRequest {
+  string name = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetAutomationResponse {
+  Automation automation = 1;
+}
+
+message CreateAutomationRequest {
+  Automation automation = 1;
+}
+
+message CreateAutomationResponse {
+  Automation automation = 1;
+}
+
+message UpdateAutomationRequest {
+  Automation automation = 1;
+}
+
+message UpdateAutomationResponse {
+  Automation automation = 1;
+}
+
+message DeleteAutomationRequest {
+  string name = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteAutomationResponse {
+  Automation automation = 1;
+}
+
+message RunAutomationNowRequest {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  string trigger_payload_json = 2;
+}
+
+message RunAutomationNowResponse {
+  AutomationRun run = 1;
+}
+
+message ListAutomationRunsRequest {
+  string automation_name = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListAutomationRunsResponse {
+  repeated AutomationRun runs = 1;
+  string next_page_token = 2;
+}
+
+message GetAutomationRunRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetAutomationRunResponse {
+  AutomationRun run = 1;
+}
+
+message ListAutomationStepRunsRequest {
+  string run_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ListAutomationStepRunsResponse {
+  repeated AutomationStepRun step_runs = 1;
+}

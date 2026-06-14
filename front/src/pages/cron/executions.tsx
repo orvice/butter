@@ -11,6 +11,16 @@ function formatDuration(start?: string, end?: string): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+function statusBadge(row: CronExecution) {
+  const cls =
+    row.status === "CRON_EXECUTION_STATUS_SUCCESS"
+      ? "bg-emerald-500/10 text-emerald-700"
+      : row.status === "CRON_EXECUTION_STATUS_ERROR" || row.status === "CRON_EXECUTION_STATUS_CANCELLED"
+        ? "bg-rose-500/10 text-rose-700"
+        : "bg-amber-500/10 text-amber-700";
+  return <Badge className={cls}>{row.status.replace("CRON_EXECUTION_STATUS_", "")}</Badge>;
+}
+
 export default function CronExecutionsPage() {
   const { name } = useParams<{ name: string }>();
   const { data, isLoading } = useCronExecutions(name);
@@ -20,16 +30,20 @@ export default function CronExecutionsPage() {
     { header: "Agent", accessorKey: "agent_name" },
     {
       header: "Status",
-      cell: (row) =>
-        row.status === "CRON_EXECUTION_STATUS_SUCCESS"
-          ? <Badge className="bg-emerald-500/10 text-emerald-700">Success</Badge>
-          : <Badge className="bg-rose-500/10 text-rose-700">Error</Badge>,
+      cell: statusBadge,
     },
-    { header: "Duration", cell: (row) => formatDuration(row.started_at, row.finished_at) },
+    { header: "Duration", cell: (row) => row.duration_ms != null ? `${row.duration_ms}ms` : formatDuration(row.started_at, row.finished_at) },
+    { header: "Attempts", cell: (row) => row.attempt_count ?? "-" },
+    { header: "Trigger", cell: (row) => row.trigger_type?.replace("CRON_EXECUTION_TRIGGER_TYPE_", "") ?? "-" },
     { header: "Started", cell: (row) => row.started_at ? new Date(row.started_at).toLocaleString() : "-" },
     {
       header: "Output",
-      cell: (row) => <span className="block max-w-xs truncate text-xs text-muted-foreground">{row.output ?? "-"}</span>,
+      cell: (row) => (
+        <span className="block max-w-xs truncate text-xs text-muted-foreground">
+          {row.output || row.error || row.skipped_reason || "-"}
+          {row.truncated ? " [truncated]" : ""}
+        </span>
+      ),
     },
   ];
 

@@ -4,8 +4,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { Duration, Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_duration, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import { file_validate_validate } from "../../validate/validate_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/cron.proto.
  */
 export const file_agents_v1_cron: GenFile = /*@__PURE__*/
-  fileDesc("ChRhZ2VudHMvdjEvY3Jvbi5wcm90bxIJYWdlbnRzLnYxIrACCgdDcm9uSm9iEhUKBG5hbWUYASABKAlCB/pCBHICEAESGQoIc2NoZWR1bGUYAiABKAlCB/pCBHICEAESGwoKYWdlbnRfbmFtZRgDIAEoCUIH+kIEcgIQARINCgVpbnB1dBgEIAEoCRIQCgh0aW1lem9uZRgFIAEoCRIPCgdlbmFibGVkGAYgASgIEikKCGRlbGl2ZXJ5GAcgASgLMhcuYWdlbnRzLnYxLkNyb25EZWxpdmVyeRIyCghtZXRhZGF0YRgKIAMoCzIgLmFnZW50cy52MS5Dcm9uSm9iLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGGQgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKQAQoMQ3JvbkRlbGl2ZXJ5EikKBHR5cGUYASABKA4yGy5hZ2VudHMudjEuQ3JvbkRlbGl2ZXJ5VHlwZRITCgt3ZWJob29rX3VybBgCIAEoCRIUCgxjaGFubmVsX25hbWUYAyABKAkSDwoHY2hhdF9pZBgEIAEoCRIZChFub3RpZnlfZ3JvdXBfbmFtZRgFIAEoCSKHAgoNQ3JvbkV4ZWN1dGlvbhIKCgJpZBgBIAEoCRIQCghqb2JfbmFtZRgCIAEoCRISCgphZ2VudF9uYW1lGAMgASgJEi4KBnN0YXR1cxgEIAEoDjIeLmFnZW50cy52MS5Dcm9uRXhlY3V0aW9uU3RhdHVzEg0KBWlucHV0GAUgASgJEg4KBm91dHB1dBgGIAEoCRIuCgpzdGFydGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtmaW5pc2hlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJIhUKE0xpc3RDcm9uSm9ic1JlcXVlc3QiPQoUTGlzdENyb25Kb2JzUmVzcG9uc2USJQoJY3Jvbl9qb2JzGAEgAygLMhIuYWdlbnRzLnYxLkNyb25Kb2IiIQoRR2V0Q3JvbkpvYlJlcXVlc3QSDAoEbmFtZRgBIAEoCSI8ChRDcmVhdGVDcm9uSm9iUmVxdWVzdBIkCghjcm9uX2pvYhgBIAEoCzISLmFnZW50cy52MS5Dcm9uSm9iIjwKFFVwZGF0ZUNyb25Kb2JSZXF1ZXN0EiQKCGNyb25fam9iGAEgASgLMhIuYWdlbnRzLnYxLkNyb25Kb2IiJAoURGVsZXRlQ3JvbkpvYlJlcXVlc3QSDAoEbmFtZRgBIAEoCSI6ChJHZXRDcm9uSm9iUmVzcG9uc2USJAoIY3Jvbl9qb2IYASABKAsyEi5hZ2VudHMudjEuQ3JvbkpvYiI9ChVDcmVhdGVDcm9uSm9iUmVzcG9uc2USJAoIY3Jvbl9qb2IYASABKAsyEi5hZ2VudHMudjEuQ3JvbkpvYiI9ChVVcGRhdGVDcm9uSm9iUmVzcG9uc2USJAoIY3Jvbl9qb2IYASABKAsyEi5hZ2VudHMudjEuQ3JvbkpvYiI9ChVEZWxldGVDcm9uSm9iUmVzcG9uc2USJAoIY3Jvbl9qb2IYASABKAsyEi5hZ2VudHMudjEuQ3JvbkpvYiJUChlMaXN0Q3JvbkV4ZWN1dGlvbnNSZXF1ZXN0EhAKCGpvYl9uYW1lGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJIi0KFFJ1bkNyb25Kb2JOb3dSZXF1ZXN0EhUKBG5hbWUYASABKAlCB/pCBHICEAEiRAoVUnVuQ3JvbkpvYk5vd1Jlc3BvbnNlEisKCWV4ZWN1dGlvbhgBIAEoCzIYLmFnZW50cy52MS5Dcm9uRXhlY3V0aW9uImMKGkxpc3RDcm9uRXhlY3V0aW9uc1Jlc3BvbnNlEiwKCmV4ZWN1dGlvbnMYASADKAsyGC5hZ2VudHMudjEuQ3JvbkV4ZWN1dGlvbhIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkqtwEKEENyb25EZWxpdmVyeVR5cGUSIgoeQ1JPTl9ERUxJVkVSWV9UWVBFX1VOU1BFQ0lGSUVEEAASGgoWQ1JPTl9ERUxJVkVSWV9UWVBFX0xPRxABEh4KGkNST05fREVMSVZFUllfVFlQRV9XRUJIT09LEAISHgoaQ1JPTl9ERUxJVkVSWV9UWVBFX0NIQU5ORUwQAxIjCh9DUk9OX0RFTElWRVJZX1RZUEVfTk9USUZZX0dST1VQEAQqgAEKE0Nyb25FeGVjdXRpb25TdGF0dXMSJQohQ1JPTl9FWEVDVVRJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASIQodQ1JPTl9FWEVDVVRJT05fU1RBVFVTX1NVQ0NFU1MQARIfChtDUk9OX0VYRUNVVElPTl9TVEFUVVNfRVJST1IQAjLfBAoOQ3JvbkpvYlNlcnZpY2USTwoMTGlzdENyb25Kb2JzEh4uYWdlbnRzLnYxLkxpc3RDcm9uSm9ic1JlcXVlc3QaHy5hZ2VudHMudjEuTGlzdENyb25Kb2JzUmVzcG9uc2USSQoKR2V0Q3JvbkpvYhIcLmFnZW50cy52MS5HZXRDcm9uSm9iUmVxdWVzdBodLmFnZW50cy52MS5HZXRDcm9uSm9iUmVzcG9uc2USUgoNQ3JlYXRlQ3JvbkpvYhIfLmFnZW50cy52MS5DcmVhdGVDcm9uSm9iUmVxdWVzdBogLmFnZW50cy52MS5DcmVhdGVDcm9uSm9iUmVzcG9uc2USUgoNVXBkYXRlQ3JvbkpvYhIfLmFnZW50cy52MS5VcGRhdGVDcm9uSm9iUmVxdWVzdBogLmFnZW50cy52MS5VcGRhdGVDcm9uSm9iUmVzcG9uc2USUgoNRGVsZXRlQ3JvbkpvYhIfLmFnZW50cy52MS5EZWxldGVDcm9uSm9iUmVxdWVzdBogLmFnZW50cy52MS5EZWxldGVDcm9uSm9iUmVzcG9uc2USYQoSTGlzdENyb25FeGVjdXRpb25zEiQuYWdlbnRzLnYxLkxpc3RDcm9uRXhlY3V0aW9uc1JlcXVlc3QaJS5hZ2VudHMudjEuTGlzdENyb25FeGVjdXRpb25zUmVzcG9uc2USUgoNUnVuQ3JvbkpvYk5vdxIfLmFnZW50cy52MS5SdW5Dcm9uSm9iTm93UmVxdWVzdBogLmFnZW50cy52MS5SdW5Dcm9uSm9iTm93UmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChRhZ2VudHMvdjEvY3Jvbi5wcm90bxIJYWdlbnRzLnYxIosECgdDcm9uSm9iEhUKBG5hbWUYASABKAlCB/pCBHICEAESGQoIc2NoZWR1bGUYAiABKAlCB/pCBHICEAESGwoKYWdlbnRfbmFtZRgDIAEoCUIH+kIEcgIQARINCgVpbnB1dBgEIAEoCRIQCgh0aW1lem9uZRgFIAEoCRIPCgdlbmFibGVkGAYgASgIEikKCGRlbGl2ZXJ5GAcgASgLMhcuYWdlbnRzLnYxLkNyb25EZWxpdmVyeRIqCgd0aW1lb3V0GAggASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uEikKBXJldHJ5GAkgASgLMhouYWdlbnRzLnYxLkNyb25SZXRyeVBvbGljeRIyCghtZXRhZGF0YRgKIAMoCzIgLmFnZW50cy52MS5Dcm9uSm9iLk1ldGFkYXRhRW50cnkSPAoSY29uY3VycmVuY3lfcG9saWN5GAsgASgOMiAuYWdlbnRzLnYxLkNyb25Db25jdXJyZW5jeVBvbGljeRIqCglub3RpZnlfb24YDCABKA4yFy5hZ2VudHMudjEuQ3Jvbk5vdGlmeU9uEhgKEG1heF9vdXRwdXRfYnl0ZXMYDSABKAUSFAoMd29ya3NwYWNlX2lkGGQgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJTCg9Dcm9uUmV0cnlQb2xpY3kSFAoMbWF4X2F0dGVtcHRzGAEgASgFEioKB2JhY2tvZmYYAiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24ikAEKDENyb25EZWxpdmVyeRIpCgR0eXBlGAEgASgOMhsuYWdlbnRzLnYxLkNyb25EZWxpdmVyeVR5cGUSEwoLd2ViaG9va191cmwYAiABKAkSFAoMY2hhbm5lbF9uYW1lGAMgASgJEg8KB2NoYXRfaWQYBCABKAkSGQoRbm90aWZ5X2dyb3VwX25hbWUYBSABKAkiqAMKDUNyb25FeGVjdXRpb24SCgoCaWQYASABKAkSEAoIam9iX25hbWUYAiABKAkSEgoKYWdlbnRfbmFtZRgDIAEoCRIuCgZzdGF0dXMYBCABKA4yHi5hZ2VudHMudjEuQ3JvbkV4ZWN1dGlvblN0YXR1cxINCgVpbnB1dBgFIAEoCRIOCgZvdXRwdXQYBiABKAkSLgoKc3RhcnRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWVycm9yGAkgASgJEhMKC2R1cmF0aW9uX21zGAogASgDEhUKDWF0dGVtcHRfY291bnQYCyABKAUSOQoMdHJpZ2dlcl90eXBlGAwgASgOMiMuYWdlbnRzLnYxLkNyb25FeGVjdXRpb25UcmlnZ2VyVHlwZRIWCg5za2lwcGVkX3JlYXNvbhgNIAEoCRIRCgl0cnVuY2F0ZWQYDiABKAgSFAoMd29ya3NwYWNlX2lkGGQgASgJIhUKE0xpc3RDcm9uSm9ic1JlcXVlc3QiPQoUTGlzdENyb25Kb2JzUmVzcG9uc2USJQoJY3Jvbl9qb2JzGAEgAygLMhIuYWdlbnRzLnYxLkNyb25Kb2IiIQoRR2V0Q3JvbkpvYlJlcXVlc3QSDAoEbmFtZRgBIAEoCSI8ChRDcmVhdGVDcm9uSm9iUmVxdWVzdBIkCghjcm9uX2pvYhgBIAEoCzISLmFnZW50cy52MS5Dcm9uSm9iIjwKFFVwZGF0ZUNyb25Kb2JSZXF1ZXN0EiQKCGNyb25fam9iGAEgASgLMhIuYWdlbnRzLnYxLkNyb25Kb2IiJAoURGVsZXRlQ3JvbkpvYlJlcXVlc3QSDAoEbmFtZRgBIAEoCSI6ChJHZXRDcm9uSm9iUmVzcG9uc2USJAoIY3Jvbl9qb2IYASABKAsyEi5hZ2VudHMudjEuQ3JvbkpvYiI9ChVDcmVhdGVDcm9uSm9iUmVzcG9uc2USJAoIY3Jvbl9qb2IYASABKAsyEi5hZ2VudHMudjEuQ3JvbkpvYiI9ChVVcGRhdGVDcm9uSm9iUmVzcG9uc2USJAoIY3Jvbl9qb2IYASABKAsyEi5hZ2VudHMudjEuQ3JvbkpvYiI9ChVEZWxldGVDcm9uSm9iUmVzcG9uc2USJAoIY3Jvbl9qb2IYASABKAsyEi5hZ2VudHMudjEuQ3JvbkpvYiJUChlMaXN0Q3JvbkV4ZWN1dGlvbnNSZXF1ZXN0EhAKCGpvYl9uYW1lGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJIi0KFFJ1bkNyb25Kb2JOb3dSZXF1ZXN0EhUKBG5hbWUYASABKAlCB/pCBHICEAEiRAoVUnVuQ3JvbkpvYk5vd1Jlc3BvbnNlEisKCWV4ZWN1dGlvbhgBIAEoCzIYLmFnZW50cy52MS5Dcm9uRXhlY3V0aW9uImMKGkxpc3RDcm9uRXhlY3V0aW9uc1Jlc3BvbnNlEiwKCmV4ZWN1dGlvbnMYASADKAsyGC5hZ2VudHMudjEuQ3JvbkV4ZWN1dGlvbhIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkqzQEKFUNyb25Db25jdXJyZW5jeVBvbGljeRInCiNDUk9OX0NPTkNVUlJFTkNZX1BPTElDWV9VTlNQRUNJRklFRBAAEiAKHENST05fQ09OQ1VSUkVOQ1lfUE9MSUNZX1NLSVAQARIhCh1DUk9OX0NPTkNVUlJFTkNZX1BPTElDWV9RVUVVRRACEiMKH0NST05fQ09OQ1VSUkVOQ1lfUE9MSUNZX1JFUExBQ0UQAxIhCh1DUk9OX0NPTkNVUlJFTkNZX1BPTElDWV9BTExPVxAEKoEBCgxDcm9uTm90aWZ5T24SHgoaQ1JPTl9OT1RJRllfT05fVU5TUEVDSUZJRUQQABIZChVDUk9OX05PVElGWV9PTl9BTFdBWVMQARIaChZDUk9OX05PVElGWV9PTl9GQUlMVVJFEAISGgoWQ1JPTl9OT1RJRllfT05fU1VDQ0VTUxADKrcBChBDcm9uRGVsaXZlcnlUeXBlEiIKHkNST05fREVMSVZFUllfVFlQRV9VTlNQRUNJRklFRBAAEhoKFkNST05fREVMSVZFUllfVFlQRV9MT0cQARIeChpDUk9OX0RFTElWRVJZX1RZUEVfV0VCSE9PSxACEh4KGkNST05fREVMSVZFUllfVFlQRV9DSEFOTkVMEAMSIwofQ1JPTl9ERUxJVkVSWV9UWVBFX05PVElGWV9HUk9VUBAEKsgBChNDcm9uRXhlY3V0aW9uU3RhdHVzEiUKIUNST05fRVhFQ1VUSU9OX1NUQVRVU19VTlNQRUNJRklFRBAAEiEKHUNST05fRVhFQ1VUSU9OX1NUQVRVU19TVUNDRVNTEAESHwobQ1JPTl9FWEVDVVRJT05fU1RBVFVTX0VSUk9SEAISIQodQ1JPTl9FWEVDVVRJT05fU1RBVFVTX1NLSVBQRUQQAxIjCh9DUk9OX0VYRUNVVElPTl9TVEFUVVNfQ0FOQ0VMTEVEEAQqmQEKGENyb25FeGVjdXRpb25UcmlnZ2VyVHlwZRIrCidDUk9OX0VYRUNVVElPTl9UUklHR0VSX1RZUEVfVU5TUEVDSUZJRUQQABIoCiRDUk9OX0VYRUNVVElPTl9UUklHR0VSX1RZUEVfU0NIRURVTEUQARImCiJDUk9OX0VYRUNVVElPTl9UUklHR0VSX1RZUEVfTUFOVUFMEAIy3wQKDkNyb25Kb2JTZXJ2aWNlEk8KDExpc3RDcm9uSm9icxIeLmFnZW50cy52MS5MaXN0Q3JvbkpvYnNSZXF1ZXN0Gh8uYWdlbnRzLnYxLkxpc3RDcm9uSm9ic1Jlc3BvbnNlEkkKCkdldENyb25Kb2ISHC5hZ2VudHMudjEuR2V0Q3JvbkpvYlJlcXVlc3QaHS5hZ2VudHMudjEuR2V0Q3JvbkpvYlJlc3BvbnNlElIKDUNyZWF0ZUNyb25Kb2ISHy5hZ2VudHMudjEuQ3JlYXRlQ3JvbkpvYlJlcXVlc3QaIC5hZ2VudHMudjEuQ3JlYXRlQ3JvbkpvYlJlc3BvbnNlElIKDVVwZGF0ZUNyb25Kb2ISHy5hZ2VudHMudjEuVXBkYXRlQ3JvbkpvYlJlcXVlc3QaIC5hZ2VudHMudjEuVXBkYXRlQ3JvbkpvYlJlc3BvbnNlElIKDURlbGV0ZUNyb25Kb2ISHy5hZ2VudHMudjEuRGVsZXRlQ3JvbkpvYlJlcXVlc3QaIC5hZ2VudHMudjEuRGVsZXRlQ3JvbkpvYlJlc3BvbnNlEmEKEkxpc3RDcm9uRXhlY3V0aW9ucxIkLmFnZW50cy52MS5MaXN0Q3JvbkV4ZWN1dGlvbnNSZXF1ZXN0GiUuYWdlbnRzLnYxLkxpc3RDcm9uRXhlY3V0aW9uc1Jlc3BvbnNlElIKDVJ1bkNyb25Kb2JOb3cSHy5hZ2VudHMudjEuUnVuQ3JvbkpvYk5vd1JlcXVlc3QaIC5hZ2VudHMudjEuUnVuQ3JvbkpvYk5vd1Jlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_duration, file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * CronJob defines a scheduled agent execution.
@@ -78,11 +78,52 @@ export type CronJob = Message<"agents.v1.CronJob"> & {
   delivery?: CronDelivery;
 
   /**
+   * Maximum duration for a single logical execution. 0 means no explicit
+   * cron-level timeout beyond the caller context.
+   * @gotags: json:"timeout,omitempty" yaml:"timeout,omitempty"
+   *
+   * @generated from field: google.protobuf.Duration timeout = 8;
+   */
+  timeout?: Duration;
+
+  /**
+   * Retry behavior for failed invocations.
+   * @gotags: json:"retry,omitempty" yaml:"retry,omitempty"
+   *
+   * @generated from field: agents.v1.CronRetryPolicy retry = 9;
+   */
+  retry?: CronRetryPolicy;
+
+  /**
    * @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty"
    *
    * @generated from field: map<string, string> metadata = 10;
    */
   metadata: { [key: string]: string };
+
+  /**
+   * Controls overlapping executions of the same job.
+   * @gotags: json:"concurrency_policy,omitempty" yaml:"concurrency_policy,omitempty"
+   *
+   * @generated from field: agents.v1.CronConcurrencyPolicy concurrency_policy = 11;
+   */
+  concurrencyPolicy: CronConcurrencyPolicy;
+
+  /**
+   * Controls which execution outcomes are delivered to configured targets.
+   * @gotags: json:"notify_on,omitempty" yaml:"notify_on,omitempty"
+   *
+   * @generated from field: agents.v1.CronNotifyOn notify_on = 12;
+   */
+  notifyOn: CronNotifyOn;
+
+  /**
+   * Maximum bytes stored for execution output previews. 0 uses server default.
+   * @gotags: json:"max_output_bytes,omitempty" yaml:"max_output_bytes,omitempty"
+   *
+   * @generated from field: int32 max_output_bytes = 13;
+   */
+  maxOutputBytes: number;
 
   /**
    * ID of the workspace this cron job belongs to.
@@ -99,6 +140,34 @@ export type CronJob = Message<"agents.v1.CronJob"> & {
  */
 export const CronJobSchema: GenMessage<CronJob> = /*@__PURE__*/
   messageDesc(file_agents_v1_cron, 0);
+
+/**
+ * @generated from message agents.v1.CronRetryPolicy
+ */
+export type CronRetryPolicy = Message<"agents.v1.CronRetryPolicy"> & {
+  /**
+   * Number of retries after the initial attempt. 0 disables retries.
+   * @gotags: json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"
+   *
+   * @generated from field: int32 max_attempts = 1;
+   */
+  maxAttempts: number;
+
+  /**
+   * Backoff between retry attempts. 0 means immediate retry.
+   * @gotags: json:"backoff,omitempty" yaml:"backoff,omitempty"
+   *
+   * @generated from field: google.protobuf.Duration backoff = 2;
+   */
+  backoff?: Duration;
+};
+
+/**
+ * Describes the message agents.v1.CronRetryPolicy.
+ * Use `create(CronRetryPolicySchema)` to create a new message.
+ */
+export const CronRetryPolicySchema: GenMessage<CronRetryPolicy> = /*@__PURE__*/
+  messageDesc(file_agents_v1_cron, 1);
 
 /**
  * CronDelivery defines how cron execution results are delivered.
@@ -151,7 +220,7 @@ export type CronDelivery = Message<"agents.v1.CronDelivery"> & {
  * Use `create(CronDeliverySchema)` to create a new message.
  */
 export const CronDeliverySchema: GenMessage<CronDelivery> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 1);
+  messageDesc(file_agents_v1_cron, 2);
 
 /**
  * CronExecution records a single cron job execution.
@@ -224,6 +293,54 @@ export type CronExecution = Message<"agents.v1.CronExecution"> & {
   finishedAt?: Timestamp;
 
   /**
+   * Error text when status is ERROR.
+   * @gotags: json:"error,omitempty" yaml:"error,omitempty" bson:"error,omitempty"
+   *
+   * @generated from field: string error = 9;
+   */
+  error: string;
+
+  /**
+   * Execution duration in milliseconds.
+   * @gotags: json:"duration_ms,omitempty" yaml:"duration_ms,omitempty" bson:"duration_ms,omitempty"
+   *
+   * @generated from field: int64 duration_ms = 10;
+   */
+  durationMs: bigint;
+
+  /**
+   * Number of attempts used for this logical execution.
+   * @gotags: json:"attempt_count,omitempty" yaml:"attempt_count,omitempty" bson:"attempt_count,omitempty"
+   *
+   * @generated from field: int32 attempt_count = 11;
+   */
+  attemptCount: number;
+
+  /**
+   * What initiated this execution.
+   * @gotags: json:"trigger_type,omitempty" yaml:"trigger_type,omitempty" bson:"trigger_type,omitempty"
+   *
+   * @generated from field: agents.v1.CronExecutionTriggerType trigger_type = 12;
+   */
+  triggerType: CronExecutionTriggerType;
+
+  /**
+   * Reason populated when status is SKIPPED.
+   * @gotags: json:"skipped_reason,omitempty" yaml:"skipped_reason,omitempty" bson:"skipped_reason,omitempty"
+   *
+   * @generated from field: string skipped_reason = 13;
+   */
+  skippedReason: string;
+
+  /**
+   * True when the stored output was truncated by max_output_bytes.
+   * @gotags: json:"truncated,omitempty" yaml:"truncated,omitempty" bson:"truncated,omitempty"
+   *
+   * @generated from field: bool truncated = 14;
+   */
+  truncated: boolean;
+
+  /**
    * ID of the workspace this execution belongs to.
    * @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
    *
@@ -237,7 +354,7 @@ export type CronExecution = Message<"agents.v1.CronExecution"> & {
  * Use `create(CronExecutionSchema)` to create a new message.
  */
 export const CronExecutionSchema: GenMessage<CronExecution> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 2);
+  messageDesc(file_agents_v1_cron, 3);
 
 /**
  * @generated from message agents.v1.ListCronJobsRequest
@@ -250,7 +367,7 @@ export type ListCronJobsRequest = Message<"agents.v1.ListCronJobsRequest"> & {
  * Use `create(ListCronJobsRequestSchema)` to create a new message.
  */
 export const ListCronJobsRequestSchema: GenMessage<ListCronJobsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 3);
+  messageDesc(file_agents_v1_cron, 4);
 
 /**
  * @generated from message agents.v1.ListCronJobsResponse
@@ -267,7 +384,7 @@ export type ListCronJobsResponse = Message<"agents.v1.ListCronJobsResponse"> & {
  * Use `create(ListCronJobsResponseSchema)` to create a new message.
  */
 export const ListCronJobsResponseSchema: GenMessage<ListCronJobsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 4);
+  messageDesc(file_agents_v1_cron, 5);
 
 /**
  * @generated from message agents.v1.GetCronJobRequest
@@ -286,7 +403,7 @@ export type GetCronJobRequest = Message<"agents.v1.GetCronJobRequest"> & {
  * Use `create(GetCronJobRequestSchema)` to create a new message.
  */
 export const GetCronJobRequestSchema: GenMessage<GetCronJobRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 5);
+  messageDesc(file_agents_v1_cron, 6);
 
 /**
  * @generated from message agents.v1.CreateCronJobRequest
@@ -303,7 +420,7 @@ export type CreateCronJobRequest = Message<"agents.v1.CreateCronJobRequest"> & {
  * Use `create(CreateCronJobRequestSchema)` to create a new message.
  */
 export const CreateCronJobRequestSchema: GenMessage<CreateCronJobRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 6);
+  messageDesc(file_agents_v1_cron, 7);
 
 /**
  * @generated from message agents.v1.UpdateCronJobRequest
@@ -320,7 +437,7 @@ export type UpdateCronJobRequest = Message<"agents.v1.UpdateCronJobRequest"> & {
  * Use `create(UpdateCronJobRequestSchema)` to create a new message.
  */
 export const UpdateCronJobRequestSchema: GenMessage<UpdateCronJobRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 7);
+  messageDesc(file_agents_v1_cron, 8);
 
 /**
  * @generated from message agents.v1.DeleteCronJobRequest
@@ -339,7 +456,7 @@ export type DeleteCronJobRequest = Message<"agents.v1.DeleteCronJobRequest"> & {
  * Use `create(DeleteCronJobRequestSchema)` to create a new message.
  */
 export const DeleteCronJobRequestSchema: GenMessage<DeleteCronJobRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 8);
+  messageDesc(file_agents_v1_cron, 9);
 
 /**
  * @generated from message agents.v1.GetCronJobResponse
@@ -356,7 +473,7 @@ export type GetCronJobResponse = Message<"agents.v1.GetCronJobResponse"> & {
  * Use `create(GetCronJobResponseSchema)` to create a new message.
  */
 export const GetCronJobResponseSchema: GenMessage<GetCronJobResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 9);
+  messageDesc(file_agents_v1_cron, 10);
 
 /**
  * @generated from message agents.v1.CreateCronJobResponse
@@ -373,7 +490,7 @@ export type CreateCronJobResponse = Message<"agents.v1.CreateCronJobResponse"> &
  * Use `create(CreateCronJobResponseSchema)` to create a new message.
  */
 export const CreateCronJobResponseSchema: GenMessage<CreateCronJobResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 10);
+  messageDesc(file_agents_v1_cron, 11);
 
 /**
  * @generated from message agents.v1.UpdateCronJobResponse
@@ -390,7 +507,7 @@ export type UpdateCronJobResponse = Message<"agents.v1.UpdateCronJobResponse"> &
  * Use `create(UpdateCronJobResponseSchema)` to create a new message.
  */
 export const UpdateCronJobResponseSchema: GenMessage<UpdateCronJobResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 11);
+  messageDesc(file_agents_v1_cron, 12);
 
 /**
  * @generated from message agents.v1.DeleteCronJobResponse
@@ -407,7 +524,7 @@ export type DeleteCronJobResponse = Message<"agents.v1.DeleteCronJobResponse"> &
  * Use `create(DeleteCronJobResponseSchema)` to create a new message.
  */
 export const DeleteCronJobResponseSchema: GenMessage<DeleteCronJobResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 12);
+  messageDesc(file_agents_v1_cron, 13);
 
 /**
  * @generated from message agents.v1.ListCronExecutionsRequest
@@ -443,7 +560,7 @@ export type ListCronExecutionsRequest = Message<"agents.v1.ListCronExecutionsReq
  * Use `create(ListCronExecutionsRequestSchema)` to create a new message.
  */
 export const ListCronExecutionsRequestSchema: GenMessage<ListCronExecutionsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 13);
+  messageDesc(file_agents_v1_cron, 14);
 
 /**
  * @generated from message agents.v1.RunCronJobNowRequest
@@ -462,7 +579,7 @@ export type RunCronJobNowRequest = Message<"agents.v1.RunCronJobNowRequest"> & {
  * Use `create(RunCronJobNowRequestSchema)` to create a new message.
  */
 export const RunCronJobNowRequestSchema: GenMessage<RunCronJobNowRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 14);
+  messageDesc(file_agents_v1_cron, 15);
 
 /**
  * @generated from message agents.v1.RunCronJobNowResponse
@@ -479,7 +596,7 @@ export type RunCronJobNowResponse = Message<"agents.v1.RunCronJobNowResponse"> &
  * Use `create(RunCronJobNowResponseSchema)` to create a new message.
  */
 export const RunCronJobNowResponseSchema: GenMessage<RunCronJobNowResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 15);
+  messageDesc(file_agents_v1_cron, 16);
 
 /**
  * @generated from message agents.v1.ListCronExecutionsResponse
@@ -504,7 +621,74 @@ export type ListCronExecutionsResponse = Message<"agents.v1.ListCronExecutionsRe
  * Use `create(ListCronExecutionsResponseSchema)` to create a new message.
  */
 export const ListCronExecutionsResponseSchema: GenMessage<ListCronExecutionsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_cron, 16);
+  messageDesc(file_agents_v1_cron, 17);
+
+/**
+ * @generated from enum agents.v1.CronConcurrencyPolicy
+ */
+export enum CronConcurrencyPolicy {
+  /**
+   * @generated from enum value: CRON_CONCURRENCY_POLICY_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CRON_CONCURRENCY_POLICY_SKIP = 1;
+   */
+  SKIP = 1,
+
+  /**
+   * @generated from enum value: CRON_CONCURRENCY_POLICY_QUEUE = 2;
+   */
+  QUEUE = 2,
+
+  /**
+   * @generated from enum value: CRON_CONCURRENCY_POLICY_REPLACE = 3;
+   */
+  REPLACE = 3,
+
+  /**
+   * @generated from enum value: CRON_CONCURRENCY_POLICY_ALLOW = 4;
+   */
+  ALLOW = 4,
+}
+
+/**
+ * Describes the enum agents.v1.CronConcurrencyPolicy.
+ */
+export const CronConcurrencyPolicySchema: GenEnum<CronConcurrencyPolicy> = /*@__PURE__*/
+  enumDesc(file_agents_v1_cron, 0);
+
+/**
+ * @generated from enum agents.v1.CronNotifyOn
+ */
+export enum CronNotifyOn {
+  /**
+   * @generated from enum value: CRON_NOTIFY_ON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CRON_NOTIFY_ON_ALWAYS = 1;
+   */
+  ALWAYS = 1,
+
+  /**
+   * @generated from enum value: CRON_NOTIFY_ON_FAILURE = 2;
+   */
+  FAILURE = 2,
+
+  /**
+   * @generated from enum value: CRON_NOTIFY_ON_SUCCESS = 3;
+   */
+  SUCCESS = 3,
+}
+
+/**
+ * Describes the enum agents.v1.CronNotifyOn.
+ */
+export const CronNotifyOnSchema: GenEnum<CronNotifyOn> = /*@__PURE__*/
+  enumDesc(file_agents_v1_cron, 1);
 
 /**
  * CronDeliveryType selects how cron results are delivered.
@@ -542,7 +726,7 @@ export enum CronDeliveryType {
  * Describes the enum agents.v1.CronDeliveryType.
  */
 export const CronDeliveryTypeSchema: GenEnum<CronDeliveryType> = /*@__PURE__*/
-  enumDesc(file_agents_v1_cron, 0);
+  enumDesc(file_agents_v1_cron, 2);
 
 /**
  * CronExecutionStatus indicates the outcome of a cron execution.
@@ -564,13 +748,49 @@ export enum CronExecutionStatus {
    * @generated from enum value: CRON_EXECUTION_STATUS_ERROR = 2;
    */
   ERROR = 2,
+
+  /**
+   * @generated from enum value: CRON_EXECUTION_STATUS_SKIPPED = 3;
+   */
+  SKIPPED = 3,
+
+  /**
+   * @generated from enum value: CRON_EXECUTION_STATUS_CANCELLED = 4;
+   */
+  CANCELLED = 4,
 }
 
 /**
  * Describes the enum agents.v1.CronExecutionStatus.
  */
 export const CronExecutionStatusSchema: GenEnum<CronExecutionStatus> = /*@__PURE__*/
-  enumDesc(file_agents_v1_cron, 1);
+  enumDesc(file_agents_v1_cron, 3);
+
+/**
+ * @generated from enum agents.v1.CronExecutionTriggerType
+ */
+export enum CronExecutionTriggerType {
+  /**
+   * @generated from enum value: CRON_EXECUTION_TRIGGER_TYPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE = 1;
+   */
+  SCHEDULE = 1,
+
+  /**
+   * @generated from enum value: CRON_EXECUTION_TRIGGER_TYPE_MANUAL = 2;
+   */
+  MANUAL = 2,
+}
+
+/**
+ * Describes the enum agents.v1.CronExecutionTriggerType.
+ */
+export const CronExecutionTriggerTypeSchema: GenEnum<CronExecutionTriggerType> = /*@__PURE__*/
+  enumDesc(file_agents_v1_cron, 4);
 
 /**
  * CronJobService manages cron jobs and their execution history.

@@ -257,6 +257,7 @@ The header is required for most methods on these app-facing services:
 | `NotifyGroupService` | Workspace notification groups |
 | `RemoteAgentService` | Workspace remote agent config/status |
 | `ChannelService` | Workspace channel config/status/control |
+| `AutomationService` | Workspace automation definitions, runs, and step runs |
 | `CronJobService` | Workspace cron jobs and executions |
 | `ForumService` | Workspace forum threads/posts and agent replies |
 | `APITokenService` | Tokens are created/listed/revoked within the selected workspace |
@@ -1838,9 +1839,256 @@ Sends a user message to an existing session and returns the agent response.
 
 ---
 
+### AutomationService
+
+Manages workspace-scoped automation workflows. An automation has one trigger,
+optional conditions, ordered steps, and an execution policy. Manual and schedule
+triggers execute in the current implementation; webhook/forum/channel/daemon
+trigger shapes are reserved for follow-up event routing.
+
+#### ListAutomations
+
+```
+POST /api/agents.v1.AutomationService/ListAutomations
+```
+
+**Request:** `{}`
+
+**Response:** `{ "automations": Automation[] }`
+
+#### GetAutomation
+
+```
+POST /api/agents.v1.AutomationService/GetAutomation
+```
+
+**Request:** `{ "name": "<automation-name>" }`
+
+**Response:** `{ "automation": Automation }`
+
+#### CreateAutomation / UpdateAutomation
+
+```
+POST /api/agents.v1.AutomationService/CreateAutomation
+POST /api/agents.v1.AutomationService/UpdateAutomation
+```
+
+**Request:** `{ "automation": Automation }`
+
+**Response:** `{ "automation": Automation }`
+
+Schedule-triggered automations are registered, rescheduled, or unscheduled as
+part of create/update/delete. Disabled automations are persisted but not
+scheduled.
+
+**Example:**
+
+```json
+{
+  "automation": {
+    "name": "daily-summary-workflow",
+    "enabled": true,
+    "trigger": {
+      "type": "AUTOMATION_TRIGGER_TYPE_SCHEDULE",
+      "schedule": {
+        "schedule": "0 9 * * *",
+        "timezone": "Asia/Shanghai"
+      }
+    },
+    "steps": [
+      {
+        "name": "summarize",
+        "type": "AUTOMATION_STEP_TYPE_INVOKE_AGENT",
+        "invoke_agent": {
+          "agent_name": "assistant",
+          "input": "Generate today's workspace summary."
+        }
+      },
+      {
+        "name": "notify",
+        "type": "AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP",
+        "send_notify_group": {
+          "notify_group_name": "ops",
+          "title": "Daily summary",
+          "message": "The daily summary automation completed."
+        }
+      }
+    ],
+    "policy": {
+      "timeout": "300s",
+      "retry": { "max_attempts": 1, "backoff": "5s" },
+      "concurrency": "AUTOMATION_CONCURRENCY_POLICY_SKIP",
+      "max_output_bytes": 4096
+    }
+  }
+}
+```
+
+#### DeleteAutomation
+
+```
+POST /api/agents.v1.AutomationService/DeleteAutomation
+```
+
+**Request:** `{ "name": "<automation-name>" }`
+
+**Response:** `{ "automation": Automation }`
+
+#### RunAutomationNow
+
+```
+POST /api/agents.v1.AutomationService/RunAutomationNow
+```
+
+Runs an enabled automation immediately with trigger type `MANUAL`. Conditions
+are evaluated before steps; failed conditions produce a skipped run and no step
+runs.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Automation name |
+| `trigger_payload_json` | string | Optional JSON payload stored as a truncated preview and available to conditions |
+
+**Response:** `{ "run": AutomationRun }`
+
+#### ListAutomationRuns
+
+```
+POST /api/agents.v1.AutomationService/ListAutomationRuns
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `automation_name` | string | Filter by automation name (empty = all) |
+| `page_size` | int32 | Max records per page |
+| `page_token` | string | Pagination token from previous response |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `runs` | AutomationRun[] | Run records (newest first) |
+| `next_page_token` | string | Token for next page |
+
+#### GetAutomationRun
+
+```
+POST /api/agents.v1.AutomationService/GetAutomationRun
+```
+
+**Request:** `{ "id": "<run-id>" }`
+
+**Response:** `{ "run": AutomationRun }`
+
+#### ListAutomationStepRuns
+
+```
+POST /api/agents.v1.AutomationService/ListAutomationStepRuns
+```
+
+**Request:** `{ "run_id": "<run-id>" }`
+
+**Response:** `{ "step_runs": AutomationStepRun[] }` ordered by step order.
+
+#### Automation Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Unique automation name within a workspace |
+| `enabled` | bool | Disabled automations are persisted but not scheduled or manually runnable |
+| `trigger` | AutomationTrigger | Manual, schedule, or reserved event trigger configuration |
+| `conditions` | AutomationCondition[] | All conditions must pass before steps execute |
+| `steps` | AutomationStep[] | Ordered linear workflow steps |
+| `policy` | AutomationPolicy | Run-level timeout/retry/concurrency/output policy |
+| `metadata` | map\<string,string\> | Custom metadata |
+| `created_at` / `updated_at` | timestamp | Server-managed timestamps |
+| `workspace_id` | string | Owning workspace |
+
+#### AutomationTrigger Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | enum | `MANUAL`, `SCHEDULE`, plus reserved `WEBHOOK`, `FORUM_EVENT`, `CHANNEL_EVENT`, `DAEMON_EVENT` |
+| `schedule.schedule` | string | Cron expression or predefined schedule for schedule triggers |
+| `schedule.timezone` | string | IANA timezone; defaults to UTC |
+| `webhook.token` | string | Reserved stable token for webhook routing |
+| `event.event_type` | string | Reserved event kind such as `forum.post.created` |
+| `event.filters` | map\<string,string\> | Reserved event filters |
+
+#### AutomationCondition Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `selector` | string | Dot selector such as `payload.kind` |
+| `operator` | enum | `EQUALS`, `NOT_EQUALS`, `CONTAINS`, `REGEX_MATCH`, `EXISTS`, `NOT_EXISTS` |
+| `value` | string | Comparison value when required by the operator |
+
+#### AutomationStep Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Stable step name recorded in step-run history |
+| `type` | enum | `INVOKE_AGENT`, `CALL_WEBHOOK`, `SEND_NOTIFY_GROUP`, `CREATE_FORUM_POST` |
+| `invoke_agent` | object | `agent_name`, `input`, optional `model_override` |
+| `call_webhook` | object | `url`, `method`, `payload_json`, `headers` |
+| `send_notify_group` | object | `notify_group_name`, `title`, `message` |
+| `create_forum_post` | object | `thread_id`, `body` |
+| `policy` | AutomationPolicy | Optional step-level overrides |
+
+#### AutomationPolicy Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `timeout` | duration | Run/step timeout; 0 uses server default behavior |
+| `retry.max_attempts` | int32 | Retries after the initial attempt |
+| `retry.backoff` | duration | Backoff between attempts |
+| `concurrency` | enum | `SKIP`, `QUEUE`, `REPLACE`, `ALLOW`; `SKIP` preserves non-overlap defaults |
+| `max_output_bytes` | int32 | Stored output preview cap; 0 uses server default |
+
+#### AutomationRun Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique run ID |
+| `automation_name` | string | Automation that ran |
+| `trigger_type` | enum | Trigger that started the run |
+| `status` | enum | `RUNNING`, `SUCCEEDED`, `FAILED`, `SKIPPED`, `CANCELLED` |
+| `trigger_payload_json` | string | Truncated trigger payload preview |
+| `error` | string | Failure reason |
+| `started_at` / `finished_at` | timestamp | Run timing |
+| `duration_ms` | int64 | Wallclock duration |
+| `workspace_id` | string | Owning workspace |
+
+#### AutomationStepRun Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique step-run ID |
+| `run_id` | string | Parent automation run |
+| `automation_name` | string | Automation that owns the step |
+| `step_name` | string | Step name from the definition |
+| `step_type` | enum | Action type |
+| `status` | enum | `RUNNING`, `SUCCEEDED`, `FAILED`, `SKIPPED`, `CANCELLED` |
+| `attempt_count` | int32 | Attempts used for this step |
+| `input_json` / `output_json` | string | Stored input/output previews |
+| `error` | string | Failure reason |
+| `invocation_id` | string | Agent invocation ID when the step invoked an agent |
+| `started_at` / `finished_at` | timestamp | Step timing |
+| `duration_ms` | int64 | Wallclock duration |
+| `order` | int32 | Step order in the workflow |
+| `truncated` | bool | Whether output was truncated by policy |
+| `workspace_id` | string | Owning workspace |
+
+---
+
 ### CronJobService
 
-Manages scheduled agent execution. Cron jobs are stored in MongoDB.
+Manages scheduled agent execution. Cron jobs are stored in MongoDB and remain
+backward compatible with older clients that omit the reliability fields.
 
 #### ListCronJobs
 
@@ -1905,7 +2153,15 @@ POST /api/agents.v1.CronJobService/CreateCronJob
     "enabled": true,
     "delivery": {
       "type": "CRON_DELIVERY_TYPE_LOG"
-    }
+    },
+    "timeout": "120s",
+    "retry": {
+      "max_attempts": 2,
+      "backoff": "10s"
+    },
+    "concurrency_policy": "CRON_CONCURRENCY_POLICY_SKIP",
+    "notify_on": "CRON_NOTIFY_ON_FAILURE",
+    "max_output_bytes": 4096
   }
 }
 ```
@@ -1990,6 +2246,11 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `timezone` | string | IANA timezone (default UTC) |
 | `enabled` | bool | Whether the job is active |
 | `delivery` | CronDelivery | Result delivery config |
+| `timeout` | duration | Per-execution timeout; 0 means no cron-level timeout |
+| `retry` | CronRetryPolicy | Retry attempts and backoff for failed invocations |
+| `concurrency_policy` | enum | `SKIP`, `QUEUE`, `REPLACE`, `ALLOW`; default preserves previous skip-overlap behavior |
+| `notify_on` | enum | `ALWAYS`, `FAILURE`, `SUCCESS`; controls non-log delivery |
+| `max_output_bytes` | int32 | Stored output preview cap; 0 uses server default |
 | `metadata` | map\<string,string\> | Custom metadata |
 | `workspace_id` | string | Owning workspace |
 
@@ -2007,6 +2268,13 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `chat_id` | string | Target chat ID for CHANNEL type |
 | `notify_group_name` | string | NotifyGroup name for NOTIFY_GROUP type |
 
+#### CronRetryPolicy Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_attempts` | int32 | Retries after the initial attempt; 0 disables retries |
+| `backoff` | duration | Backoff between retry attempts; 0 retries immediately |
+
 #### CronExecution Object
 
 | Field | Type | Description |
@@ -2014,11 +2282,17 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `id` | string | Unique execution ID |
 | `job_name` | string | Cron job name |
 | `agent_name` | string | Agent that was executed |
-| `status` | enum | `CRON_EXECUTION_STATUS_SUCCESS`, `CRON_EXECUTION_STATUS_ERROR` |
+| `status` | enum | `SUCCESS`, `ERROR`, `SKIPPED`, `CANCELLED` |
 | `input` | string | Input message sent |
-| `output` | string | Agent output or error message |
+| `output` | string | Agent output preview or error message |
 | `started_at` | timestamp | Execution start time |
 | `finished_at` | timestamp | Execution end time |
+| `error` | string | Failure/cancellation error text |
+| `duration_ms` | int64 | Wallclock duration |
+| `attempt_count` | int32 | Attempts used for the logical execution |
+| `trigger_type` | enum | `SCHEDULE` or `MANUAL` |
+| `skipped_reason` | string | Reason populated when status is `SKIPPED` |
+| `truncated` | bool | Whether output was truncated by `max_output_bytes` |
 | `workspace_id` | string | Workspace that owns the parent cron job |
 
 ---

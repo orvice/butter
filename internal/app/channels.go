@@ -41,6 +41,7 @@ import (
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
+	internalautomation "go.orx.me/apps/butter/internal/runtime/automation"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
@@ -50,28 +51,33 @@ import (
 
 // BootstrapResult holds the services created during bootstrap.
 type BootstrapResult struct {
-	RunnerSvc         *runner.Service
-	SessionSvc        session.Service
-	CronScheduler     *internalcron.Scheduler
-	CronRepo          internalcron.ExecutionRepo
-	CronJobRepo       internalcron.JobRepo
-	ChannelMgr        *channel.Manager
-	MongoDB           *mongo.Database
-	Redis             *redis.Client
-	AuthRepo          auth.Repository
-	OAuthStateRepo    oauthstate.Repository
-	OAuthProviders    *provider.Registry
-	APITokenRepo      apitoken.Repository
-	InvocationRepo    invocation.Repository
-	ForumRepo         forum.Repository
-	WorkspaceRepo     workspacerepo.Repository
-	MCPOAuthRepo      mcpoauthrepo.Repository
-	MCPOAuthSvc       *mcpoauth.Service
-	MCPAuthResolver   *mcpoauth.Resolver
-	AgentFileRepo     agentfile.Repository
-	AgentFileMaxBytes int64
-	LangfuseHost      string
-	SessionCounter    func(ctx context.Context) (int64, error)
+	RunnerSvc           *runner.Service
+	SessionSvc          session.Service
+	CronScheduler       *internalcron.Scheduler
+	CronRepo            internalcron.ExecutionRepo
+	CronJobRepo         internalcron.JobRepo
+	AutomationEngine    *internalautomation.Engine
+	AutomationScheduler *internalautomation.Scheduler
+	AutomationDefRepo   internalautomation.DefinitionRepo
+	AutomationRunRepo   internalautomation.RunRepo
+	AutomationStepRepo  internalautomation.StepRunRepo
+	ChannelMgr          *channel.Manager
+	MongoDB             *mongo.Database
+	Redis               *redis.Client
+	AuthRepo            auth.Repository
+	OAuthStateRepo      oauthstate.Repository
+	OAuthProviders      *provider.Registry
+	APITokenRepo        apitoken.Repository
+	InvocationRepo      invocation.Repository
+	ForumRepo           forum.Repository
+	WorkspaceRepo       workspacerepo.Repository
+	MCPOAuthRepo        mcpoauthrepo.Repository
+	MCPOAuthSvc         *mcpoauth.Service
+	MCPAuthResolver     *mcpoauth.Resolver
+	AgentFileRepo       agentfile.Repository
+	AgentFileMaxBytes   int64
+	LangfuseHost        string
+	SessionCounter      func(ctx context.Context) (int64, error)
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -207,10 +213,43 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 
 	// Initialize cron scheduler.
-	cronScheduler, cronExecRepo, cronJobRepo, err := startCron(ctx, db, runnerSvc, notifyGroupRepo)
+	cronScheduler, cronExecRepo, cronJobRepo, err := startCron(ctx, db, runnerSvc, notifyGroupRepo, channelRepo)
 	if err != nil {
 		return nil, err
 	}
+
+	automationDefRepo := internalautomation.NewMongoDefinitionRepo(db)
+	automationRunRepo := internalautomation.NewMongoRunRepo(db)
+	automationStepRepo := internalautomation.NewMongoStepRunRepo(db)
+	for name, repo := range map[string]interface{ EnsureIndexes(context.Context) error }{
+		"automation definitions": automationDefRepo,
+		"automation runs":        automationRunRepo,
+		"automation step runs":   automationStepRepo,
+	} {
+		if err := repo.EnsureIndexes(ctx); err != nil {
+			logger.Error("failed to create automation indexes", "repo", name, "err", err)
+			return nil, err
+		}
+	}
+	automationEngine := internalautomation.NewEngine(automationDefRepo, automationRunRepo, automationStepRepo, internalautomation.EngineOptions{
+		Runner:          runnerSvc,
+		NotifyGroupRepo: notifyGroupRepo,
+		ForumRepo:       forumRepo,
+	})
+	automationScheduler, err := internalautomation.NewScheduler(ctx, automationDefRepo, automationEngine)
+	if err != nil {
+		logger.Error("failed to create automation scheduler", "err", err)
+		return nil, err
+	}
+	automationScheduler.Start()
+	logger.Info("automation scheduler started")
+
+	go func() {
+		<-ctx.Done()
+		stopCtx := automationScheduler.Stop()
+		<-stopCtx.Done()
+		logger.Info("automation scheduler stopped")
+	}()
 
 	// Register built-in system agent before channel manager so it appears
 	// in the agent list exposed to Telegram/Discord.
@@ -232,27 +271,32 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	go mgr.Start(ctx)
 
 	return &BootstrapResult{
-		RunnerSvc:         runnerSvc,
-		SessionSvc:        sessionSvc,
-		CronScheduler:     cronScheduler,
-		CronRepo:          cronExecRepo,
-		CronJobRepo:       cronJobRepo,
-		ChannelMgr:        mgr,
-		MongoDB:           db,
-		Redis:             rdb,
-		AuthRepo:          authRepo,
-		OAuthStateRepo:    oauthStateRepo,
-		OAuthProviders:    oauthProviders,
-		APITokenRepo:      tokenRepo,
-		InvocationRepo:    invRepo,
-		ForumRepo:         forumRepo,
-		WorkspaceRepo:     wsRepo,
-		MCPOAuthRepo:      oauthRepo,
-		MCPOAuthSvc:       oauthSvc,
-		MCPAuthResolver:   mcpAuthResolver,
-		AgentFileRepo:     fileRepo,
-		AgentFileMaxBytes: cfg.AgentFiles.EffectiveMaxFileBytes(),
-		LangfuseHost:      cfg.Langfuse.Host,
-		SessionCounter:    sessionSvc.CountSessions,
+		RunnerSvc:           runnerSvc,
+		SessionSvc:          sessionSvc,
+		CronScheduler:       cronScheduler,
+		CronRepo:            cronExecRepo,
+		CronJobRepo:         cronJobRepo,
+		AutomationEngine:    automationEngine,
+		AutomationScheduler: automationScheduler,
+		AutomationDefRepo:   automationDefRepo,
+		AutomationRunRepo:   automationRunRepo,
+		AutomationStepRepo:  automationStepRepo,
+		ChannelMgr:          mgr,
+		MongoDB:             db,
+		Redis:               rdb,
+		AuthRepo:            authRepo,
+		OAuthStateRepo:      oauthStateRepo,
+		OAuthProviders:      oauthProviders,
+		APITokenRepo:        tokenRepo,
+		InvocationRepo:      invRepo,
+		ForumRepo:           forumRepo,
+		WorkspaceRepo:       wsRepo,
+		MCPOAuthRepo:        oauthRepo,
+		MCPOAuthSvc:         oauthSvc,
+		MCPAuthResolver:     mcpAuthResolver,
+		AgentFileRepo:       fileRepo,
+		AgentFileMaxBytes:   cfg.AgentFiles.EffectiveMaxFileBytes(),
+		LangfuseHost:        cfg.Langfuse.Host,
+		SessionCounter:      sessionSvc.CountSessions,
 	}, nil
 }

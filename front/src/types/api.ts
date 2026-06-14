@@ -110,7 +110,9 @@ export type NotifyTargetType =
 export type CronExecutionStatus =
   | "CRON_EXECUTION_STATUS_UNSPECIFIED"
   | "CRON_EXECUTION_STATUS_SUCCESS"
-  | "CRON_EXECUTION_STATUS_ERROR";
+  | "CRON_EXECUTION_STATUS_ERROR"
+  | "CRON_EXECUTION_STATUS_SKIPPED"
+  | "CRON_EXECUTION_STATUS_CANCELLED";
 
 export type StreamingMode =
   | "STREAMING_MODE_UNSPECIFIED"
@@ -610,6 +612,11 @@ export interface CronJob {
   timezone?: string;
   enabled?: boolean;
   delivery?: CronDelivery;
+  timeout_seconds?: number;
+  retry?: { max_attempts?: number; backoff_seconds?: number };
+  concurrency_policy?: CronConcurrencyPolicy;
+  notify_on?: CronNotifyOn;
+  max_output_bytes?: number;
   metadata?: Record<string, string>;
 }
 
@@ -620,6 +627,152 @@ export interface CronExecution {
   status: CronExecutionStatus;
   input?: string;
   output?: string;
+  error?: string;
   started_at?: string;
   finished_at?: string;
+  duration_ms?: number;
+  attempt_count?: number;
+  trigger_type?: CronExecutionTriggerType;
+  skipped_reason?: string;
+  truncated?: boolean;
+}
+
+export type CronConcurrencyPolicy =
+  | "CRON_CONCURRENCY_POLICY_UNSPECIFIED"
+  | "CRON_CONCURRENCY_POLICY_SKIP"
+  | "CRON_CONCURRENCY_POLICY_QUEUE"
+  | "CRON_CONCURRENCY_POLICY_REPLACE"
+  | "CRON_CONCURRENCY_POLICY_ALLOW";
+
+export type CronNotifyOn =
+  | "CRON_NOTIFY_ON_UNSPECIFIED"
+  | "CRON_NOTIFY_ON_ALWAYS"
+  | "CRON_NOTIFY_ON_FAILURE"
+  | "CRON_NOTIFY_ON_SUCCESS";
+
+export type CronExecutionTriggerType =
+  | "CRON_EXECUTION_TRIGGER_TYPE_UNSPECIFIED"
+  | "CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE"
+  | "CRON_EXECUTION_TRIGGER_TYPE_MANUAL";
+
+export type AutomationTriggerType =
+  | "AUTOMATION_TRIGGER_TYPE_UNSPECIFIED"
+  | "AUTOMATION_TRIGGER_TYPE_MANUAL"
+  | "AUTOMATION_TRIGGER_TYPE_SCHEDULE"
+  | "AUTOMATION_TRIGGER_TYPE_WEBHOOK"
+  | "AUTOMATION_TRIGGER_TYPE_FORUM_EVENT"
+  | "AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT"
+  | "AUTOMATION_TRIGGER_TYPE_DAEMON_EVENT";
+
+export type AutomationConditionOperator =
+  | "AUTOMATION_CONDITION_OPERATOR_UNSPECIFIED"
+  | "AUTOMATION_CONDITION_OPERATOR_EQUALS"
+  | "AUTOMATION_CONDITION_OPERATOR_NOT_EQUALS"
+  | "AUTOMATION_CONDITION_OPERATOR_CONTAINS"
+  | "AUTOMATION_CONDITION_OPERATOR_REGEX_MATCH"
+  | "AUTOMATION_CONDITION_OPERATOR_EXISTS"
+  | "AUTOMATION_CONDITION_OPERATOR_NOT_EXISTS";
+
+export type AutomationStepType =
+  | "AUTOMATION_STEP_TYPE_UNSPECIFIED"
+  | "AUTOMATION_STEP_TYPE_INVOKE_AGENT"
+  | "AUTOMATION_STEP_TYPE_CALL_WEBHOOK"
+  | "AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP"
+  | "AUTOMATION_STEP_TYPE_CREATE_FORUM_POST";
+
+export type AutomationConcurrencyPolicy =
+  | "AUTOMATION_CONCURRENCY_POLICY_UNSPECIFIED"
+  | "AUTOMATION_CONCURRENCY_POLICY_SKIP"
+  | "AUTOMATION_CONCURRENCY_POLICY_QUEUE"
+  | "AUTOMATION_CONCURRENCY_POLICY_REPLACE"
+  | "AUTOMATION_CONCURRENCY_POLICY_ALLOW";
+
+export type AutomationRunStatus =
+  | "AUTOMATION_RUN_STATUS_UNSPECIFIED"
+  | "AUTOMATION_RUN_STATUS_RUNNING"
+  | "AUTOMATION_RUN_STATUS_SUCCEEDED"
+  | "AUTOMATION_RUN_STATUS_FAILED"
+  | "AUTOMATION_RUN_STATUS_SKIPPED"
+  | "AUTOMATION_RUN_STATUS_CANCELLED";
+
+export type AutomationStepRunStatus =
+  | "AUTOMATION_STEP_RUN_STATUS_UNSPECIFIED"
+  | "AUTOMATION_STEP_RUN_STATUS_RUNNING"
+  | "AUTOMATION_STEP_RUN_STATUS_SUCCEEDED"
+  | "AUTOMATION_STEP_RUN_STATUS_FAILED"
+  | "AUTOMATION_STEP_RUN_STATUS_SKIPPED"
+  | "AUTOMATION_STEP_RUN_STATUS_CANCELLED";
+
+export interface AutomationTrigger {
+  type: AutomationTriggerType;
+  schedule?: { schedule?: string; timezone?: string };
+}
+
+export interface AutomationCondition {
+  selector: string;
+  operator: AutomationConditionOperator;
+  value?: string;
+}
+
+export interface AutomationPolicy {
+  timeout_seconds?: number;
+  retry?: { max_attempts?: number; backoff_seconds?: number };
+  concurrency?: AutomationConcurrencyPolicy;
+  max_output_bytes?: number;
+}
+
+export interface AutomationStep {
+  name: string;
+  type: AutomationStepType;
+  invoke_agent?: { agent_name: string; input?: string; model_override?: string };
+  call_webhook?: { url: string; method?: string; payload_json?: string; headers?: Record<string, string> };
+  send_notify_group?: { notify_group_name: string; title?: string; message?: string };
+  create_forum_post?: { thread_id: string; body: string };
+  policy?: AutomationPolicy;
+}
+
+export interface Automation {
+  name: string;
+  enabled?: boolean;
+  trigger?: AutomationTrigger;
+  conditions?: AutomationCondition[];
+  steps?: AutomationStep[];
+  policy?: AutomationPolicy;
+  metadata?: Record<string, string>;
+  created_at?: string;
+  updated_at?: string;
+  workspace_id?: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  automation_name: string;
+  trigger_type: AutomationTriggerType;
+  status: AutomationRunStatus;
+  trigger_payload_json?: string;
+  error?: string;
+  started_at?: string;
+  finished_at?: string;
+  duration_ms?: number;
+  workspace_id?: string;
+}
+
+export interface AutomationStepRun {
+  id: string;
+  run_id: string;
+  automation_name: string;
+  step_name: string;
+  step_type: AutomationStepType;
+  status: AutomationStepRunStatus;
+  attempt_count?: number;
+  input_json?: string;
+  output_json?: string;
+  error?: string;
+  invocation_id?: string;
+  started_at?: string;
+  finished_at?: string;
+  duration_ms?: number;
+  order?: number;
+  truncated?: boolean;
+  workspace_id?: string;
 }

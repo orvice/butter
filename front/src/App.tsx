@@ -39,6 +39,10 @@ const CronJobListPage = lazy(() => import("@/pages/cron/list"));
 const CronJobCreatePage = lazy(() => import("@/pages/cron/create"));
 const CronJobEditPage = lazy(() => import("@/pages/cron/edit"));
 const CronExecutionsPage = lazy(() => import("@/pages/cron/executions"));
+const AutomationListPage = lazy(() => import("@/pages/automations/list"));
+const AutomationCreatePage = lazy(() => import("@/pages/automations/create"));
+const AutomationDetailPage = lazy(() => import("@/pages/automations/detail"));
+const AutomationEditPage = lazy(() => import("@/pages/automations/edit"));
 const DaemonListPage = lazy(() => import("@/pages/daemons/list"));
 const ChannelListPage = lazy(() => import("@/pages/channels/list"));
 const ChannelCreatePage = lazy(() => import("@/pages/channels/create"));
@@ -96,6 +100,10 @@ export default function App() {
                         <Route path="sessions" element={<SessionListPage />} />
                         <Route path="sessions/detail" element={<SessionDetailPage />} />
                         <Route path="operations" element={<OperationsPage />} />
+                        <Route path="automations" element={<AutomationListPage />} />
+                        <Route path="automations/create" element={<AutomationCreatePage />} />
+                        <Route path="automations/:name" element={<AutomationDetailPage />} />
+                        <Route path="automations/:name/edit" element={<AutomationEditPage />} />
                         <Route path="cron" element={<CronJobListPage />} />
                         <Route path="cron/create" element={<CronJobCreatePage />} />
                         <Route path="cron/:name/edit" element={<CronJobEditPage />} />

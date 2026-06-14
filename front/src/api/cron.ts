@@ -1,20 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { create } from "@bufbuild/protobuf";
+import { durationFromMs, type Duration } from "@bufbuild/protobuf/wkt";
 import {
+  CronConcurrencyPolicy,
   CronDeliverySchema,
   CronDeliveryType,
   CronExecutionStatus,
   CronJobSchema,
+  CronNotifyOn,
+  CronRetryPolicySchema,
   CronJobService,
   type CronExecution as PbCronExecution,
   type CronJob as PbCronJob,
 } from "@/gen/agents/v1/cron_pb";
 import type {
+  CronConcurrencyPolicy as LegacyConcurrencyPolicy,
   CronDelivery,
   CronDeliveryType as LegacyDeliveryType,
   CronExecution,
   CronExecutionStatus as LegacyExecStatus,
+  CronExecutionTriggerType as LegacyTriggerType,
   CronJob,
+  CronNotifyOn as LegacyNotifyOn,
 } from "@/types/api";
 import { tsToISO } from "./_proto-bridge";
 import { makeClient } from "./transport";
@@ -33,6 +40,29 @@ const EXECUTION_STATUS_NAMES: LegacyExecStatus[] = [
   "CRON_EXECUTION_STATUS_UNSPECIFIED",
   "CRON_EXECUTION_STATUS_SUCCESS",
   "CRON_EXECUTION_STATUS_ERROR",
+  "CRON_EXECUTION_STATUS_SKIPPED",
+  "CRON_EXECUTION_STATUS_CANCELLED",
+];
+
+const CONCURRENCY_NAMES: LegacyConcurrencyPolicy[] = [
+  "CRON_CONCURRENCY_POLICY_UNSPECIFIED",
+  "CRON_CONCURRENCY_POLICY_SKIP",
+  "CRON_CONCURRENCY_POLICY_QUEUE",
+  "CRON_CONCURRENCY_POLICY_REPLACE",
+  "CRON_CONCURRENCY_POLICY_ALLOW",
+];
+
+const NOTIFY_NAMES: LegacyNotifyOn[] = [
+  "CRON_NOTIFY_ON_UNSPECIFIED",
+  "CRON_NOTIFY_ON_ALWAYS",
+  "CRON_NOTIFY_ON_FAILURE",
+  "CRON_NOTIFY_ON_SUCCESS",
+];
+
+const TRIGGER_NAMES: LegacyTriggerType[] = [
+  "CRON_EXECUTION_TRIGGER_TYPE_UNSPECIFIED",
+  "CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE",
+  "CRON_EXECUTION_TRIGGER_TYPE_MANUAL",
 ];
 
 function deliveryTypeFromProto(t: CronDeliveryType): LegacyDeliveryType {
@@ -46,6 +76,16 @@ function deliveryTypeToProto(t: LegacyDeliveryType | undefined): CronDeliveryTyp
 
 function execStatusFromProto(s: CronExecutionStatus): LegacyExecStatus {
   return EXECUTION_STATUS_NAMES[s] ?? "CRON_EXECUTION_STATUS_UNSPECIFIED";
+}
+
+function durationToSeconds(d?: Duration): number | undefined {
+  if (!d) return undefined;
+  return Number(d.seconds ?? 0) + d.nanos / 1_000_000_000;
+}
+
+function secondsToDuration(seconds?: number): Duration | undefined {
+  if (!seconds || seconds <= 0) return undefined;
+  return durationFromMs(seconds * 1000);
 }
 
 function deliveryFromProto(d: PbCronJob["delivery"]): CronDelivery | undefined {
@@ -79,6 +119,11 @@ function jobFromProto(j: PbCronJob): CronJob {
     timezone: j.timezone,
     enabled: j.enabled,
     delivery: deliveryFromProto(j.delivery),
+    timeout_seconds: durationToSeconds(j.timeout),
+    retry: j.retry ? { max_attempts: j.retry.maxAttempts, backoff_seconds: durationToSeconds(j.retry.backoff) } : undefined,
+    concurrency_policy: CONCURRENCY_NAMES[j.concurrencyPolicy] ?? "CRON_CONCURRENCY_POLICY_UNSPECIFIED",
+    notify_on: NOTIFY_NAMES[j.notifyOn] ?? "CRON_NOTIFY_ON_UNSPECIFIED",
+    max_output_bytes: j.maxOutputBytes,
     metadata: j.metadata,
   };
 }
@@ -92,6 +137,16 @@ function jobToProto(j: CronJob): PbCronJob {
     timezone: j.timezone ?? "",
     enabled: j.enabled ?? false,
     delivery: deliveryToProto(j.delivery),
+    timeout: secondsToDuration(j.timeout_seconds),
+    retry: j.retry
+      ? create(CronRetryPolicySchema, {
+          maxAttempts: j.retry.max_attempts ?? 0,
+          backoff: secondsToDuration(j.retry.backoff_seconds),
+        })
+      : undefined,
+    concurrencyPolicy: (CONCURRENCY_NAMES.indexOf(j.concurrency_policy ?? "CRON_CONCURRENCY_POLICY_UNSPECIFIED") as CronConcurrencyPolicy) ?? CronConcurrencyPolicy.UNSPECIFIED,
+    notifyOn: (NOTIFY_NAMES.indexOf(j.notify_on ?? "CRON_NOTIFY_ON_UNSPECIFIED") as CronNotifyOn) ?? CronNotifyOn.UNSPECIFIED,
+    maxOutputBytes: j.max_output_bytes ?? 0,
     metadata: j.metadata ?? {},
   });
 }
@@ -104,8 +159,14 @@ function execFromProto(e: PbCronExecution): CronExecution {
     status: execStatusFromProto(e.status),
     input: e.input,
     output: e.output,
+    error: e.error,
     started_at: tsToISO(e.startedAt),
     finished_at: tsToISO(e.finishedAt),
+    duration_ms: Number(e.durationMs),
+    attempt_count: e.attemptCount,
+    trigger_type: TRIGGER_NAMES[e.triggerType] ?? "CRON_EXECUTION_TRIGGER_TYPE_UNSPECIFIED",
+    skipped_reason: e.skippedReason,
+    truncated: e.truncated,
   };
 }
 
