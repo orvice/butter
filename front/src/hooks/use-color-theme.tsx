@@ -3,7 +3,19 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { COLOR_THEME_KEY } from "@/lib/constants";
 
-export type ColorThemeId = "butter" | "mint" | "blueberry" | "rose" | "slate";
+export type ColorThemeId =
+  | "material-blue"
+  | "material-green"
+  | "material-red"
+  | "material-orange"
+  | "material-cyan"
+  | "material-indigo"
+  | "material-teal"
+  | "butter"
+  | "mint"
+  | "blueberry"
+  | "rose"
+  | "slate";
 
 export type ColorTheme = {
   id: ColorThemeId;
@@ -13,6 +25,48 @@ export type ColorTheme = {
 };
 
 const COLOR_THEMES: ColorTheme[] = [
+  {
+    id: "material-blue",
+    name: "Material Blue",
+    description: "Material Admin signature azure",
+    swatches: ["#1e91ff", "#10b981", "#e0f2fe"],
+  },
+  {
+    id: "material-green",
+    name: "Material Green",
+    description: "Material Admin emerald accent",
+    swatches: ["#10b981", "#1e91ff", "#d1fae5"],
+  },
+  {
+    id: "material-red",
+    name: "Material Red",
+    description: "Material Admin coral accent",
+    swatches: ["#ff6b68", "#1e91ff", "#fee2e2"],
+  },
+  {
+    id: "material-orange",
+    name: "Material Orange",
+    description: "Material Admin amber accent",
+    swatches: ["#fea84c", "#1e91ff", "#ffedd5"],
+  },
+  {
+    id: "material-cyan",
+    name: "Material Cyan",
+    description: "Material Admin cyan accent",
+    swatches: ["#00bcd4", "#1e91ff", "#cffafe"],
+  },
+  {
+    id: "material-indigo",
+    name: "Material Indigo",
+    description: "Material Admin indigo accent",
+    swatches: ["#5c6bc0", "#1e91ff", "#e0e7ff"],
+  },
+  {
+    id: "material-teal",
+    name: "Material Teal",
+    description: "Material Admin teal accent",
+    swatches: ["#39bbb0", "#1e91ff", "#ccfbf1"],
+  },
   {
     id: "butter",
     name: "Butter",
@@ -45,6 +99,9 @@ const COLOR_THEMES: ColorTheme[] = [
   },
 ];
 
+const DEFAULT_COLOR_THEME: ColorThemeId = "material-blue";
+const LEGACY_DEFAULT_THEME: ColorThemeId = "butter";
+
 type ColorThemeContextValue = {
   colorTheme: ColorThemeId;
   setColorTheme: (theme: ColorThemeId) => void;
@@ -58,12 +115,15 @@ function isColorThemeId(value: string | null): value is ColorThemeId {
 }
 
 function getInitialColorTheme(): ColorThemeId {
-  if (typeof window === "undefined") return "butter";
+  if (typeof window === "undefined") return DEFAULT_COLOR_THEME;
   try {
     const storedTheme = window.localStorage.getItem(COLOR_THEME_KEY);
-    return isColorThemeId(storedTheme) ? storedTheme : "butter";
+    if (storedTheme === LEGACY_DEFAULT_THEME) {
+      return DEFAULT_COLOR_THEME;
+    }
+    return isColorThemeId(storedTheme) ? storedTheme : DEFAULT_COLOR_THEME;
   } catch {
-    return "butter";
+    return DEFAULT_COLOR_THEME;
   }
 }
 

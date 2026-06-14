@@ -159,7 +159,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-4xl font-bold tracking-tight text-foreground">Overview</h2>
+          <h2 className="text-3xl font-semibold tracking-tight text-foreground">Overview</h2>
           <p className="text-sm text-muted-foreground">Platform metrics and system health at a glance.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -209,7 +209,7 @@ export default function DashboardPage() {
               <BarChart data={chartData}>
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "rgba(246, 195, 67, 0.14)" }} />
+            <Tooltip cursor={{ fill: "color-mix(in srgb, var(--primary) 14%, transparent)" }} />
                 <Bar dataKey="success" stackId="a" fill="var(--chart-2)" name="Success" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="error" stackId="a" fill="var(--chart-5)" name="Error" radius={[3, 3, 0, 0]} />
               </BarChart>
@@ -219,7 +219,7 @@ export default function DashboardPage() {
 
         <div className="space-y-6">
           <Card>
-            <CardHeader className="border-b pb-4">
+            <CardHeader className="material-card-header pb-4">
               <CardTitle className="flex items-center gap-2"><Heart className="h-4 w-4 text-primary" /> System Health</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
@@ -230,7 +230,7 @@ export default function DashboardPage() {
           </Card>
 
           <Card className="min-h-0">
-            <CardHeader className="border-b bg-muted/30 pb-4">
+            <CardHeader className="material-card-header pb-4">
               <CardTitle className="flex items-center gap-2"><Activity className="h-4 w-4 text-muted-foreground" /> Activity Feed</CardTitle>
             </CardHeader>
             <CardContent className="relative max-h-64 overflow-y-auto pt-4 before:absolute before:bottom-5 before:left-[31px] before:top-5 before:w-px before:bg-border">
@@ -301,8 +301,8 @@ function StatCard({
 }) {
   const accentClass = {
     primary: "text-primary bg-primary",
-    green: "text-secondary bg-secondary",
-    orange: "text-orange-600 bg-orange-500",
+    green: "text-[var(--chart-2)] bg-[var(--chart-2)]",
+    orange: "text-[var(--chart-3)] bg-[var(--chart-3)]",
   }[accent];
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
   const trendClass = trend === "up"
@@ -317,7 +317,7 @@ function StatCard({
         <Icon className={`h-5 w-5 ${accentClass.split(" ")[0]}`} />
       </CardHeader>
       <CardContent className="flex items-end justify-between">
-        <div className="text-4xl font-bold tracking-tight">{value.toLocaleString()}</div>
+        <div className="text-4xl font-semibold tracking-tight">{value.toLocaleString()}</div>
         <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${trendClass}`}>
           <TrendIcon className="h-3.5 w-3.5" />
           {meta}
