@@ -209,7 +209,7 @@ export default function DashboardPage() {
               <BarChart data={chartData}>
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-            <Tooltip cursor={{ fill: "color-mix(in srgb, var(--primary) 14%, transparent)" }} />
+                <Tooltip cursor={{ fill: "color-mix(in srgb, var(--primary) 14%, transparent)" }} />
                 <Bar dataKey="success" stackId="a" fill="var(--chart-2)" name="Success" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="error" stackId="a" fill="var(--chart-5)" name="Error" radius={[3, 3, 0, 0]} />
               </BarChart>
