@@ -18,7 +18,7 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-// WorkspaceServiceServer implements the WorkspaceService Twirp interface.
+// WorkspaceServiceServer implements the WorkspaceService ConnectRPC handler.
 type WorkspaceServiceServer struct {
 	repo workspacerepo.Repository
 }

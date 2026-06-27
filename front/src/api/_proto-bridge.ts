@@ -1,7 +1,7 @@
 // Helpers that translate proto-generated types (camelCase + Timestamp/Duration
 // wrappers) into the snake_case / ISO-string shapes the dashboard's
 // hand-written interfaces (front/src/types/api.ts and per-file interfaces)
-// still expect during the Twirp→Connect migration.
+// still expect while API callers migrate fully to generated Connect types.
 //
 // Once consumers move off the legacy interfaces, this file disappears.
 

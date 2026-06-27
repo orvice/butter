@@ -113,7 +113,7 @@ func TestAuthService_ConnectRouting(t *testing.T) {
 // service is reachable via Connect at its /api-prefixed URL and that error
 // responses use Connect's wire format ({code, message}). It does not exercise
 // service-specific behavior — service tests in internal/application/*_test.go
-// already do that against the underlying Twirp-shaped signatures.
+// already do that against the underlying ConnectRPC service methods.
 func TestConnectMigratedServices_Routing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.AppConfig{Auth: config.AuthConfig{AllowUnauthenticated: true}}

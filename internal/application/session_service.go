@@ -24,7 +24,7 @@ import (
 	"google.golang.org/adk/session"
 )
 
-// SessionServiceServer implements the generated SessionService Twirp interface.
+// SessionServiceServer implements the generated SessionService ConnectRPC handler.
 type SessionServiceServer struct {
 	mu           sync.RWMutex
 	sessionSvc   session.Service

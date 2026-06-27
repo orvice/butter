@@ -9,7 +9,6 @@ import (
 
 	"go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/transport/connectx"
-	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -24,7 +23,7 @@ func cronJobMutationError(err error) error {
 	return toConnectError(err)
 }
 
-// CronJobServiceServer implements the CronJobService Twirp interface.
+// CronJobServiceServer implements the CronJobService ConnectRPC handler.
 type CronJobServiceServer struct {
 	scheduler *cron.Scheduler
 	execRepo  cron.ExecutionRepo
@@ -43,14 +42,6 @@ func (s *CronJobServiceServer) SetScheduler(scheduler *cron.Scheduler) {
 // SetExecutionRepo sets the execution repo (called after bootstrap).
 func (s *CronJobServiceServer) SetExecutionRepo(repo cron.ExecutionRepo) {
 	s.execRepo = repo
-}
-
-func requireWorkspace(ctx context.Context) (string, error) {
-	id, ok := workspace.FromContext(ctx)
-	if !ok {
-		return "", connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace required (set X-Workspace-ID header)"))
-	}
-	return id, nil
 }
 
 func (s *CronJobServiceServer) ListCronJobs(ctx context.Context, _ *connect.Request[agentsv1.ListCronJobsRequest]) (*connect.Response[agentsv1.ListCronJobsResponse], error) {
