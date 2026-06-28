@@ -21,7 +21,8 @@ export type MCPServerAuthType =
 export type RemoteAgentProtocol =
   | "REMOTE_AGENT_PROTOCOL_UNSPECIFIED"
   | "REMOTE_AGENT_PROTOCOL_A2A"
-  | "REMOTE_AGENT_PROTOCOL_DAEMON";
+  | "REMOTE_AGENT_PROTOCOL_DAEMON"
+  | "REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP";
 
 export type AgentChannelPlatform =
   | "AGENT_CHANNEL_PLATFORM_UNSPECIFIED"
@@ -247,6 +248,10 @@ export interface RemoteAgent {
   protocol?: RemoteAgentProtocol;
   daemon_runtime_id?: string;
   acp_runtime?: string;
+  opencode_agent?: string;
+  opencode_model?: string;
+  username?: string;
+  password?: string;
 }
 
 export interface ModelConfig {

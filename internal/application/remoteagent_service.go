@@ -240,6 +240,21 @@ func (s *RemoteAgentServiceServer) GetRemoteAgentStatus(ctx context.Context, req
 		status.Detail = detail
 		return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
 
+	case agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP:
+		if strings.TrimSpace(ra.GetUrl()) == "" {
+			status.State = agentsv1.RemoteAgentStatus_STATE_ERROR
+			status.Detail = "url is required for OPENCODE_HTTP protocol"
+			return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		start := time.Now()
+		state, detail := probeOpencodeServer(probeCtx, ra.GetUrl(), ra.GetUsername(), ra.GetPassword())
+		status.LatencyMs = time.Since(start).Milliseconds()
+		status.State = state
+		status.Detail = detail
+		return connect.NewResponse(&agentsv1.GetRemoteAgentStatusResponse{Status: status}), nil
+
 	default:
 		status.State = agentsv1.RemoteAgentStatus_STATE_CONFIGURED
 		status.Detail = fmt.Sprintf("protocol %s not probed", ra.GetProtocol().String())
@@ -254,6 +269,21 @@ func (s *RemoteAgentServiceServer) validateRemoteAgent(ctx context.Context, work
 	if err := validateRemoteAgentURL(ra); err != nil {
 		return err
 	}
+	if ra.GetProtocol() == agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP {
+		if strings.TrimSpace(ra.GetUrl()) == "" {
+			return connectx.RequiredArgument("url")
+		}
+		// basic-auth username + password must be supplied together. An empty
+		// username with a password is allowed (opencode defaults to "opencode").
+		if strings.TrimSpace(ra.GetUsername()) != "" && ra.GetPassword() == "" {
+			return connectx.InvalidArgument("password", "must be supplied when username is set")
+		}
+		if strings.TrimSpace(ra.GetDaemonRuntimeId()) != "" || strings.TrimSpace(ra.GetAcpRuntime()) != "" {
+			return connectx.InvalidArgument("protocol", "daemon_runtime_id and acp_runtime are only valid for DAEMON protocol")
+		}
+		return nil
+	}
+
 	if ra.GetProtocol() != agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_DAEMON {
 		return nil
 	}
@@ -281,7 +311,9 @@ func (s *RemoteAgentServiceServer) validateRemoteAgent(ctx context.Context, work
 // require it to be a valid URL so misconfigurations fail loudly.
 func validateRemoteAgentURL(ra *agentsv1.RemoteAgent) error {
 	raw := strings.TrimSpace(ra.GetUrl())
-	if ra.GetProtocol() == agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_A2A {
+	switch ra.GetProtocol() {
+	case agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_A2A,
+		agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP:
 		if raw == "" {
 			return connectx.RequiredArgument("url")
 		}
@@ -291,6 +323,34 @@ func validateRemoteAgentURL(ra *agentsv1.RemoteAgent) error {
 		return nil
 	}
 	return validateHTTPURL("url", raw)
+}
+
+func probeOpencodeServer(ctx context.Context, baseURL, username, password string) (agentsv1.RemoteAgentStatus_State, string) {
+	url := strings.TrimRight(baseURL, "/") + "/global/health"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return agentsv1.RemoteAgentStatus_STATE_ERROR, err.Error()
+	}
+	httpReq.Header.Set("Accept", "application/json")
+	if strings.TrimSpace(username) != "" || password != "" {
+		if strings.TrimSpace(username) == "" {
+			username = "opencode"
+		}
+		httpReq.SetBasicAuth(username, password)
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return agentsv1.RemoteAgentStatus_STATE_UNREACHABLE, err.Error()
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return agentsv1.RemoteAgentStatus_STATE_ACTIVE, ""
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return agentsv1.RemoteAgentStatus_STATE_ERROR, "opencode server returned 401 (check username/password)"
+	}
+	return agentsv1.RemoteAgentStatus_STATE_UNREACHABLE, fmt.Sprintf("opencode /global/health returned %d", resp.StatusCode)
 }
 
 func probeA2AAgent(ctx context.Context, baseURL string) (agentsv1.RemoteAgentStatus_State, string) {

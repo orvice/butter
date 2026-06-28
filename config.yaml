@@ -167,13 +167,24 @@ mcp_server_configs: []
   #   transport: 3  # MCP_SERVER_TRANSPORT_SSE
   #   url: "https://mcp.example.com/sse"
 
-# Remote agent definitions (A2A protocol)
+# Remote agent definitions (A2A / DAEMON / OPENCODE_HTTP protocols)
 # Define remote agents here and reference them by ID in agent configs via remote_agent_ids.
 remote_agents: []
   # - id: "summarizer-remote"
   #   name: "Remote Summarizer"
   #   url: "https://agents.example.com/summarizer"
   #   protocol: 1  # REMOTE_AGENT_PROTOCOL_A2A
+
+  # Direct HTTP connection to a running `opencode serve` instance.
+  # Start opencode with: opencode serve --port 4096
+  # - id: "opencode-local"
+  #   name: "OpenCode Local"
+  #   url: "http://127.0.0.1:4096"
+  #   protocol: 3  # REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP
+  #   opencode_agent: "review"                          # optional
+  #   opencode_model: "anthropic/claude-3-5-sonnet"     # optional
+  #   username: "opencode"                              # optional (defaults to "opencode" when password set)
+  #   password: "${OPENCODE_SERVER_PASSWORD}"           # optional
 
 # Cron jobs are managed via API (stored in MongoDB).
 # Use the CronJobService API to create/update/delete cron jobs:

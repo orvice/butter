@@ -16,10 +16,15 @@ const schema = z.object({
   protocol: z.enum([
     "REMOTE_AGENT_PROTOCOL_A2A",
     "REMOTE_AGENT_PROTOCOL_DAEMON",
+    "REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP",
   ]),
   url: z.string().optional(),
   daemon_runtime_id: z.string().optional(),
   acp_runtime: z.enum(["opencode", "codex"]).optional(),
+  opencode_agent: z.string().optional(),
+  opencode_model: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
 }).superRefine((values, ctx) => {
   if (values.protocol === "REMOTE_AGENT_PROTOCOL_A2A") {
     if (!values.url) {
@@ -36,6 +41,22 @@ const schema = z.object({
     }
     if (!values.acp_runtime) {
       ctx.addIssue({ code: "custom", path: ["acp_runtime"], message: "ACP runtime is required" });
+    }
+  }
+  if (values.protocol === "REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP") {
+    if (!values.url) {
+      ctx.addIssue({ code: "custom", path: ["url"], message: "URL is required" });
+      return;
+    }
+    if (!z.string().url().safeParse(values.url).success) {
+      ctx.addIssue({ code: "custom", path: ["url"], message: "Must be a valid URL" });
+    }
+    if (values.username && !values.password) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["password"],
+        message: "Password is required when username is set",
+      });
     }
   }
 });
@@ -73,6 +94,10 @@ export default function RemoteAgentForm({
       url: "",
       daemon_runtime_id: initialDaemonRuntimeId,
       acp_runtime: initialAcpRuntime,
+      opencode_agent: "",
+      opencode_model: "",
+      username: "",
+      password: "",
     },
   });
   const protocol = form.watch("protocol") as RemoteAgentProtocol;
@@ -81,26 +106,38 @@ export default function RemoteAgentForm({
 
   useEffect(() => {
     if (!initialValue) return;
+    let protoVal: FormValues["protocol"] = "REMOTE_AGENT_PROTOCOL_A2A";
+    if (initialValue.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON") protoVal = "REMOTE_AGENT_PROTOCOL_DAEMON";
+    else if (initialValue.protocol === "REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP") protoVal = "REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP";
     form.reset({
       id: initialValue.id,
       name: initialValue.name,
-      protocol: initialValue.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON"
-        ? initialValue.protocol
-        : "REMOTE_AGENT_PROTOCOL_A2A",
+      protocol: protoVal,
       url: initialValue.url,
       daemon_runtime_id: initialValue.daemon_runtime_id ?? "",
       acp_runtime: initialValue.acp_runtime === "codex" ? "codex" : "opencode",
+      opencode_agent: initialValue.opencode_agent ?? "",
+      opencode_model: initialValue.opencode_model ?? "",
+      username: initialValue.username ?? "",
+      password: initialValue.password ?? "",
     });
   }, [form, initialValue]);
 
   function handleSubmit(values: FormValues) {
+    const isDaemon = values.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON";
+    const isOpencode = values.protocol === "REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP";
+    const isA2A = values.protocol === "REMOTE_AGENT_PROTOCOL_A2A";
     onSubmit({
       id: values.id,
       name: values.name,
-      url: values.protocol === "REMOTE_AGENT_PROTOCOL_A2A" ? values.url ?? "" : "",
+      url: isA2A || isOpencode ? values.url ?? "" : "",
       protocol: values.protocol,
-      daemon_runtime_id: values.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON" ? values.daemon_runtime_id : "",
-      acp_runtime: values.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON" ? values.acp_runtime ?? "opencode" : "",
+      daemon_runtime_id: isDaemon ? values.daemon_runtime_id : "",
+      acp_runtime: isDaemon ? values.acp_runtime ?? "opencode" : "",
+      opencode_agent: isOpencode ? values.opencode_agent ?? "" : "",
+      opencode_model: isOpencode ? values.opencode_model ?? "" : "",
+      username: isOpencode ? values.username ?? "" : "",
+      password: isOpencode ? values.password ?? "" : "",
     });
   }
 
@@ -132,12 +169,13 @@ export default function RemoteAgentForm({
                   <SelectContent>
                     <SelectItem value="REMOTE_AGENT_PROTOCOL_A2A">A2A</SelectItem>
                     <SelectItem value="REMOTE_AGENT_PROTOCOL_DAEMON">Daemon Runtime</SelectItem>
+                    <SelectItem value="REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP">OpenCode HTTP</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
               </FormItem>
             )} />
-            {protocol === "REMOTE_AGENT_PROTOCOL_A2A" ? (
+            {protocol === "REMOTE_AGENT_PROTOCOL_A2A" && (
               <FormField control={form.control} name="url" render={({ field }) => (
                 <FormItem>
                   <FormLabel>URL</FormLabel>
@@ -145,7 +183,8 @@ export default function RemoteAgentForm({
                   <FormMessage />
                 </FormItem>
               )} />
-            ) : (
+            )}
+            {protocol === "REMOTE_AGENT_PROTOCOL_DAEMON" && (
               <>
                 <FormField control={form.control} name="daemon_runtime_id" render={({ field }) => (
                   <FormItem>
@@ -173,6 +212,45 @@ export default function RemoteAgentForm({
                         <SelectItem value="codex">codex</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </>
+            )}
+            {protocol === "REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP" && (
+              <>
+                <FormField control={form.control} name="url" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>OpenCode Server URL</FormLabel>
+                    <FormControl><Input placeholder="http://127.0.0.1:4096" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="opencode_agent" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>OpenCode Agent (optional)</FormLabel>
+                    <FormControl><Input placeholder="review" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="opencode_model" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>OpenCode Model (optional)</FormLabel>
+                    <FormControl><Input placeholder="anthropic/claude-3-5-sonnet" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="username" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username (optional)</FormLabel>
+                    <FormControl><Input placeholder="opencode" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="password" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password (optional)</FormLabel>
+                    <FormControl><Input type="password" placeholder="" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />

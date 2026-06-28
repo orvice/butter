@@ -60,6 +60,28 @@ func TestValidateRemoteAgentURL(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "opencode_http valid http",
+			ra: &agentsv1.RemoteAgent{
+				Protocol: agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP,
+				Url:      "http://localhost:4096",
+			},
+		},
+		{
+			name: "opencode_http missing url",
+			ra: &agentsv1.RemoteAgent{
+				Protocol: agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP,
+			},
+			wantErr: true,
+		},
+		{
+			name: "opencode_http file scheme rejected",
+			ra: &agentsv1.RemoteAgent{
+				Protocol: agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP,
+				Url:      "file:///etc/passwd",
+			},
+			wantErr: true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
