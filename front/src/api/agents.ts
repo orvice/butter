@@ -30,7 +30,7 @@ function stripUndefined(value: unknown): unknown {
 // context_guard, ...). Rather than hand-rolling a 200-line toProto/fromProto,
 // we leverage protojson: the proto-es runtime's fromJson accepts both
 // snake_case and camelCase keys, and toJson with useProtoFieldName=true emits
-// snake_case identical to the legacy Twirp wire format. So the legacy
+// snake_case identical to the compatibility wire format. So the legacy
 // snake-cased Agent interface round-trips through the typed RPC call without
 // extra mapping code.
 function agentToProto(a: Agent) {

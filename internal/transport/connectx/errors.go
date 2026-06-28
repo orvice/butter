@@ -1,5 +1,4 @@
-// Package connectx contains the adapters that let our existing
-// Twirp-shaped service implementations run behind ConnectRPC handlers.
+// Package connectx contains shared helpers for ConnectRPC handlers.
 //
 // Service methods in internal/application return *connect.Error values that
 // WrapUnary forwards directly. The helpers below cover the common shorthand

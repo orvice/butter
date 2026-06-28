@@ -25,7 +25,7 @@ import (
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
-// Handlers holds all HTTP/Twirp handlers that need post-bootstrap wiring.
+// Handlers holds all HTTP and ConnectRPC handlers that need post-bootstrap wiring.
 type Handlers struct {
 	a2aHandler             *httpHandler.A2AHandler
 	forumSvcServer         *application.ForumServiceServer

@@ -207,7 +207,7 @@ export default function ChannelListPage() {
           <div className="rounded-lg border p-4">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold">Twirp/HTTP API</h3>
+                <h3 className="text-lg font-semibold">ConnectRPC/HTTP API</h3>
                 <p className="text-sm text-muted-foreground">Synchronous agent execution endpoint.</p>
               </div>
               <Badge className="bg-emerald-500/10 text-emerald-700">

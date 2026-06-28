@@ -96,7 +96,7 @@ export default function APITokenListPage() {
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Bearer Tokens</CardTitle>
-            <CardDescription>Manage tokens used by external integrations to call the Twirp API.</CardDescription>
+            <CardDescription>Manage tokens used by external integrations to call the ConnectRPC API.</CardDescription>
           </div>
           <Button className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
             <KeyRound className="mr-2 h-4 w-4" /> Generate New Token

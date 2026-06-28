@@ -46,7 +46,7 @@ type AuthRepoProvider func() auth.Repository
 // On success the middleware also resolves the workspace requested via
 // X-Workspace-ID (or falls back to the API token's own workspace) and
 // validates that the caller is a member. The resolved workspace id is then
-// attached to the request context so Twirp services can scope their reads
+// attached to the request context so ConnectRPC services can scope their reads
 // and writes.
 func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTokenProvider APITokenRepoProvider, workspaceProvider WorkspaceRepoProvider) gin.HandlerFunc {
 	rootToken := strings.TrimSpace(cfg.APIToken)

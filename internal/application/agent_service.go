@@ -447,22 +447,3 @@ func (s *AgentServiceServer) reloadRuntime(ctx context.Context) error {
 	}
 	return nil
 }
-
-type ConfigRuntime interface {
-	ReloadRunner(ctx context.Context) error
-	ReloadChannels(ctx context.Context) error
-}
-
-func toConnectError(err error) *connect.Error {
-	var cerr *connect.Error
-	if errors.As(err, &cerr) {
-		return cerr
-	}
-	if errors.Is(err, configrepo.ErrNotFound) {
-		return connectx.NotFound(err.Error())
-	}
-	if errors.Is(err, configrepo.ErrAlreadyExists) {
-		return connect.NewError(connect.CodeAlreadyExists, errors.New(err.Error()))
-	}
-	return connectx.InternalWith(err)
-}
