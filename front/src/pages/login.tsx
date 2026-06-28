@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { beginOAuthFlow, listOAuthProviders, type OAuthProviderInfo } from "@/api/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ThemeControls } from "@/components/theme-controls";
 import { OAuthProviderIcon } from "@/components/oauth-provider-icon";
 import { BrandMark } from "@/components/brand-mark";
@@ -72,36 +72,48 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
-      <div className="absolute right-4 top-4">
-        <ThemeControls />
+    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-background p-5">
+      <div className="absolute inset-0 bg-[url('/md-theme/body.jpg')] bg-cover bg-center opacity-70 dark:hidden" />
+      <div className="absolute inset-0 hidden bg-[radial-gradient(circle_at_20%_10%,rgba(30,145,255,0.24),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(57,187,176,0.15),transparent_32%),var(--background)] dark:block" />
+      <div className="absolute right-4 top-4 z-10">
+        <ThemeControls className="rounded-md border border-border bg-card/80 p-1 shadow-card backdrop-blur" />
       </div>
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <BrandMark className="mx-auto mb-3" size={44} />
-          <CardTitle className="text-2xl font-semibold tracking-tight">Butter</CardTitle>
-          <CardDescription>Sign in to continue</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              type="text"
-              autoComplete="username"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={loading}
-            />
-            <Input
-              type="password"
-              autoComplete="current-password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-            />
+      <Card className="relative z-10 w-full max-w-[400px] p-4 shadow-dropdown">
+        <CardContent className="p-4">
+          <div className="mb-6 flex items-center gap-3">
+            <BrandMark size={42} />
+            <div>
+              <h1 className="text-xl font-semibold leading-tight text-card-foreground">Welcome to Butter</h1>
+              <p className="text-sm text-muted-foreground">Sign in to continue to the dashboard</p>
+            </div>
+          </div>
+          <form onSubmit={handleSubmit} className="mb-5 space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="login-username" className="text-sm font-medium text-card-foreground">Username</label>
+              <Input
+                id="login-username"
+                type="text"
+                autoComplete="username"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="login-password" className="text-sm font-medium text-card-foreground">Password</label>
+              <Input
+                id="login-password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading || !username.trim() || !password}>
+            <Button type="submit" className="w-full" size="lg" disabled={loading || !username.trim() || !password}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
