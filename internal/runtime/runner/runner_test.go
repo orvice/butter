@@ -6,9 +6,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"google.golang.org/adk/agent"
-	adkrunner "google.golang.org/adk/runner"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/agent"
+	adkrunner "google.golang.org/adk/v2/runner"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"

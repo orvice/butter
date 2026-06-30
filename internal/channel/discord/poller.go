@@ -9,7 +9,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"

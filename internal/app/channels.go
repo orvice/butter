@@ -8,7 +8,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/session"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/application"

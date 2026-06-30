@@ -9,7 +9,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	adkrunner "google.golang.org/adk/runner"
+	adkrunner "google.golang.org/adk/v2/runner"
 
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/channel"

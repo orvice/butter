@@ -21,7 +21,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/session"
 )
 
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.

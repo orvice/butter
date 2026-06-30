@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/session"
 )
 
 const maxArgLen = 200

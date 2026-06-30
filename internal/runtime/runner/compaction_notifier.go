@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"sync"
 
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/agent/llmagent"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/plugin"
-	adkrunner "google.golang.org/adk/runner"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/plugin"
+	adkrunner "google.golang.org/adk/v2/runner"
 )
 
 const stateKeyPrefixContentsAtCompaction = "__context_guard_contents_at_compaction_"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"google.golang.org/adk/tool"
+	"google.golang.org/adk/v2/agent"
 
 	"go.orx.me/apps/butter/internal/repo/agentfile"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -79,7 +79,7 @@ type searchFilesResult struct {
 	Results []searchResult `json:"results"`
 }
 
-func (t *Toolset) listFiles(ctx tool.Context, args listFilesArgs) (listFilesResult, error) {
+func (t *Toolset) listFiles(ctx agent.Context, args listFilesArgs) (listFilesResult, error) {
 	info, err := t.runtime(ctx)
 	if err != nil {
 		return listFilesResult{}, err
@@ -108,7 +108,7 @@ func (t *Toolset) listFiles(ctx tool.Context, args listFilesArgs) (listFilesResu
 	return listFilesResult{Files: out}, nil
 }
 
-func (t *Toolset) readFile(ctx tool.Context, args readFileArgs) (readFileResult, error) {
+func (t *Toolset) readFile(ctx agent.Context, args readFileArgs) (readFileResult, error) {
 	info, err := t.runtime(ctx)
 	if err != nil {
 		return readFileResult{}, err
@@ -130,7 +130,7 @@ func (t *Toolset) readFile(ctx tool.Context, args readFileArgs) (readFileResult,
 	}, nil
 }
 
-func (t *Toolset) writeFile(ctx tool.Context, args writeFileArgs) (writeFileResult, error) {
+func (t *Toolset) writeFile(ctx agent.Context, args writeFileArgs) (writeFileResult, error) {
 	info, err := t.runtime(ctx)
 	if err != nil {
 		return writeFileResult{}, err
@@ -149,7 +149,7 @@ func (t *Toolset) writeFile(ctx tool.Context, args writeFileArgs) (writeFileResu
 	return writeFileResult{Path: virtualPath(rp.mount, file.GetPath()), Version: file.GetVersion(), SizeBytes: file.GetSizeBytes()}, nil
 }
 
-func (t *Toolset) appendFile(ctx tool.Context, args appendFileArgs) (writeFileResult, error) {
+func (t *Toolset) appendFile(ctx agent.Context, args appendFileArgs) (writeFileResult, error) {
 	info, err := t.runtime(ctx)
 	if err != nil {
 		return writeFileResult{}, err
@@ -180,7 +180,7 @@ func (t *Toolset) appendFile(ctx tool.Context, args appendFileArgs) (writeFileRe
 	return writeFileResult{Path: virtualPath(rp.mount, written.GetPath()), Version: written.GetVersion(), SizeBytes: written.GetSizeBytes()}, nil
 }
 
-func (t *Toolset) deleteFile(ctx tool.Context, args deleteFileArgs) (deleteFileResult, error) {
+func (t *Toolset) deleteFile(ctx agent.Context, args deleteFileArgs) (deleteFileResult, error) {
 	info, err := t.runtime(ctx)
 	if err != nil {
 		return deleteFileResult{}, err
@@ -195,7 +195,7 @@ func (t *Toolset) deleteFile(ctx tool.Context, args deleteFileArgs) (deleteFileR
 	return deleteFileResult{Deleted: true}, nil
 }
 
-func (t *Toolset) searchFiles(ctx tool.Context, args searchFilesArgs) (searchFilesResult, error) {
+func (t *Toolset) searchFiles(ctx agent.Context, args searchFilesArgs) (searchFilesResult, error) {
 	info, err := t.runtime(ctx)
 	if err != nil {
 		return searchFilesResult{}, err
