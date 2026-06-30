@@ -75,3 +75,17 @@ Docs directory layout:
 - `docs/project-structure.md` — Project directory structure documentation and maintenance guidance.
 - `docs/storage.md` — S3 object storage + static asset / avatar upload configuration and HTTP endpoints.
 - `docs/structure-review.md` — Directory structure review with strengths, issues, and refactoring recommendations such as renaming, bootstrap split, and runtime organization.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`orvice/butter`, via the `gh` CLI); external PRs are also a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles using default label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
