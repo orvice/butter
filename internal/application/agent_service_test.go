@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -556,5 +557,78 @@ func TestRemoteAgentServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 	}
 	if _, err := store.GetRemoteAgent(context.Background(), wsTest, "r1"); !errors.Is(err, configrepo.ErrNotFound) {
 		t.Fatalf("expected rollback to remove remote agent, got %v", err)
+	}
+}
+
+// workflowTestAgent returns a WORKFLOW-type agent with a linear two-node
+// graph. mutate, when non-nil, corrupts it.
+func workflowTestAgent(mutate func(a *agentsv1.Agent)) *agentsv1.Agent {
+	a := &agentsv1.Agent{
+		Name: "wf",
+		Type: agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		SubAgents: []*agentsv1.Agent{
+			{Name: "step_a", Config: &agentsv1.AgentConfig{Model: "m1"}},
+			{Name: "step_b", Config: &agentsv1.AgentConfig{Model: "m1"}},
+		},
+		Config: &agentsv1.AgentConfig{
+			Workflow: &agentsv1.WorkflowConfig{
+				Nodes: []*agentsv1.WorkflowNode{
+					{Name: "step_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "step_a"},
+					{Name: "step_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "step_b"},
+				},
+				Edges: []*agentsv1.WorkflowEdge{
+					{From: "START", To: "step_a"},
+					{From: "step_a", To: "step_b"},
+				},
+			},
+		},
+	}
+	if mutate != nil {
+		mutate(a)
+	}
+	return a
+}
+
+func TestAgentServiceServer_WorkflowGraphValidation(t *testing.T) {
+	store := memory.New()
+	svc := NewAgentServiceServer(store)
+	ctx := testCtx()
+
+	// A valid workflow graph saves fine.
+	if _, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
+		Agent: workflowTestAgent(nil),
+	})); err != nil {
+		t.Fatalf("create valid workflow agent: %v", err)
+	}
+
+	// An invalid graph is rejected with InvalidArgument and an actionable message.
+	_, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
+		Agent: workflowTestAgent(func(a *agentsv1.Agent) {
+			a.Name = "wf-bad"
+			a.Config.Workflow.Edges[1].To = "missing"
+		}),
+	}))
+	cerr, ok := err.(*connect.Error)
+	if !ok || cerr.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("create with invalid graph: expected InvalidArgument, got %v", err)
+	}
+	if !strings.Contains(cerr.Message(), "missing") {
+		t.Errorf("error %q does not name the unknown node", cerr.Message())
+	}
+
+	// The invalid agent must not have been persisted.
+	if _, err := store.GetAgent(ctx, wsTest, "wf-bad"); err == nil {
+		t.Error("invalid agent was persisted")
+	}
+
+	// Updating an existing agent to an invalid graph is rejected the same way.
+	_, err = svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
+		Agent: workflowTestAgent(func(a *agentsv1.Agent) {
+			a.Config.Workflow.Nodes[1].Name = "step_a" // duplicate
+		}),
+	}))
+	cerr, ok = err.(*connect.Error)
+	if !ok || cerr.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("update with invalid graph: expected InvalidArgument, got %v", err)
 	}
 }

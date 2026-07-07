@@ -115,6 +115,118 @@ message AgentConfig {
   // Max loop iterations. 0 means run until escalation/termination.
   // @gotags: json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"
   uint32 max_iterations = 30;
+
+  // --- Workflow agent fields (used when type is WORKFLOW) ---
+
+  // Workflow graph of nodes and edges executed by the ADK workflow engine.
+  // @gotags: json:"workflow,omitempty" yaml:"workflow,omitempty"
+  WorkflowConfig workflow = 40;
+}
+
+// WorkflowConfig declares a Workflow Agent's directed graph as two explicit
+// lists: nodes (name, kind, per-node options) and edges (from/to node names
+// plus an optional route label). See ADR 0001.
+message WorkflowConfig {
+  // Nodes are the steps of the graph. Node names must be unique and must not
+  // use the reserved "START" sentinel.
+  // @gotags: json:"nodes,omitempty" yaml:"nodes,omitempty"
+  repeated WorkflowNode nodes = 1;
+
+  // Edges are directed connections between declared nodes. The reserved name
+  // "START" may appear in `from` to mark the graph's entry point(s).
+  // @gotags: json:"edges,omitempty" yaml:"edges,omitempty"
+  repeated WorkflowEdge edges = 2;
+}
+
+// WorkflowNodeKind selects the behaviour of a workflow node.
+enum WorkflowNodeKind {
+  WORKFLOW_NODE_KIND_UNSPECIFIED = 0;
+  // Runs one of the workflow agent's sub-agents, referenced by name.
+  WORKFLOW_NODE_KIND_AGENT = 1;
+  // Pauses the workflow (an Interrupt), asks a human the configured
+  // question, and resumes the graph when the reply arrives.
+  WORKFLOW_NODE_KIND_HUMAN_INPUT = 2;
+  // Matches its input text against the route labels of its outgoing edges
+  // (trimmed, case-insensitive exact match) and steers the branch taken.
+  WORKFLOW_NODE_KIND_ROUTER = 3;
+  // Fan-in barrier: activates once after every predecessor completed and
+  // aggregates their outputs.
+  WORKFLOW_NODE_KIND_JOIN = 4;
+}
+
+// WorkflowNode is a single step in a Workflow Agent's graph.
+message WorkflowNode {
+  // Name identifies the node within the graph. Must be unique; "START" is
+  // reserved for the entry sentinel used in edges.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+
+  // Kind selects the node behaviour.
+  // @gotags: json:"kind,omitempty" yaml:"kind,omitempty"
+  WorkflowNodeKind kind = 2;
+
+  // AGENT nodes: name of one of the workflow agent's sub-agents to run.
+  // @gotags: json:"agent,omitempty" yaml:"agent,omitempty"
+  string agent = 3;
+
+  // HUMAN_INPUT nodes: the question presented to the human.
+  // @gotags: json:"question,omitempty" yaml:"question,omitempty"
+  string question = 4;
+
+  // Runs the node once per item of a list-typed input, concurrently, then
+  // aggregates outputs.
+  // @gotags: json:"parallel_worker,omitempty" yaml:"parallel_worker,omitempty"
+  bool parallel_worker = 10;
+
+  // Retry policy for failed activations. Unset means no retries.
+  // @gotags: json:"retry,omitempty" yaml:"retry,omitempty"
+  WorkflowRetryConfig retry = 11;
+
+  // Bounds a single activation of the node. 0 means no per-node timeout.
+  // @gotags: json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"
+  int32 timeout_seconds = 12;
+}
+
+// WorkflowRetryConfig is a serializable subset of the ADK retry policy.
+// Unset fields fall back to the engine defaults.
+message WorkflowRetryConfig {
+  // Maximum number of attempts including the first. 0 or 1 means no retries.
+  // @gotags: json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"
+  int32 max_attempts = 1;
+
+  // Delay before the first retry, in seconds.
+  // @gotags: json:"initial_delay_seconds,omitempty" yaml:"initial_delay_seconds,omitempty"
+  int32 initial_delay_seconds = 2;
+
+  // Cap on the delay between retries, in seconds.
+  // @gotags: json:"max_delay_seconds,omitempty" yaml:"max_delay_seconds,omitempty"
+  int32 max_delay_seconds = 3;
+
+  // Per-attempt multiplier applied to the delay.
+  // @gotags: json:"backoff_factor,omitempty" yaml:"backoff_factor,omitempty"
+  double backoff_factor = 4;
+}
+
+// WorkflowEdge is a directed connection between two nodes, optionally guarded
+// by a Route label.
+message WorkflowEdge {
+  // Source node name, or the reserved "START" sentinel for entry edges.
+  // @gotags: json:"from,omitempty" yaml:"from,omitempty"
+  string from = 1;
+
+  // Target node name. Must reference a declared node.
+  // @gotags: json:"to,omitempty" yaml:"to,omitempty"
+  string to = 2;
+
+  // Route label: the edge is taken only when the emitting node's output
+  // carries a matching route value. Empty means the edge always fires.
+  // @gotags: json:"route,omitempty" yaml:"route,omitempty"
+  string route = 3;
+
+  // Default edge: taken when no other route label on the same source node
+  // matches. Mutually exclusive with route.
+  // @gotags: json:"is_default,omitempty" yaml:"is_default,omitempty"
+  bool is_default = 4;
 }
 
 // AgentRuntime captures runtime behavior flags that are safe to serialize.
@@ -232,6 +344,7 @@ enum AgentType {
   AGENT_TYPE_LOOP = 2;
   AGENT_TYPE_SEQUENTIAL = 3;
   AGENT_TYPE_PARALLEL = 4;
+  AGENT_TYPE_WORKFLOW = 5;
 }
 
 // LLMIncludeContents matches llmagent.IncludeContents values.
