@@ -1,7 +1,6 @@
 package system
 
 import (
-	"context"
 	"fmt"
 
 	"google.golang.org/adk/v2/agent"
@@ -31,8 +30,8 @@ func newListAgentsTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) 
 	return functiontool.New(functiontool.Config{
 		Name:        "list_agents",
 		Description: "List all registered agents across every workspace with their names, types, and descriptions.",
-	}, func(_ agent.Context, _ listAgentsArgs) (listAgentsResult, error) {
-		agents, err := agentRepo.ListAgentsAcrossWorkspaces(context.Background())
+	}, func(tc agent.Context, _ listAgentsArgs) (listAgentsResult, error) {
+		agents, err := agentRepo.ListAgentsAcrossWorkspaces(tc)
 		if err != nil {
 			return listAgentsResult{}, err
 		}
@@ -66,14 +65,13 @@ func newGetAgentTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "get_agent",
 		Description: "Get detailed configuration of a specific agent by name. Provide workspace_id to disambiguate; otherwise the first match across workspaces is returned.",
-	}, func(_ agent.Context, args getAgentArgs) (getAgentResult, error) {
+	}, func(tc agent.Context, args getAgentArgs) (getAgentResult, error) {
 		var a *agentsv1.Agent
 		var err error
-		ctx := context.Background()
 		if args.WorkspaceID != "" {
-			a, err = agentRepo.GetAgent(ctx, args.WorkspaceID, args.Name)
+			a, err = agentRepo.GetAgent(tc, args.WorkspaceID, args.Name)
 		} else {
-			all, listErr := agentRepo.ListAgentsAcrossWorkspaces(ctx)
+			all, listErr := agentRepo.ListAgentsAcrossWorkspaces(tc)
 			if listErr != nil {
 				return getAgentResult{}, listErr
 			}
@@ -127,7 +125,7 @@ func newListCronJobsTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		Name:        "list_cron_jobs",
 		Description: "List configured cron jobs across all workspaces with their schedule, agent, and enabled status.",
 	}, func(tc agent.Context, _ listCronJobsArgs) (listCronJobsResult, error) {
-		jobs, err := scheduler.ListAllJobs(context.Background())
+		jobs, err := scheduler.ListAllJobs(tc)
 		if err != nil {
 			return listCronJobsResult{}, err
 		}
@@ -175,7 +173,7 @@ func newCreateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 			Enabled:     args.Enabled,
 			WorkspaceId: args.WorkspaceID,
 		}
-		if err := scheduler.AddJob(context.Background(), job); err != nil {
+		if err := scheduler.AddJob(tc, job); err != nil {
 			return createCronJobResult{Success: false, Message: err.Error()}, nil
 		}
 		return createCronJobResult{Success: true, Message: fmt.Sprintf("Cron job %q created successfully", args.Name)}, nil
@@ -202,7 +200,7 @@ func newUpdateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		Name:        "update_cron_job",
 		Description: "Update an existing cron job's schedule, agent, input, or enabled status.",
 	}, func(tc agent.Context, args updateCronJobArgs) (updateCronJobResult, error) {
-		existing, err := scheduler.GetJob(context.Background(), args.WorkspaceID, args.Name)
+		existing, err := scheduler.GetJob(tc, args.WorkspaceID, args.Name)
 		if err != nil {
 			return updateCronJobResult{Success: false, Message: fmt.Sprintf("cron job %q not found", args.Name)}, nil
 		}
@@ -220,7 +218,7 @@ func newUpdateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		}
 		existing.Enabled = args.Enabled
 
-		if err := scheduler.UpdateJob(context.Background(), existing); err != nil {
+		if err := scheduler.UpdateJob(tc, existing); err != nil {
 			return updateCronJobResult{Success: false, Message: err.Error()}, nil
 		}
 		return updateCronJobResult{Success: true, Message: fmt.Sprintf("Cron job %q updated successfully", args.Name)}, nil
@@ -242,7 +240,7 @@ func newDeleteCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		Name:        "delete_cron_job",
 		Description: "Delete an existing cron job by name.",
 	}, func(tc agent.Context, args deleteCronJobArgs) (deleteCronJobResult, error) {
-		if err := scheduler.RemoveJob(context.Background(), args.WorkspaceID, args.Name); err != nil {
+		if err := scheduler.RemoveJob(tc, args.WorkspaceID, args.Name); err != nil {
 			return deleteCronJobResult{Success: false, Message: fmt.Sprintf("cron job %q not found", args.Name)}, nil
 		}
 		return deleteCronJobResult{Success: true, Message: fmt.Sprintf("Cron job %q deleted successfully", args.Name)}, nil
@@ -278,7 +276,7 @@ func newListCronExecutionsTool(execRepo cron.ExecutionRepo) (tool.Tool, error) {
 		if pageSize <= 0 {
 			pageSize = 10
 		}
-		execs, _, err := execRepo.List(context.Background(), args.WorkspaceID, args.JobName, pageSize, "")
+		execs, _, err := execRepo.List(tc, args.WorkspaceID, args.JobName, pageSize, "")
 		if err != nil {
 			return listCronExecutionsResult{}, err
 		}
