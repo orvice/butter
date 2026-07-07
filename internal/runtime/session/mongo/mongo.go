@@ -222,7 +222,7 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 
 	events := make([]*session.Event, 0, len(eventDocs))
 	for _, ed := range eventDocs {
-		evt := session.NewEvent(ed.InvocationID)
+		evt := session.NewEvent(ctx, ed.InvocationID)
 		evt.ID = ed.EventID
 		evt.Timestamp = ed.Timestamp
 		evt.Author = ed.Author

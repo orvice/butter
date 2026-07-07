@@ -169,7 +169,7 @@ func TestReloadProtoAgentsSkipsReservedBuilderNames(t *testing.T) {
 }
 
 func TestSummarizeEvent(t *testing.T) {
-	evt := session.NewEvent("inv-1")
+	evt := session.NewEvent(t.Context(), "inv-1")
 	evt.Content = &genai.Content{Parts: []*genai.Part{
 		{Text: "hello"},
 		{FunctionCall: &genai.FunctionCall{Name: "tool_a"}},

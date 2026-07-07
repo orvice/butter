@@ -15,8 +15,8 @@ import (
 	"time"
 
 	opencodeclient "github.com/orvice/opencode-go"
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -115,7 +115,7 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 			return
 		}
 
-		event := session.NewEvent(ctx.InvocationID())
+		event := session.NewEvent(ctx, ctx.InvocationID())
 		event.Author = ctx.Agent().Name()
 		event.Content = genai.NewContentFromText(text, genai.RoleModel)
 		yield(event, nil)

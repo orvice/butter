@@ -1,12 +1,12 @@
 module go.orx.me/apps/butter
 
-go 1.25.5
+go 1.25.7
 
 require (
 	butterfly.orx.me/core v0.0.0-20260430072052-a6971e20cd35
 	connectrpc.com/connect v1.19.1
 	github.com/Mad-Pixels/goldmark-tgmd v0.0.10
-	github.com/achetronic/adk-utils-go v0.12.0
+	github.com/achetronic/adk-utils-go v0.22.0
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.101.0
 	github.com/aws/smithy-go v1.25.1
@@ -25,7 +25,7 @@ require (
 	golang.org/x/crypto v0.51.0
 	golang.org/x/net v0.55.0
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.21.0
 	google.golang.org/adk/v2 v2.0.0
 	google.golang.org/genai v1.57.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260427160629-7cedc36a6bc4
@@ -154,10 +154,9 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
-	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
-	google.golang.org/adk v1.2.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/api v0.279.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60 // indirect
 	rsc.io/omap v1.2.0 // indirect

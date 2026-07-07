@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"butterfly.orx.me/core/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -491,9 +492,9 @@ func (s *s3ArtifactService) GetArtifactVersion(ctx context.Context, req *artifac
 		customMeta[k] = v
 	}
 
-	createTime := float64(0)
+	var createTime time.Time
 	if resp.LastModified != nil {
-		createTime = float64(resp.LastModified.Unix())
+		createTime = *resp.LastModified
 	}
 
 	logger.Debug("artifact metadata loaded from s3",

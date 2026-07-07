@@ -48,7 +48,7 @@ type compactionNotifier struct {
 	lastSeen map[string]int // "sessionID:agentName" -> last known compaction count
 }
 
-func (n *compactionNotifier) beforeModel(ctx agent.CallbackContext, _ *model.LLMRequest) (*model.LLMResponse, error) {
+func (n *compactionNotifier) beforeModel(ctx agent.Context, _ *model.LLMRequest) (*model.LLMResponse, error) {
 	agentName := ctx.AgentName()
 	key := stateKeyPrefixContentsAtCompaction + agentName
 

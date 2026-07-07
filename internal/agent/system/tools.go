@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/functiontool"
 
@@ -30,7 +31,7 @@ func newListAgentsTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) 
 	return functiontool.New(functiontool.Config{
 		Name:        "list_agents",
 		Description: "List all registered agents across every workspace with their names, types, and descriptions.",
-	}, func(_ tool.Context, _ listAgentsArgs) (listAgentsResult, error) {
+	}, func(_ agent.Context, _ listAgentsArgs) (listAgentsResult, error) {
 		agents, err := agentRepo.ListAgentsAcrossWorkspaces(context.Background())
 		if err != nil {
 			return listAgentsResult{}, err
@@ -65,7 +66,7 @@ func newGetAgentTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "get_agent",
 		Description: "Get detailed configuration of a specific agent by name. Provide workspace_id to disambiguate; otherwise the first match across workspaces is returned.",
-	}, func(_ tool.Context, args getAgentArgs) (getAgentResult, error) {
+	}, func(_ agent.Context, args getAgentArgs) (getAgentResult, error) {
 		var a *agentsv1.Agent
 		var err error
 		ctx := context.Background()
@@ -125,7 +126,7 @@ func newListCronJobsTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "list_cron_jobs",
 		Description: "List configured cron jobs across all workspaces with their schedule, agent, and enabled status.",
-	}, func(tc tool.Context, _ listCronJobsArgs) (listCronJobsResult, error) {
+	}, func(tc agent.Context, _ listCronJobsArgs) (listCronJobsResult, error) {
 		jobs, err := scheduler.ListAllJobs(context.Background())
 		if err != nil {
 			return listCronJobsResult{}, err
@@ -164,7 +165,7 @@ func newCreateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "create_cron_job",
 		Description: "Create a new cron job that runs an agent on a schedule.",
-	}, func(tc tool.Context, args createCronJobArgs) (createCronJobResult, error) {
+	}, func(tc agent.Context, args createCronJobArgs) (createCronJobResult, error) {
 		job := &agentsv1.CronJob{
 			Name:        args.Name,
 			Schedule:    args.Schedule,
@@ -200,7 +201,7 @@ func newUpdateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "update_cron_job",
 		Description: "Update an existing cron job's schedule, agent, input, or enabled status.",
-	}, func(tc tool.Context, args updateCronJobArgs) (updateCronJobResult, error) {
+	}, func(tc agent.Context, args updateCronJobArgs) (updateCronJobResult, error) {
 		existing, err := scheduler.GetJob(context.Background(), args.WorkspaceID, args.Name)
 		if err != nil {
 			return updateCronJobResult{Success: false, Message: fmt.Sprintf("cron job %q not found", args.Name)}, nil
@@ -240,7 +241,7 @@ func newDeleteCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "delete_cron_job",
 		Description: "Delete an existing cron job by name.",
-	}, func(tc tool.Context, args deleteCronJobArgs) (deleteCronJobResult, error) {
+	}, func(tc agent.Context, args deleteCronJobArgs) (deleteCronJobResult, error) {
 		if err := scheduler.RemoveJob(context.Background(), args.WorkspaceID, args.Name); err != nil {
 			return deleteCronJobResult{Success: false, Message: fmt.Sprintf("cron job %q not found", args.Name)}, nil
 		}
@@ -272,7 +273,7 @@ func newListCronExecutionsTool(execRepo cron.ExecutionRepo) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "list_cron_executions",
 		Description: "List recent cron job execution history, optionally filtered by job name.",
-	}, func(tc tool.Context, args listCronExecutionsArgs) (listCronExecutionsResult, error) {
+	}, func(tc agent.Context, args listCronExecutionsArgs) (listCronExecutionsResult, error) {
 		pageSize := args.PageSize
 		if pageSize <= 0 {
 			pageSize = 10
