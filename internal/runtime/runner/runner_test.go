@@ -6,9 +6,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"google.golang.org/adk/agent"
-	adkrunner "google.golang.org/adk/runner"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/agent"
+	adkrunner "google.golang.org/adk/v2/runner"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -169,7 +169,7 @@ func TestReloadProtoAgentsSkipsReservedBuilderNames(t *testing.T) {
 }
 
 func TestSummarizeEvent(t *testing.T) {
-	evt := session.NewEvent("inv-1")
+	evt := session.NewEvent(t.Context(), "inv-1")
 	evt.Content = &genai.Content{Parts: []*genai.Part{
 		{Text: "hello"},
 		{FunctionCall: &genai.FunctionCall{Name: "tool_a"}},

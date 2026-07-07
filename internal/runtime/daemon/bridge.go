@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
 	"github.com/google/uuid"
@@ -114,7 +114,7 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 				}
 				switch update.Status {
 				case agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_COMPLETED:
-					event := session.NewEvent(ctx.InvocationID())
+					event := session.NewEvent(ctx, ctx.InvocationID())
 					event.Author = ctx.Agent().Name()
 					event.Content = genai.NewContentFromText(update.Output, genai.RoleModel)
 					yield(event, nil)
@@ -132,7 +132,7 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 			case <-ctx.Done():
 				_ = conn.CancelTask(task.TaskId)
 				if lastOutput != "" {
-					event := session.NewEvent(ctx.InvocationID())
+					event := session.NewEvent(ctx, ctx.InvocationID())
 					event.Author = ctx.Agent().Name()
 					event.LLMResponse.Content = genai.NewContentFromText(lastOutput, genai.RoleModel)
 					yield(event, ctx.Err())

@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 )
 
 func TestFormatDebugEvent_ToolCall(t *testing.T) {
-	evt := session.NewEvent("inv-1")
+	evt := session.NewEvent(t.Context(), "inv-1")
 	evt.Content = &genai.Content{
 		Parts: []*genai.Part{
 			{FunctionCall: &genai.FunctionCall{
@@ -32,7 +32,7 @@ func TestFormatDebugEvent_ToolCall(t *testing.T) {
 }
 
 func TestFormatDebugEvent_ToolCallNoArgs(t *testing.T) {
-	evt := session.NewEvent("inv-1")
+	evt := session.NewEvent(t.Context(), "inv-1")
 	evt.Content = &genai.Content{
 		Parts: []*genai.Part{
 			{FunctionCall: &genai.FunctionCall{
@@ -49,7 +49,7 @@ func TestFormatDebugEvent_ToolCallNoArgs(t *testing.T) {
 }
 
 func TestFormatDebugEvent_Transfer(t *testing.T) {
-	evt := session.NewEvent("inv-1")
+	evt := session.NewEvent(t.Context(), "inv-1")
 	evt.Author = "router"
 	evt.Actions.TransferToAgent = "specialist"
 
@@ -69,7 +69,7 @@ func TestFormatDebugEvent_Transfer(t *testing.T) {
 }
 
 func TestFormatDebugEvent_Empty(t *testing.T) {
-	evt := session.NewEvent("inv-1")
+	evt := session.NewEvent(t.Context(), "inv-1")
 	got := FormatDebugEvent(evt)
 	if got != "" {
 		t.Errorf("expected empty string for event with no debug content, got: %s", got)
@@ -77,7 +77,7 @@ func TestFormatDebugEvent_Empty(t *testing.T) {
 }
 
 func TestFormatDebugEvent_TransferAndToolCall(t *testing.T) {
-	evt := session.NewEvent("inv-1")
+	evt := session.NewEvent(t.Context(), "inv-1")
 	evt.Author = "agent-a"
 	evt.Actions.TransferToAgent = "agent-b"
 	evt.Content = &genai.Content{

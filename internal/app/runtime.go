@@ -9,8 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"google.golang.org/adk/artifact"
-	adkrunner "google.golang.org/adk/runner"
+	"google.golang.org/adk/v2/artifact"
+	adkrunner "google.golang.org/adk/v2/runner"
 
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/agentfile"

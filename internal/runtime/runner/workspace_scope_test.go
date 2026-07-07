@@ -5,7 +5,7 @@ import (
 	"sort"
 	"testing"
 
-	"google.golang.org/adk/agent"
+	"google.golang.org/adk/v2/agent"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )

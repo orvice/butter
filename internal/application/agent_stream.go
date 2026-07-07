@@ -9,7 +9,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 

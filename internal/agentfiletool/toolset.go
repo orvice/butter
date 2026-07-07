@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/tool"
-	"google.golang.org/adk/tool/functiontool"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/tool"
+	"google.golang.org/adk/v2/tool/functiontool"
 
 	"go.orx.me/apps/butter/internal/repo/agentfile"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"

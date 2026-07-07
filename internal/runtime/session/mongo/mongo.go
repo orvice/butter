@@ -13,8 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 )
 
@@ -222,7 +222,7 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 
 	events := make([]*session.Event, 0, len(eventDocs))
 	for _, ed := range eventDocs {
-		evt := session.NewEvent(ed.InvocationID)
+		evt := session.NewEvent(ctx, ed.InvocationID)
 		evt.ID = ed.EventID
 		evt.Timestamp = ed.Timestamp
 		evt.Author = ed.Author
