@@ -17,7 +17,10 @@ import (
 
 func TestBridgeBuildAgent(t *testing.T) {
 	ra := &agentsv1.RemoteAgent{Url: "http://localhost:4096"}
-	b := NewBridge(ra)
+	b, err := NewBridge(ra)
+	if err != nil {
+		t.Fatalf("NewBridge: %v", err)
+	}
 	ag, err := b.BuildAgent("opencode-test", "An OpenCode test agent")
 	if err != nil {
 		t.Fatalf("BuildAgent: %v", err)
@@ -31,12 +34,15 @@ func TestBridgeBuildAgent(t *testing.T) {
 }
 
 func TestNewBridgeDefaultUsername(t *testing.T) {
-	b := NewBridge(&agentsv1.RemoteAgent{
+	b, err := NewBridge(&agentsv1.RemoteAgent{
 		Url:      "http://x",
 		Password: "secret",
 	})
-	if b.username != defaultUsername {
-		t.Fatalf("expected default username %q, got %q", defaultUsername, b.username)
+	if err != nil {
+		t.Fatalf("NewBridge: %v", err)
+	}
+	if b.client.BaseURL() != "http://x" {
+		t.Fatalf("expected base URL %q, got %q", "http://x", b.client.BaseURL())
 	}
 }
 
@@ -47,6 +53,17 @@ func TestExtractText(t *testing.T) {
 	c := &genai.Content{Parts: []*genai.Part{{Text: "hello"}, {Text: "world"}}}
 	if got := extractText(c); got != "hello\nworld" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestParseModelRef(t *testing.T) {
+	ref := parseModelRef("anthropic/claude-3-5-sonnet")
+	if ref.ProviderID != "anthropic" || ref.ModelID != "claude-3-5-sonnet" {
+		t.Fatalf("got provider=%q model=%q", ref.ProviderID, ref.ModelID)
+	}
+	ref = parseModelRef("gpt-4")
+	if ref.ProviderID != "" || ref.ModelID != "gpt-4" {
+		t.Fatalf("got provider=%q model=%q", ref.ProviderID, ref.ModelID)
 	}
 }
 
@@ -85,20 +102,29 @@ func newFakeServer(t *testing.T) *fakeServer {
 		fs.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
+			"info": map[string]any{
+				"id":        "msg-1",
+				"sessionID": fs.sessionID,
+				"role":      "assistant",
+				"time":      map[string]any{"created": 0},
+				"tokens":    map[string]any{},
+				"path":      map[string]any{},
+			},
 			"parts": []map[string]any{
-				{"type": "text", "text": "hello back"},
-				{"type": "tool", "text": "ignored"},
-				{"type": "text", "text": "second line"},
+				{"id": "p1", "sessionID": fs.sessionID, "messageID": "msg-1", "type": "text", "text": "hello back"},
+				{"id": "p2", "sessionID": fs.sessionID, "messageID": "msg-1", "type": "tool"},
+				{"id": "p3", "sessionID": fs.sessionID, "messageID": "msg-1", "type": "text", "text": "second line"},
 			},
 		})
 	})
 	mux.HandleFunc("/session/"+fs.sessionID+"/abort", func(w http.ResponseWriter, _ *http.Request) {
 		fs.abortHit.Store(true)
-		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(true)
 	})
 	mux.HandleFunc("/global/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"healthy": true, "version": "1.0"})
 	})
 	fs.srv = httptest.NewServer(mux)
 	t.Cleanup(fs.srv.Close)
@@ -107,11 +133,14 @@ func newFakeServer(t *testing.T) *fakeServer {
 
 func TestBridgeCreateAndSend(t *testing.T) {
 	fs := newFakeServer(t)
-	b := NewBridge(&agentsv1.RemoteAgent{
+	b, err := NewBridge(&agentsv1.RemoteAgent{
 		Url:           fs.srv.URL,
 		OpencodeAgent: "review",
 		OpencodeModel: "anthropic/claude-3-5-sonnet",
 	})
+	if err != nil {
+		t.Fatalf("NewBridge: %v", err)
+	}
 
 	sessID, err := b.createSession(t.Context())
 	if err != nil {
@@ -134,8 +163,12 @@ func TestBridgeCreateAndSend(t *testing.T) {
 	if fs.messageReq["agent"] != "review" {
 		t.Fatalf("agent: got %v", fs.messageReq["agent"])
 	}
-	if fs.messageReq["model"] != "anthropic/claude-3-5-sonnet" {
-		t.Fatalf("model: got %v", fs.messageReq["model"])
+	model, ok := fs.messageReq["model"].(map[string]any)
+	if !ok {
+		t.Fatalf("model: expected object, got %T %v", fs.messageReq["model"], fs.messageReq["model"])
+	}
+	if model["providerID"] != "anthropic" || model["modelID"] != "claude-3-5-sonnet" {
+		t.Fatalf("model: got %v", model)
 	}
 	parts, _ := fs.messageReq["parts"].([]any)
 	if len(parts) != 1 {
@@ -145,11 +178,14 @@ func TestBridgeCreateAndSend(t *testing.T) {
 
 func TestBridgeBasicAuth(t *testing.T) {
 	fs := newFakeServer(t)
-	b := NewBridge(&agentsv1.RemoteAgent{
+	b, err := NewBridge(&agentsv1.RemoteAgent{
 		Url:      fs.srv.URL,
 		Username: "alice",
 		Password: "wonderland",
 	})
+	if err != nil {
+		t.Fatalf("NewBridge: %v", err)
+	}
 	if _, err := b.createSession(t.Context()); err != nil {
 		t.Fatalf("createSession: %v", err)
 	}
@@ -165,17 +201,25 @@ func TestBridgeHTTPError(t *testing.T) {
 		http.Error(w, "boom", http.StatusInternalServerError)
 	}))
 	defer srv.Close()
-	b := NewBridge(&agentsv1.RemoteAgent{Url: srv.URL})
-	_, err := b.createSession(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "status 500") {
-		t.Fatalf("expected 500 error, got %v", err)
+	b, err := NewBridge(&agentsv1.RemoteAgent{Url: srv.URL})
+	if err != nil {
+		t.Fatalf("NewBridge: %v", err)
+	}
+	_, createErr := b.createSession(t.Context())
+	if createErr == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(createErr.Error(), "500") {
+		t.Fatalf("expected 500 error, got %v", createErr)
 	}
 }
 
 func TestBridgeAbortOnCancel(t *testing.T) {
-	// Verifies abortSession hits the right endpoint.
 	fs := newFakeServer(t)
-	b := NewBridge(&agentsv1.RemoteAgent{Url: fs.srv.URL})
+	b, err := NewBridge(&agentsv1.RemoteAgent{Url: fs.srv.URL})
+	if err != nil {
+		t.Fatalf("NewBridge: %v", err)
+	}
 	if err := b.abortSession(t.Context(), fs.sessionID); err != nil {
 		t.Fatalf("abortSession: %v", err)
 	}

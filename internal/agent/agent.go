@@ -586,7 +586,10 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
 			if strings.TrimSpace(ra.GetUrl()) == "" {
 				return nil, fmt.Errorf("remote agent %q: OPENCODE_HTTP protocol requires non-empty url", ra.GetName())
 			}
-			bridge := opencode.NewBridge(ra)
+			bridge, err := opencode.NewBridge(ra)
+			if err != nil {
+				return nil, fmt.Errorf("creating opencode bridge for %q: %w", ra.GetName(), err)
+			}
 			a, err := bridge.BuildAgent(ra.GetName(), fmt.Sprintf("OpenCode HTTP agent: %s", ra.GetName()))
 			if err != nil {
 				return nil, fmt.Errorf("creating remote agent %q: %w", ra.GetName(), err)

@@ -7,16 +7,14 @@
 package opencode
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"iter"
 	"net/http"
 	"strings"
 	"time"
 
+	opencodeclient "github.com/orvice/opencode-go"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
@@ -24,44 +22,44 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-const (
-	defaultHTTPTimeout = 5 * time.Minute
-	defaultUsername    = "opencode"
-)
+const defaultHTTPTimeout = 5 * time.Minute
 
 // Bridge holds the connection settings for a single OPENCODE_HTTP remote agent.
 type Bridge struct {
-	baseURL       string
-	username      string
-	password      string
+	client        *opencodeclient.Client
 	opencodeAgent string
 	opencodeModel string
-	http          *http.Client
 }
 
 // NewBridge constructs a Bridge from a RemoteAgent proto. The caller is
 // expected to have already validated protocol == OPENCODE_HTTP and a non-empty
-// URL via the service-level validator.
-func NewBridge(ra *agentsv1.RemoteAgent) *Bridge {
+// URL via the service-level validator. Extra opencode client options can be
+// appended to override defaults (e.g. WithHTTPClient for tests).
+func NewBridge(ra *agentsv1.RemoteAgent, opts ...opencodeclient.Option) (*Bridge, error) {
 	username := strings.TrimSpace(ra.GetUsername())
-	if username == "" && strings.TrimSpace(ra.GetPassword()) != "" {
-		username = defaultUsername
+	password := ra.GetPassword()
+	if username == "" && strings.TrimSpace(password) != "" {
+		username = "opencode"
 	}
+
+	clientOpts := []opencodeclient.Option{
+		opencodeclient.WithBaseURL(strings.TrimRight(strings.TrimSpace(ra.GetUrl()), "/")),
+		opencodeclient.WithUsername(username),
+		opencodeclient.WithPassword(password),
+		opencodeclient.WithHTTPClient(&http.Client{Timeout: defaultHTTPTimeout}),
+	}
+	clientOpts = append(clientOpts, opts...)
+
+	client, err := opencodeclient.NewClient(clientOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("opencode: create client: %w", err)
+	}
+
 	return &Bridge{
-		baseURL:       strings.TrimRight(strings.TrimSpace(ra.GetUrl()), "/"),
-		username:      username,
-		password:      ra.GetPassword(),
+		client:        client,
 		opencodeAgent: strings.TrimSpace(ra.GetOpencodeAgent()),
 		opencodeModel: strings.TrimSpace(ra.GetOpencodeModel()),
-		http:          &http.Client{Timeout: defaultHTTPTimeout},
-	}
-}
-
-// SetHTTPClient overrides the HTTP client (used by tests).
-func (b *Bridge) SetHTTPClient(c *http.Client) {
-	if c != nil {
-		b.http = c
-	}
+	}, nil
 }
 
 // BuildAgent produces an ADK agent that delegates each run to the opencode
@@ -126,46 +124,37 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 
 // createSession calls POST /session and returns the new session id.
 func (b *Bridge) createSession(ctx context.Context) (string, error) {
-	var out struct {
-		ID string `json:"id"`
-	}
-	if err := b.do(ctx, http.MethodPost, "/session", map[string]any{}, &out); err != nil {
+	sess, err := b.client.Session.Create(ctx, nil)
+	if err != nil {
 		return "", fmt.Errorf("opencode create session: %w", err)
 	}
-	if out.ID == "" {
+	if sess.ID == "" {
 		return "", fmt.Errorf("opencode create session: empty id in response")
 	}
-	return out.ID, nil
+	return sess.ID, nil
 }
 
 // sendMessage posts a user message to the session and waits for the assistant
 // reply, joining all text-typed parts.
 func (b *Bridge) sendMessage(ctx context.Context, sessID, input string) (string, error) {
-	body := map[string]any{
-		"parts": []map[string]any{
-			{"type": "text", "text": input},
-		},
+	params := opencodeclient.PromptParams{
+		Parts: []opencodeclient.PartInput{opencodeclient.NewTextPart(input)},
 	}
 	if b.opencodeAgent != "" {
-		body["agent"] = b.opencodeAgent
+		params.Agent = b.opencodeAgent
 	}
 	if b.opencodeModel != "" {
-		body["model"] = b.opencodeModel
+		params.Model = parseModelRef(b.opencodeModel)
 	}
 
-	var resp struct {
-		Parts []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"parts"`
-	}
-	path := "/session/" + sessID + "/message"
-	if err := b.do(ctx, http.MethodPost, path, body, &resp); err != nil {
+	resp, err := b.client.Session.Prompt(ctx, sessID, params)
+	if err != nil {
 		return "", fmt.Errorf("opencode send message: %w", err)
 	}
+
 	var out strings.Builder
 	for _, p := range resp.Parts {
-		if p.Type == "text" && p.Text != "" {
+		if p.Type == opencodeclient.PartTypeText && p.Text != "" {
 			if out.Len() > 0 {
 				out.WriteString("\n")
 			}
@@ -179,49 +168,20 @@ func (b *Bridge) sendMessage(ctx context.Context, sessID, input string) (string,
 func (b *Bridge) abortSession(ctx context.Context, sessID string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	return b.do(ctx, http.MethodPost, "/session/"+sessID+"/abort", nil, nil)
+	_, err := b.client.Session.Abort(ctx, sessID)
+	return err
 }
 
-// do is a small helper that marshals a JSON body, attaches basic auth, sends
-// the request, and (if dst != nil) decodes the JSON response.
-func (b *Bridge) do(ctx context.Context, method, path string, body any, dst any) error {
-	var reader io.Reader
-	if body != nil {
-		raw, err := json.Marshal(body)
-		if err != nil {
-			return fmt.Errorf("marshal request: %w", err)
+// parseModelRef converts a model string like "provider/model" into a
+// ModelRef. If the string contains no "/", the whole value is used as ModelID.
+func parseModelRef(raw string) *opencodeclient.ModelRef {
+	if i := strings.IndexByte(raw, '/'); i >= 0 {
+		return &opencodeclient.ModelRef{
+			ProviderID: raw[:i],
+			ModelID:    raw[i+1:],
 		}
-		reader = bytes.NewReader(raw)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, b.baseURL+path, reader)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if b.username != "" || b.password != "" {
-		req.SetBasicAuth(b.username, b.password)
-	}
-
-	resp, err := b.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("opencode %s %s: status %d: %s", method, path, resp.StatusCode, strings.TrimSpace(string(errBody)))
-	}
-	if dst == nil {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return nil
-	}
-	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil && err != io.EOF {
-		return fmt.Errorf("decode response: %w", err)
-	}
-	return nil
+	return &opencodeclient.ModelRef{ModelID: raw}
 }
 
 // extractText flattens a genai.Content into a single string by concatenating

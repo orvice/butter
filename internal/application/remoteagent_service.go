@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
+	opencodeclient "github.com/orvice/opencode-go"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
@@ -326,31 +328,27 @@ func validateRemoteAgentURL(ra *agentsv1.RemoteAgent) error {
 }
 
 func probeOpencodeServer(ctx context.Context, baseURL, username, password string) (agentsv1.RemoteAgentStatus_State, string) {
-	url := strings.TrimRight(baseURL, "/") + "/global/health"
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if strings.TrimSpace(username) == "" && password != "" {
+		username = "opencode"
+	}
+	client, err := opencodeclient.NewClient(
+		opencodeclient.WithBaseURL(strings.TrimRight(baseURL, "/")),
+		opencodeclient.WithUsername(username),
+		opencodeclient.WithPassword(password),
+		opencodeclient.WithHTTPClient(&http.Client{Timeout: 5 * time.Second}),
+	)
 	if err != nil {
 		return agentsv1.RemoteAgentStatus_STATE_ERROR, err.Error()
 	}
-	httpReq.Header.Set("Accept", "application/json")
-	if strings.TrimSpace(username) != "" || password != "" {
-		if strings.TrimSpace(username) == "" {
-			username = "opencode"
-		}
-		httpReq.SetBasicAuth(username, password)
-	}
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(httpReq)
+	_, err = client.Global.Health(ctx)
 	if err != nil {
+		var ocErr *opencodeclient.Error
+		if errors.As(err, &ocErr) && ocErr.StatusCode == http.StatusUnauthorized {
+			return agentsv1.RemoteAgentStatus_STATE_ERROR, "opencode server returned 401 (check username/password)"
+		}
 		return agentsv1.RemoteAgentStatus_STATE_UNREACHABLE, err.Error()
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return agentsv1.RemoteAgentStatus_STATE_ACTIVE, ""
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		return agentsv1.RemoteAgentStatus_STATE_ERROR, "opencode server returned 401 (check username/password)"
-	}
-	return agentsv1.RemoteAgentStatus_STATE_UNREACHABLE, fmt.Sprintf("opencode /global/health returned %d", resp.StatusCode)
+	return agentsv1.RemoteAgentStatus_STATE_ACTIVE, ""
 }
 
 func probeA2AAgent(ctx context.Context, baseURL string) (agentsv1.RemoteAgentStatus_State, string) {
