@@ -18,6 +18,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
+	github.com/orvice/opencode-go v0.0.0-20260707161352-f1f9601fceb2
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/robfig/cron/v3 v3.0.1
 	go.mongodb.org/mongo-driver/v2 v2.5.0

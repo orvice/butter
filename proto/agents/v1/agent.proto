@@ -255,6 +255,8 @@ enum RemoteAgentProtocol {
   REMOTE_AGENT_PROTOCOL_UNSPECIFIED = 0;
   REMOTE_AGENT_PROTOCOL_A2A = 1;
   REMOTE_AGENT_PROTOCOL_DAEMON = 2;
+  // Direct HTTP connection to a running `opencode serve` instance.
+  REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP = 3;
 }
 
 // ContextGuardStrategy selects the compaction strategy for context management.
@@ -310,6 +312,25 @@ message RemoteAgent {
   // Required when protocol is DAEMON. v1 supports "opencode" and "codex".
   // @gotags: json:"acp_runtime,omitempty" yaml:"acp_runtime,omitempty"
   string acp_runtime = 7;
+
+  // Optional opencode agent name (`/agent` API). Used by OPENCODE_HTTP only;
+  // when empty the server's default agent handles the request.
+  // @gotags: json:"opencode_agent,omitempty" yaml:"opencode_agent,omitempty"
+  string opencode_agent = 8;
+
+  // Optional opencode model identifier (e.g. "anthropic/claude-3-5-sonnet").
+  // Used by OPENCODE_HTTP only; defaults to the server-side configured model.
+  // @gotags: json:"opencode_model,omitempty" yaml:"opencode_model,omitempty"
+  string opencode_model = 9;
+
+  // Optional HTTP basic-auth username for OPENCODE_HTTP. Defaults to
+  // "opencode" on the opencode server when password is set.
+  // @gotags: json:"username,omitempty" yaml:"username,omitempty"
+  string username = 10;
+
+  // Optional HTTP basic-auth password for OPENCODE_HTTP.
+  // @gotags: json:"password,omitempty" yaml:"password,omitempty"
+  string password = 11;
 
   // ID of the workspace this remote agent belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
