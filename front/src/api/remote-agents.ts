@@ -25,6 +25,7 @@ const PROTOCOL_NAMES: LegacyProtocol[] = [
   "REMOTE_AGENT_PROTOCOL_UNSPECIFIED",
   "REMOTE_AGENT_PROTOCOL_A2A",
   "REMOTE_AGENT_PROTOCOL_DAEMON",
+  "REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP",
 ];
 
 const STATE_NAMES: RemoteAgentState[] = [
@@ -57,6 +58,10 @@ function fromProto(a: PbRemoteAgent): RemoteAgent {
     protocol: protocolFromProto(a.protocol),
     daemon_runtime_id: a.daemonRuntimeId,
     acp_runtime: a.acpRuntime,
+    opencode_agent: a.opencodeAgent,
+    opencode_model: a.opencodeModel,
+    username: a.username,
+    password: a.password,
   };
 }
 
@@ -68,6 +73,10 @@ function toProto(a: RemoteAgent): PbRemoteAgent {
     protocol: protocolToProto(a.protocol),
     daemonRuntimeId: a.daemon_runtime_id ?? "",
     acpRuntime: a.acp_runtime ?? "",
+    opencodeAgent: a.opencode_agent ?? "",
+    opencodeModel: a.opencode_model ?? "",
+    username: a.username ?? "",
+    password: a.password ?? "",
   });
 }
 

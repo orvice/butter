@@ -1142,6 +1142,14 @@ func (m *RemoteAgent) validate(all bool) error {
 
 	// no validation rules for AcpRuntime
 
+	// no validation rules for OpencodeAgent
+
+	// no validation rules for OpencodeModel
+
+	// no validation rules for Username
+
+	// no validation rules for Password
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {

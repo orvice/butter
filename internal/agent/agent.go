@@ -23,6 +23,7 @@ import (
 	"google.golang.org/adk/tool/mcptoolset"
 
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/runtime/opencode"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -576,6 +577,20 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
 				Description:     fmt.Sprintf("Remote A2A agent: %s", ra.GetName()),
 				AgentCardSource: ra.GetUrl(),
 			})
+			if err != nil {
+				return nil, fmt.Errorf("creating remote agent %q: %w", ra.GetName(), err)
+			}
+			agents = append(agents, a)
+
+		case agentsv1.RemoteAgentProtocol_REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP:
+			if strings.TrimSpace(ra.GetUrl()) == "" {
+				return nil, fmt.Errorf("remote agent %q: OPENCODE_HTTP protocol requires non-empty url", ra.GetName())
+			}
+			bridge, err := opencode.NewBridge(ra)
+			if err != nil {
+				return nil, fmt.Errorf("creating opencode bridge for %q: %w", ra.GetName(), err)
+			}
+			a, err := bridge.BuildAgent(ra.GetName(), fmt.Sprintf("OpenCode HTTP agent: %s", ra.GetName()))
 			if err != nil {
 				return nil, fmt.Errorf("creating remote agent %q: %w", ra.GetName(), err)
 			}

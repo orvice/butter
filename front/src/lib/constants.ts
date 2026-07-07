@@ -31,6 +31,7 @@ export const REMOTE_AGENT_PROTOCOL_LABELS: Record<string, string> = {
   REMOTE_AGENT_PROTOCOL_UNSPECIFIED: "Unspecified",
   REMOTE_AGENT_PROTOCOL_A2A: "A2A",
   REMOTE_AGENT_PROTOCOL_DAEMON: "Daemon Runtime",
+  REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP: "OpenCode HTTP",
 };
 
 export const AGENT_CHANNEL_PLATFORM_LABELS: Record<string, string> = {
