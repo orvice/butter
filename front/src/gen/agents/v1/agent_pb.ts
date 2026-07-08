@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/agent.proto.
  */
 export const file_agents_v1_agent: GenFile = /*@__PURE__*/
-  fileDesc("ChVhZ2VudHMvdjEvYWdlbnQucHJvdG8SCWFnZW50cy52MSKVAwoFQWdlbnQSGwoEbmFtZRgBIAEoCUIN+kIKcggQAVoEdXNlchITCgtkZXNjcmlwdGlvbhgCIAEoCRIkCgpzdWJfYWdlbnRzGAMgAygLMhAuYWdlbnRzLnYxLkFnZW50EiwKBmxhYmVscxgEIAMoCzIcLmFnZW50cy52MS5BZ2VudC5MYWJlbHNFbnRyeRIwCghtZXRhZGF0YRgFIAMoCzIeLmFnZW50cy52MS5BZ2VudC5NZXRhZGF0YUVudHJ5EiYKBmNvbmZpZxgGIAEoCzIWLmFnZW50cy52MS5BZ2VudENvbmZpZxIiCgR0eXBlGBQgASgOMhQuYWdlbnRzLnYxLkFnZW50VHlwZRISCgplbmFibGVfYTJhGBUgASgIEhQKDHdvcmtzcGFjZV9pZBhkIAEoCRotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKfBAoLQWdlbnRDb25maWcSKAoHcnVudGltZRgBIAEoCzIXLmFnZW50cy52MS5BZ2VudFJ1bnRpbWUSKQoLbWNwX3NlcnZlcnMYAiADKAsyFC5hZ2VudHMudjEuTUNQU2VydmVyEjQKDWNvbnRleHRfZ3VhcmQYAyABKAsyHS5hZ2VudHMudjEuQ29udGV4dEd1YXJkQ29uZmlnEhYKDm1jcF9zZXJ2ZXJfaWRzGAQgAygJEhgKEHJlbW90ZV9hZ2VudF9pZHMYBSADKAkSLgoLZmlsZV9tb3VudHMYBiADKAsyGS5hZ2VudHMudjEuQWdlbnRGaWxlTW91bnQSDQoFbW9kZWwYFCABKAkSEwoLaW5zdHJ1Y3Rpb24YFSABKAkSGgoSZ2xvYmFsX2luc3RydWN0aW9uGBYgASgJEiMKG2Rpc2FsbG93X3RyYW5zZmVyX3RvX3BhcmVudBgXIAEoCBIiChpkaXNhbGxvd190cmFuc2Zlcl90b19wZWVycxgYIAEoCBI3ChBpbmNsdWRlX2NvbnRlbnRzGBkgASgOMh0uYWdlbnRzLnYxLkxMTUluY2x1ZGVDb250ZW50cxISCgpvdXRwdXRfa2V5GBogASgJEhkKEWlucHV0X3NjaGVtYV9qc29uGBsgASgJEhoKEm91dHB1dF9zY2hlbWFfanNvbhgcIAEoCRIWCg5tYXhfaXRlcmF0aW9ucxgeIAEoDSJnCgxBZ2VudFJ1bnRpbWUSMAoOc3RyZWFtaW5nX21vZGUYASABKA4yGC5hZ2VudHMudjEuU3RyZWFtaW5nTW9kZRIlCh1zYXZlX2lucHV0X2Jsb2JzX2FzX2FydGlmYWN0cxgCIAEoCCK+AwoJTUNQU2VydmVyEhUKBG5hbWUYASABKAlCB/pCBHICEAESMAoJdHJhbnNwb3J0GAIgASgOMh0uYWdlbnRzLnYxLk1DUFNlcnZlclRyYW5zcG9ydBIKCgJpZBgKIAEoCRILCgN1cmwYBiABKAkSMgoHaGVhZGVycxgHIAMoCzIhLmFnZW50cy52MS5NQ1BTZXJ2ZXIuSGVhZGVyc0VudHJ5EhMKC3Rvb2xfZmlsdGVyGAggAygJEjQKCG1ldGFkYXRhGAkgAygLMiIuYWdlbnRzLnYxLk1DUFNlcnZlci5NZXRhZGF0YUVudHJ5EhcKD3RpbWVvdXRfc2Vjb25kcxgLIAEoBRImCgRhdXRoGAwgASgLMhguYWdlbnRzLnYxLk1DUFNlcnZlckF1dGgSFAoMd29ya3NwYWNlX2lkGGQgASgJGi4KDEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUoECAMQBlIHY29tbWFuZFIEYXJnc1IDZW52Im0KDU1DUFNlcnZlckF1dGgSKgoEdHlwZRgBIAEoDjIcLmFnZW50cy52MS5NQ1BTZXJ2ZXJBdXRoVHlwZRIwCgZvYXV0aDIYAiABKAsyIC5hZ2VudHMudjEuTUNQU2VydmVyT0F1dGgyQ29uZmlnItIBChVNQ1BTZXJ2ZXJPQXV0aDJDb25maWcSEQoJY2xpZW50X2lkGAEgASgJEhUKDWNsaWVudF9zZWNyZXQYAiABKAkSDgoGc2NvcGVzGAMgAygJEhkKEWF1dGhvcml6YXRpb25fdXJsGAQgASgJEhEKCXRva2VuX3VybBgFIAEoCRIdChVyZXNvdXJjZV9tZXRhZGF0YV91cmwYBiABKAkSIAoYYXV0aG9yaXphdGlvbl9zZXJ2ZXJfdXJsGAcgASgJEhAKCHJlc291cmNlGAggASgJIm4KEkNvbnRleHRHdWFyZENvbmZpZxIxCghzdHJhdGVneRgBIAEoDjIfLmFnZW50cy52MS5Db250ZXh0R3VhcmRTdHJhdGVneRIRCgltYXhfdHVybnMYAiABKAUSEgoKbWF4X3Rva2VucxgDIAEoBSKrAgoLUmVtb3RlQWdlbnQSEwoCaWQYASABKAlCB/pCBHICEAESFQoEbmFtZRgCIAEoCUIH+kIEcgIQARILCgN1cmwYAyABKAkSMAoIcHJvdG9jb2wYBCABKA4yHi5hZ2VudHMudjEuUmVtb3RlQWdlbnRQcm90b2NvbBIZChFkYWVtb25fcnVudGltZV9pZBgGIAEoCRITCgthY3BfcnVudGltZRgHIAEoCRIWCg5vcGVuY29kZV9hZ2VudBgIIAEoCRIWCg5vcGVuY29kZV9tb2RlbBgJIAEoCRIQCgh1c2VybmFtZRgKIAEoCRIQCghwYXNzd29yZBgLIAEoCRIUCgx3b3Jrc3BhY2VfaWQYZCABKAlKBAgFEAZSEWRhZW1vbl9jYXBhYmlsaXR5IioKC01vZGVsQ29uZmlnEgwKBG5hbWUYASABKAkSDQoFYWxpYXMYAiABKAkijAEKDU1vZGVsUHJvdmlkZXISDAoEbmFtZRgBIAEoCRIMCgR0eXBlGAIgASgJEg8KB2FwaV9rZXkYAyABKAkSEAoIYmFzZV91cmwYBCABKAkSJgoGbW9kZWxzGAUgAygLMhYuYWdlbnRzLnYxLk1vZGVsQ29uZmlnEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSLVAQoLTm90aWZ5R3JvdXASDAoEbmFtZRgBIAEoCRIPCgdlbmFibGVkGAIgASgIEigKB3RhcmdldHMYAyADKAsyFy5hZ2VudHMudjEuTm90aWZ5VGFyZ2V0EjYKCG1ldGFkYXRhGAogAygLMiQuYWdlbnRzLnYxLk5vdGlmeUdyb3VwLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGGQgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLRAgoMTm90aWZ5VGFyZ2V0EgwKBG5hbWUYASABKAkSDwoHZW5hYmxlZBgCIAEoCBIpCgR0eXBlGAMgASgOMhsuYWdlbnRzLnYxLk5vdGlmeVRhcmdldFR5cGUSMQoIdGVsZWdyYW0YBCABKAsyHy5hZ2VudHMudjEuVGVsZWdyYW1Ob3RpZnlUYXJnZXQSKQoEbGFyaxgFIAEoCzIbLmFnZW50cy52MS5MYXJrTm90aWZ5VGFyZ2V0Ei8KB2Rpc2NvcmQYBiABKAsyHi5hZ2VudHMudjEuRGlzY29yZE5vdGlmeVRhcmdldBI3CghtZXRhZGF0YRgKIAMoCzIlLmFnZW50cy52MS5Ob3RpZnlUYXJnZXQuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiaQoUVGVsZWdyYW1Ob3RpZnlUYXJnZXQSEQoJYm90X3Rva2VuGAEgASgJEg8KB2NoYXRfaWQYAiABKAkSEgoKcGFyc2VfbW9kZRgDIAEoCRIZChFtZXNzYWdlX3RocmVhZF9pZBgEIAEoAyI3ChBMYXJrTm90aWZ5VGFyZ2V0EhMKC3dlYmhvb2tfdXJsGAEgASgJEg4KBnNlY3JldBgCIAEoCSJjChNEaXNjb3JkTm90aWZ5VGFyZ2V0EhMKC3dlYmhvb2tfdXJsGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhIKCmF2YXRhcl91cmwYAyABKAkSEQoJdGhyZWFkX2lkGAQgASgJKqIBChFNQ1BTZXJ2ZXJBdXRoVHlwZRIkCiBNQ1BfU0VSVkVSX0FVVEhfVFlQRV9VTlNQRUNJRklFRBAAEh0KGU1DUF9TRVJWRVJfQVVUSF9UWVBFX05PTkUQARInCiNNQ1BfU0VSVkVSX0FVVEhfVFlQRV9TVEFUSUNfSEVBREVSUxACEh8KG01DUF9TRVJWRVJfQVVUSF9UWVBFX09BVVRIMhADKmAKDVN0cmVhbWluZ01vZGUSHgoaU1RSRUFNSU5HX01PREVfVU5TUEVDSUZJRUQQABIXChNTVFJFQU1JTkdfTU9ERV9OT05FEAESFgoSU1RSRUFNSU5HX01PREVfU1NFEAIqhAEKCUFnZW50VHlwZRIaChZBR0VOVF9UWVBFX1VOU1BFQ0lGSUVEEAASEgoOQUdFTlRfVFlQRV9MTE0QARITCg9BR0VOVF9UWVBFX0xPT1AQAhIZChVBR0VOVF9UWVBFX1NFUVVFTlRJQUwQAxIXChNBR0VOVF9UWVBFX1BBUkFMTEVMEAQqewoSTExNSW5jbHVkZUNvbnRlbnRzEiQKIExMTV9JTkNMVURFX0NPTlRFTlRTX1VOU1BFQ0lGSUVEEAASIAocTExNX0lOQ0xVREVfQ09OVEVOVFNfREVGQVVMVBABEh0KGUxMTV9JTkNMVURFX0NPTlRFTlRTX05PTkUQAiqkAQoSTUNQU2VydmVyVHJhbnNwb3J0EiQKIE1DUF9TRVJWRVJfVFJBTlNQT1JUX1VOU1BFQ0lGSUVEEAASKAokTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1RSRUFNQUJMRV9IVFRQEAISHAoYTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1NFEAMiBAgBEAEqGk1DUF9TRVJWRVJfVFJBTlNQT1JUX1NURElPKqYBChNSZW1vdGVBZ2VudFByb3RvY29sEiUKIVJFTU9URV9BR0VOVF9QUk9UT0NPTF9VTlNQRUNJRklFRBAAEh0KGVJFTU9URV9BR0VOVF9QUk9UT0NPTF9BMkEQARIgChxSRU1PVEVfQUdFTlRfUFJPVE9DT0xfREFFTU9OEAISJwojUkVNT1RFX0FHRU5UX1BST1RPQ09MX09QRU5DT0RFX0hUVFAQAyqPAQoUQ29udGV4dEd1YXJkU3RyYXRlZ3kSJgoiQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9VTlNQRUNJRklFRBAAEiQKIENPTlRFWFRfR1VBUkRfU1RSQVRFR1lfVEhSRVNIT0xEEAESKQolQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9TTElESU5HX1dJTkRPVxACKqQBChBOb3RpZnlUYXJnZXRUeXBlEiIKHk5PVElGWV9UQVJHRVRfVFlQRV9VTlNQRUNJRklFRBAAEh8KG05PVElGWV9UQVJHRVRfVFlQRV9URUxFR1JBTRABEiMKH05PVElGWV9UQVJHRVRfVFlQRV9MQVJLX1dFQkhPT0sQAhImCiJOT1RJRllfVEFSR0VUX1RZUEVfRElTQ09SRF9XRUJIT09LEANCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_agents_v1_agent_file, file_validate_validate]);
+  fileDesc("ChVhZ2VudHMvdjEvYWdlbnQucHJvdG8SCWFnZW50cy52MSKVAwoFQWdlbnQSGwoEbmFtZRgBIAEoCUIN+kIKcggQAVoEdXNlchITCgtkZXNjcmlwdGlvbhgCIAEoCRIkCgpzdWJfYWdlbnRzGAMgAygLMhAuYWdlbnRzLnYxLkFnZW50EiwKBmxhYmVscxgEIAMoCzIcLmFnZW50cy52MS5BZ2VudC5MYWJlbHNFbnRyeRIwCghtZXRhZGF0YRgFIAMoCzIeLmFnZW50cy52MS5BZ2VudC5NZXRhZGF0YUVudHJ5EiYKBmNvbmZpZxgGIAEoCzIWLmFnZW50cy52MS5BZ2VudENvbmZpZxIiCgR0eXBlGBQgASgOMhQuYWdlbnRzLnYxLkFnZW50VHlwZRISCgplbmFibGVfYTJhGBUgASgIEhQKDHdvcmtzcGFjZV9pZBhkIAEoCRotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLMBAoLQWdlbnRDb25maWcSKAoHcnVudGltZRgBIAEoCzIXLmFnZW50cy52MS5BZ2VudFJ1bnRpbWUSKQoLbWNwX3NlcnZlcnMYAiADKAsyFC5hZ2VudHMudjEuTUNQU2VydmVyEjQKDWNvbnRleHRfZ3VhcmQYAyABKAsyHS5hZ2VudHMudjEuQ29udGV4dEd1YXJkQ29uZmlnEhYKDm1jcF9zZXJ2ZXJfaWRzGAQgAygJEhgKEHJlbW90ZV9hZ2VudF9pZHMYBSADKAkSLgoLZmlsZV9tb3VudHMYBiADKAsyGS5hZ2VudHMudjEuQWdlbnRGaWxlTW91bnQSDQoFbW9kZWwYFCABKAkSEwoLaW5zdHJ1Y3Rpb24YFSABKAkSGgoSZ2xvYmFsX2luc3RydWN0aW9uGBYgASgJEiMKG2Rpc2FsbG93X3RyYW5zZmVyX3RvX3BhcmVudBgXIAEoCBIiChpkaXNhbGxvd190cmFuc2Zlcl90b19wZWVycxgYIAEoCBI3ChBpbmNsdWRlX2NvbnRlbnRzGBkgASgOMh0uYWdlbnRzLnYxLkxMTUluY2x1ZGVDb250ZW50cxISCgpvdXRwdXRfa2V5GBogASgJEhkKEWlucHV0X3NjaGVtYV9qc29uGBsgASgJEhoKEm91dHB1dF9zY2hlbWFfanNvbhgcIAEoCRIWCg5tYXhfaXRlcmF0aW9ucxgeIAEoDRIrCgh3b3JrZmxvdxgoIAEoCzIZLmFnZW50cy52MS5Xb3JrZmxvd0NvbmZpZyJgCg5Xb3JrZmxvd0NvbmZpZxImCgVub2RlcxgBIAMoCzIXLmFnZW50cy52MS5Xb3JrZmxvd05vZGUSJgoFZWRnZXMYAiADKAsyFy5hZ2VudHMudjEuV29ya2Zsb3dFZGdlIskBCgxXb3JrZmxvd05vZGUSDAoEbmFtZRgBIAEoCRIpCgRraW5kGAIgASgOMhsuYWdlbnRzLnYxLldvcmtmbG93Tm9kZUtpbmQSDQoFYWdlbnQYAyABKAkSEAoIcXVlc3Rpb24YBCABKAkSFwoPcGFyYWxsZWxfd29ya2VyGAogASgIEi0KBXJldHJ5GAsgASgLMh4uYWdlbnRzLnYxLldvcmtmbG93UmV0cnlDb25maWcSFwoPdGltZW91dF9zZWNvbmRzGAwgASgFIn0KE1dvcmtmbG93UmV0cnlDb25maWcSFAoMbWF4X2F0dGVtcHRzGAEgASgFEh0KFWluaXRpYWxfZGVsYXlfc2Vjb25kcxgCIAEoBRIZChFtYXhfZGVsYXlfc2Vjb25kcxgDIAEoBRIWCg5iYWNrb2ZmX2ZhY3RvchgEIAEoASJLCgxXb3JrZmxvd0VkZ2USDAoEZnJvbRgBIAEoCRIKCgJ0bxgCIAEoCRINCgVyb3V0ZRgDIAEoCRISCgppc19kZWZhdWx0GAQgASgIImcKDEFnZW50UnVudGltZRIwCg5zdHJlYW1pbmdfbW9kZRgBIAEoDjIYLmFnZW50cy52MS5TdHJlYW1pbmdNb2RlEiUKHXNhdmVfaW5wdXRfYmxvYnNfYXNfYXJ0aWZhY3RzGAIgASgIIr4DCglNQ1BTZXJ2ZXISFQoEbmFtZRgBIAEoCUIH+kIEcgIQARIwCgl0cmFuc3BvcnQYAiABKA4yHS5hZ2VudHMudjEuTUNQU2VydmVyVHJhbnNwb3J0EgoKAmlkGAogASgJEgsKA3VybBgGIAEoCRIyCgdoZWFkZXJzGAcgAygLMiEuYWdlbnRzLnYxLk1DUFNlcnZlci5IZWFkZXJzRW50cnkSEwoLdG9vbF9maWx0ZXIYCCADKAkSNAoIbWV0YWRhdGEYCSADKAsyIi5hZ2VudHMudjEuTUNQU2VydmVyLk1ldGFkYXRhRW50cnkSFwoPdGltZW91dF9zZWNvbmRzGAsgASgFEiYKBGF1dGgYDCABKAsyGC5hZ2VudHMudjEuTUNQU2VydmVyQXV0aBIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLwoNTWV0YWRhdGFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBSgQIAxAGUgdjb21tYW5kUgRhcmdzUgNlbnYibQoNTUNQU2VydmVyQXV0aBIqCgR0eXBlGAEgASgOMhwuYWdlbnRzLnYxLk1DUFNlcnZlckF1dGhUeXBlEjAKBm9hdXRoMhgCIAEoCzIgLmFnZW50cy52MS5NQ1BTZXJ2ZXJPQXV0aDJDb25maWci0gEKFU1DUFNlcnZlck9BdXRoMkNvbmZpZxIRCgljbGllbnRfaWQYASABKAkSFQoNY2xpZW50X3NlY3JldBgCIAEoCRIOCgZzY29wZXMYAyADKAkSGQoRYXV0aG9yaXphdGlvbl91cmwYBCABKAkSEQoJdG9rZW5fdXJsGAUgASgJEh0KFXJlc291cmNlX21ldGFkYXRhX3VybBgGIAEoCRIgChhhdXRob3JpemF0aW9uX3NlcnZlcl91cmwYByABKAkSEAoIcmVzb3VyY2UYCCABKAkibgoSQ29udGV4dEd1YXJkQ29uZmlnEjEKCHN0cmF0ZWd5GAEgASgOMh8uYWdlbnRzLnYxLkNvbnRleHRHdWFyZFN0cmF0ZWd5EhEKCW1heF90dXJucxgCIAEoBRISCgptYXhfdG9rZW5zGAMgASgFIqsCCgtSZW1vdGVBZ2VudBITCgJpZBgBIAEoCUIH+kIEcgIQARIVCgRuYW1lGAIgASgJQgf6QgRyAhABEgsKA3VybBgDIAEoCRIwCghwcm90b2NvbBgEIAEoDjIeLmFnZW50cy52MS5SZW1vdGVBZ2VudFByb3RvY29sEhkKEWRhZW1vbl9ydW50aW1lX2lkGAYgASgJEhMKC2FjcF9ydW50aW1lGAcgASgJEhYKDm9wZW5jb2RlX2FnZW50GAggASgJEhYKDm9wZW5jb2RlX21vZGVsGAkgASgJEhAKCHVzZXJuYW1lGAogASgJEhAKCHBhc3N3b3JkGAsgASgJEhQKDHdvcmtzcGFjZV9pZBhkIAEoCUoECAUQBlIRZGFlbW9uX2NhcGFiaWxpdHkiKgoLTW9kZWxDb25maWcSDAoEbmFtZRgBIAEoCRINCgVhbGlhcxgCIAEoCSKMAQoNTW9kZWxQcm92aWRlchIMCgRuYW1lGAEgASgJEgwKBHR5cGUYAiABKAkSDwoHYXBpX2tleRgDIAEoCRIQCghiYXNlX3VybBgEIAEoCRImCgZtb2RlbHMYBSADKAsyFi5hZ2VudHMudjEuTW9kZWxDb25maWcSFAoMd29ya3NwYWNlX2lkGGQgASgJItUBCgtOb3RpZnlHcm91cBIMCgRuYW1lGAEgASgJEg8KB2VuYWJsZWQYAiABKAgSKAoHdGFyZ2V0cxgDIAMoCzIXLmFnZW50cy52MS5Ob3RpZnlUYXJnZXQSNgoIbWV0YWRhdGEYCiADKAsyJC5hZ2VudHMudjEuTm90aWZ5R3JvdXAuTWV0YWRhdGFFbnRyeRIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaLwoNTWV0YWRhdGFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBItECCgxOb3RpZnlUYXJnZXQSDAoEbmFtZRgBIAEoCRIPCgdlbmFibGVkGAIgASgIEikKBHR5cGUYAyABKA4yGy5hZ2VudHMudjEuTm90aWZ5VGFyZ2V0VHlwZRIxCgh0ZWxlZ3JhbRgEIAEoCzIfLmFnZW50cy52MS5UZWxlZ3JhbU5vdGlmeVRhcmdldBIpCgRsYXJrGAUgASgLMhsuYWdlbnRzLnYxLkxhcmtOb3RpZnlUYXJnZXQSLwoHZGlzY29yZBgGIAEoCzIeLmFnZW50cy52MS5EaXNjb3JkTm90aWZ5VGFyZ2V0EjcKCG1ldGFkYXRhGAogAygLMiUuYWdlbnRzLnYxLk5vdGlmeVRhcmdldC5NZXRhZGF0YUVudHJ5Gi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJpChRUZWxlZ3JhbU5vdGlmeVRhcmdldBIRCglib3RfdG9rZW4YASABKAkSDwoHY2hhdF9pZBgCIAEoCRISCgpwYXJzZV9tb2RlGAMgASgJEhkKEW1lc3NhZ2VfdGhyZWFkX2lkGAQgASgDIjcKEExhcmtOb3RpZnlUYXJnZXQSEwoLd2ViaG9va191cmwYASABKAkSDgoGc2VjcmV0GAIgASgJImMKE0Rpc2NvcmROb3RpZnlUYXJnZXQSEwoLd2ViaG9va191cmwYASABKAkSEAoIdXNlcm5hbWUYAiABKAkSEgoKYXZhdGFyX3VybBgDIAEoCRIRCgl0aHJlYWRfaWQYBCABKAkqtAEKEFdvcmtmbG93Tm9kZUtpbmQSIgoeV09SS0ZMT1dfTk9ERV9LSU5EX1VOU1BFQ0lGSUVEEAASHAoYV09SS0ZMT1dfTk9ERV9LSU5EX0FHRU5UEAESIgoeV09SS0ZMT1dfTk9ERV9LSU5EX0hVTUFOX0lOUFVUEAISHQoZV09SS0ZMT1dfTk9ERV9LSU5EX1JPVVRFUhADEhsKF1dPUktGTE9XX05PREVfS0lORF9KT0lOEAQqogEKEU1DUFNlcnZlckF1dGhUeXBlEiQKIE1DUF9TRVJWRVJfQVVUSF9UWVBFX1VOU1BFQ0lGSUVEEAASHQoZTUNQX1NFUlZFUl9BVVRIX1RZUEVfTk9ORRABEicKI01DUF9TRVJWRVJfQVVUSF9UWVBFX1NUQVRJQ19IRUFERVJTEAISHwobTUNQX1NFUlZFUl9BVVRIX1RZUEVfT0FVVEgyEAMqYAoNU3RyZWFtaW5nTW9kZRIeChpTVFJFQU1JTkdfTU9ERV9VTlNQRUNJRklFRBAAEhcKE1NUUkVBTUlOR19NT0RFX05PTkUQARIWChJTVFJFQU1JTkdfTU9ERV9TU0UQAiqdAQoJQWdlbnRUeXBlEhoKFkFHRU5UX1RZUEVfVU5TUEVDSUZJRUQQABISCg5BR0VOVF9UWVBFX0xMTRABEhMKD0FHRU5UX1RZUEVfTE9PUBACEhkKFUFHRU5UX1RZUEVfU0VRVUVOVElBTBADEhcKE0FHRU5UX1RZUEVfUEFSQUxMRUwQBBIXChNBR0VOVF9UWVBFX1dPUktGTE9XEAUqewoSTExNSW5jbHVkZUNvbnRlbnRzEiQKIExMTV9JTkNMVURFX0NPTlRFTlRTX1VOU1BFQ0lGSUVEEAASIAocTExNX0lOQ0xVREVfQ09OVEVOVFNfREVGQVVMVBABEh0KGUxMTV9JTkNMVURFX0NPTlRFTlRTX05PTkUQAiqkAQoSTUNQU2VydmVyVHJhbnNwb3J0EiQKIE1DUF9TRVJWRVJfVFJBTlNQT1JUX1VOU1BFQ0lGSUVEEAASKAokTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1RSRUFNQUJMRV9IVFRQEAISHAoYTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1NFEAMiBAgBEAEqGk1DUF9TRVJWRVJfVFJBTlNQT1JUX1NURElPKqYBChNSZW1vdGVBZ2VudFByb3RvY29sEiUKIVJFTU9URV9BR0VOVF9QUk9UT0NPTF9VTlNQRUNJRklFRBAAEh0KGVJFTU9URV9BR0VOVF9QUk9UT0NPTF9BMkEQARIgChxSRU1PVEVfQUdFTlRfUFJPVE9DT0xfREFFTU9OEAISJwojUkVNT1RFX0FHRU5UX1BST1RPQ09MX09QRU5DT0RFX0hUVFAQAyqPAQoUQ29udGV4dEd1YXJkU3RyYXRlZ3kSJgoiQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9VTlNQRUNJRklFRBAAEiQKIENPTlRFWFRfR1VBUkRfU1RSQVRFR1lfVEhSRVNIT0xEEAESKQolQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9TTElESU5HX1dJTkRPVxACKqQBChBOb3RpZnlUYXJnZXRUeXBlEiIKHk5PVElGWV9UQVJHRVRfVFlQRV9VTlNQRUNJRklFRBAAEh8KG05PVElGWV9UQVJHRVRfVFlQRV9URUxFR1JBTRABEiMKH05PVElGWV9UQVJHRVRfVFlQRV9MQVJLX1dFQkhPT0sQAhImCiJOT1RJRllfVEFSR0VUX1RZUEVfRElTQ09SRF9XRUJIT09LEANCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_agents_v1_agent_file, file_validate_validate]);
 
 /**
  * Agent describes a declarative ADK agent configuration.
@@ -233,6 +233,14 @@ export type AgentConfig = Message<"agents.v1.AgentConfig"> & {
    * @generated from field: uint32 max_iterations = 30;
    */
   maxIterations: number;
+
+  /**
+   * Workflow graph of nodes and edges executed by the ADK workflow engine.
+   * @gotags: json:"workflow,omitempty" yaml:"workflow,omitempty"
+   *
+   * @generated from field: agents.v1.WorkflowConfig workflow = 40;
+   */
+  workflow?: WorkflowConfig;
 };
 
 /**
@@ -241,6 +249,208 @@ export type AgentConfig = Message<"agents.v1.AgentConfig"> & {
  */
 export const AgentConfigSchema: GenMessage<AgentConfig> = /*@__PURE__*/
   messageDesc(file_agents_v1_agent, 1);
+
+/**
+ * WorkflowConfig declares a Workflow Agent's directed graph as two explicit
+ * lists: nodes (name, kind, per-node options) and edges (from/to node names
+ * plus an optional route label). See ADR 0001.
+ *
+ * @generated from message agents.v1.WorkflowConfig
+ */
+export type WorkflowConfig = Message<"agents.v1.WorkflowConfig"> & {
+  /**
+   * Nodes are the steps of the graph. Node names must be unique and must not
+   * use the reserved "START" sentinel.
+   * @gotags: json:"nodes,omitempty" yaml:"nodes,omitempty"
+   *
+   * @generated from field: repeated agents.v1.WorkflowNode nodes = 1;
+   */
+  nodes: WorkflowNode[];
+
+  /**
+   * Edges are directed connections between declared nodes. The reserved name
+   * "START" may appear in `from` to mark the graph's entry point(s).
+   * @gotags: json:"edges,omitempty" yaml:"edges,omitempty"
+   *
+   * @generated from field: repeated agents.v1.WorkflowEdge edges = 2;
+   */
+  edges: WorkflowEdge[];
+};
+
+/**
+ * Describes the message agents.v1.WorkflowConfig.
+ * Use `create(WorkflowConfigSchema)` to create a new message.
+ */
+export const WorkflowConfigSchema: GenMessage<WorkflowConfig> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 2);
+
+/**
+ * WorkflowNode is a single step in a Workflow Agent's graph.
+ *
+ * @generated from message agents.v1.WorkflowNode
+ */
+export type WorkflowNode = Message<"agents.v1.WorkflowNode"> & {
+  /**
+   * Name identifies the node within the graph. Must be unique; "START" is
+   * reserved for the entry sentinel used in edges.
+   * @gotags: json:"name,omitempty" yaml:"name,omitempty"
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Kind selects the node behaviour.
+   * @gotags: json:"kind,omitempty" yaml:"kind,omitempty"
+   *
+   * @generated from field: agents.v1.WorkflowNodeKind kind = 2;
+   */
+  kind: WorkflowNodeKind;
+
+  /**
+   * AGENT nodes: name of one of the workflow agent's sub-agents to run.
+   * @gotags: json:"agent,omitempty" yaml:"agent,omitempty"
+   *
+   * @generated from field: string agent = 3;
+   */
+  agent: string;
+
+  /**
+   * HUMAN_INPUT nodes: the question presented to the human.
+   * @gotags: json:"question,omitempty" yaml:"question,omitempty"
+   *
+   * @generated from field: string question = 4;
+   */
+  question: string;
+
+  /**
+   * Runs the node once per item of a list-typed input, concurrently, then
+   * aggregates outputs.
+   * @gotags: json:"parallel_worker,omitempty" yaml:"parallel_worker,omitempty"
+   *
+   * @generated from field: bool parallel_worker = 10;
+   */
+  parallelWorker: boolean;
+
+  /**
+   * Retry policy for failed activations. Unset means no retries.
+   * @gotags: json:"retry,omitempty" yaml:"retry,omitempty"
+   *
+   * @generated from field: agents.v1.WorkflowRetryConfig retry = 11;
+   */
+  retry?: WorkflowRetryConfig;
+
+  /**
+   * Bounds a single activation of the node. 0 means no per-node timeout.
+   * @gotags: json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"
+   *
+   * @generated from field: int32 timeout_seconds = 12;
+   */
+  timeoutSeconds: number;
+};
+
+/**
+ * Describes the message agents.v1.WorkflowNode.
+ * Use `create(WorkflowNodeSchema)` to create a new message.
+ */
+export const WorkflowNodeSchema: GenMessage<WorkflowNode> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 3);
+
+/**
+ * WorkflowRetryConfig is a serializable subset of the ADK retry policy.
+ * Unset fields fall back to the engine defaults.
+ *
+ * @generated from message agents.v1.WorkflowRetryConfig
+ */
+export type WorkflowRetryConfig = Message<"agents.v1.WorkflowRetryConfig"> & {
+  /**
+   * Maximum number of attempts including the first. 0 or 1 means no retries.
+   * @gotags: json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"
+   *
+   * @generated from field: int32 max_attempts = 1;
+   */
+  maxAttempts: number;
+
+  /**
+   * Delay before the first retry, in seconds.
+   * @gotags: json:"initial_delay_seconds,omitempty" yaml:"initial_delay_seconds,omitempty"
+   *
+   * @generated from field: int32 initial_delay_seconds = 2;
+   */
+  initialDelaySeconds: number;
+
+  /**
+   * Cap on the delay between retries, in seconds.
+   * @gotags: json:"max_delay_seconds,omitempty" yaml:"max_delay_seconds,omitempty"
+   *
+   * @generated from field: int32 max_delay_seconds = 3;
+   */
+  maxDelaySeconds: number;
+
+  /**
+   * Per-attempt multiplier applied to the delay.
+   * @gotags: json:"backoff_factor,omitempty" yaml:"backoff_factor,omitempty"
+   *
+   * @generated from field: double backoff_factor = 4;
+   */
+  backoffFactor: number;
+};
+
+/**
+ * Describes the message agents.v1.WorkflowRetryConfig.
+ * Use `create(WorkflowRetryConfigSchema)` to create a new message.
+ */
+export const WorkflowRetryConfigSchema: GenMessage<WorkflowRetryConfig> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 4);
+
+/**
+ * WorkflowEdge is a directed connection between two nodes, optionally guarded
+ * by a Route label.
+ *
+ * @generated from message agents.v1.WorkflowEdge
+ */
+export type WorkflowEdge = Message<"agents.v1.WorkflowEdge"> & {
+  /**
+   * Source node name, or the reserved "START" sentinel for entry edges.
+   * @gotags: json:"from,omitempty" yaml:"from,omitempty"
+   *
+   * @generated from field: string from = 1;
+   */
+  from: string;
+
+  /**
+   * Target node name. Must reference a declared node.
+   * @gotags: json:"to,omitempty" yaml:"to,omitempty"
+   *
+   * @generated from field: string to = 2;
+   */
+  to: string;
+
+  /**
+   * Route label: the edge is taken only when the emitting node's output
+   * carries a matching route value. Empty means the edge always fires.
+   * @gotags: json:"route,omitempty" yaml:"route,omitempty"
+   *
+   * @generated from field: string route = 3;
+   */
+  route: string;
+
+  /**
+   * Default edge: taken when no other route label on the same source node
+   * matches. Mutually exclusive with route.
+   * @gotags: json:"is_default,omitempty" yaml:"is_default,omitempty"
+   *
+   * @generated from field: bool is_default = 4;
+   */
+  isDefault: boolean;
+};
+
+/**
+ * Describes the message agents.v1.WorkflowEdge.
+ * Use `create(WorkflowEdgeSchema)` to create a new message.
+ */
+export const WorkflowEdgeSchema: GenMessage<WorkflowEdge> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 5);
 
 /**
  * AgentRuntime captures runtime behavior flags that are safe to serialize.
@@ -268,7 +478,7 @@ export type AgentRuntime = Message<"agents.v1.AgentRuntime"> & {
  * Use `create(AgentRuntimeSchema)` to create a new message.
  */
 export const AgentRuntimeSchema: GenMessage<AgentRuntime> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 2);
+  messageDesc(file_agents_v1_agent, 6);
 
 /**
  * MCPServer describes a serializable MCP server connection config.
@@ -361,7 +571,7 @@ export type MCPServer = Message<"agents.v1.MCPServer"> & {
  * Use `create(MCPServerSchema)` to create a new message.
  */
 export const MCPServerSchema: GenMessage<MCPServer> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 3);
+  messageDesc(file_agents_v1_agent, 7);
 
 /**
  * @generated from message agents.v1.MCPServerAuth
@@ -387,7 +597,7 @@ export type MCPServerAuth = Message<"agents.v1.MCPServerAuth"> & {
  * Use `create(MCPServerAuthSchema)` to create a new message.
  */
 export const MCPServerAuthSchema: GenMessage<MCPServerAuth> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 4);
+  messageDesc(file_agents_v1_agent, 8);
 
 /**
  * @generated from message agents.v1.MCPServerOAuth2Config
@@ -465,7 +675,7 @@ export type MCPServerOAuth2Config = Message<"agents.v1.MCPServerOAuth2Config"> &
  * Use `create(MCPServerOAuth2ConfigSchema)` to create a new message.
  */
 export const MCPServerOAuth2ConfigSchema: GenMessage<MCPServerOAuth2Config> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 5);
+  messageDesc(file_agents_v1_agent, 9);
 
 /**
  * ContextGuardConfig configures automatic context window management for an agent.
@@ -503,7 +713,7 @@ export type ContextGuardConfig = Message<"agents.v1.ContextGuardConfig"> & {
  * Use `create(ContextGuardConfigSchema)` to create a new message.
  */
 export const ContextGuardConfigSchema: GenMessage<ContextGuardConfig> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 6);
+  messageDesc(file_agents_v1_agent, 10);
 
 /**
  * RemoteAgent describes a remote agent reachable over a network protocol.
@@ -611,7 +821,7 @@ export type RemoteAgent = Message<"agents.v1.RemoteAgent"> & {
  * Use `create(RemoteAgentSchema)` to create a new message.
  */
 export const RemoteAgentSchema: GenMessage<RemoteAgent> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 7);
+  messageDesc(file_agents_v1_agent, 11);
 
 /**
  * ModelConfig describes a single model within a provider.
@@ -642,7 +852,7 @@ export type ModelConfig = Message<"agents.v1.ModelConfig"> & {
  * Use `create(ModelConfigSchema)` to create a new message.
  */
 export const ModelConfigSchema: GenMessage<ModelConfig> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 8);
+  messageDesc(file_agents_v1_agent, 12);
 
 /**
  * ModelProvider maps a set of model names to a provider backend.
@@ -704,7 +914,7 @@ export type ModelProvider = Message<"agents.v1.ModelProvider"> & {
  * Use `create(ModelProviderSchema)` to create a new message.
  */
 export const ModelProviderSchema: GenMessage<ModelProvider> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 9);
+  messageDesc(file_agents_v1_agent, 13);
 
 /**
  * NotifyGroup groups outbound notification targets for cron delivery.
@@ -757,7 +967,7 @@ export type NotifyGroup = Message<"agents.v1.NotifyGroup"> & {
  * Use `create(NotifyGroupSchema)` to create a new message.
  */
 export const NotifyGroupSchema: GenMessage<NotifyGroup> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 10);
+  messageDesc(file_agents_v1_agent, 14);
 
 /**
  * NotifyTarget is a single outbound destination in a notify group.
@@ -826,7 +1036,7 @@ export type NotifyTarget = Message<"agents.v1.NotifyTarget"> & {
  * Use `create(NotifyTargetSchema)` to create a new message.
  */
 export const NotifyTargetSchema: GenMessage<NotifyTarget> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 11);
+  messageDesc(file_agents_v1_agent, 15);
 
 /**
  * @generated from message agents.v1.TelegramNotifyTarget
@@ -866,7 +1076,7 @@ export type TelegramNotifyTarget = Message<"agents.v1.TelegramNotifyTarget"> & {
  * Use `create(TelegramNotifyTargetSchema)` to create a new message.
  */
 export const TelegramNotifyTargetSchema: GenMessage<TelegramNotifyTarget> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 12);
+  messageDesc(file_agents_v1_agent, 16);
 
 /**
  * @generated from message agents.v1.LarkNotifyTarget
@@ -893,7 +1103,7 @@ export type LarkNotifyTarget = Message<"agents.v1.LarkNotifyTarget"> & {
  * Use `create(LarkNotifyTargetSchema)` to create a new message.
  */
 export const LarkNotifyTargetSchema: GenMessage<LarkNotifyTarget> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 13);
+  messageDesc(file_agents_v1_agent, 17);
 
 /**
  * @generated from message agents.v1.DiscordNotifyTarget
@@ -933,7 +1143,56 @@ export type DiscordNotifyTarget = Message<"agents.v1.DiscordNotifyTarget"> & {
  * Use `create(DiscordNotifyTargetSchema)` to create a new message.
  */
 export const DiscordNotifyTargetSchema: GenMessage<DiscordNotifyTarget> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 14);
+  messageDesc(file_agents_v1_agent, 18);
+
+/**
+ * WorkflowNodeKind selects the behaviour of a workflow node.
+ *
+ * @generated from enum agents.v1.WorkflowNodeKind
+ */
+export enum WorkflowNodeKind {
+  /**
+   * @generated from enum value: WORKFLOW_NODE_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Runs one of the workflow agent's sub-agents, referenced by name.
+   *
+   * @generated from enum value: WORKFLOW_NODE_KIND_AGENT = 1;
+   */
+  AGENT = 1,
+
+  /**
+   * Pauses the workflow (an Interrupt), asks a human the configured
+   * question, and resumes the graph when the reply arrives.
+   *
+   * @generated from enum value: WORKFLOW_NODE_KIND_HUMAN_INPUT = 2;
+   */
+  HUMAN_INPUT = 2,
+
+  /**
+   * Matches its input text against the route labels of its outgoing edges
+   * (trimmed, case-insensitive exact match) and steers the branch taken.
+   *
+   * @generated from enum value: WORKFLOW_NODE_KIND_ROUTER = 3;
+   */
+  ROUTER = 3,
+
+  /**
+   * Fan-in barrier: activates once after every predecessor completed and
+   * aggregates their outputs.
+   *
+   * @generated from enum value: WORKFLOW_NODE_KIND_JOIN = 4;
+   */
+  JOIN = 4,
+}
+
+/**
+ * Describes the enum agents.v1.WorkflowNodeKind.
+ */
+export const WorkflowNodeKindSchema: GenEnum<WorkflowNodeKind> = /*@__PURE__*/
+  enumDesc(file_agents_v1_agent, 0);
 
 /**
  * @generated from enum agents.v1.MCPServerAuthType
@@ -964,7 +1223,7 @@ export enum MCPServerAuthType {
  * Describes the enum agents.v1.MCPServerAuthType.
  */
 export const MCPServerAuthTypeSchema: GenEnum<MCPServerAuthType> = /*@__PURE__*/
-  enumDesc(file_agents_v1_agent, 0);
+  enumDesc(file_agents_v1_agent, 1);
 
 /**
  * @generated from enum agents.v1.StreamingMode
@@ -990,7 +1249,7 @@ export enum StreamingMode {
  * Describes the enum agents.v1.StreamingMode.
  */
 export const StreamingModeSchema: GenEnum<StreamingMode> = /*@__PURE__*/
-  enumDesc(file_agents_v1_agent, 1);
+  enumDesc(file_agents_v1_agent, 2);
 
 /**
  * AgentType selects which concrete ADK agent type to instantiate.
@@ -1022,13 +1281,18 @@ export enum AgentType {
    * @generated from enum value: AGENT_TYPE_PARALLEL = 4;
    */
   PARALLEL = 4,
+
+  /**
+   * @generated from enum value: AGENT_TYPE_WORKFLOW = 5;
+   */
+  WORKFLOW = 5,
 }
 
 /**
  * Describes the enum agents.v1.AgentType.
  */
 export const AgentTypeSchema: GenEnum<AgentType> = /*@__PURE__*/
-  enumDesc(file_agents_v1_agent, 2);
+  enumDesc(file_agents_v1_agent, 3);
 
 /**
  * LLMIncludeContents matches llmagent.IncludeContents values.
@@ -1056,7 +1320,7 @@ export enum LLMIncludeContents {
  * Describes the enum agents.v1.LLMIncludeContents.
  */
 export const LLMIncludeContentsSchema: GenEnum<LLMIncludeContents> = /*@__PURE__*/
-  enumDesc(file_agents_v1_agent, 3);
+  enumDesc(file_agents_v1_agent, 4);
 
 /**
  * @generated from enum agents.v1.MCPServerTransport
@@ -1082,7 +1346,7 @@ export enum MCPServerTransport {
  * Describes the enum agents.v1.MCPServerTransport.
  */
 export const MCPServerTransportSchema: GenEnum<MCPServerTransport> = /*@__PURE__*/
-  enumDesc(file_agents_v1_agent, 4);
+  enumDesc(file_agents_v1_agent, 5);
 
 /**
  * RemoteAgentProtocol selects the communication protocol for a remote agent.
@@ -1117,7 +1381,7 @@ export enum RemoteAgentProtocol {
  * Describes the enum agents.v1.RemoteAgentProtocol.
  */
 export const RemoteAgentProtocolSchema: GenEnum<RemoteAgentProtocol> = /*@__PURE__*/
-  enumDesc(file_agents_v1_agent, 5);
+  enumDesc(file_agents_v1_agent, 6);
 
 /**
  * ContextGuardStrategy selects the compaction strategy for context management.
@@ -1145,7 +1409,7 @@ export enum ContextGuardStrategy {
  * Describes the enum agents.v1.ContextGuardStrategy.
  */
 export const ContextGuardStrategySchema: GenEnum<ContextGuardStrategy> = /*@__PURE__*/
-  enumDesc(file_agents_v1_agent, 6);
+  enumDesc(file_agents_v1_agent, 7);
 
 /**
  * @generated from enum agents.v1.NotifyTargetType
@@ -1176,5 +1440,5 @@ export enum NotifyTargetType {
  * Describes the enum agents.v1.NotifyTargetType.
  */
 export const NotifyTargetTypeSchema: GenEnum<NotifyTargetType> = /*@__PURE__*/
-  enumDesc(file_agents_v1_agent, 7);
+  enumDesc(file_agents_v1_agent, 8);
 

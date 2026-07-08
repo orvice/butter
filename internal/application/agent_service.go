@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/genai"
 
+	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
@@ -139,6 +140,9 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			fmt.Errorf("agent name %q is reserved by a built-in agent", name))
 	}
+	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	logger := log.FromContext(ctx)
 	logger.Info("creating agent", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "type", req.Msg.GetAgent().GetType().String())
 	a, err := mutateWithRuntime(
@@ -167,6 +171,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetAgent(ctx, wsID, req.Msg.GetAgent().GetName())

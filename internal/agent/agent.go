@@ -92,6 +92,8 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 		return newSequentialAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_PARALLEL:
 		return newParallelAgent(pb, subAgents)
+	case agentsv1.AgentType_AGENT_TYPE_WORKFLOW:
+		return newWorkflowAgent(pb, subAgents)
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %v", pb.GetType())
 	}
