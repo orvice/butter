@@ -40,14 +40,23 @@ func (n *routerNode) Run(ctx agent.Context, input any) iter.Seq2[*session.Event,
 		// The input passes through unchanged so the chosen branch receives
 		// the same value the router saw.
 		event.Output = input
-		for _, label := range n.labels {
-			if strings.EqualFold(strings.TrimSpace(text), strings.TrimSpace(label)) {
-				// Stamp the label as configured on the edge: the engine
-				// compares route tags to edge labels verbatim.
-				event.Routes = []string{label}
-				break
-			}
+		if label, ok := matchRouteLabel(text, n.labels); ok {
+			// Stamp the label as configured on the edge: the engine
+			// compares route tags to edge labels verbatim.
+			event.Routes = []string{label}
 		}
 		yield(event, nil)
 	}
+}
+
+// matchRouteLabel returns the first label matching the input text under the
+// Router's matching rule — trimmed, case-insensitive exact match — and
+// whether any matched. The returned label keeps its configured form.
+func matchRouteLabel(text string, labels []string) (string, bool) {
+	for _, label := range labels {
+		if strings.EqualFold(strings.TrimSpace(text), strings.TrimSpace(label)) {
+			return label, true
+		}
+	}
+	return "", false
 }

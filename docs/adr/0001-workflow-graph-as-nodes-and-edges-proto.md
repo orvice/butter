@@ -9,8 +9,10 @@ are trivially validatable, renderable by the dashboard, and need no parser.
 
 Phase-1 node kinds are AGENT (references a sub-agent by name), HUMAN_INPUT (butter-owned
 node that calls `workflow.ResumeOrRequestInput`), ROUTER (butter-owned node that stamps
-`event.Routes` by exact-matching its input text against outgoing edge labels — ADK has no
-built-in way for config-driven graphs to produce route tags), and JOIN. ADK's
+`event.Routes` by matching its input text against outgoing edge labels — a trimmed,
+case-insensitive exact match that stamps the label as configured, since the engine
+compares route tags verbatim; ADK has no built-in way for config-driven graphs to
+produce route tags), and JOIN. ADK's
 FunctionNode and DynamicNode are deliberately excluded: they require arbitrary Go code and cannot be
 expressed from configuration. ToolNode (referencing an MCP server tool) is deferred to
 phase 2.

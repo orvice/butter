@@ -53,7 +53,7 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 		subAgentNames[sub.GetName()] = struct{}{}
 	}
 
-	nodeNames := make(map[string]struct{}, len(wf.GetNodes()))
+	nodeKinds := make(map[string]agentsv1.WorkflowNodeKind, len(wf.GetNodes()))
 	for _, n := range wf.GetNodes() {
 		name := n.GetName()
 		if name == "" {
@@ -62,10 +62,10 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 		if name == WorkflowStartNodeName {
 			return fmt.Errorf("workflow node name %q is reserved for the entry sentinel", WorkflowStartNodeName)
 		}
-		if _, exists := nodeNames[name]; exists {
+		if _, exists := nodeKinds[name]; exists {
 			return fmt.Errorf("duplicate node name %q", name)
 		}
-		nodeNames[name] = struct{}{}
+		nodeKinds[name] = n.GetKind()
 
 		switch n.GetKind() {
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT:
@@ -90,13 +90,17 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 
 	hasEntry := false
 	hasDefaultEdge := make(map[string]bool)
+	// Route matching is trimmed and case-insensitive, so labels on the same
+	// source node that fold to the same value are ambiguous: only the first
+	// would ever fire. Key: "from\x00folded-label".
+	seenLabels := make(map[string]string)
 	for _, e := range wf.GetEdges() {
 		if e.GetFrom() == WorkflowStartNodeName {
 			hasEntry = true
-		} else if _, ok := nodeNames[e.GetFrom()]; !ok {
+		} else if _, ok := nodeKinds[e.GetFrom()]; !ok {
 			return fmt.Errorf("edge %q -> %q references unknown node %q", e.GetFrom(), e.GetTo(), e.GetFrom())
 		}
-		if _, ok := nodeNames[e.GetTo()]; !ok {
+		if _, ok := nodeKinds[e.GetTo()]; !ok {
 			return fmt.Errorf("edge %q -> %q references unknown node %q", e.GetFrom(), e.GetTo(), e.GetTo())
 		}
 		if e.GetIsDefault() && e.GetRoute() != "" {
@@ -104,6 +108,19 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 		}
 		if e.GetIsDefault() {
 			hasDefaultEdge[e.GetFrom()] = true
+		}
+		if label := e.GetRoute(); label != "" {
+			key := e.GetFrom() + "\x00" + strings.ToLower(strings.TrimSpace(label))
+			if prev, exists := seenLabels[key]; exists {
+				return fmt.Errorf("node %q has route labels %q and %q that match the same input (matching is trimmed and case-insensitive)", e.GetFrom(), prev, label)
+			}
+			seenLabels[key] = label
+		}
+		// A Join barrier waits for every declared predecessor; a predecessor
+		// skipped by routing never fires, so the graph would hang at runtime.
+		if (e.GetRoute() != "" || e.GetIsDefault()) &&
+			nodeKinds[e.GetTo()] == agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN {
+			return fmt.Errorf("edge %q -> %q: a routed or default edge must not target JOIN node %q — the barrier waits for every predecessor and a route-skipped branch never fires", e.GetFrom(), e.GetTo(), e.GetTo())
 		}
 	}
 	if !hasEntry {
@@ -216,6 +233,13 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 // list-shaped answer arrives as JSON text, while the engine requires a real
 // slice. A string input that parses as a JSON array becomes one; anything
 // else falls through to the engine's own validation.
+//
+// Known upstream race (ADK v2.0.0): concurrent items share one AgentNode,
+// and RunLLMAgentAsNode unconditionally stores constants into the shared
+// LlmAgent state (Mode, IncludeContents) on every activation, which the race
+// detector flags. Both writes are idempotent constant stores, so the
+// practical impact is benign; fixing it requires an upstream change, not a
+// butter-side one.
 type parallelWorkerNode struct {
 	*workflow.ParallelWorker
 }

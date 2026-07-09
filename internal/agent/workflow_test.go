@@ -205,6 +205,34 @@ func TestValidateWorkflowAgent_RejectsInvalidGraphs(t *testing.T) {
 	}
 }
 
+// TestValidateWorkflowAgent_RejectsConditionalEdgeIntoJoin: a Join barrier
+// waits for every declared predecessor, and a route-skipped predecessor
+// never fires — a routed or default edge into a JOIN node produces a graph
+// that hangs at runtime, so validation must reject it at save time.
+func TestValidateWorkflowAgent_RejectsConditionalEdgeIntoJoin(t *testing.T) {
+	t.Run("routed edge into join", func(t *testing.T) {
+		pb := fanOutJoinWorkflowProto()
+		pb.Config.Workflow.Edges[3].Route = "left" // b1 -> gather
+		assertGraphRejected(t, pb, "gather")
+	})
+	t.Run("default edge into join", func(t *testing.T) {
+		pb := fanOutJoinWorkflowProto()
+		pb.Config.Workflow.Edges[4].IsDefault = true // b2 -> gather
+		assertGraphRejected(t, pb, "gather")
+	})
+}
+
+// TestValidateWorkflowAgent_RejectsNearDuplicateRouteLabels: route matching
+// is trimmed and case-insensitive, so two outgoing labels that differ only
+// by case or whitespace can never both be reachable — only the first would
+// ever fire. Validation must reject the ambiguity.
+func TestValidateWorkflowAgent_RejectsNearDuplicateRouteLabels(t *testing.T) {
+	pb := branchingWorkflowProto()
+	pb.Config.Workflow.Edges = append(pb.Config.Workflow.Edges,
+		&agentsv1.WorkflowEdge{From: "decide", To: "rejecter", Route: " Approve "})
+	assertGraphRejected(t, pb, "approve")
+}
+
 // TestValidateWorkflowAgent_RouterRequiresDefaultEdge: an unmatched Router
 // with no default edge dead-ends silently in the ADK engine, so validation
 // must require one.
@@ -267,6 +295,31 @@ func TestValidateWorkflowAgent_IgnoresNonWorkflowAgents(t *testing.T) {
 	pb := &agentsv1.Agent{Name: "llm", Config: &agentsv1.AgentConfig{Model: "m1"}}
 	if err := ValidateWorkflowAgent(pb); err != nil {
 		t.Fatalf("non-workflow agent rejected: %v", err)
+	}
+}
+
+// TestMatchRouteLabel: the Router matches its input text against outgoing
+// edge labels with a trimmed, case-insensitive exact match, and stamps the
+// label as configured (the engine compares route tags to labels verbatim).
+func TestMatchRouteLabel(t *testing.T) {
+	labels := []string{"approve", "REJECT "}
+	tests := []struct {
+		input     string
+		wantLabel string
+		wantOK    bool
+	}{
+		{input: "approve", wantLabel: "approve", wantOK: true},
+		{input: " APPROVE ", wantLabel: "approve", wantOK: true},
+		{input: "\tReject\n", wantLabel: "REJECT ", wantOK: true},
+		{input: "approved", wantOK: false}, // exact match, not prefix
+		{input: "", wantOK: false},
+	}
+	for _, tt := range tests {
+		got, ok := matchRouteLabel(tt.input, labels)
+		if ok != tt.wantOK || got != tt.wantLabel {
+			t.Errorf("matchRouteLabel(%q) = (%q, %v), want (%q, %v)",
+				tt.input, got, ok, tt.wantLabel, tt.wantOK)
+		}
 	}
 }
 

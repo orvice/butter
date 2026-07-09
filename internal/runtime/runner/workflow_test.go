@@ -9,7 +9,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	adkrunner "google.golang.org/adk/v2/runner"
 	"google.golang.org/adk/v2/session"
@@ -22,7 +24,7 @@ import (
 // each completion echoes "<model>(<last user message>)" so a test can observe
 // which model ran and what input it received — the expected chain output is
 // an independent literal, not recomputed from the code under test. A model
-// listed in scripted answers with a fixed reply instead. Calls per model are
+// with a scripted handler answers through it instead. Calls per model are
 // recorded.
 type fakeBackend struct {
 	srv      *httptest.Server
@@ -32,7 +34,7 @@ type fakeBackend struct {
 	calls map[string][]string // model -> inputs received
 }
 
-func fakeOpenAIServer(t *testing.T) *fakeBackend {
+func newFakeBackend(t *testing.T) *fakeBackend {
 	t.Helper()
 	b := &fakeBackend{
 		scripted: map[string]http.HandlerFunc{},
@@ -93,16 +95,44 @@ func fakeOpenAIServer(t *testing.T) *fakeBackend {
 
 // answer scripts a fixed reply for a model, overriding the echo default.
 func (b *fakeBackend) answer(model, reply string) {
-	b.scripted[model] = func(w http.ResponseWriter, _ *http.Request) {
+	b.script(model, func(w http.ResponseWriter, _ *http.Request) {
 		writeCompletion(w, model, reply)
-	}
+	})
+}
+
+// script installs a handler for a model, replacing the echo default.
+func (b *fakeBackend) script(model string, handler http.HandlerFunc) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.scripted[model] = handler
+}
+
+// requireConcurrent makes the model's completions block until n requests are
+// in flight at once, so the run only succeeds if the caller really issues
+// them concurrently. A request left waiting fails with HTTP 400 (not retried
+// by the client), surfacing as a run error.
+func (b *fakeBackend) requireConcurrent(model string, n int32) {
+	var inFlight atomic.Int32
+	proceed := make(chan struct{})
+	var once sync.Once
+	b.script(model, func(w http.ResponseWriter, r *http.Request) {
+		if inFlight.Add(1) >= n {
+			once.Do(func() { close(proceed) })
+		}
+		select {
+		case <-proceed:
+			writeCompletion(w, model, "done")
+		case <-time.After(3 * time.Second):
+			http.Error(w, `{"error": {"message": "items were not processed concurrently"}}`, http.StatusBadRequest)
+		}
+	})
 }
 
 // failFirstCall makes the model's first completion fail with HTTP 400
 // (never retried by the OpenAI client); later calls echo as usual.
 func (b *fakeBackend) failFirstCall(model string) {
 	failed := false
-	b.scripted[model] = func(w http.ResponseWriter, _ *http.Request) {
+	b.script(model, func(w http.ResponseWriter, _ *http.Request) {
 		b.mu.Lock()
 		first := !failed
 		failed = true
@@ -116,7 +146,7 @@ func (b *fakeBackend) failFirstCall(model string) {
 			return
 		}
 		writeCompletion(w, model, fmt.Sprintf("%s(%s)", model, input))
-	}
+	})
 }
 
 // lastInput returns the last user message the model was called with.
@@ -153,9 +183,9 @@ func writeCompletion(w http.ResponseWriter, model, reply string) {
 // the chain's final output comes back as the reply. step_b's input is
 // step_a's output, proving the edge actually carried the value.
 func TestRun_WorkflowLinearChain(t *testing.T) {
-	srv := fakeOpenAIServer(t)
+	backend := newFakeBackend(t)
 
-	out, err := runWorkflowAgent(t, srv, []agentsv1.Agent{{
+	out, err := runWorkflowAgent(t, backend, []agentsv1.Agent{{
 		Name:        "wf",
 		Description: "linear workflow",
 		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
@@ -225,10 +255,10 @@ func approveRejectAgents() []agentsv1.Agent {
 // "approve" edge — matching is trimmed and case-insensitive. The rejected
 // branch never runs.
 func TestRun_WorkflowRouterMatchesLabel(t *testing.T) {
-	srv := fakeOpenAIServer(t)
-	srv.answer("classifier", " APPROVE ")
+	backend := newFakeBackend(t)
+	backend.answer("classifier", " APPROVE ")
 
-	out, err := runWorkflowAgent(t, srv, approveRejectAgents(),
+	out, err := runWorkflowAgent(t, backend, approveRejectAgents(),
 		[]string{"classifier", "approver", "rejecter"}, "please review")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -238,18 +268,18 @@ func TestRun_WorkflowRouterMatchesLabel(t *testing.T) {
 	if !strings.Contains(out, "approver( APPROVE )") {
 		t.Errorf("reply %q does not contain the approve branch output %q", out, "approver( APPROVE )")
 	}
-	if srv.callCount("rejecter") != 0 {
-		t.Errorf("rejecter model was called %d times, want 0 (default branch must not run)", srv.callCount("rejecter"))
+	if backend.callCount("rejecter") != 0 {
+		t.Errorf("rejecter model was called %d times, want 0 (default branch must not run)", backend.callCount("rejecter"))
 	}
 }
 
 // TestRun_WorkflowRouterUnmatchedTakesDefault: input matching no route label
 // follows the default edge; the labeled branch never runs.
 func TestRun_WorkflowRouterUnmatchedTakesDefault(t *testing.T) {
-	srv := fakeOpenAIServer(t)
-	srv.answer("classifier", "needs more work")
+	backend := newFakeBackend(t)
+	backend.answer("classifier", "needs more work")
 
-	out, err := runWorkflowAgent(t, srv, approveRejectAgents(),
+	out, err := runWorkflowAgent(t, backend, approveRejectAgents(),
 		[]string{"classifier", "approver", "rejecter"}, "please review")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -258,8 +288,8 @@ func TestRun_WorkflowRouterUnmatchedTakesDefault(t *testing.T) {
 	if !strings.Contains(out, "rejecter(needs more work)") {
 		t.Errorf("reply %q does not contain the default branch output %q", out, "rejecter(needs more work)")
 	}
-	if srv.callCount("approver") != 0 {
-		t.Errorf("approver model was called %d times, want 0 (labeled branch must not run)", srv.callCount("approver"))
+	if backend.callCount("approver") != 0 {
+		t.Errorf("approver model was called %d times, want 0 (labeled branch must not run)", backend.callCount("approver"))
 	}
 }
 
@@ -267,7 +297,7 @@ func TestRun_WorkflowRouterUnmatchedTakesDefault(t *testing.T) {
 // unconditional edges; a Join node fans them back in and hands the
 // aggregated outputs (a map keyed by predecessor) to its successor.
 func TestRun_WorkflowFanOutJoin(t *testing.T) {
-	srv := fakeOpenAIServer(t)
+	backend := newFakeBackend(t)
 
 	agents := []agentsv1.Agent{{
 		Name:        "fanout",
@@ -300,7 +330,7 @@ func TestRun_WorkflowFanOutJoin(t *testing.T) {
 		},
 	}}
 
-	out, err := runWorkflowAgent(t, srv, agents,
+	out, err := runWorkflowAgent(t, backend, agents,
 		[]string{"seeder", "left", "right", "summarizer"}, "topic")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -311,7 +341,7 @@ func TestRun_WorkflowFanOutJoin(t *testing.T) {
 	if !strings.Contains(out, "summarizer(") {
 		t.Fatalf("reply %q does not contain the summarizer's output", out)
 	}
-	summarizerInput := srv.lastInput("summarizer")
+	summarizerInput := backend.lastInput("summarizer")
 	for _, branchOut := range []string{"left(seeder(topic))", "right(seeder(topic))"} {
 		if !strings.Contains(summarizerInput, branchOut) {
 			t.Errorf("summarizer input %q missing joined branch output %q", summarizerInput, branchOut)
@@ -361,23 +391,38 @@ func parallelWorkerAgents(mutateWork func(n *agentsv1.WorkflowNode)) []agentsv1.
 // TestRun_WorkflowParallelWorker: a Parallel Worker node runs once per item
 // of its list-shaped input and the aggregated outputs flow to the successor.
 func TestRun_WorkflowParallelWorker(t *testing.T) {
-	srv := fakeOpenAIServer(t)
-	srv.answer("lister", `["red", "blue"]`)
+	backend := newFakeBackend(t)
+	backend.answer("lister", `["red", "blue"]`)
 
-	_, err := runWorkflowAgent(t, srv, parallelWorkerAgents(nil),
+	_, err := runWorkflowAgent(t, backend, parallelWorkerAgents(nil),
 		[]string{"lister", "worker", "collector"}, "colors")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if got := srv.callCount("worker"); got != 2 {
+	if got := backend.callCount("worker"); got != 2 {
 		t.Fatalf("worker model called %d times, want 2 (once per list item)", got)
 	}
-	collectorInput := srv.lastInput("collector")
+	collectorInput := backend.lastInput("collector")
 	for _, itemOut := range []string{"worker(red)", "worker(blue)"} {
 		if !strings.Contains(collectorInput, itemOut) {
 			t.Errorf("collector input %q missing aggregated item output %q", collectorInput, itemOut)
 		}
+	}
+}
+
+// TestRun_WorkflowParallelWorkerConcurrent: list items are processed
+// concurrently — the backend only answers once both items' requests are in
+// flight at the same time, so a serialized worker would fail the run.
+func TestRun_WorkflowParallelWorkerConcurrent(t *testing.T) {
+	backend := newFakeBackend(t)
+	backend.answer("lister", `["a", "b"]`)
+	backend.requireConcurrent("worker", 2)
+
+	_, err := runWorkflowAgent(t, backend, parallelWorkerAgents(nil),
+		[]string{"lister", "worker", "collector"}, "items")
+	if err != nil {
+		t.Fatalf("Run: %v (items were not processed concurrently)", err)
 	}
 }
 
@@ -386,24 +431,24 @@ func TestRun_WorkflowParallelWorker(t *testing.T) {
 // succeeds. The failure is an HTTP 400, which the OpenAI client does not
 // retry itself — recovery can only come from the workflow retry policy.
 func TestRun_WorkflowParallelWorkerRetries(t *testing.T) {
-	srv := fakeOpenAIServer(t)
-	srv.answer("lister", `["red"]`)
-	srv.failFirstCall("worker")
+	backend := newFakeBackend(t)
+	backend.answer("lister", `["red"]`)
+	backend.failFirstCall("worker")
 
 	agents := parallelWorkerAgents(func(n *agentsv1.WorkflowNode) {
 		n.Retry = &agentsv1.WorkflowRetryConfig{MaxAttempts: 2, InitialDelaySeconds: 1}
 	})
-	_, err := runWorkflowAgent(t, srv, agents,
+	_, err := runWorkflowAgent(t, backend, agents,
 		[]string{"lister", "worker", "collector"}, "colors")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if got := srv.callCount("worker"); got != 2 {
+	if got := backend.callCount("worker"); got != 2 {
 		t.Fatalf("worker model called %d times, want 2 (failed attempt + retry)", got)
 	}
-	if !strings.Contains(srv.lastInput("collector"), "worker(red)") {
-		t.Errorf("collector input %q missing the retried item's output", srv.lastInput("collector"))
+	if !strings.Contains(backend.lastInput("collector"), "worker(red)") {
+		t.Errorf("collector input %q missing the retried item's output", backend.lastInput("collector"))
 	}
 }
 
@@ -411,16 +456,16 @@ func TestRun_WorkflowParallelWorkerRetries(t *testing.T) {
 // activation — a backend that never answers fails the run instead of
 // hanging it.
 func TestRun_WorkflowParallelWorkerTimeout(t *testing.T) {
-	srv := fakeOpenAIServer(t)
-	srv.answer("lister", `["red"]`)
-	srv.scripted["worker"] = func(w http.ResponseWriter, r *http.Request) {
+	backend := newFakeBackend(t)
+	backend.answer("lister", `["red"]`)
+	backend.script("worker", func(w http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done() // never answer
-	}
+	})
 
 	agents := parallelWorkerAgents(func(n *agentsv1.WorkflowNode) {
 		n.TimeoutSeconds = 1
 	})
-	_, err := runWorkflowAgent(t, srv, agents,
+	_, err := runWorkflowAgent(t, backend, agents,
 		[]string{"lister", "worker", "collector"}, "colors")
 	if err == nil {
 		t.Fatal("expected the run to fail once the node timeout elapsed, got nil")
