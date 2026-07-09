@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"google.golang.org/adk/v2/agent"
@@ -80,9 +82,14 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 		default:
 			return fmt.Errorf("workflow node %q: kind must be one of AGENT, HUMAN_INPUT, ROUTER, JOIN", name)
 		}
+
+		if n.GetParallelWorker() && n.GetKind() != agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT {
+			return fmt.Errorf("workflow node %q: parallel_worker is only supported on AGENT nodes", name)
+		}
 	}
 
 	hasEntry := false
+	hasDefaultEdge := make(map[string]bool)
 	for _, e := range wf.GetEdges() {
 		if e.GetFrom() == WorkflowStartNodeName {
 			hasEntry = true
@@ -95,9 +102,20 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 		if e.GetIsDefault() && e.GetRoute() != "" {
 			return fmt.Errorf("edge %q -> %q: route and is_default are mutually exclusive", e.GetFrom(), e.GetTo())
 		}
+		if e.GetIsDefault() {
+			hasDefaultEdge[e.GetFrom()] = true
+		}
 	}
 	if !hasEntry {
 		return fmt.Errorf("a workflow graph requires at least one entry edge from %q", WorkflowStartNodeName)
+	}
+
+	// An unmatched Router with no default edge dead-ends silently in the ADK
+	// engine, so every Router must have a default outgoing edge.
+	for _, n := range wf.GetNodes() {
+		if n.GetKind() == agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER && !hasDefaultEdge[n.GetName()] {
+			return fmt.Errorf("router node %q requires a default outgoing edge (is_default: true) to catch unmatched input", n.GetName())
+		}
 	}
 
 	return nil
@@ -117,6 +135,15 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 		built[sa.Name()] = sa
 	}
 
+	// Routers match against the route labels of their outgoing edges, so
+	// collect labels per source node before building nodes.
+	outgoingLabels := make(map[string][]string)
+	for _, e := range wf.GetEdges() {
+		if e.GetRoute() != "" {
+			outgoingLabels[e.GetFrom()] = append(outgoingLabels[e.GetFrom()], e.GetRoute())
+		}
+	}
+
 	nodes := make(map[string]workflow.Node, len(wf.GetNodes()))
 	for _, n := range wf.GetNodes() {
 		switch n.GetKind() {
@@ -125,11 +152,30 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 			if !ok {
 				return nil, fmt.Errorf("workflow node %q: sub-agent %q not found", n.GetName(), n.GetAgent())
 			}
+			if n.GetParallelWorker() {
+				// The engine's parallel-worker mechanism is a wrapper node;
+				// retry/timeout options live on the wrapper (the wrapped node
+				// must not carry a retry policy).
+				inner, err := workflow.NewAgentNode(sa, workflow.NodeConfig{})
+				if err != nil {
+					return nil, fmt.Errorf("workflow node %q: %w", n.GetName(), err)
+				}
+				node, err := newParallelWorkerNode(n.GetName(), inner, workflowNodeConfig(n))
+				if err != nil {
+					return nil, fmt.Errorf("workflow node %q: %w", n.GetName(), err)
+				}
+				nodes[n.GetName()] = node
+				continue
+			}
 			node, err := workflow.NewAgentNode(sa, workflowNodeConfig(n))
 			if err != nil {
 				return nil, fmt.Errorf("workflow node %q: %w", n.GetName(), err)
 			}
 			nodes[n.GetName()] = node
+		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER:
+			nodes[n.GetName()] = newRouterNode(n.GetName(), outgoingLabels[n.GetName()], workflowNodeConfig(n))
+		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN:
+			nodes[n.GetName()] = workflow.NewJoinNode(n.GetName())
 		default:
 			return nil, fmt.Errorf("workflow node %q: kind %s is not supported yet", n.GetName(), n.GetKind())
 		}
@@ -165,12 +211,39 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 	})
 }
 
-// workflowNodeConfig translates the serializable node options onto the ADK
-// NodeConfig.
-func workflowNodeConfig(n *agentsv1.WorkflowNode) workflow.NodeConfig {
-	cfg := workflow.NodeConfig{
-		ParallelWorker: n.GetParallelWorker(),
+// parallelWorkerNode wraps the engine's ParallelWorker to coerce text input:
+// in a config-driven graph the upstream node is typically an agent whose
+// list-shaped answer arrives as JSON text, while the engine requires a real
+// slice. A string input that parses as a JSON array becomes one; anything
+// else falls through to the engine's own validation.
+type parallelWorkerNode struct {
+	*workflow.ParallelWorker
+}
+
+func newParallelWorkerNode(name string, wrapped workflow.Node, cfg workflow.NodeConfig) (*parallelWorkerNode, error) {
+	pw, err := workflow.NewParallelWorker(name, wrapped, 0, cfg)
+	if err != nil {
+		return nil, err
 	}
+	return &parallelWorkerNode{ParallelWorker: pw}, nil
+}
+
+func (n *parallelWorkerNode) ValidateInput(input any) (any, error) {
+	if s, ok := input.(string); ok {
+		var items []any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(s)), &items); err == nil {
+			return items, nil
+		}
+	}
+	return n.ParallelWorker.ValidateInput(input)
+}
+
+// workflowNodeConfig translates the serializable node options onto the ADK
+// NodeConfig. The parallel_worker option is deliberately not mapped to
+// NodeConfig.ParallelWorker (inert in the engine) — it selects the
+// ParallelWorker wrapper node instead.
+func workflowNodeConfig(n *agentsv1.WorkflowNode) workflow.NodeConfig {
+	cfg := workflow.NodeConfig{}
 	if n.GetTimeoutSeconds() > 0 {
 		cfg.Timeout = time.Duration(n.GetTimeoutSeconds()) * time.Second
 	}
