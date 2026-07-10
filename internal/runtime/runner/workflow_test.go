@@ -475,7 +475,7 @@ func TestRun_WorkflowParallelWorkerTimeout(t *testing.T) {
 	}
 }
 
-// approvalAgents returns the demo HITL graph: draft -> ask (Human Input,
+// approvalAgents returns the demo Human Input graph: draft -> ask (Human Input,
 // pauses with a question) -> publish. The human's reply becomes publish's
 // input (handoff resume).
 func approvalAgents() []agentsv1.Agent {
@@ -564,7 +564,7 @@ func TestRun_WorkflowHumanInputResume(t *testing.T) {
 	if !strings.Contains(result.Output, "publisher(yes, ship it)") {
 		t.Errorf("reply %q does not contain the successor's output", result.Output)
 	}
-	if result.Paused() {
+	if result.Interrupted() {
 		t.Errorf("turn 2 still reports pending interrupts: %+v", result.Pending)
 	}
 }
@@ -634,7 +634,7 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 	if got := backend.callCount(secondHandler); got != 0 {
 		t.Errorf("%s ran %d times before its question was answered, want 0", secondHandler, got)
 	}
-	if !turn2.Paused() {
+	if !turn2.Interrupted() {
 		t.Error("turn 2 should still report the second pending Interrupt")
 	}
 
@@ -647,7 +647,7 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 	if got := backend.lastInput(secondHandler); got != "second answer" {
 		t.Errorf("%s input = %q, want %q", secondHandler, got, "second answer")
 	}
-	if turn3.Paused() {
+	if turn3.Interrupted() {
 		t.Errorf("turn 3 still reports pending interrupts: %+v", turn3.Pending)
 	}
 }
@@ -679,7 +679,7 @@ func TestRun_WorkflowHumanInputRestartResume(t *testing.T) {
 	if got := backend.lastInput("publisher"); got != "approved" {
 		t.Errorf("publisher input = %q, want %q", got, "approved")
 	}
-	if result.Paused() {
+	if result.Interrupted() {
 		t.Errorf("turn 2 still reports pending interrupts: %+v", result.Pending)
 	}
 }
@@ -746,6 +746,117 @@ func TestRun_WorkflowHumanInputEventReachesCallback(t *testing.T) {
 	}
 	if got := requested[0].RequestedInput.Message; got != "Approve this draft?" {
 		t.Errorf("event question = %q, want %q", got, "Approve this draft?")
+	}
+}
+
+// TestRun_WorkflowResumeDoesNotHijackOtherAgents: a session may be reused
+// with a different agent_name (InvokeAgent/StreamAgent allow it). A message
+// addressed to an agent with no Workflow Agent in its tree must reach it as
+// plain text even when another workflow left a pending Interrupt on the
+// session — only workflow-bearing agents resume.
+func TestRun_WorkflowResumeDoesNotHijackOtherAgents(t *testing.T) {
+	backend := newFakeBackend(t)
+	agents := append(approvalAgents(), agentsv1.Agent{
+		Name:        "chatbot",
+		Type:        agentsv1.AgentType_AGENT_TYPE_LLM,
+		WorkspaceId: "ws-a",
+		Config:      &agentsv1.AgentConfig{Model: "chat-model"},
+	})
+	svc := buildWorkflowService(t, backend, agents,
+		[]string{"drafter", "publisher", "chat-model"}, session.InMemoryService())
+	ctxInfo := turnCtxInfo(&agents[0])
+
+	// Pause the workflow on the session.
+	if _, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "write a post"}}, "", ctxInfo, nil, nil); err != nil {
+		t.Fatalf("turn 1: %v", err)
+	}
+
+	// Same session, different agent: the message must NOT be rewrapped as
+	// the Interrupt's answer.
+	out, err := svc.Run(context.Background(), "chatbot",
+		[]*genai.Part{{Text: "unrelated question"}}, "", ctxInfo, nil, nil)
+	if err != nil {
+		t.Fatalf("chatbot turn: %v", err)
+	}
+	if got := backend.lastInput("chat-model"); got != "unrelated question" {
+		t.Errorf("chatbot model input = %q, want the raw text %q", got, "unrelated question")
+	}
+	if !strings.Contains(out, "chat-model(unrelated question)") {
+		t.Errorf("chatbot reply %q does not contain its own answer", out)
+	}
+	// The workflow's Interrupt is still pending and answerable.
+	result, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "approved"}}, "", ctxInfo, nil, nil)
+	if err != nil {
+		t.Fatalf("resume turn: %v", err)
+	}
+	if got := backend.lastInput("publisher"); got != "approved" {
+		t.Errorf("publisher input = %q, want %q", got, "approved")
+	}
+	if result.Interrupted() {
+		t.Errorf("resume turn still reports pending interrupts: %+v", result.Pending)
+	}
+}
+
+// TestRunTurnSSE_WorkflowHumanInputPauses: the streaming entry point (the
+// path cron and automation actually call) exposes the same structured turn
+// result as RunTurn.
+func TestRunTurnSSE_WorkflowHumanInputPauses(t *testing.T) {
+	backend := newFakeBackend(t)
+	agents := approvalAgents()
+	svc := buildWorkflowService(t, backend, agents, []string{"drafter", "publisher"}, session.InMemoryService())
+
+	result, err := svc.RunTurnSSE(context.Background(), "approval",
+		[]*genai.Part{{Text: "write a post"}}, "", turnCtxInfo(&agents[0]), nil, nil)
+	if err != nil {
+		t.Fatalf("RunTurnSSE: %v", err)
+	}
+	if !result.Interrupted() {
+		t.Fatal("turn did not report the pending Interrupt")
+	}
+	if result.Pending[0].Question != "Approve this draft?" {
+		t.Errorf("pending question = %q, want %q", result.Pending[0].Question, "Approve this draft?")
+	}
+	if !strings.Contains(result.Output, "Approve this draft?") {
+		t.Errorf("reply %q does not contain the question", result.Output)
+	}
+}
+
+// TestResumeParts_PreservesNonTextParts: an answer sent with an attachment
+// keeps the attachment — only the text is rewrapped as the Interrupt's
+// answer; other parts ride along instead of being dropped.
+func TestResumeParts_PreservesNonTextParts(t *testing.T) {
+	backend := newFakeBackend(t)
+	agents := approvalAgents()
+	svc := buildWorkflowService(t, backend, agents, []string{"drafter", "publisher"}, session.InMemoryService())
+	ctxInfo := turnCtxInfo(&agents[0])
+
+	if _, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "write a post"}}, "", ctxInfo, nil, nil); err != nil {
+		t.Fatalf("turn 1: %v", err)
+	}
+
+	sess, err := svc.GetSession(context.Background(), ctxInfo.GetChannelName(), ctxInfo.GetSessionId(), ctxInfo.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession: %v", err)
+	}
+	image := &genai.Part{InlineData: &genai.Blob{MIMEType: "image/png", Data: []byte{1, 2, 3}}}
+	resumed, ok := resumeParts(sess, []*genai.Part{{Text: "approved"}, image})
+	if !ok {
+		t.Fatal("resumeParts did not rewrap a text answer with a pending Interrupt")
+	}
+	if resumed[0].FunctionResponse == nil {
+		t.Fatal("first part is not the Interrupt's FunctionResponse")
+	}
+	found := false
+	for _, p := range resumed {
+		if p.InlineData != nil {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the image part was dropped from the resumed message")
 	}
 }
 

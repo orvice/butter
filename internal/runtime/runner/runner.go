@@ -689,8 +689,9 @@ type TurnResult struct {
 	Pending []PendingInput
 }
 
-// Paused reports whether the turn ended waiting on human input.
-func (r *TurnResult) Paused() bool {
+// Interrupted reports whether the turn left the session with unanswered
+// Interrupts — a workflow waiting on human input.
+func (r *TurnResult) Interrupted() bool {
 	return r != nil && len(r.Pending) > 0
 }
 
@@ -718,9 +719,16 @@ func (s *Service) RunSSE(ctx context.Context, agentName string, parts []*genai.P
 }
 
 // RunTurn executes an agent like Run but returns the structured turn result,
-// letting pause-aware callers (cron, tests) observe pending Interrupts.
+// letting Interrupt-aware callers (cron, tests) observe pending Interrupts.
 func (s *Service) RunTurn(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (*TurnResult, error) {
 	return s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{})
+}
+
+// RunTurnSSE is RunTurn with ADK server-sent-event streaming enabled — the
+// structured counterpart of RunSSE for callers on the streaming path (cron,
+// automation) that need the Interrupt signal.
+func (s *Service) RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (*TurnResult, error) {
+	return s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{StreamingMode: agent.StreamingModeSSE})
 }
 
 // run always returns a non-nil TurnResult so callers can read Output without
@@ -847,10 +855,15 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	} else {
 		logger.Debug("ADK session found")
 		// Implicit resume: with an unanswered Interrupt on the session, this
-		// message is the answer to the oldest one (ADR 0002).
-		if resumed := resumeParts(resp.Session, parts); len(resumed) > 0 && resumed[0] != parts[0] {
-			logger.Info("resuming paused workflow with this message as the answer")
-			parts = resumed
+		// message is the answer to the oldest one (ADR 0002). Gated to
+		// workflow-bearing agents — a session may be reused with a different
+		// agent_name, and a message meant for an unrelated agent must not be
+		// rewrapped as the Interrupt's answer.
+		if containsWorkflowAgent(agentProto) {
+			if resumed, ok := resumeParts(resp.Session, parts); ok {
+				logger.Info("resuming workflow: this message answers the oldest pending Interrupt")
+				parts = resumed
+			}
 		}
 	}
 
@@ -929,15 +942,20 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 
 	// Pending reflects everything the session is still waiting on — this
 	// turn's questions plus any earlier unanswered ones (ADR 0002: session
-	// events are the single source of truth).
-	if resp, err := s.sessionSvc.Get(ctx, &session.GetRequest{
-		AppName:   channelName,
-		UserID:    userID,
-		SessionID: sessionID,
-	}); err == nil {
-		turn.Pending = pendingInterruptsInSession(resp.Session)
-	} else {
-		turn.Pending = asked
+	// events are the single source of truth). The re-scan costs a session
+	// fetch, so it only runs for turns that touched an Interrupt: ones that
+	// asked a question or carried a FunctionResponse (a resume). All other
+	// turns cannot change the pending set they started with — none.
+	if len(asked) > 0 || partsCarryFunctionResponse(parts) {
+		if resp, err := s.sessionSvc.Get(ctx, &session.GetRequest{
+			AppName:   channelName,
+			UserID:    userID,
+			SessionID: sessionID,
+		}); err == nil {
+			turn.Pending = pendingInterruptsInSession(resp.Session)
+		} else {
+			turn.Pending = asked
+		}
 	}
 
 	logger.Info("ADK runner completed",
