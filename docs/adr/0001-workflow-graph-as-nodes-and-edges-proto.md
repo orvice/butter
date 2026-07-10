@@ -8,7 +8,8 @@ configuration. We chose two explicit lists — `nodes` (name, kind, per-node opt
 are trivially validatable, renderable by the dashboard, and need no parser.
 
 Phase-1 node kinds are AGENT (references a sub-agent by name), HUMAN_INPUT (butter-owned
-node that calls `workflow.ResumeOrRequestInput`), ROUTER (butter-owned node that stamps
+node that emits a workflow request-input event and relies on handoff resume — the
+engine routes the human's reply to the node's successor), ROUTER (butter-owned node that stamps
 `event.Routes` by matching its input text against outgoing edge labels — a trimmed,
 case-insensitive exact match that stamps the label as configured, since the engine
 compares route tags verbatim; ADK has no built-in way for config-driven graphs to
