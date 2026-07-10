@@ -678,28 +678,63 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName,
 // It receives the event and should not block for long.
 type EventCallback func(evt *session.Event)
 
+// TurnResult is the outcome of a single agent turn.
+type TurnResult struct {
+	// Output is the reply text for the turn. When a workflow pauses on a
+	// Human Input node, the node's question is part of the output, so every
+	// entry point delivers it as the turn's normal reply.
+	Output string
+	// Pending lists the Interrupts this turn left unanswered, oldest first.
+	// Empty for a turn that ran to completion.
+	Pending []PendingInput
+}
+
+// Paused reports whether the turn ended waiting on human input.
+func (r *TurnResult) Paused() bool {
+	return r != nil && len(r.Pending) > 0
+}
+
+// PendingInput is one unanswered Interrupt: a workflow paused on a Human
+// Input node waiting for a reply.
+type PendingInput struct {
+	InterruptID string
+	Question    string
+}
+
 // Run executes an agent with the given context info and multimodal input parts.
 // parts must contain at least one element (text and/or image parts).
 // modelOverride, if non-empty, overrides the agent's configured model (resolved by alias or name).
 // If onEvent is non-nil, it is called for each non-final event.
 // If onCompaction is non-nil, it is called when context compaction is detected.
-func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (output string, runErr error) {
-	return s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{})
+func (s *Service) Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
+	turn, err := s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{})
+	return turn.Output, err
 }
 
 // RunSSE executes an agent with ADK server-sent-event streaming enabled.
-func (s *Service) RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (output string, runErr error) {
-	return s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{StreamingMode: agent.StreamingModeSSE})
+func (s *Service) RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (string, error) {
+	turn, err := s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{StreamingMode: agent.StreamingModeSSE})
+	return turn.Output, err
 }
 
-func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback, runConfig agent.RunConfig) (output string, runErr error) {
+// RunTurn executes an agent like Run but returns the structured turn result,
+// letting pause-aware callers (cron, tests) observe pending Interrupts.
+func (s *Service) RunTurn(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback) (*TurnResult, error) {
+	return s.run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction, agent.RunConfig{})
+}
+
+// run always returns a non-nil TurnResult so callers can read Output without
+// a nil check even on error paths.
+func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback, runConfig agent.RunConfig) (turn *TurnResult, runErr error) {
+	turn = &TurnResult{}
+	output := &turn.Output
 	startedAt := time.Now()
 	channelName := ctxInfo.GetChannelName()
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
 
 	inv := s.startInvocation(ctx, agentName, parts, modelOverride, ctxInfo)
-	defer s.finishInvocation(ctx, inv, &output, &runErr)
+	defer s.finishInvocation(ctx, inv, output, &runErr)
 	if inv != nil {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithCancel(ctx)
@@ -728,7 +763,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	})
 
 	if len(parts) == 0 {
-		return "", fmt.Errorf("empty input: at least one part is required")
+		return turn, fmt.Errorf("empty input: at least one part is required")
 	}
 
 	inputSummary := summarizeInputParts(parts)
@@ -749,7 +784,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	agentProto := s.agentsProto[agentName]
 	s.mu.Unlock()
 	if !ok {
-		return "", fmt.Errorf("unknown agent: %q", agentName)
+		return turn, fmt.Errorf("unknown agent: %q", agentName)
 	}
 
 	// Enforce the tenant boundary: when the caller is bound to a workspace,
@@ -768,7 +803,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 				"agent_workspace_id", agentWS,
 				"requested_workspace_id", wsID,
 			)
-			return "", fmt.Errorf("agent %q not available in workspace %q", agentName, wsID)
+			return turn, fmt.Errorf("agent %q not available in workspace %q", agentName, wsID)
 		}
 		logger.Debug("agent workspace scope accepted", "workspace_id", wsID)
 	}
@@ -778,14 +813,14 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		logger.Info("applying model override", "model_override", modelOverride)
 		overriddenAg, err := s.buildOverriddenAgent(ctx, agentName, modelOverride)
 		if err != nil {
-			return "", fmt.Errorf("building model-overridden agent: %w", err)
+			return turn, fmt.Errorf("building model-overridden agent: %w", err)
 		}
 		ag = overriddenAg
 	}
 
 	r, err := s.getOrCreateRunner(ctx, channelName, agentName, modelOverride, ag)
 	if err != nil {
-		return "", err
+		return turn, err
 	}
 
 	logger.Debug("invoking ADK runner",
@@ -795,7 +830,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 
 	// Ensure session exists; create one if not found.
 	logger.Debug("checking ADK session")
-	if _, err := s.sessionSvc.Get(ctx, &session.GetRequest{
+	if resp, err := s.sessionSvc.Get(ctx, &session.GetRequest{
 		AppName:   channelName,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -806,11 +841,17 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			UserID:    userID,
 			SessionID: sessionID,
 		}); err != nil {
-			return "", fmt.Errorf("creating session: %w", err)
+			return turn, fmt.Errorf("creating session: %w", err)
 		}
 		logger.Info("ADK session created")
 	} else {
 		logger.Debug("ADK session found")
+		// Implicit resume: with an unanswered Interrupt on the session, this
+		// message is the answer to the oldest one (ADR 0002).
+		if resumed := resumeParts(resp.Session, parts); len(resumed) > 0 && resumed[0] != parts[0] {
+			logger.Info("resuming paused workflow with this message as the answer")
+			parts = resumed
+		}
 	}
 
 	// Store compaction callback in context for the notifier plugin.
@@ -821,6 +862,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	msg := &genai.Content{Parts: parts, Role: genai.RoleUser}
 
 	var result strings.Builder
+	var asked []PendingInput
 	eventCount := 0
 	for evt, err := range r.Run(ctx, userID, sessionID, msg, runConfig) {
 		if err != nil {
@@ -828,7 +870,8 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 				"event_count", eventCount,
 				"err", err,
 			)
-			return result.String(), fmt.Errorf("runner error: %w", err)
+			turn.Output = result.String()
+			return turn, fmt.Errorf("runner error: %w", err)
 		}
 		eventCount++
 		summary := summarizeEvent(evt)
@@ -850,8 +893,22 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			"state_delta_keys", summary.stateDeltaKeys,
 			"artifact_delta_keys", summary.artifactDeltaKeys,
 		)
-		if onEvent != nil && !evt.IsFinalResponse() {
+		// Request-input events count as final responses (they end the agent
+		// loop) but must still reach the callback: the dashboard chat stream
+		// renders them as the workflow's question instead of swallowing them.
+		if onEvent != nil && (!evt.IsFinalResponse() || evt.RequestedInput != nil) {
 			onEvent(evt)
+		}
+		// A request-input event pauses the workflow: record the Interrupt so
+		// the question becomes the turn's reply. turn.Pending is re-derived
+		// from session events after the run — asked collects only THIS
+		// turn's questions so the reply does not repeat older ones.
+		if req := evt.RequestedInput; req != nil {
+			asked = append(asked, PendingInput{
+				InterruptID: req.InterruptID,
+				Question:    req.Message,
+			})
+			continue
 		}
 		if evt.IsFinalResponse() && evt.Content != nil {
 			for _, part := range evt.Content.Parts {
@@ -862,13 +919,35 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		}
 	}
 
+	turn.Output = result.String()
+	for _, p := range asked {
+		if turn.Output != "" && !strings.HasSuffix(turn.Output, "\n") {
+			turn.Output += "\n"
+		}
+		turn.Output += p.Question
+	}
+
+	// Pending reflects everything the session is still waiting on — this
+	// turn's questions plus any earlier unanswered ones (ADR 0002: session
+	// events are the single source of truth).
+	if resp, err := s.sessionSvc.Get(ctx, &session.GetRequest{
+		AppName:   channelName,
+		UserID:    userID,
+		SessionID: sessionID,
+	}); err == nil {
+		turn.Pending = pendingInterruptsInSession(resp.Session)
+	} else {
+		turn.Pending = asked
+	}
+
 	logger.Info("ADK runner completed",
 		"event_count", eventCount,
-		"response_len", result.Len(),
+		"pending_interrupts", len(turn.Pending),
+		"response_len", len(turn.Output),
 		"duration", time.Since(startedAt),
 	)
 
-	return result.String(), nil
+	return turn, nil
 }
 
 func (s *Service) startInvocation(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo) *agentsv1.Invocation {

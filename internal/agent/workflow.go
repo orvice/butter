@@ -75,10 +75,12 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 			if _, ok := subAgentNames[n.GetAgent()]; !ok {
 				return fmt.Errorf("workflow node %q references sub-agent %q, which is not declared in sub_agents", name, n.GetAgent())
 			}
-		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT,
-			agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER,
+		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT:
+			if strings.TrimSpace(n.GetQuestion()) == "" {
+				return fmt.Errorf("workflow node %q: a HUMAN_INPUT node requires a question", name)
+			}
+		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER,
 			agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN:
-			// Schema-valid kinds; execution support arrives in later slices.
 		default:
 			return fmt.Errorf("workflow node %q: kind must be one of AGENT, HUMAN_INPUT, ROUTER, JOIN", name)
 		}
@@ -189,6 +191,8 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 				return nil, fmt.Errorf("workflow node %q: %w", n.GetName(), err)
 			}
 			nodes[n.GetName()] = node
+		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT:
+			nodes[n.GetName()] = newHumanInputNode(n.GetName(), n.GetQuestion(), workflowNodeConfig(n))
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER:
 			nodes[n.GetName()] = newRouterNode(n.GetName(), outgoingLabels[n.GetName()], workflowNodeConfig(n))
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN:

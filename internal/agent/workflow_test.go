@@ -114,6 +114,51 @@ func fanOutJoinWorkflowProto() *agentsv1.Agent {
 	}
 }
 
+// humanInputWorkflowProto returns a WORKFLOW agent that pauses on a Human
+// Input node between two agent steps: draft -> ask (human) -> publish.
+func humanInputWorkflowProto() *agentsv1.Agent {
+	return &agentsv1.Agent{
+		Name: "approval",
+		Type: agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		SubAgents: []*agentsv1.Agent{
+			{Name: "draft", Config: &agentsv1.AgentConfig{Model: "m1"}},
+			{Name: "publish", Config: &agentsv1.AgentConfig{Model: "m1"}},
+		},
+		Config: &agentsv1.AgentConfig{
+			Workflow: &agentsv1.WorkflowConfig{
+				Nodes: []*agentsv1.WorkflowNode{
+					{Name: "draft", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "draft"},
+					{Name: "ask", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT, Question: "Approve this draft?"},
+					{Name: "publish", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "publish"},
+				},
+				Edges: []*agentsv1.WorkflowEdge{
+					{From: "START", To: "draft"},
+					{From: "draft", To: "ask"},
+					{From: "ask", To: "publish"},
+				},
+			},
+		},
+	}
+}
+
+func TestNewFromProto_WorkflowHumanInput(t *testing.T) {
+	a, err := NewFromProto(context.Background(), humanInputWorkflowProto(), workflowProviders(), nil, nil, nil)
+	if err != nil {
+		t.Fatalf("NewFromProto: %v", err)
+	}
+	if a.Name() != "approval" {
+		t.Errorf("agent name = %q, want %q", a.Name(), "approval")
+	}
+}
+
+// TestValidateWorkflowAgent_HumanInputRequiresQuestion: a Human Input node
+// without a question would pause the workflow with an empty prompt.
+func TestValidateWorkflowAgent_HumanInputRequiresQuestion(t *testing.T) {
+	pb := humanInputWorkflowProto()
+	pb.Config.Workflow.Nodes[1].Question = ""
+	assertGraphRejected(t, pb, "question")
+}
+
 func TestNewFromProto_WorkflowRouterAndJoin(t *testing.T) {
 	for _, pb := range []*agentsv1.Agent{branchingWorkflowProto(), fanOutJoinWorkflowProto()} {
 		a, err := NewFromProto(context.Background(), pb, workflowProviders(), nil, nil, nil)
