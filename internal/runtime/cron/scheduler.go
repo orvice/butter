@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -54,7 +55,7 @@ type Scheduler struct {
 
 type runnerService interface {
 	HasAgentInWorkspace(workspaceID, name string) bool
-	RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
+	RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error)
 }
 
 type channelSender interface {
@@ -167,6 +168,13 @@ func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRep
 		cancelFn:      cancel,
 		entryIDs:      make(map[string]robfigcron.EntryID),
 		running:       make(map[string]*runningJob),
+	}
+
+	// Close the ADR 0003 loop: the scheduler observes every runner turn so a
+	// session reply that completes a paused workflow also completes the
+	// session's WAITING_INPUT executions, whatever entry point the reply used.
+	if runnerSvc != nil {
+		runnerSvc.AddTurnListener(s.HandleTurn)
 	}
 
 	// Load existing jobs from MongoDB across every workspace.
@@ -440,11 +448,11 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 	}
 	defer cancel()
 
-	output, err, attemptCount := s.runWithRetry(runCtx, job, parts, ctxInfo)
+	turn, err, attemptCount := s.runWithRetry(runCtx, job, parts, ctxInfo)
 
 	finishTime := time.Now()
 	duration := finishTime.Sub(startTime)
-	storedOutput, truncated := truncateOutput(output, job.GetMaxOutputBytes())
+	storedOutput, truncated := truncateOutput(turn.Output, job.GetMaxOutputBytes())
 	errText := ""
 	if err != nil {
 		errText = err.Error()
@@ -470,7 +478,8 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 		WorkspaceId:  job.GetWorkspaceId(),
 	}
 
-	if err != nil {
+	switch {
+	case err != nil:
 		if errors.Is(err, context.Canceled) {
 			exec.Status = agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_CANCELLED
 		} else {
@@ -484,14 +493,31 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 			"attempt_count", attemptCount,
 			"err", err,
 		)
-	} else {
+	case turn.Interrupted():
+		// The workflow paused on a Human Input node (ADR 0003): the execution
+		// is not finished — it waits for a human answer on the run's session.
+		// The session coordinates recorded here are what ReplySession needs.
+		exec.Status = agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT
+		exec.FinishedAt = nil
+		exec.DurationMs = 0
+		exec.SessionAppName = channelName
+		exec.SessionUserId = userID
+		exec.SessionId = sessionID
+		logger.Info("cron job execution waiting for human input",
+			"job", job.GetName(),
+			"workspace_id", job.GetWorkspaceId(),
+			"exec_id", execID,
+			"attempt_count", attemptCount,
+			"pending_interrupts", len(turn.Pending),
+		)
+	default:
 		logger.Info("cron job execution succeeded",
 			"job", job.GetName(),
 			"workspace_id", job.GetWorkspaceId(),
 			"exec_id", execID,
 			"duration", duration,
 			"attempt_count", attemptCount,
-			"output_len", len(output),
+			"output_len", len(turn.Output),
 		)
 	}
 
@@ -509,25 +535,28 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 	return exec
 }
 
-func (s *Scheduler) runWithRetry(ctx context.Context, job *agentsv1.CronJob, parts []*genai.Part, ctxInfo *agentsv1.ContextInfo) (string, error, int32) {
+func (s *Scheduler) runWithRetry(ctx context.Context, job *agentsv1.CronJob, parts []*genai.Part, ctxInfo *agentsv1.ContextInfo) (*runner.TurnResult, error, int32) {
 	totalAttempts := int32(1)
 	if retry := job.GetRetry(); retry != nil && retry.GetMaxAttempts() > 0 {
 		totalAttempts += retry.GetMaxAttempts()
 	}
 	var (
-		output string
-		err    error
+		turn *runner.TurnResult
+		err  error
 	)
 	for attempt := int32(1); attempt <= totalAttempts; attempt++ {
-		output, err = s.runner.RunSSE(ctx, job.GetAgentName(), parts, "", ctxInfo, nil, nil)
+		turn, err = s.runner.RunTurnSSE(ctx, job.GetAgentName(), parts, "", ctxInfo, nil, nil)
+		if turn == nil {
+			turn = &runner.TurnResult{}
+		}
 		if err == nil {
-			return output, nil, attempt
+			return turn, nil, attempt
 		}
 		if attempt == totalAttempts || ctx.Err() != nil {
 			if ctx.Err() != nil {
-				return output, ctx.Err(), attempt
+				return turn, ctx.Err(), attempt
 			}
-			return output, err, attempt
+			return turn, err, attempt
 		}
 		backoff := time.Duration(0)
 		if retry := job.GetRetry(); retry != nil && retry.GetBackoff() != nil {
@@ -541,10 +570,82 @@ func (s *Scheduler) runWithRetry(ctx context.Context, job *agentsv1.CronJob, par
 		case <-timer.C:
 		case <-ctx.Done():
 			timer.Stop()
-			return output, ctx.Err(), attempt
+			return turn, ctx.Err(), attempt
 		}
 	}
-	return output, err, totalAttempts
+	return turn, err, totalAttempts
+}
+
+// HandleTurn observes the outcome of every agent turn (registered as a
+// runner turn listener). It closes ADR 0003's loop: a human answers a paused
+// cron workflow by messaging its session — through ReplySession or any other
+// entry point — and when a turn on that session ends with no pending
+// Interrupt, the session's WAITING_INPUT executions reach their terminal
+// state and the final output is delivered through the job's targets.
+//
+// The initial pausing run is invisible here by construction: its listener
+// fires before runJob persists the WAITING_INPUT record, so no record
+// matches. A turn that errored or still has pending Interrupts leaves the
+// records waiting.
+func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnResult, runErr error) {
+	if ctxInfo == nil || turn == nil || runErr != nil || turn.Interrupted() {
+		return
+	}
+	// Cron sessions are the only ones that can carry waiting executions;
+	// skip the repo lookup for ordinary chat traffic.
+	if !strings.HasPrefix(ctxInfo.GetSessionId(), "cron:") {
+		return
+	}
+	logger := log.FromContext(s.ctx)
+	waiting, err := s.execRepo.ListWaitingBySession(s.ctx, ctxInfo.GetChannelName(), ctxInfo.GetUserId(), ctxInfo.GetSessionId())
+	if err != nil {
+		logger.Error("failed to look up waiting cron executions",
+			"session_id", ctxInfo.GetSessionId(),
+			"err", err,
+		)
+		return
+	}
+
+	now := time.Now()
+	for _, exec := range waiting {
+		job, jobErr := s.jobRepo.Get(s.ctx, exec.GetWorkspaceId(), exec.GetJobName())
+		var maxOutputBytes int32
+		if jobErr == nil {
+			maxOutputBytes = job.GetMaxOutputBytes()
+		}
+		exec.Output, exec.Truncated = truncateOutput(turn.Output, maxOutputBytes)
+		exec.Status = agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS
+		exec.FinishedAt = timestamppb.New(now)
+		exec.DurationMs = now.Sub(exec.GetStartedAt().AsTime()).Milliseconds()
+
+		if saveErr := s.execRepo.Save(s.ctx, exec); saveErr != nil {
+			logger.Error("failed to complete waiting cron execution",
+				"job", exec.GetJobName(),
+				"workspace_id", exec.GetWorkspaceId(),
+				"exec_id", exec.GetId(),
+				"err", saveErr,
+			)
+			continue
+		}
+		logger.Info("waiting cron execution completed by session reply",
+			"job", exec.GetJobName(),
+			"workspace_id", exec.GetWorkspaceId(),
+			"exec_id", exec.GetId(),
+			"duration_ms", exec.GetDurationMs(),
+		)
+		if jobErr != nil {
+			// The job was deleted while its execution waited; the record is
+			// closed but there is no delivery config left to notify with.
+			logger.Warn("completed waiting execution without delivery: job no longer exists",
+				"job", exec.GetJobName(),
+				"workspace_id", exec.GetWorkspaceId(),
+				"exec_id", exec.GetId(),
+				"err", jobErr,
+			)
+			continue
+		}
+		s.deliver(job, exec)
+	}
 }
 
 func (s *Scheduler) recordSkipped(job *agentsv1.CronJob, trigger agentsv1.CronExecutionTriggerType, reason string) *agentsv1.CronExecution {
@@ -658,6 +759,12 @@ func (s *Scheduler) deliverWebhook(job *agentsv1.CronJob, exec *agentsv1.CronExe
 		"error":        exec.GetError(),
 		"executed_at":  exec.GetStartedAt().AsTime().Format(time.RFC3339),
 		"status":       cronStatus(exec),
+	}
+	if exec.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+		payload["agent_name"] = exec.GetAgentName()
+		payload["session_app_name"] = exec.GetSessionAppName()
+		payload["session_user_id"] = exec.GetSessionUserId()
+		payload["session_id"] = exec.GetSessionId()
 	}
 
 	body, err := json.Marshal(payload)
@@ -793,9 +900,13 @@ func (s *Scheduler) deliverNotifyGroup(job *agentsv1.CronJob, exec *agentsv1.Cro
 		return
 	}
 
+	text := exec.GetOutput()
+	if coords := replyCoordinates(exec); coords != "" {
+		text += "\n" + coords
+	}
 	message := notify.Message{
 		Title: fmt.Sprintf("Cron job %s: %s", exec.GetJobName(), cronStatus(exec)),
-		Text:  exec.GetOutput(),
+		Text:  text,
 	}
 	for _, target := range group.GetTargets() {
 		if target == nil || !target.GetEnabled() {
@@ -833,6 +944,8 @@ func cronStatus(exec *agentsv1.CronExecution) string {
 		return "skipped"
 	case agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_CANCELLED:
 		return "cancelled"
+	case agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT:
+		return "waiting_input"
 	default:
 		return "success"
 	}
@@ -847,10 +960,31 @@ func cronDeliveryMessage(exec *agentsv1.CronExecution) string {
 	if body == "" && exec.GetSkippedReason() != "" {
 		body = exec.GetSkippedReason()
 	}
-	return fmt.Sprintf("Cron job %s: %s\nExecution: %s\n%s", exec.GetJobName(), status, exec.GetId(), body)
+	msg := fmt.Sprintf("Cron job %s: %s\nExecution: %s\n%s", exec.GetJobName(), status, exec.GetId(), body)
+	if coords := replyCoordinates(exec); coords != "" {
+		msg += "\n" + coords
+	}
+	return msg
+}
+
+// replyCoordinates renders the ReplySession coordinates a human needs to
+// answer a WAITING_INPUT execution; empty for every other status.
+func replyCoordinates(exec *agentsv1.CronExecution) string {
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+		return ""
+	}
+	return fmt.Sprintf(
+		"Answer via SessionService.ReplySession: agent_name=%s app_name=%s user_id=%s session_id=%s",
+		exec.GetAgentName(), exec.GetSessionAppName(), exec.GetSessionUserId(), exec.GetSessionId(),
+	)
 }
 
 func shouldDeliver(job *agentsv1.CronJob, exec *agentsv1.CronExecution) bool {
+	// A paused workflow's question must always reach a human — suppressing it
+	// by notify policy would leave the execution waiting with nobody told.
+	if exec.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+		return true
+	}
 	switch job.GetNotifyOn() {
 	case agentsv1.CronNotifyOn_CRON_NOTIFY_ON_FAILURE:
 		return exec.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR ||

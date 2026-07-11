@@ -613,6 +613,12 @@ func (m *CronExecution) validate(all bool) error {
 
 	// no validation rules for Truncated
 
+	// no validation rules for SessionAppName
+
+	// no validation rules for SessionUserId
+
+	// no validation rules for SessionId
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {

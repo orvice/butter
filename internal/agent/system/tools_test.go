@@ -248,3 +248,7 @@ func (r *mockExecRepo) GetByID(_ context.Context, id string) (*agentsv1.CronExec
 func (r *mockExecRepo) ListByTimeRange(_ context.Context, _, _ string, _, _ time.Time) ([]*agentsv1.CronExecution, error) {
 	return nil, nil
 }
+
+func (r *mockExecRepo) ListWaitingBySession(_ context.Context, _, _, _ string) ([]*agentsv1.CronExecution, error) {
+	return nil, nil
+}
