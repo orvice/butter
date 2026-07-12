@@ -10,6 +10,13 @@ the existing `ReplySession` RPC (or dashboard UI on top of it) — no new resume
 because interrupt detection lives in the runner (ADR 0002) and applies to every entry
 point.
 
+Cron sessions are per-execution (`cron:<job>:<exec-id>`), not per-job: the schedule
+keeps firing while an execution waits, and a rerun sharing the waiting execution's
+session would have its input consumed as the human's answer (ADR 0002 answers FIFO) and
+would close the waiting record with unrelated output. The recorded session coordinates
+carry the full ID, so `ReplySession` resume is unaffected; the trade-off is that cron
+runs of one job no longer share conversation history.
+
 Direct reply-from-Telegram resume (mapping channel identities onto cron sessions) was
 considered and deferred: it is an independent, large piece of session-identity plumbing.
 No interrupt timeout in phase 1; a paused execution waits until answered or its session

@@ -216,14 +216,23 @@ type testCronRunner struct {
 	errs     []error
 	block    chan struct{}
 	runCalls int
+	// results, when non-empty, is consumed one entry per call instead of
+	// output/pending — for tests where consecutive runs behave differently.
+	results []*runner.TurnResult
+	// ctxInfos records the ContextInfo of every call, in order.
+	ctxInfos []*agentsv1.ContextInfo
+	// onTurn mimics runner.Service's turn-listener dispatch: called after
+	// every turn with the same arguments a registered TurnListener receives.
+	onTurn func(*agentsv1.ContextInfo, *runner.TurnResult, error)
 }
 
 func (r *testCronRunner) HasAgentInWorkspace(string, string) bool {
 	return true
 }
 
-func (r *testCronRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
+func (r *testCronRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, ctxInfo *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
 	r.runCalls++
+	r.ctxInfos = append(r.ctxInfos, ctxInfo)
 	if r.block != nil {
 		select {
 		case <-r.block:
@@ -238,7 +247,15 @@ func (r *testCronRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Pa
 			return &runner.TurnResult{}, err
 		}
 	}
-	return &runner.TurnResult{Output: r.output, Pending: r.pending}, nil
+	turn := &runner.TurnResult{Output: r.output, Pending: r.pending}
+	if len(r.results) > 0 {
+		turn = r.results[0]
+		r.results = r.results[1:]
+	}
+	if r.onTurn != nil {
+		r.onTurn(ctxInfo, turn, nil)
+	}
+	return turn, nil
 }
 
 type testExecutionRepo struct {
@@ -315,8 +332,10 @@ func TestExecuteJobPausedWorkflowRecordsWaitingInput(t *testing.T) {
 	if exec.GetSessionUserId() != "cron:approve-deploy" {
 		t.Fatalf("session_user_id = %q, want cron:approve-deploy", exec.GetSessionUserId())
 	}
-	if exec.GetSessionId() != "cron:approve-deploy" {
-		t.Fatalf("session_id = %q, want cron:approve-deploy", exec.GetSessionId())
+	// The session is per-execution (issue #131): reruns of the job must not
+	// share the session where this execution waits for its human answer.
+	if want := "cron:approve-deploy:" + exec.GetId(); exec.GetSessionId() != want {
+		t.Fatalf("session_id = %q, want %q", exec.GetSessionId(), want)
 	}
 	if exec.GetFinishedAt() != nil {
 		t.Fatalf("finished_at = %v, want unset: a waiting execution has not finished", exec.GetFinishedAt())
@@ -345,7 +364,7 @@ func TestPausedWorkflowDeliversQuestionWithSessionCoordinates(t *testing.T) {
 		channelSender: sender,
 	}
 
-	s.executeJob(&agentsv1.CronJob{
+	exec := s.executeJob(&agentsv1.CronJob{
 		Name:        "approve-deploy",
 		WorkspaceId: "ws1",
 		AgentName:   "release-flow",
@@ -361,12 +380,14 @@ func TestPausedWorkflowDeliversQuestionWithSessionCoordinates(t *testing.T) {
 		t.Fatal("expected a delivery for the paused execution")
 	}
 	for _, want := range []string{
-		"Deploy v2 to production?",  // the node's question
-		"waiting_input",             // the state, so the reader knows it blocks
-		"agent_name=release-flow",   // ReplySession coordinates follow
+		"Deploy v2 to production?", // the node's question
+		"waiting_input",            // the state, so the reader knows it blocks
+		"agent_name=release-flow",  // ReplySession coordinates follow
 		"app_name=cron:approve-deploy",
 		"user_id=cron:approve-deploy",
-		"session_id=cron:approve-deploy",
+		// The full per-execution session ID, not just the job scope — a reply
+		// to a truncated ID would land on the wrong session.
+		"session_id=cron:approve-deploy:" + exec.GetId(),
 	} {
 		if !strings.Contains(sender.text, want) {
 			t.Fatalf("delivery message missing %q:\n%s", want, sender.text)
@@ -402,7 +423,7 @@ func TestDeliverWebhookWaitingInputCarriesSessionCoordinates(t *testing.T) {
 		StartedAt:      timestamppb.Now(),
 		SessionAppName: "cron:approve-deploy",
 		SessionUserId:  "cron:approve-deploy",
-		SessionId:      "cron:approve-deploy",
+		SessionId:      "cron:approve-deploy:exec-1",
 	})
 
 	select {
@@ -416,11 +437,12 @@ func TestDeliverWebhookWaitingInputCarriesSessionCoordinates(t *testing.T) {
 	if payload["output"] != "Deploy v2 to production?" {
 		t.Fatalf("output = %q, want the question", payload["output"])
 	}
-	for _, key := range []string{"agent_name", "session_app_name", "session_user_id", "session_id"} {
-		want := "release-flow"
-		if key != "agent_name" {
-			want = "cron:approve-deploy"
-		}
+	for key, want := range map[string]string{
+		"agent_name":       "release-flow",
+		"session_app_name": "cron:approve-deploy",
+		"session_user_id":  "cron:approve-deploy",
+		"session_id":       "cron:approve-deploy:exec-1",
+	} {
 		if payload[key] != want {
 			t.Fatalf("payload[%q] = %q, want %q", key, payload[key], want)
 		}
@@ -472,7 +494,7 @@ func TestDeliverNotifyGroupWaitingInputCarriesSessionCoordinates(t *testing.T) {
 		StartedAt:      timestamppb.Now(),
 		SessionAppName: "cron:approve-deploy",
 		SessionUserId:  "cron:approve-deploy",
-		SessionId:      "cron:approve-deploy",
+		SessionId:      "cron:approve-deploy:exec-1",
 	})
 
 	for _, want := range []string{
@@ -480,7 +502,7 @@ func TestDeliverNotifyGroupWaitingInputCarriesSessionCoordinates(t *testing.T) {
 		"agent_name=release-flow",
 		"app_name=cron:approve-deploy",
 		"user_id=cron:approve-deploy",
-		"session_id=cron:approve-deploy",
+		"session_id=cron:approve-deploy:exec-1",
 	} {
 		if !strings.Contains(got.Text, want) {
 			t.Fatalf("notify text missing %q:\n%s", want, got.Text)
@@ -550,7 +572,7 @@ func waitingExecFixture() *agentsv1.CronExecution {
 		StartedAt:      timestamppb.New(time.Now().Add(-time.Minute)),
 		SessionAppName: "cron:approve-deploy",
 		SessionUserId:  "cron:approve-deploy",
-		SessionId:      "cron:approve-deploy",
+		SessionId:      "cron:approve-deploy:exec-1",
 		WorkspaceId:    "ws1",
 	}
 }
@@ -559,7 +581,7 @@ func cronSessionCtxInfo() *agentsv1.ContextInfo {
 	return &agentsv1.ContextInfo{
 		ChannelName: "cron:approve-deploy",
 		UserId:      "cron:approve-deploy",
-		SessionId:   "cron:approve-deploy",
+		SessionId:   "cron:approve-deploy:exec-1",
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
 	}
 }
@@ -678,6 +700,67 @@ func TestHandleTurnIgnoresUnfinishedAndUnrelatedTurns(t *testing.T) {
 				t.Fatalf("unexpected delivery: %q", sender.text)
 			}
 		})
+	}
+}
+
+// TestScheduledRerunWhileExecutionWaitsDoesNotAnswerIt: issue #131 — while
+// an execution sits in WAITING_INPUT, the job keeps firing on schedule (the
+// concurrency slot is released when the pausing run returns). The rescheduled
+// run must not post its input onto the waiting execution's session: per ADR
+// 0002 the runner would treat that input as the human's answer to the pending
+// Interrupt, and the rerun's completion would close the older WAITING_INPUT
+// record with unrelated output.
+func TestScheduledRerunWhileExecutionWaitsDoesNotAnswerIt(t *testing.T) {
+	job := &agentsv1.CronJob{
+		Name:        "approve-deploy",
+		WorkspaceId: "ws1",
+		AgentName:   "release-flow",
+		Schedule:    "@daily",
+	}
+	execRepo := &testExecutionRepo{}
+	cronRunner := &testCronRunner{
+		results: []*runner.TurnResult{
+			{
+				Output:  "Deploy v2 to production?",
+				Pending: []runner.PendingInput{{InterruptID: "int-1", Question: "Deploy v2 to production?"}},
+			},
+			{Output: "unrelated next-day output"},
+		},
+	}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: execRepo,
+		jobRepo:  &testJobRepo{job: job},
+		notifier: notify.NewSender(nil),
+	}
+	// NewScheduler registers HandleTurn as a runner turn listener; the mock
+	// replays that dispatch so the rerun's turn is observed like in production.
+	cronRunner.onTurn = s.HandleTurn
+
+	first := s.executeJobWithTrigger(job, agentsv1.CronExecutionTriggerType_CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE)
+	if first.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+		t.Fatalf("first run status = %s, want waiting_input", first.GetStatus())
+	}
+
+	second := s.executeJobWithTrigger(job, agentsv1.CronExecutionTriggerType_CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE)
+	if second.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+		t.Fatalf("second run status = %s, want success", second.GetStatus())
+	}
+
+	if len(cronRunner.ctxInfos) != 2 {
+		t.Fatalf("runner calls = %d, want 2", len(cronRunner.ctxInfos))
+	}
+	if got := cronRunner.ctxInfos[1].GetSessionId(); got == first.GetSessionId() {
+		t.Fatalf("rescheduled run reused session %q where an execution is still waiting for input", got)
+	}
+
+	got := execRepo.execs[first.GetId()]
+	if got.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+		t.Fatalf("waiting execution status = %s, want still waiting_input: a scheduler tick must not answer for the human", got.GetStatus())
+	}
+	if got.GetOutput() != "Deploy v2 to production?" {
+		t.Fatalf("waiting execution output = %q, want the node's question untouched", got.GetOutput())
 	}
 }
 
