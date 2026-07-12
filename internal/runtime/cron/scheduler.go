@@ -69,6 +69,22 @@ type runningJob struct {
 
 func jobKey(workspaceID, name string) string { return workspaceID + ":" + name }
 
+// cronSessionPrefix marks every session coordinate the scheduler creates;
+// HandleTurn relies on it to skip ordinary chat traffic.
+const cronSessionPrefix = "cron:"
+
+// cronJobScope is the app-name/user coordinate shared by every run of a job.
+func cronJobScope(jobName string) string { return cronSessionPrefix + jobName }
+
+// cronSessionID is the session coordinate of one execution. The session is
+// per-execution, not per-job: while an execution waits on a Human Input node,
+// the job keeps firing on schedule, and a rerun posting its input onto the
+// same session would answer the pending Interrupt in the human's place (ADR
+// 0002 answers FIFO) and close the waiting record with unrelated output.
+func cronSessionID(jobName, execID string) string {
+	return cronJobScope(jobName) + ":" + execID
+}
+
 func validateJobConfig(job *agentsv1.CronJob) error {
 	if job == nil {
 		return errors.New("cron job is required")
@@ -415,9 +431,9 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 	startTime := time.Now()
 
 	execID := uuid.New().String()
-	userID := fmt.Sprintf("cron:%s", job.GetName())
-	sessionID := fmt.Sprintf("cron:%s", job.GetName())
-	channelName := fmt.Sprintf("cron:%s", job.GetName())
+	userID := cronJobScope(job.GetName())
+	sessionID := cronSessionID(job.GetName(), execID)
+	channelName := cronJobScope(job.GetName())
 
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        execID,
@@ -593,7 +609,7 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 	}
 	// Cron sessions are the only ones that can carry waiting executions;
 	// skip the repo lookup for ordinary chat traffic.
-	if !strings.HasPrefix(ctxInfo.GetSessionId(), "cron:") {
+	if !strings.HasPrefix(ctxInfo.GetSessionId(), cronSessionPrefix) {
 		return
 	}
 	logger := log.FromContext(s.ctx)
