@@ -3,7 +3,12 @@ package cron
 import (
 	"context"
 	"errors"
+	"encoding/json"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -206,42 +211,64 @@ func (s *testChannelSender) Send(_ context.Context, channel *agentsv1.AgentChann
 }
 
 type testCronRunner struct {
-	output      string
-	errs        []error
-	block       chan struct{}
-	runSSECalls int
+	output   string
+	pending  []runner.PendingInput
+	errs     []error
+	block    chan struct{}
+	runCalls int
 }
 
 func (r *testCronRunner) HasAgentInWorkspace(string, string) bool {
 	return true
 }
 
-func (r *testCronRunner) RunSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (string, error) {
-	r.runSSECalls++
+func (r *testCronRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
+	r.runCalls++
 	if r.block != nil {
 		select {
 		case <-r.block:
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return &runner.TurnResult{}, ctx.Err()
 		}
 	}
 	if len(r.errs) > 0 {
 		err := r.errs[0]
 		r.errs = r.errs[1:]
 		if err != nil {
-			return "", err
+			return &runner.TurnResult{}, err
 		}
 	}
-	return r.output, nil
+	return &runner.TurnResult{Output: r.output, Pending: r.pending}, nil
 }
 
 type testExecutionRepo struct {
 	saved *agentsv1.CronExecution
+	execs map[string]*agentsv1.CronExecution
 }
 
 func (r *testExecutionRepo) Save(_ context.Context, exec *agentsv1.CronExecution) error {
 	r.saved = exec
+	if r.execs == nil {
+		r.execs = map[string]*agentsv1.CronExecution{}
+	}
+	r.execs[exec.GetId()] = exec
 	return nil
+}
+
+func (r *testExecutionRepo) ListWaitingBySession(_ context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error) {
+	var out []*agentsv1.CronExecution
+	for _, e := range r.execs {
+		if e.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT &&
+			e.GetSessionAppName() == appName &&
+			e.GetSessionUserId() == userID &&
+			e.GetSessionId() == sessionID {
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].GetStartedAt().AsTime().Before(out[j].GetStartedAt().AsTime())
+	})
+	return out, nil
 }
 
 func (r *testExecutionRepo) List(context.Context, string, string, int32, string) ([]*agentsv1.CronExecution, string, error) {
@@ -254,6 +281,404 @@ func (r *testExecutionRepo) GetByID(context.Context, string) (*agentsv1.CronExec
 
 func (r *testExecutionRepo) ListByTimeRange(context.Context, string, string, time.Time, time.Time) ([]*agentsv1.CronExecution, error) {
 	return nil, errors.New("not implemented")
+}
+
+func TestExecuteJobPausedWorkflowRecordsWaitingInput(t *testing.T) {
+	cronRunner := &testCronRunner{
+		output:  "Deploy v2 to production?",
+		pending: []runner.PendingInput{{InterruptID: "int-1", Question: "Deploy v2 to production?"}},
+	}
+	execRepo := &testExecutionRepo{}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: execRepo,
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "approve-deploy",
+		WorkspaceId: "ws1",
+		AgentName:   "release-flow",
+		Schedule:    "@daily",
+	})
+
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+		t.Fatalf("status = %s, want waiting_input", exec.GetStatus())
+	}
+	if exec.GetOutput() != "Deploy v2 to production?" {
+		t.Fatalf("output = %q, want the node's question", exec.GetOutput())
+	}
+	if exec.GetSessionAppName() != "cron:approve-deploy" {
+		t.Fatalf("session_app_name = %q, want cron:approve-deploy", exec.GetSessionAppName())
+	}
+	if exec.GetSessionUserId() != "cron:approve-deploy" {
+		t.Fatalf("session_user_id = %q, want cron:approve-deploy", exec.GetSessionUserId())
+	}
+	if exec.GetSessionId() != "cron:approve-deploy" {
+		t.Fatalf("session_id = %q, want cron:approve-deploy", exec.GetSessionId())
+	}
+	if exec.GetFinishedAt() != nil {
+		t.Fatalf("finished_at = %v, want unset: a waiting execution has not finished", exec.GetFinishedAt())
+	}
+	if execRepo.saved != exec {
+		t.Fatal("waiting execution was not persisted")
+	}
+}
+
+func TestPausedWorkflowDeliversQuestionWithSessionCoordinates(t *testing.T) {
+	sender := &testChannelSender{}
+	s := &Scheduler{
+		ctx: context.Background(),
+		runner: &testCronRunner{
+			output:  "Deploy v2 to production?",
+			pending: []runner.PendingInput{{InterruptID: "int-1", Question: "Deploy v2 to production?"}},
+		},
+		execRepo: &testExecutionRepo{},
+		notifier: notify.NewSender(nil),
+		channelRepo: &testChannelRepo{channel: &agentsv1.AgentChannel{
+			Name:        "ops-chat",
+			WorkspaceId: "ws1",
+			Enabled:     true,
+			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD,
+		}},
+		channelSender: sender,
+	}
+
+	s.executeJob(&agentsv1.CronJob{
+		Name:        "approve-deploy",
+		WorkspaceId: "ws1",
+		AgentName:   "release-flow",
+		Schedule:    "@daily",
+		Delivery: &agentsv1.CronDelivery{
+			Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
+			ChannelName: "ops-chat",
+			ChatId:      "chan-123",
+		},
+	})
+
+	if sender.text == "" {
+		t.Fatal("expected a delivery for the paused execution")
+	}
+	for _, want := range []string{
+		"Deploy v2 to production?",  // the node's question
+		"waiting_input",             // the state, so the reader knows it blocks
+		"agent_name=release-flow",   // ReplySession coordinates follow
+		"app_name=cron:approve-deploy",
+		"user_id=cron:approve-deploy",
+		"session_id=cron:approve-deploy",
+	} {
+		if !strings.Contains(sender.text, want) {
+			t.Fatalf("delivery message missing %q:\n%s", want, sender.text)
+		}
+	}
+}
+
+func TestDeliverWebhookWaitingInputCarriesSessionCoordinates(t *testing.T) {
+	var payload map[string]string
+	received := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &payload)
+		close(received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	s := &Scheduler{ctx: context.Background()}
+	s.deliverWebhook(&agentsv1.CronJob{
+		Name:        "approve-deploy",
+		WorkspaceId: "ws1",
+		Delivery: &agentsv1.CronDelivery{
+			Type:       agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_WEBHOOK,
+			WebhookUrl: srv.URL,
+		},
+	}, &agentsv1.CronExecution{
+		Id:             "exec-1",
+		JobName:        "approve-deploy",
+		AgentName:      "release-flow",
+		Status:         agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT,
+		Output:         "Deploy v2 to production?",
+		StartedAt:      timestamppb.Now(),
+		SessionAppName: "cron:approve-deploy",
+		SessionUserId:  "cron:approve-deploy",
+		SessionId:      "cron:approve-deploy",
+	})
+
+	select {
+	case <-received:
+	case <-time.After(time.Second):
+		t.Fatal("webhook was not called")
+	}
+	if payload["status"] != "waiting_input" {
+		t.Fatalf("status = %q, want waiting_input", payload["status"])
+	}
+	if payload["output"] != "Deploy v2 to production?" {
+		t.Fatalf("output = %q, want the question", payload["output"])
+	}
+	for _, key := range []string{"agent_name", "session_app_name", "session_user_id", "session_id"} {
+		want := "release-flow"
+		if key != "agent_name" {
+			want = "cron:approve-deploy"
+		}
+		if payload[key] != want {
+			t.Fatalf("payload[%q] = %q, want %q", key, payload[key], want)
+		}
+	}
+}
+
+func TestDeliverNotifyGroupWaitingInputCarriesSessionCoordinates(t *testing.T) {
+	var got notify.Message
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body, _ := io.ReadAll(req.Body)
+		var lark struct {
+			Content struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		}
+		_ = json.Unmarshal(body, &lark)
+		got.Text = lark.Content.Text
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Header: make(http.Header), Request: req}, nil
+	})
+
+	s := &Scheduler{
+		ctx: context.Background(),
+		groupRepo: &testNotifyGroupRepo{group: &agentsv1.NotifyGroup{
+			Name:    "ops",
+			Enabled: true,
+			Targets: []*agentsv1.NotifyTarget{{
+				Name:    "lark",
+				Enabled: true,
+				Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_LARK_WEBHOOK,
+				Lark:    &agentsv1.LarkNotifyTarget{WebhookUrl: "https://notify.test/lark"},
+			}},
+		}},
+		notifier: notify.NewSender(&http.Client{Transport: transport}),
+	}
+
+	s.deliverNotifyGroup(&agentsv1.CronJob{
+		Name:        "approve-deploy",
+		WorkspaceId: "ws1",
+		Delivery: &agentsv1.CronDelivery{
+			Type:            agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_NOTIFY_GROUP,
+			NotifyGroupName: "ops",
+		},
+	}, &agentsv1.CronExecution{
+		Id:             "exec-1",
+		JobName:        "approve-deploy",
+		AgentName:      "release-flow",
+		Status:         agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT,
+		Output:         "Deploy v2 to production?",
+		StartedAt:      timestamppb.Now(),
+		SessionAppName: "cron:approve-deploy",
+		SessionUserId:  "cron:approve-deploy",
+		SessionId:      "cron:approve-deploy",
+	})
+
+	for _, want := range []string{
+		"Deploy v2 to production?",
+		"agent_name=release-flow",
+		"app_name=cron:approve-deploy",
+		"user_id=cron:approve-deploy",
+		"session_id=cron:approve-deploy",
+	} {
+		if !strings.Contains(got.Text, want) {
+			t.Fatalf("notify text missing %q:\n%s", want, got.Text)
+		}
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+func TestShouldDeliverWaitingInputIgnoresNotifyPolicy(t *testing.T) {
+	waiting := &agentsv1.CronExecution{Status: agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT}
+
+	// The question must reach a human whatever the notify_on policy says —
+	// otherwise the workflow waits forever with nobody told.
+	for _, policy := range []agentsv1.CronNotifyOn{
+		agentsv1.CronNotifyOn_CRON_NOTIFY_ON_FAILURE,
+		agentsv1.CronNotifyOn_CRON_NOTIFY_ON_SUCCESS,
+		agentsv1.CronNotifyOn_CRON_NOTIFY_ON_ALWAYS,
+	} {
+		if !shouldDeliver(&agentsv1.CronJob{NotifyOn: policy}, waiting) {
+			t.Fatalf("policy %s should not suppress a waiting_input delivery", policy)
+		}
+	}
+}
+
+type testJobRepo struct {
+	job *agentsv1.CronJob
+}
+
+func (r *testJobRepo) List(context.Context, string) ([]*agentsv1.CronJob, error) {
+	return []*agentsv1.CronJob{r.job}, nil
+}
+
+func (r *testJobRepo) ListAll(context.Context) ([]*agentsv1.CronJob, error) {
+	return []*agentsv1.CronJob{r.job}, nil
+}
+
+func (r *testJobRepo) Get(_ context.Context, workspaceID, name string) (*agentsv1.CronJob, error) {
+	if r.job == nil || r.job.GetWorkspaceId() != workspaceID || r.job.GetName() != name {
+		return nil, errors.New("job not found")
+	}
+	return r.job, nil
+}
+
+func (r *testJobRepo) Create(context.Context, *agentsv1.CronJob) error {
+	return errors.New("not implemented")
+}
+
+func (r *testJobRepo) Update(context.Context, *agentsv1.CronJob) error {
+	return errors.New("not implemented")
+}
+
+func (r *testJobRepo) Delete(context.Context, string, string) error {
+	return errors.New("not implemented")
+}
+
+func waitingExecFixture() *agentsv1.CronExecution {
+	return &agentsv1.CronExecution{
+		Id:             "exec-1",
+		JobName:        "approve-deploy",
+		AgentName:      "release-flow",
+		Status:         agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT,
+		Input:          "execute",
+		Output:         "Deploy v2 to production?",
+		StartedAt:      timestamppb.New(time.Now().Add(-time.Minute)),
+		SessionAppName: "cron:approve-deploy",
+		SessionUserId:  "cron:approve-deploy",
+		SessionId:      "cron:approve-deploy",
+		WorkspaceId:    "ws1",
+	}
+}
+
+func cronSessionCtxInfo() *agentsv1.ContextInfo {
+	return &agentsv1.ContextInfo{
+		ChannelName: "cron:approve-deploy",
+		UserId:      "cron:approve-deploy",
+		SessionId:   "cron:approve-deploy",
+		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
+	}
+}
+
+// TestHandleTurnCompletesWaitingExecution: a reply on the cron session (via
+// ReplySession) resumes the workflow; when the resumed turn ends with no
+// pending Interrupt, the waiting execution reaches its terminal state and
+// the final output is delivered through the job's configured target.
+func TestHandleTurnCompletesWaitingExecution(t *testing.T) {
+	sender := &testChannelSender{}
+	execRepo := &testExecutionRepo{}
+	if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
+		t.Fatal(err)
+	}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		execRepo: execRepo,
+		jobRepo: &testJobRepo{job: &agentsv1.CronJob{
+			Name:        "approve-deploy",
+			WorkspaceId: "ws1",
+			AgentName:   "release-flow",
+			Schedule:    "@daily",
+			Delivery: &agentsv1.CronDelivery{
+				Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
+				ChannelName: "ops-chat",
+				ChatId:      "chan-123",
+			},
+		}},
+		channelRepo: &testChannelRepo{channel: &agentsv1.AgentChannel{
+			Name:        "ops-chat",
+			WorkspaceId: "ws1",
+			Enabled:     true,
+			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD,
+		}},
+		channelSender: sender,
+		notifier:      notify.NewSender(nil),
+	}
+
+	s.HandleTurn(cronSessionCtxInfo(), &runner.TurnResult{Output: "deployed v2"}, nil)
+
+	got := execRepo.execs["exec-1"]
+	if got.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+		t.Fatalf("status = %s, want success", got.GetStatus())
+	}
+	if got.GetOutput() != "deployed v2" {
+		t.Fatalf("output = %q, want the resumed turn's output", got.GetOutput())
+	}
+	if got.GetFinishedAt() == nil {
+		t.Fatal("finished_at should be set on completion")
+	}
+	if got.GetDurationMs() <= 0 {
+		t.Fatalf("duration_ms = %d, want the wall time since the run started", got.GetDurationMs())
+	}
+	if !strings.Contains(sender.text, "deployed v2") || !strings.Contains(sender.text, "success") {
+		t.Fatalf("final result was not delivered: %q", sender.text)
+	}
+}
+
+// TestHandleTurnIgnoresUnfinishedAndUnrelatedTurns: the execution stays
+// WAITING_INPUT while the workflow is still paused, when the resume turn
+// errored, and turns on unrelated sessions never touch it.
+func TestHandleTurnIgnoresUnfinishedAndUnrelatedTurns(t *testing.T) {
+	cases := []struct {
+		name    string
+		ctxInfo *agentsv1.ContextInfo
+		turn    *runner.TurnResult
+		err     error
+	}{
+		{
+			name:    "still interrupted",
+			ctxInfo: cronSessionCtxInfo(),
+			turn: &runner.TurnResult{
+				Output:  "Second question?",
+				Pending: []runner.PendingInput{{InterruptID: "int-2", Question: "Second question?"}},
+			},
+		},
+		{
+			name:    "turn errored",
+			ctxInfo: cronSessionCtxInfo(),
+			turn:    &runner.TurnResult{},
+			err:     errors.New("model unavailable"),
+		},
+		{
+			name: "unrelated session",
+			ctxInfo: &agentsv1.ContextInfo{
+				ChannelName: "telegram",
+				UserId:      "u1",
+				SessionId:   "chat:100",
+			},
+			turn: &runner.TurnResult{Output: "hello"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := &testChannelSender{}
+			execRepo := &testExecutionRepo{}
+			if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
+				t.Fatal(err)
+			}
+			s := &Scheduler{
+				ctx:           context.Background(),
+				execRepo:      execRepo,
+				jobRepo:       &testJobRepo{},
+				channelSender: sender,
+				notifier:      notify.NewSender(nil),
+			}
+
+			s.HandleTurn(tc.ctxInfo, tc.turn, tc.err)
+
+			got := execRepo.execs["exec-1"]
+			if got.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+				t.Fatalf("status = %s, want still waiting_input", got.GetStatus())
+			}
+			if sender.text != "" {
+				t.Fatalf("unexpected delivery: %q", sender.text)
+			}
+		})
+	}
 }
 
 func TestExecuteJobUsesSSERunner(t *testing.T) {
@@ -273,8 +698,8 @@ func TestExecuteJobUsesSSERunner(t *testing.T) {
 		Input:       "summarize",
 	})
 
-	if cronRunner.runSSECalls != 1 {
-		t.Fatalf("RunSSE calls = %d, want 1", cronRunner.runSSECalls)
+	if cronRunner.runCalls != 1 {
+		t.Fatalf("runner calls = %d, want 1", cronRunner.runCalls)
 	}
 	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
 		t.Fatalf("status = %s, want success", exec.GetStatus())
@@ -316,8 +741,8 @@ func TestLegacyCronDefaultsPreservePreviousBehavior(t *testing.T) {
 	if exec.GetTruncated() {
 		t.Fatal("legacy default should not truncate output")
 	}
-	if cronRunner.runSSECalls != 1 {
-		t.Fatalf("RunSSE calls = %d, want 1", cronRunner.runSSECalls)
+	if cronRunner.runCalls != 1 {
+		t.Fatalf("runner calls = %d, want 1", cronRunner.runCalls)
 	}
 	if execRepo.saved != exec {
 		t.Fatal("execution was not saved")
@@ -347,8 +772,8 @@ func TestExecuteJobRetriesUntilSuccess(t *testing.T) {
 	if exec.GetAttemptCount() != 2 {
 		t.Fatalf("attempt_count = %d, want 2", exec.GetAttemptCount())
 	}
-	if cronRunner.runSSECalls != 2 {
-		t.Fatalf("RunSSE calls = %d, want 2", cronRunner.runSSECalls)
+	if cronRunner.runCalls != 2 {
+		t.Fatalf("runner calls = %d, want 2", cronRunner.runCalls)
 	}
 }
 
@@ -429,8 +854,8 @@ func TestExecuteJobConcurrencyAllowStartsOverlapping(t *testing.T) {
 	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
 		t.Fatalf("status = %s, want success", exec.GetStatus())
 	}
-	if cronRunner.runSSECalls != 1 {
-		t.Fatalf("RunSSE calls = %d, want 1", cronRunner.runSSECalls)
+	if cronRunner.runCalls != 1 {
+		t.Fatalf("runner calls = %d, want 1", cronRunner.runCalls)
 	}
 }
 

@@ -2282,18 +2282,23 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `id` | string | Unique execution ID |
 | `job_name` | string | Cron job name |
 | `agent_name` | string | Agent that was executed |
-| `status` | enum | `SUCCESS`, `ERROR`, `SKIPPED`, `CANCELLED` |
+| `status` | enum | `SUCCESS`, `ERROR`, `SKIPPED`, `CANCELLED`, `WAITING_INPUT` |
 | `input` | string | Input message sent |
 | `output` | string | Agent output preview or error message |
 | `started_at` | timestamp | Execution start time |
-| `finished_at` | timestamp | Execution end time |
+| `finished_at` | timestamp | Execution end time; unset while status is `WAITING_INPUT` |
 | `error` | string | Failure/cancellation error text |
 | `duration_ms` | int64 | Wallclock duration |
 | `attempt_count` | int32 | Attempts used for the logical execution |
 | `trigger_type` | enum | `SCHEDULE` or `MANUAL` |
 | `skipped_reason` | string | Reason populated when status is `SKIPPED` |
 | `truncated` | bool | Whether output was truncated by `max_output_bytes` |
+| `session_app_name` | string | Set when status is `WAITING_INPUT`: `app_name` for `SessionService.ReplySession` |
+| `session_user_id` | string | Set when status is `WAITING_INPUT`: `user_id` for `SessionService.ReplySession` |
+| `session_id` | string | Set when status is `WAITING_INPUT`: `session_id` for `SessionService.ReplySession` |
 | `workspace_id` | string | Workspace that owns the parent cron job |
+
+**Waiting executions (approval-style jobs):** a cron-run Workflow Agent that pauses on a Human Input node records its execution as `WAITING_INPUT` and delivers the node's question through the job's delivery target together with the session coordinates above. Answer by calling `SessionService.ReplySession` with those coordinates and the job's `agent_name`; the workflow resumes and the execution reaches a terminal state. A paused execution waits indefinitely until answered or its session is deleted.
 
 ---
 

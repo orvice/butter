@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -71,8 +72,37 @@ type Service struct {
 
 	invRecorder InvocationRecorder
 
+	listenerMu    sync.Mutex
+	turnListeners []TurnListener
+
 	cancelMu  sync.Mutex
 	cancelers map[string]cancelEntry
+}
+
+// TurnListener observes the outcome of every agent turn, whatever the entry
+// point (channel, RPC, cron). The cron scheduler registers one to close
+// WAITING_INPUT executions when a reply completes a paused workflow
+// (ADR 0003). Listeners run synchronously after the turn and must not block.
+type TurnListener func(ctxInfo *agentsv1.ContextInfo, turn *TurnResult, runErr error)
+
+// AddTurnListener registers a listener called after every turn.
+func (s *Service) AddTurnListener(fn TurnListener) {
+	if fn == nil {
+		return
+	}
+	s.listenerMu.Lock()
+	defer s.listenerMu.Unlock()
+	s.turnListeners = append(s.turnListeners, fn)
+}
+
+// notifyTurnListeners fans the finished turn out to every listener.
+func (s *Service) notifyTurnListeners(ctxInfo *agentsv1.ContextInfo, turn *TurnResult, runErr error) {
+	s.listenerMu.Lock()
+	listeners := slices.Clone(s.turnListeners)
+	s.listenerMu.Unlock()
+	for _, fn := range listeners {
+		fn(ctxInfo, turn, runErr)
+	}
 }
 
 type cancelEntry struct {
@@ -735,6 +765,7 @@ func (s *Service) RunTurnSSE(ctx context.Context, agentName string, parts []*gen
 // a nil check even on error paths.
 func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent EventCallback, onCompaction CompactionCallback, runConfig agent.RunConfig) (turn *TurnResult, runErr error) {
 	turn = &TurnResult{}
+	defer func() { s.notifyTurnListeners(ctxInfo, turn, runErr) }()
 	output := &turn.Output
 	startedAt := time.Now()
 	channelName := ctxInfo.GetChannelName()

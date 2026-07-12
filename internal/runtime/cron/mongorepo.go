@@ -37,6 +37,10 @@ type executionDoc struct {
 	TriggerType   int32  `bson:"trigger_type,omitempty"`
 	SkippedReason string `bson:"skipped_reason,omitempty"`
 	Truncated     bool   `bson:"truncated,omitempty"`
+	// Session coordinates for answering a WAITING_INPUT execution.
+	SessionAppName string `bson:"session_app_name,omitempty"`
+	SessionUserID  string `bson:"session_user_id,omitempty"`
+	SessionID      string `bson:"session_id,omitempty"`
 }
 
 func docFromProto(e *agentsv1.CronExecution) *executionDoc {
@@ -53,30 +57,41 @@ func docFromProto(e *agentsv1.CronExecution) *executionDoc {
 		FinishedAt:    e.GetFinishedAt().GetSeconds(),
 		DurationMs:    e.GetDurationMs(),
 		AttemptCount:  e.GetAttemptCount(),
-		TriggerType:   int32(e.GetTriggerType()),
-		SkippedReason: e.GetSkippedReason(),
-		Truncated:     e.GetTruncated(),
+		TriggerType:    int32(e.GetTriggerType()),
+		SkippedReason:  e.GetSkippedReason(),
+		Truncated:      e.GetTruncated(),
+		SessionAppName: e.GetSessionAppName(),
+		SessionUserID:  e.GetSessionUserId(),
+		SessionID:      e.GetSessionId(),
 	}
 }
 
 func docToProto(d *executionDoc) *agentsv1.CronExecution {
-	return &agentsv1.CronExecution{
-		Id:            d.ID,
-		WorkspaceId:   d.WorkspaceID,
-		JobName:       d.JobName,
-		AgentName:     d.AgentName,
-		Status:        agentsv1.CronExecutionStatus(d.Status),
-		Input:         d.Input,
-		Output:        d.Output,
-		Error:         d.Error,
-		StartedAt:     &timestamppb.Timestamp{Seconds: d.StartedAt},
-		FinishedAt:    &timestamppb.Timestamp{Seconds: d.FinishedAt},
-		DurationMs:    d.DurationMs,
-		AttemptCount:  d.AttemptCount,
-		TriggerType:   agentsv1.CronExecutionTriggerType(d.TriggerType),
-		SkippedReason: d.SkippedReason,
-		Truncated:     d.Truncated,
+	exec := &agentsv1.CronExecution{
+		Id:             d.ID,
+		WorkspaceId:    d.WorkspaceID,
+		JobName:        d.JobName,
+		AgentName:      d.AgentName,
+		Status:         agentsv1.CronExecutionStatus(d.Status),
+		Input:          d.Input,
+		Output:         d.Output,
+		Error:          d.Error,
+		StartedAt:      &timestamppb.Timestamp{Seconds: d.StartedAt},
+		DurationMs:     d.DurationMs,
+		AttemptCount:   d.AttemptCount,
+		TriggerType:    agentsv1.CronExecutionTriggerType(d.TriggerType),
+		SkippedReason:  d.SkippedReason,
+		Truncated:      d.Truncated,
+		SessionAppName: d.SessionAppName,
+		SessionUserId:  d.SessionUserID,
+		SessionId:      d.SessionID,
 	}
+	// A WAITING_INPUT execution has no finish time yet — keep it unset
+	// instead of surfacing the zero value as 1970-01-01.
+	if d.FinishedAt != 0 {
+		exec.FinishedAt = &timestamppb.Timestamp{Seconds: d.FinishedAt}
+	}
+	return exec
 }
 
 // MongoExecutionRepo implements ExecutionRepo backed by MongoDB.
@@ -91,11 +106,38 @@ func NewMongoExecutionRepo(db *mongo.Database) *MongoExecutionRepo {
 
 func (r *MongoExecutionRepo) Save(ctx context.Context, exec *agentsv1.CronExecution) error {
 	doc := docFromProto(exec)
-	_, err := r.coll.InsertOne(ctx, doc)
+	// Upsert: an execution is saved again when it leaves WAITING_INPUT for a
+	// terminal state after a human answered its session.
+	_, err := r.coll.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc, options.Replace().SetUpsert(true))
 	if err != nil {
-		return fmt.Errorf("insert cron execution: %w", err)
+		return fmt.Errorf("save cron execution: %w", err)
 	}
 	return nil
+}
+
+func (r *MongoExecutionRepo) ListWaitingBySession(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error) {
+	filter := bson.M{
+		"status":           int32(agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT),
+		"session_app_name": appName,
+		"session_user_id":  userID,
+		"session_id":       sessionID,
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "started_at", Value: 1}})
+	cursor, err := r.coll.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("find waiting cron executions: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var docs []executionDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("decode cron executions: %w", err)
+	}
+	results := make([]*agentsv1.CronExecution, len(docs))
+	for i := range docs {
+		results[i] = docToProto(&docs[i])
+	}
+	return results, nil
 }
 
 func (r *MongoExecutionRepo) List(ctx context.Context, workspaceID, jobName string, pageSize int32, pageToken string) ([]*agentsv1.CronExecution, string, error) {

@@ -569,6 +569,47 @@ func TestRun_WorkflowHumanInputResume(t *testing.T) {
 	}
 }
 
+// TestRun_TurnListenerObservesPauseAndResume: registered turn listeners see
+// every turn's outcome together with its context info — the cron scheduler
+// relies on this to close a WAITING_INPUT execution when a reply on the
+// session completes the workflow (ADR 0003), whatever the entry point.
+func TestRun_TurnListenerObservesPauseAndResume(t *testing.T) {
+	backend := newFakeBackend(t)
+	agents := approvalAgents()
+	svc := buildWorkflowService(t, backend, agents, []string{"drafter", "publisher"}, session.InMemoryService())
+	ctxInfo := turnCtxInfo(&agents[0])
+
+	type observed struct {
+		sessionID   string
+		interrupted bool
+	}
+	var turns []observed
+	svc.AddTurnListener(func(ci *agentsv1.ContextInfo, turn *TurnResult, runErr error) {
+		if runErr != nil {
+			t.Errorf("listener saw unexpected error: %v", runErr)
+		}
+		turns = append(turns, observed{sessionID: ci.GetSessionId(), interrupted: turn.Interrupted()})
+	})
+
+	// Turn 1 pauses on the Human Input node; turn 2 resumes and completes.
+	if _, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "write a post"}}, "", ctxInfo, nil, nil); err != nil {
+		t.Fatalf("turn 1: %v", err)
+	}
+	if _, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "yes, ship it"}}, "", ctxInfo, nil, nil); err != nil {
+		t.Fatalf("turn 2: %v", err)
+	}
+
+	want := []observed{
+		{sessionID: "s1", interrupted: true},
+		{sessionID: "s1", interrupted: false},
+	}
+	if len(turns) != 2 || turns[0] != want[0] || turns[1] != want[1] {
+		t.Fatalf("listener observed %+v, want %+v", turns, want)
+	}
+}
+
 // TestRun_WorkflowHumanInputFIFO: with two pending Interrupts from parallel
 // branches, each reply answers the oldest one first.
 func TestRun_WorkflowHumanInputFIFO(t *testing.T) {

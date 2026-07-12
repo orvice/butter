@@ -181,6 +181,18 @@ message CronExecution {
   // @gotags: json:"truncated,omitempty" yaml:"truncated,omitempty" bson:"truncated,omitempty"
   bool truncated = 14;
 
+  // Session coordinates for answering a WAITING_INPUT execution via
+  // SessionService.ReplySession (app_name / user_id / session_id).
+  // Populated when status is WAITING_INPUT.
+  // @gotags: json:"session_app_name,omitempty" yaml:"session_app_name,omitempty" bson:"session_app_name,omitempty"
+  string session_app_name = 15;
+
+  // @gotags: json:"session_user_id,omitempty" yaml:"session_user_id,omitempty" bson:"session_user_id,omitempty"
+  string session_user_id = 16;
+
+  // @gotags: json:"session_id,omitempty" yaml:"session_id,omitempty" bson:"session_id,omitempty"
+  string session_id = 17;
+
   // ID of the workspace this execution belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
@@ -193,6 +205,9 @@ enum CronExecutionStatus {
   CRON_EXECUTION_STATUS_ERROR = 2;
   CRON_EXECUTION_STATUS_SKIPPED = 3;
   CRON_EXECUTION_STATUS_CANCELLED = 4;
+  // The run paused on a Human Input node and waits for a human answer via
+  // SessionService.ReplySession (ADR 0003). Not a terminal state.
+  CRON_EXECUTION_STATUS_WAITING_INPUT = 5;
 }
 
 enum CronExecutionTriggerType {
