@@ -288,6 +288,18 @@ func (r *testExecutionRepo) ListWaitingBySessionAcrossWorkspaces(_ context.Conte
 	return out, nil
 }
 
+func (r *testExecutionRepo) CountWaitingByJob(_ context.Context, workspaceID, jobName string) (int64, error) {
+	var n int64
+	for _, e := range r.execs {
+		if e.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT &&
+			e.GetWorkspaceId() == workspaceID &&
+			e.GetJobName() == jobName {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (r *testExecutionRepo) List(context.Context, string, string, int32, string) ([]*agentsv1.CronExecution, string, error) {
 	return nil, "", errors.New("not implemented")
 }
@@ -816,19 +828,20 @@ func TestHandleTurnIgnoresUnfinishedAndUnrelatedTurns(t *testing.T) {
 	}
 }
 
-// TestScheduledRerunWhileExecutionWaitsDoesNotAnswerIt: issue #131 — while
-// an execution sits in WAITING_INPUT, the job keeps firing on schedule (the
-// concurrency slot is released when the pausing run returns). The rescheduled
-// run must not post its input onto the waiting execution's session: per ADR
-// 0002 the runner would treat that input as the human's answer to the pending
-// Interrupt, and the rerun's completion would close the older WAITING_INPUT
-// record with unrelated output.
+// TestScheduledRerunWhileExecutionWaitsDoesNotAnswerIt: issue #131 — a run
+// that overlaps a WAITING_INPUT execution must not post its input onto that
+// execution's session: per ADR 0002 the runner would treat it as the human's
+// answer to the pending Interrupt, and the rerun's completion would close the
+// older WAITING_INPUT record with unrelated output. Under SKIP/QUEUE the
+// waiting-aware check (#135) prevents the overlap outright, so the overlap
+// only exists under ALLOW — per-execution sessions are what protect it there.
 func TestScheduledRerunWhileExecutionWaitsDoesNotAnswerIt(t *testing.T) {
 	job := &agentsv1.CronJob{
-		Name:        "approve-deploy",
-		WorkspaceId: "ws1",
-		AgentName:   "release-flow",
-		Schedule:    "@daily",
+		Name:              "approve-deploy",
+		WorkspaceId:       "ws1",
+		AgentName:         "release-flow",
+		Schedule:          "@daily",
+		ConcurrencyPolicy: agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_ALLOW,
 	}
 	execRepo := &testExecutionRepo{}
 	cronRunner := &testCronRunner{
@@ -998,6 +1011,86 @@ func TestExecuteJobTimeoutCancelsInvocation(t *testing.T) {
 	}
 	if exec.GetAttemptCount() != 1 {
 		t.Fatalf("attempt_count = %d, want 1", exec.GetAttemptCount())
+	}
+}
+
+// TestExecuteJobSkipsWhileExecutionWaitsForInput: issue #135 — a pause on a
+// Human Input node releases the job's concurrency slot, so without
+// waiting-awareness the schedule keeps firing and every tick adds another
+// WAITING_INPUT execution and re-notifies the approvers. Under SKIP and QUEUE
+// a job with a waiting execution must skip new triggers (queueing behind a
+// human answer is unbounded); ALLOW keeps its explicit opt-in overlap.
+func TestExecuteJobSkipsWhileExecutionWaitsForInput(t *testing.T) {
+	policies := []struct {
+		name       string
+		policy     agentsv1.CronConcurrencyPolicy
+		wantStatus agentsv1.CronExecutionStatus
+		wantRuns   int
+	}{
+		{
+			name:       "skip policy skips",
+			policy:     agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_SKIP,
+			wantStatus: agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SKIPPED,
+			wantRuns:   0,
+		},
+		{
+			name:       "default policy skips",
+			policy:     agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_UNSPECIFIED,
+			wantStatus: agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SKIPPED,
+			wantRuns:   0,
+		},
+		{
+			name:       "queue policy skips instead of queueing behind a human",
+			policy:     agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_QUEUE,
+			wantStatus: agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SKIPPED,
+			wantRuns:   0,
+		},
+		{
+			name:       "allow policy still runs",
+			policy:     agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_ALLOW,
+			wantStatus: agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
+			wantRuns:   1,
+		},
+	}
+
+	for _, tc := range policies {
+		t.Run(tc.name, func(t *testing.T) {
+			execRepo := &testExecutionRepo{}
+			if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
+				t.Fatal(err)
+			}
+			cronRunner := &testCronRunner{output: "done"}
+			s := &Scheduler{
+				ctx:      context.Background(),
+				runner:   cronRunner,
+				execRepo: execRepo,
+				notifier: notify.NewSender(nil),
+			}
+
+			exec := s.executeJobWithTrigger(&agentsv1.CronJob{
+				Name:              "approve-deploy",
+				WorkspaceId:       "ws1",
+				AgentName:         "release-flow",
+				Schedule:          "@daily",
+				ConcurrencyPolicy: tc.policy,
+			}, agentsv1.CronExecutionTriggerType_CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE)
+
+			if exec.GetStatus() != tc.wantStatus {
+				t.Fatalf("status = %s, want %s", exec.GetStatus(), tc.wantStatus)
+			}
+			if cronRunner.runCalls != tc.wantRuns {
+				t.Fatalf("runner calls = %d, want %d", cronRunner.runCalls, tc.wantRuns)
+			}
+			if tc.wantStatus == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SKIPPED {
+				if !strings.Contains(exec.GetSkippedReason(), "waiting") {
+					t.Fatalf("skipped_reason = %q, want it to name the waiting execution", exec.GetSkippedReason())
+				}
+				// The waiting execution itself is untouched.
+				if got := execRepo.execs["exec-1"]; got.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+					t.Fatalf("waiting execution status = %s, want still waiting_input", got.GetStatus())
+				}
+			}
+		})
 	}
 }
 

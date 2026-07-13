@@ -2248,7 +2248,7 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `delivery` | CronDelivery | Result delivery config |
 | `timeout` | duration | Per-execution timeout; 0 means no cron-level timeout |
 | `retry` | CronRetryPolicy | Retry attempts and backoff for failed invocations |
-| `concurrency_policy` | enum | `SKIP`, `QUEUE`, `REPLACE`, `ALLOW`; default preserves previous skip-overlap behavior |
+| `concurrency_policy` | enum | `SKIP`, `QUEUE`, `REPLACE`, `ALLOW`; default preserves previous skip-overlap behavior. Under `SKIP` and `QUEUE`, a job with a `WAITING_INPUT` execution also skips new triggers (recorded as `SKIPPED`) until the pending question is answered or abandoned — queueing behind a human answer would be unbounded |
 | `notify_on` | enum | `ALWAYS`, `FAILURE`, `SUCCESS`; controls non-log delivery |
 | `max_output_bytes` | int32 | Stored output preview cap; 0 uses server default |
 | `metadata` | map\<string,string\> | Custom metadata |
