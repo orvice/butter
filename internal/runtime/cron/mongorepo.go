@@ -140,6 +140,19 @@ func (r *MongoExecutionRepo) ListWaitingBySessionAcrossWorkspaces(ctx context.Co
 	return results, nil
 }
 
+func (r *MongoExecutionRepo) CountWaitingByJob(ctx context.Context, workspaceID, jobName string) (int64, error) {
+	filter := bson.M{
+		"status":       int32(agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT),
+		"workspace_id": workspaceID,
+		"job_name":     jobName,
+	}
+	n, err := r.coll.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("count waiting cron executions: %w", err)
+	}
+	return n, nil
+}
+
 func (r *MongoExecutionRepo) List(ctx context.Context, workspaceID, jobName string, pageSize int32, pageToken string) ([]*agentsv1.CronExecution, string, error) {
 	if pageSize <= 0 {
 		pageSize = 20

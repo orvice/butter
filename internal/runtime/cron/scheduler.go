@@ -374,6 +374,26 @@ func (s *Scheduler) executeJobWithTrigger(job *agentsv1.CronJob, trigger agentsv
 		return s.runJob(job, trigger, s.ctx)
 	}
 
+	// A pause on a Human Input node releases the concurrency slot when the
+	// run returns, so the running map cannot see it — without this check the
+	// schedule keeps firing, piling up WAITING_INPUT executions and
+	// re-notifying the approvers on every tick (#135). Under SKIP and QUEUE
+	// a waiting execution blocks new triggers; queueing behind a human
+	// answer is unbounded, so QUEUE skips rather than waits.
+	if policy == agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_SKIP ||
+		policy == agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_QUEUE {
+		waiting, err := s.execRepo.CountWaitingByJob(s.ctx, job.GetWorkspaceId(), job.GetName())
+		if err != nil {
+			log.FromContext(s.ctx).Error("failed to count waiting cron executions; proceeding with run",
+				"job", job.GetName(),
+				"workspace_id", job.GetWorkspaceId(),
+				"err", err,
+			)
+		} else if waiting > 0 {
+			return s.recordSkipped(job, trigger, "previous execution waiting for human input")
+		}
+	}
+
 	key := jobKey(job.GetWorkspaceId(), job.GetName())
 	for {
 		s.mu.Lock()

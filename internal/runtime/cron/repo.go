@@ -26,6 +26,10 @@ type ExecutionRepo interface {
 	// session coordinates match, ordered oldest first. Used to close paused
 	// executions when a human reply completes the workflow on that session.
 	ListWaitingBySessionAcrossWorkspaces(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error)
+	// CountWaitingByJob returns how many of the job's executions are
+	// WAITING_INPUT. The scheduler consults it before starting a run: under
+	// SKIP/QUEUE a job with a waiting execution skips new triggers (#135).
+	CountWaitingByJob(ctx context.Context, workspaceID, jobName string) (int64, error)
 	// ListByTimeRange returns executions whose started_at falls within
 	// [start, end). Optional workspace/jobName filters. Implementations should
 	// return results in ascending order by started_at; callers may bucket as
