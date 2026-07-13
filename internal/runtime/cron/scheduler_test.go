@@ -272,7 +272,7 @@ func (r *testExecutionRepo) Save(_ context.Context, exec *agentsv1.CronExecution
 	return nil
 }
 
-func (r *testExecutionRepo) ListWaitingBySession(_ context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error) {
+func (r *testExecutionRepo) ListWaitingBySessionAcrossWorkspaces(_ context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error) {
 	var out []*agentsv1.CronExecution
 	for _, e := range r.execs {
 		if e.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT &&
@@ -583,6 +583,119 @@ func cronSessionCtxInfo() *agentsv1.ContextInfo {
 		UserId:      "cron:approve-deploy",
 		SessionId:   "cron:approve-deploy:exec-1",
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
+	}
+}
+
+// TestHandleSessionDeletedCancelsWaitingExecution: issue #132 — deleting a
+// paused execution's session is the documented way to abandon the workflow
+// (ADR 0002); the WAITING_INPUT record must reach CANCELLED with a reason and
+// the cancellation delivered through the job's target, instead of waiting
+// forever on a session that no longer exists.
+func TestHandleSessionDeletedCancelsWaitingExecution(t *testing.T) {
+	sender := &testChannelSender{}
+	execRepo := &testExecutionRepo{}
+	if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
+		t.Fatal(err)
+	}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		execRepo: execRepo,
+		jobRepo: &testJobRepo{job: &agentsv1.CronJob{
+			Name:        "approve-deploy",
+			WorkspaceId: "ws1",
+			AgentName:   "release-flow",
+			Schedule:    "@daily",
+			Delivery: &agentsv1.CronDelivery{
+				Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
+				ChannelName: "ops-chat",
+				ChatId:      "chan-123",
+			},
+		}},
+		channelRepo: &testChannelRepo{channel: &agentsv1.AgentChannel{
+			Name:        "ops-chat",
+			WorkspaceId: "ws1",
+			Enabled:     true,
+			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD,
+		}},
+		channelSender: sender,
+		notifier:      notify.NewSender(nil),
+	}
+
+	s.HandleSessionDeleted("cron:approve-deploy", "cron:approve-deploy", "cron:approve-deploy:exec-1")
+
+	got := execRepo.execs["exec-1"]
+	if got.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_CANCELLED {
+		t.Fatalf("status = %s, want cancelled", got.GetStatus())
+	}
+	if got.GetError() == "" || !strings.Contains(got.GetError(), "session deleted") {
+		t.Fatalf("error = %q, want a session-deleted reason", got.GetError())
+	}
+	if got.GetFinishedAt() == nil {
+		t.Fatal("finished_at should be set on cancellation")
+	}
+	if got.GetDurationMs() <= 0 {
+		t.Fatalf("duration_ms = %d, want the wall time since the run started", got.GetDurationMs())
+	}
+	if !strings.Contains(sender.text, "cancelled") {
+		t.Fatalf("cancellation was not delivered: %q", sender.text)
+	}
+}
+
+// TestHandleSessionDeletedIgnoresUnrelatedSessions: deleting a session that
+// is not the waiting execution's — another run's session, another job's, or
+// ordinary chat traffic — leaves every execution record untouched.
+func TestHandleSessionDeletedIgnoresUnrelatedSessions(t *testing.T) {
+	cases := []struct {
+		name      string
+		appName   string
+		userID    string
+		sessionID string
+	}{
+		{
+			name:      "another execution of the same job",
+			appName:   "cron:approve-deploy",
+			userID:    "cron:approve-deploy",
+			sessionID: "cron:approve-deploy:exec-2",
+		},
+		{
+			name:      "another job's session",
+			appName:   "cron:other-job",
+			userID:    "cron:other-job",
+			sessionID: "cron:other-job:exec-1",
+		},
+		{
+			name:      "non-cron chat session",
+			appName:   "telegram",
+			userID:    "u1",
+			sessionID: "chat:100",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := &testChannelSender{}
+			execRepo := &testExecutionRepo{}
+			if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
+				t.Fatal(err)
+			}
+			s := &Scheduler{
+				ctx:           context.Background(),
+				execRepo:      execRepo,
+				jobRepo:       &testJobRepo{},
+				channelSender: sender,
+				notifier:      notify.NewSender(nil),
+			}
+
+			s.HandleSessionDeleted(tc.appName, tc.userID, tc.sessionID)
+
+			got := execRepo.execs["exec-1"]
+			if got.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+				t.Fatalf("status = %s, want still waiting_input", got.GetStatus())
+			}
+			if sender.text != "" {
+				t.Fatalf("unexpected delivery: %q", sender.text)
+			}
+		})
 	}
 }
 
@@ -954,6 +1067,16 @@ func TestShouldDeliverNotifyPolicy(t *testing.T) {
 	}
 	if shouldDeliver(&agentsv1.CronJob{NotifyOn: agentsv1.CronNotifyOn_CRON_NOTIFY_ON_SUCCESS}, failure) {
 		t.Fatal("success-only policy should not deliver failed execution")
+	}
+
+	// A cancellation (e.g. session deleted under a waiting execution, #132)
+	// counts as failure for the notify policy.
+	cancelled := &agentsv1.CronExecution{Status: agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_CANCELLED}
+	if !shouldDeliver(&agentsv1.CronJob{NotifyOn: agentsv1.CronNotifyOn_CRON_NOTIFY_ON_FAILURE}, cancelled) {
+		t.Fatal("failure-only policy should deliver cancelled execution")
+	}
+	if shouldDeliver(&agentsv1.CronJob{NotifyOn: agentsv1.CronNotifyOn_CRON_NOTIFY_ON_SUCCESS}, cancelled) {
+		t.Fatal("success-only policy should not deliver cancelled execution")
 	}
 }
 

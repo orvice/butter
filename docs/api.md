@@ -2298,7 +2298,7 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `session_id` | string | Set when status is `WAITING_INPUT`: `session_id` for `SessionService.ReplySession` |
 | `workspace_id` | string | Workspace that owns the parent cron job |
 
-**Waiting executions (approval-style jobs):** a cron-run Workflow Agent that pauses on a Human Input node records its execution as `WAITING_INPUT` and delivers the node's question through the job's delivery target together with the session coordinates above. Answer by calling `SessionService.ReplySession` with those coordinates and the job's `agent_name`; the workflow resumes and the execution reaches a terminal state. A paused execution waits indefinitely until answered or its session is deleted.
+**Waiting executions (approval-style jobs):** a cron-run Workflow Agent that pauses on a Human Input node records its execution as `WAITING_INPUT` and delivers the node's question through the job's delivery target together with the session coordinates above. Answer by calling `SessionService.ReplySession` with those coordinates and the job's `agent_name`; the workflow resumes and the execution reaches a terminal state. To abandon instead, delete the session via `SessionService.DeleteSession` with the same coordinates: the execution transitions to `CANCELLED` with the reason recorded in `error`, and the cancellation is delivered per the job's `notify_on` policy (cancellations count as failures). Sessions removed outside that RPC (e.g. direct database cleanup) are not reconciled. Otherwise a paused execution waits indefinitely.
 
 ---
 

@@ -25,7 +25,7 @@ type ExecutionRepo interface {
 	// ListWaitingBySession returns the WAITING_INPUT executions whose stored
 	// session coordinates match, ordered oldest first. Used to close paused
 	// executions when a human reply completes the workflow on that session.
-	ListWaitingBySession(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error)
+	ListWaitingBySessionAcrossWorkspaces(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error)
 	// ListByTimeRange returns executions whose started_at falls within
 	// [start, end). Optional workspace/jobName filters. Implementations should
 	// return results in ascending order by started_at; callers may bucket as

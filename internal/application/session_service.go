@@ -26,10 +26,42 @@ import (
 
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
 type SessionServiceServer struct {
-	mu           sync.RWMutex
-	sessionSvc   session.Service
-	runnerSvc    *runner.Service
-	langfuseHost string
+	mu              sync.RWMutex
+	sessionSvc      session.Service
+	runnerSvc       *runner.Service
+	langfuseHost    string
+	deleteListeners []SessionDeleteListener
+}
+
+// SessionDeleteListener observes successful session deletions with the
+// deleted session's coordinates. The cron scheduler registers one to cancel
+// WAITING_INPUT executions stranded on a deleted session (issue #132).
+type SessionDeleteListener func(appName, userID, sessionID string)
+
+// AddSessionDeleteListener registers a listener called after every
+// successful DeleteSession.
+func (s *SessionServiceServer) AddSessionDeleteListener(fn SessionDeleteListener) {
+	if fn == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deleteListeners = append(s.deleteListeners, fn)
+}
+
+// notifySessionDeleted fans the deleted session's coordinates out to every
+// registered listener. Dispatch is synchronous, matching the runner's turn
+// listeners: the caller's DeleteSession response then confirms reconciliation
+// has happened, at the cost of the RPC waiting on listener work (deliveries
+// carry their own timeouts).
+func (s *SessionServiceServer) notifySessionDeleted(appName, userID, sessionID string) {
+	s.mu.RLock()
+	listeners := make([]SessionDeleteListener, len(s.deleteListeners))
+	copy(listeners, s.deleteListeners)
+	s.mu.RUnlock()
+	for _, fn := range listeners {
+		fn(appName, userID, sessionID)
+	}
 }
 
 func NewSessionServiceServer() *SessionServiceServer {
@@ -259,6 +291,7 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 		"user_id", req.Msg.GetUserId(),
 		"session_id", req.Msg.GetSessionId(),
 	)
+	s.notifySessionDeleted(req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId())
 	return connect.NewResponse(&agentsv1.DeleteSessionResponse{}), nil
 }
 

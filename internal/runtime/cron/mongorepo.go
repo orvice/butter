@@ -115,7 +115,7 @@ func (r *MongoExecutionRepo) Save(ctx context.Context, exec *agentsv1.CronExecut
 	return nil
 }
 
-func (r *MongoExecutionRepo) ListWaitingBySession(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error) {
+func (r *MongoExecutionRepo) ListWaitingBySessionAcrossWorkspaces(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.CronExecution, error) {
 	filter := bson.M{
 		"status":           int32(agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT),
 		"session_app_name": appName,

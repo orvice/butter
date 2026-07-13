@@ -607,16 +607,46 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 	if ctxInfo == nil || turn == nil || runErr != nil || turn.Interrupted() {
 		return
 	}
+	s.finalizeWaitingBySession(ctxInfo.GetChannelName(), ctxInfo.GetUserId(), ctxInfo.GetSessionId(),
+		"completed by session reply",
+		func(exec *agentsv1.CronExecution, job *agentsv1.CronJob) {
+			// A nil job (deleted while waiting) leaves maxOutputBytes 0: untruncated.
+			exec.Output, exec.Truncated = truncateOutput(turn.Output, job.GetMaxOutputBytes())
+			exec.Status = agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS
+		})
+}
+
+// HandleSessionDeleted observes session deletions (registered as a session
+// delete listener on the SessionService RPC). Deleting a paused session is
+// the documented way to abandon its workflow (ADR 0002), so the session's
+// WAITING_INPUT executions transition to CANCELLED with a reason and the
+// cancellation is delivered through the job's targets — otherwise the record
+// waits forever on a session that no longer exists (issue #132).
+func (s *Scheduler) HandleSessionDeleted(appName, userID, sessionID string) {
+	s.finalizeWaitingBySession(appName, userID, sessionID,
+		"cancelled by session deletion",
+		func(exec *agentsv1.CronExecution, _ *agentsv1.CronJob) {
+			exec.Status = agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_CANCELLED
+			exec.Error = "session deleted before a human answered"
+		})
+}
+
+// finalizeWaitingBySession closes every WAITING_INPUT execution stored for
+// the session coordinates: finalize sets the terminal state (the job is nil
+// if it was deleted while the execution waited), then the record is persisted
+// and delivered through the job's targets. action names the transition in
+// logs.
+func (s *Scheduler) finalizeWaitingBySession(appName, userID, sessionID, action string, finalize func(exec *agentsv1.CronExecution, job *agentsv1.CronJob)) {
 	// Cron sessions are the only ones that can carry waiting executions;
 	// skip the repo lookup for ordinary chat traffic.
-	if !strings.HasPrefix(ctxInfo.GetSessionId(), cronSessionPrefix) {
+	if !strings.HasPrefix(sessionID, cronSessionPrefix) {
 		return
 	}
 	logger := log.FromContext(s.ctx)
-	waiting, err := s.execRepo.ListWaitingBySession(s.ctx, ctxInfo.GetChannelName(), ctxInfo.GetUserId(), ctxInfo.GetSessionId())
+	waiting, err := s.execRepo.ListWaitingBySessionAcrossWorkspaces(s.ctx, appName, userID, sessionID)
 	if err != nil {
 		logger.Error("failed to look up waiting cron executions",
-			"session_id", ctxInfo.GetSessionId(),
+			"session_id", sessionID,
 			"err", err,
 		)
 		return
@@ -625,17 +655,15 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 	now := time.Now()
 	for _, exec := range waiting {
 		job, jobErr := s.jobRepo.Get(s.ctx, exec.GetWorkspaceId(), exec.GetJobName())
-		var maxOutputBytes int32
-		if jobErr == nil {
-			maxOutputBytes = job.GetMaxOutputBytes()
+		if jobErr != nil {
+			job = nil
 		}
-		exec.Output, exec.Truncated = truncateOutput(turn.Output, maxOutputBytes)
-		exec.Status = agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS
+		finalize(exec, job)
 		exec.FinishedAt = timestamppb.New(now)
 		exec.DurationMs = now.Sub(exec.GetStartedAt().AsTime()).Milliseconds()
 
 		if saveErr := s.execRepo.Save(s.ctx, exec); saveErr != nil {
-			logger.Error("failed to complete waiting cron execution",
+			logger.Error("failed to finalize waiting cron execution",
 				"job", exec.GetJobName(),
 				"workspace_id", exec.GetWorkspaceId(),
 				"exec_id", exec.GetId(),
@@ -643,7 +671,7 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 			)
 			continue
 		}
-		logger.Info("waiting cron execution completed by session reply",
+		logger.Info("waiting cron execution "+action,
 			"job", exec.GetJobName(),
 			"workspace_id", exec.GetWorkspaceId(),
 			"exec_id", exec.GetId(),
@@ -652,7 +680,7 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 		if jobErr != nil {
 			// The job was deleted while its execution waited; the record is
 			// closed but there is no delivery config left to notify with.
-			logger.Warn("completed waiting execution without delivery: job no longer exists",
+			logger.Warn("finalized waiting execution without delivery: job no longer exists",
 				"job", exec.GetJobName(),
 				"workspace_id", exec.GetWorkspaceId(),
 				"exec_id", exec.GetId(),
