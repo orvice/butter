@@ -984,7 +984,7 @@ Returns persisted invocation records, optionally filtered.
 | `labels` | map\<string,string\> | Routing/indexing labels |
 | `metadata` | map\<string,string\> | Custom annotations |
 | `config` | AgentConfig | Execution settings (see below) |
-| `type` | enum | `AGENT_TYPE_LLM`, `AGENT_TYPE_LOOP`, `AGENT_TYPE_SEQUENTIAL`, `AGENT_TYPE_PARALLEL` |
+| `type` | enum | `AGENT_TYPE_LLM`, `AGENT_TYPE_LOOP`, `AGENT_TYPE_SEQUENTIAL`, `AGENT_TYPE_PARALLEL`, `AGENT_TYPE_WORKFLOW` |
 | `enable_a2a` | bool | Expose via A2A protocol |
 | `workspace_id` | string | Owning workspace (server-enforced from `X-Workspace-ID` on writes; returned on reads) |
 
@@ -1005,6 +1005,7 @@ Returns persisted invocation records, optionally filtered.
 | `input_schema_json` | string | Input JSON schema |
 | `output_schema_json` | string | Output JSON schema |
 | `max_iterations` | uint32 | Max loop iterations (LOOP type only) |
+| `workflow` | WorkflowConfig | Workflow graph config (WORKFLOW type only) |
 
 #### AgentFileMount Object
 
@@ -1013,6 +1014,80 @@ Returns persisted invocation records, optionally filtered.
 | `space_id` | string | Agent Files space to mount |
 | `mount_path` | string | Virtual path exposed to the agent, such as `/docs` |
 | `permission` | enum | `AGENT_FILE_MOUNT_PERMISSION_READ`, `AGENT_FILE_MOUNT_PERMISSION_READ_WRITE`, or `AGENT_FILE_MOUNT_PERMISSION_READ_WRITE_DELETE` |
+
+#### WorkflowConfig Object
+
+Declares a Workflow Agent's directed graph. See [ADR 0001](adr/0001-workflow-graph-as-nodes-and-edges-proto.md).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `nodes` | WorkflowNode[] | Steps of the graph; names must be unique and not `"START"` |
+| `edges` | WorkflowEdge[] | Directed connections; use `"START"` in `from` for entry edges |
+
+#### WorkflowNode Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Unique node name within the graph |
+| `kind` | enum | `WORKFLOW_NODE_KIND_AGENT`, `WORKFLOW_NODE_KIND_HUMAN_INPUT`, `WORKFLOW_NODE_KIND_ROUTER`, `WORKFLOW_NODE_KIND_JOIN` |
+| `agent` | string | AGENT nodes: name of a sub-agent to run |
+| `question` | string | HUMAN_INPUT nodes: the question presented to the human |
+| `parallel_worker` | bool | AGENT nodes only: fan-out concurrently over list-typed input |
+| `retry` | WorkflowRetryConfig | Retry policy for failed activations |
+| `timeout_seconds` | int32 | Per-activation timeout; 0 means no timeout |
+
+#### WorkflowEdge Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `from` | string | Source node name, or `"START"` for entry edges |
+| `to` | string | Target node name (must reference a declared node) |
+| `route` | string | Route label; empty means the edge always fires |
+| `is_default` | bool | Catch-all edge for unmatched Router output; mutually exclusive with `route` |
+
+#### WorkflowRetryConfig Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_attempts` | int32 | Max attempts including the first; 0 or 1 means no retries |
+| `initial_delay_seconds` | int32 | Delay before the first retry |
+| `max_delay_seconds` | int32 | Cap on delay between retries |
+| `backoff_factor` | double | Multiplier applied to delay per attempt |
+
+**Workflow Agent example (approval flow with Human Input):**
+
+```json
+{
+  "agent": {
+    "name": "approval",
+    "type": "AGENT_TYPE_WORKFLOW",
+    "sub_agents": [
+      {"name": "draft", "config": {"model": "flash", "instruction": "Draft content."}},
+      {"name": "publish", "config": {"model": "flash", "instruction": "Publish content."}}
+    ],
+    "config": {
+      "workflow": {
+        "nodes": [
+          {"name": "draft", "kind": "WORKFLOW_NODE_KIND_AGENT", "agent": "draft"},
+          {"name": "ask", "kind": "WORKFLOW_NODE_KIND_HUMAN_INPUT", "question": "Approve this draft?"},
+          {"name": "publish", "kind": "WORKFLOW_NODE_KIND_AGENT", "agent": "publish"}
+        ],
+        "edges": [
+          {"from": "START", "to": "draft"},
+          {"from": "draft", "to": "ask"},
+          {"from": "ask", "to": "publish"}
+        ]
+      }
+    }
+  }
+}
+```
+
+**Workflow pause/resume:** when a workflow reaches a HUMAN_INPUT node, the turn ends with the question as the reply text. The next plain-text message on the same session is automatically taken as the answer (implicit FIFO resume, [ADR 0002](adr/0002-interrupt-state-derived-from-session-events.md)). This works identically via `StreamAgent`, `ReplySession`, or channel messages. Delete the session to abandon a paused workflow.
+
+**Validation rules:** `CreateAgent`/`UpdateAgent` reject graphs with unknown node references, duplicate node names, AGENT nodes referencing undeclared sub-agents, HUMAN_INPUT nodes without a question, Router nodes without a default outgoing edge, routed/default edges targeting JOIN nodes, and graphs without a START entry edge.
+
+---
 
 ### AgentFileService
 
