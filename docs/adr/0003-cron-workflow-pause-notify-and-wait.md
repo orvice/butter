@@ -27,5 +27,13 @@ RPC only: a session-delete listener (synchronous, mirroring the runner's turn
 listeners) cancels the deleted session's `WAITING_INPUT` executions, recording the
 reason and delivering per `notify_on`, where cancellations count as failures. Sessions
 removed out of band (direct database cleanup) are not reconciled — a lazy sweep was
-considered and deferred because no reachable code path deletes cron sessions outside
-the RPC today.
+considered and deferred because the only out-of-band deletion is the scheduler's own
+terminal-state cleanup, which removes sessions whose executions are already closed.
+
+Per-execution sessions do not accumulate: the scheduler deletes a run's session once
+its execution reaches a terminal state (on the run itself, or when a reply completes a
+waiting execution). A `WAITING_INPUT` execution's session persists — it holds the
+pending Interrupt — until answered or abandoned, and the abandon path skips cleanup
+because the session is already gone. Cleanup failures only log; sessions of paused
+executions are the only cron sessions `ListSessions` should show besides in-flight
+runs.

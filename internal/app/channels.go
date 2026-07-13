@@ -217,6 +217,9 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	if err != nil {
 		return nil, err
 	}
+	// The scheduler deletes a run's per-execution session once the execution
+	// is terminal (#134); waiting sessions stay until answered or abandoned.
+	cronScheduler.SetSessionService(sessionSvc)
 
 	automationDefRepo := internalautomation.NewMongoDefinitionRepo(db)
 	automationRunRepo := internalautomation.NewMongoRunRepo(db)
