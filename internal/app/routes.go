@@ -143,6 +143,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.CronScheduler != nil {
 		h.cronSvcServer.SetScheduler(result.CronScheduler)
+		// Deleting a paused session abandons its workflow (ADR 0002); the
+		// scheduler cancels the session's WAITING_INPUT executions (#132).
+		h.sessionSvcServer.AddSessionDeleteListener(result.CronScheduler.HandleSessionDeleted)
 	}
 	if result.CronRepo != nil {
 		h.cronSvcServer.SetExecutionRepo(result.CronRepo)

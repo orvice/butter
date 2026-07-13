@@ -613,7 +613,7 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 		return
 	}
 	logger := log.FromContext(s.ctx)
-	waiting, err := s.execRepo.ListWaitingBySession(s.ctx, ctxInfo.GetChannelName(), ctxInfo.GetUserId(), ctxInfo.GetSessionId())
+	waiting, err := s.execRepo.ListWaitingBySessionAcrossWorkspaces(s.ctx, ctxInfo.GetChannelName(), ctxInfo.GetUserId(), ctxInfo.GetSessionId())
 	if err != nil {
 		logger.Error("failed to look up waiting cron executions",
 			"session_id", ctxInfo.GetSessionId(),
@@ -653,6 +653,61 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 			// The job was deleted while its execution waited; the record is
 			// closed but there is no delivery config left to notify with.
 			logger.Warn("completed waiting execution without delivery: job no longer exists",
+				"job", exec.GetJobName(),
+				"workspace_id", exec.GetWorkspaceId(),
+				"exec_id", exec.GetId(),
+				"err", jobErr,
+			)
+			continue
+		}
+		s.deliver(job, exec)
+	}
+}
+
+// HandleSessionDeleted observes session deletions (registered as a session
+// delete listener on the SessionService RPC). Deleting a paused session is
+// the documented way to abandon its workflow (ADR 0002), so the session's
+// WAITING_INPUT executions transition to CANCELLED with a reason and the
+// cancellation is delivered through the job's targets — otherwise the record
+// waits forever on a session that no longer exists (issue #132).
+func (s *Scheduler) HandleSessionDeleted(appName, userID, sessionID string) {
+	if !strings.HasPrefix(sessionID, cronSessionPrefix) {
+		return
+	}
+	logger := log.FromContext(s.ctx)
+	waiting, err := s.execRepo.ListWaitingBySessionAcrossWorkspaces(s.ctx, appName, userID, sessionID)
+	if err != nil {
+		logger.Error("failed to look up waiting cron executions for deleted session",
+			"session_id", sessionID,
+			"err", err,
+		)
+		return
+	}
+
+	now := time.Now()
+	for _, exec := range waiting {
+		exec.Status = agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_CANCELLED
+		exec.Error = "session deleted before a human answered"
+		exec.FinishedAt = timestamppb.New(now)
+		exec.DurationMs = now.Sub(exec.GetStartedAt().AsTime()).Milliseconds()
+
+		if saveErr := s.execRepo.Save(s.ctx, exec); saveErr != nil {
+			logger.Error("failed to cancel waiting cron execution",
+				"job", exec.GetJobName(),
+				"workspace_id", exec.GetWorkspaceId(),
+				"exec_id", exec.GetId(),
+				"err", saveErr,
+			)
+			continue
+		}
+		logger.Info("waiting cron execution cancelled by session deletion",
+			"job", exec.GetJobName(),
+			"workspace_id", exec.GetWorkspaceId(),
+			"exec_id", exec.GetId(),
+		)
+		job, jobErr := s.jobRepo.Get(s.ctx, exec.GetWorkspaceId(), exec.GetJobName())
+		if jobErr != nil {
+			logger.Warn("cancelled waiting execution without delivery: job no longer exists",
 				"job", exec.GetJobName(),
 				"workspace_id", exec.GetWorkspaceId(),
 				"exec_id", exec.GetId(),

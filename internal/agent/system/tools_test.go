@@ -249,6 +249,6 @@ func (r *mockExecRepo) ListByTimeRange(_ context.Context, _, _ string, _, _ time
 	return nil, nil
 }
 
-func (r *mockExecRepo) ListWaitingBySession(_ context.Context, _, _, _ string) ([]*agentsv1.CronExecution, error) {
+func (r *mockExecRepo) ListWaitingBySessionAcrossWorkspaces(_ context.Context, _, _, _ string) ([]*agentsv1.CronExecution, error) {
 	return nil, nil
 }
