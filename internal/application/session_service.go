@@ -50,7 +50,10 @@ func (s *SessionServiceServer) AddSessionDeleteListener(fn SessionDeleteListener
 }
 
 // notifySessionDeleted fans the deleted session's coordinates out to every
-// registered listener.
+// registered listener. Dispatch is synchronous, matching the runner's turn
+// listeners: the caller's DeleteSession response then confirms reconciliation
+// has happened, at the cost of the RPC waiting on listener work (deliveries
+// carry their own timeouts).
 func (s *SessionServiceServer) notifySessionDeleted(appName, userID, sessionID string) {
 	s.mu.RLock()
 	listeners := make([]SessionDeleteListener, len(s.deleteListeners))

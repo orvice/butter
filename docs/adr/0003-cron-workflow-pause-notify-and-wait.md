@@ -21,3 +21,11 @@ Direct reply-from-Telegram resume (mapping channel identities onto cron sessions
 considered and deferred: it is an independent, large piece of session-identity plumbing.
 No interrupt timeout in phase 1; a paused execution waits until answered or its session
 is cleared.
+
+The "session is cleared" arm is reconciled through the `SessionService.DeleteSession`
+RPC only: a session-delete listener (synchronous, mirroring the runner's turn
+listeners) cancels the deleted session's `WAITING_INPUT` executions, recording the
+reason and delivering per `notify_on`, where cancellations count as failures. Sessions
+removed out of band (direct database cleanup) are not reconciled — a lazy sweep was
+considered and deferred because no reachable code path deletes cron sessions outside
+the RPC today.
