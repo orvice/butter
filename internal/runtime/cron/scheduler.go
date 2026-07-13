@@ -15,6 +15,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"github.com/google/uuid"
 	robfigcron "github.com/robfig/cron/v3"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -45,6 +46,7 @@ type Scheduler struct {
 	channelRepo   configrepo.ChannelRepository
 	notifier      *notify.Sender
 	channelSender channelSender
+	sessionSvc    sessionDeleter
 	ctx           context.Context
 	cancelFn      context.CancelFunc
 
@@ -60,6 +62,43 @@ type runnerService interface {
 
 type channelSender interface {
 	Send(ctx context.Context, channel *agentsv1.AgentChannel, chatID, text string) error
+}
+
+// sessionDeleter is the slice of the ADK session.Service the scheduler needs
+// to clean up per-execution sessions once their execution is terminal (#134).
+type sessionDeleter interface {
+	Delete(ctx context.Context, req *session.DeleteRequest) error
+}
+
+// SetSessionService wires the ADK session service used to delete a run's
+// session when its execution reaches a terminal state. Optional: nil leaves
+// sessions in place.
+func (s *Scheduler) SetSessionService(svc sessionDeleter) {
+	s.sessionSvc = svc
+}
+
+// cleanupSession deletes a terminal execution's session. Per-execution
+// sessions (#133) are never read again once the execution is closed, and
+// without cleanup they accumulate one per run (#134). Failures only log —
+// a leftover session is debris, not an error the execution should surface.
+// WAITING_INPUT sessions must never come through here: they hold the
+// pending Interrupt.
+func (s *Scheduler) cleanupSession(appName, userID, sessionID string) {
+	if s.sessionSvc == nil {
+		return
+	}
+	err := s.sessionSvc.Delete(s.ctx, &session.DeleteRequest{
+		AppName:   appName,
+		UserID:    userID,
+		SessionID: sessionID,
+	})
+	if err != nil {
+		log.FromContext(s.ctx).Warn("failed to delete finished cron session",
+			"app_name", appName,
+			"session_id", sessionID,
+			"err", err,
+		)
+	}
 }
 
 type runningJob struct {
@@ -566,6 +605,12 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 		)
 	}
 
+	// A terminal run's session is never read again; a waiting run's session
+	// holds the pending Interrupt and must stay (#134).
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
+		s.cleanupSession(channelName, userID, sessionID)
+	}
+
 	// Deliver result.
 	s.deliver(job, exec)
 	return exec
@@ -628,7 +673,7 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 		return
 	}
 	s.finalizeWaitingBySession(ctxInfo.GetChannelName(), ctxInfo.GetUserId(), ctxInfo.GetSessionId(),
-		"completed by session reply",
+		"completed by session reply", true,
 		func(exec *agentsv1.CronExecution, job *agentsv1.CronJob) {
 			// A nil job (deleted while waiting) leaves maxOutputBytes 0: untruncated.
 			exec.Output, exec.Truncated = truncateOutput(turn.Output, job.GetMaxOutputBytes())
@@ -643,8 +688,10 @@ func (s *Scheduler) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnR
 // cancellation is delivered through the job's targets — otherwise the record
 // waits forever on a session that no longer exists (issue #132).
 func (s *Scheduler) HandleSessionDeleted(appName, userID, sessionID string) {
+	// cleanupSession=false: this path runs because the session was already
+	// deleted — there is nothing left to clean up.
 	s.finalizeWaitingBySession(appName, userID, sessionID,
-		"cancelled by session deletion",
+		"cancelled by session deletion", false,
 		func(exec *agentsv1.CronExecution, _ *agentsv1.CronJob) {
 			exec.Status = agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_CANCELLED
 			exec.Error = "session deleted before a human answered"
@@ -655,8 +702,9 @@ func (s *Scheduler) HandleSessionDeleted(appName, userID, sessionID string) {
 // the session coordinates: finalize sets the terminal state (the job is nil
 // if it was deleted while the execution waited), then the record is persisted
 // and delivered through the job's targets. action names the transition in
-// logs.
-func (s *Scheduler) finalizeWaitingBySession(appName, userID, sessionID, action string, finalize func(exec *agentsv1.CronExecution, job *agentsv1.CronJob)) {
+// logs; cleanupSession deletes the now-terminal execution's session (#134) —
+// pass false when the session is already gone.
+func (s *Scheduler) finalizeWaitingBySession(appName, userID, sessionID, action string, cleanupSession bool, finalize func(exec *agentsv1.CronExecution, job *agentsv1.CronJob)) {
 	// Cron sessions are the only ones that can carry waiting executions;
 	// skip the repo lookup for ordinary chat traffic.
 	if !strings.HasPrefix(sessionID, cronSessionPrefix) {
@@ -697,6 +745,9 @@ func (s *Scheduler) finalizeWaitingBySession(appName, userID, sessionID, action 
 			"exec_id", exec.GetId(),
 			"duration_ms", exec.GetDurationMs(),
 		)
+		if cleanupSession {
+			s.cleanupSession(exec.GetSessionAppName(), exec.GetSessionUserId(), exec.GetSessionId())
+		}
 		if jobErr != nil {
 			// The job was deleted while its execution waited; the record is
 			// closed but there is no delivery config left to notify with.

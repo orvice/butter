@@ -2,8 +2,8 @@ package cron
 
 import (
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +17,7 @@ import (
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -598,6 +599,56 @@ func cronSessionCtxInfo() *agentsv1.ContextInfo {
 	}
 }
 
+// TestHandleTurnDeletesSessionAfterCompletingWaitingExecution: once the
+// human's reply completes the waiting execution, the per-execution session
+// has served its purpose and is cleaned up (#134). HandleSessionDeleted must
+// NOT attempt the same cleanup: it runs because the session was already
+// deleted.
+func TestHandleTurnDeletesSessionAfterCompletingWaitingExecution(t *testing.T) {
+	newScheduler := func(deleter *testSessionDeleter) (*Scheduler, *testExecutionRepo) {
+		execRepo := &testExecutionRepo{}
+		if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
+			t.Fatal(err)
+		}
+		return &Scheduler{
+			ctx:        context.Background(),
+			execRepo:   execRepo,
+			jobRepo:    &testJobRepo{},
+			notifier:   notify.NewSender(nil),
+			sessionSvc: deleter,
+		}, execRepo
+	}
+
+	t.Run("reply completion deletes the session", func(t *testing.T) {
+		deleter := &testSessionDeleter{}
+		s, execRepo := newScheduler(deleter)
+
+		s.HandleTurn(cronSessionCtxInfo(), &runner.TurnResult{Output: "deployed v2"}, nil)
+
+		if got := execRepo.execs["exec-1"].GetStatus(); got != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+			t.Fatalf("status = %s, want success", got)
+		}
+		want := "cron:approve-deploy/cron:approve-deploy/cron:approve-deploy:exec-1"
+		if len(deleter.deleted) != 1 || deleter.deleted[0] != want {
+			t.Fatalf("deleted sessions = %v, want exactly %q", deleter.deleted, want)
+		}
+	})
+
+	t.Run("session-deletion cancellation does not delete again", func(t *testing.T) {
+		deleter := &testSessionDeleter{}
+		s, execRepo := newScheduler(deleter)
+
+		s.HandleSessionDeleted("cron:approve-deploy", "cron:approve-deploy", "cron:approve-deploy:exec-1")
+
+		if got := execRepo.execs["exec-1"].GetStatus(); got != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_CANCELLED {
+			t.Fatalf("status = %s, want cancelled", got)
+		}
+		if len(deleter.deleted) != 0 {
+			t.Fatalf("deleted sessions = %v, want none: the session is already gone", deleter.deleted)
+		}
+	})
+}
+
 // TestHandleSessionDeletedCancelsWaitingExecution: issue #132 — deleting a
 // paused execution's session is the documented way to abandon the workflow
 // (ADR 0002); the WAITING_INPUT record must reach CANCELLED with a reason and
@@ -706,6 +757,99 @@ func TestHandleSessionDeletedIgnoresUnrelatedSessions(t *testing.T) {
 			}
 			if sender.text != "" {
 				t.Fatalf("unexpected delivery: %q", sender.text)
+			}
+		})
+	}
+}
+
+type testSessionDeleter struct {
+	deleted []string // "appName/userID/sessionID"
+	err     error
+}
+
+func (d *testSessionDeleter) Delete(_ context.Context, req *session.DeleteRequest) error {
+	if d.err != nil {
+		return d.err
+	}
+	d.deleted = append(d.deleted, req.AppName+"/"+req.UserID+"/"+req.SessionID)
+	return nil
+}
+
+// TestExecuteJobDeletesSessionOnTerminalState: issue #134 — per-execution
+// sessions (#133) mean every run persists its own ADK session; once the
+// execution is terminal nothing reads that session again, so the scheduler
+// deletes it. A run that pauses on a Human Input node keeps its session — it
+// holds the pending Interrupt. A deletion failure only logs; the execution
+// record keeps its terminal state.
+func TestExecuteJobDeletesSessionOnTerminalState(t *testing.T) {
+	cases := []struct {
+		name        string
+		runner      *testCronRunner
+		deleterErr  error
+		wantStatus  agentsv1.CronExecutionStatus
+		wantDeleted bool
+	}{
+		{
+			name:        "success deletes the run's session",
+			runner:      &testCronRunner{output: "done"},
+			wantStatus:  agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
+			wantDeleted: true,
+		},
+		{
+			name:        "error deletes the run's session",
+			runner:      &testCronRunner{errs: []error{errors.New("model unavailable")}},
+			wantStatus:  agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR,
+			wantDeleted: true,
+		},
+		{
+			name: "pause keeps the session holding the Interrupt",
+			runner: &testCronRunner{
+				output:  "Deploy v2 to production?",
+				pending: []runner.PendingInput{{InterruptID: "int-1", Question: "Deploy v2 to production?"}},
+			},
+			wantStatus:  agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT,
+			wantDeleted: false,
+		},
+		{
+			name:        "deletion failure keeps the terminal record",
+			runner:      &testCronRunner{output: "done"},
+			deleterErr:  errors.New("mongo unavailable"),
+			wantStatus:  agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
+			wantDeleted: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			deleter := &testSessionDeleter{err: tc.deleterErr}
+			s := &Scheduler{
+				ctx:        context.Background(),
+				runner:     tc.runner,
+				execRepo:   &testExecutionRepo{},
+				notifier:   notify.NewSender(nil),
+				sessionSvc: deleter,
+			}
+
+			exec := s.executeJob(&agentsv1.CronJob{
+				Name:        "approve-deploy",
+				WorkspaceId: "ws1",
+				AgentName:   "release-flow",
+				Schedule:    "@daily",
+			})
+
+			if exec.GetStatus() != tc.wantStatus {
+				t.Fatalf("status = %s, want %s", exec.GetStatus(), tc.wantStatus)
+			}
+			if !tc.wantDeleted {
+				if len(deleter.deleted) != 0 {
+					t.Fatalf("deleted sessions = %v, want none", deleter.deleted)
+				}
+				return
+			}
+			ctxInfo := tc.runner.ctxInfos[0]
+			want := ctxInfo.GetChannelName() + "/" + ctxInfo.GetUserId() + "/" + ctxInfo.GetSessionId()
+			if len(deleter.deleted) != 1 || deleter.deleted[0] != want {
+				t.Fatalf("deleted sessions = %v, want exactly %q", deleter.deleted, want)
 			}
 		})
 	}
