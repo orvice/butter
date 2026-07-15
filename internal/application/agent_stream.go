@@ -41,12 +41,25 @@ func (s *AgentServiceServer) StreamAgent(
 	if req.Msg.GetAgentName() == "" {
 		return connectx.RequiredArgument("agent_name")
 	}
-	if req.Msg.GetMessage() == "" {
-		return connectx.RequiredArgument("message")
-	}
-	if len(req.Msg.GetMessage()) > maxInvokeAgentInputBytes {
-		return connectx.InvalidArgument("message",
-			"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
+	// Non-empty `parts` takes priority and `message` is ignored; empty
+	// `parts` falls back to `message` so pre-multimodal clients keep
+	// working unchanged.
+	var parts []*genai.Part
+	if len(req.Msg.GetParts()) > 0 {
+		converted, err := convertInputParts(req.Msg.GetParts())
+		if err != nil {
+			return err
+		}
+		parts = converted
+	} else {
+		if req.Msg.GetMessage() == "" {
+			return connectx.RequiredArgument("message")
+		}
+		if len(req.Msg.GetMessage()) > maxInvokeAgentInputBytes {
+			return connectx.InvalidArgument("message",
+				"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
+		}
+		parts = []*genai.Part{genai.NewPartFromText(req.Msg.GetMessage())}
 	}
 
 	appName := req.Msg.GetAppName()
@@ -130,7 +143,6 @@ func (s *AgentServiceServer) StreamAgent(
 		}
 	}
 
-	parts := []*genai.Part{genai.NewPartFromText(req.Msg.GetMessage())}
 	response, runErr := s.runnerSvc.RunSSE(ctx, req.Msg.GetAgentName(), parts, req.Msg.GetModelOverride(), ctxInfo, func(evt *session.Event) {
 		textParts := streamAgentTextParts(evt)
 		for _, text := range textParts {

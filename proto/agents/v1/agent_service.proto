@@ -4,6 +4,7 @@ package agents.v1;
 
 import "agents/v1/agent.proto";
 import "agents/v1/agentchannel.proto";
+import "agents/v1/content.proto";
 import "agents/v1/dashboard.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
@@ -201,6 +202,11 @@ message StreamAgentRequest {
   // Optional model override; if set the agent runs with this model
   // instead of the configured default.
   string model_override = 6;
+  // Multimodal input parts (text and inline images). When non-empty,
+  // `parts` is used as the user input and `message` is ignored. When
+  // empty, `message` is used as before. Validation (MIME whitelist,
+  // size and count limits) happens in the application layer.
+  repeated InputPart parts = 7;
 }
 
 // StreamAgentResponse is sent for every observable transition during
