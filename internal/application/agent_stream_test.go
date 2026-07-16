@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -266,4 +267,21 @@ func TestStreamAgent_EmptyPartsAndMessageRejected(t *testing.T) {
 		AgentName: "chat-agent",
 	})
 	assertInvalidArgument(t, err)
+}
+
+func TestStreamAgent_OversizedTextPartRejected(t *testing.T) {
+	fake := &streamTestRunner{}
+	client := newStreamAgentTestClient(t, fake)
+
+	// Text parts carry the same 1 MiB cap as the legacy message field so
+	// `parts` cannot bypass the text input limit.
+	huge := strings.Repeat("a", 1<<20+1)
+	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
+		AgentName: "chat-agent",
+		Parts:     []*agentsv1.InputPart{textInput(huge)},
+	})
+	assertInvalidArgument(t, err)
+	if fake.gotParts != nil {
+		t.Fatalf("runner must not be invoked for rejected input, got %d parts", len(fake.gotParts))
+	}
 }

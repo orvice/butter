@@ -46,3 +46,13 @@ _Avoid_: pause, suspension
 
 **Parallel Worker**:
 A node option that runs the node once per item of a list-typed input, concurrently, then aggregates outputs.
+
+### Multimodal input
+
+**Input Part**:
+One piece of multimodal user input on an agent-invoking RPC (`InputPart` in `agents/v1/content.proto`): either text or Inline Data. A request's `parts` list is ordered and may interleave text and images; when non-empty it is used as the user input and the legacy `message` field is ignored.
+_Avoid_: attachment, content part
+
+**Inline Data**:
+Raw bytes plus their MIME type carried inside an Input Part. Limited to whitelisted image formats (jpeg/png/gif/webp), 10 MiB per image, 10 images and 20 MiB combined payload per request — enforced by the application layer, not the schema.
+_Avoid_: blob, file upload

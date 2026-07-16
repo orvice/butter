@@ -101,6 +101,7 @@ func (s *AgentServiceServer) StreamAgent(
 		"session_id", sessionID,
 		"invocation_id", invocationID,
 		"message_len", len(req.Msg.GetMessage()),
+		"parts", len(req.Msg.GetParts()),
 	)
 
 	if err := stream.Send(&agentsv1.StreamAgentResponse{

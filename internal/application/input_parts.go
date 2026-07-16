@@ -42,6 +42,12 @@ func convertInputParts(inputs []*agentsv1.InputPart) ([]*genai.Part, error) {
 	for _, input := range inputs {
 		switch p := input.GetPart().(type) {
 		case *agentsv1.InputPart_Text:
+			// Same cap as the legacy message field so `parts` cannot
+			// bypass the text input limit.
+			if len(p.Text) > maxInvokeAgentInputBytes {
+				return nil, connectx.InvalidArgument("parts",
+					"text part exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
+			}
 			totalBytes += len(p.Text)
 			out = append(out, genai.NewPartFromText(p.Text))
 		case *agentsv1.InputPart_InlineData:
