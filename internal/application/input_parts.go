@@ -34,7 +34,7 @@ var allowedInlineMimeTypes = map[string]struct{}{
 // convertInputParts validates a request's multimodal input parts and
 // converts them to the genai parts the runner executes. Violations are
 // returned as connect.CodeInvalidArgument errors. Shared by StreamAgent
-// and (in a follow-up) ReplySession.
+// and ReplySession.
 func convertInputParts(inputs []*agentsv1.InputPart) ([]*genai.Part, error) {
 	out := make([]*genai.Part, 0, len(inputs))
 	totalBytes := 0

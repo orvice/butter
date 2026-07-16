@@ -1815,8 +1815,9 @@ Sends a user message to an existing session and returns the agent response.
 | `app_name` | string | Channel/app name |
 | `user_id` | string | User ID |
 | `session_id` | string | Session ID |
-| `message` | string | User message text |
+| `message` | string | User message text. Ignored when `parts` is set |
 | `model_override` | string | Optional model alias or name |
+| `parts` | `InputPart[]` | Multimodal input (text + inline images). Same semantics and validation as `StreamAgent.parts` (see the `InputPart` table in the StreamAgent section); violations return `invalid_argument` |
 
 **Response:**
 

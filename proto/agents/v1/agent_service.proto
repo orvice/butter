@@ -792,6 +792,11 @@ message ReplySessionRequest {
   string message = 5;
   // Optional model override (alias or full name).
   string model_override = 6;
+  // Multimodal input parts (text and inline images). When non-empty,
+  // `parts` is used as the user input and `message` is ignored. When
+  // empty, `message` is used as before. Validation (MIME whitelist,
+  // size and count limits) happens in the application layer.
+  repeated InputPart parts = 7;
 }
 
 message ReplySessionResponse {
