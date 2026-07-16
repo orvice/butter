@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package agents.v1;
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// InputPart is one piece of multimodal user input. A request's `parts`
+// list is ordered; text and images may interleave. The oneof is
+// intentionally extensible: a file-reference variant can be added later
+// without breaking existing clients.
+message InputPart {
+  oneof part {
+    // Plain text content.
+    string text = 1;
+    // Inline binary content (images).
+    InlineData inline_data = 2;
+  }
+}
+
+// InlineData carries raw bytes plus their MIME type. The accepted MIME
+// whitelist and size limits are enforced by the application layer, not
+// by schema constraints.
+message InlineData {
+  string mime_type = 1;
+  bytes data = 2;
+}

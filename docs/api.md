@@ -855,11 +855,30 @@ Requires the same Bearer token as other `/api` RPCs. Non-admin callers must set
 | Field | Type | Description |
 |-------|------|-------------|
 | `agent_name` | string | Required |
-| `message` | string | Required user prompt (non-empty) |
+| `message` | string | User prompt. Required when `parts` is empty; ignored when `parts` is set |
 | `app_name` | string | ADK app name; defaults to `"api"` |
 | `user_id` | string | ADK user id; defaults to `"api"` |
 | `session_id` | string | Reuse an existing session; empty creates `chat-<uuid>` |
 | `model_override` | string | Optional model alias or full name |
+| `parts` | `InputPart[]` | Multimodal input (text + inline images). When non-empty it is used as the user input and `message` is ignored; when empty, `message` is used as before |
+
+**Multimodal input (`InputPart`, defined in `agents/v1/content.proto`):**
+
+Each `InputPart` sets exactly one of:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `text` | string | Plain text content. Max 1 MiB per part (same cap as `message`) |
+| `inline_data` | `InlineData` | Inline image: `mime_type` (string) + `data` (bytes; Connect-Web sends a `Uint8Array` with `useBinaryFormat: true`) |
+
+Validation happens in the application layer; violations abort the stream with
+`invalid_argument`:
+
+- `mime_type` must be one of `image/jpeg`, `image/png`, `image/gif`, `image/webp`.
+- A single image is capped at 10 MiB; a request carries at most 10 images.
+- The combined payload of all parts (text + image bytes) is capped at 20 MiB.
+
+Image-only requests (no text part) are accepted.
 
 **Stream messages (`StreamAgentResponse.event` oneof):**
 

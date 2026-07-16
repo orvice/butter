@@ -30,10 +30,19 @@ import (
 // protect the runner and session storage from oversized requests.
 const maxInvokeAgentInputBytes = 1 << 20 // 1 MiB
 
+// agentRunner is the subset of *runner.Service the agent service depends
+// on; tests substitute a fake implementation.
+type agentRunner interface {
+	IsReservedAgentName(name string) bool
+	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
+	RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
+	CancelInvocation(id, workspaceID string) bool
+}
+
 type AgentServiceServer struct {
 	repo      configrepo.AgentRepository
 	runtime   ConfigRuntime
-	runnerSvc *runner.Service
+	runnerSvc agentRunner
 	invRepo   invocation.Repository
 }
 
@@ -46,7 +55,12 @@ func (s *AgentServiceServer) SetRuntime(runtime ConfigRuntime) {
 }
 
 // SetRunnerService wires the runner so InvokeAgent can execute agents.
+// A nil *runner.Service is ignored so the nil checks in the RPC methods
+// keep working against the interface-typed field.
 func (s *AgentServiceServer) SetRunnerService(svc *runner.Service) {
+	if svc == nil {
+		return
+	}
 	s.runnerSvc = svc
 }
 
