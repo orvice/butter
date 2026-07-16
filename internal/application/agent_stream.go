@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
 
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"google.golang.org/adk/v2/session"
-	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
@@ -41,25 +39,12 @@ func (s *AgentServiceServer) StreamAgent(
 	if req.Msg.GetAgentName() == "" {
 		return connectx.RequiredArgument("agent_name")
 	}
-	// Non-empty `parts` takes priority and `message` is ignored; empty
-	// `parts` falls back to `message` so pre-multimodal clients keep
-	// working unchanged.
-	var parts []*genai.Part
-	if len(req.Msg.GetParts()) > 0 {
-		converted, err := convertInputParts(req.Msg.GetParts())
-		if err != nil {
-			return err
-		}
-		parts = converted
-	} else {
-		if req.Msg.GetMessage() == "" {
-			return connectx.RequiredArgument("message")
-		}
-		if len(req.Msg.GetMessage()) > maxInvokeAgentInputBytes {
-			return connectx.InvalidArgument("message",
-				"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
-		}
-		parts = []*genai.Part{genai.NewPartFromText(req.Msg.GetMessage())}
+	if len(req.Msg.GetParts()) == 0 && req.Msg.GetMessage() == "" {
+		return connectx.RequiredArgument("message")
+	}
+	parts, err := resolveUserParts(req.Msg.GetParts(), req.Msg.GetMessage())
+	if err != nil {
+		return err
 	}
 
 	appName := req.Msg.GetAppName()

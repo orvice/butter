@@ -312,18 +312,9 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
 
-	// Non-empty `parts` takes priority and `message` is ignored; empty
-	// `parts` falls back to `message` so pre-multimodal clients keep
-	// working unchanged.
-	var parts []*genai.Part
-	if len(req.Msg.GetParts()) > 0 {
-		converted, err := convertInputParts(req.Msg.GetParts())
-		if err != nil {
-			return nil, err
-		}
-		parts = converted
-	} else {
-		parts = []*genai.Part{{Text: req.Msg.GetMessage()}}
+	parts, err := resolveUserParts(req.Msg.GetParts(), req.Msg.GetMessage())
+	if err != nil {
+		return nil, err
 	}
 	ctxInfo := &agentsv1.ContextInfo{
 		ChannelName: req.Msg.GetAppName(),

@@ -3,6 +3,7 @@ package application
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -126,5 +127,24 @@ func TestReplySession_UnsupportedMimeTypeRejected(t *testing.T) {
 	assertInvalidArgument(t, err)
 	if fake.gotParts != nil {
 		t.Fatalf("runner must not be invoked for rejected input, got %+v", fake.gotParts)
+	}
+}
+
+func TestReplySession_OversizedMessageRejected(t *testing.T) {
+	fake := &replyTestRunner{}
+	svc := newReplySessionTestService(fake)
+
+	// The legacy message field carries the same 1 MiB cap as StreamAgent's
+	// message and as a text part, so no input path is unbounded.
+	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+		AgentName: "chat-agent",
+		AppName:   "api",
+		UserId:    "u1",
+		SessionId: "s1",
+		Message:   strings.Repeat("a", 1<<20+1),
+	}))
+	assertInvalidArgument(t, err)
+	if fake.gotParts != nil {
+		t.Fatalf("runner must not be invoked for rejected input, got %d parts", len(fake.gotParts))
 	}
 }
