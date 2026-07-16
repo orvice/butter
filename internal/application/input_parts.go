@@ -31,10 +31,27 @@ var allowedInlineMimeTypes = map[string]struct{}{
 	"image/webp": {},
 }
 
+// resolveUserParts resolves a request's user input to the genai parts the
+// runner executes. Non-empty `parts` is validated and converted, and
+// `message` is ignored; empty `parts` falls back to `message` as a single
+// text part so pre-multimodal clients keep working unchanged. The message
+// fallback carries the same 1 MiB cap as a text part, so no input path is
+// unbounded. Shared by StreamAgent and ReplySession.
+func resolveUserParts(inputs []*agentsv1.InputPart, message string) ([]*genai.Part, error) {
+	if len(inputs) > 0 {
+		return convertInputParts(inputs)
+	}
+	if len(message) > maxInvokeAgentInputBytes {
+		return nil, connectx.InvalidArgument("message",
+			"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
+	}
+	return []*genai.Part{genai.NewPartFromText(message)}, nil
+}
+
 // convertInputParts validates a request's multimodal input parts and
 // converts them to the genai parts the runner executes. Violations are
 // returned as connect.CodeInvalidArgument errors. Shared by StreamAgent
-// and (in a follow-up) ReplySession.
+// and ReplySession.
 func convertInputParts(inputs []*agentsv1.InputPart) ([]*genai.Part, error) {
 	out := make([]*genai.Part, 0, len(inputs))
 	totalBytes := 0

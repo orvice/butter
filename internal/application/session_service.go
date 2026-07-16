@@ -24,11 +24,17 @@ import (
 	"google.golang.org/adk/v2/session"
 )
 
+// sessionReplyRunner is the subset of *runner.Service that ReplySession
+// depends on; tests substitute a fake implementation.
+type sessionReplyRunner interface {
+	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
+}
+
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
 type SessionServiceServer struct {
 	mu              sync.RWMutex
 	sessionSvc      session.Service
-	runnerSvc       *runner.Service
+	runnerSvc       sessionReplyRunner
 	langfuseHost    string
 	deleteListeners []SessionDeleteListener
 }
@@ -75,8 +81,13 @@ func (s *SessionServiceServer) SetSessionService(svc session.Service) {
 	s.sessionSvc = svc
 }
 
-// SetRunnerService sets the runner service after bootstrap.
+// SetRunnerService sets the runner service after bootstrap. A nil
+// *runner.Service is ignored so the nil check in ReplySession keeps
+// working against the interface-typed field.
 func (s *SessionServiceServer) SetRunnerService(svc *runner.Service) {
+	if svc == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runnerSvc = svc
@@ -102,7 +113,7 @@ func (s *SessionServiceServer) getSessionSvc() session.Service {
 	return s.sessionSvc
 }
 
-func (s *SessionServiceServer) getRunnerSvc() *runner.Service {
+func (s *SessionServiceServer) getRunnerSvc() sessionReplyRunner {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.runnerSvc
@@ -301,7 +312,10 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
 
-	textPart := &genai.Part{Text: req.Msg.GetMessage()}
+	parts, err := resolveUserParts(req.Msg.GetParts(), req.Msg.GetMessage())
+	if err != nil {
+		return nil, err
+	}
 	ctxInfo := &agentsv1.ContextInfo{
 		ChannelName: req.Msg.GetAppName(),
 		SessionId:   req.Msg.GetSessionId(),
@@ -316,9 +330,10 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 		"user_id", req.Msg.GetUserId(),
 		"session_id", req.Msg.GetSessionId(),
 		"message_len", len(req.Msg.GetMessage()),
+		"parts", len(req.Msg.GetParts()),
 	)
 	start := time.Now()
-	response, err := runnerSvc.Run(ctx, req.Msg.GetAgentName(), []*genai.Part{textPart}, req.Msg.GetModelOverride(), ctxInfo, nil, nil)
+	response, err := runnerSvc.Run(ctx, req.Msg.GetAgentName(), parts, req.Msg.GetModelOverride(), ctxInfo, nil, nil)
 	if err != nil {
 		logger.Error("session reply failed",
 			"agent", req.Msg.GetAgentName(),
