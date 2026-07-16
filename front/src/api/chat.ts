@@ -1,6 +1,7 @@
 import { ConnectError } from "@connectrpc/connect";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { AgentService, SessionService } from "@/gen/agents/v1/agent_service_pb";
+import type { InputPartInit } from "@/lib/image-attachments";
 import { ApiError } from "./client";
 import { makeClient } from "./transport";
 
@@ -14,6 +15,9 @@ export interface SendChatParams {
   session_id: string;
   message: string;
   model_override?: string;
+  // Multimodal input. When non-empty the server uses `parts` and ignores
+  // `message` (see docs/api.md, StreamAgent).
+  parts?: InputPartInit[];
 }
 
 export interface ReplySessionResponse {
@@ -60,6 +64,7 @@ export async function replySession(params: SendChatParams): Promise<ReplySession
     sessionId: params.session_id,
     message: params.message,
     modelOverride: params.model_override ?? "",
+    parts: params.parts ?? [],
   });
   return { response: res.response };
 }
@@ -90,6 +95,7 @@ export async function streamChat(
         sessionId: params.session_id,
         message: params.message,
         modelOverride: params.model_override ?? "",
+        parts: params.parts ?? [],
       },
       { signal },
     );
