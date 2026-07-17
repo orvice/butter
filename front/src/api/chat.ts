@@ -1,9 +1,12 @@
 import { ConnectError } from "@connectrpc/connect";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { AgentService, SessionService } from "@/gen/agents/v1/agent_service_pb";
-import type { InputPartInit } from "@/lib/image-attachments";
+import type { InputPartSchema } from "@/gen/agents/v1/content_pb";
 import { ApiError } from "./client";
 import { makeClient } from "./transport";
+
+type InputPartInit = MessageInitShape<typeof InputPartSchema>;
 
 const sessionClient = makeClient(SessionService);
 const agentClient = makeClient(AgentService);
@@ -64,7 +67,7 @@ export async function replySession(params: SendChatParams): Promise<ReplySession
     sessionId: params.session_id,
     message: params.message,
     modelOverride: params.model_override ?? "",
-    parts: params.parts ?? [],
+    parts: params.parts,
   });
   return { response: res.response };
 }
@@ -95,7 +98,7 @@ export async function streamChat(
         sessionId: params.session_id,
         message: params.message,
         modelOverride: params.model_override ?? "",
-        parts: params.parts ?? [],
+        parts: params.parts,
       },
       { signal },
     );

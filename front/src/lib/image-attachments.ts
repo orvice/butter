@@ -69,6 +69,10 @@ export function acceptImageFiles(existing: File[], incoming: File[]): AcceptImag
   return { accepted, errors };
 }
 
+export function validateImageFiles(files: File[]): string[] {
+  return acceptImageFiles([], files).errors;
+}
+
 // buildInputParts reads the attached images and assembles the ordered
 // `parts` list for StreamAgent/ReplySession: the text (when non-empty)
 // followed by one inline-data part per image.

@@ -8,7 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLayoutDensity } from "@/hooks/use-layout-density";
 import { cn } from "@/lib/utils";
 import { parseSessionEvent, parseSessionEvents, type ParsedEvent } from "@/lib/session-events";
-import { acceptImageFiles, buildInputParts, IMAGE_FILE_ACCEPT } from "@/lib/image-attachments";
+import { buildInputParts } from "@/lib/image-attachments";
+import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useLiveSession, useReplySession } from "@/api/sessions";
 import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api/chat";
 import { Bot, Send, User as UserIcon, Wrench, ExternalLink, Loader2, Square, Paperclip, X } from "lucide-react";
@@ -40,37 +41,17 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   const sessionId = session?.session_id ?? "";
   const { isCompact } = useLayoutDensity();
   const [draft, setDraft] = useState("");
-  const [attachments, setAttachments] = useState<File[]>([]);
+  const {
+    attachments, previewUrls, isDragOver,
+    removeAttachment, clearAttachments, restoreAttachments,
+    validateForSend,
+    handleDragOver, handleDragEnter, handleDragLeave, handleDrop,
+    handlePaste, fileInputRef, openFilePicker, handleFileInputChange, fileAccept,
+  } = useImageAttachments(sessionId);
   const [runState, setRunState] = useState<ChatRunState>(() => emptyChatRunState(""));
   const abortRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const previewUrls = useMemo(() => attachments.map((file) => URL.createObjectURL(file)), [attachments]);
-  useEffect(() => {
-    return () => previewUrls.forEach((url) => URL.revokeObjectURL(url));
-  }, [previewUrls]);
-
-  // Attachments belong to the session they were picked in; drop them when
-  // the user switches chats (state adjustment during render, per React's
-  // "you might not need an effect" guidance).
-  const [attachmentsSessionId, setAttachmentsSessionId] = useState(sessionId);
-  if (attachmentsSessionId !== sessionId) {
-    setAttachmentsSessionId(sessionId);
-    setAttachments([]);
-  }
-
-  function addAttachments(files: File[]) {
-    if (files.length === 0) return;
-    const { accepted, errors } = acceptImageFiles(attachments, files);
-    errors.forEach((message) => toast.error(message));
-    if (accepted.length > 0) setAttachments((prev) => [...prev, ...accepted]);
-  }
-
-  function removeAttachment(index: number) {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  }
 
   const isRunForCurrentSession = runState.sessionId === sessionId;
   const pending = isRunForCurrentSession && runState.pending;
@@ -134,8 +115,14 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
     const images = attachments;
     if ((!text && images.length === 0) || !agentName || pending) return;
 
-    // Image parts are read before the run starts so a file read failure
-    // (e.g. file deleted after selection) leaves the draft intact.
+    if (images.length > 0) {
+      const validationErrors = validateForSend();
+      if (validationErrors.length > 0) {
+        validationErrors.forEach((msg) => toast.error(msg));
+        return;
+      }
+    }
+
     let parts;
     try {
       parts = images.length > 0 ? await buildInputParts(text, images) : undefined;
@@ -148,7 +135,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
     abortRef.current?.abort();
     activeRunIdRef.current = runId;
     setDraft("");
-    setAttachments([]);
+    clearAttachments();
     setRunState({
       runId,
       sessionId,
@@ -231,7 +218,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
         } catch (fallbackErr) {
           toast.error(fallbackErr instanceof Error ? fallbackErr.message : "Failed to send message");
           setDraft(text);
-          setAttachments(images);
+          restoreAttachments(images);
         }
       } else {
         toast.error(err instanceof Error ? err.message : "Failed to send message");
@@ -265,7 +252,13 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col">
+    <div
+      className={cn("flex h-full flex-1 flex-col", isDragOver && "ring-2 ring-inset ring-primary/50")}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className={cn("flex items-center justify-between border-b px-3 sm:px-4", isCompact ? "py-2" : "py-3")}>
         <div className="flex min-w-0 items-center gap-2">
           <Bot className={cn("text-muted-foreground", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
@@ -308,6 +301,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={
               agentName
                 ? "Message the agent..."
@@ -323,18 +317,15 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept={IMAGE_FILE_ACCEPT}
+            accept={fileAccept}
             multiple
             className="hidden"
-            onChange={(e) => {
-              addAttachments(Array.from(e.target.files ?? []));
-              e.target.value = "";
-            }}
+            onChange={handleFileInputChange}
           />
           <Button
             variant="outline"
             size={isCompact ? "sm" : "default"}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={openFilePicker}
             disabled={!agentName || pending}
             aria-label="Attach images"
           >
