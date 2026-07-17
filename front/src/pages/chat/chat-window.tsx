@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLayoutDensity } from "@/hooks/use-layout-density";
 import { cn } from "@/lib/utils";
 import { parseSessionEvent, parseSessionEvents, type ParsedEvent } from "@/lib/session-events";
-import { buildInputParts } from "@/lib/image-attachments";
+import { buildInputParts, type InputPartInit } from "@/lib/image-attachments";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useLiveSession, useReplySession } from "@/api/sessions";
 import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api/chat";
@@ -43,12 +43,16 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   const [draft, setDraft] = useState("");
   const {
     attachments, previewUrls, isDragOver,
-    removeAttachment, clearAttachments, restoreAttachments,
+    removeAttachment, clearAttachments,
     validateForSend,
     handleDragOver, handleDragEnter, handleDragLeave, handleDrop,
     handlePaste, fileInputRef, openFilePicker, handleFileInputChange, fileAccept,
   } = useImageAttachments(sessionId);
   const [runState, setRunState] = useState<ChatRunState>(() => emptyChatRunState(""));
+  // Synchronous re-entry guard: `pending` flips only after the async file
+  // read in handleSend, so two rapid clicks could otherwise both pass the
+  // guard and start two runs.
+  const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -113,29 +117,34 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   async function handleSend() {
     const text = draft.trim();
     const images = attachments;
-    if ((!text && images.length === 0) || !agentName || pending) return;
+    if ((!text && images.length === 0) || !agentName || pending || sendingRef.current) return;
+    sendingRef.current = true;
 
     if (images.length > 0) {
       const validationErrors = validateForSend();
       if (validationErrors.length > 0) {
         validationErrors.forEach((msg) => toast.error(msg));
+        sendingRef.current = false;
         return;
       }
     }
 
-    let parts;
+    let parts: InputPartInit[] | undefined;
     try {
       parts = images.length > 0 ? await buildInputParts(text, images) : undefined;
     } catch {
       toast.error("Failed to read attached images");
+      sendingRef.current = false;
       return;
     }
 
+    // Attachments stay visible (and in state) while the run is in flight —
+    // the picker is disabled during pending, and they are only cleared once
+    // the send actually succeeds, so any failure path keeps them for retry.
     const runId = newRunId();
     abortRef.current?.abort();
     activeRunIdRef.current = runId;
     setDraft("");
-    clearAttachments();
     setRunState({
       runId,
       sessionId,
@@ -201,6 +210,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
         controller.signal,
       );
       await liveQuery.refetch();
+      clearAttachments();
     } catch (err) {
       if (isAbortError(err)) {
         toast.info("Chat stopped");
@@ -215,15 +225,16 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
             message: text,
             parts,
           });
+          clearAttachments();
         } catch (fallbackErr) {
           toast.error(fallbackErr instanceof Error ? fallbackErr.message : "Failed to send message");
           setDraft(text);
-          restoreAttachments(images);
         }
       } else {
         toast.error(err instanceof Error ? err.message : "Failed to send message");
       }
     } finally {
+      sendingRef.current = false;
       setRunState((prev) => prev.runId === runId ? emptyChatRunState(prev.sessionId) : prev);
       if (activeRunIdRef.current === runId) {
         activeRunIdRef.current = null;
