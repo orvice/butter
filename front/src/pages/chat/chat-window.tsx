@@ -8,9 +8,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLayoutDensity } from "@/hooks/use-layout-density";
 import { cn } from "@/lib/utils";
 import { parseSessionEvent, parseSessionEvents, type ParsedEvent } from "@/lib/session-events";
+import { buildInputParts } from "@/lib/image-attachments";
+import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useLiveSession, useReplySession } from "@/api/sessions";
 import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api/chat";
-import { Bot, Send, User as UserIcon, Wrench, ExternalLink, Loader2, Square } from "lucide-react";
+import { Bot, Send, User as UserIcon, Wrench, ExternalLink, Loader2, Square, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
 import type { SessionInfo } from "@/types/api";
 
@@ -39,6 +41,13 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   const sessionId = session?.session_id ?? "";
   const { isCompact } = useLayoutDensity();
   const [draft, setDraft] = useState("");
+  const {
+    attachments, previewUrls, isDragOver,
+    removeAttachment, clearAttachments, restoreAttachments,
+    validateForSend,
+    handleDragOver, handleDragEnter, handleDragLeave, handleDrop,
+    handlePaste, fileInputRef, openFilePicker, handleFileInputChange, fileAccept,
+  } = useImageAttachments(sessionId);
   const [runState, setRunState] = useState<ChatRunState>(() => emptyChatRunState(""));
   const abortRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
@@ -103,17 +112,36 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
 
   async function handleSend() {
     const text = draft.trim();
-    if (!text || !agentName || pending) return;
+    const images = attachments;
+    if ((!text && images.length === 0) || !agentName || pending) return;
+
+    if (images.length > 0) {
+      const validationErrors = validateForSend();
+      if (validationErrors.length > 0) {
+        validationErrors.forEach((msg) => toast.error(msg));
+        return;
+      }
+    }
+
+    let parts;
+    try {
+      parts = images.length > 0 ? await buildInputParts(text, images) : undefined;
+    } catch {
+      toast.error("Failed to read attached images");
+      return;
+    }
+
     const runId = newRunId();
     abortRef.current?.abort();
     activeRunIdRef.current = runId;
     setDraft("");
+    clearAttachments();
     setRunState({
       runId,
       sessionId,
       pending: true,
       pendingBaseEventIds: new Set(persistedEvents.map((evt) => evt.eventId)),
-      pendingUserMessage: text,
+      pendingUserMessage: text || `(${images.length} image${images.length > 1 ? "s" : ""})`,
       streamingEvents: [],
       streamingResponse: "",
       invocationId: null,
@@ -131,6 +159,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
           user_id: userId,
           session_id: sessionId,
           message: text,
+          parts,
         },
         {
           onStarted: (payload) => {
@@ -184,10 +213,12 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
             user_id: userId,
             session_id: sessionId,
             message: text,
+            parts,
           });
         } catch (fallbackErr) {
           toast.error(fallbackErr instanceof Error ? fallbackErr.message : "Failed to send message");
           setDraft(text);
+          restoreAttachments(images);
         }
       } else {
         toast.error(err instanceof Error ? err.message : "Failed to send message");
@@ -221,7 +252,13 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col">
+    <div
+      className={cn("flex h-full flex-1 flex-col", isDragOver && "ring-2 ring-inset ring-primary/50")}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className={cn("flex items-center justify-between border-b px-3 sm:px-4", isCompact ? "py-2" : "py-3")}>
         <div className="flex min-w-0 items-center gap-2">
           <Bot className={cn("text-muted-foreground", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
@@ -264,6 +301,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={
               agentName
                 ? "Message the agent..."
@@ -276,11 +314,28 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
               isCompact && "min-h-10 rounded-md px-2 py-1.5 text-sm leading-5",
             )}
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={fileAccept}
+            multiple
+            className="hidden"
+            onChange={handleFileInputChange}
+          />
+          <Button
+            variant="outline"
+            size={isCompact ? "sm" : "default"}
+            onClick={openFilePicker}
+            disabled={!agentName || pending}
+            aria-label="Attach images"
+          >
+            <Paperclip className="h-3 w-3" />
+          </Button>
           <Button
             variant={pending ? "secondary" : "default"}
             size={isCompact ? "sm" : "default"}
             onClick={() => pending ? void handleStop() : void handleSend()}
-            disabled={!agentName || (!pending && draft.trim().length === 0)}
+            disabled={!agentName || (!pending && draft.trim().length === 0 && attachments.length === 0)}
           >
             {pending ? (
               <><Square className="mr-1 h-3 w-3" /> Stop</>
@@ -289,6 +344,31 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
             )}
           </Button>
         </div>
+        {attachments.length > 0 ? (
+          <div className={cn("flex flex-wrap", isCompact ? "mt-1.5 gap-1.5" : "mt-2 gap-2")}>
+            {attachments.map((file, index) => (
+              <div key={`${file.name}-${index}`} className="group relative">
+                <img
+                  src={previewUrls[index]}
+                  alt={file.name}
+                  title={file.name}
+                  className={cn(
+                    "rounded-md border object-cover",
+                    isCompact ? "h-12 w-12" : "h-16 w-16",
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(index)}
+                  aria-label={`Remove ${file.name}`}
+                  className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
