@@ -79,6 +79,7 @@ Docs directory layout:
 - `docs/adr/0001-workflow-graph-as-nodes-and-edges-proto.md` — ADR: Workflow graphs as explicit nodes + edges in proto; phase-1 node kinds.
 - `docs/adr/0002-interrupt-state-derived-from-session-events.md` — ADR: Pending interrupts derived from session events, FIFO implicit resume.
 - `docs/adr/0003-cron-workflow-pause-notify-and-wait.md` — ADR: Cron + Human Input → WAITING_INPUT, notify question, resume via ReplySession.
+- `docs/adr/0004-skill-metadata-in-mongo-content-in-s3.md` — ADR: Skill metadata in Mongo, content in S3; skills addressed by name, no versioning in v1.
 
 ## Agent skills
 
