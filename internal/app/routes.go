@@ -31,6 +31,7 @@ type Handlers struct {
 	forumSvcServer         *application.ForumServiceServer
 	agentSvcServer         *application.AgentServiceServer
 	agentFileSvcServer     *application.AgentFileServiceServer
+	skillSvcServer         *application.SkillServiceServer
 	mcpSvcServer           *application.MCPServerServiceServer
 	modelProviderSvcServer *application.ModelProviderServiceServer
 	notifyGroupSvcServer   *application.NotifyGroupServiceServer
@@ -122,6 +123,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if result.AgentFileRepo != nil && h.agentFileSvcServer != nil {
 		h.agentFileSvcServer.SetRepo(result.AgentFileRepo)
 		h.agentFileSvcServer.SetMaxFileBytes(result.AgentFileMaxBytes)
+	}
+	if result.SkillRepo != nil && h.skillSvcServer != nil {
+		h.skillSvcServer.SetRepo(result.SkillRepo)
 	}
 	if result.AgentFileRepo != nil && h.workspaceMCPSvc != nil {
 		h.workspaceMCPSvc.SetAgentFileRepo(result.AgentFileRepo)
@@ -288,6 +292,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 
 	agentSvcServer := application.NewAgentServiceServer(configStore)
 	agentFileSvcServer := application.NewAgentFileServiceServer(nil)
+	skillSvcServer := application.NewSkillServiceServer(nil)
 	mcpSvcServer := application.NewMCPServerServiceServer(configStore)
 	modelProviderSvcServer := application.NewModelProviderServiceServer(configStore)
 	notifyGroupSvcServer := application.NewNotifyGroupServiceServer(configStore)
@@ -304,6 +309,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	forumConnectPath, forumConnectHandler := agentsv1connect.NewForumServiceHandler(forumSvcServer, connectOpts...)
 	agentConnectPath, agentConnectHandler := agentsv1connect.NewAgentServiceHandler(agentSvcServer, connectOpts...)
 	agentFileConnectPath, agentFileConnectHandler := agentsv1connect.NewAgentFileServiceHandler(agentFileSvcServer, connectOpts...)
+	skillConnectPath, skillConnectHandler := agentsv1connect.NewSkillServiceHandler(skillSvcServer, connectOpts...)
 	mcpConnectPath, mcpConnectHandler := agentsv1connect.NewMCPServerServiceHandler(mcpSvcServer, connectOpts...)
 	modelProviderConnectPath, modelProviderConnectHandler := agentsv1connect.NewModelProviderServiceHandler(modelProviderSvcServer, connectOpts...)
 	notifyGroupConnectPath, notifyGroupConnectHandler := agentsv1connect.NewNotifyGroupServiceHandler(notifyGroupSvcServer, connectOpts...)
@@ -336,6 +342,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		forumSvcServer:         forumSvcServer,
 		agentSvcServer:         agentSvcServer,
 		agentFileSvcServer:     agentFileSvcServer,
+		skillSvcServer:         skillSvcServer,
 		mcpSvcServer:           mcpSvcServer,
 		modelProviderSvcServer: modelProviderSvcServer,
 		notifyGroupSvcServer:   notifyGroupSvcServer,
@@ -405,6 +412,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+channelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", channelConnectHandler)))
 		r.Any("/api"+forumConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", forumConnectHandler)))
 		r.Any("/api"+agentFileConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", agentFileConnectHandler)))
+		r.Any("/api"+skillConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", skillConnectHandler)))
 		r.Any("/api"+sessionConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", sessionConnectHandler)))
 		r.Any("/api"+cronConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", cronConnectHandler)))
 		r.Any("/api"+dashboardConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", dashboardConnectHandler)))
