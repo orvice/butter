@@ -18,6 +18,7 @@ import (
 	adkrunner "google.golang.org/adk/v2/runner"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/tool"
+	"google.golang.org/adk/v2/tool/skilltoolset"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -25,7 +26,9 @@ import (
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/agentfiletool"
 	"go.orx.me/apps/butter/internal/repo/agentfile"
+	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/skilltool"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -50,21 +53,20 @@ type AgentBuilderFunc func(ctx context.Context, model string) (agent.Agent, erro
 
 // Service manages an agent registry and per-channel ADK runners.
 type Service struct {
-	agents            map[string]agent.Agent
-	agentsProto       map[string]*agentsv1.Agent  // original proto configs keyed by name
-	agentBuilders     map[string]AgentBuilderFunc // dynamic builder funcs keyed by agent name
-	providers         []agentsv1.ModelProvider    // model providers for runtime resolution
-	mcpRegistry       []agentsv1.MCPServer
-	remoteAgents      []agentsv1.RemoteAgent
-	daemonRegistry    *daemon.Registry
-	sessionSvc        session.Service
-	memorySvc         memory.Service
-	artifactSvc       artifact.Service
-	agentFileRepo     agentfile.Repository
-	agentFileMaxBytes int64
-	basePluginConfig  adkrunner.PluginConfig
-	pluginConfig      adkrunner.PluginConfig
-	mcpHTTPFactory    internalagent.MCPHTTPClientFactory
+	agents           map[string]agent.Agent
+	agentsProto      map[string]*agentsv1.Agent  // original proto configs keyed by name
+	agentBuilders    map[string]AgentBuilderFunc // dynamic builder funcs keyed by agent name
+	providers        []agentsv1.ModelProvider    // model providers for runtime resolution
+	mcpRegistry      []agentsv1.MCPServer
+	remoteAgents     []agentsv1.RemoteAgent
+	daemonRegistry   *daemon.Registry
+	sessionSvc       session.Service
+	memorySvc        memory.Service
+	artifactSvc      artifact.Service
+	toolsetDeps      toolsetDeps
+	basePluginConfig adkrunner.PluginConfig
+	pluginConfig     adkrunner.PluginConfig
+	mcpHTTPFactory   internalagent.MCPHTTPClientFactory
 
 	mu              sync.Mutex
 	runners         map[string]*adkrunner.Runner // keyed by channel name
@@ -163,17 +165,18 @@ func (s *Service) deregisterCancel(id string) {
 // artifactSvc is optional; pass nil to run without artifact persistence (ADK
 // then no-ops artifact reads/writes inside agent tools).
 func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, pluginConfig adkrunner.PluginConfig) (*Service, error) {
-	return NewServiceWithMCPHTTPClientFactory(ctx, agents, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, sessionSvc, memorySvc, artifactSvc, nil, 0, pluginConfig, nil)
+	return NewServiceWithMCPHTTPClientFactory(ctx, agents, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, sessionSvc, memorySvc, artifactSvc, nil, 0, nil, pluginConfig, nil)
 }
 
 // NewServiceWithMCPHTTPClientFactory builds the agent registry with a shared
 // MCP HTTP client factory used by runtime toolsets.
-func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, agentFileRepo agentfile.Repository, agentFileMaxBytes int64, pluginConfig adkrunner.PluginConfig, mcpHTTPFactory internalagent.MCPHTTPClientFactory) (*Service, error) {
+func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, agentFileRepo agentfile.Repository, agentFileMaxBytes int64, skillRepo skillrepo.Repository, pluginConfig adkrunner.PluginConfig, mcpHTTPFactory internalagent.MCPHTTPClientFactory) (*Service, error) {
 	logger := log.FromContext(ctx)
 	basePluginConfig := pluginConfig
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
-	toolsetFactory := newToolsetFactory(agentFileRepo, agentFileMaxBytes)
+	deps := toolsetDeps{agentFileRepo: agentFileRepo, agentFileMaxBytes: agentFileMaxBytes, skillRepo: skillRepo}
+	toolsetFactory := newToolsetFactory(deps)
 
 	// Validate model alias uniqueness.
 	if err := internalagent.ValidateModelAliases(providers); err != nil {
@@ -213,23 +216,22 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 	pluginConfig = mergePluginConfigs(pluginConfig, guardPC)
 
 	svc := &Service{
-		agents:            registry,
-		agentsProto:       protoRegistry,
-		agentBuilders:     make(map[string]AgentBuilderFunc),
-		providers:         providers,
-		mcpRegistry:       mcpRegistry,
-		remoteAgents:      remoteAgentRegistry,
-		daemonRegistry:    daemonRegistry,
-		sessionSvc:        sessionSvc,
-		memorySvc:         memorySvc,
-		artifactSvc:       artifactSvc,
-		agentFileRepo:     agentFileRepo,
-		agentFileMaxBytes: agentFileMaxBytes,
-		basePluginConfig:  basePluginConfig,
-		pluginConfig:      pluginConfig,
-		mcpHTTPFactory:    mcpHTTPFactory,
-		runners:           make(map[string]*adkrunner.Runner),
-		overriddenCache:   make(map[string]agent.Agent),
+		agents:           registry,
+		agentsProto:      protoRegistry,
+		agentBuilders:    make(map[string]AgentBuilderFunc),
+		providers:        providers,
+		mcpRegistry:      mcpRegistry,
+		remoteAgents:     remoteAgentRegistry,
+		daemonRegistry:   daemonRegistry,
+		sessionSvc:       sessionSvc,
+		memorySvc:        memorySvc,
+		artifactSvc:      artifactSvc,
+		toolsetDeps:      deps,
+		basePluginConfig: basePluginConfig,
+		pluginConfig:     pluginConfig,
+		mcpHTTPFactory:   mcpHTTPFactory,
+		runners:          make(map[string]*adkrunner.Runner),
+		overriddenCache:  make(map[string]agent.Agent),
 	}
 
 	// Add compaction notifier plugin (must be after contextguard).
@@ -243,23 +245,43 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 	return svc, nil
 }
 
-func newToolsetFactory(repo agentfile.Repository, maxBytes int64) internalagent.ToolsetFactory {
-	if repo == nil {
+// toolsetDeps bundles the backends the ToolsetFactory needs to build per-agent
+// built-in toolsets (agent files, skills). They travel together through every
+// agent-build path — initial construction, reload, and model override — so
+// they are grouped rather than threaded loose.
+type toolsetDeps struct {
+	agentFileRepo     agentfile.Repository
+	agentFileMaxBytes int64
+	skillRepo         skillrepo.Repository
+}
+
+func newToolsetFactory(deps toolsetDeps) internalagent.ToolsetFactory {
+	if deps.agentFileRepo == nil && deps.skillRepo == nil {
 		return nil
 	}
 	return func(ctx context.Context, pb *agentsv1.Agent) ([]tool.Toolset, error) {
-		mounts := pb.GetConfig().GetFileMounts()
-		if len(mounts) == 0 {
-			return nil, nil
+		var toolsets []tool.Toolset
+		if mounts := pb.GetConfig().GetFileMounts(); deps.agentFileRepo != nil && len(mounts) > 0 {
+			ts, err := agentfiletool.NewToolset(deps.agentFileRepo, mounts, deps.agentFileMaxBytes)
+			if err != nil {
+				return nil, err
+			}
+			if ts != nil {
+				toolsets = append(toolsets, ts)
+			}
 		}
-		ts, err := agentfiletool.NewToolset(repo, mounts, maxBytes)
-		if err != nil {
-			return nil, err
+		// The skill source is bound to the agent's workspace, so agents
+		// without a workspace binding (e.g. dynamic builder agents) get no
+		// skill toolset and no catalog injection.
+		if skills := pb.GetConfig().GetSkills(); deps.skillRepo != nil && pb.GetWorkspaceId() != "" && len(skills) > 0 {
+			src := skilltool.NewSource(deps.skillRepo, pb.GetWorkspaceId(), skills)
+			ts, err := skilltoolset.New(ctx, skilltoolset.Config{Source: src})
+			if err != nil {
+				return nil, fmt.Errorf("create skill toolset: %w", err)
+			}
+			toolsets = append(toolsets, ts)
 		}
-		if ts == nil {
-			return nil, nil
-		}
-		return []tool.Toolset{ts}, nil
+		return toolsets, nil
 	}
 }
 
@@ -372,7 +394,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
-	toolsetFactory := newToolsetFactory(s.agentFileRepo, s.agentFileMaxBytes)
+	toolsetFactory := newToolsetFactory(s.toolsetDeps)
 
 	if err := internalagent.ValidateModelAliases(providers); err != nil {
 		return fmt.Errorf("model config validation: %w", err)
@@ -626,8 +648,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	providers := s.providers
 	mcpRegistry := s.mcpRegistry
 	remoteAgents := s.remoteAgents
-	agentFileRepo := s.agentFileRepo
-	agentFileMaxBytes := s.agentFileMaxBytes
+	deps := s.toolsetDeps
 	s.mu.Unlock()
 
 	// Resolve the model alias to get the actual model name.
@@ -649,7 +670,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 			clone.Config = &agentsv1.AgentConfig{}
 		}
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(agentFileRepo, agentFileMaxBytes))
+		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(deps))
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)
