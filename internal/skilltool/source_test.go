@@ -12,15 +12,22 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-// seedSkill stores a skill with a minimal spec-valid SKILL.md document.
-func seedSkill(t *testing.T, repo *skillmemory.Store, workspaceID, name, description, body string) {
-	t.Helper()
+// writeSkill stores a skill with a minimal spec-valid SKILL.md document and
+// returns any error, so it is safe to call from a non-test goroutine (where
+// t.Fatalf is illegal).
+func writeSkill(repo *skillmemory.Store, workspaceID, name, description, body string) error {
 	md := "---\nname: " + name + "\ndescription: " + description + "\n---\n" + body
 	_, err := repo.Create(context.Background(), workspaceID, &agentsv1.Skill{
 		Name:        name,
 		Description: description,
 	}, md)
-	if err != nil {
+	return err
+}
+
+// seedSkill is the test-goroutine wrapper around writeSkill.
+func seedSkill(t *testing.T, repo *skillmemory.Store, workspaceID, name, description, body string) {
+	t.Helper()
+	if err := writeSkill(repo, workspaceID, name, description, body); err != nil {
 		t.Fatalf("seed skill %q: %v", name, err)
 	}
 }
@@ -160,7 +167,10 @@ func TestSourceIsSafeForConcurrentUse(t *testing.T) {
 	// Concurrent writer: skills are created and deleted while readers run.
 	wg.Go(func() {
 		for range 50 {
-			seedSkill(t, repo, "ws-1", "beta", "Beta skill", "Use beta.\n")
+			if err := writeSkill(repo, "ws-1", "beta", "Beta skill", "Use beta.\n"); err != nil {
+				t.Errorf("write beta: %v", err)
+				return
+			}
 			if err := repo.Delete(ctx, "ws-1", "beta"); err != nil {
 				t.Errorf("delete beta: %v", err)
 				return

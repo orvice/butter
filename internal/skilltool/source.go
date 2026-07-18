@@ -92,8 +92,10 @@ func (s *Source) LoadInstructions(ctx context.Context, name string) (string, err
 	return body, nil
 }
 
-// Skills carry no resource files in v1 (ADR 0004): resource methods resolve
-// the skill for correct sentinel semantics, then report no resources.
+// The skill repository does not yet expose resource files (SKILL.md bodies
+// only), so these methods resolve the skill for correct sentinel semantics,
+// then report no resources — the scope cut called out in issue #152 ("resource
+// methods may return not-found until the resources slice lands").
 
 func (s *Source) ListResources(ctx context.Context, name, subpath string) ([]string, error) {
 	if err := s.ensureVisible(ctx, name); err != nil {
