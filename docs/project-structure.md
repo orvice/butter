@@ -144,6 +144,11 @@ butter/
 │   │   │   └── repository.go
 │   │   ├── oauthstate/          # OAuth state nonce store (used by auth + MCP OAuth)
 │   │   │   └── repository.go
+│   │   ├── skill/               # skills: Mongo metadata + ContentStore for SKILL.md (ADR 0004)
+│   │   │   ├── memory/
+│   │   │   ├── mongo/
+│   │   │   ├── repotest/        # Repository conformance suite (memory + mongo)
+│   │   │   └── repository.go
 │   │   ├── workspace/           # workspaces + workspace_members
 │   │   │   ├── memory/
 │   │   │   ├── mongo/

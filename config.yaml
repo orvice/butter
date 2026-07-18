@@ -101,6 +101,16 @@ agent_files:
   key_prefix: "agent-files"
   max_file_bytes: 262144     # 256 KiB; 0 = use default
 
+# Agent Skills (ADR 0004). Skill metadata lives in MongoDB when
+# storage_backend is mongo; SKILL.md bodies go to S3 under
+# <key_prefix>/<workspace_id>/<skill_name>/SKILL.md. Without s3_bucket the
+# bodies are kept in memory for local development (they do not survive
+# restarts — a warning is logged at startup).
+skills:
+  s3_bucket: ""              # e.g. "skills" — must match a store.s3 key
+  key_prefix: "skills"
+  max_skill_md_bytes: 262144 # 256 KiB; 0 = use default
+
 # OAuth2-protected MCP servers. Required only when you connect MCP servers
 # with auth.type = MCP_SERVER_AUTH_TYPE_OAUTH2. Generate a unique 32-byte
 # encryption key for production; the value below is a development placeholder.

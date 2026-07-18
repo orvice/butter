@@ -6,6 +6,7 @@ import (
 	"butterfly.orx.me/core/log"
 	"butterfly.orx.me/core/store/s3"
 	"github.com/achetronic/adk-utils-go/plugin/langfuse"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -14,6 +15,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/agentfile"
+	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	"go.orx.me/apps/butter/pkg/adkutils"
 )
 
@@ -66,6 +68,21 @@ func connectRedis(ctx context.Context, cfg *config.AppConfig) *redis.Client {
 	return rdb
 }
 
+// registeredS3 resolves a store key against the butterfly `store.s3`
+// registry. ok is false when the key is empty or no client is registered
+// under it — callers then apply their own fallback.
+func registeredS3(storeKey string) (client *awss3.Client, bucket string, ok bool) {
+	if storeKey == "" {
+		return nil, "", false
+	}
+	client = s3.GetClient(storeKey)
+	bucket = s3.GetBucket(storeKey)
+	if client == nil || bucket == "" {
+		return nil, "", false
+	}
+	return client, bucket, true
+}
+
 // setupArtifactService builds the ADK artifact.Service from cfg.Artifact.
 // Returns nil when the bucket is not configured or the referenced S3 client
 // is not registered — ADK then runs without artifact persistence.
@@ -75,9 +92,8 @@ func setupArtifactService(ctx context.Context, cfg *config.AppConfig) artifact.S
 		logger.Info("artifact service disabled (artifact.s3_bucket not set)")
 		return nil
 	}
-	client := s3.GetClient(cfg.Artifact.S3Bucket)
-	bucket := s3.GetBucket(cfg.Artifact.S3Bucket)
-	if client == nil || bucket == "" {
+	client, bucket, ok := registeredS3(cfg.Artifact.S3Bucket)
+	if !ok {
 		logger.Warn("artifact service disabled: s3 client not registered",
 			"store_key", cfg.Artifact.S3Bucket,
 		)
@@ -101,9 +117,8 @@ func setupAgentFileContentStore(ctx context.Context, cfg *config.AppConfig) agen
 		logger.Info("agent files content store using memory (agent_files.s3_bucket not set)")
 		return agentfile.NewMemoryContentStore()
 	}
-	client := s3.GetClient(cfg.AgentFiles.S3Bucket)
-	bucket := s3.GetBucket(cfg.AgentFiles.S3Bucket)
-	if client == nil || bucket == "" {
+	client, bucket, ok := registeredS3(cfg.AgentFiles.S3Bucket)
+	if !ok {
 		logger.Warn("agent files content store falling back to memory: s3 client not registered",
 			"store_key", cfg.AgentFiles.S3Bucket,
 		)
@@ -115,6 +130,31 @@ func setupAgentFileContentStore(ctx context.Context, cfg *config.AppConfig) agen
 		"key_prefix", cfg.AgentFiles.KeyPrefix,
 	)
 	return agentfile.NewS3ContentStore(bucket, client, cfg.AgentFiles.KeyPrefix)
+}
+
+// setupSkillContentStore builds the skill.ContentStore from cfg.Skills.
+// Falls back to the in-memory store (with a warning) when no bucket is
+// configured or the referenced S3 client is not registered, so local
+// development needs zero infrastructure (issue #153).
+func setupSkillContentStore(ctx context.Context, cfg *config.AppConfig) skillrepo.ContentStore {
+	logger := log.FromContext(ctx)
+	if cfg.Skills.S3Bucket == "" {
+		logger.Warn("skills content store using memory (skills.s3_bucket not set); skill bodies will not survive restarts")
+		return skillrepo.NewMemoryContentStore()
+	}
+	client, bucket, ok := registeredS3(cfg.Skills.S3Bucket)
+	if !ok {
+		logger.Warn("skills content store falling back to memory: s3 client not registered",
+			"store_key", cfg.Skills.S3Bucket,
+		)
+		return skillrepo.NewMemoryContentStore()
+	}
+	logger.Info("skills content store enabled",
+		"store_key", cfg.Skills.S3Bucket,
+		"bucket", bucket,
+		"key_prefix", cfg.Skills.KeyPrefix,
+	)
+	return skillrepo.NewS3ContentStore(bucket, client, cfg.Skills.KeyPrefix)
 }
 
 // setupLangfuse initializes the Langfuse plugin if configured.
