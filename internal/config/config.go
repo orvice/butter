@@ -82,9 +82,18 @@ func (a AgentFilesConfig) EffectiveMaxFileBytes() int64 {
 }
 
 // SkillsConfig configures the workspace-scoped Skills that agents attach
-// through the built-in skill toolset. S3-backed content storage is added by a
-// later slice; for now only the SKILL.md size cap is honored.
+// through the built-in skill toolset. Metadata is stored in MongoDB when
+// storage_backend is mongo; SKILL.md bodies go to S3 (ADR 0004).
 type SkillsConfig struct {
+	// S3Bucket is the key under `store.s3` to use for SKILL.md bodies. If
+	// empty, skill contents fall back to in-memory storage for local
+	// development.
+	S3Bucket string `yaml:"s3_bucket"`
+
+	// KeyPrefix is prepended to every object key
+	// (<key_prefix>/<workspace_id>/<skill_name>/SKILL.md).
+	KeyPrefix string `yaml:"key_prefix"`
+
 	// MaxSkillMDBytes caps one SKILL.md write. 0 means use the default 256 KiB.
 	MaxSkillMDBytes int64 `yaml:"max_skill_md_bytes"`
 }

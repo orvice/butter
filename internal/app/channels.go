@@ -40,6 +40,7 @@ import (
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
+	skillmongo "go.orx.me/apps/butter/internal/repo/skill/mongo"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
@@ -144,9 +145,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		wsRepo = workspacemongo.New(db)
 		oauthRepo = mcpoauthmongo.New(db)
 		fileRepo = agentfilemongo.New(db, setupAgentFileContentStore(ctx, cfg))
-		// Skills persistence (Mongo metadata + S3 content) lands with the
-		// storage slice; until then skills are memory-backed on all backends.
-		skillRepo = skillmemory.New()
+		skillRepo = skillmongo.New(db, setupSkillContentStore(ctx, cfg))
 		oauthStateRepo = oauthstatemongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
