@@ -52,7 +52,7 @@ message ListSkillsResponse {
 }
 
 message GetSkillRequest {
-  string name = 1;
+  string name = 1 [(validate.rules).string.min_len = 1];
 }
 
 message GetSkillResponse {
@@ -63,9 +63,9 @@ message GetSkillResponse {
 
 message CreateSkillRequest {
   // Skill name; must equal the name declared in the SKILL.md frontmatter.
-  string name = 1;
+  string name = 1 [(validate.rules).string.min_len = 1];
   // Full SKILL.md document (frontmatter + instructions).
-  string skill_md = 2;
+  string skill_md = 2 [(validate.rules).string.min_len = 1];
 }
 
 message CreateSkillResponse {
@@ -74,9 +74,9 @@ message CreateSkillResponse {
 
 message UpdateSkillRequest {
   // Existing skill name; the frontmatter name must match (name is immutable).
-  string name = 1;
+  string name = 1 [(validate.rules).string.min_len = 1];
   // Full replacement SKILL.md document (frontmatter + instructions).
-  string skill_md = 2;
+  string skill_md = 2 [(validate.rules).string.min_len = 1];
 }
 
 message UpdateSkillResponse {
@@ -84,7 +84,7 @@ message UpdateSkillResponse {
 }
 
 message DeleteSkillRequest {
-  string name = 1;
+  string name = 1 [(validate.rules).string.min_len = 1];
 }
 
 message DeleteSkillResponse {}

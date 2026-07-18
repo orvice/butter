@@ -38,6 +38,10 @@ func notFound(ws, name string) error {
 	return fmt.Errorf("skill %q (workspace %q): %w", name, ws, skillrepo.ErrNotFound)
 }
 
+func alreadyExists(ws, name string) error {
+	return fmt.Errorf("skill %q (workspace %q): %w", name, ws, skillrepo.ErrAlreadyExists)
+}
+
 func (s *Store) List(_ context.Context, workspaceID string) ([]*agentsv1.Skill, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -74,7 +78,7 @@ func (s *Store) Create(_ context.Context, workspaceID string, sk *agentsv1.Skill
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.skills[workspaceID][sk.GetName()]; ok {
-		return nil, fmt.Errorf("skill %q (workspace %q): %w", sk.GetName(), workspaceID, skillrepo.ErrAlreadyExists)
+		return nil, alreadyExists(workspaceID, sk.GetName())
 	}
 	if s.skills[workspaceID] == nil {
 		s.skills[workspaceID] = make(map[string]*agentsv1.Skill)

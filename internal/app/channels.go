@@ -79,6 +79,7 @@ type BootstrapResult struct {
 	AgentFileRepo       agentfile.Repository
 	AgentFileMaxBytes   int64
 	SkillRepo           skillrepo.Repository
+	SkillMDMaxBytes     int64
 	LangfuseHost        string
 	SessionCounter      func(ctx context.Context) (int64, error)
 }
@@ -179,6 +180,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := fileRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create agent file indexes", "err", err)
+		return nil, err
+	}
+	if err := skillRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create skill indexes", "err", err)
 		return nil, err
 	}
 	if err := oauthStateRepo.EnsureIndexes(ctx); err != nil {
@@ -307,6 +312,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		MCPAuthResolver:     mcpAuthResolver,
 		AgentFileRepo:       fileRepo,
 		SkillRepo:           skillRepo,
+		SkillMDMaxBytes:     cfg.Skills.EffectiveMaxSkillMDBytes(),
 		AgentFileMaxBytes:   cfg.AgentFiles.EffectiveMaxFileBytes(),
 		LangfuseHost:        cfg.Langfuse.Host,
 		SessionCounter:      sessionSvc.CountSessions,

@@ -126,6 +126,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.SkillRepo != nil && h.skillSvcServer != nil {
 		h.skillSvcServer.SetRepo(result.SkillRepo)
+		h.skillSvcServer.SetSkillMDMaxBytes(result.SkillMDMaxBytes)
 	}
 	if result.AgentFileRepo != nil && h.workspaceMCPSvc != nil {
 		h.workspaceMCPSvc.SetAgentFileRepo(result.AgentFileRepo)

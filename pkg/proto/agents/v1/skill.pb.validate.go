@@ -474,7 +474,16 @@ func (m *GetSkillRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Name
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := GetSkillRequestValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	if len(errors) > 0 {
 		return GetSkillRequestMultiError(errors)
@@ -707,9 +716,27 @@ func (m *CreateSkillRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Name
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := CreateSkillRequestValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
-	// no validation rules for SkillMd
+	if utf8.RuneCountInString(m.GetSkillMd()) < 1 {
+		err := CreateSkillRequestValidationError{
+			field:  "SkillMd",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	if len(errors) > 0 {
 		return CreateSkillRequestMultiError(errors)
@@ -944,9 +971,27 @@ func (m *UpdateSkillRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Name
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := UpdateSkillRequestValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
-	// no validation rules for SkillMd
+	if utf8.RuneCountInString(m.GetSkillMd()) < 1 {
+		err := UpdateSkillRequestValidationError{
+			field:  "SkillMd",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	if len(errors) > 0 {
 		return UpdateSkillRequestMultiError(errors)
@@ -1181,7 +1226,16 @@ func (m *DeleteSkillRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Name
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := DeleteSkillRequestValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	if len(errors) > 0 {
 		return DeleteSkillRequestMultiError(errors)

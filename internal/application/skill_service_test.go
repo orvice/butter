@@ -1,6 +1,7 @@
 package application
 
 import (
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -97,6 +98,7 @@ func TestSkillServiceCreateRejectsInvalidSkillMD(t *testing.T) {
 		{"frontmatter name mismatch", "other-name", validSkillMD},
 		{"invalid name characters", "Bad_Name", "---\nname: Bad_Name\ndescription: x\n---\nbody\n"},
 		{"missing description", "pdf-report", "---\nname: pdf-report\n---\nbody\n"},
+		{"over-long description", "pdf-report", "---\nname: pdf-report\ndescription: " + strings.Repeat("x", 1025) + "\n---\nbody\n"},
 		{"unclosed frontmatter", "pdf-report", "---\nname: pdf-report\ndescription: x\n"},
 	}
 	for _, tc := range cases {
@@ -145,8 +147,21 @@ func TestSkillServiceWorkspaceIsolation(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	_, err := svc.GetSkill(ctxB, connect.NewRequest(&agentsv1.GetSkillRequest{Name: "pdf-report"}))
-	requireConnectCode(t, err, connect.CodeNotFound)
+	_, getErr := svc.GetSkill(ctxB, connect.NewRequest(&agentsv1.GetSkillRequest{Name: "pdf-report"}))
+	requireConnectCode(t, getErr, connect.CodeNotFound)
+
+	_, updateErr := svc.UpdateSkill(ctxB, connect.NewRequest(&agentsv1.UpdateSkillRequest{
+		Name: "pdf-report", SkillMd: updatedSkillMD,
+	}))
+	requireConnectCode(t, updateErr, connect.CodeNotFound)
+
+	_, deleteErr := svc.DeleteSkill(ctxB, connect.NewRequest(&agentsv1.DeleteSkillRequest{Name: "pdf-report"}))
+	requireConnectCode(t, deleteErr, connect.CodeNotFound)
+
+	// The skill remains intact in its own workspace.
+	if _, err := svc.GetSkill(ctxA, connect.NewRequest(&agentsv1.GetSkillRequest{Name: "pdf-report"})); err != nil {
+		t.Fatalf("skill should survive cross-workspace mutation attempts: %v", err)
+	}
 }
 
 const updatedSkillMD = `---
@@ -162,15 +177,18 @@ func TestSkillServiceListReturnsMetadataOnly(t *testing.T) {
 	ctx := workspace.WithID(t.Context(), "ws-skills")
 	svc := newSkillTestService()
 
-	for _, md := range []string{validSkillMD, "---\nname: csv-export\ndescription: Exports CSV.\n---\nbody\n"} {
-		fmName := "pdf-report"
-		if md != validSkillMD {
-			fmName = "csv-export"
-		}
+	cases := []struct {
+		name    string
+		skillMD string
+	}{
+		{"pdf-report", validSkillMD},
+		{"csv-export", "---\nname: csv-export\ndescription: Exports CSV.\n---\nbody\n"},
+	}
+	for _, tc := range cases {
 		if _, err := svc.CreateSkill(ctx, connect.NewRequest(&agentsv1.CreateSkillRequest{
-			Name: fmName, SkillMd: md,
+			Name: tc.name, SkillMd: tc.skillMD,
 		})); err != nil {
-			t.Fatalf("create %s: %v", fmName, err)
+			t.Fatalf("create %s: %v", tc.name, err)
 		}
 	}
 
