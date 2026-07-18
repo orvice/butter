@@ -59,6 +59,18 @@ func notFound(name string) error {
 }
 
 func (s *Source) LoadFrontmatter(ctx context.Context, name string) (*adkskill.Frontmatter, error) {
+	sk, err := s.getAllowed(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return frontmatterFromProto(sk), nil
+}
+
+// getAllowed returns the skill if it is allowlisted and present, otherwise the
+// ErrSkillNotFound sentinel. Allowlist misses and repository misses are
+// deliberately indistinguishable to callers: a skill outside the allowlist is
+// as invisible as one that never existed.
+func (s *Source) getAllowed(ctx context.Context, name string) (*agentsv1.Skill, error) {
 	if _, ok := s.allow[name]; !ok {
 		return nil, notFound(name)
 	}
@@ -69,7 +81,7 @@ func (s *Source) LoadFrontmatter(ctx context.Context, name string) (*adkskill.Fr
 		}
 		return nil, fmt.Errorf("get skill %q: %w", name, err)
 	}
-	return frontmatterFromProto(sk), nil
+	return sk, nil
 }
 
 func (s *Source) LoadInstructions(ctx context.Context, name string) (string, error) {
@@ -114,16 +126,8 @@ func (s *Source) LoadResource(ctx context.Context, name, resourcePath string) (i
 // ensureVisible checks that a skill is allowlisted and present in the
 // repository, returning ErrSkillNotFound otherwise.
 func (s *Source) ensureVisible(ctx context.Context, name string) error {
-	if _, ok := s.allow[name]; !ok {
-		return notFound(name)
-	}
-	if _, err := s.repo.Get(ctx, s.workspaceID, name); err != nil {
-		if errors.Is(err, skillrepo.ErrNotFound) {
-			return notFound(name)
-		}
-		return fmt.Errorf("get skill %q: %w", name, err)
-	}
-	return nil
+	_, err := s.getAllowed(ctx, name)
+	return err
 }
 
 func frontmatterFromProto(sk *agentsv1.Skill) *adkskill.Frontmatter {

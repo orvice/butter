@@ -3,6 +3,7 @@ package skilltool
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 
@@ -11,6 +12,21 @@ import (
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+// listedNames returns the sorted skill names ListFrontmatters exposes.
+func listedNames(t *testing.T, ctx context.Context, src *Source) []string {
+	t.Helper()
+	fms, err := src.ListFrontmatters(ctx)
+	if err != nil {
+		t.Fatalf("ListFrontmatters: %v", err)
+	}
+	names := make([]string, 0, len(fms))
+	for _, fm := range fms {
+		names = append(names, fm.Name)
+	}
+	slices.Sort(names)
+	return names
+}
 
 // writeSkill stores a skill with a minimal spec-valid SKILL.md document and
 // returns any error, so it is safe to call from a non-test goroutine (where
@@ -138,6 +154,31 @@ func TestResourceMethodsWithoutResourcesSlice(t *testing.T) {
 	}
 	if _, err := src.LoadResource(ctx, "dangling", "references/notes.md"); !errors.Is(err, adkskill.ErrSkillNotFound) {
 		t.Errorf("LoadResource(dangling) err = %v, want ErrSkillNotFound", err)
+	}
+}
+
+func TestListFrontmattersReflectsDeletion(t *testing.T) {
+	ctx := context.Background()
+	repo := skillmemory.New()
+	seedSkill(t, repo, "ws-1", "alpha", "Alpha skill", "Use alpha.\n")
+	seedSkill(t, repo, "ws-1", "beta", "Beta skill", "Use beta.\n")
+
+	src := NewSource(repo, "ws-1", []string{"alpha", "beta"})
+
+	if names := listedNames(t, ctx, src); !slices.Equal(names, []string{"alpha", "beta"}) {
+		t.Fatalf("initial listing = %v, want [alpha beta]", names)
+	}
+
+	// Delete one referenced skill: the agent keeps running, the remaining
+	// skill is still listed, and the deleted one is silently omitted.
+	if err := repo.Delete(ctx, "ws-1", "beta"); err != nil {
+		t.Fatalf("delete beta: %v", err)
+	}
+	if names := listedNames(t, ctx, src); !slices.Equal(names, []string{"alpha"}) {
+		t.Errorf("listing after delete = %v, want [alpha]", names)
+	}
+	if _, err := src.LoadInstructions(ctx, "beta"); !errors.Is(err, adkskill.ErrSkillNotFound) {
+		t.Errorf("LoadInstructions(beta) after delete err = %v, want ErrSkillNotFound", err)
 	}
 }
 
