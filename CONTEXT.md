@@ -47,6 +47,16 @@ _Avoid_: pause, suspension
 **Parallel Worker**:
 A node option that runs the node once per item of a list-typed input, concurrently, then aggregates outputs.
 
+### Skills
+
+**Skill**:
+A workspace-level shared bundle of instructions and resources (SKILL.md plus optional references/assets/scripts), following the agentskills.io spec. Agents opt in by listing Skill names in their config; an empty list means no skill toolset is attached.
+_Avoid_: plugin, capability
+
+**Skill Name**:
+The sole identifier of a Skill, unique per workspace and validated against the agentskills.io spec (1–64 chars, lowercase alphanumeric and hyphens). There is no separate generated ID; renaming a Skill is delete-and-recreate.
+_Avoid_: skill ID, skill slug
+
 ### Multimodal input
 
 **Input Part**:

@@ -28,6 +28,7 @@ type AppConfig struct {
 	Static         StaticConfig     `yaml:"static"`
 	Artifact       ArtifactConfig   `yaml:"artifact"`
 	AgentFiles     AgentFilesConfig `yaml:"agent_files"`
+	Skills         SkillsConfig     `yaml:"skills"`
 	MCPOAuth       MCPOAuthConfig   `yaml:"mcp_oauth"`
 	StorageBackend string           `yaml:"storage_backend"` // "mongo" (default) or "memory"
 }
@@ -78,6 +79,21 @@ func (a AgentFilesConfig) EffectiveMaxFileBytes() int64 {
 		return 256 * 1024
 	}
 	return a.MaxFileBytes
+}
+
+// SkillsConfig configures the workspace-scoped Skills that agents attach
+// through the built-in skill toolset. S3-backed content storage is added by a
+// later slice; for now only the SKILL.md size cap is honored.
+type SkillsConfig struct {
+	// MaxSkillMDBytes caps one SKILL.md write. 0 means use the default 256 KiB.
+	MaxSkillMDBytes int64 `yaml:"max_skill_md_bytes"`
+}
+
+func (s SkillsConfig) EffectiveMaxSkillMDBytes() int64 {
+	if s.MaxSkillMDBytes <= 0 {
+		return 256 * 1024
+	}
+	return s.MaxSkillMDBytes
 }
 
 // MCPOAuthConfig controls the browser-based OAuth2 flow used for protected

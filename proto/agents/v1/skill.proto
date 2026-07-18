@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// Skill is a workspace-level shared bundle of instructions and resources
+// following the agentskills.io spec. The spec-validated name is the sole
+// identifier (unique per workspace); there is no separate generated ID.
+// Frontmatter fields are parsed from SKILL.md at write time; the SKILL.md
+// document itself is stored separately by the repository backend (ADR 0004).
+message Skill {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // @gotags: json:"description,omitempty" yaml:"description,omitempty" bson:"description,omitempty"
+  string description = 2;
+  // @gotags: json:"license,omitempty" yaml:"license,omitempty" bson:"license,omitempty"
+  string license = 3;
+  // @gotags: json:"compatibility,omitempty" yaml:"compatibility,omitempty" bson:"compatibility,omitempty"
+  string compatibility = 4;
+  // @gotags: json:"metadata,omitempty" yaml:"metadata,omitempty" bson:"metadata,omitempty"
+  map<string, string> metadata = 5;
+  // Parsed from frontmatter; stored for metadata purposes, not enforced.
+  // @gotags: json:"allowed_tools,omitempty" yaml:"allowed_tools,omitempty" bson:"allowed_tools,omitempty"
+  repeated string allowed_tools = 6;
+  // Size of the stored SKILL.md document in bytes.
+  // @gotags: json:"size_bytes,omitempty" yaml:"size_bytes,omitempty" bson:"size_bytes,omitempty"
+  int64 size_bytes = 7;
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 8;
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 9;
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+service SkillService {
+  rpc ListSkills(ListSkillsRequest) returns (ListSkillsResponse);
+  rpc GetSkill(GetSkillRequest) returns (GetSkillResponse);
+  rpc CreateSkill(CreateSkillRequest) returns (CreateSkillResponse);
+  rpc UpdateSkill(UpdateSkillRequest) returns (UpdateSkillResponse);
+  rpc DeleteSkill(DeleteSkillRequest) returns (DeleteSkillResponse);
+}
+
+message ListSkillsRequest {}
+
+message ListSkillsResponse {
+  repeated Skill skills = 1;
+}
+
+message GetSkillRequest {
+  string name = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetSkillResponse {
+  Skill skill = 1;
+  // Full SKILL.md document (frontmatter + instructions).
+  string skill_md = 2;
+}
+
+message CreateSkillRequest {
+  // Skill name; must equal the name declared in the SKILL.md frontmatter.
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // Full SKILL.md document (frontmatter + instructions).
+  string skill_md = 2 [(validate.rules).string.min_len = 1];
+}
+
+message CreateSkillResponse {
+  Skill skill = 1;
+}
+
+message UpdateSkillRequest {
+  // Existing skill name; the frontmatter name must match (name is immutable).
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // Full replacement SKILL.md document (frontmatter + instructions).
+  string skill_md = 2 [(validate.rules).string.min_len = 1];
+}
+
+message UpdateSkillResponse {
+  Skill skill = 1;
+}
+
+message DeleteSkillRequest {
+  string name = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteSkillResponse {}

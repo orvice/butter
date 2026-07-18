@@ -76,6 +76,11 @@ message AgentConfig {
   // @gotags: json:"file_mounts,omitempty" yaml:"file_mounts,omitempty"
   repeated AgentFileMount file_mounts = 6;
 
+  // Names of workspace-level Skills attached to this agent's built-in skill
+  // toolset. Empty means no skill toolset is attached.
+  // @gotags: json:"skills,omitempty" yaml:"skills,omitempty"
+  repeated string skills = 7;
+
   // --- LLM agent fields (used when type is LLM or UNSPECIFIED) ---
 
   // Model identifier (for example: "gemini-2.5-pro").

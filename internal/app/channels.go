@@ -38,6 +38,8 @@ import (
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
+	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
+	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
@@ -76,6 +78,8 @@ type BootstrapResult struct {
 	MCPAuthResolver     *mcpoauth.Resolver
 	AgentFileRepo       agentfile.Repository
 	AgentFileMaxBytes   int64
+	SkillRepo           skillrepo.Repository
+	SkillMDMaxBytes     int64
 	LangfuseHost        string
 	SessionCounter      func(ctx context.Context) (int64, error)
 }
@@ -116,6 +120,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		wsRepo         workspacerepo.Repository
 		oauthRepo      mcpoauthrepo.Repository
 		fileRepo       agentfile.Repository
+		skillRepo      skillrepo.Repository
 		oauthStateRepo oauthstate.Repository
 	)
 	authUserRepo := authmongo.New(db)
@@ -139,6 +144,9 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		wsRepo = workspacemongo.New(db)
 		oauthRepo = mcpoauthmongo.New(db)
 		fileRepo = agentfilemongo.New(db, setupAgentFileContentStore(ctx, cfg))
+		// Skills persistence (Mongo metadata + S3 content) lands with the
+		// storage slice; until then skills are memory-backed on all backends.
+		skillRepo = skillmemory.New()
 		oauthStateRepo = oauthstatemongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
@@ -147,6 +155,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		wsRepo = workspacememory.New()
 		oauthRepo = mcpoauthmemory.New()
 		fileRepo = agentfilememory.New()
+		skillRepo = skillmemory.New()
 		oauthStateRepo = oauthstatememory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
@@ -171,6 +180,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := fileRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create agent file indexes", "err", err)
+		return nil, err
+	}
+	if err := skillRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create skill indexes", "err", err)
 		return nil, err
 	}
 	if err := oauthStateRepo.EnsureIndexes(ctx); err != nil {
@@ -298,6 +311,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		MCPOAuthSvc:         oauthSvc,
 		MCPAuthResolver:     mcpAuthResolver,
 		AgentFileRepo:       fileRepo,
+		SkillRepo:           skillRepo,
+		SkillMDMaxBytes:     cfg.Skills.EffectiveMaxSkillMDBytes(),
 		AgentFileMaxBytes:   cfg.AgentFiles.EffectiveMaxFileBytes(),
 		LangfuseHost:        cfg.Langfuse.Host,
 		SessionCounter:      sessionSvc.CountSessions,
