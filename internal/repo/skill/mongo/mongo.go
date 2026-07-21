@@ -228,6 +228,16 @@ func (s *Store) Delete(ctx context.Context, workspaceID, name string) error {
 	if err != nil {
 		return err
 	}
+	// Collect resource content keys up front, before deleting anything. A
+	// resource lives at an arbitrary path, so unlike the SKILL.md key it is
+	// not reconstructable from (workspace, name) — losing the key orphans
+	// the object permanently. If the lookup fails we abort with nothing
+	// deleted, so a retry still finds the keys in the path index.
+	resourceKeys, err := s.resourceContentKeys(ctx, workspaceID, name)
+	if err != nil {
+		return fmt.Errorf("skill %q (workspace %q): collect resource keys: %w", name, workspaceID, err)
+	}
+
 	res, err := s.skills.DeleteOne(ctx, bson.M{"_id": doc.ID})
 	if err != nil {
 		return mapError(workspaceID, name, err)
@@ -235,33 +245,26 @@ func (s *Store) Delete(ctx context.Context, workspaceID, name string) error {
 	if res.DeletedCount == 0 {
 		return mapError(workspaceID, name, mongo.ErrNoDocuments)
 	}
-	// Cascade to resources: collect keys from the path index, drop the
-	// index documents, then batch-delete the content objects.
-	resourceKeys, err := s.resourceContentKeys(ctx, workspaceID, name)
-	if err != nil {
-		log.FromContext(ctx).Warn("skill deleted but resource index lookup failed; objects orphaned",
-			"workspace_id", workspaceID,
-			"skill", name,
-			"err", err,
-		)
-		resourceKeys = nil
-	}
-	if _, err := s.resources.DeleteMany(ctx, bson.M{"workspace_id": workspaceID, "skill_name": name}); err != nil {
-		log.FromContext(ctx).Warn("skill deleted but resource index removal failed",
-			"workspace_id", workspaceID,
-			"skill", name,
-			"err", err,
-		)
-	}
+
 	// Metadata is the source of truth: the skill is gone once the document
-	// is deleted. A content-store failure here would leave a retry seeing
-	// NotFound, so log the orphaned object instead of failing the delete;
-	// recreating the same name overwrites the same key.
+	// is deleted. Delete content before the path index so the index remains
+	// a recovery record if content deletion fails; a content-store failure
+	// is logged rather than failing the delete (a retry would see the skill
+	// already gone).
 	if err := s.content.Delete(ctx, append(resourceKeys, doc.ContentKey)); err != nil {
-		log.FromContext(ctx).Warn("skill deleted but stored content removal failed; object orphaned",
+		log.FromContext(ctx).Warn("skill deleted but stored content removal failed; objects orphaned",
 			"workspace_id", workspaceID,
 			"skill", name,
 			"content_key", doc.ContentKey,
+			"resource_count", len(resourceKeys),
+			"err", err,
+		)
+		return nil
+	}
+	if _, err := s.resources.DeleteMany(ctx, bson.M{"workspace_id": workspaceID, "skill_name": name}); err != nil {
+		log.FromContext(ctx).Warn("skill content removed but resource index removal failed; stale index entries remain",
+			"workspace_id", workspaceID,
+			"skill", name,
 			"err", err,
 		)
 	}
@@ -386,10 +389,21 @@ func (s *Store) PutResource(ctx context.Context, workspaceID, skillName string, 
 	clone.SizeBytes = int64(len(content))
 	clone.UpdatedAt = now
 	clone.CreatedAt = now
-	if prev, err := s.findResourceDoc(ctx, workspaceID, skillName, clone.GetPath()); err == nil {
-		if prevRes, err := decodeResource(prev); err == nil {
-			clone.CreatedAt = prevRes.GetCreatedAt()
+	// Preserve created_at across overwrites. Only a genuine miss falls
+	// through to the fresh `now`; a transient lookup error must fail the
+	// write rather than silently reset the timestamp.
+	prev, err := s.findResourceDoc(ctx, workspaceID, skillName, clone.GetPath())
+	switch {
+	case err == nil:
+		prevRes, derr := decodeResource(prev)
+		if derr != nil {
+			return nil, derr
 		}
+		clone.CreatedAt = prevRes.GetCreatedAt()
+	case errors.Is(err, skillrepo.ErrNotFound):
+		// Fresh resource: created_at stays at now.
+	default:
+		return nil, err
 	}
 	doc, err := encodeResourceDoc(workspaceID, skillName, clone)
 	if err != nil {

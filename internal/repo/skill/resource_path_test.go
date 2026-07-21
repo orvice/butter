@@ -52,3 +52,36 @@ func TestCleanResourcePath(t *testing.T) {
 		})
 	}
 }
+
+func TestCleanResourceSubpath(t *testing.T) {
+	valid := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"bare spec dir", "references", "references"},
+		{"trailing slash cleans to bare dir", "assets/", "assets"},
+		{"file under dir", "references/api.md", "references/api.md"},
+		{"nested dir", "scripts/setup", "scripts/setup"},
+	}
+	for _, tc := range valid {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := CleanResourceSubpath(tc.in)
+			if err != nil {
+				t.Fatalf("CleanResourceSubpath(%q): unexpected error %v", tc.in, err)
+			}
+			if got != tc.want {
+				t.Fatalf("CleanResourceSubpath(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+
+	invalid := []string{"", "docs", "../references", "references/..", `references\..\x`, "/references"}
+	for _, in := range invalid {
+		t.Run(in, func(t *testing.T) {
+			if _, err := CleanResourceSubpath(in); !errors.Is(err, ErrInvalidResourcePath) {
+				t.Fatalf("CleanResourceSubpath(%q): expected ErrInvalidResourcePath, got %v", in, err)
+			}
+		})
+	}
+}

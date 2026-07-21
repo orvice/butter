@@ -11,8 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path"
-	"slices"
 	"strings"
 
 	adkskill "google.golang.org/adk/v2/tool/skilltoolset/skill"
@@ -120,9 +118,9 @@ func (s *Source) ListResources(ctx context.Context, name, subpath string) ([]str
 	}
 	prefix := ""
 	if subpath != "" && subpath != "." {
-		cleaned, err := cleanSubpath(subpath)
+		cleaned, err := skillrepo.CleanResourceSubpath(subpath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("skill %q subpath %q: %w", name, subpath, adkskill.ErrInvalidResourcePath)
 		}
 		prefix = cleaned + "/"
 	}
@@ -143,21 +141,6 @@ func (s *Source) ListResources(ctx context.Context, name, subpath string) ([]str
 		return nil, fmt.Errorf("skill %q subpath %q: %w", name, subpath, adkskill.ErrResourceNotFound)
 	}
 	return paths, nil
-}
-
-// cleanSubpath validates a non-root ListResources subpath: no traversal and
-// a first segment inside the spec directories. Unlike full resource paths, a
-// bare directory ("references") is valid here.
-func cleanSubpath(subpath string) (string, error) {
-	if strings.Contains(subpath, `\`) || slices.Contains(strings.Split(subpath, "/"), "..") {
-		return "", fmt.Errorf("subpath %q contains traversal: %w", subpath, adkskill.ErrInvalidResourcePath)
-	}
-	cleaned := path.Clean(subpath)
-	switch strings.SplitN(cleaned, "/", 2)[0] {
-	case "references", "assets", "scripts":
-		return cleaned, nil
-	}
-	return "", fmt.Errorf("subpath %q must be empty, root (.), or within 'references/', 'assets/', or 'scripts/': %w", subpath, adkskill.ErrInvalidResourcePath)
 }
 
 // LoadResource streams one resource's content. The path guard is our own

@@ -240,7 +240,7 @@ func runResources(t *testing.T, factory Factory) {
 	t.Run("ResourcePutOverwritesInPlace", func(t *testing.T) {
 		repo := factory(t)
 		create(t, repo, "ws-a", "pdf-report")
-		putResource(t, repo, "ws-a", "pdf-report", "references/api.md", []byte("v1"))
+		first := putResource(t, repo, "ws-a", "pdf-report", "references/api.md", []byte("v1"))
 		putResource(t, repo, "ws-a", "pdf-report", "references/api.md", []byte("v2 longer"))
 
 		meta, content, err := repo.GetResource(context.Background(), "ws-a", "pdf-report", "references/api.md")
@@ -252,6 +252,10 @@ func runResources(t *testing.T, factory Factory) {
 		}
 		if meta.GetSizeBytes() != int64(len("v2 longer")) {
 			t.Fatalf("expected size updated to %d, got %d", len("v2 longer"), meta.GetSizeBytes())
+		}
+		// created_at is stamped once and preserved across overwrites.
+		if !meta.GetCreatedAt().AsTime().Equal(first.GetCreatedAt().AsTime()) {
+			t.Fatalf("expected created_at preserved, got %v want %v", meta.GetCreatedAt(), first.GetCreatedAt())
 		}
 
 		resources, err := repo.ListResources(context.Background(), "ws-a", "pdf-report")
