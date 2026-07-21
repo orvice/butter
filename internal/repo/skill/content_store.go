@@ -20,6 +20,14 @@ func ContentKey(workspaceID, name string) string {
 	return workspaceID + "/" + name + "/SKILL.md"
 }
 
+// ResourceContentKey builds the storage key for a skill resource file.
+// Resource paths live under references/, assets/, or scripts/, so they can
+// never collide with the sibling SKILL.md key. The configured key_prefix is
+// applied by the S3 content store, not here.
+func ResourceContentKey(workspaceID, skillName, resourcePath string) string {
+	return workspaceID + "/" + skillName + "/" + resourcePath
+}
+
 type memoryContentStore struct {
 	mu    sync.RWMutex
 	items map[string]string

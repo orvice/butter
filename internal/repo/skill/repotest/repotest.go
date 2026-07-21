@@ -5,6 +5,7 @@
 package repotest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -188,6 +189,173 @@ func Run(t *testing.T, factory Factory) {
 		repo := factory(t)
 		if err := repo.Delete(context.Background(), "ws-a", "absent"); !errors.Is(err, skillrepo.ErrNotFound) {
 			t.Fatalf("expected ErrNotFound, got %v", err)
+		}
+	})
+
+	runResources(t, factory)
+}
+
+func newResource(path, contentType string) *agentsv1.SkillResource {
+	return &agentsv1.SkillResource{Path: path, ContentType: contentType}
+}
+
+func putResource(t *testing.T, repo skillrepo.Repository, ws, skill, path string, content []byte) *agentsv1.SkillResource {
+	t.Helper()
+	res, err := repo.PutResource(context.Background(), ws, skill, newResource(path, "application/octet-stream"), content)
+	if err != nil {
+		t.Fatalf("PutResource %s/%s/%s: %v", ws, skill, path, err)
+	}
+	return res
+}
+
+// runResources covers the skill resource slice of the Repository seam
+// (issue #154): binary-safe round-trips, metadata-listed paths, overwrite in
+// place, and DeleteSkill cascading to resource content.
+func runResources(t *testing.T, factory Factory) {
+	binary := []byte{0x00, 0xff, 0x1f, 0x8b, 'P', 'N', 'G', 0x00, 0x7f}
+
+	t.Run("ResourcePutThenGetRoundTripsBinary", func(t *testing.T) {
+		repo := factory(t)
+		create(t, repo, "ws-a", "pdf-report")
+		created := putResource(t, repo, "ws-a", "pdf-report", "assets/logo.png", binary)
+		if created.GetSizeBytes() != int64(len(binary)) {
+			t.Fatalf("expected size %d, got %d", len(binary), created.GetSizeBytes())
+		}
+		if created.GetCreatedAt() == nil || created.GetUpdatedAt() == nil {
+			t.Fatalf("expected timestamps set, got %v / %v", created.GetCreatedAt(), created.GetUpdatedAt())
+		}
+
+		meta, content, err := repo.GetResource(context.Background(), "ws-a", "pdf-report", "assets/logo.png")
+		if err != nil {
+			t.Fatalf("GetResource: %v", err)
+		}
+		if !bytes.Equal(content, binary) {
+			t.Fatalf("content did not round-trip: got %v want %v", content, binary)
+		}
+		if meta.GetPath() != "assets/logo.png" || meta.GetContentType() != "application/octet-stream" {
+			t.Fatalf("metadata did not round-trip: %v", meta)
+		}
+	})
+
+	t.Run("ResourcePutOverwritesInPlace", func(t *testing.T) {
+		repo := factory(t)
+		create(t, repo, "ws-a", "pdf-report")
+		putResource(t, repo, "ws-a", "pdf-report", "references/api.md", []byte("v1"))
+		putResource(t, repo, "ws-a", "pdf-report", "references/api.md", []byte("v2 longer"))
+
+		meta, content, err := repo.GetResource(context.Background(), "ws-a", "pdf-report", "references/api.md")
+		if err != nil {
+			t.Fatalf("GetResource: %v", err)
+		}
+		if string(content) != "v2 longer" {
+			t.Fatalf("expected overwrite, got %q", content)
+		}
+		if meta.GetSizeBytes() != int64(len("v2 longer")) {
+			t.Fatalf("expected size updated to %d, got %d", len("v2 longer"), meta.GetSizeBytes())
+		}
+
+		resources, err := repo.ListResources(context.Background(), "ws-a", "pdf-report")
+		if err != nil {
+			t.Fatalf("ListResources: %v", err)
+		}
+		if len(resources) != 1 {
+			t.Fatalf("expected 1 resource after overwrite, got %d", len(resources))
+		}
+	})
+
+	t.Run("ResourcePutOnMissingSkillIsNotFound", func(t *testing.T) {
+		repo := factory(t)
+		_, err := repo.PutResource(context.Background(), "ws-a", "absent", newResource("assets/a.txt", ""), []byte("x"))
+		if !errors.Is(err, skillrepo.ErrNotFound) {
+			t.Fatalf("expected ErrNotFound, got %v", err)
+		}
+	})
+
+	t.Run("ResourceGetMissingIsNotFound", func(t *testing.T) {
+		repo := factory(t)
+		create(t, repo, "ws-a", "pdf-report")
+		if _, _, err := repo.GetResource(context.Background(), "ws-a", "pdf-report", "assets/absent.txt"); !errors.Is(err, skillrepo.ErrNotFound) {
+			t.Fatalf("expected ErrNotFound, got %v", err)
+		}
+	})
+
+	t.Run("ResourceListSortedAndScopedToSkill", func(t *testing.T) {
+		repo := factory(t)
+		create(t, repo, "ws-a", "pdf-report")
+		create(t, repo, "ws-a", "other-skill")
+		create(t, repo, "ws-b", "pdf-report")
+		putResource(t, repo, "ws-a", "pdf-report", "scripts/run.sh", []byte("#!/bin/sh"))
+		putResource(t, repo, "ws-a", "pdf-report", "assets/logo.png", binary)
+		putResource(t, repo, "ws-a", "other-skill", "assets/other.png", binary)
+		putResource(t, repo, "ws-b", "pdf-report", "assets/foreign.png", binary)
+
+		resources, err := repo.ListResources(context.Background(), "ws-a", "pdf-report")
+		if err != nil {
+			t.Fatalf("ListResources: %v", err)
+		}
+		if len(resources) != 2 || resources[0].GetPath() != "assets/logo.png" || resources[1].GetPath() != "scripts/run.sh" {
+			paths := make([]string, 0, len(resources))
+			for _, r := range resources {
+				paths = append(paths, r.GetPath())
+			}
+			t.Fatalf("expected [assets/logo.png scripts/run.sh], got %v", paths)
+		}
+	})
+
+	t.Run("ResourceListOnMissingSkillIsNotFound", func(t *testing.T) {
+		repo := factory(t)
+		if _, err := repo.ListResources(context.Background(), "ws-a", "absent"); !errors.Is(err, skillrepo.ErrNotFound) {
+			t.Fatalf("expected ErrNotFound, got %v", err)
+		}
+	})
+
+	t.Run("ResourceDeleteRemovesExactlyOne", func(t *testing.T) {
+		repo := factory(t)
+		create(t, repo, "ws-a", "pdf-report")
+		putResource(t, repo, "ws-a", "pdf-report", "assets/keep.png", binary)
+		putResource(t, repo, "ws-a", "pdf-report", "assets/drop.png", binary)
+
+		if err := repo.DeleteResource(context.Background(), "ws-a", "pdf-report", "assets/drop.png"); err != nil {
+			t.Fatalf("DeleteResource: %v", err)
+		}
+		if _, _, err := repo.GetResource(context.Background(), "ws-a", "pdf-report", "assets/drop.png"); !errors.Is(err, skillrepo.ErrNotFound) {
+			t.Fatalf("expected deleted resource gone, got %v", err)
+		}
+		if _, _, err := repo.GetResource(context.Background(), "ws-a", "pdf-report", "assets/keep.png"); err != nil {
+			t.Fatalf("expected sibling resource kept, got %v", err)
+		}
+	})
+
+	t.Run("ResourceDeleteMissingIsNotFound", func(t *testing.T) {
+		repo := factory(t)
+		create(t, repo, "ws-a", "pdf-report")
+		if err := repo.DeleteResource(context.Background(), "ws-a", "pdf-report", "assets/absent.png"); !errors.Is(err, skillrepo.ErrNotFound) {
+			t.Fatalf("expected ErrNotFound, got %v", err)
+		}
+	})
+
+	t.Run("DeleteSkillCascadesToResources", func(t *testing.T) {
+		repo := factory(t)
+		create(t, repo, "ws-a", "pdf-report")
+		putResource(t, repo, "ws-a", "pdf-report", "assets/logo.png", binary)
+		putResource(t, repo, "ws-a", "pdf-report", "references/api.md", []byte("api"))
+
+		if err := repo.Delete(context.Background(), "ws-a", "pdf-report"); err != nil {
+			t.Fatalf("Delete skill: %v", err)
+		}
+
+		// Names are reusable after delete; the recreated skill must not see
+		// the old skill's resources.
+		create(t, repo, "ws-a", "pdf-report")
+		resources, err := repo.ListResources(context.Background(), "ws-a", "pdf-report")
+		if err != nil {
+			t.Fatalf("ListResources after recreate: %v", err)
+		}
+		if len(resources) != 0 {
+			t.Fatalf("expected no resources after cascade delete, got %v", resources)
+		}
+		if _, _, err := repo.GetResource(context.Background(), "ws-a", "pdf-report", "assets/logo.png"); !errors.Is(err, skillrepo.ErrNotFound) {
+			t.Fatalf("expected resource content gone after cascade, got %v", err)
 		}
 	})
 }

@@ -16,13 +16,25 @@ import (
 
 const defaultSkillMDMaxBytes int64 = 256 * 1024
 
+// skillResourceMaxBytes is hard-aligned with ADK's per-resource read cap
+// (adkskill maxResourceSize): anything larger could be stored but never
+// loaded by load_skill_resource, so the write is rejected instead.
+const skillResourceMaxBytes int64 = 10 * 1024 * 1024
+
+const defaultSkillResourceMaxCount = 100
+
 type SkillServiceServer struct {
-	repo            skillrepo.Repository
-	skillMDMaxBytes int64
+	repo                  skillrepo.Repository
+	skillMDMaxBytes       int64
+	skillResourceMaxCount int
 }
 
 func NewSkillServiceServer(repo skillrepo.Repository) *SkillServiceServer {
-	return &SkillServiceServer{repo: repo, skillMDMaxBytes: defaultSkillMDMaxBytes}
+	return &SkillServiceServer{
+		repo:                  repo,
+		skillMDMaxBytes:       defaultSkillMDMaxBytes,
+		skillResourceMaxCount: defaultSkillResourceMaxCount,
+	}
 }
 
 func (s *SkillServiceServer) SetRepo(repo skillrepo.Repository) {
@@ -34,6 +46,13 @@ func (s *SkillServiceServer) SetSkillMDMaxBytes(max int64) {
 		max = defaultSkillMDMaxBytes
 	}
 	s.skillMDMaxBytes = max
+}
+
+func (s *SkillServiceServer) SetSkillResourceMaxCount(max int) {
+	if max <= 0 {
+		max = defaultSkillResourceMaxCount
+	}
+	s.skillResourceMaxCount = max
 }
 
 func (s *SkillServiceServer) requireRepo() (skillrepo.Repository, error) {
@@ -172,6 +191,115 @@ func (s *SkillServiceServer) DeleteSkill(ctx context.Context, req *connect.Reque
 		return nil, toConnectSkillError(err)
 	}
 	return connect.NewResponse(&agentsv1.DeleteSkillResponse{}), nil
+}
+
+// resourceRequestContext validates the shared (skill_name, path) addressing
+// of the resource RPCs: repo present, workspace on the context, and the path
+// cleaned by CleanResourcePath (traversal or out-of-spec → InvalidArgument).
+func (s *SkillServiceServer) resourceRequestContext(ctx context.Context, skillName, resourcePath string) (skillrepo.Repository, string, string, error) {
+	repo, err := s.requireRepo()
+	if err != nil {
+		return nil, "", "", err
+	}
+	if skillName == "" {
+		return nil, "", "", connectx.RequiredArgument("skill_name")
+	}
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if resourcePath == "" {
+		return repo, wsID, "", nil
+	}
+	cleaned, err := skillrepo.CleanResourcePath(resourcePath)
+	if err != nil {
+		return nil, "", "", connectx.InvalidArgument("path", err.Error())
+	}
+	return repo, wsID, cleaned, nil
+}
+
+func (s *SkillServiceServer) ListSkillResources(ctx context.Context, req *connect.Request[agentsv1.ListSkillResourcesRequest]) (*connect.Response[agentsv1.ListSkillResourcesResponse], error) {
+	repo, wsID, _, err := s.resourceRequestContext(ctx, req.Msg.GetSkillName(), "")
+	if err != nil {
+		return nil, err
+	}
+	resources, err := repo.ListResources(ctx, wsID, req.Msg.GetSkillName())
+	if err != nil {
+		return nil, toConnectSkillError(err)
+	}
+	return connect.NewResponse(&agentsv1.ListSkillResourcesResponse{Resources: resources}), nil
+}
+
+func (s *SkillServiceServer) GetSkillResource(ctx context.Context, req *connect.Request[agentsv1.GetSkillResourceRequest]) (*connect.Response[agentsv1.GetSkillResourceResponse], error) {
+	if req.Msg.GetPath() == "" {
+		return nil, connectx.RequiredArgument("path")
+	}
+	repo, wsID, cleaned, err := s.resourceRequestContext(ctx, req.Msg.GetSkillName(), req.Msg.GetPath())
+	if err != nil {
+		return nil, err
+	}
+	resource, content, err := repo.GetResource(ctx, wsID, req.Msg.GetSkillName(), cleaned)
+	if err != nil {
+		return nil, toConnectSkillError(err)
+	}
+	return connect.NewResponse(&agentsv1.GetSkillResourceResponse{Resource: resource, Content: content}), nil
+}
+
+func (s *SkillServiceServer) PutSkillResource(ctx context.Context, req *connect.Request[agentsv1.PutSkillResourceRequest]) (*connect.Response[agentsv1.PutSkillResourceResponse], error) {
+	if req.Msg.GetPath() == "" {
+		return nil, connectx.RequiredArgument("path")
+	}
+	repo, wsID, cleaned, err := s.resourceRequestContext(ctx, req.Msg.GetSkillName(), req.Msg.GetPath())
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(req.Msg.GetContent())) > skillResourceMaxBytes {
+		return nil, connectx.InvalidArgument("content", fmt.Sprintf("resource exceeds max size of %d bytes", skillResourceMaxBytes))
+	}
+	// The count cap only guards new paths; overwriting an existing resource
+	// never changes the count. ListResources doubles as the skill-existence
+	// check, so a missing skill surfaces as NotFound before the cap.
+	existing, err := repo.ListResources(ctx, wsID, req.Msg.GetSkillName())
+	if err != nil {
+		return nil, toConnectSkillError(err)
+	}
+	isOverwrite := false
+	for _, res := range existing {
+		if res.GetPath() == cleaned {
+			isOverwrite = true
+			break
+		}
+	}
+	if !isOverwrite && len(existing) >= s.skillResourceMaxCount {
+		return nil, connect.NewError(connect.CodeResourceExhausted,
+			fmt.Errorf("skill %q already has %d resources (max %d)", req.Msg.GetSkillName(), len(existing), s.skillResourceMaxCount))
+	}
+	logger := log.FromContext(ctx)
+	logger.Info("putting skill resource", "workspace_id", wsID, "skill", req.Msg.GetSkillName(), "path", cleaned, "size", len(req.Msg.GetContent()))
+	stored, err := repo.PutResource(ctx, wsID, req.Msg.GetSkillName(), &agentsv1.SkillResource{
+		Path:        cleaned,
+		ContentType: req.Msg.GetContentType(),
+	}, req.Msg.GetContent())
+	if err != nil {
+		return nil, toConnectSkillError(err)
+	}
+	return connect.NewResponse(&agentsv1.PutSkillResourceResponse{Resource: stored}), nil
+}
+
+func (s *SkillServiceServer) DeleteSkillResource(ctx context.Context, req *connect.Request[agentsv1.DeleteSkillResourceRequest]) (*connect.Response[agentsv1.DeleteSkillResourceResponse], error) {
+	if req.Msg.GetPath() == "" {
+		return nil, connectx.RequiredArgument("path")
+	}
+	repo, wsID, cleaned, err := s.resourceRequestContext(ctx, req.Msg.GetSkillName(), req.Msg.GetPath())
+	if err != nil {
+		return nil, err
+	}
+	logger := log.FromContext(ctx)
+	logger.Info("deleting skill resource", "workspace_id", wsID, "skill", req.Msg.GetSkillName(), "path", cleaned)
+	if err := repo.DeleteResource(ctx, wsID, req.Msg.GetSkillName(), cleaned); err != nil {
+		return nil, toConnectSkillError(err)
+	}
+	return connect.NewResponse(&agentsv1.DeleteSkillResourceResponse{}), nil
 }
 
 func toConnectSkillError(err error) *connect.Error {

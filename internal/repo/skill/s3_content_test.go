@@ -15,12 +15,17 @@ import (
 )
 
 type fakeS3Client struct {
-	objects map[string]string
-	buckets map[string]struct{}
+	objects      map[string]string
+	buckets      map[string]struct{}
+	contentTypes map[string]string
 }
 
 func newFakeS3Client() *fakeS3Client {
-	return &fakeS3Client{objects: make(map[string]string), buckets: make(map[string]struct{})}
+	return &fakeS3Client{
+		objects:      make(map[string]string),
+		buckets:      make(map[string]struct{}),
+		contentTypes: make(map[string]string),
+	}
 }
 
 func (f *fakeS3Client) PutObject(_ context.Context, in *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
@@ -30,6 +35,7 @@ func (f *fakeS3Client) PutObject(_ context.Context, in *s3.PutObjectInput, _ ...
 	}
 	f.buckets[aws.ToString(in.Bucket)] = struct{}{}
 	f.objects[aws.ToString(in.Key)] = string(data)
+	f.contentTypes[aws.ToString(in.Key)] = aws.ToString(in.ContentType)
 	return &s3.PutObjectOutput{}, nil
 }
 
@@ -123,5 +129,26 @@ func TestS3ContentStoreWithoutPrefixUsesBareKey(t *testing.T) {
 	}
 	if _, ok := client.objects["ws-a/pdf-report/SKILL.md"]; !ok {
 		t.Fatalf("expected bare key without prefix, stored keys: %v", client.objects)
+	}
+}
+
+// Resource objects are arbitrary binary files; only SKILL.md keys should be
+// tagged as markdown (issue #154).
+func TestS3ContentStoreContentTypeByKeyKind(t *testing.T) {
+	client := newFakeS3Client()
+	store := skillrepo.NewS3ContentStore("skill-bucket", client, "skills")
+
+	if err := store.Put(context.Background(), skillrepo.ContentKey("ws-a", "pdf-report"), "# doc"); err != nil {
+		t.Fatalf("Put SKILL.md: %v", err)
+	}
+	if err := store.Put(context.Background(), skillrepo.ResourceContentKey("ws-a", "pdf-report", "assets/logo.png"), "\x89PNG"); err != nil {
+		t.Fatalf("Put resource: %v", err)
+	}
+
+	if got := client.contentTypes["skills/ws-a/pdf-report/SKILL.md"]; got != "text/markdown; charset=utf-8" {
+		t.Fatalf("SKILL.md content type = %q", got)
+	}
+	if got := client.contentTypes["skills/ws-a/pdf-report/assets/logo.png"]; got != "application/octet-stream" {
+		t.Fatalf("resource content type = %q", got)
 	}
 }

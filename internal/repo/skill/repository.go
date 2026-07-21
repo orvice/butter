@@ -22,5 +22,17 @@ type Repository interface {
 	GetSkillMD(ctx context.Context, workspaceID, name string) (string, error)
 	Create(ctx context.Context, workspaceID string, skill *agentsv1.Skill, skillMD string) (*agentsv1.Skill, error)
 	Update(ctx context.Context, workspaceID string, skill *agentsv1.Skill, skillMD string) (*agentsv1.Skill, error)
+	// Delete removes the skill and cascades to all of its resources.
 	Delete(ctx context.Context, workspaceID, name string) error
+
+	// Resource files under a skill's references/, assets/, scripts/
+	// directories (issue #154). Paths are pre-validated by callers via
+	// CleanResourcePath; metadata is served without touching content
+	// storage, content is binary-safe. All methods return ErrNotFound when
+	// the skill (or, where addressed, the resource) does not exist.
+	ListResources(ctx context.Context, workspaceID, skillName string) ([]*agentsv1.SkillResource, error)
+	GetResource(ctx context.Context, workspaceID, skillName, path string) (*agentsv1.SkillResource, []byte, error)
+	// PutResource creates or overwrites in place, stamping size and timestamps.
+	PutResource(ctx context.Context, workspaceID, skillName string, resource *agentsv1.SkillResource, content []byte) (*agentsv1.SkillResource, error)
+	DeleteResource(ctx context.Context, workspaceID, skillName, path string) error
 }

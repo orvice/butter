@@ -90,12 +90,18 @@ type SkillsConfig struct {
 	// development.
 	S3Bucket string `yaml:"s3_bucket"`
 
-	// KeyPrefix is prepended to every object key
-	// (<key_prefix>/<workspace_id>/<skill_name>/SKILL.md).
+	// KeyPrefix is prepended to every object key:
+	// <key_prefix>/<workspace_id>/<skill_name>/SKILL.md for the document,
+	// <key_prefix>/<workspace_id>/<skill_name>/<resource_path> for resources.
 	KeyPrefix string `yaml:"key_prefix"`
 
 	// MaxSkillMDBytes caps one SKILL.md write. 0 means use the default 256 KiB.
 	MaxSkillMDBytes int64 `yaml:"max_skill_md_bytes"`
+
+	// MaxResourcesPerSkill caps the number of resource files attached to one
+	// skill. 0 means use the default of 100. The per-resource size cap is
+	// fixed at 10 MiB (aligned with ADK's read limit) and not configurable.
+	MaxResourcesPerSkill int `yaml:"max_resources_per_skill"`
 }
 
 func (s SkillsConfig) EffectiveMaxSkillMDBytes() int64 {
@@ -103,6 +109,13 @@ func (s SkillsConfig) EffectiveMaxSkillMDBytes() int64 {
 		return 256 * 1024
 	}
 	return s.MaxSkillMDBytes
+}
+
+func (s SkillsConfig) EffectiveMaxResourcesPerSkill() int {
+	if s.MaxResourcesPerSkill <= 0 {
+		return 100
+	}
+	return s.MaxResourcesPerSkill
 }
 
 // MCPOAuthConfig controls the browser-based OAuth2 flow used for protected

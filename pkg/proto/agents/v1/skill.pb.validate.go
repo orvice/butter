@@ -214,6 +214,179 @@ var _ interface {
 	ErrorName() string
 } = SkillValidationError{}
 
+// Validate checks the field values on SkillResource with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *SkillResource) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SkillResource with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in SkillResourceMultiError, or
+// nil if none found.
+func (m *SkillResource) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SkillResource) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetPath()) < 1 {
+		err := SkillResourceValidationError{
+			field:  "Path",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	// no validation rules for SizeBytes
+
+	// no validation rules for ContentType
+
+	if all {
+		switch v := interface{}(m.GetCreatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, SkillResourceValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, SkillResourceValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCreatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return SkillResourceValidationError{
+				field:  "CreatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, SkillResourceValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, SkillResourceValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return SkillResourceValidationError{
+				field:  "UpdatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return SkillResourceMultiError(errors)
+	}
+
+	return nil
+}
+
+// SkillResourceMultiError is an error wrapping multiple validation errors
+// returned by SkillResource.ValidateAll() if the designated constraints
+// aren't met.
+type SkillResourceMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SkillResourceMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SkillResourceMultiError) AllErrors() []error { return m }
+
+// SkillResourceValidationError is the validation error returned by
+// SkillResource.Validate if the designated constraints aren't met.
+type SkillResourceValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SkillResourceValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SkillResourceValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SkillResourceValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SkillResourceValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SkillResourceValidationError) ErrorName() string { return "SkillResourceValidationError" }
+
+// Error satisfies the builtin error interface
+func (e SkillResourceValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSkillResource.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SkillResourceValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SkillResourceValidationError{}
+
 // Validate checks the field values on ListSkillsRequest with the rules defined
 // in the proto definition for this message. If any rules are violated, the
 // first error encountered is returned, or nil if there are no violations.
@@ -1418,3 +1591,995 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DeleteSkillResponseValidationError{}
+
+// Validate checks the field values on ListSkillResourcesRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListSkillResourcesRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListSkillResourcesRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListSkillResourcesRequestMultiError, or nil if none found.
+func (m *ListSkillResourcesRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListSkillResourcesRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetSkillName()) < 1 {
+		err := ListSkillResourcesRequestValidationError{
+			field:  "SkillName",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return ListSkillResourcesRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListSkillResourcesRequestMultiError is an error wrapping multiple validation
+// errors returned by ListSkillResourcesRequest.ValidateAll() if the
+// designated constraints aren't met.
+type ListSkillResourcesRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListSkillResourcesRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListSkillResourcesRequestMultiError) AllErrors() []error { return m }
+
+// ListSkillResourcesRequestValidationError is the validation error returned by
+// ListSkillResourcesRequest.Validate if the designated constraints aren't met.
+type ListSkillResourcesRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListSkillResourcesRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListSkillResourcesRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListSkillResourcesRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListSkillResourcesRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListSkillResourcesRequestValidationError) ErrorName() string {
+	return "ListSkillResourcesRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListSkillResourcesRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListSkillResourcesRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListSkillResourcesRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListSkillResourcesRequestValidationError{}
+
+// Validate checks the field values on ListSkillResourcesResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListSkillResourcesResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListSkillResourcesResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListSkillResourcesResponseMultiError, or nil if none found.
+func (m *ListSkillResourcesResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListSkillResourcesResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetResources() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListSkillResourcesResponseValidationError{
+						field:  fmt.Sprintf("Resources[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListSkillResourcesResponseValidationError{
+						field:  fmt.Sprintf("Resources[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListSkillResourcesResponseValidationError{
+					field:  fmt.Sprintf("Resources[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListSkillResourcesResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListSkillResourcesResponseMultiError is an error wrapping multiple
+// validation errors returned by ListSkillResourcesResponse.ValidateAll() if
+// the designated constraints aren't met.
+type ListSkillResourcesResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListSkillResourcesResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListSkillResourcesResponseMultiError) AllErrors() []error { return m }
+
+// ListSkillResourcesResponseValidationError is the validation error returned
+// by ListSkillResourcesResponse.Validate if the designated constraints aren't met.
+type ListSkillResourcesResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListSkillResourcesResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListSkillResourcesResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListSkillResourcesResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListSkillResourcesResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListSkillResourcesResponseValidationError) ErrorName() string {
+	return "ListSkillResourcesResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListSkillResourcesResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListSkillResourcesResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListSkillResourcesResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListSkillResourcesResponseValidationError{}
+
+// Validate checks the field values on GetSkillResourceRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetSkillResourceRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetSkillResourceRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetSkillResourceRequestMultiError, or nil if none found.
+func (m *GetSkillResourceRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetSkillResourceRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetSkillName()) < 1 {
+		err := GetSkillResourceRequestValidationError{
+			field:  "SkillName",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if utf8.RuneCountInString(m.GetPath()) < 1 {
+		err := GetSkillResourceRequestValidationError{
+			field:  "Path",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return GetSkillResourceRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetSkillResourceRequestMultiError is an error wrapping multiple validation
+// errors returned by GetSkillResourceRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetSkillResourceRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetSkillResourceRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetSkillResourceRequestMultiError) AllErrors() []error { return m }
+
+// GetSkillResourceRequestValidationError is the validation error returned by
+// GetSkillResourceRequest.Validate if the designated constraints aren't met.
+type GetSkillResourceRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetSkillResourceRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetSkillResourceRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetSkillResourceRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetSkillResourceRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetSkillResourceRequestValidationError) ErrorName() string {
+	return "GetSkillResourceRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetSkillResourceRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetSkillResourceRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetSkillResourceRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetSkillResourceRequestValidationError{}
+
+// Validate checks the field values on GetSkillResourceResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetSkillResourceResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetSkillResourceResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetSkillResourceResponseMultiError, or nil if none found.
+func (m *GetSkillResourceResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetSkillResourceResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetResource()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetSkillResourceResponseValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetSkillResourceResponseValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetResource()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetSkillResourceResponseValidationError{
+				field:  "Resource",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for Content
+
+	if len(errors) > 0 {
+		return GetSkillResourceResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetSkillResourceResponseMultiError is an error wrapping multiple validation
+// errors returned by GetSkillResourceResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetSkillResourceResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetSkillResourceResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetSkillResourceResponseMultiError) AllErrors() []error { return m }
+
+// GetSkillResourceResponseValidationError is the validation error returned by
+// GetSkillResourceResponse.Validate if the designated constraints aren't met.
+type GetSkillResourceResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetSkillResourceResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetSkillResourceResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetSkillResourceResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetSkillResourceResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetSkillResourceResponseValidationError) ErrorName() string {
+	return "GetSkillResourceResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetSkillResourceResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetSkillResourceResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetSkillResourceResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetSkillResourceResponseValidationError{}
+
+// Validate checks the field values on PutSkillResourceRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *PutSkillResourceRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PutSkillResourceRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// PutSkillResourceRequestMultiError, or nil if none found.
+func (m *PutSkillResourceRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PutSkillResourceRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetSkillName()) < 1 {
+		err := PutSkillResourceRequestValidationError{
+			field:  "SkillName",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if utf8.RuneCountInString(m.GetPath()) < 1 {
+		err := PutSkillResourceRequestValidationError{
+			field:  "Path",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	// no validation rules for Content
+
+	// no validation rules for ContentType
+
+	if len(errors) > 0 {
+		return PutSkillResourceRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// PutSkillResourceRequestMultiError is an error wrapping multiple validation
+// errors returned by PutSkillResourceRequest.ValidateAll() if the designated
+// constraints aren't met.
+type PutSkillResourceRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PutSkillResourceRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PutSkillResourceRequestMultiError) AllErrors() []error { return m }
+
+// PutSkillResourceRequestValidationError is the validation error returned by
+// PutSkillResourceRequest.Validate if the designated constraints aren't met.
+type PutSkillResourceRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PutSkillResourceRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PutSkillResourceRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PutSkillResourceRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PutSkillResourceRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PutSkillResourceRequestValidationError) ErrorName() string {
+	return "PutSkillResourceRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e PutSkillResourceRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPutSkillResourceRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PutSkillResourceRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PutSkillResourceRequestValidationError{}
+
+// Validate checks the field values on PutSkillResourceResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *PutSkillResourceResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PutSkillResourceResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// PutSkillResourceResponseMultiError, or nil if none found.
+func (m *PutSkillResourceResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PutSkillResourceResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetResource()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PutSkillResourceResponseValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PutSkillResourceResponseValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetResource()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PutSkillResourceResponseValidationError{
+				field:  "Resource",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return PutSkillResourceResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// PutSkillResourceResponseMultiError is an error wrapping multiple validation
+// errors returned by PutSkillResourceResponse.ValidateAll() if the designated
+// constraints aren't met.
+type PutSkillResourceResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PutSkillResourceResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PutSkillResourceResponseMultiError) AllErrors() []error { return m }
+
+// PutSkillResourceResponseValidationError is the validation error returned by
+// PutSkillResourceResponse.Validate if the designated constraints aren't met.
+type PutSkillResourceResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PutSkillResourceResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PutSkillResourceResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PutSkillResourceResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PutSkillResourceResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PutSkillResourceResponseValidationError) ErrorName() string {
+	return "PutSkillResourceResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e PutSkillResourceResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPutSkillResourceResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PutSkillResourceResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PutSkillResourceResponseValidationError{}
+
+// Validate checks the field values on DeleteSkillResourceRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteSkillResourceRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteSkillResourceRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeleteSkillResourceRequestMultiError, or nil if none found.
+func (m *DeleteSkillResourceRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteSkillResourceRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetSkillName()) < 1 {
+		err := DeleteSkillResourceRequestValidationError{
+			field:  "SkillName",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if utf8.RuneCountInString(m.GetPath()) < 1 {
+		err := DeleteSkillResourceRequestValidationError{
+			field:  "Path",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return DeleteSkillResourceRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteSkillResourceRequestMultiError is an error wrapping multiple
+// validation errors returned by DeleteSkillResourceRequest.ValidateAll() if
+// the designated constraints aren't met.
+type DeleteSkillResourceRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteSkillResourceRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteSkillResourceRequestMultiError) AllErrors() []error { return m }
+
+// DeleteSkillResourceRequestValidationError is the validation error returned
+// by DeleteSkillResourceRequest.Validate if the designated constraints aren't met.
+type DeleteSkillResourceRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteSkillResourceRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteSkillResourceRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteSkillResourceRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteSkillResourceRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteSkillResourceRequestValidationError) ErrorName() string {
+	return "DeleteSkillResourceRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteSkillResourceRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteSkillResourceRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteSkillResourceRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteSkillResourceRequestValidationError{}
+
+// Validate checks the field values on DeleteSkillResourceResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteSkillResourceResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteSkillResourceResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeleteSkillResourceResponseMultiError, or nil if none found.
+func (m *DeleteSkillResourceResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteSkillResourceResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return DeleteSkillResourceResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteSkillResourceResponseMultiError is an error wrapping multiple
+// validation errors returned by DeleteSkillResourceResponse.ValidateAll() if
+// the designated constraints aren't met.
+type DeleteSkillResourceResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteSkillResourceResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteSkillResourceResponseMultiError) AllErrors() []error { return m }
+
+// DeleteSkillResourceResponseValidationError is the validation error returned
+// by DeleteSkillResourceResponse.Validate if the designated constraints
+// aren't met.
+type DeleteSkillResourceResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteSkillResourceResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteSkillResourceResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteSkillResourceResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteSkillResourceResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteSkillResourceResponseValidationError) ErrorName() string {
+	return "DeleteSkillResourceResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteSkillResourceResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteSkillResourceResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteSkillResourceResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteSkillResourceResponseValidationError{}

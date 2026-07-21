@@ -19,11 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SkillService_ListSkills_FullMethodName  = "/agents.v1.SkillService/ListSkills"
-	SkillService_GetSkill_FullMethodName    = "/agents.v1.SkillService/GetSkill"
-	SkillService_CreateSkill_FullMethodName = "/agents.v1.SkillService/CreateSkill"
-	SkillService_UpdateSkill_FullMethodName = "/agents.v1.SkillService/UpdateSkill"
-	SkillService_DeleteSkill_FullMethodName = "/agents.v1.SkillService/DeleteSkill"
+	SkillService_ListSkills_FullMethodName          = "/agents.v1.SkillService/ListSkills"
+	SkillService_GetSkill_FullMethodName            = "/agents.v1.SkillService/GetSkill"
+	SkillService_CreateSkill_FullMethodName         = "/agents.v1.SkillService/CreateSkill"
+	SkillService_UpdateSkill_FullMethodName         = "/agents.v1.SkillService/UpdateSkill"
+	SkillService_DeleteSkill_FullMethodName         = "/agents.v1.SkillService/DeleteSkill"
+	SkillService_ListSkillResources_FullMethodName  = "/agents.v1.SkillService/ListSkillResources"
+	SkillService_GetSkillResource_FullMethodName    = "/agents.v1.SkillService/GetSkillResource"
+	SkillService_PutSkillResource_FullMethodName    = "/agents.v1.SkillService/PutSkillResource"
+	SkillService_DeleteSkillResource_FullMethodName = "/agents.v1.SkillService/DeleteSkillResource"
 )
 
 // SkillServiceClient is the client API for SkillService service.
@@ -35,6 +39,10 @@ type SkillServiceClient interface {
 	CreateSkill(ctx context.Context, in *CreateSkillRequest, opts ...grpc.CallOption) (*CreateSkillResponse, error)
 	UpdateSkill(ctx context.Context, in *UpdateSkillRequest, opts ...grpc.CallOption) (*UpdateSkillResponse, error)
 	DeleteSkill(ctx context.Context, in *DeleteSkillRequest, opts ...grpc.CallOption) (*DeleteSkillResponse, error)
+	ListSkillResources(ctx context.Context, in *ListSkillResourcesRequest, opts ...grpc.CallOption) (*ListSkillResourcesResponse, error)
+	GetSkillResource(ctx context.Context, in *GetSkillResourceRequest, opts ...grpc.CallOption) (*GetSkillResourceResponse, error)
+	PutSkillResource(ctx context.Context, in *PutSkillResourceRequest, opts ...grpc.CallOption) (*PutSkillResourceResponse, error)
+	DeleteSkillResource(ctx context.Context, in *DeleteSkillResourceRequest, opts ...grpc.CallOption) (*DeleteSkillResourceResponse, error)
 }
 
 type skillServiceClient struct {
@@ -95,6 +103,46 @@ func (c *skillServiceClient) DeleteSkill(ctx context.Context, in *DeleteSkillReq
 	return out, nil
 }
 
+func (c *skillServiceClient) ListSkillResources(ctx context.Context, in *ListSkillResourcesRequest, opts ...grpc.CallOption) (*ListSkillResourcesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSkillResourcesResponse)
+	err := c.cc.Invoke(ctx, SkillService_ListSkillResources_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *skillServiceClient) GetSkillResource(ctx context.Context, in *GetSkillResourceRequest, opts ...grpc.CallOption) (*GetSkillResourceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSkillResourceResponse)
+	err := c.cc.Invoke(ctx, SkillService_GetSkillResource_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *skillServiceClient) PutSkillResource(ctx context.Context, in *PutSkillResourceRequest, opts ...grpc.CallOption) (*PutSkillResourceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PutSkillResourceResponse)
+	err := c.cc.Invoke(ctx, SkillService_PutSkillResource_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *skillServiceClient) DeleteSkillResource(ctx context.Context, in *DeleteSkillResourceRequest, opts ...grpc.CallOption) (*DeleteSkillResourceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteSkillResourceResponse)
+	err := c.cc.Invoke(ctx, SkillService_DeleteSkillResource_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SkillServiceServer is the server API for SkillService service.
 // All implementations must embed UnimplementedSkillServiceServer
 // for forward compatibility.
@@ -104,6 +152,10 @@ type SkillServiceServer interface {
 	CreateSkill(context.Context, *CreateSkillRequest) (*CreateSkillResponse, error)
 	UpdateSkill(context.Context, *UpdateSkillRequest) (*UpdateSkillResponse, error)
 	DeleteSkill(context.Context, *DeleteSkillRequest) (*DeleteSkillResponse, error)
+	ListSkillResources(context.Context, *ListSkillResourcesRequest) (*ListSkillResourcesResponse, error)
+	GetSkillResource(context.Context, *GetSkillResourceRequest) (*GetSkillResourceResponse, error)
+	PutSkillResource(context.Context, *PutSkillResourceRequest) (*PutSkillResourceResponse, error)
+	DeleteSkillResource(context.Context, *DeleteSkillResourceRequest) (*DeleteSkillResourceResponse, error)
 	mustEmbedUnimplementedSkillServiceServer()
 }
 
@@ -128,6 +180,18 @@ func (UnimplementedSkillServiceServer) UpdateSkill(context.Context, *UpdateSkill
 }
 func (UnimplementedSkillServiceServer) DeleteSkill(context.Context, *DeleteSkillRequest) (*DeleteSkillResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteSkill not implemented")
+}
+func (UnimplementedSkillServiceServer) ListSkillResources(context.Context, *ListSkillResourcesRequest) (*ListSkillResourcesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSkillResources not implemented")
+}
+func (UnimplementedSkillServiceServer) GetSkillResource(context.Context, *GetSkillResourceRequest) (*GetSkillResourceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSkillResource not implemented")
+}
+func (UnimplementedSkillServiceServer) PutSkillResource(context.Context, *PutSkillResourceRequest) (*PutSkillResourceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PutSkillResource not implemented")
+}
+func (UnimplementedSkillServiceServer) DeleteSkillResource(context.Context, *DeleteSkillResourceRequest) (*DeleteSkillResourceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteSkillResource not implemented")
 }
 func (UnimplementedSkillServiceServer) mustEmbedUnimplementedSkillServiceServer() {}
 func (UnimplementedSkillServiceServer) testEmbeddedByValue()                      {}
@@ -240,6 +304,78 @@ func _SkillService_DeleteSkill_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SkillService_ListSkillResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSkillResourcesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SkillServiceServer).ListSkillResources(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SkillService_ListSkillResources_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SkillServiceServer).ListSkillResources(ctx, req.(*ListSkillResourcesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SkillService_GetSkillResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSkillResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SkillServiceServer).GetSkillResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SkillService_GetSkillResource_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SkillServiceServer).GetSkillResource(ctx, req.(*GetSkillResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SkillService_PutSkillResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutSkillResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SkillServiceServer).PutSkillResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SkillService_PutSkillResource_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SkillServiceServer).PutSkillResource(ctx, req.(*PutSkillResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SkillService_DeleteSkillResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteSkillResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SkillServiceServer).DeleteSkillResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SkillService_DeleteSkillResource_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SkillServiceServer).DeleteSkillResource(ctx, req.(*DeleteSkillResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SkillService_ServiceDesc is the grpc.ServiceDesc for SkillService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -266,6 +402,22 @@ var SkillService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteSkill",
 			Handler:    _SkillService_DeleteSkill_Handler,
+		},
+		{
+			MethodName: "ListSkillResources",
+			Handler:    _SkillService_ListSkillResources_Handler,
+		},
+		{
+			MethodName: "GetSkillResource",
+			Handler:    _SkillService_GetSkillResource_Handler,
+		},
+		{
+			MethodName: "PutSkillResource",
+			Handler:    _SkillService_PutSkillResource_Handler,
+		},
+		{
+			MethodName: "DeleteSkillResource",
+			Handler:    _SkillService_DeleteSkillResource_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

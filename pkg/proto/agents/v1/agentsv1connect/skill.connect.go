@@ -46,6 +46,18 @@ const (
 	// SkillServiceDeleteSkillProcedure is the fully-qualified name of the SkillService's DeleteSkill
 	// RPC.
 	SkillServiceDeleteSkillProcedure = "/agents.v1.SkillService/DeleteSkill"
+	// SkillServiceListSkillResourcesProcedure is the fully-qualified name of the SkillService's
+	// ListSkillResources RPC.
+	SkillServiceListSkillResourcesProcedure = "/agents.v1.SkillService/ListSkillResources"
+	// SkillServiceGetSkillResourceProcedure is the fully-qualified name of the SkillService's
+	// GetSkillResource RPC.
+	SkillServiceGetSkillResourceProcedure = "/agents.v1.SkillService/GetSkillResource"
+	// SkillServicePutSkillResourceProcedure is the fully-qualified name of the SkillService's
+	// PutSkillResource RPC.
+	SkillServicePutSkillResourceProcedure = "/agents.v1.SkillService/PutSkillResource"
+	// SkillServiceDeleteSkillResourceProcedure is the fully-qualified name of the SkillService's
+	// DeleteSkillResource RPC.
+	SkillServiceDeleteSkillResourceProcedure = "/agents.v1.SkillService/DeleteSkillResource"
 )
 
 // SkillServiceClient is a client for the agents.v1.SkillService service.
@@ -55,6 +67,10 @@ type SkillServiceClient interface {
 	CreateSkill(context.Context, *connect.Request[v1.CreateSkillRequest]) (*connect.Response[v1.CreateSkillResponse], error)
 	UpdateSkill(context.Context, *connect.Request[v1.UpdateSkillRequest]) (*connect.Response[v1.UpdateSkillResponse], error)
 	DeleteSkill(context.Context, *connect.Request[v1.DeleteSkillRequest]) (*connect.Response[v1.DeleteSkillResponse], error)
+	ListSkillResources(context.Context, *connect.Request[v1.ListSkillResourcesRequest]) (*connect.Response[v1.ListSkillResourcesResponse], error)
+	GetSkillResource(context.Context, *connect.Request[v1.GetSkillResourceRequest]) (*connect.Response[v1.GetSkillResourceResponse], error)
+	PutSkillResource(context.Context, *connect.Request[v1.PutSkillResourceRequest]) (*connect.Response[v1.PutSkillResourceResponse], error)
+	DeleteSkillResource(context.Context, *connect.Request[v1.DeleteSkillResourceRequest]) (*connect.Response[v1.DeleteSkillResourceResponse], error)
 }
 
 // NewSkillServiceClient constructs a client for the agents.v1.SkillService service. By default, it
@@ -98,16 +114,44 @@ func NewSkillServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(skillServiceMethods.ByName("DeleteSkill")),
 			connect.WithClientOptions(opts...),
 		),
+		listSkillResources: connect.NewClient[v1.ListSkillResourcesRequest, v1.ListSkillResourcesResponse](
+			httpClient,
+			baseURL+SkillServiceListSkillResourcesProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("ListSkillResources")),
+			connect.WithClientOptions(opts...),
+		),
+		getSkillResource: connect.NewClient[v1.GetSkillResourceRequest, v1.GetSkillResourceResponse](
+			httpClient,
+			baseURL+SkillServiceGetSkillResourceProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("GetSkillResource")),
+			connect.WithClientOptions(opts...),
+		),
+		putSkillResource: connect.NewClient[v1.PutSkillResourceRequest, v1.PutSkillResourceResponse](
+			httpClient,
+			baseURL+SkillServicePutSkillResourceProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("PutSkillResource")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteSkillResource: connect.NewClient[v1.DeleteSkillResourceRequest, v1.DeleteSkillResourceResponse](
+			httpClient,
+			baseURL+SkillServiceDeleteSkillResourceProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("DeleteSkillResource")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // skillServiceClient implements SkillServiceClient.
 type skillServiceClient struct {
-	listSkills  *connect.Client[v1.ListSkillsRequest, v1.ListSkillsResponse]
-	getSkill    *connect.Client[v1.GetSkillRequest, v1.GetSkillResponse]
-	createSkill *connect.Client[v1.CreateSkillRequest, v1.CreateSkillResponse]
-	updateSkill *connect.Client[v1.UpdateSkillRequest, v1.UpdateSkillResponse]
-	deleteSkill *connect.Client[v1.DeleteSkillRequest, v1.DeleteSkillResponse]
+	listSkills          *connect.Client[v1.ListSkillsRequest, v1.ListSkillsResponse]
+	getSkill            *connect.Client[v1.GetSkillRequest, v1.GetSkillResponse]
+	createSkill         *connect.Client[v1.CreateSkillRequest, v1.CreateSkillResponse]
+	updateSkill         *connect.Client[v1.UpdateSkillRequest, v1.UpdateSkillResponse]
+	deleteSkill         *connect.Client[v1.DeleteSkillRequest, v1.DeleteSkillResponse]
+	listSkillResources  *connect.Client[v1.ListSkillResourcesRequest, v1.ListSkillResourcesResponse]
+	getSkillResource    *connect.Client[v1.GetSkillResourceRequest, v1.GetSkillResourceResponse]
+	putSkillResource    *connect.Client[v1.PutSkillResourceRequest, v1.PutSkillResourceResponse]
+	deleteSkillResource *connect.Client[v1.DeleteSkillResourceRequest, v1.DeleteSkillResourceResponse]
 }
 
 // ListSkills calls agents.v1.SkillService.ListSkills.
@@ -135,6 +179,26 @@ func (c *skillServiceClient) DeleteSkill(ctx context.Context, req *connect.Reque
 	return c.deleteSkill.CallUnary(ctx, req)
 }
 
+// ListSkillResources calls agents.v1.SkillService.ListSkillResources.
+func (c *skillServiceClient) ListSkillResources(ctx context.Context, req *connect.Request[v1.ListSkillResourcesRequest]) (*connect.Response[v1.ListSkillResourcesResponse], error) {
+	return c.listSkillResources.CallUnary(ctx, req)
+}
+
+// GetSkillResource calls agents.v1.SkillService.GetSkillResource.
+func (c *skillServiceClient) GetSkillResource(ctx context.Context, req *connect.Request[v1.GetSkillResourceRequest]) (*connect.Response[v1.GetSkillResourceResponse], error) {
+	return c.getSkillResource.CallUnary(ctx, req)
+}
+
+// PutSkillResource calls agents.v1.SkillService.PutSkillResource.
+func (c *skillServiceClient) PutSkillResource(ctx context.Context, req *connect.Request[v1.PutSkillResourceRequest]) (*connect.Response[v1.PutSkillResourceResponse], error) {
+	return c.putSkillResource.CallUnary(ctx, req)
+}
+
+// DeleteSkillResource calls agents.v1.SkillService.DeleteSkillResource.
+func (c *skillServiceClient) DeleteSkillResource(ctx context.Context, req *connect.Request[v1.DeleteSkillResourceRequest]) (*connect.Response[v1.DeleteSkillResourceResponse], error) {
+	return c.deleteSkillResource.CallUnary(ctx, req)
+}
+
 // SkillServiceHandler is an implementation of the agents.v1.SkillService service.
 type SkillServiceHandler interface {
 	ListSkills(context.Context, *connect.Request[v1.ListSkillsRequest]) (*connect.Response[v1.ListSkillsResponse], error)
@@ -142,6 +206,10 @@ type SkillServiceHandler interface {
 	CreateSkill(context.Context, *connect.Request[v1.CreateSkillRequest]) (*connect.Response[v1.CreateSkillResponse], error)
 	UpdateSkill(context.Context, *connect.Request[v1.UpdateSkillRequest]) (*connect.Response[v1.UpdateSkillResponse], error)
 	DeleteSkill(context.Context, *connect.Request[v1.DeleteSkillRequest]) (*connect.Response[v1.DeleteSkillResponse], error)
+	ListSkillResources(context.Context, *connect.Request[v1.ListSkillResourcesRequest]) (*connect.Response[v1.ListSkillResourcesResponse], error)
+	GetSkillResource(context.Context, *connect.Request[v1.GetSkillResourceRequest]) (*connect.Response[v1.GetSkillResourceResponse], error)
+	PutSkillResource(context.Context, *connect.Request[v1.PutSkillResourceRequest]) (*connect.Response[v1.PutSkillResourceResponse], error)
+	DeleteSkillResource(context.Context, *connect.Request[v1.DeleteSkillResourceRequest]) (*connect.Response[v1.DeleteSkillResourceResponse], error)
 }
 
 // NewSkillServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -181,6 +249,30 @@ func NewSkillServiceHandler(svc SkillServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(skillServiceMethods.ByName("DeleteSkill")),
 		connect.WithHandlerOptions(opts...),
 	)
+	skillServiceListSkillResourcesHandler := connect.NewUnaryHandler(
+		SkillServiceListSkillResourcesProcedure,
+		svc.ListSkillResources,
+		connect.WithSchema(skillServiceMethods.ByName("ListSkillResources")),
+		connect.WithHandlerOptions(opts...),
+	)
+	skillServiceGetSkillResourceHandler := connect.NewUnaryHandler(
+		SkillServiceGetSkillResourceProcedure,
+		svc.GetSkillResource,
+		connect.WithSchema(skillServiceMethods.ByName("GetSkillResource")),
+		connect.WithHandlerOptions(opts...),
+	)
+	skillServicePutSkillResourceHandler := connect.NewUnaryHandler(
+		SkillServicePutSkillResourceProcedure,
+		svc.PutSkillResource,
+		connect.WithSchema(skillServiceMethods.ByName("PutSkillResource")),
+		connect.WithHandlerOptions(opts...),
+	)
+	skillServiceDeleteSkillResourceHandler := connect.NewUnaryHandler(
+		SkillServiceDeleteSkillResourceProcedure,
+		svc.DeleteSkillResource,
+		connect.WithSchema(skillServiceMethods.ByName("DeleteSkillResource")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.SkillService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SkillServiceListSkillsProcedure:
@@ -193,6 +285,14 @@ func NewSkillServiceHandler(svc SkillServiceHandler, opts ...connect.HandlerOpti
 			skillServiceUpdateSkillHandler.ServeHTTP(w, r)
 		case SkillServiceDeleteSkillProcedure:
 			skillServiceDeleteSkillHandler.ServeHTTP(w, r)
+		case SkillServiceListSkillResourcesProcedure:
+			skillServiceListSkillResourcesHandler.ServeHTTP(w, r)
+		case SkillServiceGetSkillResourceProcedure:
+			skillServiceGetSkillResourceHandler.ServeHTTP(w, r)
+		case SkillServicePutSkillResourceProcedure:
+			skillServicePutSkillResourceHandler.ServeHTTP(w, r)
+		case SkillServiceDeleteSkillResourceProcedure:
+			skillServiceDeleteSkillResourceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -220,4 +320,20 @@ func (UnimplementedSkillServiceHandler) UpdateSkill(context.Context, *connect.Re
 
 func (UnimplementedSkillServiceHandler) DeleteSkill(context.Context, *connect.Request[v1.DeleteSkillRequest]) (*connect.Response[v1.DeleteSkillResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SkillService.DeleteSkill is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) ListSkillResources(context.Context, *connect.Request[v1.ListSkillResourcesRequest]) (*connect.Response[v1.ListSkillResourcesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SkillService.ListSkillResources is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) GetSkillResource(context.Context, *connect.Request[v1.GetSkillResourceRequest]) (*connect.Response[v1.GetSkillResourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SkillService.GetSkillResource is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) PutSkillResource(context.Context, *connect.Request[v1.PutSkillResourceRequest]) (*connect.Response[v1.PutSkillResourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SkillService.PutSkillResource is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) DeleteSkillResource(context.Context, *connect.Request[v1.DeleteSkillResourceRequest]) (*connect.Response[v1.DeleteSkillResourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SkillService.DeleteSkillResource is not implemented"))
 }
