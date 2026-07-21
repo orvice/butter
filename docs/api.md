@@ -1161,6 +1161,212 @@ Endpoints:
 
 ---
 
+### SkillService
+
+Manages workspace-scoped Skills — agentskills.io bundles (a `SKILL.md` plus
+optional resource files) that agents attach by listing Skill names in
+`Agent.config.skills`. All methods require the caller's workspace via
+`X-Workspace-ID`. A Skill is addressed by its spec-validated `name` (unique per
+workspace); there is no separate generated ID (ADR 0004).
+
+Endpoints:
+
+| Method | Path |
+|--------|------|
+| `ListSkills` | `POST /api/agents.v1.SkillService/ListSkills` |
+| `GetSkill` | `POST /api/agents.v1.SkillService/GetSkill` |
+| `CreateSkill` | `POST /api/agents.v1.SkillService/CreateSkill` |
+| `UpdateSkill` | `POST /api/agents.v1.SkillService/UpdateSkill` |
+| `DeleteSkill` | `POST /api/agents.v1.SkillService/DeleteSkill` |
+| `ListSkillResources` | `POST /api/agents.v1.SkillService/ListSkillResources` |
+| `GetSkillResource` | `POST /api/agents.v1.SkillService/GetSkillResource` |
+| `PutSkillResource` | `POST /api/agents.v1.SkillService/PutSkillResource` |
+| `DeleteSkillResource` | `POST /api/agents.v1.SkillService/DeleteSkillResource` |
+
+**Limits (enforced by the application layer):**
+
+- `SKILL.md` document ≤ 256 KiB by default (configurable via `skills.max_skill_md_bytes`).
+- One resource ≤ 10 MiB — fixed, hard-aligned with ADK's per-resource read cap; not configurable.
+- ≤ 100 resources per skill by default (configurable via `skills.max_resources_per_skill`). Overwriting an existing path does not count against the cap.
+
+**Resource paths** must fall under `references/`, `assets/`, or `scripts/` after
+`path.Clean`. Traversal attempts (`../`, embedded `..`), backslashes, and
+absolute paths are rejected with `invalid_argument` on every resource method.
+
+#### Skill Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Spec-validated name; the sole identifier. Must equal the frontmatter `name` |
+| `description` | string | Parsed from frontmatter; drives model skill selection |
+| `license` | string | Parsed from frontmatter |
+| `compatibility` | string | Parsed from frontmatter |
+| `metadata` | map<string,string> | Parsed from frontmatter |
+| `allowed_tools` | string[] | Parsed from frontmatter; stored, not enforced |
+| `size_bytes` | int64 | Size of the stored `SKILL.md` document |
+| `created_at` | timestamp | |
+| `updated_at` | timestamp | |
+| `workspace_id` | string | Owning workspace |
+
+#### SkillResource Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | string | Resource path relative to the skill root, e.g. `references/api.md` |
+| `size_bytes` | int64 | Content size |
+| `content_type` | string | Optional MIME type stored as metadata; not validated |
+| `created_at` | timestamp | Stamped once; preserved across overwrites |
+| `updated_at` | timestamp | |
+
+#### ListSkills
+
+```
+POST /api/agents.v1.SkillService/ListSkills
+```
+
+**Request:** `{}`
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `skills` | Skill[] | All skills in the workspace, sorted by name |
+
+#### GetSkill
+
+```
+POST /api/agents.v1.SkillService/GetSkill
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Skill name |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `skill` | Skill | Parsed metadata |
+| `skill_md` | string | Full `SKILL.md` document (frontmatter + instructions) |
+
+#### CreateSkill
+
+```
+POST /api/agents.v1.SkillService/CreateSkill
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Must equal the frontmatter `name` |
+| `skill_md` | string | Full `SKILL.md` document |
+
+**Response:** `{ "skill": Skill }`
+
+Errors: `invalid_argument` (missing/oversized `skill_md`, malformed frontmatter,
+or a frontmatter name mismatch), `already_exists` (name taken in the workspace).
+
+#### UpdateSkill
+
+```
+POST /api/agents.v1.SkillService/UpdateSkill
+```
+
+Overwrites in place; the name is immutable, so the frontmatter `name` must match.
+
+**Request:** `{ "name": "<name>", "skill_md": "<full document>" }`
+
+**Response:** `{ "skill": Skill }` — Errors: `invalid_argument`, `not_found`.
+
+#### DeleteSkill
+
+```
+POST /api/agents.v1.SkillService/DeleteSkill
+```
+
+Cascades to all of the skill's resource content.
+
+**Request:** `{ "name": "<name>" }`
+
+**Response:** `{}` — Errors: `not_found`.
+
+#### ListSkillResources
+
+```
+POST /api/agents.v1.SkillService/ListSkillResources
+```
+
+Served from the Mongo path index (no content-store reads).
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `skill_name` | string | Skill the resources belong to |
+
+**Response:** `{ "resources": SkillResource[] }` (sorted by path) — Errors: `not_found` (skill absent).
+
+#### GetSkillResource
+
+```
+POST /api/agents.v1.SkillService/GetSkillResource
+```
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `skill_name` | string | |
+| `path` | string | Resource path, e.g. `references/api.md` |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `resource` | SkillResource | Metadata |
+| `content` | bytes | Raw content. **Under the JSON codec this field is base64-encoded** |
+
+Errors: `invalid_argument` (unsafe path), `not_found` (skill or resource absent).
+
+#### PutSkillResource
+
+```
+POST /api/agents.v1.SkillService/PutSkillResource
+```
+
+Creates or overwrites a resource in place.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `skill_name` | string | |
+| `path` | string | Must fall under `references/`, `assets/`, or `scripts/` |
+| `content` | bytes | Raw content (base64 under the JSON codec); ≤ 10 MiB |
+| `content_type` | string | Optional MIME type stored as metadata |
+
+**Response:** `{ "resource": SkillResource }`
+
+Errors: `invalid_argument` (unsafe path or oversized content), `not_found`
+(skill absent), `resource_exhausted` (per-skill count cap reached).
+
+#### DeleteSkillResource
+
+```
+POST /api/agents.v1.SkillService/DeleteSkillResource
+```
+
+Removes exactly one resource.
+
+**Request:** `{ "skill_name": "<name>", "path": "<resource path>" }`
+
+**Response:** `{}` — Errors: `invalid_argument` (unsafe path), `not_found`.
+
+---
+
 ### MCPServerService
 
 Manages MCP (Model Context Protocol) server configurations.
