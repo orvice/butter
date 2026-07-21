@@ -90,6 +90,7 @@ Config Layer
 ├── repo/config/{memory,mongo}
 ├── repo/apitoken/{memory,mongo}          # api_tokens collection (workspace-scoped)
 ├── repo/invocation/{memory,mongo}        # invocations collection
+├── repo/skill/{memory,mongo}             # skills + skill_resources metadata; ContentStore (memory/S3) for bodies
 └── repo/workspace/{memory,mongo}         # workspaces + workspace_members
 
 Workspace Layer
@@ -180,6 +181,22 @@ input parts + ContextInfo
 **Workflow 暂停/恢复**（`workflow_resume.go`）：pending Interrupt 从 session events 派生（扫描 `adk_request_input` FunctionCall/FunctionResponse 对），不额外存储。当 session 有未回答的 Interrupt 且新消息为纯文本时，隐式将文本重包为最老 Interrupt 的 FunctionResponse（FIFO），workflow engine 在该 session 上恢复。已携带 FunctionResponse 的精确地址回复直接透传。删除 session（`ClearSession`）可放弃暂停中的 workflow。
 
 当 agent 配置、MCP server 或 remote agent 发生变更时，`ConfigRuntime.ReloadRunner` 会重新构建 proto agent registry，并清空 runner 与 model override 缓存。
+
+## Skills 存储与运行时
+
+Skills 是 workspace 级共享的 agentskills.io 能力包，服务于 ADK `skilltoolset`（ADR 0004）。
+
+**存储切分**：ADK 的 `SkillToolset.ProcessRequest` 在**每次 LLM 请求**都会调用 `ListFrontmatters` 把技能目录注入系统指令，因此纯 S3 方案会把 `ListObjectsV2` 加多次读放到热路径上。改为：上传时解析 frontmatter 与资源路径元数据、持久化到 MongoDB（每轮一次带索引的查询,无缓存、无跨实例失效问题），而 `SKILL.md` 正文与资源文件走 `skill.ContentStore`（S3,与 Agent Files 同模式;未配置 bucket 时回退内存实现）。
+
+- `skills` 集合：元数据 + 内容 key,`(workspace_id, name)` 唯一索引,既保证每 workspace 内名字唯一,又服务 List 热路径。
+- `skill_resources` 集合：资源的路径索引（path、size、content_type + 内容 key）,建 `(workspace_id, skill_name, path)` 索引;`ListSkillResources` 与 Source 的 `ListResources` 都只读这里,**不触发 S3 List**。
+- 内容 key：`<key_prefix>/<workspace_id>/<skill_name>/SKILL.md`（正文）与 `<key_prefix>/<workspace_id>/<skill_name>/<resource_path>`（资源）。
+- 路径安全：`skill.CleanResourcePath` 是自定义 Source 唯一的穿越防护（ADK `FileSystemSource` 的保护不适用于自定义 Source）,`path.Clean` 后必须落在 `references/`|`assets/`|`scripts/` 内,任何 `..` 段、反斜杠、绝对路径一律拒绝。
+- 级联删除：`DeleteSkill` 先从路径索引收集资源内容 key(取 key 失败则中止,不产生半删),删元数据后先删内容再删索引(索引作为内容 key 的恢复记录),内容批量删除对齐 S3 `DeleteObjects` 的 1000-key 上限。
+
+**Source adapter**（`internal/skilltool`）：`Source` 实现 ADK `skill.Source`,构造时绑定到一个 workspace 与一个 agent 的技能名白名单,每次调用实时查库——技能改动无需重建 agent,下一轮 LLM 即生效。白名单外或不存在的技能都返回 ADK 的 `ErrSkillNotFound` 哨兵(两者对调用方不可区分);资源方法用 `CleanResourcePath` 校验后映射到 ADK 的 `ErrInvalidResourcePath` / `ErrResourceNotFound` 哨兵。
+
+**ToolsetFactory 装配**（`internal/runtime/runner`）：`newToolsetFactory` 在 agent 具备 workspace 绑定且 `config.skills` 非空时,为该 agent 构建一个绑定其白名单的 `Source` 并挂上 ADK 技能工具集,向模型暴露 `list_skills` / `load_skill` / `load_skill_resource`。无技能仓库或空技能列表时不挂载。
 
 ## Automation 执行流
 
@@ -329,6 +346,7 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 - ADK memories。
 - 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemons` / `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键，并对 `(workspace_id, name)` 建索引。
 - Agent Files：`agent_file_spaces` / `agent_files` / `agent_file_versions`。
+- Skills：`skills`（元数据 + 内容 key，`(workspace_id, name)` 唯一索引）与 `skill_resources`（资源路径索引，`(workspace_id, skill_name, path)` 索引）；`SKILL.md` 正文与资源内容走 `skill.ContentStore`（S3，未配置 bucket 时回退内存）。
 - Forum：`forum_threads` / `forum_posts`。
 - `workspaces`：workspace 元数据，`slug` 唯一索引。
 - `workspace_members`：用户与 workspace 的多对多关系，`(workspace_id, user_id)` 复合唯一索引、`user_id` 普通索引。
