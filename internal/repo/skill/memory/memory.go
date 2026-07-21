@@ -14,17 +14,26 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+// resourceEntry pairs a resource's metadata with its raw content; the memory
+// backend has no separate content store to delegate to.
+type resourceEntry struct {
+	meta    *agentsv1.SkillResource
+	content []byte
+}
+
 // Store is an in-memory implementation of skill.Repository.
 type Store struct {
-	mu       sync.RWMutex
-	skills   map[string]map[string]*agentsv1.Skill
-	skillMDs map[string]map[string]string
+	mu        sync.RWMutex
+	skills    map[string]map[string]*agentsv1.Skill
+	skillMDs  map[string]map[string]string
+	resources map[string]map[string]map[string]resourceEntry // ws → skill → path
 }
 
 func New() *Store {
 	return &Store{
-		skills:   make(map[string]map[string]*agentsv1.Skill),
-		skillMDs: make(map[string]map[string]string),
+		skills:    make(map[string]map[string]*agentsv1.Skill),
+		skillMDs:  make(map[string]map[string]string),
+		resources: make(map[string]map[string]map[string]resourceEntry),
 	}
 }
 
@@ -118,6 +127,85 @@ func (s *Store) Delete(_ context.Context, workspaceID, name string) error {
 	}
 	delete(s.skills[workspaceID], name)
 	delete(s.skillMDs[workspaceID], name)
+	delete(s.resources[workspaceID], name)
+	return nil
+}
+
+func cloneResource(res *agentsv1.SkillResource) *agentsv1.SkillResource {
+	return proto.Clone(res).(*agentsv1.SkillResource)
+}
+
+func resourceNotFound(ws, skill, path string) error {
+	return fmt.Errorf("skill %q resource %q (workspace %q): %w", skill, path, ws, skillrepo.ErrNotFound)
+}
+
+func (s *Store) ListResources(_ context.Context, workspaceID, skillName string) ([]*agentsv1.SkillResource, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.skills[workspaceID][skillName]; !ok {
+		return nil, notFound(workspaceID, skillName)
+	}
+	bucket := s.resources[workspaceID][skillName]
+	out := make([]*agentsv1.SkillResource, 0, len(bucket))
+	for _, entry := range bucket {
+		out = append(out, cloneResource(entry.meta))
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].GetPath() < out[j].GetPath() })
+	return out, nil
+}
+
+func (s *Store) GetResource(_ context.Context, workspaceID, skillName, path string) (*agentsv1.SkillResource, []byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.skills[workspaceID][skillName]; !ok {
+		return nil, nil, notFound(workspaceID, skillName)
+	}
+	entry, ok := s.resources[workspaceID][skillName][path]
+	if !ok {
+		return nil, nil, resourceNotFound(workspaceID, skillName, path)
+	}
+	content := make([]byte, len(entry.content))
+	copy(content, entry.content)
+	return cloneResource(entry.meta), content, nil
+}
+
+func (s *Store) PutResource(_ context.Context, workspaceID, skillName string, resource *agentsv1.SkillResource, content []byte) (*agentsv1.SkillResource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.skills[workspaceID][skillName]; !ok {
+		return nil, notFound(workspaceID, skillName)
+	}
+	if s.resources[workspaceID] == nil {
+		s.resources[workspaceID] = make(map[string]map[string]resourceEntry)
+	}
+	if s.resources[workspaceID][skillName] == nil {
+		s.resources[workspaceID][skillName] = make(map[string]resourceEntry)
+	}
+	stored := cloneResource(resource)
+	now := timestamppb.New(time.Now().UTC())
+	stored.SizeBytes = int64(len(content))
+	stored.UpdatedAt = now
+	if prev, ok := s.resources[workspaceID][skillName][stored.GetPath()]; ok {
+		stored.CreatedAt = prev.meta.GetCreatedAt()
+	} else {
+		stored.CreatedAt = now
+	}
+	kept := make([]byte, len(content))
+	copy(kept, content)
+	s.resources[workspaceID][skillName][stored.GetPath()] = resourceEntry{meta: stored, content: kept}
+	return cloneResource(stored), nil
+}
+
+func (s *Store) DeleteResource(_ context.Context, workspaceID, skillName, path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.skills[workspaceID][skillName]; !ok {
+		return notFound(workspaceID, skillName)
+	}
+	if _, ok := s.resources[workspaceID][skillName][path]; !ok {
+		return resourceNotFound(workspaceID, skillName, path)
+	}
+	delete(s.resources[workspaceID][skillName], path)
 	return nil
 }
 

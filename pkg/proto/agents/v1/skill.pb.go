@@ -158,6 +158,94 @@ func (x *Skill) GetWorkspaceId() string {
 	return ""
 }
 
+// SkillResource is a file attached to a Skill under one of the spec
+// directories (references/, assets/, scripts/). Path metadata is indexed in
+// Mongo; content lives in the ContentStore (ADR 0004). The path (unique per
+// skill) is the identifier, relative to the skill root.
+type SkillResource struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// @gotags: json:"path,omitempty" yaml:"path,omitempty" bson:"path,omitempty"
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty" yaml:"path,omitempty" bson:"path,omitempty"`
+	// @gotags: json:"size_bytes,omitempty" yaml:"size_bytes,omitempty" bson:"size_bytes,omitempty"
+	SizeBytes int64 `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty" yaml:"size_bytes,omitempty" bson:"size_bytes,omitempty"`
+	// @gotags: json:"content_type,omitempty" yaml:"content_type,omitempty" bson:"content_type,omitempty"
+	ContentType string `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty" yaml:"content_type,omitempty" bson:"content_type,omitempty"`
+	// @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"`
+	// @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"`
+}
+
+func (x *SkillResource) Reset() {
+	*x = SkillResource{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SkillResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkillResource) ProtoMessage() {}
+
+func (x *SkillResource) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkillResource.ProtoReflect.Descriptor instead.
+func (*SkillResource) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SkillResource) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *SkillResource) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *SkillResource) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *SkillResource) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *SkillResource) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
 type ListSkillsRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -167,7 +255,7 @@ type ListSkillsRequest struct {
 func (x *ListSkillsRequest) Reset() {
 	*x = ListSkillsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[1]
+		mi := &file_agents_v1_skill_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -180,7 +268,7 @@ func (x *ListSkillsRequest) String() string {
 func (*ListSkillsRequest) ProtoMessage() {}
 
 func (x *ListSkillsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[1]
+	mi := &file_agents_v1_skill_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -193,7 +281,7 @@ func (x *ListSkillsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSkillsRequest.ProtoReflect.Descriptor instead.
 func (*ListSkillsRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{1}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{2}
 }
 
 type ListSkillsResponse struct {
@@ -207,7 +295,7 @@ type ListSkillsResponse struct {
 func (x *ListSkillsResponse) Reset() {
 	*x = ListSkillsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[2]
+		mi := &file_agents_v1_skill_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -220,7 +308,7 @@ func (x *ListSkillsResponse) String() string {
 func (*ListSkillsResponse) ProtoMessage() {}
 
 func (x *ListSkillsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[2]
+	mi := &file_agents_v1_skill_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -233,7 +321,7 @@ func (x *ListSkillsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSkillsResponse.ProtoReflect.Descriptor instead.
 func (*ListSkillsResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{2}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListSkillsResponse) GetSkills() []*Skill {
@@ -254,7 +342,7 @@ type GetSkillRequest struct {
 func (x *GetSkillRequest) Reset() {
 	*x = GetSkillRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[3]
+		mi := &file_agents_v1_skill_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -267,7 +355,7 @@ func (x *GetSkillRequest) String() string {
 func (*GetSkillRequest) ProtoMessage() {}
 
 func (x *GetSkillRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[3]
+	mi := &file_agents_v1_skill_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,7 +368,7 @@ func (x *GetSkillRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSkillRequest.ProtoReflect.Descriptor instead.
 func (*GetSkillRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{3}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetSkillRequest) GetName() string {
@@ -303,7 +391,7 @@ type GetSkillResponse struct {
 func (x *GetSkillResponse) Reset() {
 	*x = GetSkillResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[4]
+		mi := &file_agents_v1_skill_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -316,7 +404,7 @@ func (x *GetSkillResponse) String() string {
 func (*GetSkillResponse) ProtoMessage() {}
 
 func (x *GetSkillResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[4]
+	mi := &file_agents_v1_skill_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -329,7 +417,7 @@ func (x *GetSkillResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSkillResponse.ProtoReflect.Descriptor instead.
 func (*GetSkillResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{4}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetSkillResponse) GetSkill() *Skill {
@@ -360,7 +448,7 @@ type CreateSkillRequest struct {
 func (x *CreateSkillRequest) Reset() {
 	*x = CreateSkillRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[5]
+		mi := &file_agents_v1_skill_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -373,7 +461,7 @@ func (x *CreateSkillRequest) String() string {
 func (*CreateSkillRequest) ProtoMessage() {}
 
 func (x *CreateSkillRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[5]
+	mi := &file_agents_v1_skill_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +474,7 @@ func (x *CreateSkillRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSkillRequest.ProtoReflect.Descriptor instead.
 func (*CreateSkillRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{5}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CreateSkillRequest) GetName() string {
@@ -414,7 +502,7 @@ type CreateSkillResponse struct {
 func (x *CreateSkillResponse) Reset() {
 	*x = CreateSkillResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[6]
+		mi := &file_agents_v1_skill_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -427,7 +515,7 @@ func (x *CreateSkillResponse) String() string {
 func (*CreateSkillResponse) ProtoMessage() {}
 
 func (x *CreateSkillResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[6]
+	mi := &file_agents_v1_skill_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -440,7 +528,7 @@ func (x *CreateSkillResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSkillResponse.ProtoReflect.Descriptor instead.
 func (*CreateSkillResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{6}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateSkillResponse) GetSkill() *Skill {
@@ -464,7 +552,7 @@ type UpdateSkillRequest struct {
 func (x *UpdateSkillRequest) Reset() {
 	*x = UpdateSkillRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[7]
+		mi := &file_agents_v1_skill_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -477,7 +565,7 @@ func (x *UpdateSkillRequest) String() string {
 func (*UpdateSkillRequest) ProtoMessage() {}
 
 func (x *UpdateSkillRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[7]
+	mi := &file_agents_v1_skill_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -490,7 +578,7 @@ func (x *UpdateSkillRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSkillRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSkillRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{7}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateSkillRequest) GetName() string {
@@ -518,7 +606,7 @@ type UpdateSkillResponse struct {
 func (x *UpdateSkillResponse) Reset() {
 	*x = UpdateSkillResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[8]
+		mi := &file_agents_v1_skill_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -531,7 +619,7 @@ func (x *UpdateSkillResponse) String() string {
 func (*UpdateSkillResponse) ProtoMessage() {}
 
 func (x *UpdateSkillResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[8]
+	mi := &file_agents_v1_skill_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -544,7 +632,7 @@ func (x *UpdateSkillResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSkillResponse.ProtoReflect.Descriptor instead.
 func (*UpdateSkillResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{8}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UpdateSkillResponse) GetSkill() *Skill {
@@ -565,7 +653,7 @@ type DeleteSkillRequest struct {
 func (x *DeleteSkillRequest) Reset() {
 	*x = DeleteSkillRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[9]
+		mi := &file_agents_v1_skill_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -578,7 +666,7 @@ func (x *DeleteSkillRequest) String() string {
 func (*DeleteSkillRequest) ProtoMessage() {}
 
 func (x *DeleteSkillRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[9]
+	mi := &file_agents_v1_skill_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -591,7 +679,7 @@ func (x *DeleteSkillRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSkillRequest.ProtoReflect.Descriptor instead.
 func (*DeleteSkillRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{9}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeleteSkillRequest) GetName() string {
@@ -610,7 +698,7 @@ type DeleteSkillResponse struct {
 func (x *DeleteSkillResponse) Reset() {
 	*x = DeleteSkillResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_skill_proto_msgTypes[10]
+		mi := &file_agents_v1_skill_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -623,7 +711,7 @@ func (x *DeleteSkillResponse) String() string {
 func (*DeleteSkillResponse) ProtoMessage() {}
 
 func (x *DeleteSkillResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_skill_proto_msgTypes[10]
+	mi := &file_agents_v1_skill_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -636,7 +724,429 @@ func (x *DeleteSkillResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSkillResponse.ProtoReflect.Descriptor instead.
 func (*DeleteSkillResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_skill_proto_rawDescGZIP(), []int{10}
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{11}
+}
+
+type ListSkillResourcesRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Skill name the resources belong to.
+	SkillName string `protobuf:"bytes,1,opt,name=skill_name,json=skillName,proto3" json:"skill_name,omitempty"`
+}
+
+func (x *ListSkillResourcesRequest) Reset() {
+	*x = ListSkillResourcesRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListSkillResourcesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSkillResourcesRequest) ProtoMessage() {}
+
+func (x *ListSkillResourcesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSkillResourcesRequest.ProtoReflect.Descriptor instead.
+func (*ListSkillResourcesRequest) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListSkillResourcesRequest) GetSkillName() string {
+	if x != nil {
+		return x.SkillName
+	}
+	return ""
+}
+
+type ListSkillResourcesResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Resources []*SkillResource `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
+}
+
+func (x *ListSkillResourcesResponse) Reset() {
+	*x = ListSkillResourcesResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListSkillResourcesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSkillResourcesResponse) ProtoMessage() {}
+
+func (x *ListSkillResourcesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSkillResourcesResponse.ProtoReflect.Descriptor instead.
+func (*ListSkillResourcesResponse) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListSkillResourcesResponse) GetResources() []*SkillResource {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+type GetSkillResourceRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SkillName string `protobuf:"bytes,1,opt,name=skill_name,json=skillName,proto3" json:"skill_name,omitempty"`
+	// Resource path relative to the skill root, e.g. "references/api.md".
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+}
+
+func (x *GetSkillResourceRequest) Reset() {
+	*x = GetSkillResourceRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetSkillResourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSkillResourceRequest) ProtoMessage() {}
+
+func (x *GetSkillResourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSkillResourceRequest.ProtoReflect.Descriptor instead.
+func (*GetSkillResourceRequest) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetSkillResourceRequest) GetSkillName() string {
+	if x != nil {
+		return x.SkillName
+	}
+	return ""
+}
+
+func (x *GetSkillResourceRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type GetSkillResourceResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Resource *SkillResource `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
+	// Raw resource content (binary-safe).
+	Content []byte `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+}
+
+func (x *GetSkillResourceResponse) Reset() {
+	*x = GetSkillResourceResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetSkillResourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSkillResourceResponse) ProtoMessage() {}
+
+func (x *GetSkillResourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSkillResourceResponse.ProtoReflect.Descriptor instead.
+func (*GetSkillResourceResponse) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GetSkillResourceResponse) GetResource() *SkillResource {
+	if x != nil {
+		return x.Resource
+	}
+	return nil
+}
+
+func (x *GetSkillResourceResponse) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+type PutSkillResourceRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SkillName string `protobuf:"bytes,1,opt,name=skill_name,json=skillName,proto3" json:"skill_name,omitempty"`
+	// Resource path relative to the skill root; must fall under references/,
+	// assets/, or scripts/ after cleaning.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Raw resource content (binary-safe). Creates or overwrites in place.
+	Content []byte `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	// Optional MIME type stored as metadata; not validated.
+	ContentType string `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+}
+
+func (x *PutSkillResourceRequest) Reset() {
+	*x = PutSkillResourceRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *PutSkillResourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutSkillResourceRequest) ProtoMessage() {}
+
+func (x *PutSkillResourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[16]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutSkillResourceRequest.ProtoReflect.Descriptor instead.
+func (*PutSkillResourceRequest) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *PutSkillResourceRequest) GetSkillName() string {
+	if x != nil {
+		return x.SkillName
+	}
+	return ""
+}
+
+func (x *PutSkillResourceRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *PutSkillResourceRequest) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *PutSkillResourceRequest) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+type PutSkillResourceResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Resource *SkillResource `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
+}
+
+func (x *PutSkillResourceResponse) Reset() {
+	*x = PutSkillResourceResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[17]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *PutSkillResourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutSkillResourceResponse) ProtoMessage() {}
+
+func (x *PutSkillResourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[17]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutSkillResourceResponse.ProtoReflect.Descriptor instead.
+func (*PutSkillResourceResponse) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *PutSkillResourceResponse) GetResource() *SkillResource {
+	if x != nil {
+		return x.Resource
+	}
+	return nil
+}
+
+type DeleteSkillResourceRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SkillName string `protobuf:"bytes,1,opt,name=skill_name,json=skillName,proto3" json:"skill_name,omitempty"`
+	Path      string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+}
+
+func (x *DeleteSkillResourceRequest) Reset() {
+	*x = DeleteSkillResourceRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[18]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DeleteSkillResourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSkillResourceRequest) ProtoMessage() {}
+
+func (x *DeleteSkillResourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[18]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSkillResourceRequest.ProtoReflect.Descriptor instead.
+func (*DeleteSkillResourceRequest) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *DeleteSkillResourceRequest) GetSkillName() string {
+	if x != nil {
+		return x.SkillName
+	}
+	return ""
+}
+
+func (x *DeleteSkillResourceRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type DeleteSkillResourceResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *DeleteSkillResourceResponse) Reset() {
+	*x = DeleteSkillResourceResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_skill_proto_msgTypes[19]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DeleteSkillResourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSkillResourceResponse) ProtoMessage() {}
+
+func (x *DeleteSkillResourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_skill_proto_msgTypes[19]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSkillResourceResponse.ProtoReflect.Descriptor instead.
+func (*DeleteSkillResourceResponse) Descriptor() ([]byte, []int) {
+	return file_agents_v1_skill_proto_rawDescGZIP(), []int{19}
 }
 
 var File_agents_v1_skill_proto protoreflect.FileDescriptor
@@ -677,44 +1187,104 @@ var file_agents_v1_skill_proto_rawDesc = []byte{
 	0x0a, 0x0d, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12,
 	0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65,
 	0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x13, 0x0a, 0x11, 0x4c,
-	0x69, 0x73, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x22, 0x3e, 0x0a, 0x12, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x73, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x28, 0x0a, 0x06, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x73,
-	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
-	0x76, 0x31, 0x2e, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x06, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x73,
-	0x22, 0x2e, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65,
-	0x22, 0x55, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x26, 0x0a, 0x05, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
-	0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x05, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x12, 0x19, 0x0a, 0x08,
-	0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x5f, 0x6d, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07,
-	0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x4d, 0x64, 0x22, 0x55, 0x0a, 0x12, 0x43, 0x72, 0x65, 0x61, 0x74,
-	0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04,
-	0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x22, 0x0a, 0x08, 0x73, 0x6b,
-	0x69, 0x6c, 0x6c, 0x5f, 0x6d, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42,
-	0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x07, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x4d, 0x64, 0x22, 0x3d,
-	0x0a, 0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x26, 0x0a, 0x05, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x05, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x22, 0x55, 0x0a,
-	0x12, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65,
-	0x12, 0x22, 0x0a, 0x08, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x5f, 0x6d, 0x64, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x07, 0x73, 0x6b, 0x69,
-	0x6c, 0x6c, 0x4d, 0x64, 0x22, 0x3d, 0x0a, 0x13, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x6b,
+	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0xe4, 0x01, 0x0a, 0x0d,
+	0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x1b, 0x0a,
+	0x04, 0x70, 0x61, 0x74, 0x68, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04,
+	0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x70, 0x61, 0x74, 0x68, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x69,
+	0x7a, 0x65, 0x5f, 0x62, 0x79, 0x74, 0x65, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09,
+	0x73, 0x69, 0x7a, 0x65, 0x42, 0x79, 0x74, 0x65, 0x73, 0x12, 0x21, 0x0a, 0x0c, 0x63, 0x6f, 0x6e,
+	0x74, 0x65, 0x6e, 0x74, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x0b, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x54, 0x79, 0x70, 0x65, 0x12, 0x39, 0x0a, 0x0a,
+	0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x61, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62,
+	0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x09, 0x63, 0x72,
+	0x65, 0x61, 0x74, 0x65, 0x64, 0x41, 0x74, 0x12, 0x39, 0x0a, 0x0a, 0x75, 0x70, 0x64, 0x61, 0x74,
+	0x65, 0x64, 0x5f, 0x61, 0x74, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f,
+	0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69,
+	0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x09, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x64,
+	0x41, 0x74, 0x22, 0x13, 0x0a, 0x11, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x3e, 0x0a, 0x12, 0x4c, 0x69, 0x73, 0x74, 0x53,
+	0x6b, 0x69, 0x6c, 0x6c, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x28, 0x0a,
+	0x06, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x10, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52,
+	0x06, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x73, 0x22, 0x2e, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x53, 0x6b,
+	0x69, 0x6c, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a, 0x04, 0x6e, 0x61,
+	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10,
+	0x01, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x55, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x53, 0x6b,
 	0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x26, 0x0a, 0x05, 0x73,
 	0x6b, 0x69, 0x6c, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x67, 0x65,
 	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x05, 0x73, 0x6b,
-	0x69, 0x6c, 0x6c, 0x22, 0x31, 0x0a, 0x12, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x6b, 0x69,
-	0x6c, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a, 0x04, 0x6e, 0x61, 0x6d,
-	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01,
-	0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x15, 0x0a, 0x13, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65,
-	0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0x88, 0x03,
+	0x69, 0x6c, 0x6c, 0x12, 0x19, 0x0a, 0x08, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x5f, 0x6d, 0x64, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x4d, 0x64, 0x22, 0x55,
+	0x0a, 0x12, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x6e, 0x61, 0x6d,
+	0x65, 0x12, 0x22, 0x0a, 0x08, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x5f, 0x6d, 0x64, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x07, 0x73, 0x6b,
+	0x69, 0x6c, 0x6c, 0x4d, 0x64, 0x22, 0x3d, 0x0a, 0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53,
+	0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x26, 0x0a, 0x05,
+	0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x05, 0x73,
+	0x6b, 0x69, 0x6c, 0x6c, 0x22, 0x55, 0x0a, 0x12, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x6b,
+	0x69, 0x6c, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a, 0x04, 0x6e, 0x61,
+	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10,
+	0x01, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x22, 0x0a, 0x08, 0x73, 0x6b, 0x69, 0x6c, 0x6c,
+	0x5f, 0x6d, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02,
+	0x10, 0x01, 0x52, 0x07, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x4d, 0x64, 0x22, 0x3d, 0x0a, 0x13, 0x55,
+	0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x26, 0x0a, 0x05, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x10, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6b,
+	0x69, 0x6c, 0x6c, 0x52, 0x05, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x22, 0x31, 0x0a, 0x12, 0x44, 0x65,
+	0x6c, 0x65, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x1b, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07,
+	0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x15, 0x0a,
+	0x13, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x43, 0x0a, 0x19, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x6b, 0x69, 0x6c,
+	0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x26, 0x0a, 0x0a, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x09,
+	0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x4e, 0x61, 0x6d, 0x65, 0x22, 0x54, 0x0a, 0x1a, 0x4c, 0x69, 0x73,
+	0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x36, 0x0a, 0x09, 0x72, 0x65, 0x73, 0x6f, 0x75,
+	0x72, 0x63, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f,
+	0x75, 0x72, 0x63, 0x65, 0x52, 0x09, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x22,
+	0x5e, 0x0a, 0x17, 0x47, 0x65, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75,
+	0x72, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x26, 0x0a, 0x0a, 0x73, 0x6b,
+	0x69, 0x6c, 0x6c, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07,
+	0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x09, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x4e, 0x61,
+	0x6d, 0x65, 0x12, 0x1b, 0x0a, 0x04, 0x70, 0x61, 0x74, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x70, 0x61, 0x74, 0x68, 0x22,
+	0x6a, 0x0a, 0x18, 0x47, 0x65, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75,
+	0x72, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x34, 0x0a, 0x08, 0x72,
+	0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52,
+	0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x08, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63,
+	0x65, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x0c, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x22, 0x9b, 0x01, 0x0a, 0x17,
+	0x50, 0x75, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x26, 0x0a, 0x0a, 0x73, 0x6b, 0x69, 0x6c, 0x6c,
+	0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04,
+	0x72, 0x02, 0x10, 0x01, 0x52, 0x09, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x4e, 0x61, 0x6d, 0x65, 0x12,
+	0x1b, 0x0a, 0x04, 0x70, 0x61, 0x74, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa,
+	0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x70, 0x61, 0x74, 0x68, 0x12, 0x18, 0x0a, 0x07,
+	0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x63,
+	0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x12, 0x21, 0x0a, 0x0c, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e,
+	0x74, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x63, 0x6f,
+	0x6e, 0x74, 0x65, 0x6e, 0x74, 0x54, 0x79, 0x70, 0x65, 0x22, 0x50, 0x0a, 0x18, 0x50, 0x75, 0x74,
+	0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x34, 0x0a, 0x08, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63,
+	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63,
+	0x65, 0x52, 0x08, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x22, 0x61, 0x0a, 0x1a, 0x44,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72,
+	0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x26, 0x0a, 0x0a, 0x73, 0x6b, 0x69,
+	0x6c, 0x6c, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa,
+	0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x09, 0x73, 0x6b, 0x69, 0x6c, 0x6c, 0x4e, 0x61, 0x6d,
+	0x65, 0x12, 0x1b, 0x0a, 0x04, 0x70, 0x61, 0x74, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x42,
+	0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x70, 0x61, 0x74, 0x68, 0x22, 0x1d,
+	0x0a, 0x1b, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73,
+	0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0x8b, 0x06,
 	0x0a, 0x0c, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x49,
 	0x0a, 0x0a, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x73, 0x12, 0x1c, 0x2e, 0x61,
 	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x6b, 0x69,
@@ -739,11 +1309,35 @@ var file_agents_v1_skill_proto_rawDesc = []byte{
 	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c,
 	0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
 	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x34, 0x5a, 0x32, 0x67, 0x6f, 0x2e, 0x6f,
-	0x72, 0x78, 0x2e, 0x6d, 0x65, 0x2f, 0x61, 0x70, 0x70, 0x73, 0x2f, 0x62, 0x75, 0x74, 0x74, 0x65,
-	0x72, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2f, 0x76, 0x31, 0x3b, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x76, 0x31, 0x62, 0x06,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x61, 0x0a, 0x12, 0x4c, 0x69, 0x73, 0x74,
+	0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x12, 0x24,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53,
+	0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72,
+	0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x10, 0x47,
+	0x65, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12,
+	0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53,
+	0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x47, 0x65, 0x74, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x10, 0x50, 0x75, 0x74, 0x53,
+	0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x22, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x75, 0x74, 0x53, 0x6b, 0x69, 0x6c,
+	0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x75, 0x74,
+	0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x13, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53,
+	0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x25, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53,
+	0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x6b, 0x69, 0x6c, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75,
+	0x72, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x34, 0x5a, 0x32, 0x67,
+	0x6f, 0x2e, 0x6f, 0x72, 0x78, 0x2e, 0x6d, 0x65, 0x2f, 0x61, 0x70, 0x70, 0x73, 0x2f, 0x62, 0x75,
+	0x74, 0x74, 0x65, 0x72, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2f, 0x76, 0x31, 0x3b, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x76,
+	0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -758,45 +1352,67 @@ func file_agents_v1_skill_proto_rawDescGZIP() []byte {
 	return file_agents_v1_skill_proto_rawDescData
 }
 
-var file_agents_v1_skill_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_agents_v1_skill_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_agents_v1_skill_proto_goTypes = []interface{}{
-	(*Skill)(nil),                 // 0: agents.v1.Skill
-	(*ListSkillsRequest)(nil),     // 1: agents.v1.ListSkillsRequest
-	(*ListSkillsResponse)(nil),    // 2: agents.v1.ListSkillsResponse
-	(*GetSkillRequest)(nil),       // 3: agents.v1.GetSkillRequest
-	(*GetSkillResponse)(nil),      // 4: agents.v1.GetSkillResponse
-	(*CreateSkillRequest)(nil),    // 5: agents.v1.CreateSkillRequest
-	(*CreateSkillResponse)(nil),   // 6: agents.v1.CreateSkillResponse
-	(*UpdateSkillRequest)(nil),    // 7: agents.v1.UpdateSkillRequest
-	(*UpdateSkillResponse)(nil),   // 8: agents.v1.UpdateSkillResponse
-	(*DeleteSkillRequest)(nil),    // 9: agents.v1.DeleteSkillRequest
-	(*DeleteSkillResponse)(nil),   // 10: agents.v1.DeleteSkillResponse
-	nil,                           // 11: agents.v1.Skill.MetadataEntry
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(*Skill)(nil),                       // 0: agents.v1.Skill
+	(*SkillResource)(nil),               // 1: agents.v1.SkillResource
+	(*ListSkillsRequest)(nil),           // 2: agents.v1.ListSkillsRequest
+	(*ListSkillsResponse)(nil),          // 3: agents.v1.ListSkillsResponse
+	(*GetSkillRequest)(nil),             // 4: agents.v1.GetSkillRequest
+	(*GetSkillResponse)(nil),            // 5: agents.v1.GetSkillResponse
+	(*CreateSkillRequest)(nil),          // 6: agents.v1.CreateSkillRequest
+	(*CreateSkillResponse)(nil),         // 7: agents.v1.CreateSkillResponse
+	(*UpdateSkillRequest)(nil),          // 8: agents.v1.UpdateSkillRequest
+	(*UpdateSkillResponse)(nil),         // 9: agents.v1.UpdateSkillResponse
+	(*DeleteSkillRequest)(nil),          // 10: agents.v1.DeleteSkillRequest
+	(*DeleteSkillResponse)(nil),         // 11: agents.v1.DeleteSkillResponse
+	(*ListSkillResourcesRequest)(nil),   // 12: agents.v1.ListSkillResourcesRequest
+	(*ListSkillResourcesResponse)(nil),  // 13: agents.v1.ListSkillResourcesResponse
+	(*GetSkillResourceRequest)(nil),     // 14: agents.v1.GetSkillResourceRequest
+	(*GetSkillResourceResponse)(nil),    // 15: agents.v1.GetSkillResourceResponse
+	(*PutSkillResourceRequest)(nil),     // 16: agents.v1.PutSkillResourceRequest
+	(*PutSkillResourceResponse)(nil),    // 17: agents.v1.PutSkillResourceResponse
+	(*DeleteSkillResourceRequest)(nil),  // 18: agents.v1.DeleteSkillResourceRequest
+	(*DeleteSkillResourceResponse)(nil), // 19: agents.v1.DeleteSkillResourceResponse
+	nil,                                 // 20: agents.v1.Skill.MetadataEntry
+	(*timestamppb.Timestamp)(nil),       // 21: google.protobuf.Timestamp
 }
 var file_agents_v1_skill_proto_depIdxs = []int32{
-	11, // 0: agents.v1.Skill.metadata:type_name -> agents.v1.Skill.MetadataEntry
-	12, // 1: agents.v1.Skill.created_at:type_name -> google.protobuf.Timestamp
-	12, // 2: agents.v1.Skill.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 3: agents.v1.ListSkillsResponse.skills:type_name -> agents.v1.Skill
-	0,  // 4: agents.v1.GetSkillResponse.skill:type_name -> agents.v1.Skill
-	0,  // 5: agents.v1.CreateSkillResponse.skill:type_name -> agents.v1.Skill
-	0,  // 6: agents.v1.UpdateSkillResponse.skill:type_name -> agents.v1.Skill
-	1,  // 7: agents.v1.SkillService.ListSkills:input_type -> agents.v1.ListSkillsRequest
-	3,  // 8: agents.v1.SkillService.GetSkill:input_type -> agents.v1.GetSkillRequest
-	5,  // 9: agents.v1.SkillService.CreateSkill:input_type -> agents.v1.CreateSkillRequest
-	7,  // 10: agents.v1.SkillService.UpdateSkill:input_type -> agents.v1.UpdateSkillRequest
-	9,  // 11: agents.v1.SkillService.DeleteSkill:input_type -> agents.v1.DeleteSkillRequest
-	2,  // 12: agents.v1.SkillService.ListSkills:output_type -> agents.v1.ListSkillsResponse
-	4,  // 13: agents.v1.SkillService.GetSkill:output_type -> agents.v1.GetSkillResponse
-	6,  // 14: agents.v1.SkillService.CreateSkill:output_type -> agents.v1.CreateSkillResponse
-	8,  // 15: agents.v1.SkillService.UpdateSkill:output_type -> agents.v1.UpdateSkillResponse
-	10, // 16: agents.v1.SkillService.DeleteSkill:output_type -> agents.v1.DeleteSkillResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	20, // 0: agents.v1.Skill.metadata:type_name -> agents.v1.Skill.MetadataEntry
+	21, // 1: agents.v1.Skill.created_at:type_name -> google.protobuf.Timestamp
+	21, // 2: agents.v1.Skill.updated_at:type_name -> google.protobuf.Timestamp
+	21, // 3: agents.v1.SkillResource.created_at:type_name -> google.protobuf.Timestamp
+	21, // 4: agents.v1.SkillResource.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 5: agents.v1.ListSkillsResponse.skills:type_name -> agents.v1.Skill
+	0,  // 6: agents.v1.GetSkillResponse.skill:type_name -> agents.v1.Skill
+	0,  // 7: agents.v1.CreateSkillResponse.skill:type_name -> agents.v1.Skill
+	0,  // 8: agents.v1.UpdateSkillResponse.skill:type_name -> agents.v1.Skill
+	1,  // 9: agents.v1.ListSkillResourcesResponse.resources:type_name -> agents.v1.SkillResource
+	1,  // 10: agents.v1.GetSkillResourceResponse.resource:type_name -> agents.v1.SkillResource
+	1,  // 11: agents.v1.PutSkillResourceResponse.resource:type_name -> agents.v1.SkillResource
+	2,  // 12: agents.v1.SkillService.ListSkills:input_type -> agents.v1.ListSkillsRequest
+	4,  // 13: agents.v1.SkillService.GetSkill:input_type -> agents.v1.GetSkillRequest
+	6,  // 14: agents.v1.SkillService.CreateSkill:input_type -> agents.v1.CreateSkillRequest
+	8,  // 15: agents.v1.SkillService.UpdateSkill:input_type -> agents.v1.UpdateSkillRequest
+	10, // 16: agents.v1.SkillService.DeleteSkill:input_type -> agents.v1.DeleteSkillRequest
+	12, // 17: agents.v1.SkillService.ListSkillResources:input_type -> agents.v1.ListSkillResourcesRequest
+	14, // 18: agents.v1.SkillService.GetSkillResource:input_type -> agents.v1.GetSkillResourceRequest
+	16, // 19: agents.v1.SkillService.PutSkillResource:input_type -> agents.v1.PutSkillResourceRequest
+	18, // 20: agents.v1.SkillService.DeleteSkillResource:input_type -> agents.v1.DeleteSkillResourceRequest
+	3,  // 21: agents.v1.SkillService.ListSkills:output_type -> agents.v1.ListSkillsResponse
+	5,  // 22: agents.v1.SkillService.GetSkill:output_type -> agents.v1.GetSkillResponse
+	7,  // 23: agents.v1.SkillService.CreateSkill:output_type -> agents.v1.CreateSkillResponse
+	9,  // 24: agents.v1.SkillService.UpdateSkill:output_type -> agents.v1.UpdateSkillResponse
+	11, // 25: agents.v1.SkillService.DeleteSkill:output_type -> agents.v1.DeleteSkillResponse
+	13, // 26: agents.v1.SkillService.ListSkillResources:output_type -> agents.v1.ListSkillResourcesResponse
+	15, // 27: agents.v1.SkillService.GetSkillResource:output_type -> agents.v1.GetSkillResourceResponse
+	17, // 28: agents.v1.SkillService.PutSkillResource:output_type -> agents.v1.PutSkillResourceResponse
+	19, // 29: agents.v1.SkillService.DeleteSkillResource:output_type -> agents.v1.DeleteSkillResourceResponse
+	21, // [21:30] is the sub-list for method output_type
+	12, // [12:21] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_agents_v1_skill_proto_init() }
@@ -818,7 +1434,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListSkillsRequest); i {
+			switch v := v.(*SkillResource); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -830,7 +1446,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListSkillsResponse); i {
+			switch v := v.(*ListSkillsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -842,7 +1458,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetSkillRequest); i {
+			switch v := v.(*ListSkillsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -854,7 +1470,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetSkillResponse); i {
+			switch v := v.(*GetSkillRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -866,7 +1482,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSkillRequest); i {
+			switch v := v.(*GetSkillResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -878,7 +1494,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSkillResponse); i {
+			switch v := v.(*CreateSkillRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -890,7 +1506,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateSkillRequest); i {
+			switch v := v.(*CreateSkillResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -902,7 +1518,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateSkillResponse); i {
+			switch v := v.(*UpdateSkillRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -914,7 +1530,7 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteSkillRequest); i {
+			switch v := v.(*UpdateSkillResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -926,7 +1542,115 @@ func file_agents_v1_skill_proto_init() {
 			}
 		}
 		file_agents_v1_skill_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteSkillRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DeleteSkillResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ListSkillResourcesRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ListSkillResourcesResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetSkillResourceRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetSkillResourceResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*PutSkillResourceRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*PutSkillResourceResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteSkillResourceRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_skill_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteSkillResourceResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -944,7 +1668,7 @@ func file_agents_v1_skill_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_agents_v1_skill_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -37,12 +37,33 @@ message Skill {
   string workspace_id = 100;
 }
 
+// SkillResource is a file attached to a Skill under one of the spec
+// directories (references/, assets/, scripts/). Path metadata is indexed in
+// Mongo; content lives in the ContentStore (ADR 0004). The path (unique per
+// skill) is the identifier, relative to the skill root.
+message SkillResource {
+  // @gotags: json:"path,omitempty" yaml:"path,omitempty" bson:"path,omitempty"
+  string path = 1 [(validate.rules).string.min_len = 1];
+  // @gotags: json:"size_bytes,omitempty" yaml:"size_bytes,omitempty" bson:"size_bytes,omitempty"
+  int64 size_bytes = 2;
+  // @gotags: json:"content_type,omitempty" yaml:"content_type,omitempty" bson:"content_type,omitempty"
+  string content_type = 3;
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 4;
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 5;
+}
+
 service SkillService {
   rpc ListSkills(ListSkillsRequest) returns (ListSkillsResponse);
   rpc GetSkill(GetSkillRequest) returns (GetSkillResponse);
   rpc CreateSkill(CreateSkillRequest) returns (CreateSkillResponse);
   rpc UpdateSkill(UpdateSkillRequest) returns (UpdateSkillResponse);
   rpc DeleteSkill(DeleteSkillRequest) returns (DeleteSkillResponse);
+  rpc ListSkillResources(ListSkillResourcesRequest) returns (ListSkillResourcesResponse);
+  rpc GetSkillResource(GetSkillResourceRequest) returns (GetSkillResourceResponse);
+  rpc PutSkillResource(PutSkillResourceRequest) returns (PutSkillResourceResponse);
+  rpc DeleteSkillResource(DeleteSkillResourceRequest) returns (DeleteSkillResourceResponse);
 }
 
 message ListSkillsRequest {}
@@ -88,3 +109,46 @@ message DeleteSkillRequest {
 }
 
 message DeleteSkillResponse {}
+
+message ListSkillResourcesRequest {
+  // Skill name the resources belong to.
+  string skill_name = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ListSkillResourcesResponse {
+  repeated SkillResource resources = 1;
+}
+
+message GetSkillResourceRequest {
+  string skill_name = 1 [(validate.rules).string.min_len = 1];
+  // Resource path relative to the skill root, e.g. "references/api.md".
+  string path = 2 [(validate.rules).string.min_len = 1];
+}
+
+message GetSkillResourceResponse {
+  SkillResource resource = 1;
+  // Raw resource content (binary-safe).
+  bytes content = 2;
+}
+
+message PutSkillResourceRequest {
+  string skill_name = 1 [(validate.rules).string.min_len = 1];
+  // Resource path relative to the skill root; must fall under references/,
+  // assets/, or scripts/ after cleaning.
+  string path = 2 [(validate.rules).string.min_len = 1];
+  // Raw resource content (binary-safe). Creates or overwrites in place.
+  bytes content = 3;
+  // Optional MIME type stored as metadata; not validated.
+  string content_type = 4;
+}
+
+message PutSkillResourceResponse {
+  SkillResource resource = 1;
+}
+
+message DeleteSkillResourceRequest {
+  string skill_name = 1 [(validate.rules).string.min_len = 1];
+  string path = 2 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteSkillResourceResponse {}

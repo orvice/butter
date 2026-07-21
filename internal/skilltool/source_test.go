@@ -1,8 +1,10 @@
 package skilltool
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"slices"
 	"sync"
 	"testing"
@@ -123,7 +125,110 @@ func TestLoadInstructionsSeesRepositoryEdits(t *testing.T) {
 	}
 }
 
-func TestResourceMethodsWithoutResourcesSlice(t *testing.T) {
+// seedResource stores a resource file on an existing skill.
+func seedResource(t *testing.T, repo *skillmemory.Store, workspaceID, skillName, path string, content []byte) {
+	t.Helper()
+	_, err := repo.PutResource(context.Background(), workspaceID, skillName, &agentsv1.SkillResource{Path: path}, content)
+	if err != nil {
+		t.Fatalf("seed resource %s/%s: %v", skillName, path, err)
+	}
+}
+
+func TestLoadResourceReturnsContent(t *testing.T) {
+	ctx := context.Background()
+	repo := skillmemory.New()
+	seedSkill(t, repo, "ws-1", "alpha", "Alpha skill", "Use alpha.\n")
+	binary := []byte{0x89, 'P', 'N', 'G', 0x00, 0x1f, 0xff}
+	seedResource(t, repo, "ws-1", "alpha", "assets/logo.png", binary)
+
+	src := NewSource(repo, "ws-1", []string{"alpha"})
+
+	rc, err := src.LoadResource(ctx, "alpha", "assets/logo.png")
+	if err != nil {
+		t.Fatalf("LoadResource: %v", err)
+	}
+	defer rc.Close()
+	got, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read resource: %v", err)
+	}
+	if !bytes.Equal(got, binary) {
+		t.Errorf("resource content = %v, want %v", got, binary)
+	}
+}
+
+func TestLoadResourceSentinelsAndPathSafety(t *testing.T) {
+	ctx := context.Background()
+	repo := skillmemory.New()
+	seedSkill(t, repo, "ws-1", "alpha", "Alpha skill", "Use alpha.\n")
+	seedSkill(t, repo, "ws-1", "hidden", "Not attached to the agent", "Secret.\n")
+	seedResource(t, repo, "ws-1", "alpha", "references/notes.md", []byte("notes"))
+
+	src := NewSource(repo, "ws-1", []string{"alpha", "dangling"})
+
+	// Missing resource on a visible skill: ADK's resource sentinel.
+	if _, err := src.LoadResource(ctx, "alpha", "references/absent.md"); !errors.Is(err, adkskill.ErrResourceNotFound) {
+		t.Errorf("LoadResource(absent) err = %v, want ErrResourceNotFound", err)
+	}
+	// Invisible skills: skill sentinel, same as before the resources slice.
+	if _, err := src.LoadResource(ctx, "hidden", "references/notes.md"); !errors.Is(err, adkskill.ErrSkillNotFound) {
+		t.Errorf("LoadResource(hidden) err = %v, want ErrSkillNotFound", err)
+	}
+	if _, err := src.LoadResource(ctx, "dangling", "references/notes.md"); !errors.Is(err, adkskill.ErrSkillNotFound) {
+		t.Errorf("LoadResource(dangling) err = %v, want ErrSkillNotFound", err)
+	}
+	// Traversal and out-of-spec paths: rejected before touching storage.
+	for _, p := range []string{"../secrets.txt", "references/../../etc/passwd", "docs/readme.md", "references/dir/../notes.md"} {
+		if _, err := src.LoadResource(ctx, "alpha", p); !errors.Is(err, adkskill.ErrInvalidResourcePath) {
+			t.Errorf("LoadResource(%q) err = %v, want ErrInvalidResourcePath", p, err)
+		}
+	}
+}
+
+func TestListResourcesFiltersBySubpath(t *testing.T) {
+	ctx := context.Background()
+	repo := skillmemory.New()
+	seedSkill(t, repo, "ws-1", "alpha", "Alpha skill", "Use alpha.\n")
+	seedResource(t, repo, "ws-1", "alpha", "references/api.md", []byte("api"))
+	seedResource(t, repo, "ws-1", "alpha", "references/deep/notes.md", []byte("notes"))
+	seedResource(t, repo, "ws-1", "alpha", "scripts/run.sh", []byte("#!/bin/sh"))
+
+	src := NewSource(repo, "ws-1", []string{"alpha"})
+
+	// Root listing ("" and ".") returns every resource, skill-root relative.
+	for _, root := range []string{"", "."} {
+		paths, err := src.ListResources(ctx, "alpha", root)
+		if err != nil {
+			t.Fatalf("ListResources(%q): %v", root, err)
+		}
+		want := []string{"references/api.md", "references/deep/notes.md", "scripts/run.sh"}
+		if !slices.Equal(paths, want) {
+			t.Errorf("ListResources(%q) = %v, want %v", root, paths, want)
+		}
+	}
+
+	// Subpath narrows to one directory.
+	paths, err := src.ListResources(ctx, "alpha", "references")
+	if err != nil {
+		t.Fatalf("ListResources(references): %v", err)
+	}
+	if want := []string{"references/api.md", "references/deep/notes.md"}; !slices.Equal(paths, want) {
+		t.Errorf("ListResources(references) = %v, want %v", paths, want)
+	}
+
+	// Subpath with no matches mirrors FileSystemSource's missing-directory error.
+	if _, err := src.ListResources(ctx, "alpha", "assets"); !errors.Is(err, adkskill.ErrResourceNotFound) {
+		t.Errorf("ListResources(assets) err = %v, want ErrResourceNotFound", err)
+	}
+	// Out-of-spec or traversing subpaths are invalid.
+	for _, p := range []string{"docs", "../alpha/references", "references/.."} {
+		if _, err := src.ListResources(ctx, "alpha", p); !errors.Is(err, adkskill.ErrInvalidResourcePath) {
+			t.Errorf("ListResources(%q) err = %v, want ErrInvalidResourcePath", p, err)
+		}
+	}
+}
+
+func TestListResourcesSentinels(t *testing.T) {
 	ctx := context.Background()
 	repo := skillmemory.New()
 	seedSkill(t, repo, "ws-1", "alpha", "Alpha skill", "Use alpha.\n")
@@ -131,7 +236,7 @@ func TestResourceMethodsWithoutResourcesSlice(t *testing.T) {
 
 	src := NewSource(repo, "ws-1", []string{"alpha", "dangling"})
 
-	// Skills have no resources in v1: an existing skill lists none.
+	// A visible skill with no resources lists none at the root.
 	paths, err := src.ListResources(ctx, "alpha", "")
 	if err != nil {
 		t.Fatalf("ListResources(alpha): %v", err)
@@ -144,16 +249,6 @@ func TestResourceMethodsWithoutResourcesSlice(t *testing.T) {
 	}
 	if _, err := src.ListResources(ctx, "dangling", ""); !errors.Is(err, adkskill.ErrSkillNotFound) {
 		t.Errorf("ListResources(dangling) err = %v, want ErrSkillNotFound", err)
-	}
-
-	if _, err := src.LoadResource(ctx, "alpha", "references/notes.md"); !errors.Is(err, adkskill.ErrResourceNotFound) {
-		t.Errorf("LoadResource(alpha) err = %v, want ErrResourceNotFound", err)
-	}
-	if _, err := src.LoadResource(ctx, "hidden", "references/notes.md"); !errors.Is(err, adkskill.ErrSkillNotFound) {
-		t.Errorf("LoadResource(hidden) err = %v, want ErrSkillNotFound", err)
-	}
-	if _, err := src.LoadResource(ctx, "dangling", "references/notes.md"); !errors.Is(err, adkskill.ErrSkillNotFound) {
-		t.Errorf("LoadResource(dangling) err = %v, want ErrSkillNotFound", err)
 	}
 }
 

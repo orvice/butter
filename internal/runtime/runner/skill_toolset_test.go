@@ -2,11 +2,15 @@ package runner
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/model"
+	adkskill "google.golang.org/adk/v2/tool/skilltoolset/skill"
+	"google.golang.org/adk/v2/tool/toolconfirmation"
 
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -140,5 +144,96 @@ func TestToolsetFactorySkipsSkillToolset(t *testing.T) {
 	// skill toolset, and with no agent-file repo either, no factory at all.
 	if factory := newToolsetFactory(toolsetDeps{}); factory != nil {
 		t.Error("factory should be nil when no built-in toolset backend is configured")
+	}
+}
+
+// runnableTool redeclares ADK's internal FunctionTool run surface (the
+// method itself is exported) so the end-to-end test can invoke tools the way
+// the ADK flow does.
+type runnableTool interface {
+	Run(ctx agent.Context, args any) (map[string]any, error)
+}
+
+// toolContextFake overrides the one context method the functiontool run
+// path touches (ToolConfirmation); everything else stays strict.
+type toolContextFake struct {
+	agent.StrictContextMock
+}
+
+func (f *toolContextFake) ToolConfirmation() *toolconfirmation.ToolConfirmation { return nil }
+
+func runTool(t *testing.T, ctx context.Context, tools map[string]runnableTool, name string, args map[string]any) map[string]any {
+	t.Helper()
+	tl, ok := tools[name]
+	if !ok {
+		t.Fatalf("tool %q not found", name)
+	}
+	result, err := tl.Run(&toolContextFake{agent.NewStrictContextMock(ctx)}, args)
+	if err != nil {
+		t.Fatalf("%s(%v): %v", name, args, err)
+	}
+	return result
+}
+
+// Issue #154 acceptance: an uploaded resource is discoverable and readable by
+// the agent at runtime through list_skills → load_skill →
+// load_skill_resource; a missing resource surfaces ADK's sentinel error.
+func TestSkillResourceRuntimeEndToEnd(t *testing.T) {
+	ctx := context.Background()
+	repo := skillmemory.New()
+	seedSkillMD(t, repo, "ws-1", "alpha", "Summarise a document")
+	if _, err := repo.PutResource(ctx, "ws-1", "alpha", &agentsv1.SkillResource{
+		Path:        "references/guide.md",
+		ContentType: "text/markdown",
+	}, []byte("Follow the guide.")); err != nil {
+		t.Fatalf("PutResource: %v", err)
+	}
+
+	factory := newToolsetFactory(toolsetDeps{skillRepo: repo})
+	toolsets, err := factory(ctx, skillAgentProto("ws-1", []string{"alpha"}))
+	if err != nil {
+		t.Fatalf("factory: %v", err)
+	}
+	if len(toolsets) != 1 {
+		t.Fatalf("toolsets = %d, want 1", len(toolsets))
+	}
+	adkTools, err := toolsets[0].Tools(nil)
+	if err != nil {
+		t.Fatalf("Tools: %v", err)
+	}
+	tools := make(map[string]runnableTool, len(adkTools))
+	for _, tl := range adkTools {
+		rt, ok := tl.(runnableTool)
+		if !ok {
+			t.Fatalf("tool %q is not runnable", tl.Name())
+		}
+		tools[tl.Name()] = rt
+	}
+
+	listed := runTool(t, ctx, tools, "list_skills", map[string]any{})
+	if s := fmt.Sprintf("%v", listed); !strings.Contains(s, "alpha") {
+		t.Fatalf("list_skills does not expose the skill: %v", listed)
+	}
+
+	loaded := runTool(t, ctx, tools, "load_skill", map[string]any{"name": "alpha"})
+	if s := fmt.Sprintf("%v", loaded); !strings.Contains(s, "Body.") {
+		t.Fatalf("load_skill missing instructions: %v", loaded)
+	}
+
+	resource := runTool(t, ctx, tools, "load_skill_resource", map[string]any{
+		"skill_name":    "alpha",
+		"resource_path": "references/guide.md",
+	})
+	if resource["content"] != "Follow the guide." {
+		t.Fatalf("load_skill_resource content = %v, want %q", resource["content"], "Follow the guide.")
+	}
+
+	// Missing resources yield ADK's sentinel through the tool error path.
+	_, err = tools["load_skill_resource"].Run(&toolContextFake{agent.NewStrictContextMock(ctx)}, map[string]any{
+		"skill_name":    "alpha",
+		"resource_path": "references/absent.md",
+	})
+	if err == nil || !errors.Is(err, adkskill.ErrResourceNotFound) {
+		t.Fatalf("expected ErrResourceNotFound for missing resource, got %v", err)
 	}
 }

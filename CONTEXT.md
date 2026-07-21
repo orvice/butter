@@ -57,6 +57,10 @@ _Avoid_: plugin, capability
 The sole identifier of a Skill, unique per workspace and validated against the agentskills.io spec (1–64 chars, lowercase alphanumeric and hyphens). There is no separate generated ID; renaming a Skill is delete-and-recreate.
 _Avoid_: skill ID, skill slug
 
+**Skill Resource**:
+A file attached to a Skill under one of the spec directories (`references/`, `assets/`, `scripts/`), addressed by its skill-root-relative path. Path metadata is indexed in Mongo; content lives in the ContentStore. Read at runtime via `load_skill_resource`. Limits: 10 MiB per resource (fixed, aligned with ADK's read cap), 100 per skill (configurable).
+_Avoid_: skill file, attachment
+
 ### Multimodal input
 
 **Input Part**:

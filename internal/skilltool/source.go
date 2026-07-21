@@ -6,10 +6,12 @@
 package skilltool
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	adkskill "google.golang.org/adk/v2/tool/skilltoolset/skill"
 
@@ -104,23 +106,63 @@ func (s *Source) LoadInstructions(ctx context.Context, name string) (string, err
 	return body, nil
 }
 
-// The skill repository does not yet expose resource files (SKILL.md bodies
-// only), so these methods resolve the skill for correct sentinel semantics,
-// then report no resources — the scope cut called out in issue #152 ("resource
-// methods may return not-found until the resources slice lands").
-
+// ListResources serves resource paths from the repository's metadata index
+// (no content reads). Subpath semantics mirror ADK's FileSystemSource: empty
+// or "." lists everything under the three spec directories; a non-root
+// subpath must itself start inside one of them and narrows the listing to
+// paths under it, with zero matches reported as ErrResourceNotFound (the
+// FileSystemSource missing-directory case).
 func (s *Source) ListResources(ctx context.Context, name, subpath string) ([]string, error) {
 	if err := s.ensureVisible(ctx, name); err != nil {
 		return nil, err
 	}
-	return nil, nil
+	prefix := ""
+	if subpath != "" && subpath != "." {
+		cleaned, err := skillrepo.CleanResourceSubpath(subpath)
+		if err != nil {
+			return nil, fmt.Errorf("skill %q subpath %q: %w", name, subpath, adkskill.ErrInvalidResourcePath)
+		}
+		prefix = cleaned + "/"
+	}
+	resources, err := s.repo.ListResources(ctx, s.workspaceID, name)
+	if err != nil {
+		if errors.Is(err, skillrepo.ErrNotFound) {
+			return nil, notFound(name)
+		}
+		return nil, fmt.Errorf("list skill %q resources: %w", name, err)
+	}
+	paths := make([]string, 0, len(resources))
+	for _, res := range resources {
+		if prefix == "" || strings.HasPrefix(res.GetPath(), prefix) {
+			paths = append(paths, res.GetPath())
+		}
+	}
+	if prefix != "" && len(paths) == 0 {
+		return nil, fmt.Errorf("skill %q subpath %q: %w", name, subpath, adkskill.ErrResourceNotFound)
+	}
+	return paths, nil
 }
 
+// LoadResource streams one resource's content. The path guard is our own
+// CleanResourcePath — ADK's FileSystemSource protections do not apply to a
+// custom Source, so traversal must be rejected here (issue #154) — mapped to
+// ADK's ErrInvalidResourcePath sentinel.
 func (s *Source) LoadResource(ctx context.Context, name, resourcePath string) (io.ReadCloser, error) {
 	if err := s.ensureVisible(ctx, name); err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("skill %q resource %q: %w", name, resourcePath, adkskill.ErrResourceNotFound)
+	cleaned, err := skillrepo.CleanResourcePath(resourcePath)
+	if err != nil {
+		return nil, fmt.Errorf("skill %q resource %q: %w", name, resourcePath, adkskill.ErrInvalidResourcePath)
+	}
+	_, content, err := s.repo.GetResource(ctx, s.workspaceID, name, cleaned)
+	if err != nil {
+		if errors.Is(err, skillrepo.ErrNotFound) {
+			return nil, fmt.Errorf("skill %q resource %q: %w", name, cleaned, adkskill.ErrResourceNotFound)
+		}
+		return nil, fmt.Errorf("get skill %q resource %q: %w", name, cleaned, err)
+	}
+	return io.NopCloser(bytes.NewReader(content)), nil
 }
 
 // ensureVisible checks that a skill is allowlisted and present in the

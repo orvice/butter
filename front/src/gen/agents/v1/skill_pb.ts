@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/skill.proto.
  */
 export const file_agents_v1_skill: GenFile = /*@__PURE__*/
-  fileDesc("ChVhZ2VudHMvdjEvc2tpbGwucHJvdG8SCWFnZW50cy52MSLfAgoFU2tpbGwSFQoEbmFtZRgBIAEoCUIH+kIEcgIQARITCgtkZXNjcmlwdGlvbhgCIAEoCRIPCgdsaWNlbnNlGAMgASgJEhUKDWNvbXBhdGliaWxpdHkYBCABKAkSMAoIbWV0YWRhdGEYBSADKAsyHi5hZ2VudHMudjEuU2tpbGwuTWV0YWRhdGFFbnRyeRIVCg1hbGxvd2VkX3Rvb2xzGAYgAygJEhIKCnNpemVfYnl0ZXMYByABKAMSLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASITChFMaXN0U2tpbGxzUmVxdWVzdCI2ChJMaXN0U2tpbGxzUmVzcG9uc2USIAoGc2tpbGxzGAEgAygLMhAuYWdlbnRzLnYxLlNraWxsIigKD0dldFNraWxsUmVxdWVzdBIVCgRuYW1lGAEgASgJQgf6QgRyAhABIkUKEEdldFNraWxsUmVzcG9uc2USHwoFc2tpbGwYASABKAsyEC5hZ2VudHMudjEuU2tpbGwSEAoIc2tpbGxfbWQYAiABKAkiRgoSQ3JlYXRlU2tpbGxSZXF1ZXN0EhUKBG5hbWUYASABKAlCB/pCBHICEAESGQoIc2tpbGxfbWQYAiABKAlCB/pCBHICEAEiNgoTQ3JlYXRlU2tpbGxSZXNwb25zZRIfCgVza2lsbBgBIAEoCzIQLmFnZW50cy52MS5Ta2lsbCJGChJVcGRhdGVTa2lsbFJlcXVlc3QSFQoEbmFtZRgBIAEoCUIH+kIEcgIQARIZCghza2lsbF9tZBgCIAEoCUIH+kIEcgIQASI2ChNVcGRhdGVTa2lsbFJlc3BvbnNlEh8KBXNraWxsGAEgASgLMhAuYWdlbnRzLnYxLlNraWxsIisKEkRlbGV0ZVNraWxsUmVxdWVzdBIVCgRuYW1lGAEgASgJQgf6QgRyAhABIhUKE0RlbGV0ZVNraWxsUmVzcG9uc2UyiAMKDFNraWxsU2VydmljZRJJCgpMaXN0U2tpbGxzEhwuYWdlbnRzLnYxLkxpc3RTa2lsbHNSZXF1ZXN0Gh0uYWdlbnRzLnYxLkxpc3RTa2lsbHNSZXNwb25zZRJDCghHZXRTa2lsbBIaLmFnZW50cy52MS5HZXRTa2lsbFJlcXVlc3QaGy5hZ2VudHMudjEuR2V0U2tpbGxSZXNwb25zZRJMCgtDcmVhdGVTa2lsbBIdLmFnZW50cy52MS5DcmVhdGVTa2lsbFJlcXVlc3QaHi5hZ2VudHMudjEuQ3JlYXRlU2tpbGxSZXNwb25zZRJMCgtVcGRhdGVTa2lsbBIdLmFnZW50cy52MS5VcGRhdGVTa2lsbFJlcXVlc3QaHi5hZ2VudHMudjEuVXBkYXRlU2tpbGxSZXNwb25zZRJMCgtEZWxldGVTa2lsbBIdLmFnZW50cy52MS5EZWxldGVTa2lsbFJlcXVlc3QaHi5hZ2VudHMudjEuRGVsZXRlU2tpbGxSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChVhZ2VudHMvdjEvc2tpbGwucHJvdG8SCWFnZW50cy52MSLfAgoFU2tpbGwSFQoEbmFtZRgBIAEoCUIH+kIEcgIQARITCgtkZXNjcmlwdGlvbhgCIAEoCRIPCgdsaWNlbnNlGAMgASgJEhUKDWNvbXBhdGliaWxpdHkYBCABKAkSMAoIbWV0YWRhdGEYBSADKAsyHi5hZ2VudHMudjEuU2tpbGwuTWV0YWRhdGFFbnRyeRIVCg1hbGxvd2VkX3Rvb2xzGAYgAygJEhIKCnNpemVfYnl0ZXMYByABKAMSLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKwAQoNU2tpbGxSZXNvdXJjZRIVCgRwYXRoGAEgASgJQgf6QgRyAhABEhIKCnNpemVfYnl0ZXMYAiABKAMSFAoMY29udGVudF90eXBlGAMgASgJEi4KCmNyZWF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhMKEUxpc3RTa2lsbHNSZXF1ZXN0IjYKEkxpc3RTa2lsbHNSZXNwb25zZRIgCgZza2lsbHMYASADKAsyEC5hZ2VudHMudjEuU2tpbGwiKAoPR2V0U2tpbGxSZXF1ZXN0EhUKBG5hbWUYASABKAlCB/pCBHICEAEiRQoQR2V0U2tpbGxSZXNwb25zZRIfCgVza2lsbBgBIAEoCzIQLmFnZW50cy52MS5Ta2lsbBIQCghza2lsbF9tZBgCIAEoCSJGChJDcmVhdGVTa2lsbFJlcXVlc3QSFQoEbmFtZRgBIAEoCUIH+kIEcgIQARIZCghza2lsbF9tZBgCIAEoCUIH+kIEcgIQASI2ChNDcmVhdGVTa2lsbFJlc3BvbnNlEh8KBXNraWxsGAEgASgLMhAuYWdlbnRzLnYxLlNraWxsIkYKElVwZGF0ZVNraWxsUmVxdWVzdBIVCgRuYW1lGAEgASgJQgf6QgRyAhABEhkKCHNraWxsX21kGAIgASgJQgf6QgRyAhABIjYKE1VwZGF0ZVNraWxsUmVzcG9uc2USHwoFc2tpbGwYASABKAsyEC5hZ2VudHMudjEuU2tpbGwiKwoSRGVsZXRlU2tpbGxSZXF1ZXN0EhUKBG5hbWUYASABKAlCB/pCBHICEAEiFQoTRGVsZXRlU2tpbGxSZXNwb25zZSI4ChlMaXN0U2tpbGxSZXNvdXJjZXNSZXF1ZXN0EhsKCnNraWxsX25hbWUYASABKAlCB/pCBHICEAEiSQoaTGlzdFNraWxsUmVzb3VyY2VzUmVzcG9uc2USKwoJcmVzb3VyY2VzGAEgAygLMhguYWdlbnRzLnYxLlNraWxsUmVzb3VyY2UiTQoXR2V0U2tpbGxSZXNvdXJjZVJlcXVlc3QSGwoKc2tpbGxfbmFtZRgBIAEoCUIH+kIEcgIQARIVCgRwYXRoGAIgASgJQgf6QgRyAhABIlcKGEdldFNraWxsUmVzb3VyY2VSZXNwb25zZRIqCghyZXNvdXJjZRgBIAEoCzIYLmFnZW50cy52MS5Ta2lsbFJlc291cmNlEg8KB2NvbnRlbnQYAiABKAwidAoXUHV0U2tpbGxSZXNvdXJjZVJlcXVlc3QSGwoKc2tpbGxfbmFtZRgBIAEoCUIH+kIEcgIQARIVCgRwYXRoGAIgASgJQgf6QgRyAhABEg8KB2NvbnRlbnQYAyABKAwSFAoMY29udGVudF90eXBlGAQgASgJIkYKGFB1dFNraWxsUmVzb3VyY2VSZXNwb25zZRIqCghyZXNvdXJjZRgBIAEoCzIYLmFnZW50cy52MS5Ta2lsbFJlc291cmNlIlAKGkRlbGV0ZVNraWxsUmVzb3VyY2VSZXF1ZXN0EhsKCnNraWxsX25hbWUYASABKAlCB/pCBHICEAESFQoEcGF0aBgCIAEoCUIH+kIEcgIQASIdChtEZWxldGVTa2lsbFJlc291cmNlUmVzcG9uc2UyiwYKDFNraWxsU2VydmljZRJJCgpMaXN0U2tpbGxzEhwuYWdlbnRzLnYxLkxpc3RTa2lsbHNSZXF1ZXN0Gh0uYWdlbnRzLnYxLkxpc3RTa2lsbHNSZXNwb25zZRJDCghHZXRTa2lsbBIaLmFnZW50cy52MS5HZXRTa2lsbFJlcXVlc3QaGy5hZ2VudHMudjEuR2V0U2tpbGxSZXNwb25zZRJMCgtDcmVhdGVTa2lsbBIdLmFnZW50cy52MS5DcmVhdGVTa2lsbFJlcXVlc3QaHi5hZ2VudHMudjEuQ3JlYXRlU2tpbGxSZXNwb25zZRJMCgtVcGRhdGVTa2lsbBIdLmFnZW50cy52MS5VcGRhdGVTa2lsbFJlcXVlc3QaHi5hZ2VudHMudjEuVXBkYXRlU2tpbGxSZXNwb25zZRJMCgtEZWxldGVTa2lsbBIdLmFnZW50cy52MS5EZWxldGVTa2lsbFJlcXVlc3QaHi5hZ2VudHMudjEuRGVsZXRlU2tpbGxSZXNwb25zZRJhChJMaXN0U2tpbGxSZXNvdXJjZXMSJC5hZ2VudHMudjEuTGlzdFNraWxsUmVzb3VyY2VzUmVxdWVzdBolLmFnZW50cy52MS5MaXN0U2tpbGxSZXNvdXJjZXNSZXNwb25zZRJbChBHZXRTa2lsbFJlc291cmNlEiIuYWdlbnRzLnYxLkdldFNraWxsUmVzb3VyY2VSZXF1ZXN0GiMuYWdlbnRzLnYxLkdldFNraWxsUmVzb3VyY2VSZXNwb25zZRJbChBQdXRTa2lsbFJlc291cmNlEiIuYWdlbnRzLnYxLlB1dFNraWxsUmVzb3VyY2VSZXF1ZXN0GiMuYWdlbnRzLnYxLlB1dFNraWxsUmVzb3VyY2VSZXNwb25zZRJkChNEZWxldGVTa2lsbFJlc291cmNlEiUuYWdlbnRzLnYxLkRlbGV0ZVNraWxsUmVzb3VyY2VSZXF1ZXN0GiYuYWdlbnRzLnYxLkRlbGV0ZVNraWxsUmVzb3VyY2VSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * Skill is a workspace-level shared bundle of instructions and resources
@@ -106,6 +106,58 @@ export const SkillSchema: GenMessage<Skill> = /*@__PURE__*/
   messageDesc(file_agents_v1_skill, 0);
 
 /**
+ * SkillResource is a file attached to a Skill under one of the spec
+ * directories (references/, assets/, scripts/). Path metadata is indexed in
+ * Mongo; content lives in the ContentStore (ADR 0004). The path (unique per
+ * skill) is the identifier, relative to the skill root.
+ *
+ * @generated from message agents.v1.SkillResource
+ */
+export type SkillResource = Message<"agents.v1.SkillResource"> & {
+  /**
+   * @gotags: json:"path,omitempty" yaml:"path,omitempty" bson:"path,omitempty"
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @gotags: json:"size_bytes,omitempty" yaml:"size_bytes,omitempty" bson:"size_bytes,omitempty"
+   *
+   * @generated from field: int64 size_bytes = 2;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * @gotags: json:"content_type,omitempty" yaml:"content_type,omitempty" bson:"content_type,omitempty"
+   *
+   * @generated from field: string content_type = 3;
+   */
+  contentType: string;
+
+  /**
+   * @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp created_at = 4;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp updated_at = 5;
+   */
+  updatedAt?: Timestamp;
+};
+
+/**
+ * Describes the message agents.v1.SkillResource.
+ * Use `create(SkillResourceSchema)` to create a new message.
+ */
+export const SkillResourceSchema: GenMessage<SkillResource> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 1);
+
+/**
  * @generated from message agents.v1.ListSkillsRequest
  */
 export type ListSkillsRequest = Message<"agents.v1.ListSkillsRequest"> & {
@@ -116,7 +168,7 @@ export type ListSkillsRequest = Message<"agents.v1.ListSkillsRequest"> & {
  * Use `create(ListSkillsRequestSchema)` to create a new message.
  */
 export const ListSkillsRequestSchema: GenMessage<ListSkillsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 1);
+  messageDesc(file_agents_v1_skill, 2);
 
 /**
  * @generated from message agents.v1.ListSkillsResponse
@@ -133,7 +185,7 @@ export type ListSkillsResponse = Message<"agents.v1.ListSkillsResponse"> & {
  * Use `create(ListSkillsResponseSchema)` to create a new message.
  */
 export const ListSkillsResponseSchema: GenMessage<ListSkillsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 2);
+  messageDesc(file_agents_v1_skill, 3);
 
 /**
  * @generated from message agents.v1.GetSkillRequest
@@ -150,7 +202,7 @@ export type GetSkillRequest = Message<"agents.v1.GetSkillRequest"> & {
  * Use `create(GetSkillRequestSchema)` to create a new message.
  */
 export const GetSkillRequestSchema: GenMessage<GetSkillRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 3);
+  messageDesc(file_agents_v1_skill, 4);
 
 /**
  * @generated from message agents.v1.GetSkillResponse
@@ -174,7 +226,7 @@ export type GetSkillResponse = Message<"agents.v1.GetSkillResponse"> & {
  * Use `create(GetSkillResponseSchema)` to create a new message.
  */
 export const GetSkillResponseSchema: GenMessage<GetSkillResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 4);
+  messageDesc(file_agents_v1_skill, 5);
 
 /**
  * @generated from message agents.v1.CreateSkillRequest
@@ -200,7 +252,7 @@ export type CreateSkillRequest = Message<"agents.v1.CreateSkillRequest"> & {
  * Use `create(CreateSkillRequestSchema)` to create a new message.
  */
 export const CreateSkillRequestSchema: GenMessage<CreateSkillRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 5);
+  messageDesc(file_agents_v1_skill, 6);
 
 /**
  * @generated from message agents.v1.CreateSkillResponse
@@ -217,7 +269,7 @@ export type CreateSkillResponse = Message<"agents.v1.CreateSkillResponse"> & {
  * Use `create(CreateSkillResponseSchema)` to create a new message.
  */
 export const CreateSkillResponseSchema: GenMessage<CreateSkillResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 6);
+  messageDesc(file_agents_v1_skill, 7);
 
 /**
  * @generated from message agents.v1.UpdateSkillRequest
@@ -243,7 +295,7 @@ export type UpdateSkillRequest = Message<"agents.v1.UpdateSkillRequest"> & {
  * Use `create(UpdateSkillRequestSchema)` to create a new message.
  */
 export const UpdateSkillRequestSchema: GenMessage<UpdateSkillRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 7);
+  messageDesc(file_agents_v1_skill, 8);
 
 /**
  * @generated from message agents.v1.UpdateSkillResponse
@@ -260,7 +312,7 @@ export type UpdateSkillResponse = Message<"agents.v1.UpdateSkillResponse"> & {
  * Use `create(UpdateSkillResponseSchema)` to create a new message.
  */
 export const UpdateSkillResponseSchema: GenMessage<UpdateSkillResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 8);
+  messageDesc(file_agents_v1_skill, 9);
 
 /**
  * @generated from message agents.v1.DeleteSkillRequest
@@ -277,7 +329,7 @@ export type DeleteSkillRequest = Message<"agents.v1.DeleteSkillRequest"> & {
  * Use `create(DeleteSkillRequestSchema)` to create a new message.
  */
 export const DeleteSkillRequestSchema: GenMessage<DeleteSkillRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 9);
+  messageDesc(file_agents_v1_skill, 10);
 
 /**
  * @generated from message agents.v1.DeleteSkillResponse
@@ -290,7 +342,182 @@ export type DeleteSkillResponse = Message<"agents.v1.DeleteSkillResponse"> & {
  * Use `create(DeleteSkillResponseSchema)` to create a new message.
  */
 export const DeleteSkillResponseSchema: GenMessage<DeleteSkillResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_skill, 10);
+  messageDesc(file_agents_v1_skill, 11);
+
+/**
+ * @generated from message agents.v1.ListSkillResourcesRequest
+ */
+export type ListSkillResourcesRequest = Message<"agents.v1.ListSkillResourcesRequest"> & {
+  /**
+   * Skill name the resources belong to.
+   *
+   * @generated from field: string skill_name = 1;
+   */
+  skillName: string;
+};
+
+/**
+ * Describes the message agents.v1.ListSkillResourcesRequest.
+ * Use `create(ListSkillResourcesRequestSchema)` to create a new message.
+ */
+export const ListSkillResourcesRequestSchema: GenMessage<ListSkillResourcesRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 12);
+
+/**
+ * @generated from message agents.v1.ListSkillResourcesResponse
+ */
+export type ListSkillResourcesResponse = Message<"agents.v1.ListSkillResourcesResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.SkillResource resources = 1;
+   */
+  resources: SkillResource[];
+};
+
+/**
+ * Describes the message agents.v1.ListSkillResourcesResponse.
+ * Use `create(ListSkillResourcesResponseSchema)` to create a new message.
+ */
+export const ListSkillResourcesResponseSchema: GenMessage<ListSkillResourcesResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 13);
+
+/**
+ * @generated from message agents.v1.GetSkillResourceRequest
+ */
+export type GetSkillResourceRequest = Message<"agents.v1.GetSkillResourceRequest"> & {
+  /**
+   * @generated from field: string skill_name = 1;
+   */
+  skillName: string;
+
+  /**
+   * Resource path relative to the skill root, e.g. "references/api.md".
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message agents.v1.GetSkillResourceRequest.
+ * Use `create(GetSkillResourceRequestSchema)` to create a new message.
+ */
+export const GetSkillResourceRequestSchema: GenMessage<GetSkillResourceRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 14);
+
+/**
+ * @generated from message agents.v1.GetSkillResourceResponse
+ */
+export type GetSkillResourceResponse = Message<"agents.v1.GetSkillResourceResponse"> & {
+  /**
+   * @generated from field: agents.v1.SkillResource resource = 1;
+   */
+  resource?: SkillResource;
+
+  /**
+   * Raw resource content (binary-safe).
+   *
+   * @generated from field: bytes content = 2;
+   */
+  content: Uint8Array;
+};
+
+/**
+ * Describes the message agents.v1.GetSkillResourceResponse.
+ * Use `create(GetSkillResourceResponseSchema)` to create a new message.
+ */
+export const GetSkillResourceResponseSchema: GenMessage<GetSkillResourceResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 15);
+
+/**
+ * @generated from message agents.v1.PutSkillResourceRequest
+ */
+export type PutSkillResourceRequest = Message<"agents.v1.PutSkillResourceRequest"> & {
+  /**
+   * @generated from field: string skill_name = 1;
+   */
+  skillName: string;
+
+  /**
+   * Resource path relative to the skill root; must fall under references/,
+   * assets/, or scripts/ after cleaning.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * Raw resource content (binary-safe). Creates or overwrites in place.
+   *
+   * @generated from field: bytes content = 3;
+   */
+  content: Uint8Array;
+
+  /**
+   * Optional MIME type stored as metadata; not validated.
+   *
+   * @generated from field: string content_type = 4;
+   */
+  contentType: string;
+};
+
+/**
+ * Describes the message agents.v1.PutSkillResourceRequest.
+ * Use `create(PutSkillResourceRequestSchema)` to create a new message.
+ */
+export const PutSkillResourceRequestSchema: GenMessage<PutSkillResourceRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 16);
+
+/**
+ * @generated from message agents.v1.PutSkillResourceResponse
+ */
+export type PutSkillResourceResponse = Message<"agents.v1.PutSkillResourceResponse"> & {
+  /**
+   * @generated from field: agents.v1.SkillResource resource = 1;
+   */
+  resource?: SkillResource;
+};
+
+/**
+ * Describes the message agents.v1.PutSkillResourceResponse.
+ * Use `create(PutSkillResourceResponseSchema)` to create a new message.
+ */
+export const PutSkillResourceResponseSchema: GenMessage<PutSkillResourceResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 17);
+
+/**
+ * @generated from message agents.v1.DeleteSkillResourceRequest
+ */
+export type DeleteSkillResourceRequest = Message<"agents.v1.DeleteSkillResourceRequest"> & {
+  /**
+   * @generated from field: string skill_name = 1;
+   */
+  skillName: string;
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message agents.v1.DeleteSkillResourceRequest.
+ * Use `create(DeleteSkillResourceRequestSchema)` to create a new message.
+ */
+export const DeleteSkillResourceRequestSchema: GenMessage<DeleteSkillResourceRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 18);
+
+/**
+ * @generated from message agents.v1.DeleteSkillResourceResponse
+ */
+export type DeleteSkillResourceResponse = Message<"agents.v1.DeleteSkillResourceResponse"> & {
+};
+
+/**
+ * Describes the message agents.v1.DeleteSkillResourceResponse.
+ * Use `create(DeleteSkillResourceResponseSchema)` to create a new message.
+ */
+export const DeleteSkillResourceResponseSchema: GenMessage<DeleteSkillResourceResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_skill, 19);
 
 /**
  * @generated from service agents.v1.SkillService
@@ -335,6 +562,38 @@ export const SkillService: GenService<{
     methodKind: "unary";
     input: typeof DeleteSkillRequestSchema;
     output: typeof DeleteSkillResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.SkillService.ListSkillResources
+   */
+  listSkillResources: {
+    methodKind: "unary";
+    input: typeof ListSkillResourcesRequestSchema;
+    output: typeof ListSkillResourcesResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.SkillService.GetSkillResource
+   */
+  getSkillResource: {
+    methodKind: "unary";
+    input: typeof GetSkillResourceRequestSchema;
+    output: typeof GetSkillResourceResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.SkillService.PutSkillResource
+   */
+  putSkillResource: {
+    methodKind: "unary";
+    input: typeof PutSkillResourceRequestSchema;
+    output: typeof PutSkillResourceResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.SkillService.DeleteSkillResource
+   */
+  deleteSkillResource: {
+    methodKind: "unary";
+    input: typeof DeleteSkillResourceRequestSchema;
+    output: typeof DeleteSkillResourceResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_skill, 0);

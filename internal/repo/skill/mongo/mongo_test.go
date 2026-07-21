@@ -202,3 +202,57 @@ func TestMongoRepositoryDuplicateCreateKeepsExistingContent(t *testing.T) {
 		t.Fatalf("duplicate create clobbered stored content:\n%s", md)
 	}
 }
+
+func TestMongoResourceListServedFromPathIndex(t *testing.T) {
+	spy := &spyContentStore{inner: skillrepo.NewMemoryContentStore()}
+	store := newStore(t, testDB(t), spy)
+
+	ctx := context.Background()
+	if _, err := store.Create(ctx, "ws-a", testSkill(), testSkillMD); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	for _, path := range []string{"references/api.md", "assets/logo.png"} {
+		if _, err := store.PutResource(ctx, "ws-a", "pdf-report", &agentsv1.SkillResource{Path: path}, []byte("data")); err != nil {
+			t.Fatalf("PutResource %s: %v", path, err)
+		}
+	}
+	spy.gets.Store(0)
+
+	resources, err := store.ListResources(ctx, "ws-a", "pdf-report")
+	if err != nil || len(resources) != 2 {
+		t.Fatalf("ListResources: %v (n=%d)", err, len(resources))
+	}
+	if n := spy.gets.Load(); n != 0 {
+		t.Fatalf("ListResources touched the content store %d times; must be served from the Mongo path index", n)
+	}
+
+	if _, _, err := store.GetResource(ctx, "ws-a", "pdf-report", "references/api.md"); err != nil {
+		t.Fatalf("GetResource: %v", err)
+	}
+	if n := spy.gets.Load(); n != 1 {
+		t.Fatalf("GetResource should read content exactly once, got %d", n)
+	}
+}
+
+func TestMongoDeleteSkillBatchesResourceContentDeletes(t *testing.T) {
+	spy := &spyContentStore{inner: skillrepo.NewMemoryContentStore()}
+	store := newStore(t, testDB(t), spy)
+
+	ctx := context.Background()
+	if _, err := store.Create(ctx, "ws-a", testSkill(), testSkillMD); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	for _, path := range []string{"references/a.md", "references/b.md", "scripts/c.sh"} {
+		if _, err := store.PutResource(ctx, "ws-a", "pdf-report", &agentsv1.SkillResource{Path: path}, []byte("data")); err != nil {
+			t.Fatalf("PutResource %s: %v", path, err)
+		}
+	}
+	spy.deletes.Store(0)
+
+	if err := store.Delete(ctx, "ws-a", "pdf-report"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if n := spy.deletes.Load(); n != 1 {
+		t.Fatalf("DeleteSkill should batch content deletion into one call, got %d", n)
+	}
+}
