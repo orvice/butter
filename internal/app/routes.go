@@ -106,6 +106,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.RunnerSvc != nil {
 		h.a2aHandler.SetRunnerService(result.RunnerSvc)
+		h.openAIHandler.SetRunnerService(result.RunnerSvc)
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
 		if h.forumSvcServer != nil {
