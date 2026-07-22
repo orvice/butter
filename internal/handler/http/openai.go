@@ -177,9 +177,9 @@ func (h *OpenAIHandler) handleNonStream(c *gin.Context, rc *chatRunContext) {
 	}
 
 	resp := chatCompletionResponse{
-		ID:      "chatcmpl-" + uuid.NewString(),
-		Object:  "chat.completion",
-		Model:   rc.req.Model,
+		ID:     "chatcmpl-" + uuid.NewString(),
+		Object: "chat.completion",
+		Model:  rc.req.Model,
 		Choices: []chatCompletionChoice{{
 			Index:        0,
 			Message:      chatMessage{Role: "assistant", Content: output},
@@ -199,6 +199,30 @@ func (h *OpenAIHandler) handleStream(c *gin.Context, rc *chatRunContext) {
 
 	completionID := "chatcmpl-" + uuid.NewString()
 	isFirst := true
+	wroteContent := false
+
+	writeContentChunk := func(content string) {
+		if content == "" {
+			return
+		}
+		chunk := streamChunk{
+			ID:     completionID,
+			Object: "chat.completion.chunk",
+			Model:  rc.req.Model,
+			Choices: []streamChunkChoice{{
+				Index: 0,
+				Delta: streamDelta{Content: content},
+			}},
+		}
+		if isFirst {
+			chunk.Choices[0].Delta.Role = "assistant"
+			isFirst = false
+		}
+		data, _ := json.Marshal(chunk)
+		c.Writer.WriteString("data: " + string(data) + "\n\n")
+		c.Writer.Flush()
+		wroteContent = true
+	}
 
 	onEvent := func(evt *session.Event) {
 		if evt == nil || !evt.Partial || evt.Content == nil {
@@ -208,33 +232,18 @@ func (h *OpenAIHandler) handleStream(c *gin.Context, rc *chatRunContext) {
 			if part == nil || part.Text == "" {
 				continue
 			}
-			chunk := streamChunk{
-				ID:      completionID,
-				Object:  "chat.completion.chunk",
-				Model:   rc.req.Model,
-				Choices: []streamChunkChoice{{
-					Index: 0,
-					Delta: streamDelta{Content: part.Text},
-				}},
-			}
-			if isFirst {
-				chunk.Choices[0].Delta.Role = "assistant"
-				isFirst = false
-			}
-			data, _ := json.Marshal(chunk)
-			c.Writer.WriteString("data: " + string(data) + "\n\n")
-			c.Writer.Flush()
+			writeContentChunk(part.Text)
 		}
 	}
 
-	_, err := rc.svc.RunSSE(c.Request.Context(), rc.agent.GetName(), rc.parts, "", rc.ctxInfo, onEvent, nil)
+	output, err := rc.svc.RunSSE(c.Request.Context(), rc.agent.GetName(), rc.parts, "", rc.ctxInfo, onEvent, nil)
 	if err != nil {
 		// If streaming hasn't started (no chunks sent), we could return JSON error,
 		// but headers are already committed. Write an SSE error event instead.
 		errChunk := streamChunk{
-			ID:      completionID,
-			Object:  "chat.completion.chunk",
-			Model:   rc.req.Model,
+			ID:     completionID,
+			Object: "chat.completion.chunk",
+			Model:  rc.req.Model,
 			Choices: []streamChunkChoice{{
 				Index:        0,
 				Delta:        streamDelta{},
@@ -244,6 +253,8 @@ func (h *OpenAIHandler) handleStream(c *gin.Context, rc *chatRunContext) {
 		data, _ := json.Marshal(errChunk)
 		c.Writer.WriteString("data: " + string(data) + "\n\n")
 		c.Writer.Flush()
+	} else if !wroteContent {
+		writeContentChunk(output)
 	}
 
 	c.Writer.WriteString("data: [DONE]\n\n")
