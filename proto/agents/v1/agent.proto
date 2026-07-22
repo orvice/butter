@@ -44,6 +44,10 @@ message Agent {
   // @gotags: json:"enable_a2a,omitempty" yaml:"enable_a2a,omitempty"
   bool enable_a2a = 21;
 
+  // Whether this agent should be exposed via the OpenAI-compatible API.
+  // @gotags: json:"enable_openai_api,omitempty" yaml:"enable_openai_api,omitempty"
+  bool enable_openai_api = 22;
+
   // ID of the workspace this agent belongs to. Server-enforced from request
   // context on writes; included in responses so clients know the scope.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
