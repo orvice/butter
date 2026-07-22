@@ -151,6 +151,8 @@ func (m *Agent) validate(all bool) error {
 
 	// no validation rules for EnableA2A
 
+	// no validation rules for EnableOpenaiApi
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
