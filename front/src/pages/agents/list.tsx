@@ -149,9 +149,13 @@ export default function AgentListPage() {
       ),
     },
     {
-      header: "A2A",
-      cell: (row) =>
-        row.enable_a2a ? <Badge variant="outline" className="text-xs">A2A</Badge> : null,
+      header: "Access",
+      cell: (row) => (
+        <div className="flex flex-wrap items-center gap-1">
+          {row.enable_a2a ? <Badge variant="outline" className="text-xs">A2A</Badge> : null}
+          {row.enable_openai_api ? <Badge variant="outline" className="text-xs">OpenAI</Badge> : null}
+        </div>
+      ),
     },
     {
       header: "",
