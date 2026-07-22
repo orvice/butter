@@ -177,6 +177,7 @@ export interface Agent {
   config?: AgentConfig;
   type?: AgentType;
   enable_a2a?: boolean;
+  enable_openai_api?: boolean;
 }
 
 export interface AgentFileSpace {

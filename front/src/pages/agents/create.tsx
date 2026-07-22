@@ -46,6 +46,7 @@ const agentSchema = z.object({
   description: z.string().optional(),
   type: z.string(),
   enable_a2a: z.boolean(),
+  enable_openai_api: z.boolean(),
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
@@ -75,6 +76,7 @@ export default function AgentCreatePage() {
       description: "",
       type: "AGENT_TYPE_LLM",
       enable_a2a: false,
+      enable_openai_api: false,
       model: "",
       instruction: "",
       mcp_server_ids: [],
@@ -93,6 +95,7 @@ export default function AgentCreatePage() {
         description: values.description,
         type: values.type as AgentType,
         enable_a2a: values.enable_a2a,
+        enable_openai_api: values.enable_openai_api,
         metadata: values.icon_url ? { icon_url: values.icon_url } : undefined,
         config: {
           model: values.model,
@@ -160,12 +163,30 @@ export default function AgentCreatePage() {
                   <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="enable_a2a" render={({ field }) => (
-                <FormItem className="flex items-center gap-3">
-                  <FormLabel>Enable A2A</FormLabel>
-                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                </FormItem>
-              )} />
+              <div className="space-y-3 border-t pt-4">
+                <div>
+                  <h3 className="text-sm font-medium">External Access</h3>
+                  <p className="text-xs text-muted-foreground">Choose which external protocols may invoke this agent.</p>
+                </div>
+                <FormField control={form.control} name="enable_a2a" render={({ field }) => (
+                  <FormItem className="flex items-center justify-between gap-4 rounded-md border px-3 py-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>A2A</FormLabel>
+                      <p className="text-xs text-muted-foreground">Expose this agent through the A2A endpoint.</p>
+                    </div>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="enable_openai_api" render={({ field }) => (
+                  <FormItem className="flex items-center justify-between gap-4 rounded-md border px-3 py-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>OpenAI API</FormLabel>
+                      <p className="text-xs text-muted-foreground">Expose this agent as a model through the OpenAI-compatible API.</p>
+                    </div>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  </FormItem>
+                )} />
+              </div>
             </CardContent>
           </Card>
 
