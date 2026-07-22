@@ -28,6 +28,7 @@ import (
 // Handlers holds all HTTP and ConnectRPC handlers that need post-bootstrap wiring.
 type Handlers struct {
 	a2aHandler             *httpHandler.A2AHandler
+	openAIHandler          *httpHandler.OpenAIHandler
 	forumSvcServer         *application.ForumServiceServer
 	agentSvcServer         *application.AgentServiceServer
 	agentFileSvcServer     *application.AgentFileServiceServer
@@ -287,6 +288,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	statusService := service.NewStatusService(cfg, configStore)
 	statusHandler := httpHandler.NewStatusHandler(statusService)
 	a2aHandler := httpHandler.NewA2AHandler(cfg)
+	openAIHandler := httpHandler.NewOpenAIHandler(configStore)
 	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg,
 	// so we read cfg.Static on every request instead of snapshotting now.
 	uploadSvc := service.NewUploadServiceLazy(func() config.StaticConfig { return cfg.Static })
@@ -341,6 +343,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 
 	handlers := &Handlers{
 		a2aHandler:             a2aHandler,
+		openAIHandler:          openAIHandler,
 		forumSvcServer:         forumSvcServer,
 		agentSvcServer:         agentSvcServer,
 		agentFileSvcServer:     agentFileSvcServer,
@@ -375,6 +378,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		healthHandler.Register(r)
 		statusHandler.Register(r)
 		a2aHandler.Register(r)
+		openAIHandler.Register(r)
 		uploadHandler.Register(r)
 		httpHandler.RegisterWorkspaceMCP(r, workspaceMCPSvc.Handler(), handlers.workspaceRepoFromHolder)
 		r.GET(mcpoauth.CallbackPath, func(c *gin.Context) {
