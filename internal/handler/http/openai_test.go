@@ -521,6 +521,72 @@ func TestChatCompletions_Streaming_SSEFormat(t *testing.T) {
 	if secondChunk.Choices[0].Delta.Content != "World" {
 		t.Errorf("expected content 'World' in second chunk, got %q", secondChunk.Choices[0].Delta.Content)
 	}
+
+	var streamedContent strings.Builder
+	for _, dataLine := range dataLines[:len(dataLines)-1] {
+		var chunk streamChunk
+		if err := json.Unmarshal([]byte(dataLine), &chunk); err != nil {
+			t.Fatalf("failed to parse stream chunk: %v", err)
+		}
+		for _, choice := range chunk.Choices {
+			streamedContent.WriteString(choice.Delta.Content)
+		}
+	}
+	if got := streamedContent.String(); got != "Hello World" {
+		t.Errorf("expected final output not to be duplicated after partial chunks, got %q", got)
+	}
+}
+
+func TestChatCompletions_Streaming_FallsBackToFinalOutput(t *testing.T) {
+	repo := &stubAgentRepo{
+		agents: []*agentsv1.Agent{
+			{Name: "my-agent", EnableOpenaiApi: true},
+		},
+	}
+	// Some providers and composite agents return final text without emitting
+	// partial text events. The successful final output must still reach clients.
+	mr := &mockRunner{runResult: "final answer"}
+	router := setupChatRouter(repo, mr)
+
+	body := map[string]interface{}{
+		"model":    "my-agent",
+		"messages": []map[string]string{{"role": "user", "content": "Hi"}},
+		"stream":   true,
+	}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/chat/completions", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	lines := strings.Split(w.Body.String(), "\n")
+	var dataLines []string
+	for _, line := range lines {
+		if strings.HasPrefix(line, "data: ") {
+			dataLines = append(dataLines, strings.TrimPrefix(line, "data: "))
+		}
+	}
+	if len(dataLines) != 2 {
+		t.Fatalf("expected fallback chunk and [DONE], got %d data lines: %v", len(dataLines), dataLines)
+	}
+	if dataLines[1] != "[DONE]" {
+		t.Fatalf("expected [DONE] terminator, got %q", dataLines[1])
+	}
+
+	var chunk streamChunk
+	if err := json.Unmarshal([]byte(dataLines[0]), &chunk); err != nil {
+		t.Fatalf("failed to parse fallback chunk: %v", err)
+	}
+	if len(chunk.Choices) != 1 {
+		t.Fatalf("expected 1 choice, got %d", len(chunk.Choices))
+	}
+	if chunk.Choices[0].Delta.Role != "assistant" {
+		t.Errorf("expected assistant role, got %q", chunk.Choices[0].Delta.Role)
+	}
+	if chunk.Choices[0].Delta.Content != "final answer" {
+		t.Errorf("expected final output fallback, got %q", chunk.Choices[0].Delta.Content)
+	}
 }
 
 func TestChatCompletions_Streaming_ErrorBeforeStream(t *testing.T) {
