@@ -3,9 +3,11 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -58,11 +60,52 @@ func (h *OpenAIHandler) Register(r *gin.Engine) {
 
 // chatCompletionRequest is the OpenAI-compatible request body.
 type chatCompletionRequest struct {
-	Model    string        `json:"model"`
-	Messages []chatMessage `json:"messages"`
-	Stream   bool          `json:"stream"`
+	Model    string          `json:"model"`
+	Messages []chatMessageIn `json:"messages"`
+	Stream   bool            `json:"stream"`
 }
 
+// chatMessageIn is an incoming message. Content accepts both OpenAI wire
+// forms: a plain JSON string, or an array of typed content parts
+// ([{"type":"text","text":"..."}]) as sent by multimodal-capable clients.
+type chatMessageIn struct {
+	Role    string          `json:"role"`
+	Content flexibleContent `json:"content"`
+}
+
+// flexibleContent is a string that also unmarshals from the OpenAI
+// content-parts array form, concatenating the text parts. Non-text parts
+// (image_url etc.) are ignored — the endpoint is text-only.
+type flexibleContent string
+
+func (f *flexibleContent) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*f = flexibleContent(s)
+		return nil
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(data, &parts); err == nil {
+		var b strings.Builder
+		for _, p := range parts {
+			if p.Type == "text" || p.Type == "input_text" {
+				b.WriteString(p.Text)
+			}
+		}
+		*f = flexibleContent(b.String())
+		return nil
+	}
+	if string(data) == "null" {
+		*f = ""
+		return nil
+	}
+	return fmt.Errorf("content must be a string or an array of content parts")
+}
+
+// chatMessage is an outgoing message in responses.
 type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -177,9 +220,10 @@ func (h *OpenAIHandler) handleNonStream(c *gin.Context, rc *chatRunContext) {
 	}
 
 	resp := chatCompletionResponse{
-		ID:     "chatcmpl-" + uuid.NewString(),
-		Object: "chat.completion",
-		Model:  rc.req.Model,
+		ID:      "chatcmpl-" + uuid.NewString(),
+		Object:  "chat.completion",
+		Created: time.Now().Unix(),
+		Model:   rc.req.Model,
 		Choices: []chatCompletionChoice{{
 			Index:        0,
 			Message:      chatMessage{Role: "assistant", Content: output},
@@ -198,29 +242,37 @@ func (h *OpenAIHandler) handleStream(c *gin.Context, rc *chatRunContext) {
 	c.Status(http.StatusOK)
 
 	completionID := "chatcmpl-" + uuid.NewString()
+	created := time.Now().Unix()
 	isFirst := true
 	wroteContent := false
+
+	writeChunk := func(delta streamDelta, finishReason string) {
+		chunk := streamChunk{
+			ID:      completionID,
+			Object:  "chat.completion.chunk",
+			Created: created,
+			Model:   rc.req.Model,
+			Choices: []streamChunkChoice{{
+				Index:        0,
+				Delta:        delta,
+				FinishReason: finishReason,
+			}},
+		}
+		data, _ := json.Marshal(chunk)
+		c.Writer.WriteString("data: " + string(data) + "\n\n")
+		c.Writer.Flush()
+	}
 
 	writeContentChunk := func(content string) {
 		if content == "" {
 			return
 		}
-		chunk := streamChunk{
-			ID:     completionID,
-			Object: "chat.completion.chunk",
-			Model:  rc.req.Model,
-			Choices: []streamChunkChoice{{
-				Index: 0,
-				Delta: streamDelta{Content: content},
-			}},
-		}
+		delta := streamDelta{Content: content}
 		if isFirst {
-			chunk.Choices[0].Delta.Role = "assistant"
+			delta.Role = "assistant"
 			isFirst = false
 		}
-		data, _ := json.Marshal(chunk)
-		c.Writer.WriteString("data: " + string(data) + "\n\n")
-		c.Writer.Flush()
+		writeChunk(delta, "")
 		wroteContent = true
 	}
 
@@ -229,7 +281,10 @@ func (h *OpenAIHandler) handleStream(c *gin.Context, rc *chatRunContext) {
 			return
 		}
 		for _, part := range evt.Content.Parts {
-			if part == nil || part.Text == "" {
+			// Thought parts are model reasoning, not answer text; the OpenAI
+			// content field must carry only the answer (mirrors the dashboard
+			// stream's filtering).
+			if part == nil || part.Text == "" || part.Thought {
 				continue
 			}
 			writeContentChunk(part.Text)
@@ -240,21 +295,20 @@ func (h *OpenAIHandler) handleStream(c *gin.Context, rc *chatRunContext) {
 	if err != nil {
 		// If streaming hasn't started (no chunks sent), we could return JSON error,
 		// but headers are already committed. Write an SSE error event instead.
-		errChunk := streamChunk{
-			ID:     completionID,
-			Object: "chat.completion.chunk",
-			Model:  rc.req.Model,
-			Choices: []streamChunkChoice{{
-				Index:        0,
-				Delta:        streamDelta{},
-				FinishReason: "error",
-			}},
+		writeChunk(streamDelta{}, "error")
+	} else {
+		if !wroteContent {
+			writeContentChunk(output)
 		}
-		data, _ := json.Marshal(errChunk)
-		c.Writer.WriteString("data: " + string(data) + "\n\n")
-		c.Writer.Flush()
-	} else if !wroteContent {
-		writeContentChunk(output)
+		// Terminal chunk per the OpenAI SSE spec: empty delta with
+		// finish_reason "stop". Strict clients wait for it before rendering
+		// the accumulated message. When nothing was streamed at all the
+		// delta also carries the assistant role so the message is well-formed.
+		delta := streamDelta{}
+		if isFirst {
+			delta.Role = "assistant"
+		}
+		writeChunk(delta, "stop")
 	}
 
 	c.Writer.WriteString("data: [DONE]\n\n")
@@ -265,7 +319,7 @@ func (h *OpenAIHandler) handleStream(c *gin.Context, rc *chatRunContext) {
 type streamChunk struct {
 	ID      string              `json:"id"`
 	Object  string              `json:"object"`
-	Created int64               `json:"created,omitempty"`
+	Created int64               `json:"created"`
 	Model   string              `json:"model"`
 	Choices []streamChunkChoice `json:"choices"`
 }
@@ -282,23 +336,23 @@ type streamDelta struct {
 }
 
 // formatMessages converts the messages array into structured text.
-func formatMessages(messages []chatMessage) string {
+func formatMessages(messages []chatMessageIn) string {
 	var b strings.Builder
 	for i, msg := range messages {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
 		switch msg.Role {
-		case "system":
+		case "system", "developer":
 			b.WriteString("[System] ")
 		case "user":
 			b.WriteString("[User] ")
 		case "assistant":
 			b.WriteString("[Assistant] ")
 		default:
-			b.WriteString("[" + msg.Role + "] ")
+			fmt.Fprintf(&b, "[%s] ", msg.Role)
 		}
-		b.WriteString(msg.Content)
+		b.WriteString(string(msg.Content))
 	}
 	return b.String()
 }
