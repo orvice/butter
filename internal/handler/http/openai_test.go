@@ -567,11 +567,11 @@ func TestChatCompletions_Streaming_FallsBackToFinalOutput(t *testing.T) {
 			dataLines = append(dataLines, strings.TrimPrefix(line, "data: "))
 		}
 	}
-	if len(dataLines) != 2 {
-		t.Fatalf("expected fallback chunk and [DONE], got %d data lines: %v", len(dataLines), dataLines)
+	if len(dataLines) != 3 {
+		t.Fatalf("expected fallback chunk, finish chunk and [DONE], got %d data lines: %v", len(dataLines), dataLines)
 	}
-	if dataLines[1] != "[DONE]" {
-		t.Fatalf("expected [DONE] terminator, got %q", dataLines[1])
+	if dataLines[2] != "[DONE]" {
+		t.Fatalf("expected [DONE] terminator, got %q", dataLines[2])
 	}
 
 	var chunk streamChunk
@@ -586,6 +586,14 @@ func TestChatCompletions_Streaming_FallsBackToFinalOutput(t *testing.T) {
 	}
 	if chunk.Choices[0].Delta.Content != "final answer" {
 		t.Errorf("expected final output fallback, got %q", chunk.Choices[0].Delta.Content)
+	}
+
+	var finish streamChunk
+	if err := json.Unmarshal([]byte(dataLines[1]), &finish); err != nil {
+		t.Fatalf("failed to parse finish chunk: %v", err)
+	}
+	if len(finish.Choices) != 1 || finish.Choices[0].FinishReason != "stop" {
+		t.Errorf("expected terminal chunk with finish_reason 'stop', got %q", dataLines[1])
 	}
 }
 
@@ -757,12 +765,16 @@ func TestChatCompletions_Streaming_IgnoresNonPartialEvents(t *testing.T) {
 		}
 	}
 
-	// Only the partial event should produce a chunk.
-	if len(dataLines) != 1 {
-		t.Fatalf("expected 1 data chunk (non-partial filtered out), got %d", len(dataLines))
+	// Only the partial event should produce a content chunk, followed by the
+	// terminal finish chunk.
+	if len(dataLines) != 2 {
+		t.Fatalf("expected content chunk + finish chunk (non-partial filtered out), got %d", len(dataLines))
 	}
 	if !strings.Contains(dataLines[0], "included") {
 		t.Errorf("expected 'included' in chunk, got %q", dataLines[0])
+	}
+	if !strings.Contains(dataLines[1], `"finish_reason":"stop"`) {
+		t.Errorf("expected terminal finish chunk, got %q", dataLines[1])
 	}
 }
 
@@ -831,6 +843,119 @@ func TestChatCompletions_Streaming_ChunkObjectFormat(t *testing.T) {
 	}
 	if chunk.Model != "my-agent" {
 		t.Errorf("expected model 'my-agent', got %q", chunk.Model)
+	}
+}
+
+func TestChatCompletions_ArrayContentAccepted(t *testing.T) {
+	repo := &stubAgentRepo{
+		agents: []*agentsv1.Agent{
+			{Name: "my-agent", EnableOpenaiApi: true},
+		},
+	}
+	mr := &mockRunner{runResult: "ok"}
+	router := setupChatRouter(repo, mr)
+
+	// Multimodal-style content parts, as sent by newer OpenAI clients.
+	body := `{"model":"my-agent","messages":[{"role":"user","content":[{"type":"text","text":"Hello "},{"type":"text","text":"world"}]}]}`
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for array content, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(mr.lastParts) != 1 {
+		t.Fatalf("expected 1 part, got %d", len(mr.lastParts))
+	}
+	if got, want := mr.lastParts[0].Text, "[User] Hello world"; got != want {
+		t.Errorf("formatted text = %q, want %q", got, want)
+	}
+}
+
+func TestChatCompletions_Streaming_SkipsThoughtParts(t *testing.T) {
+	repo := &stubAgentRepo{
+		agents: []*agentsv1.Agent{
+			{Name: "my-agent", EnableOpenaiApi: true},
+		},
+	}
+	mr := &mockRunner{
+		runResult: "answer",
+		onEventFn: func(onEvent runner.EventCallback) {
+			// Reasoning-model events: thought first, then the answer.
+			onEvent(&session.Event{
+				LLMResponse: model.LLMResponse{
+					Content: &genai.Content{
+						Parts: []*genai.Part{{Text: "internal reasoning", Thought: true}},
+						Role:  genai.RoleModel,
+					},
+					Partial: true,
+				},
+			})
+			onEvent(makePartialEvent("answer"))
+		},
+	}
+	router := setupChatRouter(repo, mr)
+
+	body := map[string]interface{}{
+		"model":    "my-agent",
+		"messages": []map[string]string{{"role": "user", "content": "Hi"}},
+		"stream":   true,
+	}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/chat/completions", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	if strings.Contains(w.Body.String(), "internal reasoning") {
+		t.Error("thought part leaked into streamed content")
+	}
+	if !strings.Contains(w.Body.String(), "answer") {
+		t.Error("answer text missing from stream")
+	}
+}
+
+func TestChatCompletions_Streaming_ChunksCarryCreated(t *testing.T) {
+	repo := &stubAgentRepo{
+		agents: []*agentsv1.Agent{
+			{Name: "my-agent", EnableOpenaiApi: true},
+		},
+	}
+	mr := &mockRunner{
+		runResult: "hi",
+		onEventFn: func(onEvent runner.EventCallback) {
+			onEvent(makePartialEvent("hi"))
+		},
+	}
+	router := setupChatRouter(repo, mr)
+
+	body := map[string]interface{}{
+		"model":    "my-agent",
+		"messages": []map[string]string{{"role": "user", "content": "Hi"}},
+		"stream":   true,
+	}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/chat/completions", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	for _, line := range strings.Split(w.Body.String(), "\n") {
+		data, ok := strings.CutPrefix(line, "data: ")
+		if !ok || data == "[DONE]" {
+			continue
+		}
+		var chunk streamChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			t.Fatalf("bad chunk %q: %v", data, err)
+		}
+		if chunk.Created == 0 {
+			t.Errorf("chunk missing created timestamp: %q", data)
+		}
 	}
 }
 
