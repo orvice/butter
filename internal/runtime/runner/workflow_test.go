@@ -17,6 +17,7 @@ import (
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -866,7 +867,8 @@ func TestRunTurnSSE_WorkflowHumanInputPauses(t *testing.T) {
 
 // TestResumeParts_PreservesNonTextParts: an answer sent with an attachment
 // keeps the attachment — only the text is rewrapped as the Interrupt's
-// answer; other parts ride along instead of being dropped.
+// answer; other parts ride along instead of being dropped. Exercises the
+// interrupt module against a real ADK-produced session (not synthetic events).
 func TestResumeParts_PreservesNonTextParts(t *testing.T) {
 	backend := newFakeBackend(t)
 	agents := approvalAgents()
@@ -883,9 +885,9 @@ func TestResumeParts_PreservesNonTextParts(t *testing.T) {
 		t.Fatalf("GetSession: %v", err)
 	}
 	image := &genai.Part{InlineData: &genai.Blob{MIMEType: "image/png", Data: []byte{1, 2, 3}}}
-	resumed, ok := resumeParts(sess, []*genai.Part{{Text: "approved"}, image})
+	resumed, ok := interrupt.Resume(sess, []*genai.Part{{Text: "approved"}, image})
 	if !ok {
-		t.Fatal("resumeParts did not rewrap a text answer with a pending Interrupt")
+		t.Fatal("interrupt.Resume did not rewrap a text answer with a pending Interrupt")
 	}
 	if resumed[0].FunctionResponse == nil {
 		t.Fatal("first part is not the Interrupt's FunctionResponse")
