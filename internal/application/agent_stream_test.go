@@ -6,10 +6,12 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/repo/config/memory"
@@ -21,11 +23,14 @@ import (
 )
 
 // streamTestRunner records the parts forwarded by the service so tests can
-// assert on what the runner would execute.
+// assert on what the runner would execute. When events is non-empty, RunSSE
+// replays them through onEvent before returning, so tests can exercise the
+// text-delta/run-event wire translation.
 type streamTestRunner struct {
 	gotAgent string
 	gotParts []*genai.Part
 	response string
+	events   []*session.Event
 }
 
 func (r *streamTestRunner) IsReservedAgentName(string) bool { return false }
@@ -35,8 +40,11 @@ func (r *streamTestRunner) Run(_ context.Context, agentName string, parts []*gen
 	return r.response, nil
 }
 
-func (r *streamTestRunner) RunSSE(_ context.Context, agentName string, parts []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (string, error) {
+func (r *streamTestRunner) RunSSE(_ context.Context, agentName string, parts []*genai.Part, _ string, _ *agentsv1.ContextInfo, onEvent runner.EventCallback, _ runner.CompactionCallback) (string, error) {
 	r.gotAgent, r.gotParts = agentName, parts
+	for _, evt := range r.events {
+		onEvent(evt)
+	}
 	return r.response, nil
 }
 
@@ -283,5 +291,69 @@ func TestStreamAgent_OversizedTextPartRejected(t *testing.T) {
 	assertInvalidArgument(t, err)
 	if fake.gotParts != nil {
 		t.Fatalf("runner must not be invoked for rejected input, got %d parts", len(fake.gotParts))
+	}
+}
+
+func TestStreamAgent_EventsStreamAsTextDeltaAndRunEventFrames(t *testing.T) {
+	textOnly := &session.Event{ID: "evt-text"}
+	textOnly.Partial = true
+	textOnly.Content = &genai.Content{Parts: []*genai.Part{{Text: "hel"}}}
+
+	mixed := &session.Event{ID: "evt-mixed"}
+	mixed.Partial = true
+	mixed.Content = &genai.Content{Parts: []*genai.Part{
+		{Text: "lo "},
+		{FunctionCall: &genai.FunctionCall{Name: "lookup"}},
+	}}
+
+	fake := &streamTestRunner{response: "hello world", events: []*session.Event{textOnly, mixed}}
+	client := newStreamAgentTestClient(t, fake)
+
+	stream, err := client.StreamAgent(context.Background(), connect.NewRequest(&agentsv1.StreamAgentRequest{
+		AgentName: "chat-agent",
+		Message:   "hi",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+
+	var kinds []string
+	var deltas []string
+	var runEventIDs []string
+	var final string
+	for stream.Receive() {
+		switch evt := stream.Msg().GetEvent().(type) {
+		case *agentsv1.StreamAgentResponse_Started:
+			kinds = append(kinds, "started")
+		case *agentsv1.StreamAgentResponse_TextDelta:
+			kinds = append(kinds, "delta")
+			deltas = append(deltas, evt.TextDelta.GetText())
+		case *agentsv1.StreamAgentResponse_RunEvent:
+			kinds = append(kinds, "event")
+			runEventIDs = append(runEventIDs, evt.RunEvent.GetEventId())
+		case *agentsv1.StreamAgentResponse_Final:
+			kinds = append(kinds, "final")
+			final = evt.Final.GetResponse()
+		}
+	}
+	if err := stream.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	wantKinds := []string{"started", "delta", "delta", "event", "final"}
+	if !reflect.DeepEqual(kinds, wantKinds) {
+		t.Fatalf("expected frame order %v, got %v", wantKinds, kinds)
+	}
+	wantDeltas := []string{"hel", "lo "}
+	if !reflect.DeepEqual(deltas, wantDeltas) {
+		t.Fatalf("expected text deltas %v, got %v", wantDeltas, deltas)
+	}
+	wantRunEventIDs := []string{"evt-mixed"}
+	if !reflect.DeepEqual(runEventIDs, wantRunEventIDs) {
+		t.Fatalf("expected run event ids %v (text-only event fully covered by its delta), got %v", wantRunEventIDs, runEventIDs)
+	}
+	if final != "hello world" {
+		t.Fatalf("expected final response %q, got %q", "hello world", final)
 	}
 }
