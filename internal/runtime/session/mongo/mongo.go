@@ -264,9 +264,15 @@ func (s *Service) List(ctx context.Context, req *session.ListRequest) (*session.
 
 	logger.Debug("listing sessions", "app_name", req.AppName, "user_id", req.UserID)
 
-	filter := bson.M{
-		"app_name": req.AppName,
-		"user_id":  req.UserID,
+	// Empty AppName/UserID mean "no filter" — the Session Explorer lists
+	// across all channels/users by default. Including them as exact-match
+	// empty strings would match nothing.
+	filter := bson.M{}
+	if req.AppName != "" {
+		filter["app_name"] = req.AppName
+	}
+	if req.UserID != "" {
+		filter["user_id"] = req.UserID
 	}
 
 	cursor, err := s.sessions.Find(ctx, filter)
