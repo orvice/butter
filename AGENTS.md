@@ -45,7 +45,8 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `Not
 - `internal/repo/` — Data access abstractions.
 - `internal/store/config/` — In-memory CRUD store for agent/MCP/remote-agent configurations.
 - `internal/agent/` — `NewFromProto()` factory: converts proto `agentsv1.Agent` configs into ADK agent instances (LLM, Loop, Sequential, Parallel, Workflow). Workflow agents are directed graphs of nodes and edges (see `workflow.go`, `workflow_router.go`, `workflow_human_input.go`).
-- `internal/runtime/runner/` — Agent runner service managing per-channel ADK runners. `workflow_resume.go` implements implicit FIFO interrupt resume for Workflow Agent human-in-the-loop pauses.
+- `internal/runtime/runner/` — Agent runner service managing per-channel ADK runners. `workflow_resume.go` gates implicit resume to workflow-bearing agents; the pending-Interrupt derivation and FIFO reply-matching it relies on live in `internal/runtime/interrupt`.
+- `internal/runtime/interrupt/` — The single seam for a paused workflow's human-input state: `Pending` derives unanswered Interrupts from session events (FIFO, oldest-first) and `Resume` rewraps a plain-text reply as the oldest Interrupt's `FunctionResponse`. Consumed by the runner (implicit resume) and, via `TurnResult.Pending`, the cron scheduler (WAITING_INPUT finalization). Holds no state — session events remain the single source of truth (ADR-0002).
 - `internal/runtime/cron/` — Cron scheduler for automated agent execution.
 - `internal/runtime/session/` — Session persistence (MongoDB implementation).
 - `internal/runtime/memory/` — Memory persistence (MongoDB implementation).

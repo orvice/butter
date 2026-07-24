@@ -65,6 +65,7 @@ Application / Transport Services
 
 Runtime Layer
 ├── runner.Service (+ InvocationRecorder, CancelInvocation, workflow_resume)
+├── interrupt (Pending / Resume — single pending-Interrupt derivation seam)
 ├── cron.Scheduler (+ RunJobNow, ListByTimeRange, WAITING_INPUT)
 ├── automation.Engine + automation.Scheduler (+ run/step-run repositories)
 ├── daemon.Registry / Connection / Bridge / GRPCHandler / Metrics
@@ -162,23 +163,23 @@ input parts + ContextInfo
   -> optional model override
   -> get/create ADK runner by channel:agent:model
   -> ensure session exists
-  -> implicit workflow resume check (ADR 0002):
+  -> implicit workflow resume check (ADR 0002), via interrupt.Resume:
       if agent tree contains WORKFLOW type
-      AND session has pending Interrupts
+      AND session has pending Interrupts (interrupt.Pending)
       AND input is plain text:
         rewrap as FunctionResponse targeting oldest pending Interrupt
   -> run ADK runner
   -> collect final response text
   -> detect Human Input questions in session events
       -> append question text to output
-  -> re-scan session for remaining pending Interrupts
+  -> re-scan session for remaining pending Interrupts (interrupt.Pending)
   -> notify TurnListeners (cron uses this for WAITING_INPUT)
   -> stream non-final events to callback
 ```
 
 `ContextInfo` 提供 channel、session、user、source 和 uuid。Runner 使用 MongoDB session service 保持 ADK 上下文，使用 memory service 保存 ADK memory，并按 channel/agent/model 维度缓存 ADK runner。
 
-**Workflow 暂停/恢复**（`workflow_resume.go`）：pending Interrupt 从 session events 派生（扫描 `adk_request_input` FunctionCall/FunctionResponse 对），不额外存储。当 session 有未回答的 Interrupt 且新消息为纯文本时，隐式将文本重包为最老 Interrupt 的 FunctionResponse（FIFO），workflow engine 在该 session 上恢复。已携带 FunctionResponse 的精确地址回复直接透传。删除 session（`ClearSession`）可放弃暂停中的 workflow。
+**Workflow 暂停/恢复**（`internal/runtime/interrupt`，单一派生 seam）：pending Interrupt 从 session events 派生（`interrupt.Pending` 扫描 `adk_request_input` FunctionCall/FunctionResponse 对，FIFO 最老优先），不额外存储。当 session 有未回答的 Interrupt 且新消息为纯文本时，`interrupt.Resume` 隐式将文本重包为最老 Interrupt 的 FunctionResponse，workflow engine 在该 session 上恢复；`runner/workflow_resume.go` 只负责把隐式恢复限定在含 Workflow 的 agent 上。已携带 FunctionResponse 的精确地址回复直接透传。cron 的 WAITING_INPUT 判定通过 `TurnResult.Pending`（同一 seam 产出）消费，不自行扫描 events。删除 session（`ClearSession`）可放弃暂停中的 workflow。
 
 当 agent 配置、MCP server 或 remote agent 发生变更时，`ConfigRuntime.ReloadRunner` 会重新构建 proto agent registry，并清空 runner 与 model override 缓存。
 

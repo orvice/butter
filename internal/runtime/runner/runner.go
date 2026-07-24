@@ -28,6 +28,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/agentfile"
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/skilltool"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -747,11 +748,10 @@ func (r *TurnResult) Interrupted() bool {
 }
 
 // PendingInput is one unanswered Interrupt: a workflow paused on a Human
-// Input node waiting for a reply.
-type PendingInput struct {
-	InterruptID string
-	Question    string
-}
+// Input node waiting for a reply. It aliases interrupt.Interrupt so the
+// runner, cron and every caller observe the pending state the interrupt
+// module derives, without a second copy of the type.
+type PendingInput = interrupt.Interrupt
 
 // Run executes an agent with the given context info and multimodal input parts.
 // parts must contain at least one element (text and/or image parts).
@@ -912,7 +912,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		// agent_name, and a message meant for an unrelated agent must not be
 		// rewrapped as the Interrupt's answer.
 		if containsWorkflowAgent(agentProto) {
-			if resumed, ok := resumeParts(resp.Session, parts); ok {
+			if resumed, ok := interrupt.Resume(resp.Session, parts); ok {
 				logger.Info("resuming workflow: this message answers the oldest pending Interrupt")
 				parts = resumed
 			}
@@ -1004,7 +1004,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			UserID:    userID,
 			SessionID: sessionID,
 		}); err == nil {
-			turn.Pending = pendingInterruptsInSession(resp.Session)
+			turn.Pending = interrupt.Pending(resp.Session)
 		} else {
 			turn.Pending = asked
 		}

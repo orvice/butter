@@ -17,6 +17,7 @@ import (
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -866,7 +867,8 @@ func TestRunTurnSSE_WorkflowHumanInputPauses(t *testing.T) {
 
 // TestResumeParts_PreservesNonTextParts: an answer sent with an attachment
 // keeps the attachment — only the text is rewrapped as the Interrupt's
-// answer; other parts ride along instead of being dropped.
+// answer; other parts ride along instead of being dropped. Exercises the
+// interrupt module against a real ADK-produced session (not synthetic events).
 func TestResumeParts_PreservesNonTextParts(t *testing.T) {
 	backend := newFakeBackend(t)
 	agents := approvalAgents()
@@ -883,9 +885,9 @@ func TestResumeParts_PreservesNonTextParts(t *testing.T) {
 		t.Fatalf("GetSession: %v", err)
 	}
 	image := &genai.Part{InlineData: &genai.Blob{MIMEType: "image/png", Data: []byte{1, 2, 3}}}
-	resumed, ok := resumeParts(sess, []*genai.Part{{Text: "approved"}, image})
+	resumed, ok := interrupt.Resume(sess, []*genai.Part{{Text: "approved"}, image})
 	if !ok {
-		t.Fatal("resumeParts did not rewrap a text answer with a pending Interrupt")
+		t.Fatal("interrupt.Resume did not rewrap a text answer with a pending Interrupt")
 	}
 	if resumed[0].FunctionResponse == nil {
 		t.Fatal("first part is not the Interrupt's FunctionResponse")
@@ -898,6 +900,58 @@ func TestResumeParts_PreservesNonTextParts(t *testing.T) {
 	}
 	if !found {
 		t.Error("the image part was dropped from the resumed message")
+	}
+}
+
+// TestRun_WorkflowHumanInputEndToEndThroughLedger is the issue #173
+// end-to-end guarantee: a Workflow Agent with a Human Input node runs through
+// pause -> reply -> resume via the runner, and afterwards the session holds no
+// pending Interrupt — asserted at the interrupt-ledger seam itself
+// (interrupt.Pending on the live session), not only through the turn result.
+func TestRun_WorkflowHumanInputEndToEndThroughLedger(t *testing.T) {
+	backend := newFakeBackend(t)
+	agents := approvalAgents()
+	svc := buildWorkflowService(t, backend, agents, []string{"drafter", "publisher"}, session.InMemoryService())
+	ctxInfo := turnCtxInfo(&agents[0])
+
+	// Pause: the workflow stops on the Human Input node with one Interrupt.
+	pause, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "write a post"}}, "", ctxInfo, nil, nil)
+	if err != nil {
+		t.Fatalf("pause turn: %v", err)
+	}
+	if !pause.Interrupted() {
+		t.Fatal("workflow did not pause on the Human Input node")
+	}
+
+	sess, err := svc.GetSession(context.Background(), ctxInfo.GetChannelName(), ctxInfo.GetSessionId(), ctxInfo.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession after pause: %v", err)
+	}
+	if got := interrupt.Pending(sess); len(got) != 1 {
+		t.Fatalf("ledger sees %d pending Interrupts after pause, want 1", len(got))
+	}
+
+	// Resume: the reply answers the Interrupt and the workflow completes.
+	resume, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "approved"}}, "", ctxInfo, nil, nil)
+	if err != nil {
+		t.Fatalf("resume turn: %v", err)
+	}
+	if resume.Interrupted() {
+		t.Errorf("resume turn still reports pending Interrupts: %+v", resume.Pending)
+	}
+	if got := backend.lastInput("publisher"); got != "approved" {
+		t.Errorf("publisher input = %q, want the human's answer %q", got, "approved")
+	}
+
+	// The ledger — the single source of truth — must agree the session is done.
+	sess, err = svc.GetSession(context.Background(), ctxInfo.GetChannelName(), ctxInfo.GetSessionId(), ctxInfo.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession after resume: %v", err)
+	}
+	if got := interrupt.Pending(sess); got != nil {
+		t.Errorf("ledger still sees pending Interrupts after resume: %+v", got)
 	}
 }
 
