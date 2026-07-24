@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -81,27 +80,4 @@ func (s *ModelSelector) Set(ctx context.Context, channelName, sessionID, modelAl
 		return fmt.Errorf("redis set model selection: %w", err)
 	}
 	return nil
-}
-
-// parseAgentCommand parses "/agent <subcommand>" text.
-// Returns (subcommand, arg). For "/agent list" → ("list", "").
-// For "/agent foo" → ("switch", "foo"). For non-agent commands → ("", "").
-func parseAgentCommand(text string) (subcommand, arg string) {
-	text = strings.TrimSpace(text)
-	if !strings.HasPrefix(text, "/agent") {
-		return "", ""
-	}
-
-	parts := strings.Fields(text)
-	if len(parts) == 1 {
-		// Just "/agent" with no args — treat as list.
-		return "list", ""
-	}
-
-	sub := parts[1]
-	if sub == "list" {
-		return "list", ""
-	}
-
-	return "switch", sub
 }

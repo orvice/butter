@@ -1,65 +1,16 @@
 package telegram
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
-
-	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 )
 
 type sessionStatus struct {
 	eventCount int
 	lastUpdate time.Time
-}
-
-func (p *Poller) handleStatusCommand(ctx context.Context, b *bot.Bot, msg *models.Message) {
-	sessionID := p.deriveSessionID(msg)
-	userID := fmt.Sprintf("%d", userIDFromMsg(msg))
-	activeAgent := p.getActiveAgent(ctx, sessionID)
-
-	// Agent status.
-	agentStatus := p.runner.GetAgentStatus(activeAgent)
-
-	// Model status.
-	activeModel := p.getActiveModel(ctx, sessionID)
-	var modelText string
-	if activeModel != "" {
-		resolvedName, found := internalagent.ResolveModelAlias(activeModel, p.runner.ModelProviders())
-		if found && resolvedName != activeModel {
-			modelText = fmt.Sprintf("`%s` -> `%s`", activeModel, resolvedName)
-		} else {
-			modelText = fmt.Sprintf("`%s`", activeModel)
-		}
-	} else {
-		// Show agent's default model.
-		agentModel := p.runner.GetAgentModel(activeAgent)
-		if agentModel != "" {
-			modelText = fmt.Sprintf("`%s` (agent default)", agentModel)
-		}
-	}
-
-	// Session status.
-	var (
-		sessInfo *sessionStatus
-		sessErr  error
-	)
-	sess, err := p.runner.GetSession(ctx, p.channelName, sessionID, userID)
-	if err != nil {
-		sessErr = err
-	} else {
-		sessInfo = &sessionStatus{
-			eventCount: sess.Events().Len(),
-			lastUpdate: sess.LastUpdateTime(),
-		}
-	}
-
-	p.sendReply(ctx, b, msg, formatStatusMessage(agentStatus, activeAgent, modelText, sessionID, sessInfo, sessErr, time.Now()))
 }
 
 func formatStatusMessage(agentStatus *runner.AgentStatus, activeAgent, modelText, sessionID string, sess *sessionStatus, sessErr error, now time.Time) string {
