@@ -1,9 +1,11 @@
 // Package pipeline holds the platform-agnostic channel message handling logic:
 // allowlist admission, trigger matching, command handling, per-chat agent and
 // model selection, message part assembly, runner invocation, and reply/debug
-// delivery decisions. Platform pollers (Telegram, Discord) shrink to transport
-// adapters: they normalize inbound updates into an IncomingMessage, implement
-// the Transport interface for outbound I/O, and delegate all routing here.
+// delivery decisions. A platform poller shrinks to a transport adapter: it
+// normalizes inbound updates into an IncomingMessage, implements the Transport
+// interface for outbound I/O, and delegates all routing here. Telegram is the
+// only adapter on this module today; Discord still has its own poller and is
+// migrated separately.
 package pipeline
 
 import (

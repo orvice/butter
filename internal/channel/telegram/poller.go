@@ -25,16 +25,11 @@ const (
 // normalizes updates into pipeline.IncomingMessage, delegates all routing to a
 // pipeline.Handler, and implements pipeline.Transport for outbound I/O.
 type Poller struct {
-	channelName   string
-	channelCfg    *agentsv1.AgentChannel
-	telegramCfg   *agentsv1.TelegramChannelConfig
-	bot           *bot.Bot
-	handler       *pipeline.Handler
-	selector      *AgentSelector
-	modelSelector *ModelSelector
-	debugToggle   *DebugToggle
-	agentNames    []string
-	modelNames    []string // available model aliases
+	channelName string
+	channelCfg  *agentsv1.AgentChannel
+	telegramCfg *agentsv1.TelegramChannelConfig
+	bot         *bot.Bot
+	handler     *pipeline.Handler
 }
 
 // NewPoller creates a new Telegram long-polling consumer.
@@ -48,14 +43,9 @@ func NewPoller(
 	modelNames []string,
 ) (*Poller, error) {
 	p := &Poller{
-		channelName:   channelCfg.GetName(),
-		channelCfg:    channelCfg,
-		telegramCfg:   channelCfg.GetTelegram(),
-		selector:      selector,
-		modelSelector: modelSelector,
-		debugToggle:   debugToggle,
-		agentNames:    agentNames,
-		modelNames:    modelNames,
+		channelName: channelCfg.GetName(),
+		channelCfg:  channelCfg,
+		telegramCfg: channelCfg.GetTelegram(),
 	}
 
 	b, err := bot.New(
@@ -185,22 +175,6 @@ func (p *Poller) deriveSessionIDFromCallback(cq *models.CallbackQuery) string {
 	userID := cq.From.ID
 	scope := p.channelCfg.GetSession().GetScope()
 	return runner.DeriveSessionID(scope, chatID, userID)
-}
-
-// callbackIncoming builds a minimal IncomingMessage from a callback query so
-// Transport rendering (which keys off ChatID/MessageID) works for button edits.
-func (p *Poller) callbackIncoming(cq *models.CallbackQuery) pipeline.IncomingMessage {
-	msg := callbackMessage(cq)
-	var chatID, msgID string
-	if msg != nil {
-		chatID = strconv.FormatInt(msg.Chat.ID, 10)
-		msgID = strconv.Itoa(msg.ID)
-	}
-	return pipeline.IncomingMessage{
-		SessionID: p.deriveSessionIDFromCallback(cq),
-		ChatID:    chatID,
-		MessageID: msgID,
-	}
 }
 
 func (p *Poller) isAllowedCallbackQuery(cq *models.CallbackQuery) bool {
