@@ -903,6 +903,58 @@ func TestResumeParts_PreservesNonTextParts(t *testing.T) {
 	}
 }
 
+// TestRun_WorkflowHumanInputEndToEndThroughLedger is the issue #173
+// end-to-end guarantee: a Workflow Agent with a Human Input node runs through
+// pause -> reply -> resume via the runner, and afterwards the session holds no
+// pending Interrupt — asserted at the interrupt-ledger seam itself
+// (interrupt.Pending on the live session), not only through the turn result.
+func TestRun_WorkflowHumanInputEndToEndThroughLedger(t *testing.T) {
+	backend := newFakeBackend(t)
+	agents := approvalAgents()
+	svc := buildWorkflowService(t, backend, agents, []string{"drafter", "publisher"}, session.InMemoryService())
+	ctxInfo := turnCtxInfo(&agents[0])
+
+	// Pause: the workflow stops on the Human Input node with one Interrupt.
+	pause, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "write a post"}}, "", ctxInfo, nil, nil)
+	if err != nil {
+		t.Fatalf("pause turn: %v", err)
+	}
+	if !pause.Interrupted() {
+		t.Fatal("workflow did not pause on the Human Input node")
+	}
+
+	sess, err := svc.GetSession(context.Background(), ctxInfo.GetChannelName(), ctxInfo.GetSessionId(), ctxInfo.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession after pause: %v", err)
+	}
+	if got := interrupt.Pending(sess); len(got) != 1 {
+		t.Fatalf("ledger sees %d pending Interrupts after pause, want 1", len(got))
+	}
+
+	// Resume: the reply answers the Interrupt and the workflow completes.
+	resume, err := svc.RunTurn(context.Background(), "approval",
+		[]*genai.Part{{Text: "approved"}}, "", ctxInfo, nil, nil)
+	if err != nil {
+		t.Fatalf("resume turn: %v", err)
+	}
+	if resume.Interrupted() {
+		t.Errorf("resume turn still reports pending Interrupts: %+v", resume.Pending)
+	}
+	if got := backend.lastInput("publisher"); got != "approved" {
+		t.Errorf("publisher input = %q, want the human's answer %q", got, "approved")
+	}
+
+	// The ledger — the single source of truth — must agree the session is done.
+	sess, err = svc.GetSession(context.Background(), ctxInfo.GetChannelName(), ctxInfo.GetSessionId(), ctxInfo.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession after resume: %v", err)
+	}
+	if got := interrupt.Pending(sess); got != nil {
+		t.Errorf("ledger still sees pending Interrupts after resume: %+v", got)
+	}
+}
+
 // runWorkflowAgent builds a runner service holding the given agents (models
 // served by the fake backend) and drives one message through the first
 // agent via the runner seam, returning the reply.
