@@ -144,7 +144,7 @@ function SessionRow({
     >
       <code className="truncate text-xs">{session.session_id}</code>
       <span className="truncate">{session.app_name || "API"}</span>
-      <span className="text-muted-foreground">{session.last_update_time ? new Date(session.last_update_time).toLocaleTimeString() : "-"}</span>
+      <span className="text-muted-foreground">{session.last_update_time ? new Date(session.last_update_time).toLocaleString() : "-"}</span>
       <span>{session.turn_count ?? 0}</span>
       <span className="justify-self-start text-primary md:justify-self-end">Langfuse</span>
     </button>
@@ -219,7 +219,7 @@ function SessionDetailPanel({ session }: { session?: SessionInfo }) {
                       <span className="absolute left-0 top-1.5 h-2 w-2 rounded-full bg-primary ring-4 ring-card" />
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{event.author || "Event"}</span>
-                        <span className="text-[10px] text-muted-foreground">{event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : ""}</span>
+                        <span className="text-[10px] text-muted-foreground">{event.timestamp ? new Date(event.timestamp).toLocaleString() : ""}</span>
                       </div>
                       <p className="line-clamp-2 text-xs text-muted-foreground">{event.content_json || event.invocation_id || event.event_id}</p>
                     </div>
