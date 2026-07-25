@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useCronExecutions, useCronJobs, useRunCronJobNow } from "@/api/cron";
 import { useChannels } from "@/api/channels";
 import { useSession, useSessions } from "@/api/sessions";
+import { sessionDetailPath } from "@/lib/session-paths";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -17,6 +19,7 @@ import {
   ExternalLink,
   Filter,
   History,
+  Maximize2,
   Play,
   Plus,
   ScrollText,
@@ -136,18 +139,34 @@ function SessionRow({
   onSelect: (session: SessionInfo) => void;
 }) {
   return (
-    <button
-      className={`grid w-full gap-3 border-b px-5 py-3 text-left text-sm transition-colors last:border-b-0 md:grid-cols-[1.4fr_1fr_1fr_0.5fr_0.8fr] md:items-center ${
+    <div
+      role="button"
+      tabIndex={0}
+      className={`grid w-full cursor-pointer gap-3 border-b px-5 py-3 text-left text-sm transition-colors last:border-b-0 md:grid-cols-[1.4fr_1fr_1fr_0.5fr_0.8fr] md:items-center ${
         selected ? "border-l-2 border-l-primary bg-primary/5" : "border-l-2 border-l-transparent hover:bg-muted/50"
       }`}
       onClick={() => onSelect(session)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(session);
+        }
+      }}
     >
       <code className="truncate text-xs">{session.session_id}</code>
       <span className="truncate">{session.app_name || "API"}</span>
       <span className="text-muted-foreground">{session.last_update_time ? new Date(session.last_update_time).toLocaleString() : "-"}</span>
       <span>{session.turn_count ?? 0}</span>
-      <span className="justify-self-start text-primary md:justify-self-end">Langfuse</span>
-    </button>
+      <Link
+        to={sessionDetailPath(session)}
+        onClick={(event) => event.stopPropagation()}
+        className="flex items-center justify-self-start gap-1 text-primary hover:underline md:justify-self-end"
+        aria-label={`Open session ${session.session_id} in full page`}
+      >
+        <Maximize2 className="h-3.5 w-3.5" />
+        Open
+      </Link>
+    </div>
   );
 }
 
@@ -166,15 +185,26 @@ function SessionDetailPanel({ session }: { session?: SessionInfo }) {
           <CardTitle>Session Detail</CardTitle>
           <CardDescription className="font-mono">{session?.session_id ?? "No session selected"}</CardDescription>
         </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Copy session JSON"
-          disabled={!session}
-          onClick={() => void copyText(sessionJson, "Session JSON copied")}
-        >
-          <Copy className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {session ? (
+            <Link
+              to={sessionDetailPath(session)}
+              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              aria-label="Open full page"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Link>
+          ) : null}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Copy session JSON"
+            disabled={!session}
+            onClick={() => void copyText(sessionJson, "Session JSON copied")}
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6 pt-5">
         {!session ? (
@@ -214,7 +244,7 @@ function SessionDetailPanel({ session }: { session?: SessionInfo }) {
                 <p className="text-sm text-muted-foreground">No events returned for this session.</p>
               ) : (
                 <div className="relative space-y-4 before:absolute before:bottom-2 before:left-1 before:top-2 before:w-px before:bg-border">
-                  {events.slice(0, 6).map((event) => (
+                  {events.slice(-6).map((event) => (
                     <div key={event.event_id} className="relative pl-6">
                       <span className="absolute left-0 top-1.5 h-2 w-2 rounded-full bg-primary ring-4 ring-card" />
                       <div className="flex items-center gap-2">

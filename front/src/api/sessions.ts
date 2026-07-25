@@ -152,10 +152,11 @@ export function useSessions(params: ListSessionsParams = {}, options?: { enabled
   });
 }
 
-export function useSession(appName: string, userId: string, sessionId: string) {
+export function useSession(appName: string, userId: string, sessionId: string, numRecentEvents = 0) {
   return useQuery({
-    queryKey: ["sessions", { appName, userId, sessionId }],
-    queryFn: () => getSession({ app_name: appName, user_id: userId, session_id: sessionId }),
+    queryKey: ["sessions", { appName, userId, sessionId, numRecentEvents }],
+    queryFn: () =>
+      getSession({ app_name: appName, user_id: userId, session_id: sessionId, num_recent_events: numRecentEvents }),
     enabled: !!appName && !!userId && !!sessionId,
   });
 }

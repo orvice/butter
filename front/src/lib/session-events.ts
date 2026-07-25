@@ -22,6 +22,33 @@ export interface ToolResponseSummary {
   responsePreview: string;
 }
 
+export interface ParsedTextPart {
+  text: string;
+}
+
+export interface ParsedFunctionCall {
+  name: string;
+  args: unknown;
+}
+
+export interface ParsedFunctionResponse {
+  name: string;
+  response: unknown;
+}
+
+export interface FullParsedEvent {
+  eventId: string;
+  author: string;
+  role: "user" | "assistant" | "system";
+  textParts: ParsedTextPart[];
+  functionCalls: ParsedFunctionCall[];
+  functionResponses: ParsedFunctionResponse[];
+  timestamp?: string;
+  traceUrl?: string;
+  traceId?: string;
+  raw: SessionEvent;
+}
+
 interface GenaiPart {
   text?: string;
   functionCall?: { name?: string; args?: unknown };
@@ -47,21 +74,49 @@ function previewJson(value: unknown, max = 120): string {
   return s;
 }
 
-export function parseSessionEvent(evt: SessionEvent): ParsedEvent {
-  const author = evt.author ?? "unknown";
-  let role: ParsedEvent["role"] = "assistant";
-  if (author === "user") role = "user";
-  else if (author === "system") role = "system";
+function roleFromAuthor(author: string): ParsedEvent["role"] {
+  if (author === "user") return "user";
+  if (author === "system") return "system";
+  return "assistant";
+}
 
-  const out: ParsedEvent = {
+/** Compact summary of an event: joined text plus truncated tool-call/response previews. */
+export function parseSessionEvent(evt: SessionEvent): ParsedEvent {
+  const full = parseSessionEventFull(evt);
+  return {
+    eventId: full.eventId,
+    author: full.author,
+    role: full.role,
+    text: full.textParts.map((part) => part.text).join("\n"),
+    toolCalls: full.functionCalls.map((call) => ({ name: call.name, argsPreview: previewJson(call.args) })),
+    toolResponses: full.functionResponses.map((resp) => ({
+      name: resp.name,
+      responsePreview: previewJson(resp.response),
+    })),
+    timestamp: full.timestamp,
+    traceUrl: full.traceUrl,
+    raw: full.raw,
+  };
+}
+
+export function parseSessionEvents(events: SessionEvent[] | undefined): ParsedEvent[] {
+  if (!events) return [];
+  return events.map(parseSessionEvent);
+}
+
+/** Full parse of an event's content into text parts, tool calls, and tool responses (no truncation). */
+export function parseSessionEventFull(evt: SessionEvent): FullParsedEvent {
+  const author = evt.author ?? "unknown";
+  const out: FullParsedEvent = {
     eventId: evt.event_id,
     author,
-    role,
-    text: "",
-    toolCalls: [],
-    toolResponses: [],
+    role: roleFromAuthor(author),
+    textParts: [],
+    functionCalls: [],
+    functionResponses: [],
     timestamp: evt.timestamp,
     traceUrl: evt.trace_url,
+    traceId: evt.trace_id,
     raw: evt,
   };
 
@@ -71,29 +126,27 @@ export function parseSessionEvent(evt: SessionEvent): ParsedEvent {
   try {
     content = JSON.parse(evt.content_json) as GenaiContent;
   } catch {
-    out.text = evt.content_json;
+    out.textParts = [{ text: evt.content_json }];
     return out;
   }
 
-  const texts: string[] = [];
   for (const part of content.parts ?? []) {
     if (typeof part.text === "string" && part.text.length > 0) {
-      texts.push(part.text);
+      out.textParts.push({ text: part.text });
     }
     const call = part.functionCall ?? part.function_call;
     if (call?.name) {
-      out.toolCalls.push({ name: call.name, argsPreview: previewJson(call.args) });
+      out.functionCalls.push({ name: call.name, args: call.args });
     }
     const resp = part.functionResponse ?? part.function_response;
     if (resp?.name) {
-      out.toolResponses.push({ name: resp.name, responsePreview: previewJson(resp.response) });
+      out.functionResponses.push({ name: resp.name, response: resp.response });
     }
   }
-  out.text = texts.join("\n");
   return out;
 }
 
-export function parseSessionEvents(events: SessionEvent[] | undefined): ParsedEvent[] {
+export function parseSessionEventsFull(events: SessionEvent[] | undefined): FullParsedEvent[] {
   if (!events) return [];
-  return events.map(parseSessionEvent);
+  return events.map(parseSessionEventFull);
 }
