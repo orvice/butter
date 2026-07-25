@@ -7,11 +7,11 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
-	"github.com/google/uuid"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/runtime/streamorch"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -28,6 +28,10 @@ import (
 // session.Event that the dashboard parses to render tool calls etc.).
 // The terminal message is a StreamAgentFinal carrying the final response.
 // On error the stream is closed with a connect.Error — no payload event.
+//
+// This handler is a thin adapter over streamorch: it builds the ContextInfo,
+// wires a Sink that translates frames into StreamAgentResponse proto
+// messages, and maps the orchestrator's raw error to a connect.Error.
 func (s *AgentServiceServer) StreamAgent(
 	ctx context.Context,
 	req *connect.Request[agentsv1.StreamAgentRequest],
@@ -47,140 +51,49 @@ func (s *AgentServiceServer) StreamAgent(
 		return err
 	}
 
-	appName := req.Msg.GetAppName()
-	if appName == "" {
-		appName = "api"
-	}
-	userID := req.Msg.GetUserId()
-	if userID == "" {
-		userID = "api"
-	}
-	sessionID := req.Msg.GetSessionId()
-	if sessionID == "" {
-		sessionID = "chat-" + uuid.NewString()
-	}
-	invocationID := uuid.NewString()
-	if id, err := uuid.NewV7(); err == nil {
-		invocationID = id.String()
-	}
-
 	workspaceID, hasWorkspace := wsctx.FromContext(ctx)
-	if !hasWorkspace && !auth.IsAdmin(ctx) {
-		return connect.NewError(connect.CodeFailedPrecondition,
-			errors.New("workspace required (set X-Workspace-ID header)"))
-	}
-	ctxInfo := &agentsv1.ContextInfo{
-		Uuid:        invocationID,
-		SessionId:   sessionID,
-		UserId:      userID,
-		ChannelName: appName,
-		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
-		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
-		WorkspaceId: workspaceID,
+	ctxInfo, err := streamorch.NewContextInfo(streamorch.ContextInfoInput{
+		AppName:       req.Msg.GetAppName(),
+		UserID:        req.Msg.GetUserId(),
+		SessionID:     req.Msg.GetSessionId(),
+		SessionPrefix: "chat-",
+		WorkspaceID:   workspaceID,
+		HasWorkspace:  hasWorkspace,
+		IsAdmin:       auth.IsAdmin(ctx),
+		Source:        agentsv1.ContextSource_CONTEXT_SOURCE_API,
+		ChatType:      agentsv1.ChatType_CHAT_TYPE_PRIVATE,
+	})
+	if err != nil {
+		return connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 
 	logger := log.FromContext(ctx)
 	logger.Info("streaming agent started",
-		"workspace_id", workspaceID,
+		"workspace_id", ctxInfo.GetWorkspaceId(),
 		"agent", req.Msg.GetAgentName(),
-		"session_id", sessionID,
-		"invocation_id", invocationID,
+		"session_id", ctxInfo.GetSessionId(),
+		"invocation_id", ctxInfo.GetUuid(),
 		"message_len", len(req.Msg.GetMessage()),
 		"parts", len(req.Msg.GetParts()),
 	)
 
-	if err := stream.Send(&agentsv1.StreamAgentResponse{
-		Event: &agentsv1.StreamAgentResponse_Started{
-			Started: &agentsv1.StreamAgentStarted{
-				InvocationId: invocationID,
-				SessionId:    sessionID,
-				AgentName:    req.Msg.GetAgentName(),
-			},
-		},
-	}); err != nil {
-		return err
-	}
-
-	// connect.ServerStream is not safe for concurrent Send; serialize through
-	// a single goroutine consuming an event channel.
-	type pendingEvent struct {
-		response *agentsv1.StreamAgentResponse
-	}
-	events := make(chan pendingEvent, 32)
-	doneSending := make(chan error, 1)
-
-	go func() {
-		var sendErr error
-		for evt := range events {
-			if sendErr != nil {
-				continue
-			}
-			if err := stream.Send(evt.response); err != nil {
-				sendErr = err
-			}
-		}
-		doneSending <- sendErr
-	}()
-
-	queue := func(resp *agentsv1.StreamAgentResponse) {
-		select {
-		case events <- pendingEvent{response: resp}:
-		case <-ctx.Done():
-		}
-	}
-
-	response, runErr := s.runnerSvc.RunSSE(ctx, req.Msg.GetAgentName(), parts, req.Msg.GetModelOverride(), ctxInfo, func(evt *session.Event) {
-		textParts := streamAgentTextParts(evt)
-		for _, text := range textParts {
-			queue(&agentsv1.StreamAgentResponse{
-				Event: &agentsv1.StreamAgentResponse_TextDelta{
-					TextDelta: &agentsv1.StreamAgentTextDelta{
-						InvocationId: invocationID,
-						SessionId:    sessionID,
-						AgentName:    req.Msg.GetAgentName(),
-						Text:         text,
-					},
-				},
-			})
-		}
-		// Pure text-only partial events are surfaced as TextDelta only.
-		// Mixed events (text + function call etc.) emit both a TextDelta for
-		// each text chunk AND a RunEvent carrying the full content_json so the
-		// UI can render tool calls correctly. The text appears in both; clients
-		// should deduplicate by ignoring text parts inside content_json when
-		// a TextDelta for the same invocation was already received.
-		if len(textParts) > 0 && streamAgentEventHasOnlyTextParts(evt) {
-			return
-		}
-		queue(&agentsv1.StreamAgentResponse{
-			Event: &agentsv1.StreamAgentResponse_RunEvent{
-				RunEvent: streamAgentRunEvent(evt, invocationID, sessionID, req.Msg.GetAgentName()),
-			},
-		})
-	}, nil)
-
-	if runErr == nil {
-		queue(&agentsv1.StreamAgentResponse{
-			Event: &agentsv1.StreamAgentResponse_Final{
-				Final: &agentsv1.StreamAgentFinal{
-					InvocationId: invocationID,
-					SessionId:    sessionID,
-					AgentName:    req.Msg.GetAgentName(),
-					Response:     response,
-				},
-			},
-		})
-	}
-
-	close(events)
-	sendErr := <-doneSending
+	sink := &streamAgentSink{ctx: ctx, stream: stream}
+	sink.start()
+	runErr := streamorch.Run(ctx, s.runnerSvc, req.Msg.GetAgentName(), parts, req.Msg.GetModelOverride(), ctxInfo, sink)
+	sendErr := sink.finish()
 
 	if runErr != nil {
+		if !sink.started {
+			// The Started frame itself failed to send (client already gone
+			// before the first byte) — return the raw error unmapped, as
+			// there is no connection left to report a status code over.
+			return runErr
+		}
 		logger.Error("streaming agent failed",
-			"workspace_id", workspaceID,
+			"workspace_id", ctxInfo.GetWorkspaceId(),
 			"agent", req.Msg.GetAgentName(),
-			"session_id", sessionID,
-			"invocation_id", invocationID,
+			"session_id", ctxInfo.GetSessionId(),
+			"invocation_id", ctxInfo.GetUuid(),
 			"err", runErr,
 		)
 		return streamAgentError(runErr)
@@ -191,22 +104,120 @@ func (s *AgentServiceServer) StreamAgent(
 		return sendErr
 	}
 	logger.Info("streaming agent finished",
-		"workspace_id", workspaceID,
+		"workspace_id", ctxInfo.GetWorkspaceId(),
 		"agent", req.Msg.GetAgentName(),
-		"session_id", sessionID,
-		"invocation_id", invocationID,
+		"session_id", ctxInfo.GetSessionId(),
+		"invocation_id", ctxInfo.GetUuid(),
 	)
 	return nil
 }
 
-func streamAgentRunEvent(evt *session.Event, invocationID, sessionID, agentName string) *agentsv1.StreamAgentRunEvent {
+// streamAgentSink implements streamorch.Sink by translating frames into
+// StreamAgentResponse proto messages and sending them over the connect
+// stream. connect.ServerStream is not safe for concurrent Send; sends after
+// the initial Started frame are serialized through a single goroutine
+// consuming an event channel, since streamorch.Run's callback runs
+// synchronously inside the ADK runner's event loop.
+type streamAgentSink struct {
+	ctx    context.Context
+	stream *connect.ServerStream[agentsv1.StreamAgentResponse]
+
+	events      chan *agentsv1.StreamAgentResponse
+	doneSending chan error
+	started     bool
+}
+
+func (s *streamAgentSink) start() {
+	s.events = make(chan *agentsv1.StreamAgentResponse, 32)
+	s.doneSending = make(chan error, 1)
+	go func() {
+		var sendErr error
+		for resp := range s.events {
+			if sendErr != nil {
+				continue
+			}
+			if err := s.stream.Send(resp); err != nil {
+				sendErr = err
+			}
+		}
+		s.doneSending <- sendErr
+	}()
+}
+
+func (s *streamAgentSink) finish() error {
+	close(s.events)
+	return <-s.doneSending
+}
+
+func (s *streamAgentSink) queue(resp *agentsv1.StreamAgentResponse) {
+	select {
+	case s.events <- resp:
+	case <-s.ctx.Done():
+	}
+}
+
+func (s *streamAgentSink) Started(id streamorch.RunIdentity) error {
+	// The Started frame must be sent (and observed by the client) before any
+	// other frame, so it bypasses the queue and is sent directly — safe
+	// because nothing else is sending concurrently yet.
+	err := s.stream.Send(&agentsv1.StreamAgentResponse{
+		Event: &agentsv1.StreamAgentResponse_Started{
+			Started: &agentsv1.StreamAgentStarted{
+				InvocationId: id.InvocationID,
+				SessionId:    id.SessionID,
+				AgentName:    id.AgentName,
+			},
+		},
+	})
+	s.started = err == nil
+	return err
+}
+
+func (s *streamAgentSink) TextDelta(id streamorch.RunIdentity, text string) error {
+	s.queue(&agentsv1.StreamAgentResponse{
+		Event: &agentsv1.StreamAgentResponse_TextDelta{
+			TextDelta: &agentsv1.StreamAgentTextDelta{
+				InvocationId: id.InvocationID,
+				SessionId:    id.SessionID,
+				AgentName:    id.AgentName,
+				Text:         text,
+			},
+		},
+	})
+	return nil
+}
+
+func (s *streamAgentSink) RunEvent(id streamorch.RunIdentity, evt *session.Event) error {
+	s.queue(&agentsv1.StreamAgentResponse{
+		Event: &agentsv1.StreamAgentResponse_RunEvent{
+			RunEvent: streamAgentRunEvent(id, evt),
+		},
+	})
+	return nil
+}
+
+func (s *streamAgentSink) Final(id streamorch.RunIdentity, response string) error {
+	s.queue(&agentsv1.StreamAgentResponse{
+		Event: &agentsv1.StreamAgentResponse_Final{
+			Final: &agentsv1.StreamAgentFinal{
+				InvocationId: id.InvocationID,
+				SessionId:    id.SessionID,
+				AgentName:    id.AgentName,
+				Response:     response,
+			},
+		},
+	})
+	return nil
+}
+
+func streamAgentRunEvent(id streamorch.RunIdentity, evt *session.Event) *agentsv1.StreamAgentRunEvent {
 	if evt == nil {
 		return nil
 	}
 	out := &agentsv1.StreamAgentRunEvent{
-		InvocationId:  invocationID,
-		SessionId:     sessionID,
-		AgentName:     agentName,
+		InvocationId:  id.InvocationID,
+		SessionId:     id.SessionID,
+		AgentName:     id.AgentName,
 		EventId:       evt.ID,
 		Author:        evt.Author,
 		Branch:        evt.Branch,
@@ -223,40 +234,6 @@ func streamAgentRunEvent(evt *session.Event, invocationID, sessionID, agentName 
 		if data, err := json.Marshal(evt.Content); err == nil {
 			out.ContentJson = string(data)
 		}
-	}
-	return out
-}
-
-func streamAgentEventHasOnlyTextParts(evt *session.Event) bool {
-	if evt == nil || evt.Content == nil || len(evt.Content.Parts) == 0 {
-		return false
-	}
-	for _, part := range evt.Content.Parts {
-		if part == nil {
-			continue
-		}
-		if part.Text == "" && !part.Thought {
-			return false
-		}
-		if part.FunctionCall != nil || part.FunctionResponse != nil ||
-			part.CodeExecutionResult != nil || part.ExecutableCode != nil ||
-			part.InlineData != nil || part.FileData != nil {
-			return false
-		}
-	}
-	return true
-}
-
-func streamAgentTextParts(evt *session.Event) []string {
-	if evt == nil || !evt.Partial || evt.Content == nil {
-		return nil
-	}
-	out := make([]string, 0, len(evt.Content.Parts))
-	for _, part := range evt.Content.Parts {
-		if part == nil || part.Text == "" || part.Thought {
-			continue
-		}
-		out = append(out, part.Text)
 	}
 	return out
 }
