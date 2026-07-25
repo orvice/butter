@@ -1,15 +1,36 @@
+import { useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useSession } from "@/api/sessions";
+import { parseSessionEventFull } from "@/lib/session-events";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { MemoryStick, Brain, Clock, User, MessageSquare, ExternalLink } from "lucide-react";
+import {
+  MemoryStick,
+  Brain,
+  Clock,
+  User,
+  MessageSquare,
+  ExternalLink,
+  Maximize2,
+  History,
+} from "lucide-react";
+import type { SessionEvent } from "@/types/api";
+
+const RECENT_EVENTS_LIMIT = 50;
 
 function fmtDuration(d?: string): string {
   if (!d) return "-";
@@ -23,13 +44,112 @@ function fmtDuration(d?: string): string {
   return `${mins}m ${rem}s`;
 }
 
+function EventContent({ event }: { event: SessionEvent }) {
+  const parsed = parseSessionEventFull(event);
+
+  if (parsed.textParts.length === 0 && parsed.functionCalls.length === 0 && parsed.functionResponses.length === 0) {
+    return <p className="text-xs text-muted-foreground">No content.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {parsed.textParts.map((part, i) => (
+        <p key={i} className="whitespace-pre-wrap text-sm">
+          {part.text}
+        </p>
+      ))}
+      {parsed.functionCalls.map((call, i) => (
+        <div key={i}>
+          <div className="mb-1 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
+            Tool Call: {call.name}
+          </div>
+          <pre className="overflow-auto rounded bg-muted p-3 text-xs">
+            {JSON.stringify(call.args, null, 2)}
+          </pre>
+        </div>
+      ))}
+      {parsed.functionResponses.map((resp, i) => (
+        <div key={i}>
+          <div className="mb-1 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
+            Tool Response: {resp.name}
+          </div>
+          <pre className="overflow-auto rounded bg-muted p-3 text-xs">
+            {JSON.stringify(resp.response, null, 2)}
+          </pre>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EventCard({
+  event,
+  onExpand,
+}: {
+  event: SessionEvent;
+  onExpand: () => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Badge variant={event.author === "user" ? "default" : "secondary"}>
+              {event.author ?? "unknown"}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {event.timestamp ? new Date(event.timestamp).toLocaleString() : ""}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {event.trace_url ? (
+              <a
+                href={event.trace_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="mr-1 h-3 w-3" /> Trace
+              </a>
+            ) : event.trace_id ? (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {event.trace_id.slice(0, 12)}…
+              </span>
+            ) : null}
+            <Button size="icon-sm" variant="ghost" aria-label="Expand event" onClick={onExpand}>
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+        <EventContent event={event} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function EventLogList({ events, onExpandEvent }: { events: SessionEvent[]; onExpandEvent: (evt: SessionEvent) => void }) {
+  if (events.length === 0) {
+    return <p className="text-sm text-muted-foreground">No events in this session.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {events.map((evt) => (
+        <EventCard key={evt.event_id} event={evt} onExpand={() => onExpandEvent(evt)} />
+      ))}
+    </div>
+  );
+}
+
 export default function SessionDetailPage() {
   const [searchParams] = useSearchParams();
   // Support both `?sid=` (new) and legacy `?session=`.
   const appName = searchParams.get("app") ?? "";
   const userId = searchParams.get("user") ?? "";
   const sessionId = searchParams.get("sid") ?? searchParams.get("session") ?? "";
-  const { data, isLoading } = useSession(appName, userId, sessionId);
+  const [showAllEvents, setShowAllEvents] = useState(false);
+  const [logExpanded, setLogExpanded] = useState(false);
+  const [expandedEvent, setExpandedEvent] = useState<SessionEvent | null>(null);
+  const { data, isLoading } = useSession(appName, userId, sessionId, showAllEvents ? 0 : RECENT_EVENTS_LIMIT);
 
   if (isLoading) return <Skeleton className="h-96 w-full" />;
 
@@ -61,7 +181,7 @@ export default function SessionDetailPage() {
 
       {/* Header info */}
       <Card className="mb-6">
-        <CardContent className="grid grid-cols-2 gap-4 p-4 text-sm md:grid-cols-4">
+        <CardContent className="grid grid-cols-2 gap-4 p-4 text-sm md:grid-cols-3 lg:grid-cols-5">
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-muted-foreground" />
             <div>
@@ -74,6 +194,15 @@ export default function SessionDetailPage() {
             <div>
               <div className="text-xs text-muted-foreground">Channel</div>
               <div className="font-medium">{info.app_name}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Last Update</div>
+              <div className="font-medium">
+                {info.last_update_time ? new Date(info.last_update_time).toLocaleString() : "-"}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -112,45 +241,47 @@ export default function SessionDetailPage() {
       </Card>
 
       {/* Event log */}
-      <h3 className="mb-3 text-lg font-semibold">Event Log ({events.length})</h3>
-      <div className="space-y-2">
-        {events.map((evt) => (
-          <Card key={evt.event_id}>
-            <CardContent className="p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge variant={evt.author === "user" ? "default" : "secondary"}>
-                    {evt.author ?? "unknown"}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {evt.timestamp ? new Date(evt.timestamp).toLocaleString() : ""}
-                  </span>
-                </div>
-                {evt.trace_url ? (
-                  <a
-                    href={evt.trace_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="mr-1 h-3 w-3" /> Trace
-                  </a>
-                ) : evt.trace_id ? (
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {evt.trace_id.slice(0, 12)}…
-                  </span>
-                ) : null}
-              </div>
-              <pre className="max-h-40 overflow-auto rounded bg-muted p-3 text-xs">
-                {evt.content_json ?? ""}
-              </pre>
-            </CardContent>
-          </Card>
-        ))}
-        {events.length === 0 && (
-          <p className="text-sm text-muted-foreground">No events in this session.</p>
-        )}
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Event Log ({events.length})</h3>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowAllEvents((v) => !v)}>
+            {showAllEvents ? `Show recent ${RECENT_EVENTS_LIMIT}` : "Show full history"}
+          </Button>
+          <Button size="icon-sm" variant="ghost" aria-label="Expand event log" onClick={() => setLogExpanded(true)}>
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
+      <EventLogList events={events} onExpandEvent={setExpandedEvent} />
+
+      <Dialog open={logExpanded} onOpenChange={setLogExpanded}>
+        <DialogContent className="flex max-h-[90vh] w-full max-w-[95vw] flex-col overflow-hidden sm:max-w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>Event Log ({events.length})</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto pr-1">
+            <EventLogList events={events} onExpandEvent={setExpandedEvent} />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!expandedEvent} onOpenChange={(open) => !open && setExpandedEvent(null)}>
+        <DialogContent className="flex max-h-[90vh] w-full max-w-[95vw] flex-col overflow-hidden sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Badge variant={expandedEvent?.author === "user" ? "default" : "secondary"}>
+                {expandedEvent?.author ?? "unknown"}
+              </Badge>
+              <span className="text-xs font-normal text-muted-foreground">
+                {expandedEvent?.timestamp ? new Date(expandedEvent.timestamp).toLocaleString() : ""}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto pr-1">
+            {expandedEvent ? <EventContent event={expandedEvent} /> : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

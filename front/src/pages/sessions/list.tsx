@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useChannels } from "@/api/channels";
 import { useSessions, useDeleteSession } from "@/api/sessions";
+import { sessionDetailPath } from "@/lib/session-events";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,7 +52,6 @@ export default function SessionListPage() {
 
   const { data, isLoading } = useSessions(params);
   const deleteMutation = useDeleteSession();
-  const navigate = useNavigate();
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null);
 
   const sessions = data?.sessions ?? [];
@@ -93,18 +94,9 @@ export default function SessionListPage() {
     {
       header: "Tracing",
       cell: (row) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs"
-          onClick={() =>
-            navigate(
-              `/sessions/detail?app=${encodeURIComponent(row.app_name)}&user=${encodeURIComponent(row.user_id)}&sid=${encodeURIComponent(row.session_id)}`,
-            )
-          }
-        >
+        <Link to={sessionDetailPath(row)} className={buttonVariants({ variant: "ghost", size: "sm", className: "text-xs" })}>
           <BarChart3 className="mr-1 h-3 w-3" /> Trace
-        </Button>
+        </Link>
       ),
     },
     {
@@ -118,13 +110,7 @@ export default function SessionListPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() =>
-                  navigate(
-                    `/sessions/detail?app=${encodeURIComponent(row.app_name)}&user=${encodeURIComponent(row.user_id)}&sid=${encodeURIComponent(row.session_id)}`,
-                  )
-                }
-              >
+              <DropdownMenuItem render={<Link to={sessionDetailPath(row)} />}>
                 <Eye className="mr-2 h-4 w-4" /> View
               </DropdownMenuItem>
               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(row)}>
