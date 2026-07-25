@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useSession } from "@/api/sessions";
-import { parseSessionEventFull } from "@/lib/session-events";
+import { parseSessionEventsFull, type FullParsedEvent } from "@/lib/session-events";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,6 @@ import {
   Maximize2,
   History,
 } from "lucide-react";
-import type { SessionEvent } from "@/types/api";
 
 const RECENT_EVENTS_LIMIT = 50;
 
@@ -44,21 +43,30 @@ function fmtDuration(d?: string): string {
   return `${mins}m ${rem}s`;
 }
 
-function EventContent({ event }: { event: SessionEvent }) {
-  const parsed = parseSessionEventFull(event);
+function EventHeader({ author, timestamp }: { author: string; timestamp?: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Badge variant={author === "user" ? "default" : "secondary"}>{author}</Badge>
+      <span className="text-xs font-normal text-muted-foreground">
+        {timestamp ? new Date(timestamp).toLocaleString() : ""}
+      </span>
+    </div>
+  );
+}
 
-  if (parsed.textParts.length === 0 && parsed.functionCalls.length === 0 && parsed.functionResponses.length === 0) {
+function EventContent({ event }: { event: FullParsedEvent }) {
+  if (event.textParts.length === 0 && event.functionCalls.length === 0 && event.functionResponses.length === 0) {
     return <p className="text-xs text-muted-foreground">No content.</p>;
   }
 
   return (
     <div className="space-y-3">
-      {parsed.textParts.map((part, i) => (
+      {event.textParts.map((part, i) => (
         <p key={i} className="whitespace-pre-wrap text-sm">
           {part.text}
         </p>
       ))}
-      {parsed.functionCalls.map((call, i) => (
+      {event.functionCalls.map((call, i) => (
         <div key={i}>
           <div className="mb-1 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
             Tool Call: {call.name}
@@ -68,7 +76,7 @@ function EventContent({ event }: { event: SessionEvent }) {
           </pre>
         </div>
       ))}
-      {parsed.functionResponses.map((resp, i) => (
+      {event.functionResponses.map((resp, i) => (
         <div key={i}>
           <div className="mb-1 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
             Tool Response: {resp.name}
@@ -86,34 +94,27 @@ function EventCard({
   event,
   onExpand,
 }: {
-  event: SessionEvent;
+  event: FullParsedEvent;
   onExpand: () => void;
 }) {
   return (
     <Card>
       <CardContent className="p-3">
         <div className="mb-2 flex items-center justify-between">
+          <EventHeader author={event.author} timestamp={event.timestamp} />
           <div className="flex items-center gap-2">
-            <Badge variant={event.author === "user" ? "default" : "secondary"}>
-              {event.author ?? "unknown"}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {event.timestamp ? new Date(event.timestamp).toLocaleString() : ""}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {event.trace_url ? (
+            {event.traceUrl ? (
               <a
-                href={event.trace_url}
+                href={event.traceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-xs text-primary hover:underline"
               >
                 <ExternalLink className="mr-1 h-3 w-3" /> Trace
               </a>
-            ) : event.trace_id ? (
+            ) : event.traceId ? (
               <span className="font-mono text-[10px] text-muted-foreground">
-                {event.trace_id.slice(0, 12)}…
+                {event.traceId.slice(0, 12)}…
               </span>
             ) : null}
             <Button size="icon-sm" variant="ghost" aria-label="Expand event" onClick={onExpand}>
@@ -127,14 +128,20 @@ function EventCard({
   );
 }
 
-function EventLogList({ events, onExpandEvent }: { events: SessionEvent[]; onExpandEvent: (evt: SessionEvent) => void }) {
+function EventLogList({
+  events,
+  onExpandEvent,
+}: {
+  events: FullParsedEvent[];
+  onExpandEvent: (evt: FullParsedEvent) => void;
+}) {
   if (events.length === 0) {
     return <p className="text-sm text-muted-foreground">No events in this session.</p>;
   }
   return (
     <div className="space-y-2">
       {events.map((evt) => (
-        <EventCard key={evt.event_id} event={evt} onExpand={() => onExpandEvent(evt)} />
+        <EventCard key={evt.eventId} event={evt} onExpand={() => onExpandEvent(evt)} />
       ))}
     </div>
   );
@@ -148,17 +155,21 @@ export default function SessionDetailPage() {
   const sessionId = searchParams.get("sid") ?? searchParams.get("session") ?? "";
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [logExpanded, setLogExpanded] = useState(false);
-  const [expandedEvent, setExpandedEvent] = useState<SessionEvent | null>(null);
+  const [expandedEvent, setExpandedEvent] = useState<FullParsedEvent | null>(null);
   const { data, isLoading } = useSession(appName, userId, sessionId, showAllEvents ? 0 : RECENT_EVENTS_LIMIT);
 
-  if (isLoading) return <Skeleton className="h-96 w-full" />;
-
   const detail = data?.session_detail;
+  const events = useMemo(() => parseSessionEventsFull(detail?.events), [detail?.events]);
+
+  if (isLoading) return <Skeleton className="h-96 w-full" />;
   if (!detail) return <p className="text-muted-foreground">Session not found.</p>;
 
-  const events = detail.events ?? [];
   const info = detail.session;
   const stateEntries = Object.entries(info.state ?? {});
+  // The backend derives duration and turn count from the returned event slice, so in
+  // recent-only mode they describe the loaded range rather than the whole session.
+  const partial = !showAllEvents && events.length >= RECENT_EVENTS_LIMIT;
+  const rangeNote = partial ? `recent ${RECENT_EVENTS_LIMIT}` : undefined;
 
   return (
     <>
@@ -208,14 +219,18 @@ export default function SessionDetailPage() {
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <div>
-              <div className="text-xs text-muted-foreground">Duration</div>
+              <div className="text-xs text-muted-foreground">
+                Duration{rangeNote ? <span className="ml-1 normal-case">({rangeNote})</span> : null}
+              </div>
               <div className="font-medium">{fmtDuration(detail.duration)}</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Brain className="h-4 w-4 text-muted-foreground" />
             <div>
-              <div className="text-xs text-muted-foreground">Turns</div>
+              <div className="text-xs text-muted-foreground">
+                Turns{rangeNote ? <span className="ml-1 normal-case">({rangeNote})</span> : null}
+              </div>
               <div className="font-medium">{info.turn_count ?? events.length}</div>
             </div>
           </div>
@@ -242,7 +257,10 @@ export default function SessionDetailPage() {
 
       {/* Event log */}
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Event Log ({events.length})</h3>
+        <h3 className="text-lg font-semibold">
+          Event Log ({events.length}
+          {partial ? "+" : ""})
+        </h3>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setShowAllEvents((v) => !v)}>
             {showAllEvents ? `Show recent ${RECENT_EVENTS_LIMIT}` : "Show full history"}
@@ -252,12 +270,21 @@ export default function SessionDetailPage() {
           </Button>
         </div>
       </div>
+      {partial ? (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Showing the most recent {RECENT_EVENTS_LIMIT} events. Duration and turn count reflect this range — use “Show
+          full history” for the whole session.
+        </p>
+      ) : null}
       <EventLogList events={events} onExpandEvent={setExpandedEvent} />
 
       <Dialog open={logExpanded} onOpenChange={setLogExpanded}>
         <DialogContent className="flex max-h-[90vh] w-full max-w-[95vw] flex-col overflow-hidden sm:max-w-[95vw]">
           <DialogHeader>
-            <DialogTitle>Event Log ({events.length})</DialogTitle>
+            <DialogTitle>
+              Event Log ({events.length}
+              {partial ? "+" : ""})
+            </DialogTitle>
           </DialogHeader>
           <div className="overflow-y-auto pr-1">
             <EventLogList events={events} onExpandEvent={setExpandedEvent} />
@@ -268,13 +295,10 @@ export default function SessionDetailPage() {
       <Dialog open={!!expandedEvent} onOpenChange={(open) => !open && setExpandedEvent(null)}>
         <DialogContent className="flex max-h-[90vh] w-full max-w-[95vw] flex-col overflow-hidden sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Badge variant={expandedEvent?.author === "user" ? "default" : "secondary"}>
-                {expandedEvent?.author ?? "unknown"}
-              </Badge>
-              <span className="text-xs font-normal text-muted-foreground">
-                {expandedEvent?.timestamp ? new Date(expandedEvent.timestamp).toLocaleString() : ""}
-              </span>
+            <DialogTitle>
+              {expandedEvent ? (
+                <EventHeader author={expandedEvent.author} timestamp={expandedEvent.timestamp} />
+              ) : null}
             </DialogTitle>
           </DialogHeader>
           <div className="overflow-y-auto pr-1">

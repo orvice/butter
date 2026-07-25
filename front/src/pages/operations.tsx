@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { useCronExecutions, useCronJobs, useRunCronJobNow } from "@/api/cron";
 import { useChannels } from "@/api/channels";
 import { useSession, useSessions } from "@/api/sessions";
-import { sessionDetailPath } from "@/lib/session-events";
+import { sessionDetailPath } from "@/lib/session-paths";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -147,7 +147,10 @@ function SessionRow({
       }`}
       onClick={() => onSelect(session)}
       onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") onSelect(session);
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(session);
+        }
       }}
     >
       <code className="truncate text-xs">{session.session_id}</code>

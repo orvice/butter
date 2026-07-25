@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useChannels } from "@/api/channels";
 import { useSessions, useDeleteSession } from "@/api/sessions";
-import { sessionDetailPath } from "@/lib/session-events";
+import { sessionDetailPath } from "@/lib/session-paths";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { Button } from "@/components/ui/button";
