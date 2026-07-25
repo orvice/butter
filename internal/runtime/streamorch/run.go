@@ -16,13 +16,22 @@ type Runner interface {
 	RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 }
 
+// RunIdentity carries the identifiers that travel together across every
+// frame of one streaming run, so Sink implementations and callers pass one
+// value instead of the same three strings repeated per method.
+type RunIdentity struct {
+	InvocationID string
+	SessionID    string
+	AgentName    string
+}
+
 // Sink receives ordered frames for a streaming run. Implementations are not
 // required to be concurrency-safe: Run calls them serially.
 type Sink interface {
-	Started(invocationID, sessionID, agentName string) error
-	TextDelta(invocationID, sessionID, agentName, text string) error
-	RunEvent(evt *session.Event, invocationID, sessionID, agentName string) error
-	Final(invocationID, sessionID, agentName, response string) error
+	Started(id RunIdentity) error
+	TextDelta(id RunIdentity, text string) error
+	RunEvent(id RunIdentity, evt *session.Event) error
+	Final(id RunIdentity, response string) error
 }
 
 // Run drives a RunSSE-style call against r, translating ADK session.Events
@@ -30,17 +39,20 @@ type Sink interface {
 // error) on failure. Callers map the returned error to their own transport's
 // error scheme.
 func Run(ctx context.Context, r Runner, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, sink Sink) error {
-	invocationID := ctxInfo.GetUuid()
-	sessionID := ctxInfo.GetSessionId()
+	id := RunIdentity{
+		InvocationID: ctxInfo.GetUuid(),
+		SessionID:    ctxInfo.GetSessionId(),
+		AgentName:    agentName,
+	}
 
-	if err := sink.Started(invocationID, sessionID, agentName); err != nil {
+	if err := sink.Started(id); err != nil {
 		return err
 	}
 
 	response, runErr := r.RunSSE(ctx, agentName, parts, modelOverride, ctxInfo, func(evt *session.Event) {
 		deltas := textParts(evt)
 		for _, text := range deltas {
-			sink.TextDelta(invocationID, sessionID, agentName, text)
+			sink.TextDelta(id, text)
 		}
 		// Pure text-only partial events are surfaced as TextDelta only.
 		// Mixed events (text + function call etc.) emit both a TextDelta for
@@ -49,11 +61,11 @@ func Run(ctx context.Context, r Runner, agentName string, parts []*genai.Part, m
 		if len(deltas) > 0 && hasOnlyTextParts(evt) {
 			return
 		}
-		sink.RunEvent(evt, invocationID, sessionID, agentName)
+		sink.RunEvent(id, evt)
 	}, nil)
 
 	if runErr != nil {
 		return runErr
 	}
-	return sink.Final(invocationID, sessionID, agentName, response)
+	return sink.Final(id, response)
 }

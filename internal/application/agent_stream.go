@@ -156,16 +156,16 @@ func (s *streamAgentSink) queue(resp *agentsv1.StreamAgentResponse) {
 	}
 }
 
-func (s *streamAgentSink) Started(invocationID, sessionID, agentName string) error {
+func (s *streamAgentSink) Started(id streamorch.RunIdentity) error {
 	// The Started frame must be sent (and observed by the client) before any
 	// other frame, so it bypasses the queue and is sent directly — safe
 	// because nothing else is sending concurrently yet.
 	err := s.stream.Send(&agentsv1.StreamAgentResponse{
 		Event: &agentsv1.StreamAgentResponse_Started{
 			Started: &agentsv1.StreamAgentStarted{
-				InvocationId: invocationID,
-				SessionId:    sessionID,
-				AgentName:    agentName,
+				InvocationId: id.InvocationID,
+				SessionId:    id.SessionID,
+				AgentName:    id.AgentName,
 			},
 		},
 	})
@@ -173,13 +173,13 @@ func (s *streamAgentSink) Started(invocationID, sessionID, agentName string) err
 	return err
 }
 
-func (s *streamAgentSink) TextDelta(invocationID, sessionID, agentName, text string) error {
+func (s *streamAgentSink) TextDelta(id streamorch.RunIdentity, text string) error {
 	s.queue(&agentsv1.StreamAgentResponse{
 		Event: &agentsv1.StreamAgentResponse_TextDelta{
 			TextDelta: &agentsv1.StreamAgentTextDelta{
-				InvocationId: invocationID,
-				SessionId:    sessionID,
-				AgentName:    agentName,
+				InvocationId: id.InvocationID,
+				SessionId:    id.SessionID,
+				AgentName:    id.AgentName,
 				Text:         text,
 			},
 		},
@@ -187,22 +187,22 @@ func (s *streamAgentSink) TextDelta(invocationID, sessionID, agentName, text str
 	return nil
 }
 
-func (s *streamAgentSink) RunEvent(evt *session.Event, invocationID, sessionID, agentName string) error {
+func (s *streamAgentSink) RunEvent(id streamorch.RunIdentity, evt *session.Event) error {
 	s.queue(&agentsv1.StreamAgentResponse{
 		Event: &agentsv1.StreamAgentResponse_RunEvent{
-			RunEvent: streamAgentRunEvent(evt, invocationID, sessionID, agentName),
+			RunEvent: streamAgentRunEvent(id, evt),
 		},
 	})
 	return nil
 }
 
-func (s *streamAgentSink) Final(invocationID, sessionID, agentName, response string) error {
+func (s *streamAgentSink) Final(id streamorch.RunIdentity, response string) error {
 	s.queue(&agentsv1.StreamAgentResponse{
 		Event: &agentsv1.StreamAgentResponse_Final{
 			Final: &agentsv1.StreamAgentFinal{
-				InvocationId: invocationID,
-				SessionId:    sessionID,
-				AgentName:    agentName,
+				InvocationId: id.InvocationID,
+				SessionId:    id.SessionID,
+				AgentName:    id.AgentName,
 				Response:     response,
 			},
 		},
@@ -210,14 +210,14 @@ func (s *streamAgentSink) Final(invocationID, sessionID, agentName, response str
 	return nil
 }
 
-func streamAgentRunEvent(evt *session.Event, invocationID, sessionID, agentName string) *agentsv1.StreamAgentRunEvent {
+func streamAgentRunEvent(id streamorch.RunIdentity, evt *session.Event) *agentsv1.StreamAgentRunEvent {
 	if evt == nil {
 		return nil
 	}
 	out := &agentsv1.StreamAgentRunEvent{
-		InvocationId:  invocationID,
-		SessionId:     sessionID,
-		AgentName:     agentName,
+		InvocationId:  id.InvocationID,
+		SessionId:     id.SessionID,
+		AgentName:     id.AgentName,
 		EventId:       evt.ID,
 		Author:        evt.Author,
 		Branch:        evt.Branch,

@@ -14,27 +14,29 @@ import (
 )
 
 // spySink records every call it receives, in order, so tests can assert on
-// frame ordering without caring about transport encoding.
+// frame ordering without caring about transport encoding. startErr, when
+// set, is returned by Started to simulate the first frame failing to send.
 type spySink struct {
-	calls []string
+	calls    []string
+	startErr error
 }
 
-func (s *spySink) Started(invocationID, sessionID, agentName string) error {
-	s.calls = append(s.calls, "started:"+invocationID+":"+sessionID+":"+agentName)
-	return nil
+func (s *spySink) Started(id RunIdentity) error {
+	s.calls = append(s.calls, "started:"+id.InvocationID+":"+id.SessionID+":"+id.AgentName)
+	return s.startErr
 }
 
-func (s *spySink) TextDelta(invocationID, sessionID, agentName, text string) error {
+func (s *spySink) TextDelta(id RunIdentity, text string) error {
 	s.calls = append(s.calls, "delta:"+text)
 	return nil
 }
 
-func (s *spySink) RunEvent(evt *session.Event, invocationID, sessionID, agentName string) error {
+func (s *spySink) RunEvent(id RunIdentity, evt *session.Event) error {
 	s.calls = append(s.calls, "event:"+evt.ID)
 	return nil
 }
 
-func (s *spySink) Final(invocationID, sessionID, agentName, response string) error {
+func (s *spySink) Final(id RunIdentity, response string) error {
 	s.calls = append(s.calls, "final:"+response)
 	return nil
 }
@@ -45,9 +47,11 @@ type fakeRunner struct {
 	events   []*session.Event
 	response string
 	err      error
+	called   bool
 }
 
 func (r *fakeRunner) RunSSE(_ context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, onEvent runner.EventCallback, _ runner.CompactionCallback) (string, error) {
+	r.called = true
 	for _, evt := range r.events {
 		onEvent(evt)
 	}
@@ -143,6 +147,24 @@ func TestRun_ErrorPropagatesWithoutFinal(t *testing.T) {
 		if strings.HasPrefix(call, "final:") {
 			t.Fatalf("expected no final frame on error, got calls %v", sink.calls)
 		}
+	}
+}
+
+func TestRun_StartedFailureShortCircuitsBeforeRunnerCalled(t *testing.T) {
+	sinkErr := errors.New("client already gone")
+	fake := &fakeRunner{response: "hello"}
+	sink := &spySink{startErr: sinkErr}
+	ctxInfo := &agentsv1.ContextInfo{Uuid: "inv-1", SessionId: "sess-1"}
+
+	err := Run(context.Background(), fake, "chat-agent", []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
+	if !errors.Is(err, sinkErr) {
+		t.Fatalf("expected the sink's Started error to propagate unchanged, got %v", err)
+	}
+	if fake.called {
+		t.Fatal("expected the runner to never be invoked when Started fails")
+	}
+	if len(sink.calls) != 1 || !strings.HasPrefix(sink.calls[0], "started:") {
+		t.Fatalf("expected only the Started call to be recorded, got %v", sink.calls)
 	}
 }
 
