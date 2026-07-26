@@ -40,7 +40,12 @@ type runDoc struct {
 	TriggerType    string    `bson:"trigger_type,omitempty"`
 	StartedAt      time.Time `bson:"started_at,omitempty"`
 	FinishedAt     time.Time `bson:"finished_at,omitempty"`
-	Spec           string    `bson:"spec"`
+	// Session coordinates are promoted out of Spec so a WAITING_INPUT run can be
+	// looked up by session on the resume path (a runner turn or session delete).
+	SessionAppName string `bson:"session_app_name,omitempty"`
+	SessionUserID  string `bson:"session_user_id,omitempty"`
+	SessionID      string `bson:"session_id,omitempty"`
+	Spec           string `bson:"spec"`
 }
 
 type stepRunDoc struct {
@@ -196,6 +201,7 @@ func (r *MongoRunRepo) EnsureIndexes(ctx context.Context) error {
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "automation_name", Value: 1}, {Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "status", Value: 1}}},
+		{Keys: bson.D{{Key: "session_app_name", Value: 1}, {Key: "session_user_id", Value: 1}, {Key: "session_id", Value: 1}, {Key: "status", Value: 1}}},
 	})
 	if err != nil {
 		return fmt.Errorf("create automation run indexes: %w", err)
@@ -272,6 +278,36 @@ func (r *MongoRunRepo) List(ctx context.Context, workspaceID, automationName str
 		next = encodePageToken(offset + len(out))
 	}
 	return out, next, nil
+}
+
+func (r *MongoRunRepo) ListWaitingBySession(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.AutomationRun, error) {
+	cursor, err := r.coll.Find(ctx, bson.M{
+		"session_app_name": appName,
+		"session_user_id":  userID,
+		"session_id":       sessionID,
+		"status":           agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT.String(),
+	}, options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}))
+	if err != nil {
+		return nil, fmt.Errorf("list waiting automation runs: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var out []*agentsv1.AutomationRun
+	for cursor.Next(ctx) {
+		var d runDoc
+		if err := cursor.Decode(&d); err != nil {
+			return nil, fmt.Errorf("decode automation run: %w", err)
+		}
+		run, err := decodeRun(d.Spec)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, run)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("list waiting automation runs: %w", err)
+	}
+	return out, nil
 }
 
 type MongoStepRunRepo struct {
@@ -380,6 +416,9 @@ func runDocFromProto(run *agentsv1.AutomationRun) (*runDoc, error) {
 		AutomationName: run.GetAutomationName(),
 		Status:         run.GetStatus().String(),
 		TriggerType:    run.GetTriggerType().String(),
+		SessionAppName: run.GetSessionAppName(),
+		SessionUserID:  run.GetSessionUserId(),
+		SessionID:      run.GetSessionId(),
 		Spec:           string(b),
 	}
 	if ts := run.GetStartedAt(); ts != nil {

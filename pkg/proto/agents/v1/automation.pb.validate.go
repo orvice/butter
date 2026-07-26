@@ -2094,6 +2094,14 @@ func (m *AutomationRun) validate(all bool) error {
 
 	// no validation rules for DurationMs
 
+	// no validation rules for SessionAppName
+
+	// no validation rules for SessionUserId
+
+	// no validation rules for SessionId
+
+	// no validation rules for AgentName
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {

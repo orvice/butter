@@ -31,6 +31,12 @@ type RunRepo interface {
 	Save(ctx context.Context, run *agentsv1.AutomationRun) error
 	Get(ctx context.Context, workspaceID, id string) (*agentsv1.AutomationRun, error)
 	List(ctx context.Context, workspaceID, automationName string, pageSize int32, pageToken string) ([]*agentsv1.AutomationRun, string, error)
+	// ListWaitingBySession returns every WAITING_INPUT run recorded for the
+	// given session coordinates, across workspaces. The resume path (a runner
+	// turn or a session deletion) knows only the session coordinates — never a
+	// workspace — so the lookup is workspace-agnostic. Automation sessions are
+	// per-run (automation:<run-id>), so this normally returns at most one run.
+	ListWaitingBySession(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.AutomationRun, error)
 }
 
 // StepRunRepo persists step-level run records.

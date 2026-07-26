@@ -22,9 +22,9 @@ func (r *automationTestRunner) HasAgentInWorkspace(workspaceID, name string) boo
 	return workspaceID == wsTest && name == "agent1"
 }
 
-func (r *automationTestRunner) RunSSE(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (string, error) {
+func (r *automationTestRunner) RunTurnSSE(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (*runner.TurnResult, error) {
 	r.calls++
-	return "agent done", nil
+	return &runner.TurnResult{Output: "agent done"}, nil
 }
 
 func newAutomationTestService() (*AutomationServiceServer, *runtimeautomation.MemoryDefinitionRepo, *runtimeautomation.MemoryRunRepo, *runtimeautomation.MemoryStepRunRepo, *automationTestRunner) {

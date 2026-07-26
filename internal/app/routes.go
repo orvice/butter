@@ -164,6 +164,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		}
 		if result.AutomationEngine != nil {
 			h.automationSvcServer.SetEngine(result.AutomationEngine)
+			// Deleting a paused session abandons its workflow (ADR 0002); the
+			// engine cancels the session's WAITING_INPUT automation run (#176).
+			h.sessionSvcServer.AddSessionDeleteListener(result.AutomationEngine.HandleSessionDeleted)
 		}
 		if result.RunnerSvc != nil {
 			h.automationSvcServer.SetAgentValidator(result.RunnerSvc)

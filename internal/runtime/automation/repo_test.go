@@ -95,6 +95,46 @@ func TestMemoryRunRepoPaginationAndStatusUpdate(t *testing.T) {
 	}
 }
 
+func TestMemoryRunRepoListWaitingBySession(t *testing.T) {
+	ctx := context.Background()
+	repo := NewMemoryRunRepo()
+
+	waiting := &agentsv1.AutomationRun{
+		Id: "waiting", WorkspaceId: "ws-a", AutomationName: "approval",
+		Status:         agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT,
+		SessionAppName: "automation:approval", SessionUserId: "automation:ws-a", SessionId: "automation:waiting",
+	}
+	for _, run := range []*agentsv1.AutomationRun{
+		waiting,
+		// Same session coords but already succeeded — must be excluded.
+		{Id: "done", WorkspaceId: "ws-a", AutomationName: "approval", Status: agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED,
+			SessionAppName: "automation:approval", SessionUserId: "automation:ws-a", SessionId: "automation:done"},
+		// Waiting run on a different session — must be excluded from the lookup.
+		{Id: "other", WorkspaceId: "ws-a", AutomationName: "approval", Status: agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT,
+			SessionAppName: "automation:approval", SessionUserId: "automation:ws-a", SessionId: "automation:other"},
+	} {
+		if err := repo.Save(ctx, run); err != nil {
+			t.Fatalf("Save(%s): %v", run.GetId(), err)
+		}
+	}
+
+	got, err := repo.ListWaitingBySession(ctx, "automation:approval", "automation:ws-a", "automation:waiting")
+	if err != nil {
+		t.Fatalf("ListWaitingBySession: %v", err)
+	}
+	if len(got) != 1 || got[0].GetId() != "waiting" {
+		t.Fatalf("ListWaitingBySession = %v, want [waiting]", ids(got))
+	}
+
+	none, err := repo.ListWaitingBySession(ctx, "automation:approval", "automation:ws-a", "automation:done")
+	if err != nil {
+		t.Fatalf("ListWaitingBySession(done): %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("ListWaitingBySession(done) = %v, want empty", ids(none))
+	}
+}
+
 func TestMemoryStepRunRepoListByRunOrdering(t *testing.T) {
 	ctx := context.Background()
 	repo := NewMemoryStepRunRepo()

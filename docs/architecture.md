@@ -208,15 +208,22 @@ Automation trigger
   -> create AutomationRun(RUNNING)
   -> evaluate conditions over trigger payload/context
   -> execute ordered steps
-      -> INVOKE_AGENT: runner.Run(...)
+      -> INVOKE_AGENT: runner.RunTurnSSE(...)  // 返回 TurnResult，携带 Pending Interrupt
       -> CALL_WEBHOOK: HTTP request
       -> SEND_NOTIFY_GROUP: NotifyGroup sender
       -> CREATE_FORUM_POST: Forum repository/service path
   -> persist AutomationStepRun per executed step
-  -> finish AutomationRun(SUCCEEDED / FAILED / SKIPPED / CANCELLED)
+  -> 若 INVOKE_AGENT 暂停于 Human Input Node：AutomationRun(WAITING_INPUT) + session 坐标
+  -> 否则 finish AutomationRun(SUCCEEDED / FAILED / SKIPPED / CANCELLED)
 ```
 
 Engine 使用 automation definition/run/step-run repositories 按 workspace 写入 MongoDB。Automation 级 policy 提供 timeout、retry、concurrency 与 output truncation 行为；step policy 可覆盖 automation policy。v1 是线性顺序执行，默认首个失败 step 会停止后续 steps。
+
+### Human Input 暂停与恢复（issue #176，镜像 cron ADR-0003）
+
+当某个 `INVOKE_AGENT` step 调用的 Workflow Agent 暂停在 Human Input Node 时，`RunTurnSSE` 返回的 `TurnResult.Pending` 非空。Engine 不把该 run 记为成功，而是写入 `AUTOMATION_RUN_STATUS_WAITING_INPUT`，并记录 per-run session 坐标（`automation:<name>` / `automation:<workspace>` / `automation:<run-id>`）与暂停的 `agent_name`。按 Option A，暂停即为该 pipeline 的终点——后续 steps 不再执行。
+
+恢复走 runner 的 TurnListener（与 cron 相同的机制）：`automation.Engine.HandleTurn` 注册为 turn listener，人通过 `ReplySession`（或任意入口）向该 session 发消息，runner 的隐式 resume 完成 workflow；当某个 automation session 上的 turn 结束且无 pending Interrupt 时，Engine 通过 `RunRepo.ListWaitingBySession` 找到等待中的 run，将其 finalize 为 `SUCCEEDED`，把恢复后的输出写回暂停 step，并清理该 session。删除暂停 session（ADR-0002 的放弃语义）由 `HandleSessionDeleted` 监听，将 run 置为 `CANCELLED`。Automation 没有顶层 delivery/notify 配置，因此 node 的问题仅记录在暂停 step 的输出中。
 
 ## Channel 执行流
 

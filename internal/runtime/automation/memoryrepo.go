@@ -147,6 +147,22 @@ func (r *MemoryRunRepo) List(_ context.Context, workspaceID, automationName stri
 	return page, next, nil
 }
 
+func (r *MemoryRunRepo) ListWaitingBySession(_ context.Context, appName, userID, sessionID string) ([]*agentsv1.AutomationRun, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*agentsv1.AutomationRun, 0)
+	for _, run := range r.byID {
+		if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT {
+			continue
+		}
+		if run.GetSessionAppName() == appName && run.GetSessionUserId() == userID && run.GetSessionId() == sessionID {
+			out = append(out, proto.Clone(run).(*agentsv1.AutomationRun))
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].GetId() < out[j].GetId() })
+	return out, nil
+}
+
 type MemoryStepRunRepo struct {
 	mu   sync.RWMutex
 	byID map[string]*agentsv1.AutomationStepRun
