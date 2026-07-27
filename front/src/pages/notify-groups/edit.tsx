@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useNotifyGroup, useUpdateNotifyGroup } from "@/api/notify-groups";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { NotifyGroup } from "@/types/api";
 import NotifyGroupForm from "./form";
@@ -22,24 +22,25 @@ export default function NotifyGroupEditPage() {
     });
   }
 
-  if (isLoading) return <Skeleton className="h-96 w-full" />;
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/notify-groups">Notify Groups</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>{name}</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Edit Notify Group</h2>
-      <NotifyGroupForm
-        initialValue={data?.notify_group}
-        submitLabel="Save"
-        submitting={updateMutation.isPending}
-        onSubmit={onSubmit}
-      />
-    </>
+    <Page>
+      <PageHeader title="Edit Notify Group" subtitle={name} />
+      <PageScroll className="max-w-3xl">
+        <NotifyGroupForm
+          initialValue={data?.notify_group}
+          submitLabel="Save"
+          submitting={updateMutation.isPending}
+          onSubmit={onSubmit}
+        />
+      </PageScroll>
+    </Page>
   );
 }

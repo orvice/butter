@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useModelProvider, useUpdateModelProvider } from "@/api/model-providers";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Skeleton } from "@/components/ui/skeleton";
 import ModelProviderForm from "./form";
 import type { ModelProvider } from "@/types/api";
@@ -22,26 +22,27 @@ export default function ModelProviderEditPage() {
     });
   }
 
-  if (isLoading) return <Skeleton className="h-96 w-full" />;
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/model-providers">Model Providers</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>{name}</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Edit Model Provider</h2>
-      <ModelProviderForm
-        mode="edit"
-        initialValue={data?.model_provider}
-        submitLabel="Save"
-        loading={updateMutation.isPending}
-        onCancel={() => navigate("/model-providers")}
-        onSubmit={onSubmit}
-      />
-    </>
+    <Page>
+      <PageHeader title="Edit Model Provider" subtitle={name} />
+      <PageScroll className="max-w-3xl">
+        <ModelProviderForm
+          mode="edit"
+          initialValue={data?.model_provider}
+          submitLabel="Save"
+          loading={updateMutation.isPending}
+          onCancel={() => navigate("/model-providers")}
+          onSubmit={onSubmit}
+        />
+      </PageScroll>
+    </Page>
   );
 }

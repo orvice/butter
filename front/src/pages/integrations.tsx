@@ -1,6 +1,7 @@
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMCPServers, useMCPTools } from "@/api/mcp-servers";
 import { useRemoteAgents, useRemoteAgentStatus } from "@/api/remote-agents";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,10 +34,10 @@ const TRANSPORT_ICON: Record<MCPServerTransport, typeof Cloud> = {
 const REMOTE_STATE: Record<RemoteAgentState, { cls: string; label: string }> = {
   STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "Unknown" },
   STATE_CONFIGURED: { cls: "bg-muted text-muted-foreground", label: "Configured" },
-  STATE_ACTIVE: { cls: "bg-sky-500/10 text-sky-700", label: "Active" },
-  STATE_IDLE: { cls: "bg-emerald-500/10 text-emerald-700", label: "Idle" },
-  STATE_UNREACHABLE: { cls: "bg-rose-500/10 text-rose-700", label: "Unreachable" },
-  STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
+  STATE_ACTIVE: { cls: "bg-running-muted text-running-foreground", label: "Active" },
+  STATE_IDLE: { cls: "bg-success-muted text-success-foreground", label: "Idle" },
+  STATE_UNREACHABLE: { cls: "bg-danger-muted text-danger-foreground", label: "Unreachable" },
+  STATE_ERROR: { cls: "bg-danger-muted text-danger-foreground", label: "Error" },
 };
 
 function RemoteStatusBadge({ id }: { id: string }) {
@@ -122,7 +123,7 @@ function ToolRow({ tool }: { tool: MCPTool }) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-sm">{tool.name}</span>
           {tool.allowed ? (
-            <Badge variant="outline" className="border-emerald-500/30 text-emerald-700">
+            <Badge className="bg-success-muted text-success-foreground">
               <CheckCircle2 className="mr-1 h-3 w-3" />
               allowed
             </Badge>
@@ -153,26 +154,24 @@ export default function IntegrationsPage() {
   const toolErrors = toolsData?.errors ?? {};
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Integrations & External Tools</h2>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Manage MCP servers, configure tool whitelists, and monitor remote agent endpoints across the orchestration network.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" onClick={() => navigate("/remote-agents/create")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Register Agent
-          </Button>
-          <Button onClick={() => navigate("/mcp-servers/create")}>
-            <Server className="mr-2 h-4 w-4" />
-            Add Server
-          </Button>
-        </div>
-      </div>
-
+    <Page>
+      <PageHeader
+        title="Integrations & External Tools"
+        subtitle="Manage MCP servers, configure tool whitelists, and monitor remote agent endpoints across the orchestration network."
+        actions={
+          <>
+            <Button variant="outline" size="sm" render={<Link to="/remote-agents/create" />}>
+              <Plus className="size-4" />
+              Register Agent
+            </Button>
+            <Button size="sm" render={<Link to="/mcp-servers/create" />}>
+              <Server className="size-4" />
+              Add Server
+            </Button>
+          </>
+        }
+      />
+      <PageScroll>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
           <Card>
@@ -231,7 +230,7 @@ export default function IntegrationsPage() {
           </Card>
         </div>
 
-        <Card className="xl:sticky xl:top-24 xl:self-start">
+        <Card className="xl:sticky xl:top-5 xl:self-start">
           <CardHeader className="border-b pb-4">
             <CardTitle className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-primary" />
@@ -243,7 +242,7 @@ export default function IntegrationsPage() {
             {Object.entries(toolErrors).map(([id, err]) => (
               <div
                 key={id}
-                className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700"
+                className="flex items-start gap-2 rounded-md bg-warning-muted px-3 py-2 text-xs text-warning-foreground"
               >
                 <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <div>
@@ -270,6 +269,7 @@ export default function IntegrationsPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </PageScroll>
+    </Page>
   );
 }

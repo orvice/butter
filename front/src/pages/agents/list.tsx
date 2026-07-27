@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   useAgents,
@@ -8,10 +8,11 @@ import {
   useInvokeAgent,
   useAgentRuntimeStatuses,
 } from "@/api/agents";
-import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
-import { Badge } from "@/components/ui/badge";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
+import { AgentAvatar, StatusBadge, type RunStatus } from "@/components/butter/primitives";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -26,44 +27,133 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Card } from "@/components/ui/card";
 import {
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  Play,
-  RefreshCw,
-  Plus,
   Bot,
-  ListChecks,
+  MessageSquarePlus,
+  MoreVertical,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
 } from "lucide-react";
 import { AGENT_TYPE_LABELS } from "@/lib/constants";
 import { agentIconUrl } from "./icon-utils";
+import { cn } from "@/lib/utils";
 import type { Agent, AgentRuntimeStatus } from "@/types/api";
 
-const TYPE_ICON: Record<string, string> = {
-  AGENT_TYPE_SEQUENTIAL: "→",
-  AGENT_TYPE_PARALLEL: "⇉",
-  AGENT_TYPE_LOOP: "↻",
-  AGENT_TYPE_LLM: "✦",
+type RuntimeState = "running" | "idle" | "failed";
+type RuntimeFilter = "all" | RuntimeState;
+
+function runtimeStatusOf(rt?: AgentRuntimeStatus): RuntimeState {
+  switch (rt?.state) {
+    case "AGENT_RUNTIME_STATE_RUNNING":
+      return "running";
+    case "AGENT_RUNTIME_STATE_FAILED":
+      return "failed";
+    default:
+      return "idle";
+  }
+}
+
+const RUNTIME_TO_BADGE: Record<RuntimeState, { status: RunStatus; label: string }> = {
+  running: { status: "running", label: "Running" },
+  idle: { status: "success", label: "Available" },
+  failed: { status: "failed", label: "Failed" },
 };
 
-const STATE_BADGE: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; cls?: string; label: string }> = {
-  AGENT_RUNTIME_STATE_RUNNING: { variant: "default", cls: "bg-emerald-500/10 text-emerald-700", label: "Running" },
-  AGENT_RUNTIME_STATE_IDLE: { variant: "secondary", label: "Idle" },
-  AGENT_RUNTIME_STATE_FAILED: { variant: "destructive", label: "Failed" },
-  AGENT_RUNTIME_STATE_UNSPECIFIED: { variant: "outline", label: "Unknown" },
-};
-
-function timeAgo(ts?: string): string {
-  if (!ts) return "-";
+function timeAgo(ts?: string): string | null {
+  if (!ts) return null;
   const d = Date.now() - new Date(ts).getTime();
   if (d < 60_000) return `${Math.max(1, Math.floor(d / 1000))}s ago`;
   if (d < 3600_000) return `${Math.floor(d / 60_000)}m ago`;
   if (d < 86_400_000) return `${Math.floor(d / 3600_000)}h ago`;
   return `${Math.floor(d / 86_400_000)}d ago`;
+}
+
+function AgentCard({
+  agent,
+  runtime,
+  onDelete,
+  onRun,
+}: {
+  agent: Agent;
+  runtime?: AgentRuntimeStatus;
+  onDelete: () => void;
+  onRun: () => void;
+}) {
+  const navigate = useNavigate();
+  const status = runtimeStatusOf(runtime);
+  const badge = RUNTIME_TO_BADGE[status];
+  const lastRun = timeAgo(runtime?.last_run_at);
+
+  return (
+    <div className="group relative flex flex-col rounded-lg border border-border bg-card p-4 transition-colors hover:border-ring/50">
+      <div className="flex items-start gap-3">
+        <AgentAvatar name={agent.name} iconUrl={agentIconUrl(agent)} size="lg" />
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold">{agent.name}</h3>
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            {agent.description || "No description."}
+          </p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+            <MoreVertical className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={6}>
+            <DropdownMenuItem onClick={() => navigate(`/agents/${encodeURIComponent(agent.name)}/edit`)}>
+              <Pencil /> Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onRun}>
+              <Play /> Run once
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={onDelete}>
+              <Trash2 /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 text-xs">
+        <StatusBadge status={badge.status} label={badge.label} />
+        {(runtime?.in_flight ?? 0) > 0 && (
+          <span className="text-muted-foreground">×{runtime!.in_flight} in flight</span>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1">
+        <span className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.7rem] text-muted-foreground">
+          {AGENT_TYPE_LABELS[agent.type ?? "AGENT_TYPE_UNSPECIFIED"]}
+        </span>
+        {agent.enable_a2a && (
+          <span className="rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[0.7rem] text-muted-foreground">
+            A2A
+          </span>
+        )}
+        {agent.enable_openai_api && (
+          <span className="rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[0.7rem] text-muted-foreground">
+            OpenAI API
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+        <span className="text-xs text-muted-foreground">
+          {lastRun ? `Last run ${lastRun}` : "Not run yet"}
+        </span>
+        <Button size="sm" render={<Link to={`/chat?new=1&agent=${encodeURIComponent(agent.name)}`} />}>
+          <MessageSquarePlus />
+          Start Chat
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export default function AgentListPage() {
@@ -82,194 +172,136 @@ export default function AgentListPage() {
   const reloadMutation = useReloadAgents();
   const invokeMutation = useInvokeAgent();
 
-  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<RuntimeFilter>("all");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [invokeTarget, setInvokeTarget] = useState<Agent | null>(null);
   const [invokeInput, setInvokeInput] = useState("");
   const [invokeResult, setInvokeResult] = useState<{ session_id: string; response: string } | null>(null);
 
-  const columns: Column<Agent>[] = [
-    {
-      header: "Name",
-      cell: (row) => {
-        const iconUrl = agentIconUrl(row);
-        return (
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
-              {iconUrl ? (
-                <img src={iconUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-base">{TYPE_ICON[row.type ?? ""] ?? "•"}</span>
-              )}
-            </div>
-            <div>
-              <div className="font-medium">{row.name}</div>
-              {row.description && (
-                <div className="text-xs text-muted-foreground line-clamp-1 max-w-md">
-                  {row.description}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      header: "Type",
-      cell: (row) => (
-        <Badge variant="secondary" className="font-mono text-[10px]">
-          {AGENT_TYPE_LABELS[row.type ?? "AGENT_TYPE_UNSPECIFIED"]}
-        </Badge>
+  const filtered = useMemo(
+    () =>
+      agents.filter(
+        (a) =>
+          (filter === "all" || runtimeStatusOf(runtimeMap.get(a.name)) === filter) &&
+          (a.name.toLowerCase().includes(query.toLowerCase()) ||
+            (a.description ?? "").toLowerCase().includes(query.toLowerCase())),
       ),
-    },
-    {
-      header: "Status",
-      cell: (row) => {
-        const rt = runtimeMap.get(row.name);
-        const state = rt?.state ?? "AGENT_RUNTIME_STATE_UNSPECIFIED";
-        const badge = STATE_BADGE[state];
-        return (
-          <div className="flex items-center gap-2">
-            <Badge variant={badge.variant} className={badge.cls}>
-              {badge.label}
-            </Badge>
-            {(rt?.in_flight ?? 0) > 0 && (
-              <span className="text-xs text-muted-foreground">×{rt!.in_flight}</span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      header: "Last Run",
-      cell: (row) => (
-        <span className="text-xs text-muted-foreground">
-          {timeAgo(runtimeMap.get(row.name)?.last_run_at)}
-        </span>
-      ),
-    },
-    {
-      header: "Access",
-      cell: (row) => (
-        <div className="flex flex-wrap items-center gap-1">
-          {row.enable_a2a ? <Badge variant="outline" className="text-xs">A2A</Badge> : null}
-          {row.enable_openai_api ? <Badge variant="outline" className="text-xs">OpenAI</Badge> : null}
-        </div>
-      ),
-    },
-    {
-      header: "",
-      cell: (row) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setInvokeTarget(row);
-              setInvokeResult(null);
-              setInvokeInput("");
-            }}
-          >
-            <Play className="mr-1 h-3 w-3" /> Run
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/agents/${encodeURIComponent(row.name)}/edit`)}>
-                <Pencil className="mr-2 h-4 w-4" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(row.name)}>
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ),
-    },
+    [agents, query, filter, runtimeMap],
+  );
+
+  const filters: { key: RuntimeFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "running", label: "Running" },
+    { key: "idle", label: "Idle" },
+    { key: "failed", label: "Failed" },
   ];
 
-  const summary = useMemo(() => {
-    let running = 0,
-      idle = 0,
-      failed = 0;
-    for (const a of agents) {
-      const rt = runtimeMap.get(a.name);
-      if (rt?.state === "AGENT_RUNTIME_STATE_RUNNING") running++;
-      else if (rt?.state === "AGENT_RUNTIME_STATE_FAILED") failed++;
-      else idle++;
-    }
-    return { running, idle, failed };
-  }, [agents, runtimeMap]);
-
   return (
-    <>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Agents</h2>
-          <p className="text-sm text-muted-foreground">Manage and monitor orchestration nodes.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() =>
-              reloadMutation.mutate(undefined, {
-                onSuccess: () => toast.success("Agents reloaded"),
-                onError: (err) => toast.error(err.message),
-              })
-            }
-            disabled={reloadMutation.isPending}
-          >
-            <RefreshCw className={`mr-2 h-3 w-3 ${reloadMutation.isPending ? "animate-spin" : ""}`} />
-            Hot-reload
-          </Button>
-          <Button className="w-full sm:w-auto" onClick={() => navigate("/agents/create")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Deploy Agent
-          </Button>
-        </div>
-      </div>
-
-      {/* Summary strip */}
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card className="p-3">
-          <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4 text-muted-foreground" />
-            <div className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Total</div>
-          </div>
-          <div className="mt-1 text-2xl font-bold">{agents.length}</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Running</div>
-          <div className="mt-1 text-2xl font-bold text-emerald-700">{summary.running}</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Idle</div>
-          <div className="mt-1 text-2xl font-bold">{summary.idle}</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">Failed</div>
-          <div className="mt-1 text-2xl font-bold text-rose-700">{summary.failed}</div>
-        </Card>
-      </div>
-
-      <DataTable
-        columns={columns}
-        data={agents}
-        isLoading={isLoading}
-        emptyMessage="No agents yet"
-        emptyDescription="Deploy your first agent to start handling chat, scheduled tasks, or tool workflows."
-        emptyAction={<Button onClick={() => navigate("/agents/create")}><Plus className="mr-2 h-4 w-4" />Deploy Agent</Button>}
+    <Page>
+      <PageHeader
+        title="Agents"
+        subtitle="Browse agents and start a conversation, or configure how they work."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                reloadMutation.mutate(undefined, {
+                  onSuccess: () => toast.success("Agents reloaded"),
+                  onError: (err) => toast.error(err.message),
+                })
+              }
+              disabled={reloadMutation.isPending}
+            >
+              <RefreshCw className={cn("size-4", reloadMutation.isPending && "animate-spin")} />
+              Hot-reload
+            </Button>
+            <Button size="sm" render={<Link to="/agents/create" />}>
+              <Plus className="size-4" />
+              Create Agent
+            </Button>
+          </>
+        }
       />
+      <PageScroll>
+        {isLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-48" />
+            ))}
+          </div>
+        ) : agents.length === 0 ? (
+          <div className="mx-auto max-w-md rounded-lg border border-dashed border-border bg-card/40 px-6 py-14 text-center">
+            <div className="mx-auto flex size-11 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <Bot className="size-5" />
+            </div>
+            <h2 className="mt-4 text-base font-semibold">No agents yet</h2>
+            <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground text-pretty">
+              Agents are configurable assistants with their own model, tools, and
+              instructions. Create one to start chatting and automating.
+            </p>
+            <Button className="mt-5" render={<Link to="/agents/create" />}>
+              <Plus />
+              Create your first Agent
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search agents"
+                  className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none focus:border-ring"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-card p-0.5">
+                {filters.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setFilter(f.key)}
+                    className={cn(
+                      "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                      filter === f.key
+                        ? "bg-secondary text-secondary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-      <div className="mt-2 text-xs text-muted-foreground">
-        Showing {agents.length} of {data?.total ?? agents.length} agents
-      </div>
+            {filtered.length === 0 ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">
+                No agents match your filters.
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {filtered.map((a) => (
+                  <AgentCard
+                    key={a.name}
+                    agent={a}
+                    runtime={runtimeMap.get(a.name)}
+                    onDelete={() => setDeleteTarget(a.name)}
+                    onRun={() => {
+                      setInvokeTarget(a);
+                      setInvokeResult(null);
+                      setInvokeInput("");
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </PageScroll>
 
       <DeleteDialog
         open={!!deleteTarget}
@@ -303,7 +335,7 @@ export default function AgentListPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Play className="h-4 w-4" /> Run {invokeTarget?.name}
+              <Play className="size-4" /> Run {invokeTarget?.name}
             </DialogTitle>
             <DialogDescription>
               Sends a one-off invocation via the API. Creates an ephemeral session.
@@ -326,7 +358,7 @@ export default function AgentListPage() {
               <div className="text-xs text-muted-foreground">
                 Session: <span className="font-mono">{invokeResult.session_id}</span>
               </div>
-              <div className="rounded-md border bg-muted p-3 text-sm whitespace-pre-wrap">
+              <div className="whitespace-pre-wrap rounded-md border bg-muted p-3 text-sm">
                 {invokeResult.response || <span className="italic text-muted-foreground">(empty response)</span>}
               </div>
             </div>
@@ -360,15 +392,6 @@ export default function AgentListPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Discoverability hint */}
-      <div className="mt-6 flex items-start gap-2 rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-        <ListChecks className="mt-0.5 h-3.5 w-3.5" />
-        <span>
-          Tip: use the <strong>Run</strong> button to test an agent with a one-off input. Recent
-          invocations are visible on the Overview page.
-        </span>
-      </div>
-    </>
+    </Page>
   );
 }

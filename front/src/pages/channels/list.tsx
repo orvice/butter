@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   useChannels,
@@ -8,7 +8,7 @@ import {
   useDeleteChannel,
 } from "@/api/channels";
 import { useAPITokens } from "@/api/apitokens";
-import { PageHeader } from "@/components/page-header";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Send, MessageCircle, Pause, Play, RotateCcw, Pencil, Trash2, Copy, KeyRound, Workflow } from "lucide-react";
+import { MoreVertical, Send, MessageCircle, Pause, Play, Plus, RotateCcw, Pencil, Trash2, Copy, KeyRound, Workflow } from "lucide-react";
 import type { AgentChannel, AgentChannelPlatform } from "@/types/api";
 
 const PLATFORM_ICON: Record<string, typeof Send> = {
@@ -74,7 +74,7 @@ function ChannelCard({ channel }: { channel: AgentChannel }) {
           <Icon className="h-4 w-4 text-muted-foreground" />
           <CardTitle className="text-base">{label}</CardTitle>
           {enabled ? (
-            <Badge className="bg-emerald-500/10 text-emerald-700">
+            <Badge className="bg-success-muted text-success-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-current" />
               Live
             </Badge>
@@ -172,99 +172,103 @@ export default function ChannelListPage() {
   const tokens = tokenData?.tokens ?? [];
 
   return (
-    <div className="space-y-6">
+    <Page>
       <PageHeader
-        title="Channel Configuration"
-        description="Manage external entry points, communication bridges, API execution, and webhook authentication."
-        createLabel="Add Channel"
-        createTo="/channels/create"
+        title="Channels"
+        subtitle="Manage external entry points, communication bridges, API execution, and webhook authentication."
+        actions={
+          <Button size="sm" render={<Link to="/channels/create" />}>
+            <Plus />
+            Add Channel
+          </Button>
+        }
       />
-
-      {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-64" />)}
-        </div>
-      ) : channels.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground sm:p-12">
-          No channels configured yet.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {channels.map((c) => (
-            <ChannelCard key={c.name} channel={c} />
-          ))}
-        </div>
-      )}
-
-      <Card>
-        <CardHeader className="border-b pb-4">
-          <CardTitle className="flex items-center gap-2">
-            <Workflow className="h-4 w-4 text-primary" />
-            API & Webhooks
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6 pt-5">
-          <div className="rounded-lg border p-4">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold">ConnectRPC/HTTP API</h3>
-                <p className="text-sm text-muted-foreground">Synchronous agent execution endpoint.</p>
-              </div>
-              <Badge className="bg-emerald-500/10 text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                Live
-              </Badge>
-            </div>
-            <div className="relative rounded-lg bg-[#111827] p-4 font-mono text-[13px] text-gray-300">
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                className="absolute right-3 top-3 text-gray-400 hover:bg-gray-800 hover:text-white"
-                aria-label="Copy endpoint"
-                onClick={() => void copyText("/api/agents.v1.AgentService/InvokeAgent", "Endpoint copied")}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-              <span className="mr-4 text-gray-500">1</span>
-              <span className="text-emerald-400">POST</span>
-              <span className="ml-2 text-white">/api/agents.v1.AgentService/InvokeAgent</span>
-            </div>
+      <PageScroll className="space-y-6">
+        {isLoading ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-64" />)}
           </div>
+        ) : channels.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-card/40 p-6 text-center text-sm text-muted-foreground sm:p-12">
+            No channels configured yet.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {channels.map((c) => (
+              <ChannelCard key={c.name} channel={c} />
+            ))}
+          </div>
+        )}
 
-          <div>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold">APITokenAuthMiddleware</h3>
-                <p className="text-sm text-muted-foreground">Bearer tokens for external webhook ingestion.</p>
-              </div>
-              <Button variant="outline" onClick={() => navigate("/api-tokens")}>
-                <KeyRound className="mr-2 h-4 w-4" />
-                Manage Tokens
-              </Button>
-            </div>
-            {tokens.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                No API tokens created yet.
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-lg border">
-                <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr] bg-muted/60 px-4 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
-                  <span>Token Name</span>
-                  <span>Prefix</span>
-                  <span>Created</span>
+        <Card>
+          <CardHeader className="border-b pb-4">
+            <CardTitle className="flex items-center gap-2">
+              <Workflow className="h-4 w-4 text-primary" />
+              API & Webhooks
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6 pt-5">
+            <div className="rounded-lg border p-4">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold">ConnectRPC/HTTP API</h3>
+                  <p className="text-sm text-muted-foreground">Synchronous agent execution endpoint.</p>
                 </div>
-                {tokens.slice(0, 4).map((token) => (
-                  <div key={token.id} className="grid grid-cols-[1.2fr_0.8fr_0.8fr] border-t px-4 py-3 text-sm">
-                    <span className="font-medium">{token.name}</span>
-                    <code className="text-muted-foreground">{token.prefix || "-"}</code>
-                    <span className="text-muted-foreground">{token.created_at ? new Date(token.created_at).toLocaleDateString() : "-"}</span>
-                  </div>
-                ))}
+                <Badge className="bg-success-muted text-success-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                  Live
+                </Badge>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+              <div className="relative rounded-lg border border-border bg-muted/60 p-4 font-mono text-[13px]">
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="absolute right-3 top-3 text-muted-foreground"
+                  aria-label="Copy endpoint"
+                  onClick={() => void copyText("/api/agents.v1.AgentService/InvokeAgent", "Endpoint copied")}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <span className="font-semibold text-success-foreground">POST</span>
+                <span className="ml-2 break-all">/api/agents.v1.AgentService/InvokeAgent</span>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold">APITokenAuthMiddleware</h3>
+                  <p className="text-sm text-muted-foreground">Bearer tokens for external webhook ingestion.</p>
+                </div>
+                <Button variant="outline" onClick={() => navigate("/api-tokens")}>
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Manage Tokens
+                </Button>
+              </div>
+              {tokens.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  No API tokens created yet.
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border">
+                  <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr] bg-muted/60 px-4 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
+                    <span>Token Name</span>
+                    <span>Prefix</span>
+                    <span>Created</span>
+                  </div>
+                  {tokens.slice(0, 4).map((token) => (
+                    <div key={token.id} className="grid grid-cols-[1.2fr_0.8fr_0.8fr] border-t px-4 py-3 text-sm">
+                      <span className="font-medium">{token.name}</span>
+                      <code className="text-muted-foreground">{token.prefix || "-"}</code>
+                      <span className="text-muted-foreground">{token.created_at ? new Date(token.created_at).toLocaleDateString() : "-"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </PageScroll>
+    </Page>
   );
 }

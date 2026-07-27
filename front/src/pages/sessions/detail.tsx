@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useSession } from "@/api/sessions";
 import { parseSessionEventsFull, type FullParsedEvent } from "@/lib/session-events";
+import { Page, PageScroll } from "@/components/butter/page-parts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,12 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import {
+  ArrowLeft,
+  ChevronRight,
   MemoryStick,
   Brain,
   Clock,
@@ -161,8 +158,21 @@ export default function SessionDetailPage() {
   const detail = data?.session_detail;
   const events = useMemo(() => parseSessionEventsFull(detail?.events), [detail?.events]);
 
-  if (isLoading) return <Skeleton className="h-96 w-full" />;
-  if (!detail) return <p className="text-muted-foreground">Session not found.</p>;
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  if (!detail) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-muted-foreground">Session not found.</p>
+      </div>
+    );
+  }
 
   const info = detail.session;
   const stateEntries = Object.entries(info.state ?? {});
@@ -172,111 +182,113 @@ export default function SessionDetailPage() {
   const rangeNote = partial ? `recent ${RECENT_EVENTS_LIMIT}` : undefined;
 
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <Link to="/sessions" className="text-sm hover:underline">
-              Sessions
-            </Link>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem className="font-mono text-xs">{sessionId}</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Session Detail</h2>
-        <p className="font-mono text-xs text-muted-foreground">{info.session_id}</p>
+    <Page>
+      {/* header */}
+      <div className="border-b border-border px-4 py-4 md:px-6">
+        <Link
+          to="/sessions"
+          className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" />
+          Sessions
+          <ChevronRight className="size-3" />
+          <span className="max-w-64 truncate font-mono text-foreground">{sessionId}</span>
+        </Link>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight">Session Detail</h1>
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{info.session_id}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowAllEvents((v) => !v)}>
+              {showAllEvents ? `Show recent ${RECENT_EVENTS_LIMIT}` : "Show full history"}
+            </Button>
+            <Button size="icon-sm" variant="ghost" aria-label="Expand event log" onClick={() => setLogExpanded(true)}>
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
-      {/* Header info */}
-      <Card className="mb-6">
-        <CardContent className="grid grid-cols-2 gap-4 p-4 text-sm md:grid-cols-3 lg:grid-cols-5">
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <div className="text-xs text-muted-foreground">User</div>
-              <div className="font-medium">{info.user_id}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <div className="text-xs text-muted-foreground">Channel</div>
-              <div className="font-medium">{info.app_name}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <History className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <div className="text-xs text-muted-foreground">Last Update</div>
-              <div className="font-medium">
-                {info.last_update_time ? new Date(info.last_update_time).toLocaleString() : "-"}
+      <PageScroll>
+        {/* Header info */}
+        <Card className="mb-6">
+          <CardContent className="grid grid-cols-2 gap-4 p-4 text-sm md:grid-cols-3 lg:grid-cols-5">
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">User</div>
+                <div className="font-medium">{info.user_id}</div>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <div className="text-xs text-muted-foreground">
-                Duration{rangeNote ? <span className="ml-1 normal-case">({rangeNote})</span> : null}
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">Channel</div>
+                <div className="font-medium">{info.app_name}</div>
               </div>
-              <div className="font-medium">{fmtDuration(detail.duration)}</div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Brain className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <div className="text-xs text-muted-foreground">
-                Turns{rangeNote ? <span className="ml-1 normal-case">({rangeNote})</span> : null}
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">Last Update</div>
+                <div className="font-medium">
+                  {info.last_update_time ? new Date(info.last_update_time).toLocaleString() : "-"}
+                </div>
               </div>
-              <div className="font-medium">{info.turn_count ?? events.length}</div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Duration{rangeNote ? <span className="ml-1 normal-case">({rangeNote})</span> : null}
+                </div>
+                <div className="font-medium">{fmtDuration(detail.duration)}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Brain className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Turns{rangeNote ? <span className="ml-1 normal-case">({rangeNote})</span> : null}
+                </div>
+                <div className="font-medium">{info.turn_count ?? events.length}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Memory context */}
-      <Card className="mb-6">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MemoryStick className="h-4 w-4" /> Memory Context
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {stateEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No session state recorded.</p>
-          ) : (
-            <pre className="overflow-x-auto rounded bg-muted p-3 text-xs">
-              {JSON.stringify(info.state, null, 2)}
-            </pre>
-          )}
-        </CardContent>
-      </Card>
+        {/* Memory context */}
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MemoryStick className="h-4 w-4" /> Memory Context
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stateEntries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No session state recorded.</p>
+            ) : (
+              <pre className="overflow-x-auto rounded bg-muted p-3 text-xs">
+                {JSON.stringify(info.state, null, 2)}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Event log */}
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-lg font-semibold">
+        {/* Event log */}
+        <h3 className="mb-3 text-sm font-medium">
           Event Log ({events.length}
           {partial ? "+" : ""})
         </h3>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setShowAllEvents((v) => !v)}>
-            {showAllEvents ? `Show recent ${RECENT_EVENTS_LIMIT}` : "Show full history"}
-          </Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Expand event log" onClick={() => setLogExpanded(true)}>
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      {partial ? (
-        <p className="mb-3 text-xs text-muted-foreground">
-          Showing the most recent {RECENT_EVENTS_LIMIT} events. Duration and turn count reflect this range — use “Show
-          full history” for the whole session.
-        </p>
-      ) : null}
-      <EventLogList events={events} onExpandEvent={setExpandedEvent} />
+        {partial ? (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Showing the most recent {RECENT_EVENTS_LIMIT} events. Duration and turn count reflect this range — use “Show
+            full history” for the whole session.
+          </p>
+        ) : null}
+        <EventLogList events={events} onExpandEvent={setExpandedEvent} />
+      </PageScroll>
 
       <Dialog open={logExpanded} onOpenChange={setLogExpanded}>
         <DialogContent className="flex max-h-[90vh] w-full max-w-[95vw] flex-col overflow-hidden sm:max-w-[95vw]">
@@ -306,6 +318,6 @@ export default function SessionDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </Page>
   );
 }

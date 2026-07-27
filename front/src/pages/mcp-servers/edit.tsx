@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useMCPServer, useUpdateMCPServer } from "@/api/mcp-servers";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Skeleton } from "@/components/ui/skeleton";
 import MCPServerForm from "./form";
 import type { MCPServer } from "@/types/api";
@@ -22,30 +22,26 @@ export default function MCPServerEditPage() {
     );
   }
 
-  if (isLoading) return <Skeleton className="h-96 w-full" />;
-
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/mcp-servers">MCP Servers</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>{id}</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <div className="mb-6 space-y-1">
-        <h2 className="text-2xl font-bold">Edit MCP Server</h2>
-        <p className="text-sm text-muted-foreground">Review endpoint and authentication changes before saving because agents may use this server immediately.</p>
-      </div>
-
-      <MCPServerForm
-        mode="edit"
-        submitLabel="Save"
-        loading={updateMutation.isPending}
-        initialValue={data?.mcp_server}
-        onCancel={() => navigate("/mcp-servers")}
-        onSubmit={onSubmit}
+    <Page>
+      <PageHeader
+        title="Edit MCP Server"
+        subtitle="Review endpoint and authentication changes before saving because agents may use this server immediately."
       />
-    </>
+      <PageScroll className="max-w-3xl">
+        {isLoading ? (
+          <Skeleton className="h-96 w-full" />
+        ) : (
+          <MCPServerForm
+            mode="edit"
+            submitLabel="Save"
+            loading={updateMutation.isPending}
+            initialValue={data?.mcp_server}
+            onCancel={() => navigate("/mcp-servers")}
+            onSubmit={onSubmit}
+          />
+        )}
+      </PageScroll>
+    </Page>
   );
 }

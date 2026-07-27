@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
@@ -36,10 +36,6 @@ const SessionDetailPage = lazy(() => import("@/pages/sessions/detail"));
 const ChatPage = lazy(() => import("@/pages/chat"));
 const ForumListPage = lazy(() => import("@/pages/forum/list"));
 const ForumThreadPage = lazy(() => import("@/pages/forum/thread"));
-const CronJobListPage = lazy(() => import("@/pages/cron/list"));
-const CronJobCreatePage = lazy(() => import("@/pages/cron/create"));
-const CronJobEditPage = lazy(() => import("@/pages/cron/edit"));
-const CronExecutionsPage = lazy(() => import("@/pages/cron/executions"));
 const AutomationListPage = lazy(() => import("@/pages/automations/list"));
 const AutomationCreatePage = lazy(() => import("@/pages/automations/create"));
 const AutomationDetailPage = lazy(() => import("@/pages/automations/detail"));
@@ -53,6 +49,11 @@ const UserListPage = lazy(() => import("@/pages/users/list"));
 const AdminGlobalMCPServersPage = lazy(() => import("@/pages/admin/global-mcp-servers"));
 const ProfilePage = lazy(() => import("@/pages/profile"));
 const WorkspacePage = lazy(() => import("@/pages/workspaces"));
+
+function CronRedirect({ suffix = "" }: { suffix?: string }) {
+  const { name } = useParams<{ name: string }>();
+  return <Navigate to={`/automations/${encodeURIComponent(name ?? "")}${suffix}`} replace />;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,6 +79,7 @@ export default function App() {
                       <Route path="/auth/oauth/callback/:provider" element={<OAuthCallbackPage />} />
                       <Route element={<DashboardLayout />}>
                         <Route index element={<DashboardPage />} />
+                        <Route path="chat" element={<ChatPage />} />
                         <Route path="manage" element={<ManagePage />} />
                         <Route path="agents" element={<AgentListPage />} />
                         <Route path="agents/create" element={<AgentCreatePage />} />
@@ -96,7 +98,6 @@ export default function App() {
                         <Route path="remote-agents/create" element={<RemoteAgentCreatePage />} />
                         <Route path="remote-agents/:id/edit" element={<RemoteAgentEditPage />} />
                         <Route path="integrations" element={<IntegrationsPage />} />
-                        <Route path="chat" element={<ChatPage />} />
                         <Route path="forum" element={<ForumListPage />} />
                         <Route path="forum/:id" element={<ForumThreadPage />} />
                         <Route path="sessions" element={<SessionListPage />} />
@@ -106,10 +107,11 @@ export default function App() {
                         <Route path="automations/create" element={<AutomationCreatePage />} />
                         <Route path="automations/:name" element={<AutomationDetailPage />} />
                         <Route path="automations/:name/edit" element={<AutomationEditPage />} />
-                        <Route path="cron" element={<CronJobListPage />} />
-                        <Route path="cron/create" element={<CronJobCreatePage />} />
-                        <Route path="cron/:name/edit" element={<CronJobEditPage />} />
-                        <Route path="cron/:name/executions" element={<CronExecutionsPage />} />
+                        {/* Cron pages merged into Automations (same CronJob backend) */}
+                        <Route path="cron" element={<Navigate to="/automations" replace />} />
+                        <Route path="cron/create" element={<Navigate to="/automations/create" replace />} />
+                        <Route path="cron/:name/edit" element={<CronRedirect suffix="/edit" />} />
+                        <Route path="cron/:name/executions" element={<CronRedirect />} />
                         <Route path="daemons" element={<DaemonListPage />} />
                         <Route path="channels" element={<ChannelListPage />} />
                         <Route path="channels/create" element={<ChannelCreatePage />} />

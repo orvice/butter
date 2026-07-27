@@ -2,7 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useAPITokens, useCreateAPIToken, useRevokeAPIToken } from "@/api/apitokens";
 import { BASE_URL } from "@/api/transport";
-import { PageHeader } from "@/components/page-header";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +76,12 @@ export default function APITokenListPage() {
     },
     {
       header: "Status",
-      cell: (t) => (t.revoked ? <Badge variant="destructive">Revoked</Badge> : <Badge>Active</Badge>),
+      cell: (t) =>
+        t.revoked ? (
+          <Badge className="bg-danger-muted text-danger-foreground">Revoked</Badge>
+        ) : (
+          <Badge className="bg-success-muted text-success-foreground">Active</Badge>
+        ),
     },
     {
       header: "Actions",
@@ -96,50 +101,55 @@ export default function APITokenListPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="API Tokens" />
-
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Bearer Tokens</CardTitle>
-            <CardDescription>Manage tokens used by external integrations to call ConnectRPC and OpenAI-compatible APIs.</CardDescription>
-          </div>
-          <Button className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
-            <KeyRound className="mr-2 h-4 w-4" /> Generate New Token
+    <Page>
+      <PageHeader
+        title="API Tokens"
+        subtitle="Manage tokens used by external integrations to call ConnectRPC and OpenAI-compatible APIs."
+        actions={
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <KeyRound />
+            Generate New Token
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="border-b pb-5">
-            <div className="mb-2 space-y-0.5">
-              <Label htmlFor="openai-sdk-base-url">OpenAI SDK Base URL</Label>
-              <p className="text-xs text-muted-foreground">Use a generated bearer token to authenticate requests to this endpoint.</p>
+        }
+      />
+      <PageScroll>
+        <Card>
+          <CardHeader>
+            <CardTitle>Bearer Tokens</CardTitle>
+            <CardDescription>Tokens authenticate external webhook ingestion and API calls.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="border-b pb-5">
+              <div className="mb-2 space-y-0.5">
+                <Label htmlFor="openai-sdk-base-url">OpenAI SDK Base URL</Label>
+                <p className="text-xs text-muted-foreground">Use a generated bearer token to authenticate requests to this endpoint.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input id="openai-sdk-base-url" readOnly value={sdkBaseURL} className="font-mono text-xs" />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  aria-label="Copy OpenAI SDK Base URL"
+                  title="Copy OpenAI SDK Base URL"
+                  onClick={() => {
+                    navigator.clipboard.writeText(sdkBaseURL);
+                    toast.success("OpenAI SDK Base URL copied");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Input id="openai-sdk-base-url" readOnly value={sdkBaseURL} className="font-mono text-xs" />
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                aria-label="Copy OpenAI SDK Base URL"
-                title="Copy OpenAI SDK Base URL"
-                onClick={() => {
-                  navigator.clipboard.writeText(sdkBaseURL);
-                  toast.success("OpenAI SDK Base URL copied");
-                }}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <DataTable
-            columns={columns}
-            data={tokens}
-            isLoading={isLoading}
-            emptyMessage="No tokens yet. Generate one to enable external API access."
-          />
-        </CardContent>
-      </Card>
+            <DataTable
+              columns={columns}
+              data={tokens}
+              isLoading={isLoading}
+              emptyMessage="No tokens yet. Generate one to enable external API access."
+            />
+          </CardContent>
+        </Card>
+      </PageScroll>
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -200,6 +210,6 @@ export default function APITokenListPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Page>
   );
 }

@@ -11,7 +11,8 @@ import {
   useDeleteDaemonRuntime,
   useUpdateDaemonRuntime,
 } from "@/api/daemons";
-import { PageHeader } from "@/components/page-header";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
+import { StatusBadge, type RunStatus } from "@/components/butter/primitives";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -106,29 +107,18 @@ function LabelBadges({ labels }: { labels?: Record<string, string> }) {
   );
 }
 
+const DAEMON_STATE_BADGE: Record<string, { status: RunStatus; label: string }> = {
+  STATE_ONLINE: { status: "success", label: "Online" },
+  STATE_IDLE: { status: "disabled", label: "Idle" },
+  STATE_OFFLINE: { status: "failed", label: "Offline" },
+};
+
 function DaemonStateBadge({ state }: { state?: DaemonStatus["state"] }) {
-  const variant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    STATE_ONLINE: "default",
-    STATE_IDLE: "secondary",
-    STATE_OFFLINE: "destructive",
+  const meta = DAEMON_STATE_BADGE[state ?? "STATE_UNSPECIFIED"] ?? {
+    status: "never" as RunStatus,
+    label: "Unknown",
   };
-  const label: Record<string, string> = {
-    STATE_ONLINE: "Online",
-    STATE_IDLE: "Idle",
-    STATE_OFFLINE: "Offline",
-  };
-  const key = state ?? "STATE_UNSPECIFIED";
-  const cls: Record<string, string> = {
-    STATE_ONLINE: "bg-emerald-500/10 text-emerald-700",
-    STATE_IDLE: "bg-muted text-muted-foreground",
-    STATE_OFFLINE: "bg-rose-500/10 text-rose-700",
-  };
-  return (
-    <Badge variant={variant[key] ?? "outline"} className={cls[key]}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {label[key] ?? "Unknown"}
-    </Badge>
-  );
+  return <StatusBadge status={meta.status} label={meta.label} />;
 }
 
 export default function DaemonListPage() {
@@ -192,11 +182,12 @@ export default function DaemonListPage() {
     },
     {
       header: "Status",
-      cell: (r) => (
-        <Badge variant={connectedRuntimeIds.has(r.id) ? "default" : "outline"}>
-          {connectedRuntimeIds.has(r.id) ? "Connected" : "Waiting"}
-        </Badge>
-      ),
+      cell: (r) =>
+        connectedRuntimeIds.has(r.id) ? (
+          <StatusBadge status="success" label="Connected" />
+        ) : (
+          <StatusBadge status="waiting" label="Waiting" />
+        ),
     },
     {
       header: "Description",
@@ -385,12 +376,12 @@ export default function DaemonListPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <Page>
       <PageHeader
         title="Daemon Monitor"
-        description="Real-time telemetry and execution state for connected butter-daemons."
+        subtitle="Real-time telemetry and execution state for connected butter-daemons."
       />
-
+      <PageScroll className="space-y-6">
       {[runtimeError, daemonError, taskError, bridgeError].filter(Boolean).length > 0 ? (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="flex items-start gap-3 pt-6 text-sm text-destructive">
@@ -500,6 +491,7 @@ export default function DaemonListPage() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+      </PageScroll>
 
       <Dialog open={runtimeOpen} onOpenChange={setRuntimeOpen}>
         <DialogContent>
@@ -671,6 +663,6 @@ export default function DaemonListPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Page>
   );
 }

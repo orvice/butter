@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useChannel, useUpdateChannel } from "@/api/channels";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Skeleton } from "@/components/ui/skeleton";
 import ChannelForm from "./form";
 import type { AgentChannel } from "@/types/api";
@@ -22,29 +22,23 @@ export default function ChannelEditPage() {
     });
   }
 
-  if (isLoading) {
-    return <Skeleton className="h-96" />;
-  }
-
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/channels">Channels</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>{name}</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Edit Channel</h2>
-
-      <ChannelForm
-        mode="edit"
-        initialValue={data?.channel}
-        submitLabel="Save"
-        loading={updateMutation.isPending}
-        onCancel={() => navigate("/channels")}
-        onSubmit={onSubmit}
-      />
-    </>
+    <Page>
+      <PageHeader title="Edit Channel" subtitle={name} />
+      <PageScroll className="max-w-3xl">
+        {isLoading ? (
+          <Skeleton className="h-96" />
+        ) : (
+          <ChannelForm
+            mode="edit"
+            initialValue={data?.channel}
+            submitLabel="Save"
+            loading={updateMutation.isPending}
+            onCancel={() => navigate("/channels")}
+            onSubmit={onSubmit}
+          />
+        )}
+      </PageScroll>
+    </Page>
   );
 }

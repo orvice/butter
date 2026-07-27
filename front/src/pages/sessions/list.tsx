@@ -6,6 +6,7 @@ import { useSessions, useDeleteSession } from "@/api/sessions";
 import { sessionDetailPath } from "@/lib/session-paths";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
@@ -124,109 +125,106 @@ export default function SessionListPage() {
   ];
 
   return (
-    <>
-      <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Session Explorer</h2>
-          <p className="text-sm text-muted-foreground">
-            View ADK sessions, events, and long-term memory stored in MongoDB.
-          </p>
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        title="Session Explorer"
+        subtitle="View ADK sessions, events, and long-term memory stored in MongoDB."
+      />
+      <PageScroll>
+        {/* Filter bar */}
+        <Card className="mb-4">
+          <CardContent className="grid grid-cols-1 gap-3 p-4 md:grid-cols-5">
+            <div>
+              <Label htmlFor="filter-channel" className="text-xs">
+                Channel
+              </Label>
+              <Select
+                value={filters.app_name || "__all__"}
+                onValueChange={(v) => {
+                  const next = typeof v === "string" && v !== "__all__" ? v : "";
+                  setFilters((f) => ({ ...f, app_name: next }));
+                }}
+              >
+                <SelectTrigger id="filter-channel" className="mt-1">
+                  <SelectValue placeholder="All channels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All channels</SelectItem>
+                  {channelNames.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="filter-user" className="text-xs">
+                User
+              </Label>
+              <Input
+                id="filter-user"
+                placeholder="User ID"
+                value={filters.user_id}
+                onChange={(e) => setFilters((f) => ({ ...f, user_id: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="filter-start" className="text-xs">
+                From
+              </Label>
+              <Input
+                id="filter-start"
+                type="datetime-local"
+                value={filters.start_time}
+                onChange={(e) => setFilters((f) => ({ ...f, start_time: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="filter-end" className="text-xs">
+                To
+              </Label>
+              <Input
+                id="filter-end"
+                type="datetime-local"
+                value={filters.end_time}
+                onChange={(e) => setFilters((f) => ({ ...f, end_time: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button onClick={applyFilters} className="w-full">
+                <Filter className="mr-2 h-4 w-4" /> Apply
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Filter bar */}
-      <Card className="mb-4">
-        <CardContent className="grid grid-cols-1 gap-3 p-4 md:grid-cols-5">
-          <div>
-            <Label htmlFor="filter-channel" className="text-xs">
-              Channel
-            </Label>
-            <Select
-              value={filters.app_name || "__all__"}
-              onValueChange={(v) => {
-                const next = typeof v === "string" && v !== "__all__" ? v : "";
-                setFilters((f) => ({ ...f, app_name: next }));
-              }}
-            >
-              <SelectTrigger id="filter-channel" className="mt-1">
-                <SelectValue placeholder="All channels" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All channels</SelectItem>
-                {channelNames.map((n) => (
-                  <SelectItem key={n} value={n}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="filter-user" className="text-xs">
-              User
-            </Label>
-            <Input
-              id="filter-user"
-              placeholder="User ID"
-              value={filters.user_id}
-              onChange={(e) => setFilters((f) => ({ ...f, user_id: e.target.value }))}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="filter-start" className="text-xs">
-              From
-            </Label>
-            <Input
-              id="filter-start"
-              type="datetime-local"
-              value={filters.start_time}
-              onChange={(e) => setFilters((f) => ({ ...f, start_time: e.target.value }))}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="filter-end" className="text-xs">
-              To
-            </Label>
-            <Input
-              id="filter-end"
-              type="datetime-local"
-              value={filters.end_time}
-              onChange={(e) => setFilters((f) => ({ ...f, end_time: e.target.value }))}
-              className="mt-1"
-            />
-          </div>
-          <div className="flex items-end">
-            <Button onClick={applyFilters} className="w-full">
-              <Filter className="mr-2 h-4 w-4" /> Apply
+        <DataTable
+          columns={columns}
+          data={sessions}
+          isLoading={isLoading}
+          emptyMessage="No sessions match the current filters"
+          emptyDescription="Adjust the channel, user, or date filters to find stored ADK sessions."
+        />
+
+        <div className="mt-3 flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Showing {sessions.length} of {total.toLocaleString()} sessions
+          </span>
+          <div className="flex items-center gap-2">
+            <Button size="icon" variant="outline" onClick={prevPage} disabled={pageIndex === 0}>
+              <ChevronLeft className="h-3 w-3" />
+            </Button>
+            <span>Page {pageIndex + 1}</span>
+            <Button size="icon" variant="outline" onClick={nextPage} disabled={!nextToken}>
+              <ChevronRight className="h-3 w-3" />
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      <DataTable
-        columns={columns}
-        data={sessions}
-        isLoading={isLoading}
-        emptyMessage="No sessions match the current filters"
-        emptyDescription="Adjust the channel, user, or date filters to find stored ADK sessions."
-      />
-
-      <div className="mt-3 flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          Showing {sessions.length} of {total.toLocaleString()} sessions
-        </span>
-        <div className="flex items-center gap-2">
-          <Button size="icon" variant="outline" onClick={prevPage} disabled={pageIndex === 0}>
-            <ChevronLeft className="h-3 w-3" />
-          </Button>
-          <span>Page {pageIndex + 1}</span>
-          <Button size="icon" variant="outline" onClick={nextPage} disabled={!nextToken}>
-            <ChevronRight className="h-3 w-3" />
-          </Button>
         </div>
-      </div>
+      </PageScroll>
 
       <DeleteDialog
         open={!!deleteTarget}
@@ -253,6 +251,6 @@ export default function SessionListPage() {
           }
         }}
       />
-    </>
+    </Page>
   );
 }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { UserPlus, LockKeyhole, Ban, CheckCircle2 } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { DataTable, type Column } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,12 +61,14 @@ export default function UserListPage() {
 
   if (isAuthLoading || !currentUser) {
     return (
-      <div className="space-y-6">
+      <Page>
         <PageHeader title="Users" />
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">Loading…</CardContent>
-        </Card>
-      </div>
+        <PageScroll>
+          <Card>
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">Loading…</CardContent>
+          </Card>
+        </PageScroll>
+      </Page>
     );
   }
 
@@ -152,7 +154,12 @@ export default function UserListPage() {
     },
     {
       header: "Status",
-      cell: (u) => (u.disabled ? <Badge variant="destructive">Disabled</Badge> : <Badge>Active</Badge>),
+      cell: (u) =>
+        u.disabled ? (
+          <Badge className="bg-danger-muted text-danger-foreground">Disabled</Badge>
+        ) : (
+          <Badge className="bg-success-muted text-success-foreground">Active</Badge>
+        ),
     },
     {
       header: "Created",
@@ -180,23 +187,28 @@ export default function UserListPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Users" />
-
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Dashboard Users</CardTitle>
-            <CardDescription>Create and manage MongoDB-backed dashboard accounts.</CardDescription>
-          </div>
-          <Button className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
-            <UserPlus className="mr-2 h-4 w-4" /> New User
+    <Page>
+      <PageHeader
+        title="Users"
+        subtitle="Create and manage MongoDB-backed dashboard accounts."
+        actions={
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <UserPlus />
+            New User
           </Button>
-        </CardHeader>
-        <CardContent>
-          <DataTable columns={columns} data={users} isLoading={isLoading} emptyMessage="No users found." />
-        </CardContent>
-      </Card>
+        }
+      />
+      <PageScroll>
+        <Card>
+          <CardHeader>
+            <CardTitle>Dashboard Users</CardTitle>
+            <CardDescription>Accounts that can sign in to this dashboard.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable columns={columns} data={users} isLoading={isLoading} emptyMessage="No users found." />
+          </CardContent>
+        </Card>
+      </PageScroll>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
@@ -255,6 +267,6 @@ export default function UserListPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Page>
   );
 }

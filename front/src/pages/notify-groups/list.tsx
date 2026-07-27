@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Bell, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useDeleteNotifyGroup, useNotifyGroups } from "@/api/notify-groups";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
+import { StatusBadge } from "@/components/butter/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +40,12 @@ export default function NotifyGroupListPage() {
     },
     {
       header: "Status",
-      cell: (row) => row.enabled ? <Badge>Enabled</Badge> : <Badge variant="secondary">Disabled</Badge>,
+      cell: (row) =>
+        row.enabled ? (
+          <StatusBadge status="success" label="Enabled" />
+        ) : (
+          <StatusBadge status="disabled" />
+        ),
     },
     {
       header: "Targets",
@@ -78,23 +85,25 @@ export default function NotifyGroupListPage() {
   ];
 
   return (
-    <>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Notify Groups</h2>
-          <p className="text-sm text-muted-foreground">Outbound notification targets for cron jobs.</p>
-        </div>
-        <Button className="w-full sm:w-auto" onClick={() => navigate("/notify-groups/create")}>
-          <Plus className="mr-2 h-4 w-4" /> Add Group
-        </Button>
-      </div>
-
-      <DataTable
-        columns={columns}
-        data={groups}
-        isLoading={isLoading}
-        emptyMessage="No notify groups configured."
+    <Page>
+      <PageHeader
+        title="Notify Groups"
+        subtitle="Outbound notification targets for cron jobs."
+        actions={
+          <Button size="sm" render={<Link to="/notify-groups/create" />}>
+            <Plus className="size-4" />
+            Add Group
+          </Button>
+        }
       />
+      <PageScroll>
+        <DataTable
+          columns={columns}
+          data={groups}
+          isLoading={isLoading}
+          emptyMessage="No notify groups configured."
+        />
+      </PageScroll>
 
       <DeleteDialog
         open={!!deleteTarget}
@@ -114,6 +123,6 @@ export default function NotifyGroupListPage() {
           }
         }}
       />
-    </>
+    </Page>
   );
 }

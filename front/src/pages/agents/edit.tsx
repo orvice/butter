@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,13 +25,7 @@ import {
   FormItem,
   FormLabel,
 } from "@/components/ui/form";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { Page, PageScroll } from "@/components/butter/page-parts";
 import { AGENT_TYPE_LABELS, enumLabel } from "@/lib/constants";
 import { useTheme } from "next-themes";
 import { AgentModelSelect } from "./model-select";
@@ -217,23 +212,34 @@ export default function AgentEditPage() {
     setActiveTab(tab);
   }
 
-  if (isLoading) return <Skeleton className="h-96 w-full" />;
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/agents">Agents</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>{name}</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <div className="mb-6 space-y-1">
-        <h2 className="text-2xl font-bold">Edit Agent</h2>
-        <p className="text-sm text-muted-foreground">Use the guided form for common settings or JSON mode for advanced agent topology.</p>
+    <Page>
+      <div className="border-b border-border px-4 py-4 md:px-6">
+        <Link
+          to="/agents"
+          className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" />
+          Agents
+          <ChevronRight className="size-3" />
+          <span className="text-foreground">{name}</span>
+        </Link>
+        <h1 className="text-lg font-semibold tracking-tight">Edit Agent</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Use the guided form for common settings or JSON mode for advanced agent topology.
+        </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <PageScroll className="max-w-4xl">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-4">
           <TabsTrigger value="form">Form</TabsTrigger>
           <TabsTrigger value="json">JSON</TabsTrigger>
@@ -448,7 +454,9 @@ export default function AgentEditPage() {
               )}
 
               <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                <Button type="button" variant="outline" onClick={() => navigate("/agents")}>Cancel</Button>
+                <Button variant="outline" render={<Link to="/agents" />}>
+                  Cancel
+                </Button>
                 <Button type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? "Saving..." : "Save"}
                 </Button>
@@ -471,13 +479,16 @@ export default function AgentEditPage() {
             </CardContent>
           </Card>
           <div className="sticky bottom-0 z-10 mt-6 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <Button type="button" variant="outline" onClick={() => navigate("/agents")}>Cancel</Button>
+            <Button variant="outline" render={<Link to="/agents" />}>
+              Cancel
+            </Button>
             <Button onClick={onJsonSubmit} disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "Saving..." : "Save"}
             </Button>
           </div>
         </TabsContent>
-      </Tabs>
-    </>
+        </Tabs>
+      </PageScroll>
+    </Page>
   );
 }

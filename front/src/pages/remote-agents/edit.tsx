@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useRemoteAgent, useUpdateRemoteAgent } from "@/api/remote-agents";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Skeleton } from "@/components/ui/skeleton";
 import RemoteAgentForm from "./form";
 import type { RemoteAgent } from "@/types/api";
@@ -19,26 +19,27 @@ export default function RemoteAgentEditPage() {
     });
   }
 
-  if (isLoading) return <Skeleton className="h-96 w-full" />;
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/remote-agents">Remote Agents</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>{id}</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Edit Remote Agent</h2>
-      <RemoteAgentForm
-        mode="edit"
-        submitLabel="Save"
-        loading={updateMutation.isPending}
-        initialValue={data?.remote_agent}
-        onCancel={() => navigate("/remote-agents")}
-        onSubmit={onSubmit}
-      />
-    </>
+    <Page>
+      <PageHeader title="Edit Remote Agent" subtitle={id} />
+      <PageScroll className="max-w-3xl">
+        <RemoteAgentForm
+          mode="edit"
+          submitLabel="Save"
+          loading={updateMutation.isPending}
+          initialValue={data?.remote_agent}
+          onCancel={() => navigate("/remote-agents")}
+          onSubmit={onSubmit}
+        />
+      </PageScroll>
+    </Page>
   );
 }

@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { MessageSquarePlus, Bot, Clock, Tag } from "lucide-react";
 import { useForumThreads, useForumThreadLabels, useCreateForumThread } from "@/api/forum";
 import { useAgents } from "@/api/agents";
-import { PageHeader } from "@/components/page-header";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -64,83 +64,85 @@ export default function ForumListPage() {
   const allLabels = labelsData?.labels ?? [];
 
   return (
-    <>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <PageHeader
-          title="Forum"
-          description="Shared threads where users and agents discuss together."
-        />
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          {allLabels.length ? (
-            <Select value={labelFilter || "all"} onValueChange={(v) => setLabelFilter(!v || v === "all" ? "" : v)}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="All labels" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All labels</SelectItem>
-                {allLabels.map((label) => (
-                  <SelectItem key={label} value={label}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null}
-          <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
-            <MessageSquarePlus className="mr-2 h-4 w-4" /> New Thread
-          </Button>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
-        </div>
-      ) : threads.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            {labelFilter
-              ? `No threads labeled "${labelFilter}".`
-              : "No forum threads yet. Create one to start a shared discussion."}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {threads.map((thread) => (
-            <Link key={thread.id} to={`/forum/${thread.id}`}>
-              <Card className="transition-colors hover:bg-muted/40">
-                <CardHeader className="pb-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-lg">{thread.title}</CardTitle>
-                    <Badge variant={thread.status === "open" ? "default" : "secondary"}>{thread.status || "open"}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="line-clamp-2 text-sm text-muted-foreground">{thread.body}</p>
-                  {thread.labels?.length ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {thread.labels.map((label) => (
-                        <Badge key={label} variant="outline" className="gap-1 text-xs font-normal">
-                          <Tag className="h-3 w-3" /> {label}
-                        </Badge>
-                      ))}
+    <Page>
+      <PageHeader
+        title="Forum"
+        subtitle="Shared threads where users and agents discuss together."
+        actions={
+          <>
+            {allLabels.length ? (
+              <Select value={labelFilter || "all"} onValueChange={(v) => setLabelFilter(!v || v === "all" ? "" : v)}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="All labels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All labels</SelectItem>
+                  {allLabels.map((label) => (
+                    <SelectItem key={label} value={label}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <Button size="sm" onClick={() => setOpen(true)}>
+              <MessageSquarePlus />
+              New Thread
+            </Button>
+          </>
+        }
+      />
+      <PageScroll>
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-28 w-full" />
+          </div>
+        ) : threads.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center text-sm text-muted-foreground">
+              {labelFilter
+                ? `No threads labeled "${labelFilter}".`
+                : "No forum threads yet. Create one to start a shared discussion."}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {threads.map((thread) => (
+              <Link key={thread.id} to={`/forum/${thread.id}`}>
+                <Card className="transition-colors hover:bg-muted/40">
+                  <CardHeader className="pb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="text-lg">{thread.title}</CardTitle>
+                      <Badge variant={thread.status === "open" ? "default" : "secondary"}>{thread.status || "open"}</Badge>
                     </div>
-                  ) : null}
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" /> {fmtDate(thread.updated_at)}
-                    </span>
-                    {thread.agent_names?.length ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Bot className="h-3.5 w-3.5" /> {thread.agent_names.join(", ")}
-                      </span>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="line-clamp-2 text-sm text-muted-foreground">{thread.body}</p>
+                    {thread.labels?.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {thread.labels.map((label) => (
+                          <Badge key={label} variant="outline" className="gap-1 text-xs font-normal">
+                            <Tag className="h-3 w-3" /> {label}
+                          </Badge>
+                        ))}
+                      </div>
                     ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" /> {fmtDate(thread.updated_at)}
+                      </span>
+                      {thread.agent_names?.length ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Bot className="h-3.5 w-3.5" /> {thread.agent_names.join(", ")}
+                        </span>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </PageScroll>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -181,6 +183,6 @@ export default function ForumListPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </Page>
   );
 }
