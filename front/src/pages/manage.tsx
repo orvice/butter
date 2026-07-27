@@ -21,8 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { cn } from "@/lib/utils";
 
 type ManageItem = {
@@ -63,8 +62,7 @@ const GROUPS: ManageGroup[] = [
     description: "Schedule work and inspect background activity.",
     items: [
       { label: "Operations", description: "Review jobs, executions, and sessions.", to: "/operations", icon: Workflow },
-      { label: "Automations", description: "Build reusable automated workflows.", to: "/automations", icon: Workflow },
-      { label: "Cron Jobs", description: "Schedule recurring agent runs.", to: "/cron", icon: CalendarClock },
+      { label: "Automations", description: "Schedule recurring agent runs and deliveries.", to: "/automations", icon: CalendarClock },
       { label: "Sessions", description: "Inspect saved agent sessions.", to: "/sessions", icon: FileText },
       { label: "Notify Groups", description: "Configure notification destinations.", to: "/notify-groups", icon: Bell },
     ],
@@ -146,17 +144,17 @@ function ManageLink({ item }: { item: ManageItem }) {
 
 function ManageSection({ group }: { group: ManageGroup }) {
   return (
-    <Card>
-      <CardHeader className="border-b">
-        <CardTitle>{group.title}</CardTitle>
-        <CardDescription>{group.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-1 sm:grid-cols-2">
+    <section className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold">{group.title}</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">{group.description}</p>
+      </div>
+      <div className="grid gap-1 p-2 sm:grid-cols-2">
         {group.items.map((item) => (
           <ManageLink key={item.label} item={item} />
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -165,13 +163,18 @@ export default function ManagePage() {
   const groups = isAdmin ? [...GROUPS, ADMIN_GROUP] : GROUPS;
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
-      <PageHeader title="Manage" description="Configure agents, connections, automations, and workspace access." />
-      <div className="grid gap-4 lg:grid-cols-2">
-        {groups.map((group) => (
-          <ManageSection key={group.title} group={group} />
-        ))}
-      </div>
-    </div>
+    <Page>
+      <PageHeader
+        title="Manage"
+        subtitle="Configure agents, connections, automations, and workspace access."
+      />
+      <PageScroll>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {groups.map((group) => (
+            <ManageSection key={group.title} group={group} />
+          ))}
+        </div>
+      </PageScroll>
+    </Page>
   );
 }

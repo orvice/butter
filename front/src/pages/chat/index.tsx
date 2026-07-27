@@ -1,12 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { useLayoutDensity } from "@/hooks/use-layout-density";
 import { useCreateSession, useDeleteSession, useSessions } from "@/api/sessions";
 import { DeleteDialog } from "@/components/delete-dialog";
-import { cn } from "@/lib/utils";
-import { AgentPicker } from "./agent-picker";
-import { ChatSidebar } from "./chat-sidebar";
+import { AgentSelector } from "./agent-selector";
 import { ChatWindow } from "./chat-window";
 import type { SessionInfo } from "@/types/api";
 
@@ -20,7 +18,8 @@ function agentNameOf(state: SessionInfo["state"]): string | null {
 
 export default function ChatPage() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const { isCompact } = useLayoutDensity();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const userId = user?.id ?? "";
 
   const sessionsQuery = useSessions(
@@ -36,18 +35,31 @@ export default function ChatPage() {
 
   const sessions = useMemo(() => sessionsQuery.data?.sessions ?? [], [sessionsQuery.data]);
 
-  const [preferredSessionId, setPreferredSessionId] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null);
 
-  const activeSessionId = useMemo(() => {
-    if (preferredSessionId && sessions.some((s) => s.session_id === preferredSessionId)) {
-      return preferredSessionId;
-    }
-    return sessions[0]?.session_id ?? null;
-  }, [preferredSessionId, sessions]);
+  const wantsNewChat = searchParams.get("new") === "1";
+  const requestedSessionId = searchParams.get("session");
+  const requestedAgent = searchParams.get("agent");
 
-  const activeSession = sessions.find((s) => s.session_id === activeSessionId) ?? null;
+  // Quick-start links (/chat?new=1&agent=x) create the session immediately.
+  // The guard ref makes this fire once; the redirect replaces the URL so a
+  // refresh lands on the created session instead of creating another one.
+  const autoCreatedRef = useRef(false);
+  useEffect(() => {
+    if (!wantsNewChat || !requestedAgent || !userId || autoCreatedRef.current) return;
+    autoCreatedRef.current = true;
+    void handleCreate(requestedAgent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsNewChat, requestedAgent, userId]);
+
+  const activeSession = useMemo(() => {
+    if (wantsNewChat) return null;
+    if (requestedSessionId) {
+      return sessions.find((s) => s.session_id === requestedSessionId) ?? null;
+    }
+    return sessions[0] ?? null;
+  }, [wantsNewChat, requestedSessionId, sessions]);
+
   const activeAgent = activeSession ? agentNameOf(activeSession.state) : null;
 
   async function handleCreate(agentName: string) {
@@ -61,8 +73,7 @@ export default function ChatPage() {
         user_id: userId,
         state: { agent_name: agentName },
       });
-      setPickerOpen(false);
-      setPreferredSessionId(resp.session.session_id);
+      navigate(`/chat?session=${encodeURIComponent(resp.session.session_id)}`, { replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create chat");
     }
@@ -79,10 +90,8 @@ export default function ChatPage() {
       {
         onSuccess: () => {
           toast.success("Chat deleted");
-          if (preferredSessionId === deleteTarget.session_id) {
-            setPreferredSessionId(null);
-          }
           setDeleteTarget(null);
+          navigate("/chat?new=1", { replace: true });
         },
         onError: (err) => toast.error(err.message),
       },
@@ -90,43 +99,43 @@ export default function ChatPage() {
   }
 
   if (!userId) {
-    if (isAuthenticated || isAuthLoading) {
-      return (
-        <p className="text-sm text-muted-foreground">
-          Loading chat...
-        </p>
-      );
-    }
-
     return (
-      <p className="text-sm text-muted-foreground">
-        Sign-in required to use chat.
-      </p>
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-muted-foreground">
+          {isAuthenticated || isAuthLoading ? "Loading chat…" : "Sign-in required to use chat."}
+        </p>
+      </div>
+    );
+  }
+
+  // A specific session was requested but the list is still loading — avoid
+  // flashing the agent selector before we know whether it exists.
+  if (!activeSession && (sessionsQuery.isLoading || (wantsNewChat && requestedAgent))) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading chat…</p>
+      </div>
+    );
+  }
+
+  // New-chat / empty state — centered agent selector
+  if (!activeSession) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="scrollbar-thin flex flex-1 items-center justify-center overflow-y-auto p-4">
+          <AgentSelector onPick={(name) => void handleCreate(name)} busy={createMutation.isPending} />
+        </div>
+      </div>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "-m-4 flex flex-col md:flex-row",
-        isCompact ? "h-[calc(100vh-3rem)] sm:-m-5" : "h-[calc(100vh-4rem)] sm:-m-8",
-      )}
-    >
-      <ChatSidebar
-        sessions={sessions}
-        isLoading={sessionsQuery.isLoading}
-        activeSessionId={activeSessionId}
-        onSelect={setPreferredSessionId}
-        onNewChat={() => setPickerOpen(true)}
-        onDelete={(s) => setDeleteTarget(s)}
-      />
-      <ChatWindow session={activeSession} userId={userId} agentName={activeAgent} />
-
-      <AgentPicker
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        onConfirm={handleCreate}
-        busy={createMutation.isPending}
+    <>
+      <ChatWindow
+        session={activeSession}
+        userId={userId}
+        agentName={activeAgent}
+        onDelete={() => setDeleteTarget(activeSession)}
       />
       <DeleteDialog
         open={!!deleteTarget}
@@ -136,6 +145,6 @@ export default function ChatPage() {
         loading={deleteMutation.isPending}
         onConfirm={handleDeleteConfirm}
       />
-    </div>
+    </>
   );
 }

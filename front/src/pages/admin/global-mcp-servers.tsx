@@ -10,6 +10,7 @@ import {
 import { useWorkspace } from "@/hooks/use-workspace";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -246,24 +247,22 @@ export default function AdminGlobalMCPServersPage() {
   }
 
   return (
-    <>
-      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground">Global MCP Presets</h2>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Configure admin-owned MCP connections that workspaces can install and OAuth from their MCP server list.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {STARTERS.map((starter) => (
-            <Button key={starter.label} type="button" variant="outline" size="sm" onClick={() => applyStarter(starter.values)}>
-              <Plus className="mr-2 h-4 w-4" />
-              {starter.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-
+    <Page>
+      <PageHeader
+        title="Global MCP Presets"
+        subtitle="Configure admin-owned MCP connections that workspaces can install and OAuth from their MCP server list."
+        actions={
+          <>
+            {STARTERS.map((starter) => (
+              <Button key={starter.label} type="button" variant="outline" size="sm" onClick={() => applyStarter(starter.values)}>
+                <Plus className="size-4" />
+                {starter.label}
+              </Button>
+            ))}
+          </>
+        }
+      />
+      <PageScroll>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <DataTable
           columns={columns}
@@ -399,6 +398,7 @@ export default function AdminGlobalMCPServersPage() {
           </CardContent>
         </Card>
       </div>
+      </PageScroll>
 
       <DeleteDialog
         open={!!deleteTarget}
@@ -418,7 +418,7 @@ export default function AdminGlobalMCPServersPage() {
           });
         }}
       />
-    </>
+    </Page>
   );
 }
 
@@ -436,7 +436,7 @@ function AuthBadge({ server }: { server: MCPServer }) {
   const type = authTypeFromServer(server);
   if (type === "MCP_SERVER_AUTH_TYPE_OAUTH2") {
     return (
-      <Badge className="bg-emerald-500/10 text-emerald-700">
+      <Badge className="bg-success-muted text-success-foreground">
         <KeyRound className="mr-1 h-3 w-3" />
         OAuth 2.0
       </Badge>

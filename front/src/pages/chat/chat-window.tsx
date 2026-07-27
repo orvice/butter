@@ -1,18 +1,32 @@
 import { memo, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useLayoutDensity } from "@/hooks/use-layout-density";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AgentAvatar } from "@/components/butter/primitives";
 import { cn } from "@/lib/utils";
-import { parseSessionEvent, parseSessionEvents, type ParsedEvent } from "@/lib/session-events";
+import { parseSessionEvent, parseSessionEvents, type ParsedEvent, type ToolCallSummary, type ToolResponseSummary } from "@/lib/session-events";
 import { buildInputParts, type InputPartInit } from "@/lib/image-attachments";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useLiveSession, useReplySession } from "@/api/sessions";
 import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api/chat";
-import { Bot, Send, User as UserIcon, Wrench, ExternalLink, Loader2, Square, Paperclip, X } from "lucide-react";
+import {
+  ArrowUp,
+  ChevronDown,
+  ExternalLink,
+  Loader2,
+  MoreHorizontal,
+  Paperclip,
+  Square,
+  Trash2,
+  Wrench,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { SessionInfo } from "@/types/api";
 
@@ -24,6 +38,7 @@ interface ChatWindowProps {
   session: SessionInfo | null;
   userId: string;
   agentName: string | null;
+  onDelete?: () => void;
 }
 
 interface ChatRunState {
@@ -37,9 +52,8 @@ interface ChatRunState {
   invocationId: string | null;
 }
 
-export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
+export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowProps) {
   const sessionId = session?.session_id ?? "";
-  const { isCompact } = useLayoutDensity();
   const [draft, setDraft] = useState("");
   const {
     attachments, previewUrls, isDragOver,
@@ -56,6 +70,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   const abortRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   const isRunForCurrentSession = runState.sessionId === sessionId;
   const pending = isRunForCurrentSession && runState.pending;
@@ -107,9 +122,8 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
 
   if (!session) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center text-sm text-muted-foreground">
-        <Bot className={cn("mb-2", isCompact ? "h-6 w-6" : "h-8 w-8")} />
-        Select a chat on the left or start a new one.
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Select a chat in the sidebar or start a new one.
       </div>
     );
   }
@@ -145,6 +159,7 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
     abortRef.current?.abort();
     activeRunIdRef.current = runId;
     setDraft("");
+    if (taRef.current) taRef.current.style.height = "auto";
     setRunState({
       runId,
       sessionId,
@@ -256,130 +271,180 @@ export function ChatWindow({ session, userId, agentName }: ChatWindowProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing &&
+      e.keyCode !== 229
+    ) {
       e.preventDefault();
       void handleSend();
     }
   }
 
+  const canSend = !!agentName && (draft.trim().length > 0 || attachments.length > 0);
+
   return (
     <div
-      className={cn("flex h-full flex-1 flex-col", isDragOver && "ring-2 ring-inset ring-primary/50")}
+      className={cn("flex h-full flex-col", isDragOver && "ring-2 ring-inset ring-ring/50")}
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className={cn("flex items-center justify-between border-b px-3 sm:px-4", isCompact ? "py-2" : "py-3")}>
-        <div className="flex min-w-0 items-center gap-2">
-          <Bot className={cn("text-muted-foreground", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
-          <div className="min-w-0">
-            <div className={cn("font-semibold", isCompact ? "text-xs" : "text-sm")}>{agentName ?? "Unknown agent"}</div>
-            <div className="truncate font-mono text-[10px] leading-tight text-muted-foreground">{sessionId}</div>
-          </div>
+      {/* Chat header */}
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
+        <div className="flex min-w-0 items-center gap-2.5 md:pl-8">
+          <AgentAvatar name={agentName ?? "?"} size="sm" />
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-semibold leading-tight">
+              {agentName ?? "Unknown agent"}
+            </span>
+            <span className="truncate font-mono text-[0.65rem] leading-tight text-muted-foreground">
+              {sessionId}
+            </span>
+          </span>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+            <MoreHorizontal className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={6}>
+            <DropdownMenuItem variant="destructive" onClick={onDelete}>
+              <Trash2 />
+              Delete chat
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
+
+      {/* Messages */}
+      <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl px-4">
+          {liveQuery.isLoading ? (
+            <div className="space-y-3 py-4">
+              <Skeleton className="h-16 w-2/3" />
+              <Skeleton className="ml-auto h-16 w-1/2" />
+            </div>
+          ) : events.length === 0 ? (
+            <div className="flex min-h-[50vh] flex-col items-center justify-center text-center">
+              <AgentAvatar name={agentName ?? "?"} size="lg" />
+              <h2 className="mt-3 text-lg font-semibold">{agentName ?? "Unknown agent"}</h2>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground text-pretty">
+                Send a message below to start the conversation.
+              </p>
+            </div>
+          ) : (
+            <div className="py-2">
+              {events.map((evt) => (
+                <MessageRow key={evt.eventId} event={evt} agentName={agentName ?? "agent"} />
+              ))}
+              {pending && (
+                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="size-3 animate-spin" /> Agent is thinking…
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className={cn(
-          "flex-1 overflow-y-auto px-3 sm:px-4",
-          isCompact ? "space-y-2 py-2.5" : "space-y-3 py-4",
-        )}
-      >
-        {liveQuery.isLoading ? (
-          <>
-            <Skeleton className={cn("w-2/3", isCompact ? "h-12" : "h-16")} />
-            <Skeleton className={cn("ml-auto w-1/2", isCompact ? "h-12" : "h-16")} />
-          </>
-        ) : events.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-            No messages yet.
-          </div>
-        ) : (
-          events.map((evt) => <MessageBubble key={evt.eventId} event={evt} isCompact={isCompact} />)
-        )}
-        {pending ? (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" /> Agent is thinking...
-          </div>
-        ) : null}
-      </div>
-
-      <div className={cn("border-t bg-background", isCompact ? "p-2" : "p-3")}>
-        <div className={cn("flex items-end", isCompact ? "gap-1.5" : "gap-2")}>
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={
-              agentName
-                ? "Message the agent..."
-                : "This chat is missing an agent reference; cannot send."
-            }
-            disabled={!agentName || pending}
-            rows={2}
-            className={cn(
-              "flex-1 resize-none",
-              isCompact && "min-h-10 rounded-md px-2 py-1.5 text-sm leading-5",
-            )}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={fileAccept}
-            multiple
-            className="hidden"
-            onChange={handleFileInputChange}
-          />
-          <Button
-            variant="outline"
-            size={isCompact ? "sm" : "default"}
-            onClick={openFilePicker}
-            disabled={!agentName || pending}
-            aria-label="Attach images"
-          >
-            <Paperclip className="h-3 w-3" />
-          </Button>
-          <Button
-            variant={pending ? "secondary" : "default"}
-            size={isCompact ? "sm" : "default"}
-            onClick={() => pending ? void handleStop() : void handleSend()}
-            disabled={!agentName || (!pending && draft.trim().length === 0 && attachments.length === 0)}
-          >
-            {pending ? (
-              <><Square className="mr-1 h-3 w-3" /> Stop</>
-            ) : (
-              <><Send className="mr-1 h-3 w-3" /> Send</>
-            )}
-          </Button>
-        </div>
-        {attachments.length > 0 ? (
-          <div className={cn("flex flex-wrap", isCompact ? "mt-1.5 gap-1.5" : "mt-2 gap-2")}>
-            {attachments.map((file, index) => (
-              <div key={`${file.name}-${index}`} className="group relative">
-                <img
-                  src={previewUrls[index]}
-                  alt={file.name}
-                  title={file.name}
-                  className={cn(
-                    "rounded-md border object-cover",
-                    isCompact ? "h-12 w-12" : "h-16 w-16",
-                  )}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeAttachment(index)}
-                  aria-label={`Remove ${file.name}`}
-                  className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+      {/* Composer */}
+      <div className="shrink-0 border-t border-border bg-background">
+        <div className="mx-auto w-full max-w-3xl px-3 pb-3 pt-3 md:px-4 md:pb-4">
+          {attachments.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {attachments.map((file, index) => (
+                <span
+                  key={`${file.name}-${index}`}
+                  className="group relative inline-flex"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
+                  <img
+                    src={previewUrls[index]}
+                    alt={file.name}
+                    title={file.name}
+                    className="h-14 w-14 rounded-md border border-border object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(index)}
+                    aria-label={`Remove ${file.name}`}
+                    className="absolute -right-1.5 -top-1.5 rounded-full border border-border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div
+            className={cn(
+              "flex items-end gap-2 rounded-xl border border-border bg-card p-2 shadow-sm transition-colors focus-within:border-ring",
+              !agentName && "opacity-60",
+            )}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={fileAccept}
+              multiple
+              className="hidden"
+              onChange={handleFileInputChange}
+            />
+            <button
+              type="button"
+              disabled={!agentName || pending}
+              onClick={openFilePicker}
+              aria-label="Attach images"
+              className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none"
+            >
+              <Paperclip className="size-4" />
+            </button>
+            <textarea
+              ref={taRef}
+              rows={1}
+              value={draft}
+              disabled={!agentName}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
+              }}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={
+                agentName
+                  ? `Message ${agentName}…`
+                  : "This chat is missing an agent reference; cannot send."
+              }
+              className="max-h-40 min-h-6 flex-1 resize-none bg-transparent py-1.5 text-[0.9rem] leading-relaxed outline-none placeholder:text-muted-foreground"
+            />
+            {pending ? (
+              <button
+                type="button"
+                onClick={() => void handleStop()}
+                aria-label="Stop generating"
+                className="shrink-0 rounded-md bg-secondary p-2 text-secondary-foreground hover:bg-secondary/80"
+              >
+                <Square className="size-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleSend()}
+                disabled={!canSend}
+                aria-label="Send message"
+                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-opacity hover:bg-primary/90 disabled:opacity-40"
+              >
+                <ArrowUp className="size-4" />
+              </button>
+            )}
           </div>
-        ) : null}
+          <p className="mt-1.5 text-center text-xs text-muted-foreground">
+            Butter can make mistakes. Verify important actions before running them.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -463,61 +528,31 @@ function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError";
 }
 
-function buildMarkdownComponents(isCompact: boolean): Components {
-  return {
-    a: MarkdownLink,
-    code: MarkdownCode,
-    pre: ({ children }) => <MarkdownPre isCompact={isCompact}>{children}</MarkdownPre>,
-    table: ({ children }) => <MarkdownTable isCompact={isCompact}>{children}</MarkdownTable>,
-    th: MarkdownTableHeader,
-    td: MarkdownTableCell,
-    p: ({ children }) => <p className={cn(isCompact ? "mb-1.5" : "mb-2", "last:mb-0")}>{children}</p>,
-    ul: ({ children }) => (
-      <ul className={cn(isCompact ? "mb-1.5 space-y-0.5" : "mb-2 space-y-1", "list-disc pl-5 last:mb-0")}>
-        {children}
-      </ul>
-    ),
-    ol: ({ children }) => (
-      <ol className={cn(isCompact ? "mb-1.5 space-y-0.5" : "mb-2 space-y-1", "list-decimal pl-5 last:mb-0")}>
-        {children}
-      </ol>
-    ),
-    li: ({ children }) => <li className="pl-1">{children}</li>,
-    blockquote: ({ children }) => (
-      <blockquote className={cn(isCompact ? "mb-1.5" : "mb-2", "border-l-2 border-current/30 pl-3 italic opacity-90 last:mb-0")}>
-        {children}
-      </blockquote>
-    ),
-    hr: () => <hr className={cn(isCompact ? "my-2" : "my-3", "border-current/20")} />,
-    h1: ({ children }) => <h1 className={cn(isCompact ? "mb-1.5 text-base" : "mb-2 text-lg", "font-semibold last:mb-0")}>{children}</h1>,
-    h2: ({ children }) => <h2 className={cn(isCompact ? "mb-1.5 text-sm" : "mb-2 text-base", "font-semibold last:mb-0")}>{children}</h2>,
-    h3: ({ children }) => <h3 className={cn(isCompact ? "mb-1 text-sm" : "mb-2 text-sm", "font-semibold last:mb-0")}>{children}</h3>,
-  };
-}
-
-// Two stable component maps cover the only variable (layout density), so the
-// closures aren't rebuilt on every streaming token.
-const MARKDOWN_COMPONENTS_COMPACT = buildMarkdownComponents(true);
-const MARKDOWN_COMPONENTS_REGULAR = buildMarkdownComponents(false);
-
-function MarkdownMessage({ text, isUser, isCompact }: { text: string; isUser: boolean; isCompact: boolean }) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg text-sm",
-        isCompact ? "px-2.5 py-1.5 leading-6" : "px-3 py-2 leading-relaxed",
-        isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
-      )}
-    >
-      <ReactMarkdown
-        remarkPlugins={MARKDOWN_REMARK_PLUGINS}
-        components={isCompact ? MARKDOWN_COMPONENTS_COMPACT : MARKDOWN_COMPONENTS_REGULAR}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
-  );
-}
+const MARKDOWN_COMPONENTS: Components = {
+  a: MarkdownLink,
+  code: MarkdownCode,
+  pre: MarkdownPre,
+  table: MarkdownTable,
+  th: MarkdownTableHeader,
+  td: MarkdownTableCell,
+  p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
+  ul: ({ children }) => (
+    <ul className="my-1.5 list-disc space-y-1 pl-5 first:mt-0 last:mb-0">{children}</ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="my-1.5 list-decimal space-y-1 pl-5 first:mt-0 last:mb-0">{children}</ol>
+  ),
+  li: ({ children }) => <li className="pl-1">{children}</li>,
+  blockquote: ({ children }) => (
+    <blockquote className="my-1.5 border-l-2 border-border pl-3 italic opacity-90 first:mt-0 last:mb-0">
+      {children}
+    </blockquote>
+  ),
+  hr: () => <hr className="my-3 border-border" />,
+  h1: ({ children }) => <h1 className="my-2 text-lg font-semibold first:mt-0 last:mb-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="my-2 text-base font-semibold first:mt-0 last:mb-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="my-2 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>,
+};
 
 function MarkdownLink(props: ComponentProps<"a">) {
   return (
@@ -534,112 +569,146 @@ function MarkdownCode({ children, className }: ComponentProps<"code">) {
   const isInline = !className;
   if (isInline) {
     return (
-      <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[0.85em] text-foreground">
+      <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground">
         {children}
       </code>
     );
   }
-
   return <code className={cn("font-mono text-xs", className)}>{children}</code>;
 }
 
-function MarkdownPre({ children, isCompact }: ComponentProps<"pre"> & { isCompact?: boolean }) {
+function MarkdownPre({ children }: ComponentProps<"pre">) {
   return (
-    <pre className={cn("overflow-x-auto rounded-md bg-background/80 text-foreground last:mb-0", isCompact ? "mb-1.5 p-2" : "mb-2 p-3")}>
+    <pre className="scrollbar-thin my-2 overflow-x-auto rounded-md border border-border bg-card p-3 text-foreground first:mt-0 last:mb-0">
       {children}
     </pre>
   );
 }
 
-function MarkdownTable({ children, isCompact }: ComponentProps<"table"> & { isCompact?: boolean }) {
+function MarkdownTable({ children }: ComponentProps<"table">) {
   return (
-    <div className={cn("overflow-x-auto last:mb-0", isCompact ? "mb-1.5" : "mb-2")}>
+    <div className="scrollbar-thin my-2 overflow-x-auto first:mt-0 last:mb-0">
       <table className="w-full border-collapse text-left text-xs">{children}</table>
     </div>
   );
 }
 
 function MarkdownTableHeader({ children }: ComponentProps<"th">) {
-  return <th className="border border-current/20 px-2 py-1 font-semibold">{children}</th>;
+  return <th className="border border-border px-2 py-1 font-semibold">{children}</th>;
 }
 
 function MarkdownTableCell({ children }: ComponentProps<"td">) {
-  return <td className="border border-current/20 px-2 py-1 align-top">{children}</td>;
+  return <td className="border border-border px-2 py-1 align-top">{children}</td>;
 }
 
-const MessageBubble = memo(function MessageBubble({ event, isCompact }: { event: ParsedEvent; isCompact: boolean }) {
+function ToolBlock({
+  kind,
+  name,
+  preview,
+}: {
+  kind: "call" | "response";
+  name: string;
+  preview?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="my-2 overflow-hidden rounded-md border border-border bg-card/60">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
+      >
+        <Wrench className="size-3.5 text-muted-foreground" />
+        <span className="font-mono text-xs">{name}</span>
+        <span className="text-xs font-medium text-muted-foreground">
+          {kind === "call" ? "Tool call" : "Tool response"}
+        </span>
+        {preview && (
+          <ChevronDown
+            className={cn(
+              "ml-auto size-4 text-muted-foreground transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        )}
+      </button>
+      {open && preview && (
+        <div className="border-t border-border px-3 py-2">
+          <p className="mb-1 text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+            {kind === "call" ? "Arguments" : "Response"}
+          </p>
+          <pre className="scrollbar-thin overflow-x-auto rounded bg-muted/60 p-2 font-mono text-xs">
+            {preview}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const MessageRow = memo(function MessageRow({
+  event,
+  agentName,
+}: {
+  event: ParsedEvent;
+  agentName: string;
+}) {
   const isUser = event.role === "user";
   const hasText = event.text.trim().length > 0;
   const hasTools = event.toolCalls.length > 0 || event.toolResponses.length > 0;
   if (!hasText && !hasTools) return null;
 
-  return (
-    <div className={cn("flex", isCompact ? "gap-1.5" : "gap-2", isUser ? "justify-end" : "justify-start")}>
-      {!isUser ? (
-        <div
-          className={cn(
-            "mt-1 flex shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground",
-            isCompact ? "h-5 w-5" : "h-6 w-6",
-          )}
-        >
-          <Bot className={cn(isCompact ? "h-2.5 w-2.5" : "h-3 w-3")} />
+  if (isUser) {
+    return (
+      <div className="flex flex-col items-end gap-1 py-3">
+        <div className="max-w-[80%] rounded-lg rounded-tr-sm bg-secondary px-3.5 py-2.5 text-[0.9rem] leading-relaxed text-secondary-foreground">
+          <ReactMarkdown remarkPlugins={MARKDOWN_REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+            {event.text}
+          </ReactMarkdown>
         </div>
-      ) : null}
-      <div className={cn(isCompact ? "max-w-[94%] space-y-1 sm:max-w-[86%]" : "max-w-[88%] space-y-1.5 sm:max-w-[75%]", isUser && "items-end")}>
-        {hasText ? (
-          <MarkdownMessage text={event.text} isUser={isUser} isCompact={isCompact} />
-        ) : null}
-        {event.toolCalls.map((tc, i) => (
-          <Card key={`call-${i}`} className="border-dashed">
-            <CardContent className={cn("flex items-start gap-2 text-xs", isCompact ? "p-1.5" : "p-2")}>
-              <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <div className="font-medium">Tool call: {tc.name}</div>
-                {tc.argsPreview ? (
-                  <div className="truncate font-mono text-[10px] text-muted-foreground">
-                    {tc.argsPreview}
-                  </div>
-                ) : null}
-              </div>
-            </CardContent>
-          </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-3 py-3">
+      <AgentAvatar name={event.author || agentName} size="sm" className="mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <div className="mb-0.5 flex items-center gap-2">
+          <span className="text-sm font-medium">{event.author || agentName}</span>
+          {event.timestamp && (
+            <span className="text-xs text-muted-foreground">
+              {new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+        </div>
+
+        {event.toolCalls.map((tc: ToolCallSummary, i: number) => (
+          <ToolBlock key={`call-${i}`} kind="call" name={tc.name} preview={tc.argsPreview} />
         ))}
-        {event.toolResponses.map((tr, i) => (
-          <Card key={`resp-${i}`} className="border-dashed">
-            <CardContent className={cn("flex items-start gap-2 text-xs", isCompact ? "p-1.5" : "p-2")}>
-              <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <div className="font-medium">Tool response: {tr.name}</div>
-                {tr.responsePreview ? (
-                  <div className="truncate font-mono text-[10px] text-muted-foreground">
-                    {tr.responsePreview}
-                  </div>
-                ) : null}
-              </div>
-            </CardContent>
-          </Card>
+        {event.toolResponses.map((tr: ToolResponseSummary, i: number) => (
+          <ToolBlock key={`resp-${i}`} kind="response" name={tr.name} preview={tr.responsePreview} />
         ))}
-        {event.traceUrl ? (
+
+        {hasText && (
+          <div className="text-[0.9rem] leading-relaxed text-foreground">
+            <ReactMarkdown remarkPlugins={MARKDOWN_REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+              {event.text}
+            </ReactMarkdown>
+          </div>
+        )}
+
+        {event.traceUrl && (
           <a
             href={event.traceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center text-[10px] text-muted-foreground hover:text-primary"
+            className="mt-1 inline-flex items-center gap-1 text-[0.7rem] text-muted-foreground hover:text-foreground"
           >
-            <ExternalLink className="mr-1 h-2.5 w-2.5" /> trace
+            <ExternalLink className="size-2.5" /> trace
           </a>
-        ) : null}
+        )}
       </div>
-      {isUser ? (
-        <div
-          className={cn(
-            "mt-1 flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground",
-            isCompact ? "h-5 w-5" : "h-6 w-6",
-          )}
-        >
-          <UserIcon className={cn(isCompact ? "h-2.5 w-2.5" : "h-3 w-3")} />
-        </div>
-      ) : null}
     </div>
   );
 });

@@ -1,4 +1,5 @@
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,13 +26,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { Page, PageScroll } from "@/components/butter/page-parts";
 import { enumLabel } from "@/lib/constants";
 import type { AgentFileMountPermission, AgentType } from "@/types/api";
 
@@ -113,20 +108,25 @@ export default function AgentCreatePage() {
   }
 
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/agents">Agents</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>Create</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <div className="mb-6 space-y-1">
-        <h2 className="text-2xl font-bold">Create Agent</h2>
-        <p className="text-sm text-muted-foreground">Start with identity and model settings, then optionally connect tools and file spaces.</p>
+    <Page>
+      <div className="border-b border-border px-4 py-4 md:px-6">
+        <Link
+          to="/agents"
+          className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" />
+          Agents
+          <ChevronRight className="size-3" />
+          <span className="text-foreground">Create</span>
+        </Link>
+        <h1 className="text-lg font-semibold tracking-tight">Create Agent</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Start with identity and model settings, then optionally connect tools and file spaces.
+        </p>
       </div>
 
-      <Form {...form}>
+      <PageScroll className="max-w-4xl">
+        <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
             <CardHeader>
@@ -330,13 +330,16 @@ export default function AgentCreatePage() {
           </Card>
 
           <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <Button type="button" variant="outline" onClick={() => navigate("/agents")}>Cancel</Button>
+            <Button variant="outline" render={<Link to="/agents" />}>
+              Cancel
+            </Button>
             <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? "Creating..." : "Create Agent"}
             </Button>
           </div>
         </form>
-      </Form>
-    </>
+        </Form>
+      </PageScroll>
+    </Page>
   );
 }

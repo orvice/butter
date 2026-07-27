@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   useDisconnectMCPServerOAuth,
@@ -11,6 +11,7 @@ import {
 } from "@/api/mcp-servers";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -142,19 +143,17 @@ export default function MCPServerListPage() {
   ];
 
   return (
-    <>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">MCP Toolsets</h2>
-          <p className="text-sm text-muted-foreground">
-            Connected servers exposing tools and resources.
-          </p>
-        </div>
-        <Button className="w-full sm:w-auto" onClick={() => navigate("/mcp-servers/create")}>
-          <Server className="mr-2 h-4 w-4" /> Add Server
-        </Button>
-      </div>
-
+    <Page>
+      <PageHeader
+        title="MCP Toolsets"
+        subtitle="Connected servers exposing tools and resources."
+        actions={
+          <Button size="sm" render={<Link to="/mcp-servers/create" />}>
+            <Server className="size-4" /> Add Server
+          </Button>
+        }
+      />
+      <PageScroll>
       <DataTable
         columns={columns}
         data={servers}
@@ -183,7 +182,7 @@ export default function MCPServerListPage() {
               {Object.entries(toolErrors).map(([id, err]) => (
                 <div
                   key={id}
-                  className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+                  className="flex flex-wrap items-center gap-2 rounded-md bg-warning-muted px-3 py-1.5 text-xs text-warning-foreground"
                 >
                   <XCircle className="h-3.5 w-3.5" />
                   <span className="font-mono">{id}</span>
@@ -202,6 +201,7 @@ export default function MCPServerListPage() {
           )}
         </CardContent>
       </Card>
+      </PageScroll>
 
       <DeleteDialog
         open={!!deleteTarget}
@@ -221,7 +221,7 @@ export default function MCPServerListPage() {
           }
         }}
       />
-    </>
+    </Page>
   );
 }
 
@@ -265,9 +265,9 @@ function OAuthMenuItems({ server }: { server: MCPServer }) {
 const OAUTH_PALETTE: Record<MCPOAuthConnectionState, { cls: string; label: string }> = {
   MCPO_AUTH_CONNECTION_STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "OAuth" },
   MCPO_AUTH_CONNECTION_STATE_DISCONNECTED: { cls: "bg-muted text-muted-foreground", label: "Disconnected" },
-  MCPO_AUTH_CONNECTION_STATE_CONNECTED: { cls: "bg-emerald-500/10 text-emerald-700", label: "Connected" },
-  MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED: { cls: "bg-amber-500/10 text-amber-700", label: "Reconnect" },
-  MCPO_AUTH_CONNECTION_STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
+  MCPO_AUTH_CONNECTION_STATE_CONNECTED: { cls: "bg-success-muted text-success-foreground", label: "Connected" },
+  MCPO_AUTH_CONNECTION_STATE_REAUTHORIZATION_REQUIRED: { cls: "bg-warning-muted text-warning-foreground", label: "Reconnect" },
+  MCPO_AUTH_CONNECTION_STATE_ERROR: { cls: "bg-danger-muted text-danger-foreground", label: "Error" },
 };
 
 function AuthStatusCell({ server }: { server: MCPServer }) {
@@ -310,7 +310,7 @@ function ToolRow({ tool }: { tool: MCPTool }) {
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm">{tool.name}</span>
           {tool.allowed ? (
-            <Badge variant="outline" className="border-emerald-500/30 text-[10px] text-emerald-700">
+            <Badge className="bg-success-muted text-[10px] text-success-foreground">
               <CheckCircle2 className="mr-1 h-3 w-3" /> allowed
             </Badge>
           ) : (

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-color-theme="butter">
+<html lang="en" data-color-theme="default">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -8,13 +8,25 @@
     <script>
       (() => {
         try {
-          const themes = ["butter", "mint", "blueberry", "rose", "slate"];
+          const themes = [
+            "default",
+            "material-green",
+            "material-red",
+            "material-orange",
+            "material-cyan",
+            "material-indigo",
+            "material-teal",
+            "mint",
+            "blueberry",
+            "rose",
+            "slate",
+          ];
           const theme = localStorage.getItem("butter_color_theme");
           if (themes.includes(theme)) {
             document.documentElement.dataset.colorTheme = theme;
           }
         } catch {
-          document.documentElement.dataset.colorTheme = "butter";
+          document.documentElement.dataset.colorTheme = "default";
         }
       })();
     </script>

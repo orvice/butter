@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Bot, MoreHorizontal, Pencil, Plus, Trash2, Cpu } from "lucide-react";
 import { useDeleteModelProvider, useModelProviders } from "@/api/model-providers";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,25 +86,25 @@ export default function ModelProviderListPage() {
   ];
 
   return (
-    <>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Model Providers</h2>
-          <p className="text-sm text-muted-foreground">
-            DB-backed LLM provider configuration used by agents and channels.
-          </p>
-        </div>
-        <Button className="w-full sm:w-auto" onClick={() => navigate("/model-providers/create")}>
-          <Plus className="mr-2 h-4 w-4" /> Add Provider
-        </Button>
-      </div>
-
-      <DataTable
-        columns={columns}
-        data={providers}
-        isLoading={isLoading}
-        emptyMessage="No model providers configured. Add one to make LLM models available."
+    <Page>
+      <PageHeader
+        title="Model Providers"
+        subtitle="DB-backed LLM provider configuration used by agents and channels."
+        actions={
+          <Button size="sm" render={<Link to="/model-providers/create" />}>
+            <Plus className="size-4" />
+            Add Provider
+          </Button>
+        }
       />
+      <PageScroll>
+        <DataTable
+          columns={columns}
+          data={providers}
+          isLoading={isLoading}
+          emptyMessage="No model providers configured. Add one to make LLM models available."
+        />
+      </PageScroll>
 
       <DeleteDialog
         open={!!deleteTarget}
@@ -123,6 +124,6 @@ export default function ModelProviderListPage() {
           }
         }}
       />
-    </>
+    </Page>
   );
 }

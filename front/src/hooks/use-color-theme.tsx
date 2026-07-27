@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { COLOR_THEME_KEY } from "@/lib/constants";
 
 export type ColorThemeId =
-  | "material-blue"
+  | "default"
   | "material-green"
   | "material-red"
   | "material-orange"
@@ -26,10 +26,10 @@ export type ColorTheme = {
 
 const COLOR_THEMES: ColorTheme[] = [
   {
-    id: "material-blue",
-    name: "Material Blue",
-    description: "Material Admin signature azure",
-    swatches: ["#1e91ff", "#10b981", "#e0f2fe"],
+    id: "default",
+    name: "Butter Ops",
+    description: "Warm neutral operational palette",
+    swatches: ["#e0a63a", "#3f9e63", "#f5f2ea"],
   },
   {
     id: "material-green",
@@ -99,8 +99,10 @@ const COLOR_THEMES: ColorTheme[] = [
   },
 ];
 
-const DEFAULT_COLOR_THEME: ColorThemeId = "material-blue";
-const LEGACY_DEFAULT_THEME: ColorThemeId = "butter";
+const DEFAULT_COLOR_THEME: ColorThemeId = "default";
+// Previous default palettes: users who never explicitly picked a theme were
+// auto-persisted one of these, so both migrate to the new design's default.
+const LEGACY_DEFAULT_THEMES: string[] = ["butter", "material-blue"];
 
 type ColorThemeContextValue = {
   colorTheme: ColorThemeId;
@@ -118,7 +120,7 @@ function getInitialColorTheme(): ColorThemeId {
   if (typeof window === "undefined") return DEFAULT_COLOR_THEME;
   try {
     const storedTheme = window.localStorage.getItem(COLOR_THEME_KEY);
-    if (storedTheme === LEGACY_DEFAULT_THEME) {
+    if (storedTheme && LEGACY_DEFAULT_THEMES.includes(storedTheme)) {
       return DEFAULT_COLOR_THEME;
     }
     return isColorThemeId(storedTheme) ? storedTheme : DEFAULT_COLOR_THEME;

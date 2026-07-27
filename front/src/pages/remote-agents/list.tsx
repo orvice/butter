@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useDeleteRemoteAgent, useRemoteAgents, useRemoteAgentStatus } from "@/api/remote-agents";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
+import { StatusBadge, type RunStatus } from "@/components/butter/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,26 +26,21 @@ import {
 import type { RemoteAgent, RemoteAgentState } from "@/types/api";
 import { enumLabel } from "@/lib/constants";
 
-const STATE_LABEL: Record<RemoteAgentState, { cls: string; label: string }> = {
-  STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "Unknown" },
-  STATE_CONFIGURED: { cls: "bg-muted text-muted-foreground", label: "Configured" },
-  STATE_ACTIVE: { cls: "bg-sky-500/10 text-sky-700", label: "Active" },
-  STATE_IDLE: { cls: "bg-emerald-500/10 text-emerald-700", label: "Idle" },
-  STATE_UNREACHABLE: { cls: "bg-rose-500/10 text-rose-700", label: "Unreachable" },
-  STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
+const STATE_BADGE: Record<RemoteAgentState, { status: RunStatus; label: string }> = {
+  STATE_UNSPECIFIED: { status: "never", label: "Unknown" },
+  STATE_CONFIGURED: { status: "disabled", label: "Configured" },
+  STATE_ACTIVE: { status: "running", label: "Active" },
+  STATE_IDLE: { status: "success", label: "Idle" },
+  STATE_UNREACHABLE: { status: "failed", label: "Unreachable" },
+  STATE_ERROR: { status: "failed", label: "Error" },
 };
 
-function StatusBadge({ id }: { id: string }) {
+function RemoteAgentStatusBadge({ id }: { id: string }) {
   const { data, isLoading } = useRemoteAgentStatus(id);
   if (isLoading || !data) return <Badge variant="outline" className="text-xs">…</Badge>;
   const state = (data.status.state ?? "STATE_UNSPECIFIED") as RemoteAgentState;
-  const p = STATE_LABEL[state];
-  return (
-    <Badge className={p.cls}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {p.label}
-    </Badge>
-  );
+  const badge = STATE_BADGE[state];
+  return <StatusBadge status={badge.status} label={badge.label} />;
 }
 
 export default function RemoteAgentListPage() {
@@ -83,13 +80,13 @@ export default function RemoteAgentListPage() {
     },
     {
       header: "Status",
-      cell: (row) => <StatusBadge id={row.id} />,
+      cell: (row) => <RemoteAgentStatusBadge id={row.id} />,
     },
     {
       header: "Verified",
       cell: (row) =>
         row.protocol === "REMOTE_AGENT_PROTOCOL_DAEMON" ? (
-          <ShieldCheck className="h-4 w-4 text-emerald-700" />
+          <ShieldCheck className="h-4 w-4 text-success" />
         ) : (
           <span className="text-xs text-muted-foreground">-</span>
         ),
@@ -119,25 +116,25 @@ export default function RemoteAgentListPage() {
   ];
 
   return (
-    <>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Remote Agents</h2>
-          <p className="text-sm text-muted-foreground">
-            External orchestrators and autonomous daemon instances.
-          </p>
-        </div>
-        <Button className="w-full sm:w-auto" onClick={() => navigate("/remote-agents/create")}>
-          <Plus className="mr-2 h-4 w-4" /> Register Agent
-        </Button>
-      </div>
-
-      <DataTable
-        columns={columns}
-        data={data?.remote_agents}
-        isLoading={isLoading}
-        emptyMessage="No remote agents registered."
+    <Page>
+      <PageHeader
+        title="Remote Agents"
+        subtitle="External orchestrators and autonomous daemon instances."
+        actions={
+          <Button size="sm" render={<Link to="/remote-agents/create" />}>
+            <Plus className="size-4" />
+            Register Agent
+          </Button>
+        }
       />
+      <PageScroll>
+        <DataTable
+          columns={columns}
+          data={data?.remote_agents}
+          isLoading={isLoading}
+          emptyMessage="No remote agents registered."
+        />
+      </PageScroll>
 
       <DeleteDialog
         open={!!deleteTarget}
@@ -157,6 +154,6 @@ export default function RemoteAgentListPage() {
           }
         }}
       />
-    </>
+    </Page>
   );
 }

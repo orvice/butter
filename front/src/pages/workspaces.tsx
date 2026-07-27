@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { toast } from "sonner";
 import { Building2, Trash2, UserPlus } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -223,9 +223,12 @@ export default function WorkspacePage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Workspace Settings" />
-
+    <Page>
+      <PageHeader
+        title="Workspace Settings"
+        subtitle="Manage the active workspace profile and its members."
+      />
+      <PageScroll className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
@@ -334,6 +337,7 @@ export default function WorkspacePage() {
           ) : null}
         </CardContent>
       </Card>
+      </PageScroll>
 
       <DeleteDialog
         open={deleteOpen}
@@ -343,6 +347,6 @@ export default function WorkspacePage() {
         onConfirm={handleDeleteWorkspace}
         loading={deleteWorkspace.isPending}
       />
-    </div>
+    </Page>
   );
 }

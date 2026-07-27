@@ -22,7 +22,7 @@ import {
   useWriteAgentFile,
 } from "@/api/agent-files";
 import { DeleteDialog } from "@/components/delete-dialog";
-import { PageHeader } from "@/components/page-header";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -231,184 +231,185 @@ export default function AgentFilesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <Page>
       <PageHeader
         title="Agent Files"
-        description="Create workspace text file spaces and mount them into agents as built-in tools."
+        subtitle="Create workspace text file spaces and mount them into agents as built-in tools."
       />
-
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle>File Spaces</CardTitle>
-              <CardDescription>Workspace-owned collections available to agent mounts.</CardDescription>
-            </div>
-            <Button size="sm" onClick={openCreateSpaceDialog}>
-              <Plus className="mr-1 h-4 w-4" />
-              New
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {spacesLoading ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)
-            ) : spaces.length === 0 ? (
-              <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-                No file spaces yet.
-              </div>
-            ) : (
-              spaces.map((space) => {
-                const selected = space.id === selectedSpaceId;
-                return (
-                  <button
-                    key={space.id}
-                    type="button"
-                    onClick={() => {
-                      setExplicitSpaceId(space.id ?? "");
-                      setSelectedPath("");
-                    }}
-                    className={`w-full rounded-md border p-3 text-left transition-colors ${
-                      selected ? "border-primary bg-primary/10" : "hover:bg-muted"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                          <span className="truncate font-medium">{space.name}</span>
-                        </div>
-                        <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{space.id}</div>
-                        {space.description ? (
-                          <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{space.description}</p>
-                        ) : null}
-                      </div>
-                      <Badge variant={selected ? "default" : "outline"}>{selected ? "Open" : "Space"}</Badge>
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6">
+      <PageScroll>
+        <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
           <Card>
-            <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
-                <CardTitle>{selectedSpace?.name ?? "Files"}</CardTitle>
-                <CardDescription>
-                  {selectedSpace ? selectedSpace.description || "Manage text files in this file space." : "Select or create a file space."}
-                </CardDescription>
+                <CardTitle>File Spaces</CardTitle>
+                <CardDescription>Workspace-owned collections available to agent mounts.</CardDescription>
               </div>
-              {selectedSpace ? (
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => openEditSpaceDialog(selectedSpace)}>
-                    <Pencil className="mr-1 h-4 w-4" />
-                    Edit Space
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={() => setDeleteSpaceTarget(selectedSpace)}>
-                    <Trash2 className="mr-1 h-4 w-4" />
-                    Delete Space
-                  </Button>
-                  <Button size="sm" onClick={openCreateFileDialog}>
-                    <FilePlus2 className="mr-1 h-4 w-4" />
-                    New File
-                  </Button>
-                </div>
-              ) : null}
+              <Button size="sm" onClick={openCreateSpaceDialog}>
+                <Plus className="mr-1 h-4 w-4" />
+                New
+              </Button>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-8"
-                    value={pathPrefix}
-                    onChange={(event) => setPathPrefix(event.target.value)}
-                    placeholder="/notes"
-                    disabled={!selectedSpaceId}
-                  />
-                </div>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-8"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search file contents"
-                    disabled={!selectedSpaceId}
-                  />
-                </div>
-              </div>
-
-              {searchQuery.trim() ? (
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <div className="mb-2 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
-                    Search Results
-                  </div>
-                  {searchResults.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No matches.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {searchResults.map((result) => {
-                        const file = result.file;
-                        if (!file) return null;
-                        return (
-                          <button
-                            key={file.path}
-                            type="button"
-                            onClick={() => openEditFile(file)}
-                            className="w-full rounded-md border bg-card p-2 text-left hover:bg-muted"
-                          >
-                            <div className="font-mono text-xs">{file.path}</div>
-                            {result.snippets?.[0] ? (
-                              <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{result.snippets[0]}</div>
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ) : null}
-
-              {filesLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
-                </div>
-              ) : files.length === 0 ? (
-                <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  {selectedSpaceId ? "No files in this space yet." : "Select a file space to browse files."}
+            <CardContent className="space-y-2">
+              {spacesLoading ? (
+                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)
+              ) : spaces.length === 0 ? (
+                <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+                  No file spaces yet.
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-md border">
-                  {files.map((file) => (
-                    <div key={file.path} className="grid gap-3 border-b p-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_120px_120px_130px_auto] md:items-center">
-                      <button type="button" className="min-w-0 text-left" onClick={() => openEditFile(file)}>
-                        <div className="flex min-w-0 items-center gap-2">
-                          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="truncate font-mono text-sm">{file.path}</span>
+                spaces.map((space) => {
+                  const selected = space.id === selectedSpaceId;
+                  return (
+                    <button
+                      key={space.id}
+                      type="button"
+                      onClick={() => {
+                        setExplicitSpaceId(space.id ?? "");
+                        setSelectedPath("");
+                      }}
+                      className={`w-full rounded-md border p-3 text-left transition-colors ${
+                        selected ? "border-primary bg-primary/10" : "hover:bg-muted"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                            <span className="truncate font-medium">{space.name}</span>
+                          </div>
+                          <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{space.id}</div>
+                          {space.description ? (
+                            <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{space.description}</p>
+                          ) : null}
                         </div>
-                      </button>
-                      <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
-                      <span className="text-xs text-muted-foreground">v{String(file.version ?? 0)}</span>
-                      <span className="text-xs text-muted-foreground">{formatDate(file.updated_at)}</span>
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon-sm" title="Edit file" onClick={() => openEditFile(file)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon-sm" title="Delete file" onClick={() => setDeleteFileTarget(file)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <Badge variant={selected ? "default" : "outline"}>{selected ? "Open" : "Space"}</Badge>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    </button>
+                  );
+                })
               )}
             </CardContent>
           </Card>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <CardTitle>{selectedSpace?.name ?? "Files"}</CardTitle>
+                  <CardDescription>
+                    {selectedSpace ? selectedSpace.description || "Manage text files in this file space." : "Select or create a file space."}
+                  </CardDescription>
+                </div>
+                {selectedSpace ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openEditSpaceDialog(selectedSpace)}>
+                      <Pencil className="mr-1 h-4 w-4" />
+                      Edit Space
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => setDeleteSpaceTarget(selectedSpace)}>
+                      <Trash2 className="mr-1 h-4 w-4" />
+                      Delete Space
+                    </Button>
+                    <Button size="sm" onClick={openCreateFileDialog}>
+                      <FilePlus2 className="mr-1 h-4 w-4" />
+                      New File
+                    </Button>
+                  </div>
+                ) : null}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      className="pl-8"
+                      value={pathPrefix}
+                      onChange={(event) => setPathPrefix(event.target.value)}
+                      placeholder="/notes"
+                      disabled={!selectedSpaceId}
+                    />
+                  </div>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      className="pl-8"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Search file contents"
+                      disabled={!selectedSpaceId}
+                    />
+                  </div>
+                </div>
+
+                {searchQuery.trim() ? (
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <div className="mb-2 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
+                      Search Results
+                    </div>
+                    {searchResults.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No matches.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {searchResults.map((result) => {
+                          const file = result.file;
+                          if (!file) return null;
+                          return (
+                            <button
+                              key={file.path}
+                              type="button"
+                              onClick={() => openEditFile(file)}
+                              className="w-full rounded-md border bg-card p-2 text-left hover:bg-muted"
+                            >
+                              <div className="font-mono text-xs">{file.path}</div>
+                              {result.snippets?.[0] ? (
+                                <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{result.snippets[0]}</div>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {filesLoading ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+                  </div>
+                ) : files.length === 0 ? (
+                  <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    {selectedSpaceId ? "No files in this space yet." : "Select a file space to browse files."}
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-md border">
+                    {files.map((file) => (
+                      <div key={file.path} className="grid gap-3 border-b p-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_120px_120px_130px_auto] md:items-center">
+                        <button type="button" className="min-w-0 text-left" onClick={() => openEditFile(file)}>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="truncate font-mono text-sm">{file.path}</span>
+                          </div>
+                        </button>
+                        <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
+                        <span className="text-xs text-muted-foreground">v{String(file.version ?? 0)}</span>
+                        <span className="text-xs text-muted-foreground">{formatDate(file.updated_at)}</span>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon-sm" title="Edit file" onClick={() => openEditFile(file)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon-sm" title="Delete file" onClick={() => setDeleteFileTarget(file)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </PageScroll>
 
       <Dialog open={spaceDialogOpen} onOpenChange={setSpaceDialogOpen}>
         <DialogContent>
@@ -527,6 +528,6 @@ export default function AgentFilesPage() {
         onConfirm={confirmDeleteFile}
         loading={deleteFile.isPending}
       />
-    </div>
+    </Page>
   );
 }

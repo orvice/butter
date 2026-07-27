@@ -5,9 +5,9 @@ import type { MCPServerState } from "@/types/api";
 const PALETTE: Record<MCPServerState, { cls: string; label: string }> = {
   STATE_UNSPECIFIED: { cls: "bg-muted text-muted-foreground", label: "Unknown" },
   STATE_CONFIGURED: { cls: "bg-muted text-muted-foreground", label: "Configured" },
-  STATE_CONNECTED: { cls: "bg-emerald-500/10 text-emerald-700", label: "Connected" },
-  STATE_DISCONNECTED: { cls: "bg-rose-500/10 text-rose-700", label: "Disconnected" },
-  STATE_ERROR: { cls: "bg-rose-500/10 text-rose-700", label: "Error" },
+  STATE_CONNECTED: { cls: "bg-success-muted text-success-foreground", label: "Connected" },
+  STATE_DISCONNECTED: { cls: "bg-danger-muted text-danger-foreground", label: "Disconnected" },
+  STATE_ERROR: { cls: "bg-danger-muted text-danger-foreground", label: "Error" },
 };
 
 export function ServerStatusBadge({ id }: { id: string }) {

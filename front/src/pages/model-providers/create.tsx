@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useCreateModelProvider } from "@/api/model-providers";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import ModelProviderForm from "./form";
 import type { ModelProvider } from "@/types/api";
 
@@ -20,22 +20,20 @@ export default function ModelProviderCreatePage() {
   }
 
   return (
-    <>
-      <Breadcrumb className="mb-4">
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/model-providers">Model Providers</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>Create</BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <h2 className="mb-6 text-2xl font-bold">Create Model Provider</h2>
-      <ModelProviderForm
-        mode="create"
-        submitLabel="Create"
-        loading={createMutation.isPending}
-        onCancel={() => navigate("/model-providers")}
-        onSubmit={onSubmit}
+    <Page>
+      <PageHeader
+        title="Create Model Provider"
+        subtitle="Register an LLM provider and the models it exposes to agents and channels."
       />
-    </>
+      <PageScroll className="max-w-3xl">
+        <ModelProviderForm
+          mode="create"
+          submitLabel="Create"
+          loading={createMutation.isPending}
+          onCancel={() => navigate("/model-providers")}
+          onSubmit={onSubmit}
+        />
+      </PageScroll>
+    </Page>
   );
 }
