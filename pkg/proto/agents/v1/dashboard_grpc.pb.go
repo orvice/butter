@@ -22,6 +22,7 @@ const (
 	DashboardService_GetOverview_FullMethodName                = "/agents.v1.DashboardService/GetOverview"
 	DashboardService_GetActivityFeed_FullMethodName            = "/agents.v1.DashboardService/GetActivityFeed"
 	DashboardService_GetCronExecutionTimeseries_FullMethodName = "/agents.v1.DashboardService/GetCronExecutionTimeseries"
+	DashboardService_GetActivityMetrics_FullMethodName         = "/agents.v1.DashboardService/GetActivityMetrics"
 )
 
 // DashboardServiceClient is the client API for DashboardService service.
@@ -37,6 +38,9 @@ type DashboardServiceClient interface {
 	// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
 	// suitable for the Overview screen "Cron Executions" chart.
 	GetCronExecutionTimeseries(ctx context.Context, in *GetCronExecutionTimeseriesRequest, opts ...grpc.CallOption) (*GetCronExecutionTimeseriesResponse, error)
+	// GetActivityMetrics returns run-volume counts over a rolling time window,
+	// suitable for the Overview screen "Activity" metric cards (7d / 30d toggle).
+	GetActivityMetrics(ctx context.Context, in *GetActivityMetricsRequest, opts ...grpc.CallOption) (*GetActivityMetricsResponse, error)
 }
 
 type dashboardServiceClient struct {
@@ -77,6 +81,16 @@ func (c *dashboardServiceClient) GetCronExecutionTimeseries(ctx context.Context,
 	return out, nil
 }
 
+func (c *dashboardServiceClient) GetActivityMetrics(ctx context.Context, in *GetActivityMetricsRequest, opts ...grpc.CallOption) (*GetActivityMetricsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetActivityMetricsResponse)
+	err := c.cc.Invoke(ctx, DashboardService_GetActivityMetrics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DashboardServiceServer is the server API for DashboardService service.
 // All implementations must embed UnimplementedDashboardServiceServer
 // for forward compatibility.
@@ -90,6 +104,9 @@ type DashboardServiceServer interface {
 	// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
 	// suitable for the Overview screen "Cron Executions" chart.
 	GetCronExecutionTimeseries(context.Context, *GetCronExecutionTimeseriesRequest) (*GetCronExecutionTimeseriesResponse, error)
+	// GetActivityMetrics returns run-volume counts over a rolling time window,
+	// suitable for the Overview screen "Activity" metric cards (7d / 30d toggle).
+	GetActivityMetrics(context.Context, *GetActivityMetricsRequest) (*GetActivityMetricsResponse, error)
 	mustEmbedUnimplementedDashboardServiceServer()
 }
 
@@ -108,6 +125,9 @@ func (UnimplementedDashboardServiceServer) GetActivityFeed(context.Context, *Get
 }
 func (UnimplementedDashboardServiceServer) GetCronExecutionTimeseries(context.Context, *GetCronExecutionTimeseriesRequest) (*GetCronExecutionTimeseriesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCronExecutionTimeseries not implemented")
+}
+func (UnimplementedDashboardServiceServer) GetActivityMetrics(context.Context, *GetActivityMetricsRequest) (*GetActivityMetricsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetActivityMetrics not implemented")
 }
 func (UnimplementedDashboardServiceServer) mustEmbedUnimplementedDashboardServiceServer() {}
 func (UnimplementedDashboardServiceServer) testEmbeddedByValue()                          {}
@@ -184,6 +204,24 @@ func _DashboardService_GetCronExecutionTimeseries_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DashboardService_GetActivityMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetActivityMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DashboardServiceServer).GetActivityMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DashboardService_GetActivityMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DashboardServiceServer).GetActivityMetrics(ctx, req.(*GetActivityMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DashboardService_ServiceDesc is the grpc.ServiceDesc for DashboardService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -202,6 +240,10 @@ var DashboardService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCronExecutionTimeseries",
 			Handler:    _DashboardService_GetCronExecutionTimeseries_Handler,
+		},
+		{
+			MethodName: "GetActivityMetrics",
+			Handler:    _DashboardService_GetActivityMetrics_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -137,6 +137,57 @@ func (s *DashboardServiceServer) GetCronExecutionTimeseries(ctx context.Context,
 	return connect.NewResponse(&agentsv1.GetCronExecutionTimeseriesResponse{Buckets: buckets}), nil
 }
 
+func (s *DashboardServiceServer) GetActivityMetrics(ctx context.Context, req *connect.Request[agentsv1.GetActivityMetricsRequest]) (*connect.Response[agentsv1.GetActivityMetricsResponse], error) {
+	if err := requireDashboardAccess(ctx); err != nil {
+		return nil, err
+	}
+
+	end := time.Now().UTC()
+	var span time.Duration
+	switch req.Msg.GetRange() {
+	case agentsv1.GetActivityMetricsRequest_RANGE_1D:
+		span = 24 * time.Hour
+	case agentsv1.GetActivityMetricsRequest_RANGE_30D:
+		span = 30 * 24 * time.Hour
+	default: // RANGE_7D and unspecified
+		span = 7 * 24 * time.Hour
+	}
+	start := end.Add(-span)
+
+	resp := &agentsv1.GetActivityMetricsResponse{
+		WindowStart: timestamppb.New(start),
+		WindowEnd:   timestamppb.New(end),
+	}
+
+	if s.invRepo != nil {
+		total, failed, err := s.invRepo.CountByTimeRange(ctx, start, end)
+		if err != nil {
+			log.FromContext(ctx).Error("dashboard activity metrics: invocation count failed", "err", err)
+			return nil, connectx.InternalWith(err)
+		}
+		resp.AgentRuns = int32(total)
+		resp.AgentRunsFailed = int32(failed)
+	}
+
+	if s.cronExecRepo != nil {
+		execs, err := s.cronExecRepo.ListByTimeRange(ctx, "", "", start, end)
+		if err != nil {
+			log.FromContext(ctx).Error("dashboard activity metrics: cron list failed", "err", err)
+			return nil, connectx.InternalWith(err)
+		}
+		var failed int32
+		for _, e := range execs {
+			if e.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR {
+				failed++
+			}
+		}
+		resp.AutomationRuns = int32(len(execs))
+		resp.AutomationRunsFailed = failed
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
 func (s *DashboardServiceServer) GetActivityFeed(ctx context.Context, req *connect.Request[agentsv1.GetActivityFeedRequest]) (*connect.Response[agentsv1.GetActivityFeedResponse], error) {
 	if err := requireDashboardAccess(ctx); err != nil {
 		return nil, err

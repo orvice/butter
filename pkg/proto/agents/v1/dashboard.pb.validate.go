@@ -35,6 +35,278 @@ var (
 	_ = sort.Sort
 )
 
+// Validate checks the field values on GetActivityMetricsRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetActivityMetricsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetActivityMetricsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetActivityMetricsRequestMultiError, or nil if none found.
+func (m *GetActivityMetricsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetActivityMetricsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Range
+
+	if len(errors) > 0 {
+		return GetActivityMetricsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetActivityMetricsRequestMultiError is an error wrapping multiple validation
+// errors returned by GetActivityMetricsRequest.ValidateAll() if the
+// designated constraints aren't met.
+type GetActivityMetricsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetActivityMetricsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetActivityMetricsRequestMultiError) AllErrors() []error { return m }
+
+// GetActivityMetricsRequestValidationError is the validation error returned by
+// GetActivityMetricsRequest.Validate if the designated constraints aren't met.
+type GetActivityMetricsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetActivityMetricsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetActivityMetricsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetActivityMetricsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetActivityMetricsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetActivityMetricsRequestValidationError) ErrorName() string {
+	return "GetActivityMetricsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetActivityMetricsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetActivityMetricsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetActivityMetricsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetActivityMetricsRequestValidationError{}
+
+// Validate checks the field values on GetActivityMetricsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetActivityMetricsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetActivityMetricsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetActivityMetricsResponseMultiError, or nil if none found.
+func (m *GetActivityMetricsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetActivityMetricsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AgentRuns
+
+	// no validation rules for AgentRunsFailed
+
+	// no validation rules for AutomationRuns
+
+	// no validation rules for AutomationRunsFailed
+
+	if all {
+		switch v := interface{}(m.GetWindowStart()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetActivityMetricsResponseValidationError{
+					field:  "WindowStart",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetActivityMetricsResponseValidationError{
+					field:  "WindowStart",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetWindowStart()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetActivityMetricsResponseValidationError{
+				field:  "WindowStart",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetWindowEnd()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetActivityMetricsResponseValidationError{
+					field:  "WindowEnd",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetActivityMetricsResponseValidationError{
+					field:  "WindowEnd",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetWindowEnd()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetActivityMetricsResponseValidationError{
+				field:  "WindowEnd",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetActivityMetricsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetActivityMetricsResponseMultiError is an error wrapping multiple
+// validation errors returned by GetActivityMetricsResponse.ValidateAll() if
+// the designated constraints aren't met.
+type GetActivityMetricsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetActivityMetricsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetActivityMetricsResponseMultiError) AllErrors() []error { return m }
+
+// GetActivityMetricsResponseValidationError is the validation error returned
+// by GetActivityMetricsResponse.Validate if the designated constraints aren't met.
+type GetActivityMetricsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetActivityMetricsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetActivityMetricsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetActivityMetricsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetActivityMetricsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetActivityMetricsResponseValidationError) ErrorName() string {
+	return "GetActivityMetricsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetActivityMetricsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetActivityMetricsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetActivityMetricsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetActivityMetricsResponseValidationError{}
+
 // Validate checks the field values on GetCronExecutionTimeseriesRequest with
 // the rules defined in the proto definition for this message. If any rules
 // are violated, the first error encountered is returned, or nil if there are

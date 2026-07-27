@@ -24,6 +24,34 @@ service DashboardService {
   // GetCronExecutionTimeseries aggregates cron_executions into time buckets,
   // suitable for the Overview screen "Cron Executions" chart.
   rpc GetCronExecutionTimeseries(GetCronExecutionTimeseriesRequest) returns (GetCronExecutionTimeseriesResponse);
+  // GetActivityMetrics returns run-volume counts over a rolling time window,
+  // suitable for the Overview screen "Activity" metric cards (7d / 30d toggle).
+  rpc GetActivityMetrics(GetActivityMetricsRequest) returns (GetActivityMetricsResponse);
+}
+
+message GetActivityMetricsRequest {
+  enum Range {
+    RANGE_UNSPECIFIED = 0;
+    RANGE_1D = 1;
+    RANGE_7D = 2;
+    RANGE_30D = 3;
+  }
+  // Rolling window the counts cover. Unspecified is treated as RANGE_7D.
+  Range range = 1;
+}
+
+message GetActivityMetricsResponse {
+  // Agent invocations that started within the window (across all workspaces).
+  int32 agent_runs = 1;
+  // Subset of agent_runs that ended in failure.
+  int32 agent_runs_failed = 2;
+  // Cron / automation executions that started within the window.
+  int32 automation_runs = 3;
+  // Subset of automation_runs that ended in error.
+  int32 automation_runs_failed = 4;
+  // Half-open window [window_start, window_end) the counts cover.
+  google.protobuf.Timestamp window_start = 5;
+  google.protobuf.Timestamp window_end = 6;
 }
 
 message GetCronExecutionTimeseriesRequest {

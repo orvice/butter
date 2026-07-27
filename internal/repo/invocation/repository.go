@@ -3,6 +3,7 @@ package invocation
 import (
 	"context"
 	"errors"
+	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -40,4 +41,9 @@ type Repository interface {
 	// recent invocation and the count of currently RUNNING invocations.
 	// Agents with no invocations are absent from the returned map.
 	StatusSummaries(ctx context.Context, workspaceID string, agentNames []string) (map[string]StatusSummary, error)
+	// CountByTimeRange returns, across all workspaces, the number of
+	// invocations whose started_at falls within the half-open window
+	// [start, end), together with the subset that ended in
+	// INVOCATION_STATUS_FAILED. Drives the dashboard Activity metric cards.
+	CountByTimeRange(ctx context.Context, start, end time.Time) (total int64, failed int64, err error)
 }

@@ -1,6 +1,6 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useOverview, useActivityFeed } from "@/api/dashboard";
+import { useOverview, useActivityFeed, useActivityMetrics } from "@/api/dashboard";
 import { useAgents } from "@/api/agents";
 import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Button } from "@/components/ui/button";
@@ -15,14 +15,12 @@ import {
   CheckCircle2,
   Link2,
   Loader2,
-  MessageSquare,
   Plus,
   RefreshCw,
-  Server,
   Terminal,
   Workflow,
 } from "lucide-react";
-import type { ActivityEvent, ComponentHealth } from "@/types/api";
+import type { ActivityEvent, ComponentHealth, CronTimeseriesRange } from "@/types/api";
 
 /* --------------------------------- helpers -------------------------------- */
 
@@ -63,10 +61,12 @@ function MetricCard({
   label,
   value,
   icon,
+  suffix,
 }: {
   label: string;
   value: number;
   icon: ReactNode;
+  suffix?: string;
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -76,6 +76,7 @@ function MetricCard({
       </div>
       <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">
         {value.toLocaleString()}
+        {suffix && <span className="ml-0.5 text-lg text-muted-foreground">{suffix}</span>}
       </p>
     </div>
   );
@@ -224,12 +225,24 @@ function SectionHeader({
 /* --------------------------------- page ----------------------------------- */
 
 export default function DashboardPage() {
+  const [range, setRange] = useState<CronTimeseriesRange>("RANGE_7D");
   const { data: overviewData, isLoading: loadingOverview } = useOverview("production");
+  const { data: metrics } = useActivityMetrics(range);
   const activityQuery = useActivityFeed(50);
   const { data: agentsData } = useAgents({ page_size: 10 });
 
-  const counts = overviewData?.counts;
   const health = overviewData?.health;
+
+  const agentRuns = metrics?.agent_runs ?? 0;
+  const automationRuns = metrics?.automation_runs ?? 0;
+  const failedRuns = (metrics?.agent_runs_failed ?? 0) + (metrics?.automation_runs_failed ?? 0);
+  const totalRuns = agentRuns + automationRuns;
+  const successRate = totalRuns > 0 ? Math.round(((totalRuns - failedRuns) / totalRuns) * 100) : 100;
+
+  const ranges: { key: CronTimeseriesRange; label: string }[] = [
+    { key: "RANGE_7D", label: "7 days" },
+    { key: "RANGE_30D", label: "30 days" },
+  ];
   const events = useMemo(() => activityQuery.data?.events ?? [], [activityQuery.data]);
   const quickStartAgents = (agentsData?.agents ?? []).slice(0, 4);
 
@@ -344,14 +357,32 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Metrics */}
+            {/* Activity — run volume over the selected window */}
             <section className="mb-6">
-              <SectionHeader title="At a glance" />
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-medium">Activity</h2>
+                <div className="inline-flex rounded-md border border-border p-0.5">
+                  {ranges.map((r) => (
+                    <button
+                      key={r.key}
+                      onClick={() => setRange(r.key)}
+                      className={cn(
+                        "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                        range === r.key
+                          ? "bg-secondary text-secondary-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <MetricCard label="Active agents" value={counts?.active_agents ?? 0} icon={<Bot />} />
-                <MetricCard label="Active sessions" value={counts?.active_sessions ?? 0} icon={<MessageSquare />} />
-                <MetricCard label="Automations" value={counts?.cron_jobs ?? 0} icon={<Workflow />} />
-                <MetricCard label="MCP servers" value={counts?.mcp_servers ?? 0} icon={<Server />} />
+                <MetricCard label="Agent runs" value={agentRuns} icon={<Bot />} />
+                <MetricCard label="Automation runs" value={automationRuns} icon={<Workflow />} />
+                <MetricCard label="Failed runs" value={failedRuns} icon={<AlertTriangle />} />
+                <MetricCard label="Success rate" value={successRate} suffix="%" icon={<CheckCircle2 />} />
               </div>
             </section>
 

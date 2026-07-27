@@ -3,6 +3,7 @@ import { WORKSPACE_KEY } from "@/lib/constants";
 import {
   ComponentHealth_Status,
   DashboardService,
+  GetActivityMetricsRequest_Range,
   GetCronExecutionTimeseriesRequest_Range,
   type ActivityEvent as PbActivityEvent,
   type ComponentHealth as PbComponentHealth,
@@ -171,6 +172,48 @@ export function useCronTimeseries(range: CronTimeseriesRange = "RANGE_1D", jobNa
   return useQuery({
     queryKey: ["dashboard", "cron-timeseries", range, jobName],
     queryFn: () => getCronTimeseries(range, jobName),
+    refetchInterval: 60_000,
+  });
+}
+
+export type ActivityMetrics = {
+  agent_runs: number;
+  agent_runs_failed: number;
+  automation_runs: number;
+  automation_runs_failed: number;
+  window_start?: string;
+  window_end?: string;
+};
+
+function activityRangeToProto(r: CronTimeseriesRange): GetActivityMetricsRequest_Range {
+  switch (r) {
+    case "RANGE_1D":
+      return GetActivityMetricsRequest_Range.RANGE_1D;
+    case "RANGE_30D":
+      return GetActivityMetricsRequest_Range.RANGE_30D;
+    default:
+      return GetActivityMetricsRequest_Range.RANGE_7D;
+  }
+}
+
+async function getActivityMetrics(range: CronTimeseriesRange): Promise<ActivityMetrics> {
+  const res = await client.getActivityMetrics({ range: activityRangeToProto(range) });
+  return {
+    agent_runs: res.agentRuns,
+    agent_runs_failed: res.agentRunsFailed,
+    automation_runs: res.automationRuns,
+    automation_runs_failed: res.automationRunsFailed,
+    window_start: tsToISO(res.windowStart),
+    window_end: tsToISO(res.windowEnd),
+  };
+}
+
+export function useActivityMetrics(range: CronTimeseriesRange = "RANGE_7D") {
+  const workspaceId = localStorage.getItem(WORKSPACE_KEY);
+  return useQuery({
+    queryKey: ["dashboard", "activity-metrics", workspaceId, range],
+    queryFn: () => getActivityMetrics(range),
+    enabled: !!workspaceId,
     refetchInterval: 60_000,
   });
 }
