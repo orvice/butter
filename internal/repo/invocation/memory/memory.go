@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -88,6 +89,27 @@ func (s *Store) StatusSummaries(_ context.Context, workspaceID string, agentName
 		out[inv.GetAgentName()] = sum
 	}
 	return out, nil
+}
+
+func (s *Store) CountByTimeRange(_ context.Context, start, end time.Time) (int64, int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var total, failed int64
+	for _, inv := range s.byID {
+		ts := inv.GetStartedAt()
+		if ts == nil {
+			continue
+		}
+		t := ts.AsTime()
+		if t.Before(start) || !t.Before(end) {
+			continue
+		}
+		total++
+		if inv.GetStatus() == agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED {
+			failed++
+		}
+	}
+	return total, failed, nil
 }
 
 func (s *Store) snapshotDesc() []*agentsv1.Invocation {

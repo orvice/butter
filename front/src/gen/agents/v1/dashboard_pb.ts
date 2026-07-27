@@ -18,7 +18,109 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/dashboard.proto.
  */
 export const file_agents_v1_dashboard: GenFile = /*@__PURE__*/
-  fileDesc("ChlhZ2VudHMvdjEvZGFzaGJvYXJkLnByb3RvEglhZ2VudHMudjEiwwEKIUdldENyb25FeGVjdXRpb25UaW1lc2VyaWVzUmVxdWVzdBJBCgVyYW5nZRgBIAEoDjIyLmFnZW50cy52MS5HZXRDcm9uRXhlY3V0aW9uVGltZXNlcmllc1JlcXVlc3QuUmFuZ2USEAoIam9iX25hbWUYAiABKAkiSQoFUmFuZ2USFQoRUkFOR0VfVU5TUEVDSUZJRUQQABIMCghSQU5HRV8xRBABEgwKCFJBTkdFXzdEEAISDQoJUkFOR0VfMzBEEAMiVQoiR2V0Q3JvbkV4ZWN1dGlvblRpbWVzZXJpZXNSZXNwb25zZRIvCgdidWNrZXRzGAEgAygLMh4uYWdlbnRzLnYxLkNyb25FeGVjdXRpb25CdWNrZXQiYAoTQ3JvbkV4ZWN1dGlvbkJ1Y2tldBIpCgVzdGFydBgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHc3VjY2VzcxgCIAEoBRINCgVlcnJvchgDIAEoBSI7ChZHZXRBY3Rpdml0eUZlZWRSZXF1ZXN0Eg0KBWxpbWl0GAEgASgFEhIKCnBhZ2VfdG9rZW4YAiABKAkiXAoXR2V0QWN0aXZpdHlGZWVkUmVzcG9uc2USKAoGZXZlbnRzGAEgAygLMhguYWdlbnRzLnYxLkFjdGl2aXR5RXZlbnQSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIngKDUFjdGl2aXR5RXZlbnQSCgoCaWQYASABKAkSDAoEa2luZBgCIAEoCRINCgVhY3RvchgDIAEoCRIPCgdtZXNzYWdlGAQgASgJEi0KCXRpbWVzdGFtcBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiKQoSR2V0T3ZlcnZpZXdSZXF1ZXN0EhMKC2Vudmlyb25tZW50GAEgASgJIqcBChNHZXRPdmVydmlld1Jlc3BvbnNlEikKBmNvdW50cxgBIAEoCzIZLmFnZW50cy52MS5PdmVydmlld0NvdW50cxIoCgZoZWFsdGgYAiABKAsyGC5hZ2VudHMudjEuSGVhbHRoU3VtbWFyeRI7ChdsYXRlc3RfZGFlbW9uX2hhbmRzaGFrZRgDIAEoCzIaLmFnZW50cy52MS5EYWVtb25IYW5kc2hha2UirAEKDk92ZXJ2aWV3Q291bnRzEhUKDWFjdGl2ZV9hZ2VudHMYASABKAUSEwoLbWNwX3NlcnZlcnMYAiABKAUSGQoRY29ubmVjdGVkX2RhZW1vbnMYAyABKAUSFQoNcmVtb3RlX2FnZW50cxgEIAEoBRIQCghjaGFubmVscxgFIAEoBRIRCgljcm9uX2pvYnMYBiABKAUSFwoPYWN0aXZlX3Nlc3Npb25zGAcgASgFIpMBCg1IZWFsdGhTdW1tYXJ5EisKB21vbmdvZGIYASABKAsyGi5hZ2VudHMudjEuQ29tcG9uZW50SGVhbHRoEikKBXJlZGlzGAIgASgLMhouYWdlbnRzLnYxLkNvbXBvbmVudEhlYWx0aBIqCgZydW5uZXIYAyABKAsyGi5hZ2VudHMudjEuQ29tcG9uZW50SGVhbHRoIvQBCg9Db21wb25lbnRIZWFsdGgSMQoGc3RhdHVzGAEgASgOMiEuYWdlbnRzLnYxLkNvbXBvbmVudEhlYWx0aC5TdGF0dXMSDgoGZGV0YWlsGAIgASgJEi4KCmNoZWNrZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmxhdGVuY3lfbXMYBCABKAMiWgoGU3RhdHVzEhYKElNUQVRVU19VTlNQRUNJRklFRBAAEhIKDlNUQVRVU19IRUFMVEhZEAESEwoPU1RBVFVTX0RFR1JBREVEEAISDwoLU1RBVFVTX0RPV04QAyKOAQoPRGFlbW9uSGFuZHNoYWtlEhkKEWRhZW1vbl9ydW50aW1lX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSFAoMYWNwX3J1bnRpbWVzGAMgAygJEjAKDGNvbm5lY3RlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCgoCb3MYBSABKAkiSAobR2V0QnJpZGdlRGlhZ25vc3RpY3NSZXF1ZXN0EikKBndpbmRvdxgBIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiJRChxHZXRCcmlkZ2VEaWFnbm9zdGljc1Jlc3BvbnNlEjEKC2RpYWdub3N0aWNzGAEgASgLMhwuYWdlbnRzLnYxLkJyaWRnZURpYWdub3N0aWNzIs0BChFCcmlkZ2VEaWFnbm9zdGljcxITCgtjcHVfcGVyY2VudBgBIAEoARIZChFtZW1vcnlfdXNlZF9ieXRlcxgCIAEoAxIaChJtZW1vcnlfbGltaXRfYnl0ZXMYAyABKAMSEgoKZ29yb3V0aW5lcxgEIAEoBRIuCgpjaGVja2VkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgdsYXRlbmN5GAYgAygLMhcuYWdlbnRzLnYxLkxhdGVuY3lQb2ludCJRCgxMYXRlbmN5UG9pbnQSLQoJdGltZXN0YW1wGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgpsYXRlbmN5X21zGAIgASgDIpkCCg1EYWVtb25SdW50aW1lEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSNAoGbGFiZWxzGAUgAygLMiQuYWdlbnRzLnYxLkRhZW1vblJ1bnRpbWUuTGFiZWxzRW50cnkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKY3JlYXRlZF9ieRgHIAEoCRIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUoECAQQBVIUYWxsb3dlZF9jYXBhYmlsaXRpZXMiGwoZTGlzdERhZW1vblJ1bnRpbWVzUmVxdWVzdCJIChpMaXN0RGFlbW9uUnVudGltZXNSZXNwb25zZRIqCghydW50aW1lcxgBIAMoCzIYLmFnZW50cy52MS5EYWVtb25SdW50aW1lIiUKF0dldERhZW1vblJ1bnRpbWVSZXF1ZXN0EgoKAmlkGAEgASgJIkUKGEdldERhZW1vblJ1bnRpbWVSZXNwb25zZRIpCgdydW50aW1lGAEgASgLMhguYWdlbnRzLnYxLkRhZW1vblJ1bnRpbWUiRwoaQ3JlYXRlRGFlbW9uUnVudGltZVJlcXVlc3QSKQoHcnVudGltZRgBIAEoCzIYLmFnZW50cy52MS5EYWVtb25SdW50aW1lIkgKG0NyZWF0ZURhZW1vblJ1bnRpbWVSZXNwb25zZRIpCgdydW50aW1lGAEgASgLMhguYWdlbnRzLnYxLkRhZW1vblJ1bnRpbWUiRwoaVXBkYXRlRGFlbW9uUnVudGltZVJlcXVlc3QSKQoHcnVudGltZRgBIAEoCzIYLmFnZW50cy52MS5EYWVtb25SdW50aW1lIkgKG1VwZGF0ZURhZW1vblJ1bnRpbWVSZXNwb25zZRIpCgdydW50aW1lGAEgASgLMhguYWdlbnRzLnYxLkRhZW1vblJ1bnRpbWUiKAoaRGVsZXRlRGFlbW9uUnVudGltZVJlcXVlc3QSCgoCaWQYASABKAkiHQobRGVsZXRlRGFlbW9uUnVudGltZVJlc3BvbnNlInIKH0NyZWF0ZURhZW1vblJ1bnRpbWVUb2tlblJlcXVlc3QSGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRImCgN0dGwYAyABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iVgogQ3JlYXRlRGFlbW9uUnVudGltZVRva2VuUmVzcG9uc2USIgoFdG9rZW4YASABKAsyEy5hZ2VudHMudjEuQVBJVG9rZW4SDgoGc2VjcmV0GAIgASgJIhQKEkxpc3REYWVtb25zUmVxdWVzdCI/ChNMaXN0RGFlbW9uc1Jlc3BvbnNlEigKB2RhZW1vbnMYASADKAsyFy5hZ2VudHMudjEuRGFlbW9uU3RhdHVzIi0KEEdldERhZW1vblJlcXVlc3QSGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkiPAoRR2V0RGFlbW9uUmVzcG9uc2USJwoGZGFlbW9uGAEgASgLMhcuYWdlbnRzLnYxLkRhZW1vblN0YXR1cyJFChdDYW5jZWxEYWVtb25UYXNrUmVxdWVzdBIPCgd0YXNrX2lkGAEgASgJEhkKEWRhZW1vbl9ydW50aW1lX2lkGAIgASgJIjUKGENhbmNlbERhZW1vblRhc2tSZXNwb25zZRIZChFkYWVtb25fcnVudGltZV9pZBgBIAEoCSIzChZMaXN0RGFlbW9uVGFza3NSZXF1ZXN0EhkKEWRhZW1vbl9ydW50aW1lX2lkGAEgASgJIkcKF0xpc3REYWVtb25UYXNrc1Jlc3BvbnNlEiwKBXRhc2tzGAEgAygLMh0uYWdlbnRzLnYxLkRhZW1vblRhc2tJbkZsaWdodCKYAgoSRGFlbW9uVGFza0luRmxpZ2h0Eg8KB3Rhc2tfaWQYASABKAkSGQoRZGFlbW9uX3J1bnRpbWVfaWQYAiABKAkSEwoLZGFlbW9uX25hbWUYAyABKAkSEwoLYWNwX3J1bnRpbWUYBCABKAkSLgoKc3RhcnRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKgoHZWxhcHNlZBgGIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIUCgxjdXJyZW50X3N0ZXAYByABKAkSEAoIcHJvZ3Jlc3MYCCABKAUSEgoKYWdlbnRfbmFtZRgJIAEoCRIUCgx3b3Jrc3BhY2VfaWQYCiABKAkiggQKDERhZW1vblN0YXR1cxIZChFkYWVtb25fcnVudGltZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhQKDGFjcF9ydW50aW1lcxgDIAMoCRIzCgZsYWJlbHMYBCADKAsyIy5hZ2VudHMudjEuRGFlbW9uU3RhdHVzLkxhYmVsc0VudHJ5EiwKBXN0YXRlGAUgASgOMh0uYWdlbnRzLnYxLkRhZW1vblN0YXR1cy5TdGF0ZRIwCgxjb25uZWN0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEikKBnVwdGltZRgHIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIUCgxhY3RpdmVfdGFza3MYCCABKAUSDwoHdmVyc2lvbhgJIAEoCRIKCgJvcxgKIAEoCRIRCglleGVjdXRvcnMYCyADKAkSEwoLcmVtb3RlX2FkZHIYDCABKAkSFAoMd29ya3NwYWNlX2lkGA0gASgJGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiUwoFU3RhdGUSFQoRU1RBVEVfVU5TUEVDSUZJRUQQABIQCgxTVEFURV9PTkxJTkUQARIOCgpTVEFURV9JRExFEAISEQoNU1RBVEVfT0ZGTElORRADIicKGUdldE1DUFNlcnZlclN0YXR1c1JlcXVlc3QSCgoCaWQYASABKAkiSAoaR2V0TUNQU2VydmVyU3RhdHVzUmVzcG9uc2USKgoGc3RhdHVzGAEgASgLMhouYWdlbnRzLnYxLk1DUFNlcnZlclN0YXR1cyIpChtHZXRSZW1vdGVBZ2VudFN0YXR1c1JlcXVlc3QSCgoCaWQYASABKAkiTAocR2V0UmVtb3RlQWdlbnRTdGF0dXNSZXNwb25zZRIsCgZzdGF0dXMYASABKAsyHC5hZ2VudHMudjEuUmVtb3RlQWdlbnRTdGF0dXMi+wIKEVJlbW90ZUFnZW50U3RhdHVzEgoKAmlkGAEgASgJEjAKCHByb3RvY29sGAIgASgOMh4uYWdlbnRzLnYxLlJlbW90ZUFnZW50UHJvdG9jb2wSMQoFc3RhdGUYAyABKA4yIi5hZ2VudHMudjEuUmVtb3RlQWdlbnRTdGF0dXMuU3RhdGUSDgoGZGV0YWlsGAQgASgJEiEKGXNlcnZpbmdfZGFlbW9uX3J1bnRpbWVfaWQYBSABKAkSLgoKY2hlY2tlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKbGF0ZW5jeV9tcxgHIAEoAyJ+CgVTdGF0ZRIVChFTVEFURV9VTlNQRUNJRklFRBAAEhQKEFNUQVRFX0NPTkZJR1VSRUQQARIQCgxTVEFURV9BQ1RJVkUQAhIOCgpTVEFURV9JRExFEAMSFQoRU1RBVEVfVU5SRUFDSEFCTEUQBBIPCgtTVEFURV9FUlJPUhAFIigKE0xpc3RNQ1BUb29sc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIqUBChRMaXN0TUNQVG9vbHNSZXNwb25zZRIhCgV0b29scxgBIAMoCzISLmFnZW50cy52MS5NQ1BUb29sEjsKBmVycm9ycxgCIAMoCzIrLmFnZW50cy52MS5MaXN0TUNQVG9vbHNSZXNwb25zZS5FcnJvcnNFbnRyeRotCgtFcnJvcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBImUKB01DUFRvb2wSDAoEbmFtZRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIRCglzZXJ2ZXJfaWQYAyABKAkSEwoLc2VydmVyX25hbWUYBCABKAkSDwoHYWxsb3dlZBgFIAEoCCKkAgoPTUNQU2VydmVyU3RhdHVzEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSLwoFc3RhdGUYAyABKA4yIC5hZ2VudHMudjEuTUNQU2VydmVyU3RhdHVzLlN0YXRlEhIKCnRvb2xfY291bnQYBCABKAUSDgoGZGV0YWlsGAUgASgJEi4KCmNoZWNrZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInIKBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASFAoQU1RBVEVfQ09ORklHVVJFRBABEhMKD1NUQVRFX0NPTk5FQ1RFRBACEhYKElNUQVRFX0RJU0NPTk5FQ1RFRBADEg8KC1NUQVRFX0VSUk9SEAQiJwoXR2V0Q2hhbm5lbFN0YXR1c1JlcXVlc3QSDAoEbmFtZRgBIAEoCSJEChhHZXRDaGFubmVsU3RhdHVzUmVzcG9uc2USKAoGc3RhdHVzGAEgASgLMhguYWdlbnRzLnYxLkNoYW5uZWxTdGF0dXMiqAIKDUNoYW5uZWxTdGF0dXMSDAoEbmFtZRgBIAEoCRIxCghwbGF0Zm9ybRgCIAEoDjIfLmFnZW50cy52MS5BZ2VudENoYW5uZWxQbGF0Zm9ybRItCgVzdGF0ZRgDIAEoDjIeLmFnZW50cy52MS5DaGFubmVsU3RhdHVzLlN0YXRlEjAKDGxhc3RfcG9sbF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGZGV0YWlsGAUgASgJImUKBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASDgoKU1RBVEVfTElWRRABEhAKDFNUQVRFX1BBVVNFRBACEhIKDlNUQVRFX0RJU0FCTEVEEAMSDwoLU1RBVEVfRVJST1IQBDK1AgoQRGFzaGJvYXJkU2VydmljZRJMCgtHZXRPdmVydmlldxIdLmFnZW50cy52MS5HZXRPdmVydmlld1JlcXVlc3QaHi5hZ2VudHMudjEuR2V0T3ZlcnZpZXdSZXNwb25zZRJYCg9HZXRBY3Rpdml0eUZlZWQSIS5hZ2VudHMudjEuR2V0QWN0aXZpdHlGZWVkUmVxdWVzdBoiLmFnZW50cy52MS5HZXRBY3Rpdml0eUZlZWRSZXNwb25zZRJ5ChpHZXRDcm9uRXhlY3V0aW9uVGltZXNlcmllcxIsLmFnZW50cy52MS5HZXRDcm9uRXhlY3V0aW9uVGltZXNlcmllc1JlcXVlc3QaLS5hZ2VudHMudjEuR2V0Q3JvbkV4ZWN1dGlvblRpbWVzZXJpZXNSZXNwb25zZTKsCAoNRGFlbW9uU2VydmljZRJhChJMaXN0RGFlbW9uUnVudGltZXMSJC5hZ2VudHMudjEuTGlzdERhZW1vblJ1bnRpbWVzUmVxdWVzdBolLmFnZW50cy52MS5MaXN0RGFlbW9uUnVudGltZXNSZXNwb25zZRJbChBHZXREYWVtb25SdW50aW1lEiIuYWdlbnRzLnYxLkdldERhZW1vblJ1bnRpbWVSZXF1ZXN0GiMuYWdlbnRzLnYxLkdldERhZW1vblJ1bnRpbWVSZXNwb25zZRJkChNDcmVhdGVEYWVtb25SdW50aW1lEiUuYWdlbnRzLnYxLkNyZWF0ZURhZW1vblJ1bnRpbWVSZXF1ZXN0GiYuYWdlbnRzLnYxLkNyZWF0ZURhZW1vblJ1bnRpbWVSZXNwb25zZRJkChNVcGRhdGVEYWVtb25SdW50aW1lEiUuYWdlbnRzLnYxLlVwZGF0ZURhZW1vblJ1bnRpbWVSZXF1ZXN0GiYuYWdlbnRzLnYxLlVwZGF0ZURhZW1vblJ1bnRpbWVSZXNwb25zZRJkChNEZWxldGVEYWVtb25SdW50aW1lEiUuYWdlbnRzLnYxLkRlbGV0ZURhZW1vblJ1bnRpbWVSZXF1ZXN0GiYuYWdlbnRzLnYxLkRlbGV0ZURhZW1vblJ1bnRpbWVSZXNwb25zZRJzChhDcmVhdGVEYWVtb25SdW50aW1lVG9rZW4SKi5hZ2VudHMudjEuQ3JlYXRlRGFlbW9uUnVudGltZVRva2VuUmVxdWVzdBorLmFnZW50cy52MS5DcmVhdGVEYWVtb25SdW50aW1lVG9rZW5SZXNwb25zZRJMCgtMaXN0RGFlbW9ucxIdLmFnZW50cy52MS5MaXN0RGFlbW9uc1JlcXVlc3QaHi5hZ2VudHMudjEuTGlzdERhZW1vbnNSZXNwb25zZRJGCglHZXREYWVtb24SGy5hZ2VudHMudjEuR2V0RGFlbW9uUmVxdWVzdBocLmFnZW50cy52MS5HZXREYWVtb25SZXNwb25zZRJbChBDYW5jZWxEYWVtb25UYXNrEiIuYWdlbnRzLnYxLkNhbmNlbERhZW1vblRhc2tSZXF1ZXN0GiMuYWdlbnRzLnYxLkNhbmNlbERhZW1vblRhc2tSZXNwb25zZRJYCg9MaXN0RGFlbW9uVGFza3MSIS5hZ2VudHMudjEuTGlzdERhZW1vblRhc2tzUmVxdWVzdBoiLmFnZW50cy52MS5MaXN0RGFlbW9uVGFza3NSZXNwb25zZRJnChRHZXRCcmlkZ2VEaWFnbm9zdGljcxImLmFnZW50cy52MS5HZXRCcmlkZ2VEaWFnbm9zdGljc1JlcXVlc3QaJy5hZ2VudHMudjEuR2V0QnJpZGdlRGlhZ25vc3RpY3NSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_agents_v1_agent, file_agents_v1_agentchannel, file_agents_v1_api_token, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("ChlhZ2VudHMvdjEvZGFzaGJvYXJkLnByb3RvEglhZ2VudHMudjEioQEKGUdldEFjdGl2aXR5TWV0cmljc1JlcXVlc3QSOQoFcmFuZ2UYASABKA4yKi5hZ2VudHMudjEuR2V0QWN0aXZpdHlNZXRyaWNzUmVxdWVzdC5SYW5nZSJJCgVSYW5nZRIVChFSQU5HRV9VTlNQRUNJRklFRBAAEgwKCFJBTkdFXzFEEAESDAoIUkFOR0VfN0QQAhINCglSQU5HRV8zMEQQAyLmAQoaR2V0QWN0aXZpdHlNZXRyaWNzUmVzcG9uc2USEgoKYWdlbnRfcnVucxgBIAEoBRIZChFhZ2VudF9ydW5zX2ZhaWxlZBgCIAEoBRIXCg9hdXRvbWF0aW9uX3J1bnMYAyABKAUSHgoWYXV0b21hdGlvbl9ydW5zX2ZhaWxlZBgEIAEoBRIwCgx3aW5kb3dfc3RhcnQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCndpbmRvd19lbmQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIsMBCiFHZXRDcm9uRXhlY3V0aW9uVGltZXNlcmllc1JlcXVlc3QSQQoFcmFuZ2UYASABKA4yMi5hZ2VudHMudjEuR2V0Q3JvbkV4ZWN1dGlvblRpbWVzZXJpZXNSZXF1ZXN0LlJhbmdlEhAKCGpvYl9uYW1lGAIgASgJIkkKBVJhbmdlEhUKEVJBTkdFX1VOU1BFQ0lGSUVEEAASDAoIUkFOR0VfMUQQARIMCghSQU5HRV83RBACEg0KCVJBTkdFXzMwRBADIlUKIkdldENyb25FeGVjdXRpb25UaW1lc2VyaWVzUmVzcG9uc2USLwoHYnVja2V0cxgBIAMoCzIeLmFnZW50cy52MS5Dcm9uRXhlY3V0aW9uQnVja2V0ImAKE0Nyb25FeGVjdXRpb25CdWNrZXQSKQoFc3RhcnQYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3N1Y2Nlc3MYAiABKAUSDQoFZXJyb3IYAyABKAUiOwoWR2V0QWN0aXZpdHlGZWVkUmVxdWVzdBINCgVsaW1pdBgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJIlwKF0dldEFjdGl2aXR5RmVlZFJlc3BvbnNlEigKBmV2ZW50cxgBIAMoCzIYLmFnZW50cy52MS5BY3Rpdml0eUV2ZW50EhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSJ4Cg1BY3Rpdml0eUV2ZW50EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSDQoFYWN0b3IYAyABKAkSDwoHbWVzc2FnZRgEIAEoCRItCgl0aW1lc3RhbXAYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIikKEkdldE92ZXJ2aWV3UmVxdWVzdBITCgtlbnZpcm9ubWVudBgBIAEoCSKnAQoTR2V0T3ZlcnZpZXdSZXNwb25zZRIpCgZjb3VudHMYASABKAsyGS5hZ2VudHMudjEuT3ZlcnZpZXdDb3VudHMSKAoGaGVhbHRoGAIgASgLMhguYWdlbnRzLnYxLkhlYWx0aFN1bW1hcnkSOwoXbGF0ZXN0X2RhZW1vbl9oYW5kc2hha2UYAyABKAsyGi5hZ2VudHMudjEuRGFlbW9uSGFuZHNoYWtlIqwBCg5PdmVydmlld0NvdW50cxIVCg1hY3RpdmVfYWdlbnRzGAEgASgFEhMKC21jcF9zZXJ2ZXJzGAIgASgFEhkKEWNvbm5lY3RlZF9kYWVtb25zGAMgASgFEhUKDXJlbW90ZV9hZ2VudHMYBCABKAUSEAoIY2hhbm5lbHMYBSABKAUSEQoJY3Jvbl9qb2JzGAYgASgFEhcKD2FjdGl2ZV9zZXNzaW9ucxgHIAEoBSKTAQoNSGVhbHRoU3VtbWFyeRIrCgdtb25nb2RiGAEgASgLMhouYWdlbnRzLnYxLkNvbXBvbmVudEhlYWx0aBIpCgVyZWRpcxgCIAEoCzIaLmFnZW50cy52MS5Db21wb25lbnRIZWFsdGgSKgoGcnVubmVyGAMgASgLMhouYWdlbnRzLnYxLkNvbXBvbmVudEhlYWx0aCL0AQoPQ29tcG9uZW50SGVhbHRoEjEKBnN0YXR1cxgBIAEoDjIhLmFnZW50cy52MS5Db21wb25lbnRIZWFsdGguU3RhdHVzEg4KBmRldGFpbBgCIAEoCRIuCgpjaGVja2VkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgpsYXRlbmN5X21zGAQgASgDIloKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABISCg5TVEFUVVNfSEVBTFRIWRABEhMKD1NUQVRVU19ERUdSQURFRBACEg8KC1NUQVRVU19ET1dOEAMijgEKD0RhZW1vbkhhbmRzaGFrZRIZChFkYWVtb25fcnVudGltZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhQKDGFjcF9ydW50aW1lcxgDIAMoCRIwCgxjb25uZWN0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgoKAm9zGAUgASgJIkgKG0dldEJyaWRnZURpYWdub3N0aWNzUmVxdWVzdBIpCgZ3aW5kb3cYASABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iUQocR2V0QnJpZGdlRGlhZ25vc3RpY3NSZXNwb25zZRIxCgtkaWFnbm9zdGljcxgBIAEoCzIcLmFnZW50cy52MS5CcmlkZ2VEaWFnbm9zdGljcyLNAQoRQnJpZGdlRGlhZ25vc3RpY3MSEwoLY3B1X3BlcmNlbnQYASABKAESGQoRbWVtb3J5X3VzZWRfYnl0ZXMYAiABKAMSGgoSbWVtb3J5X2xpbWl0X2J5dGVzGAMgASgDEhIKCmdvcm91dGluZXMYBCABKAUSLgoKY2hlY2tlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKAoHbGF0ZW5jeRgGIAMoCzIXLmFnZW50cy52MS5MYXRlbmN5UG9pbnQiUQoMTGF0ZW5jeVBvaW50Ei0KCXRpbWVzdGFtcBgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKbGF0ZW5jeV9tcxgCIAEoAyKZAgoNRGFlbW9uUnVudGltZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEjQKBmxhYmVscxgFIAMoCzIkLmFnZW50cy52MS5EYWVtb25SdW50aW1lLkxhYmVsc0VudHJ5Ei4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmNyZWF0ZWRfYnkYByABKAkSFAoMd29ya3NwYWNlX2lkGGQgASgJGi0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAFKBAgEEAVSFGFsbG93ZWRfY2FwYWJpbGl0aWVzIhsKGUxpc3REYWVtb25SdW50aW1lc1JlcXVlc3QiSAoaTGlzdERhZW1vblJ1bnRpbWVzUmVzcG9uc2USKgoIcnVudGltZXMYASADKAsyGC5hZ2VudHMudjEuRGFlbW9uUnVudGltZSIlChdHZXREYWVtb25SdW50aW1lUmVxdWVzdBIKCgJpZBgBIAEoCSJFChhHZXREYWVtb25SdW50aW1lUmVzcG9uc2USKQoHcnVudGltZRgBIAEoCzIYLmFnZW50cy52MS5EYWVtb25SdW50aW1lIkcKGkNyZWF0ZURhZW1vblJ1bnRpbWVSZXF1ZXN0EikKB3J1bnRpbWUYASABKAsyGC5hZ2VudHMudjEuRGFlbW9uUnVudGltZSJIChtDcmVhdGVEYWVtb25SdW50aW1lUmVzcG9uc2USKQoHcnVudGltZRgBIAEoCzIYLmFnZW50cy52MS5EYWVtb25SdW50aW1lIkcKGlVwZGF0ZURhZW1vblJ1bnRpbWVSZXF1ZXN0EikKB3J1bnRpbWUYASABKAsyGC5hZ2VudHMudjEuRGFlbW9uUnVudGltZSJIChtVcGRhdGVEYWVtb25SdW50aW1lUmVzcG9uc2USKQoHcnVudGltZRgBIAEoCzIYLmFnZW50cy52MS5EYWVtb25SdW50aW1lIigKGkRlbGV0ZURhZW1vblJ1bnRpbWVSZXF1ZXN0EgoKAmlkGAEgASgJIh0KG0RlbGV0ZURhZW1vblJ1bnRpbWVSZXNwb25zZSJyCh9DcmVhdGVEYWVtb25SdW50aW1lVG9rZW5SZXF1ZXN0EhkKEWRhZW1vbl9ydW50aW1lX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSJgoDdHRsGAMgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uIlYKIENyZWF0ZURhZW1vblJ1bnRpbWVUb2tlblJlc3BvbnNlEiIKBXRva2VuGAEgASgLMhMuYWdlbnRzLnYxLkFQSVRva2VuEg4KBnNlY3JldBgCIAEoCSIUChJMaXN0RGFlbW9uc1JlcXVlc3QiPwoTTGlzdERhZW1vbnNSZXNwb25zZRIoCgdkYWVtb25zGAEgAygLMhcuYWdlbnRzLnYxLkRhZW1vblN0YXR1cyItChBHZXREYWVtb25SZXF1ZXN0EhkKEWRhZW1vbl9ydW50aW1lX2lkGAEgASgJIjwKEUdldERhZW1vblJlc3BvbnNlEicKBmRhZW1vbhgBIAEoCzIXLmFnZW50cy52MS5EYWVtb25TdGF0dXMiRQoXQ2FuY2VsRGFlbW9uVGFza1JlcXVlc3QSDwoHdGFza19pZBgBIAEoCRIZChFkYWVtb25fcnVudGltZV9pZBgCIAEoCSI1ChhDYW5jZWxEYWVtb25UYXNrUmVzcG9uc2USGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkiMwoWTGlzdERhZW1vblRhc2tzUmVxdWVzdBIZChFkYWVtb25fcnVudGltZV9pZBgBIAEoCSJHChdMaXN0RGFlbW9uVGFza3NSZXNwb25zZRIsCgV0YXNrcxgBIAMoCzIdLmFnZW50cy52MS5EYWVtb25UYXNrSW5GbGlnaHQimAIKEkRhZW1vblRhc2tJbkZsaWdodBIPCgd0YXNrX2lkGAEgASgJEhkKEWRhZW1vbl9ydW50aW1lX2lkGAIgASgJEhMKC2RhZW1vbl9uYW1lGAMgASgJEhMKC2FjcF9ydW50aW1lGAQgASgJEi4KCnN0YXJ0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKB2VsYXBzZWQYBiABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SFAoMY3VycmVudF9zdGVwGAcgASgJEhAKCHByb2dyZXNzGAggASgFEhIKCmFnZW50X25hbWUYCSABKAkSFAoMd29ya3NwYWNlX2lkGAogASgJIoIECgxEYWVtb25TdGF0dXMSGQoRZGFlbW9uX3J1bnRpbWVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIUCgxhY3BfcnVudGltZXMYAyADKAkSMwoGbGFiZWxzGAQgAygLMiMuYWdlbnRzLnYxLkRhZW1vblN0YXR1cy5MYWJlbHNFbnRyeRIsCgVzdGF0ZRgFIAEoDjIdLmFnZW50cy52MS5EYWVtb25TdGF0dXMuU3RhdGUSMAoMY29ubmVjdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIpCgZ1cHRpbWUYByABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SFAoMYWN0aXZlX3Rhc2tzGAggASgFEg8KB3ZlcnNpb24YCSABKAkSCgoCb3MYCiABKAkSEQoJZXhlY3V0b3JzGAsgAygJEhMKC3JlbW90ZV9hZGRyGAwgASgJEhQKDHdvcmtzcGFjZV9pZBgNIAEoCRotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIlMKBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASEAoMU1RBVEVfT05MSU5FEAESDgoKU1RBVEVfSURMRRACEhEKDVNUQVRFX09GRkxJTkUQAyInChlHZXRNQ1BTZXJ2ZXJTdGF0dXNSZXF1ZXN0EgoKAmlkGAEgASgJIkgKGkdldE1DUFNlcnZlclN0YXR1c1Jlc3BvbnNlEioKBnN0YXR1cxgBIAEoCzIaLmFnZW50cy52MS5NQ1BTZXJ2ZXJTdGF0dXMiKQobR2V0UmVtb3RlQWdlbnRTdGF0dXNSZXF1ZXN0EgoKAmlkGAEgASgJIkwKHEdldFJlbW90ZUFnZW50U3RhdHVzUmVzcG9uc2USLAoGc3RhdHVzGAEgASgLMhwuYWdlbnRzLnYxLlJlbW90ZUFnZW50U3RhdHVzIvsCChFSZW1vdGVBZ2VudFN0YXR1cxIKCgJpZBgBIAEoCRIwCghwcm90b2NvbBgCIAEoDjIeLmFnZW50cy52MS5SZW1vdGVBZ2VudFByb3RvY29sEjEKBXN0YXRlGAMgASgOMiIuYWdlbnRzLnYxLlJlbW90ZUFnZW50U3RhdHVzLlN0YXRlEg4KBmRldGFpbBgEIAEoCRIhChlzZXJ2aW5nX2RhZW1vbl9ydW50aW1lX2lkGAUgASgJEi4KCmNoZWNrZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmxhdGVuY3lfbXMYByABKAMifgoFU3RhdGUSFQoRU1RBVEVfVU5TUEVDSUZJRUQQABIUChBTVEFURV9DT05GSUdVUkVEEAESEAoMU1RBVEVfQUNUSVZFEAISDgoKU1RBVEVfSURMRRADEhUKEVNUQVRFX1VOUkVBQ0hBQkxFEAQSDwoLU1RBVEVfRVJST1IQBSIoChNMaXN0TUNQVG9vbHNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSKlAQoUTGlzdE1DUFRvb2xzUmVzcG9uc2USIQoFdG9vbHMYASADKAsyEi5hZ2VudHMudjEuTUNQVG9vbBI7CgZlcnJvcnMYAiADKAsyKy5hZ2VudHMudjEuTGlzdE1DUFRvb2xzUmVzcG9uc2UuRXJyb3JzRW50cnkaLQoLRXJyb3JzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJlCgdNQ1BUb29sEgwKBG5hbWUYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSEQoJc2VydmVyX2lkGAMgASgJEhMKC3NlcnZlcl9uYW1lGAQgASgJEg8KB2FsbG93ZWQYBSABKAgipAIKD01DUFNlcnZlclN0YXR1cxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEi8KBXN0YXRlGAMgASgOMiAuYWdlbnRzLnYxLk1DUFNlcnZlclN0YXR1cy5TdGF0ZRISCgp0b29sX2NvdW50GAQgASgFEg4KBmRldGFpbBgFIAEoCRIuCgpjaGVja2VkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJyCgVTdGF0ZRIVChFTVEFURV9VTlNQRUNJRklFRBAAEhQKEFNUQVRFX0NPTkZJR1VSRUQQARITCg9TVEFURV9DT05ORUNURUQQAhIWChJTVEFURV9ESVNDT05ORUNURUQQAxIPCgtTVEFURV9FUlJPUhAEIicKF0dldENoYW5uZWxTdGF0dXNSZXF1ZXN0EgwKBG5hbWUYASABKAkiRAoYR2V0Q2hhbm5lbFN0YXR1c1Jlc3BvbnNlEigKBnN0YXR1cxgBIAEoCzIYLmFnZW50cy52MS5DaGFubmVsU3RhdHVzIqgCCg1DaGFubmVsU3RhdHVzEgwKBG5hbWUYASABKAkSMQoIcGxhdGZvcm0YAiABKA4yHy5hZ2VudHMudjEuQWdlbnRDaGFubmVsUGxhdGZvcm0SLQoFc3RhdGUYAyABKA4yHi5hZ2VudHMudjEuQ2hhbm5lbFN0YXR1cy5TdGF0ZRIwCgxsYXN0X3BvbGxfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRldGFpbBgFIAEoCSJlCgVTdGF0ZRIVChFTVEFURV9VTlNQRUNJRklFRBAAEg4KClNUQVRFX0xJVkUQARIQCgxTVEFURV9QQVVTRUQQAhISCg5TVEFURV9ESVNBQkxFRBADEg8KC1NUQVRFX0VSUk9SEAQymAMKEERhc2hib2FyZFNlcnZpY2USTAoLR2V0T3ZlcnZpZXcSHS5hZ2VudHMudjEuR2V0T3ZlcnZpZXdSZXF1ZXN0Gh4uYWdlbnRzLnYxLkdldE92ZXJ2aWV3UmVzcG9uc2USWAoPR2V0QWN0aXZpdHlGZWVkEiEuYWdlbnRzLnYxLkdldEFjdGl2aXR5RmVlZFJlcXVlc3QaIi5hZ2VudHMudjEuR2V0QWN0aXZpdHlGZWVkUmVzcG9uc2USeQoaR2V0Q3JvbkV4ZWN1dGlvblRpbWVzZXJpZXMSLC5hZ2VudHMudjEuR2V0Q3JvbkV4ZWN1dGlvblRpbWVzZXJpZXNSZXF1ZXN0Gi0uYWdlbnRzLnYxLkdldENyb25FeGVjdXRpb25UaW1lc2VyaWVzUmVzcG9uc2USYQoSR2V0QWN0aXZpdHlNZXRyaWNzEiQuYWdlbnRzLnYxLkdldEFjdGl2aXR5TWV0cmljc1JlcXVlc3QaJS5hZ2VudHMudjEuR2V0QWN0aXZpdHlNZXRyaWNzUmVzcG9uc2UyrAgKDURhZW1vblNlcnZpY2USYQoSTGlzdERhZW1vblJ1bnRpbWVzEiQuYWdlbnRzLnYxLkxpc3REYWVtb25SdW50aW1lc1JlcXVlc3QaJS5hZ2VudHMudjEuTGlzdERhZW1vblJ1bnRpbWVzUmVzcG9uc2USWwoQR2V0RGFlbW9uUnVudGltZRIiLmFnZW50cy52MS5HZXREYWVtb25SdW50aW1lUmVxdWVzdBojLmFnZW50cy52MS5HZXREYWVtb25SdW50aW1lUmVzcG9uc2USZAoTQ3JlYXRlRGFlbW9uUnVudGltZRIlLmFnZW50cy52MS5DcmVhdGVEYWVtb25SdW50aW1lUmVxdWVzdBomLmFnZW50cy52MS5DcmVhdGVEYWVtb25SdW50aW1lUmVzcG9uc2USZAoTVXBkYXRlRGFlbW9uUnVudGltZRIlLmFnZW50cy52MS5VcGRhdGVEYWVtb25SdW50aW1lUmVxdWVzdBomLmFnZW50cy52MS5VcGRhdGVEYWVtb25SdW50aW1lUmVzcG9uc2USZAoTRGVsZXRlRGFlbW9uUnVudGltZRIlLmFnZW50cy52MS5EZWxldGVEYWVtb25SdW50aW1lUmVxdWVzdBomLmFnZW50cy52MS5EZWxldGVEYWVtb25SdW50aW1lUmVzcG9uc2UScwoYQ3JlYXRlRGFlbW9uUnVudGltZVRva2VuEiouYWdlbnRzLnYxLkNyZWF0ZURhZW1vblJ1bnRpbWVUb2tlblJlcXVlc3QaKy5hZ2VudHMudjEuQ3JlYXRlRGFlbW9uUnVudGltZVRva2VuUmVzcG9uc2USTAoLTGlzdERhZW1vbnMSHS5hZ2VudHMudjEuTGlzdERhZW1vbnNSZXF1ZXN0Gh4uYWdlbnRzLnYxLkxpc3REYWVtb25zUmVzcG9uc2USRgoJR2V0RGFlbW9uEhsuYWdlbnRzLnYxLkdldERhZW1vblJlcXVlc3QaHC5hZ2VudHMudjEuR2V0RGFlbW9uUmVzcG9uc2USWwoQQ2FuY2VsRGFlbW9uVGFzaxIiLmFnZW50cy52MS5DYW5jZWxEYWVtb25UYXNrUmVxdWVzdBojLmFnZW50cy52MS5DYW5jZWxEYWVtb25UYXNrUmVzcG9uc2USWAoPTGlzdERhZW1vblRhc2tzEiEuYWdlbnRzLnYxLkxpc3REYWVtb25UYXNrc1JlcXVlc3QaIi5hZ2VudHMudjEuTGlzdERhZW1vblRhc2tzUmVzcG9uc2USZwoUR2V0QnJpZGdlRGlhZ25vc3RpY3MSJi5hZ2VudHMudjEuR2V0QnJpZGdlRGlhZ25vc3RpY3NSZXF1ZXN0GicuYWdlbnRzLnYxLkdldEJyaWRnZURpYWdub3N0aWNzUmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_agents_v1_agent, file_agents_v1_agentchannel, file_agents_v1_api_token, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+
+/**
+ * @generated from message agents.v1.GetActivityMetricsRequest
+ */
+export type GetActivityMetricsRequest = Message<"agents.v1.GetActivityMetricsRequest"> & {
+  /**
+   * Rolling window the counts cover. Unspecified is treated as RANGE_7D.
+   *
+   * @generated from field: agents.v1.GetActivityMetricsRequest.Range range = 1;
+   */
+  range: GetActivityMetricsRequest_Range;
+};
+
+/**
+ * Describes the message agents.v1.GetActivityMetricsRequest.
+ * Use `create(GetActivityMetricsRequestSchema)` to create a new message.
+ */
+export const GetActivityMetricsRequestSchema: GenMessage<GetActivityMetricsRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_dashboard, 0);
+
+/**
+ * @generated from enum agents.v1.GetActivityMetricsRequest.Range
+ */
+export enum GetActivityMetricsRequest_Range {
+  /**
+   * @generated from enum value: RANGE_UNSPECIFIED = 0;
+   */
+  RANGE_UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RANGE_1D = 1;
+   */
+  RANGE_1D = 1,
+
+  /**
+   * @generated from enum value: RANGE_7D = 2;
+   */
+  RANGE_7D = 2,
+
+  /**
+   * @generated from enum value: RANGE_30D = 3;
+   */
+  RANGE_30D = 3,
+}
+
+/**
+ * Describes the enum agents.v1.GetActivityMetricsRequest.Range.
+ */
+export const GetActivityMetricsRequest_RangeSchema: GenEnum<GetActivityMetricsRequest_Range> = /*@__PURE__*/
+  enumDesc(file_agents_v1_dashboard, 0, 0);
+
+/**
+ * @generated from message agents.v1.GetActivityMetricsResponse
+ */
+export type GetActivityMetricsResponse = Message<"agents.v1.GetActivityMetricsResponse"> & {
+  /**
+   * Agent invocations that started within the window (across all workspaces).
+   *
+   * @generated from field: int32 agent_runs = 1;
+   */
+  agentRuns: number;
+
+  /**
+   * Subset of agent_runs that ended in failure.
+   *
+   * @generated from field: int32 agent_runs_failed = 2;
+   */
+  agentRunsFailed: number;
+
+  /**
+   * Cron / automation executions that started within the window.
+   *
+   * @generated from field: int32 automation_runs = 3;
+   */
+  automationRuns: number;
+
+  /**
+   * Subset of automation_runs that ended in error.
+   *
+   * @generated from field: int32 automation_runs_failed = 4;
+   */
+  automationRunsFailed: number;
+
+  /**
+   * Half-open window [window_start, window_end) the counts cover.
+   *
+   * @generated from field: google.protobuf.Timestamp window_start = 5;
+   */
+  windowStart?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp window_end = 6;
+   */
+  windowEnd?: Timestamp;
+};
+
+/**
+ * Describes the message agents.v1.GetActivityMetricsResponse.
+ * Use `create(GetActivityMetricsResponseSchema)` to create a new message.
+ */
+export const GetActivityMetricsResponseSchema: GenMessage<GetActivityMetricsResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_dashboard, 1);
 
 /**
  * @generated from message agents.v1.GetCronExecutionTimeseriesRequest
@@ -42,7 +144,7 @@ export type GetCronExecutionTimeseriesRequest = Message<"agents.v1.GetCronExecut
  * Use `create(GetCronExecutionTimeseriesRequestSchema)` to create a new message.
  */
 export const GetCronExecutionTimeseriesRequestSchema: GenMessage<GetCronExecutionTimeseriesRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 0);
+  messageDesc(file_agents_v1_dashboard, 2);
 
 /**
  * @generated from enum agents.v1.GetCronExecutionTimeseriesRequest.Range
@@ -73,7 +175,7 @@ export enum GetCronExecutionTimeseriesRequest_Range {
  * Describes the enum agents.v1.GetCronExecutionTimeseriesRequest.Range.
  */
 export const GetCronExecutionTimeseriesRequest_RangeSchema: GenEnum<GetCronExecutionTimeseriesRequest_Range> = /*@__PURE__*/
-  enumDesc(file_agents_v1_dashboard, 0, 0);
+  enumDesc(file_agents_v1_dashboard, 2, 0);
 
 /**
  * @generated from message agents.v1.GetCronExecutionTimeseriesResponse
@@ -92,7 +194,7 @@ export type GetCronExecutionTimeseriesResponse = Message<"agents.v1.GetCronExecu
  * Use `create(GetCronExecutionTimeseriesResponseSchema)` to create a new message.
  */
 export const GetCronExecutionTimeseriesResponseSchema: GenMessage<GetCronExecutionTimeseriesResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 1);
+  messageDesc(file_agents_v1_dashboard, 3);
 
 /**
  * @generated from message agents.v1.CronExecutionBucket
@@ -119,7 +221,7 @@ export type CronExecutionBucket = Message<"agents.v1.CronExecutionBucket"> & {
  * Use `create(CronExecutionBucketSchema)` to create a new message.
  */
 export const CronExecutionBucketSchema: GenMessage<CronExecutionBucket> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 2);
+  messageDesc(file_agents_v1_dashboard, 4);
 
 /**
  * @generated from message agents.v1.GetActivityFeedRequest
@@ -145,7 +247,7 @@ export type GetActivityFeedRequest = Message<"agents.v1.GetActivityFeedRequest">
  * Use `create(GetActivityFeedRequestSchema)` to create a new message.
  */
 export const GetActivityFeedRequestSchema: GenMessage<GetActivityFeedRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 3);
+  messageDesc(file_agents_v1_dashboard, 5);
 
 /**
  * @generated from message agents.v1.GetActivityFeedResponse
@@ -167,7 +269,7 @@ export type GetActivityFeedResponse = Message<"agents.v1.GetActivityFeedResponse
  * Use `create(GetActivityFeedResponseSchema)` to create a new message.
  */
 export const GetActivityFeedResponseSchema: GenMessage<GetActivityFeedResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 4);
+  messageDesc(file_agents_v1_dashboard, 6);
 
 /**
  * @generated from message agents.v1.ActivityEvent
@@ -210,7 +312,7 @@ export type ActivityEvent = Message<"agents.v1.ActivityEvent"> & {
  * Use `create(ActivityEventSchema)` to create a new message.
  */
 export const ActivityEventSchema: GenMessage<ActivityEvent> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 5);
+  messageDesc(file_agents_v1_dashboard, 7);
 
 /**
  * @generated from message agents.v1.GetOverviewRequest
@@ -230,7 +332,7 @@ export type GetOverviewRequest = Message<"agents.v1.GetOverviewRequest"> & {
  * Use `create(GetOverviewRequestSchema)` to create a new message.
  */
 export const GetOverviewRequestSchema: GenMessage<GetOverviewRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 6);
+  messageDesc(file_agents_v1_dashboard, 8);
 
 /**
  * @generated from message agents.v1.GetOverviewResponse
@@ -257,7 +359,7 @@ export type GetOverviewResponse = Message<"agents.v1.GetOverviewResponse"> & {
  * Use `create(GetOverviewResponseSchema)` to create a new message.
  */
 export const GetOverviewResponseSchema: GenMessage<GetOverviewResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 7);
+  messageDesc(file_agents_v1_dashboard, 9);
 
 /**
  * @generated from message agents.v1.OverviewCounts
@@ -307,7 +409,7 @@ export type OverviewCounts = Message<"agents.v1.OverviewCounts"> & {
  * Use `create(OverviewCountsSchema)` to create a new message.
  */
 export const OverviewCountsSchema: GenMessage<OverviewCounts> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 8);
+  messageDesc(file_agents_v1_dashboard, 10);
 
 /**
  * @generated from message agents.v1.HealthSummary
@@ -334,7 +436,7 @@ export type HealthSummary = Message<"agents.v1.HealthSummary"> & {
  * Use `create(HealthSummarySchema)` to create a new message.
  */
 export const HealthSummarySchema: GenMessage<HealthSummary> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 9);
+  messageDesc(file_agents_v1_dashboard, 11);
 
 /**
  * @generated from message agents.v1.ComponentHealth
@@ -366,7 +468,7 @@ export type ComponentHealth = Message<"agents.v1.ComponentHealth"> & {
  * Use `create(ComponentHealthSchema)` to create a new message.
  */
 export const ComponentHealthSchema: GenMessage<ComponentHealth> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 10);
+  messageDesc(file_agents_v1_dashboard, 12);
 
 /**
  * @generated from enum agents.v1.ComponentHealth.Status
@@ -397,7 +499,7 @@ export enum ComponentHealth_Status {
  * Describes the enum agents.v1.ComponentHealth.Status.
  */
 export const ComponentHealth_StatusSchema: GenEnum<ComponentHealth_Status> = /*@__PURE__*/
-  enumDesc(file_agents_v1_dashboard, 10, 0);
+  enumDesc(file_agents_v1_dashboard, 12, 0);
 
 /**
  * @generated from message agents.v1.DaemonHandshake
@@ -436,7 +538,7 @@ export type DaemonHandshake = Message<"agents.v1.DaemonHandshake"> & {
  * Use `create(DaemonHandshakeSchema)` to create a new message.
  */
 export const DaemonHandshakeSchema: GenMessage<DaemonHandshake> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 11);
+  messageDesc(file_agents_v1_dashboard, 13);
 
 /**
  * @generated from message agents.v1.GetBridgeDiagnosticsRequest
@@ -456,7 +558,7 @@ export type GetBridgeDiagnosticsRequest = Message<"agents.v1.GetBridgeDiagnostic
  * Use `create(GetBridgeDiagnosticsRequestSchema)` to create a new message.
  */
 export const GetBridgeDiagnosticsRequestSchema: GenMessage<GetBridgeDiagnosticsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 12);
+  messageDesc(file_agents_v1_dashboard, 14);
 
 /**
  * @generated from message agents.v1.GetBridgeDiagnosticsResponse
@@ -473,7 +575,7 @@ export type GetBridgeDiagnosticsResponse = Message<"agents.v1.GetBridgeDiagnosti
  * Use `create(GetBridgeDiagnosticsResponseSchema)` to create a new message.
  */
 export const GetBridgeDiagnosticsResponseSchema: GenMessage<GetBridgeDiagnosticsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 13);
+  messageDesc(file_agents_v1_dashboard, 15);
 
 /**
  * @generated from message agents.v1.BridgeDiagnostics
@@ -519,7 +621,7 @@ export type BridgeDiagnostics = Message<"agents.v1.BridgeDiagnostics"> & {
  * Use `create(BridgeDiagnosticsSchema)` to create a new message.
  */
 export const BridgeDiagnosticsSchema: GenMessage<BridgeDiagnostics> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 14);
+  messageDesc(file_agents_v1_dashboard, 16);
 
 /**
  * @generated from message agents.v1.LatencyPoint
@@ -541,7 +643,7 @@ export type LatencyPoint = Message<"agents.v1.LatencyPoint"> & {
  * Use `create(LatencyPointSchema)` to create a new message.
  */
 export const LatencyPointSchema: GenMessage<LatencyPoint> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 15);
+  messageDesc(file_agents_v1_dashboard, 17);
 
 /**
  * @generated from message agents.v1.DaemonRuntime
@@ -590,7 +692,7 @@ export type DaemonRuntime = Message<"agents.v1.DaemonRuntime"> & {
  * Use `create(DaemonRuntimeSchema)` to create a new message.
  */
 export const DaemonRuntimeSchema: GenMessage<DaemonRuntime> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 16);
+  messageDesc(file_agents_v1_dashboard, 18);
 
 /**
  * @generated from message agents.v1.ListDaemonRuntimesRequest
@@ -603,7 +705,7 @@ export type ListDaemonRuntimesRequest = Message<"agents.v1.ListDaemonRuntimesReq
  * Use `create(ListDaemonRuntimesRequestSchema)` to create a new message.
  */
 export const ListDaemonRuntimesRequestSchema: GenMessage<ListDaemonRuntimesRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 17);
+  messageDesc(file_agents_v1_dashboard, 19);
 
 /**
  * @generated from message agents.v1.ListDaemonRuntimesResponse
@@ -620,7 +722,7 @@ export type ListDaemonRuntimesResponse = Message<"agents.v1.ListDaemonRuntimesRe
  * Use `create(ListDaemonRuntimesResponseSchema)` to create a new message.
  */
 export const ListDaemonRuntimesResponseSchema: GenMessage<ListDaemonRuntimesResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 18);
+  messageDesc(file_agents_v1_dashboard, 20);
 
 /**
  * @generated from message agents.v1.GetDaemonRuntimeRequest
@@ -637,7 +739,7 @@ export type GetDaemonRuntimeRequest = Message<"agents.v1.GetDaemonRuntimeRequest
  * Use `create(GetDaemonRuntimeRequestSchema)` to create a new message.
  */
 export const GetDaemonRuntimeRequestSchema: GenMessage<GetDaemonRuntimeRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 19);
+  messageDesc(file_agents_v1_dashboard, 21);
 
 /**
  * @generated from message agents.v1.GetDaemonRuntimeResponse
@@ -654,7 +756,7 @@ export type GetDaemonRuntimeResponse = Message<"agents.v1.GetDaemonRuntimeRespon
  * Use `create(GetDaemonRuntimeResponseSchema)` to create a new message.
  */
 export const GetDaemonRuntimeResponseSchema: GenMessage<GetDaemonRuntimeResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 20);
+  messageDesc(file_agents_v1_dashboard, 22);
 
 /**
  * @generated from message agents.v1.CreateDaemonRuntimeRequest
@@ -671,7 +773,7 @@ export type CreateDaemonRuntimeRequest = Message<"agents.v1.CreateDaemonRuntimeR
  * Use `create(CreateDaemonRuntimeRequestSchema)` to create a new message.
  */
 export const CreateDaemonRuntimeRequestSchema: GenMessage<CreateDaemonRuntimeRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 21);
+  messageDesc(file_agents_v1_dashboard, 23);
 
 /**
  * @generated from message agents.v1.CreateDaemonRuntimeResponse
@@ -688,7 +790,7 @@ export type CreateDaemonRuntimeResponse = Message<"agents.v1.CreateDaemonRuntime
  * Use `create(CreateDaemonRuntimeResponseSchema)` to create a new message.
  */
 export const CreateDaemonRuntimeResponseSchema: GenMessage<CreateDaemonRuntimeResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 22);
+  messageDesc(file_agents_v1_dashboard, 24);
 
 /**
  * @generated from message agents.v1.UpdateDaemonRuntimeRequest
@@ -705,7 +807,7 @@ export type UpdateDaemonRuntimeRequest = Message<"agents.v1.UpdateDaemonRuntimeR
  * Use `create(UpdateDaemonRuntimeRequestSchema)` to create a new message.
  */
 export const UpdateDaemonRuntimeRequestSchema: GenMessage<UpdateDaemonRuntimeRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 23);
+  messageDesc(file_agents_v1_dashboard, 25);
 
 /**
  * @generated from message agents.v1.UpdateDaemonRuntimeResponse
@@ -722,7 +824,7 @@ export type UpdateDaemonRuntimeResponse = Message<"agents.v1.UpdateDaemonRuntime
  * Use `create(UpdateDaemonRuntimeResponseSchema)` to create a new message.
  */
 export const UpdateDaemonRuntimeResponseSchema: GenMessage<UpdateDaemonRuntimeResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 24);
+  messageDesc(file_agents_v1_dashboard, 26);
 
 /**
  * @generated from message agents.v1.DeleteDaemonRuntimeRequest
@@ -739,7 +841,7 @@ export type DeleteDaemonRuntimeRequest = Message<"agents.v1.DeleteDaemonRuntimeR
  * Use `create(DeleteDaemonRuntimeRequestSchema)` to create a new message.
  */
 export const DeleteDaemonRuntimeRequestSchema: GenMessage<DeleteDaemonRuntimeRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 25);
+  messageDesc(file_agents_v1_dashboard, 27);
 
 /**
  * @generated from message agents.v1.DeleteDaemonRuntimeResponse
@@ -752,7 +854,7 @@ export type DeleteDaemonRuntimeResponse = Message<"agents.v1.DeleteDaemonRuntime
  * Use `create(DeleteDaemonRuntimeResponseSchema)` to create a new message.
  */
 export const DeleteDaemonRuntimeResponseSchema: GenMessage<DeleteDaemonRuntimeResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 26);
+  messageDesc(file_agents_v1_dashboard, 28);
 
 /**
  * @generated from message agents.v1.CreateDaemonRuntimeTokenRequest
@@ -779,7 +881,7 @@ export type CreateDaemonRuntimeTokenRequest = Message<"agents.v1.CreateDaemonRun
  * Use `create(CreateDaemonRuntimeTokenRequestSchema)` to create a new message.
  */
 export const CreateDaemonRuntimeTokenRequestSchema: GenMessage<CreateDaemonRuntimeTokenRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 27);
+  messageDesc(file_agents_v1_dashboard, 29);
 
 /**
  * @generated from message agents.v1.CreateDaemonRuntimeTokenResponse
@@ -801,7 +903,7 @@ export type CreateDaemonRuntimeTokenResponse = Message<"agents.v1.CreateDaemonRu
  * Use `create(CreateDaemonRuntimeTokenResponseSchema)` to create a new message.
  */
 export const CreateDaemonRuntimeTokenResponseSchema: GenMessage<CreateDaemonRuntimeTokenResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 28);
+  messageDesc(file_agents_v1_dashboard, 30);
 
 /**
  * @generated from message agents.v1.ListDaemonsRequest
@@ -814,7 +916,7 @@ export type ListDaemonsRequest = Message<"agents.v1.ListDaemonsRequest"> & {
  * Use `create(ListDaemonsRequestSchema)` to create a new message.
  */
 export const ListDaemonsRequestSchema: GenMessage<ListDaemonsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 29);
+  messageDesc(file_agents_v1_dashboard, 31);
 
 /**
  * @generated from message agents.v1.ListDaemonsResponse
@@ -831,7 +933,7 @@ export type ListDaemonsResponse = Message<"agents.v1.ListDaemonsResponse"> & {
  * Use `create(ListDaemonsResponseSchema)` to create a new message.
  */
 export const ListDaemonsResponseSchema: GenMessage<ListDaemonsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 30);
+  messageDesc(file_agents_v1_dashboard, 32);
 
 /**
  * @generated from message agents.v1.GetDaemonRequest
@@ -848,7 +950,7 @@ export type GetDaemonRequest = Message<"agents.v1.GetDaemonRequest"> & {
  * Use `create(GetDaemonRequestSchema)` to create a new message.
  */
 export const GetDaemonRequestSchema: GenMessage<GetDaemonRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 31);
+  messageDesc(file_agents_v1_dashboard, 33);
 
 /**
  * @generated from message agents.v1.GetDaemonResponse
@@ -865,7 +967,7 @@ export type GetDaemonResponse = Message<"agents.v1.GetDaemonResponse"> & {
  * Use `create(GetDaemonResponseSchema)` to create a new message.
  */
 export const GetDaemonResponseSchema: GenMessage<GetDaemonResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 32);
+  messageDesc(file_agents_v1_dashboard, 34);
 
 /**
  * @generated from message agents.v1.CancelDaemonTaskRequest
@@ -891,7 +993,7 @@ export type CancelDaemonTaskRequest = Message<"agents.v1.CancelDaemonTaskRequest
  * Use `create(CancelDaemonTaskRequestSchema)` to create a new message.
  */
 export const CancelDaemonTaskRequestSchema: GenMessage<CancelDaemonTaskRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 33);
+  messageDesc(file_agents_v1_dashboard, 35);
 
 /**
  * @generated from message agents.v1.CancelDaemonTaskResponse
@@ -910,7 +1012,7 @@ export type CancelDaemonTaskResponse = Message<"agents.v1.CancelDaemonTaskRespon
  * Use `create(CancelDaemonTaskResponseSchema)` to create a new message.
  */
 export const CancelDaemonTaskResponseSchema: GenMessage<CancelDaemonTaskResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 34);
+  messageDesc(file_agents_v1_dashboard, 36);
 
 /**
  * @generated from message agents.v1.ListDaemonTasksRequest
@@ -929,7 +1031,7 @@ export type ListDaemonTasksRequest = Message<"agents.v1.ListDaemonTasksRequest">
  * Use `create(ListDaemonTasksRequestSchema)` to create a new message.
  */
 export const ListDaemonTasksRequestSchema: GenMessage<ListDaemonTasksRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 35);
+  messageDesc(file_agents_v1_dashboard, 37);
 
 /**
  * @generated from message agents.v1.ListDaemonTasksResponse
@@ -946,7 +1048,7 @@ export type ListDaemonTasksResponse = Message<"agents.v1.ListDaemonTasksResponse
  * Use `create(ListDaemonTasksResponseSchema)` to create a new message.
  */
 export const ListDaemonTasksResponseSchema: GenMessage<ListDaemonTasksResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 36);
+  messageDesc(file_agents_v1_dashboard, 38);
 
 /**
  * @generated from message agents.v1.DaemonTaskInFlight
@@ -1018,7 +1120,7 @@ export type DaemonTaskInFlight = Message<"agents.v1.DaemonTaskInFlight"> & {
  * Use `create(DaemonTaskInFlightSchema)` to create a new message.
  */
 export const DaemonTaskInFlightSchema: GenMessage<DaemonTaskInFlight> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 37);
+  messageDesc(file_agents_v1_dashboard, 39);
 
 /**
  * @generated from message agents.v1.DaemonStatus
@@ -1099,7 +1201,7 @@ export type DaemonStatus = Message<"agents.v1.DaemonStatus"> & {
  * Use `create(DaemonStatusSchema)` to create a new message.
  */
 export const DaemonStatusSchema: GenMessage<DaemonStatus> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 38);
+  messageDesc(file_agents_v1_dashboard, 40);
 
 /**
  * @generated from enum agents.v1.DaemonStatus.State
@@ -1130,7 +1232,7 @@ export enum DaemonStatus_State {
  * Describes the enum agents.v1.DaemonStatus.State.
  */
 export const DaemonStatus_StateSchema: GenEnum<DaemonStatus_State> = /*@__PURE__*/
-  enumDesc(file_agents_v1_dashboard, 38, 0);
+  enumDesc(file_agents_v1_dashboard, 40, 0);
 
 /**
  * @generated from message agents.v1.GetMCPServerStatusRequest
@@ -1147,7 +1249,7 @@ export type GetMCPServerStatusRequest = Message<"agents.v1.GetMCPServerStatusReq
  * Use `create(GetMCPServerStatusRequestSchema)` to create a new message.
  */
 export const GetMCPServerStatusRequestSchema: GenMessage<GetMCPServerStatusRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 39);
+  messageDesc(file_agents_v1_dashboard, 41);
 
 /**
  * @generated from message agents.v1.GetMCPServerStatusResponse
@@ -1164,7 +1266,7 @@ export type GetMCPServerStatusResponse = Message<"agents.v1.GetMCPServerStatusRe
  * Use `create(GetMCPServerStatusResponseSchema)` to create a new message.
  */
 export const GetMCPServerStatusResponseSchema: GenMessage<GetMCPServerStatusResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 40);
+  messageDesc(file_agents_v1_dashboard, 42);
 
 /**
  * @generated from message agents.v1.GetRemoteAgentStatusRequest
@@ -1181,7 +1283,7 @@ export type GetRemoteAgentStatusRequest = Message<"agents.v1.GetRemoteAgentStatu
  * Use `create(GetRemoteAgentStatusRequestSchema)` to create a new message.
  */
 export const GetRemoteAgentStatusRequestSchema: GenMessage<GetRemoteAgentStatusRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 41);
+  messageDesc(file_agents_v1_dashboard, 43);
 
 /**
  * @generated from message agents.v1.GetRemoteAgentStatusResponse
@@ -1198,7 +1300,7 @@ export type GetRemoteAgentStatusResponse = Message<"agents.v1.GetRemoteAgentStat
  * Use `create(GetRemoteAgentStatusResponseSchema)` to create a new message.
  */
 export const GetRemoteAgentStatusResponseSchema: GenMessage<GetRemoteAgentStatusResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 42);
+  messageDesc(file_agents_v1_dashboard, 44);
 
 /**
  * @generated from message agents.v1.RemoteAgentStatus
@@ -1248,7 +1350,7 @@ export type RemoteAgentStatus = Message<"agents.v1.RemoteAgentStatus"> & {
  * Use `create(RemoteAgentStatusSchema)` to create a new message.
  */
 export const RemoteAgentStatusSchema: GenMessage<RemoteAgentStatus> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 43);
+  messageDesc(file_agents_v1_dashboard, 45);
 
 /**
  * @generated from enum agents.v1.RemoteAgentStatus.State
@@ -1289,7 +1391,7 @@ export enum RemoteAgentStatus_State {
  * Describes the enum agents.v1.RemoteAgentStatus.State.
  */
 export const RemoteAgentStatus_StateSchema: GenEnum<RemoteAgentStatus_State> = /*@__PURE__*/
-  enumDesc(file_agents_v1_dashboard, 43, 0);
+  enumDesc(file_agents_v1_dashboard, 45, 0);
 
 /**
  * @generated from message agents.v1.ListMCPToolsRequest
@@ -1308,7 +1410,7 @@ export type ListMCPToolsRequest = Message<"agents.v1.ListMCPToolsRequest"> & {
  * Use `create(ListMCPToolsRequestSchema)` to create a new message.
  */
 export const ListMCPToolsRequestSchema: GenMessage<ListMCPToolsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 44);
+  messageDesc(file_agents_v1_dashboard, 46);
 
 /**
  * @generated from message agents.v1.ListMCPToolsResponse
@@ -1332,7 +1434,7 @@ export type ListMCPToolsResponse = Message<"agents.v1.ListMCPToolsResponse"> & {
  * Use `create(ListMCPToolsResponseSchema)` to create a new message.
  */
 export const ListMCPToolsResponseSchema: GenMessage<ListMCPToolsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 45);
+  messageDesc(file_agents_v1_dashboard, 47);
 
 /**
  * @generated from message agents.v1.MCPTool
@@ -1371,7 +1473,7 @@ export type MCPTool = Message<"agents.v1.MCPTool"> & {
  * Use `create(MCPToolSchema)` to create a new message.
  */
 export const MCPToolSchema: GenMessage<MCPTool> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 46);
+  messageDesc(file_agents_v1_dashboard, 48);
 
 /**
  * @generated from message agents.v1.MCPServerStatus
@@ -1416,7 +1518,7 @@ export type MCPServerStatus = Message<"agents.v1.MCPServerStatus"> & {
  * Use `create(MCPServerStatusSchema)` to create a new message.
  */
 export const MCPServerStatusSchema: GenMessage<MCPServerStatus> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 47);
+  messageDesc(file_agents_v1_dashboard, 49);
 
 /**
  * @generated from enum agents.v1.MCPServerStatus.State
@@ -1452,7 +1554,7 @@ export enum MCPServerStatus_State {
  * Describes the enum agents.v1.MCPServerStatus.State.
  */
 export const MCPServerStatus_StateSchema: GenEnum<MCPServerStatus_State> = /*@__PURE__*/
-  enumDesc(file_agents_v1_dashboard, 47, 0);
+  enumDesc(file_agents_v1_dashboard, 49, 0);
 
 /**
  * @generated from message agents.v1.GetChannelStatusRequest
@@ -1469,7 +1571,7 @@ export type GetChannelStatusRequest = Message<"agents.v1.GetChannelStatusRequest
  * Use `create(GetChannelStatusRequestSchema)` to create a new message.
  */
 export const GetChannelStatusRequestSchema: GenMessage<GetChannelStatusRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 48);
+  messageDesc(file_agents_v1_dashboard, 50);
 
 /**
  * @generated from message agents.v1.GetChannelStatusResponse
@@ -1486,7 +1588,7 @@ export type GetChannelStatusResponse = Message<"agents.v1.GetChannelStatusRespon
  * Use `create(GetChannelStatusResponseSchema)` to create a new message.
  */
 export const GetChannelStatusResponseSchema: GenMessage<GetChannelStatusResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 49);
+  messageDesc(file_agents_v1_dashboard, 51);
 
 /**
  * @generated from message agents.v1.ChannelStatus
@@ -1523,7 +1625,7 @@ export type ChannelStatus = Message<"agents.v1.ChannelStatus"> & {
  * Use `create(ChannelStatusSchema)` to create a new message.
  */
 export const ChannelStatusSchema: GenMessage<ChannelStatus> = /*@__PURE__*/
-  messageDesc(file_agents_v1_dashboard, 50);
+  messageDesc(file_agents_v1_dashboard, 52);
 
 /**
  * @generated from enum agents.v1.ChannelStatus.State
@@ -1559,7 +1661,7 @@ export enum ChannelStatus_State {
  * Describes the enum agents.v1.ChannelStatus.State.
  */
 export const ChannelStatus_StateSchema: GenEnum<ChannelStatus_State> = /*@__PURE__*/
-  enumDesc(file_agents_v1_dashboard, 50, 0);
+  enumDesc(file_agents_v1_dashboard, 52, 0);
 
 /**
  * @generated from service agents.v1.DashboardService
@@ -1597,6 +1699,17 @@ export const DashboardService: GenService<{
     methodKind: "unary";
     input: typeof GetCronExecutionTimeseriesRequestSchema;
     output: typeof GetCronExecutionTimeseriesResponseSchema;
+  },
+  /**
+   * GetActivityMetrics returns run-volume counts over a rolling time window,
+   * suitable for the Overview screen "Activity" metric cards (7d / 30d toggle).
+   *
+   * @generated from rpc agents.v1.DashboardService.GetActivityMetrics
+   */
+  getActivityMetrics: {
+    methodKind: "unary";
+    input: typeof GetActivityMetricsRequestSchema;
+    output: typeof GetActivityMetricsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_dashboard, 0);

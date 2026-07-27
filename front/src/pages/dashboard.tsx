@@ -1,180 +1,302 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useOverview, useActivityFeed, useCronTimeseries } from "@/api/dashboard";
+import { useOverview, useActivityFeed, useActivityMetrics } from "@/api/dashboard";
 import { useAgents } from "@/api/agents";
 import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
-import { StatusDot } from "@/components/butter/primitives";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import {
   Activity as ActivityIcon,
   AlertTriangle,
   ArrowRight,
   Bot,
-  CheckCircle2,
   Check,
-  Cpu,
-  Database,
-  HardDrive,
-  MessageSquare,
+  CheckCircle2,
+  Link2,
+  Loader2,
   Plus,
-  Server,
+  RefreshCw,
   Terminal,
   Workflow,
 } from "lucide-react";
-import type {
-  ActivityEvent,
-  ComponentHealth,
-  ComponentHealthStatus,
-  CronTimeseriesRange,
-} from "@/types/api";
+import type { ActivityEvent, ComponentHealth, CronTimeseriesRange } from "@/types/api";
 
-const HEALTH_TO_STATUS: Record<ComponentHealthStatus, "success" | "waiting" | "failed" | "never"> = {
-  STATUS_HEALTHY: "success",
-  STATUS_DEGRADED: "waiting",
-  STATUS_DOWN: "failed",
-  STATUS_UNSPECIFIED: "never",
+/* --------------------------------- helpers -------------------------------- */
+
+function relTime(iso?: string): string {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
+type Tone = "danger" | "warning" | "running" | "success" | "muted";
+
+const toneBar: Record<Tone, string> = {
+  danger: "bg-danger",
+  warning: "bg-warning",
+  running: "bg-running",
+  success: "bg-success",
+  muted: "bg-muted-foreground/40",
 };
+
+const toneChip: Record<Tone, string> = {
+  danger: "bg-danger-muted text-danger-foreground",
+  warning: "bg-warning-muted text-warning-foreground",
+  running: "bg-running-muted text-running-foreground",
+  success: "bg-success-muted text-success-foreground",
+  muted: "bg-muted text-muted-foreground",
+};
+
+/* --------------------------------- metrics -------------------------------- */
 
 function MetricCard({
   label,
   value,
   icon,
+  suffix,
 }: {
   label: string;
   value: number;
-  icon: React.ReactNode;
+  icon: ReactNode;
+  suffix?: string;
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-muted-foreground/70 [&_svg]:size-4">{icon}</span>
       </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">
+      <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">
         {value.toLocaleString()}
+        {suffix && <span className="ml-0.5 text-lg text-muted-foreground">{suffix}</span>}
       </p>
     </div>
   );
 }
 
-function HealthRow({
-  label,
-  icon,
-  health,
-  first,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  health?: ComponentHealth;
-  first?: boolean;
-}) {
-  const status = HEALTH_TO_STATUS[health?.status ?? "STATUS_UNSPECIFIED"];
+/* ----------------------------- needs attention ---------------------------- */
+
+type Attention = {
+  id: string;
+  tone: Tone;
+  icon: ReactNode;
+  title: string;
+  meta: string;
+  detail?: string;
+  time?: string;
+  action?: { label: string; to: string };
+};
+
+function AttentionCard({ item }: { item: Attention }) {
   return (
-    <div className={cn("flex items-center gap-3 px-3 py-2.5", !first && "border-t border-border")}>
-      <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
+    <div className="relative flex items-start gap-3 overflow-hidden rounded-lg border border-border bg-card p-4">
+      <span className={cn("absolute inset-y-0 left-0 w-[3px]", toneBar[item.tone])} />
+      <span
+        className={cn(
+          "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full [&_svg]:size-4",
+          toneChip[item.tone],
+        )}
+      >
+        {item.icon}
+      </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium">{label}</p>
-          <StatusDot status={status} />
+          <p className="truncate text-sm font-medium">{item.title}</p>
+          {item.time && (
+            <span className="shrink-0 text-xs text-muted-foreground">{item.time}</span>
+          )}
         </div>
-        {health?.detail && (
-          <p className="truncate text-xs text-muted-foreground">{health.detail}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{item.meta}</p>
+        {item.detail && (
+          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.detail}</p>
         )}
       </div>
-      {health?.latency_ms !== undefined && health.latency_ms > 0 && (
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-          {health.latency_ms}ms
-        </span>
+      {item.action && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          render={<Link to={item.action.to} />}
+        >
+          {item.action.label}
+        </Button>
       )}
     </div>
   );
 }
 
-function ActivityRow({ event, last }: { event: ActivityEvent; last: boolean }) {
-  const tone =
-    event.kind === "error"
-      ? "bg-danger-muted text-danger-foreground"
-      : event.kind === "execution_completed"
-        ? "bg-success-muted text-success-foreground"
-        : "bg-muted text-muted-foreground";
-  const icon =
-    event.kind === "error" ? (
-      <AlertTriangle className="size-3.5" />
-    ) : event.kind === "execution_completed" ? (
-      <Check className="size-3.5" />
-    ) : (
-      <Terminal className="size-3.5" />
-    );
+/* -------------------------------- active now ------------------------------ */
+
+function ActiveRow({ event }: { event: ActivityEvent }) {
+  const title = event.message?.trim() || event.actor || "Agent run";
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-running-muted text-running-foreground">
+          <Loader2 className="size-4 animate-spin" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{title}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {event.actor ?? "unknown"}
+            {event.timestamp && ` · started ${relTime(event.timestamp)}`}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-running-muted">
+        <div className="h-full w-full animate-pulse bg-running" />
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- recent activity ---------------------------- */
+
+function activityTone(kind: string): { tone: Tone; icon: ReactNode } {
+  switch (kind) {
+    case "error":
+      return { tone: "danger", icon: <AlertTriangle /> };
+    case "execution_completed":
+      return { tone: "success", icon: <Check /> };
+    case "invocation":
+      return { tone: "running", icon: <Loader2 className="animate-spin" /> };
+    case "channel":
+    case "integration":
+      return { tone: "muted", icon: <Link2 /> };
+    default:
+      return { tone: "muted", icon: <Terminal /> };
+  }
+}
+
+function ActivityRow({ event }: { event: ActivityEvent }) {
+  const { tone, icon } = activityTone(event.kind ?? "");
+  const title = event.message?.trim() || event.actor || "Activity";
   return (
     <li className="flex gap-3 px-2 py-2.5">
-      <div className="flex flex-col items-center">
-        <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", tone)}>
-          {icon}
-        </span>
-        {!last && <span className="mt-1 w-px flex-1 bg-border" />}
-      </div>
-      <div className="min-w-0 flex-1 pb-1">
-        <p className="text-sm leading-snug">
-          <span className="font-medium">{event.actor ?? "unknown"}</span>
-          <span className="text-muted-foreground"> {event.message ?? ""}</span>
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {event.timestamp ? new Date(event.timestamp).toLocaleString() : ""}
+      <span
+        className={cn(
+          "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full [&_svg]:size-3.5",
+          toneChip[tone],
+        )}
+      >
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="line-clamp-2 text-sm leading-snug">{title}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {event.actor ?? "unknown"}
+          {event.timestamp && ` · ${relTime(event.timestamp)}`}
         </p>
       </div>
     </li>
   );
 }
 
+/* --------------------------------- section -------------------------------- */
+
+function SectionHeader({
+  title,
+  aside,
+  icon,
+}: {
+  title: string;
+  aside?: ReactNode;
+  icon?: ReactNode;
+}) {
+  return (
+    <div className="mb-2 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        {icon && <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>}
+        <h2 className="text-sm font-medium">{title}</h2>
+      </div>
+      {aside && <div className="text-xs text-muted-foreground">{aside}</div>}
+    </div>
+  );
+}
+
+/* --------------------------------- page ----------------------------------- */
+
 export default function DashboardPage() {
   const [range, setRange] = useState<CronTimeseriesRange>("RANGE_7D");
   const { data: overviewData, isLoading: loadingOverview } = useOverview("production");
-  const { data: activity } = useActivityFeed(20);
-  const { data: timeseries } = useCronTimeseries(range);
+  const { data: metrics } = useActivityMetrics(range);
+  const activityQuery = useActivityFeed(50);
   const { data: agentsData } = useAgents({ page_size: 10 });
 
-  const counts = overviewData?.counts;
   const health = overviewData?.health;
-  const events = activity?.events ?? [];
-  const quickStartAgents = (agentsData?.agents ?? []).slice(0, 3);
 
-  const unhealthy = useMemo(() => {
-    const entries: { label: string; health?: ComponentHealth }[] = [
-      { label: "MongoDB", health: health?.mongodb },
-      { label: "Redis", health: health?.redis },
-      { label: "Runner", health: health?.runner },
-    ];
-    return entries.filter(
-      (e) => e.health?.status === "STATUS_DEGRADED" || e.health?.status === "STATUS_DOWN",
-    );
-  }, [health]);
-
-  const chartData = (timeseries?.buckets ?? []).map((b) => ({
-    label: b.start
-      ? new Date(b.start).toLocaleString(
-          undefined,
-          range === "RANGE_1D" ? { hour: "2-digit" } : { month: "short", day: "numeric" },
-        )
-      : "",
-    success: b.success ?? 0,
-    error: b.error ?? 0,
-  }));
+  const agentRuns = metrics?.agent_runs ?? 0;
+  const automationRuns = metrics?.automation_runs ?? 0;
+  const failedRuns = (metrics?.agent_runs_failed ?? 0) + (metrics?.automation_runs_failed ?? 0);
+  const totalRuns = agentRuns + automationRuns;
+  const successRate = totalRuns > 0 ? Math.round(((totalRuns - failedRuns) / totalRuns) * 100) : 100;
 
   const ranges: { key: CronTimeseriesRange; label: string }[] = [
-    { key: "RANGE_1D", label: "1 day" },
     { key: "RANGE_7D", label: "7 days" },
     { key: "RANGE_30D", label: "30 days" },
   ];
+  const events = useMemo(() => activityQuery.data?.events ?? [], [activityQuery.data]);
+  const quickStartAgents = (agentsData?.agents ?? []).slice(0, 4);
+
+  const infraAttention = useMemo<Attention[]>(() => {
+    const components: { label: string; health?: ComponentHealth }[] = [
+      { label: "MongoDB", health: health?.mongodb },
+      { label: "Redis cache", health: health?.redis },
+      { label: "Runner", health: health?.runner },
+    ];
+    return components
+      .filter(
+        (c) => c.health?.status === "STATUS_DEGRADED" || c.health?.status === "STATUS_DOWN",
+      )
+      .map((c) => {
+        const down = c.health?.status === "STATUS_DOWN";
+        return {
+          id: `infra-${c.label}`,
+          tone: down ? "danger" : "warning",
+          icon: <AlertTriangle />,
+          title: `${c.label} ${down ? "unavailable" : "degraded"}`,
+          meta: "Infrastructure",
+          detail: c.health?.detail,
+          action: { label: "Details", to: "/operations" },
+        };
+      });
+  }, [health]);
+
+  const errorAttention = useMemo<Attention[]>(
+    () =>
+      events
+        .filter((e) => e.kind === "error")
+        .slice(0, 5)
+        .map((e) => ({
+          id: e.id,
+          tone: "danger" as const,
+          icon: <AlertTriangle />,
+          title: e.actor ? `${e.actor} run failed` : "Agent run failed",
+          meta: `Agent run${e.actor ? ` · ${e.actor}` : ""}`,
+          detail: e.message,
+          time: relTime(e.timestamp),
+          action: { label: "View", to: "/operations" },
+        })),
+    [events],
+  );
+
+  const needsAttention = [...infraAttention, ...errorAttention];
+  const attentionCount = needsAttention.length;
+  const attentionShown = needsAttention.slice(0, 6);
+
+  const activeNow = useMemo(
+    () => events.filter((e) => e.kind === "invocation").slice(0, 6),
+    [events],
+  );
+  const recent = events.slice(0, 8);
 
   return (
     <Page>
@@ -197,152 +319,159 @@ export default function DashboardPage() {
       <PageScroll className="max-w-7xl">
         {loadingOverview ? (
           <div className="space-y-5">
-            <Skeleton className="h-12" />
+            <Skeleton className="h-14" />
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-24" />
+                <Skeleton key={i} className="h-28" />
               ))}
             </div>
             <Skeleton className="h-72" />
           </div>
         ) : (
           <>
-            {/* System status banner */}
+            {/* Attention banner */}
             <div
               className={cn(
-                "mb-5 flex items-center justify-between gap-3 rounded-lg border px-4 py-3",
-                unhealthy.length > 0
+                "mb-6 flex items-center gap-2.5 rounded-lg border px-4 py-3",
+                attentionCount > 0
                   ? "border-warning/40 bg-warning-muted/40"
                   : "border-success/40 bg-success-muted/40",
               )}
             >
-              <div className="flex items-center gap-2.5">
-                {unhealthy.length > 0 ? (
-                  <AlertTriangle className="size-4 text-warning-foreground" />
-                ) : (
-                  <CheckCircle2 className="size-4 text-success-foreground" />
-                )}
-                <div className="text-sm">
-                  <span className="font-medium">
-                    {unhealthy.length > 0
-                      ? `${unhealthy.length} ${unhealthy.length === 1 ? "component needs" : "components need"} attention`
-                      : "All systems operational"}
-                  </span>
-                  <span className="ml-2 text-muted-foreground">
-                    {unhealthy.length > 0
-                      ? unhealthy.map((u) => u.label).join(", ")
-                      : "Database, cache, and runner are healthy."}
-                  </span>
+              {attentionCount > 0 ? (
+                <AlertTriangle className="size-4 shrink-0 text-warning-foreground" />
+              ) : (
+                <CheckCircle2 className="size-4 shrink-0 text-success-foreground" />
+              )}
+              <div className="text-sm">
+                <span className="font-medium">
+                  {attentionCount > 0
+                    ? `${attentionCount} ${attentionCount === 1 ? "item needs" : "items need"} attention`
+                    : "All systems operational"}
+                </span>
+                <span className="ml-2 text-muted-foreground">
+                  {attentionCount > 0
+                    ? "Review the items below to keep things running."
+                    : "Database, cache, and runner are healthy."}
+                </span>
+              </div>
+            </div>
+
+            {/* Activity — run volume over the selected window */}
+            <section className="mb-6">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-medium">Activity</h2>
+                <div className="inline-flex rounded-md border border-border p-0.5">
+                  {ranges.map((r) => (
+                    <button
+                      key={r.key}
+                      onClick={() => setRange(r.key)}
+                      className={cn(
+                        "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                        range === r.key
+                          ? "bg-secondary text-secondary-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <MetricCard label="Agent runs" value={agentRuns} icon={<Bot />} />
+                <MetricCard label="Automation runs" value={automationRuns} icon={<Workflow />} />
+                <MetricCard label="Failed runs" value={failedRuns} icon={<AlertTriangle />} />
+                <MetricCard label="Success rate" value={successRate} suffix="%" icon={<CheckCircle2 />} />
+              </div>
+            </section>
 
-            {/* Metrics */}
-            <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <MetricCard label="Active agents" value={counts?.active_agents ?? 0} icon={<Bot />} />
-              <MetricCard label="MCP servers" value={counts?.mcp_servers ?? 0} icon={<Server />} />
-              <MetricCard label="Connected daemons" value={counts?.connected_daemons ?? 0} icon={<Cpu />} />
-              <MetricCard label="Active sessions" value={counts?.active_sessions ?? 0} icon={<MessageSquare />} />
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-              {/* Left column: executions chart + health */}
-              <div className="flex flex-col gap-5 lg:col-span-2">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              {/* Left: needs attention + active now */}
+              <div className="flex flex-col gap-6 lg:col-span-2">
                 <section>
-                  <div className="mb-2 flex items-center justify-between">
-                    <h2 className="text-sm font-medium">Cron executions</h2>
-                    <div className="inline-flex rounded-md border border-border p-0.5">
-                      {ranges.map((r) => (
-                        <button
-                          key={r.key}
-                          onClick={() => setRange(r.key)}
-                          className={cn(
-                            "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                            range === r.key
-                              ? "bg-secondary text-secondary-foreground"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {r.label}
-                        </button>
+                  <SectionHeader
+                    title="Needs attention"
+                    aside={attentionCount > 0 ? `${attentionCount} open` : undefined}
+                  />
+                  {attentionShown.length === 0 ? (
+                    <div className="rounded-lg border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+                      Nothing needs attention right now.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {attentionShown.map((item) => (
+                        <AttentionCard key={item.id} item={item} />
                       ))}
                     </div>
-                  </div>
-                  <div className="rounded-lg border border-border bg-card p-4">
-                    <ResponsiveContainer width="100%" height={260}>
-                      <BarChart data={chartData}>
-                        <XAxis
-                          dataKey="label"
-                          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <Tooltip
-                          cursor={{ fill: "color-mix(in srgb, var(--foreground) 6%, transparent)" }}
-                          contentStyle={{
-                            backgroundColor: "var(--popover)",
-                            border: "1px solid var(--border)",
-                            borderRadius: "0.5rem",
-                            color: "var(--popover-foreground)",
-                            fontSize: "0.75rem",
-                          }}
-                        />
-                        <Bar dataKey="success" stackId="a" fill="var(--success)" name="Success" radius={[3, 3, 0, 0]} />
-                        <Bar dataKey="error" stackId="a" fill="var(--danger)" name="Error" radius={[3, 3, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  )}
                 </section>
 
                 <section>
-                  <h2 className="mb-2 text-sm font-medium">System health</h2>
-                  <div className="overflow-hidden rounded-lg border border-border bg-card">
-                    <HealthRow first label="MongoDB" icon={<Database />} health={health?.mongodb} />
-                    <HealthRow label="Redis cache" icon={<HardDrive />} health={health?.redis} />
-                    <HealthRow label="Runner" icon={<Cpu />} health={health?.runner} />
-                  </div>
+                  <SectionHeader
+                    title="Active now"
+                    aside={
+                      activeNow.length > 0 ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="size-1.5 rounded-full bg-running animate-blink" />
+                          {activeNow.length} running
+                        </span>
+                      ) : undefined
+                    }
+                  />
+                  {activeNow.length === 0 ? (
+                    <div className="rounded-lg border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+                      Nothing running right now.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {activeNow.map((e) => (
+                        <ActiveRow key={e.id} event={e} />
+                      ))}
+                    </div>
+                  )}
                 </section>
               </div>
 
-              {/* Right column: activity feed + quick start */}
-              <div className="lg:col-span-1">
+              {/* Right: recent activity + quick start */}
+              <div className="flex flex-col gap-6 lg:col-span-1">
                 <section>
-                  <div className="mb-2 flex items-center gap-2">
-                    <ActivityIcon className="size-4 text-muted-foreground" />
-                    <h2 className="text-sm font-medium">Recent activity</h2>
-                  </div>
+                  <SectionHeader title="Recent activity" icon={<ActivityIcon />} />
                   <div className="rounded-lg border border-border bg-card p-1">
-                    {events.length === 0 ? (
+                    {recent.length === 0 ? (
                       <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                         No recent activity.
                       </p>
                     ) : (
-                      <ol className="relative">
-                        {events.slice(0, 8).map((e, i, arr) => (
-                          <ActivityRow key={e.id} event={e} last={i === arr.length - 1} />
+                      <ol>
+                        {recent.map((e) => (
+                          <ActivityRow key={e.id} event={e} />
                         ))}
                       </ol>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => activityQuery.refetch()}
+                    className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <RefreshCw className={cn("size-3", activityQuery.isFetching && "animate-spin")} />
+                    Refresh
+                  </button>
                 </section>
 
                 {quickStartAgents.length > 0 && (
-                  <section className="mt-5">
-                    <h2 className="mb-2 text-sm font-medium">Quick start</h2>
+                  <section>
+                    <SectionHeader title="Quick start" />
                     <div className="flex flex-col gap-2">
                       {quickStartAgents.map((a) => (
                         <Link
                           key={a.name}
                           to={`/chat?new=1&agent=${encodeURIComponent(a.name)}`}
-                          className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                          className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent"
                         >
                           <Bot className="size-4 text-muted-foreground" />
-                          <span className="flex-1 truncate">{a.name}</span>
+                          <span className="flex-1 truncate font-medium">{a.name}</span>
                           <ArrowRight className="size-3.5 text-muted-foreground" />
                         </Link>
                       ))}

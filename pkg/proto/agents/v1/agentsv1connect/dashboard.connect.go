@@ -44,6 +44,9 @@ const (
 	// DashboardServiceGetCronExecutionTimeseriesProcedure is the fully-qualified name of the
 	// DashboardService's GetCronExecutionTimeseries RPC.
 	DashboardServiceGetCronExecutionTimeseriesProcedure = "/agents.v1.DashboardService/GetCronExecutionTimeseries"
+	// DashboardServiceGetActivityMetricsProcedure is the fully-qualified name of the DashboardService's
+	// GetActivityMetrics RPC.
+	DashboardServiceGetActivityMetricsProcedure = "/agents.v1.DashboardService/GetActivityMetrics"
 	// DaemonServiceListDaemonRuntimesProcedure is the fully-qualified name of the DaemonService's
 	// ListDaemonRuntimes RPC.
 	DaemonServiceListDaemonRuntimesProcedure = "/agents.v1.DaemonService/ListDaemonRuntimes"
@@ -89,6 +92,9 @@ type DashboardServiceClient interface {
 	// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
 	// suitable for the Overview screen "Cron Executions" chart.
 	GetCronExecutionTimeseries(context.Context, *connect.Request[v1.GetCronExecutionTimeseriesRequest]) (*connect.Response[v1.GetCronExecutionTimeseriesResponse], error)
+	// GetActivityMetrics returns run-volume counts over a rolling time window,
+	// suitable for the Overview screen "Activity" metric cards (7d / 30d toggle).
+	GetActivityMetrics(context.Context, *connect.Request[v1.GetActivityMetricsRequest]) (*connect.Response[v1.GetActivityMetricsResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the agents.v1.DashboardService service. By
@@ -120,6 +126,12 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("GetCronExecutionTimeseries")),
 			connect.WithClientOptions(opts...),
 		),
+		getActivityMetrics: connect.NewClient[v1.GetActivityMetricsRequest, v1.GetActivityMetricsResponse](
+			httpClient,
+			baseURL+DashboardServiceGetActivityMetricsProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("GetActivityMetrics")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -128,6 +140,7 @@ type dashboardServiceClient struct {
 	getOverview                *connect.Client[v1.GetOverviewRequest, v1.GetOverviewResponse]
 	getActivityFeed            *connect.Client[v1.GetActivityFeedRequest, v1.GetActivityFeedResponse]
 	getCronExecutionTimeseries *connect.Client[v1.GetCronExecutionTimeseriesRequest, v1.GetCronExecutionTimeseriesResponse]
+	getActivityMetrics         *connect.Client[v1.GetActivityMetricsRequest, v1.GetActivityMetricsResponse]
 }
 
 // GetOverview calls agents.v1.DashboardService.GetOverview.
@@ -145,6 +158,11 @@ func (c *dashboardServiceClient) GetCronExecutionTimeseries(ctx context.Context,
 	return c.getCronExecutionTimeseries.CallUnary(ctx, req)
 }
 
+// GetActivityMetrics calls agents.v1.DashboardService.GetActivityMetrics.
+func (c *dashboardServiceClient) GetActivityMetrics(ctx context.Context, req *connect.Request[v1.GetActivityMetricsRequest]) (*connect.Response[v1.GetActivityMetricsResponse], error) {
+	return c.getActivityMetrics.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the agents.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// GetOverview returns aggregate counts, component health and the latest
@@ -156,6 +174,9 @@ type DashboardServiceHandler interface {
 	// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
 	// suitable for the Overview screen "Cron Executions" chart.
 	GetCronExecutionTimeseries(context.Context, *connect.Request[v1.GetCronExecutionTimeseriesRequest]) (*connect.Response[v1.GetCronExecutionTimeseriesResponse], error)
+	// GetActivityMetrics returns run-volume counts over a rolling time window,
+	// suitable for the Overview screen "Activity" metric cards (7d / 30d toggle).
+	GetActivityMetrics(context.Context, *connect.Request[v1.GetActivityMetricsRequest]) (*connect.Response[v1.GetActivityMetricsResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -183,6 +204,12 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("GetCronExecutionTimeseries")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceGetActivityMetricsHandler := connect.NewUnaryHandler(
+		DashboardServiceGetActivityMetricsProcedure,
+		svc.GetActivityMetrics,
+		connect.WithSchema(dashboardServiceMethods.ByName("GetActivityMetrics")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceGetOverviewProcedure:
@@ -191,6 +218,8 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 			dashboardServiceGetActivityFeedHandler.ServeHTTP(w, r)
 		case DashboardServiceGetCronExecutionTimeseriesProcedure:
 			dashboardServiceGetCronExecutionTimeseriesHandler.ServeHTTP(w, r)
+		case DashboardServiceGetActivityMetricsProcedure:
+			dashboardServiceGetActivityMetricsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -210,6 +239,10 @@ func (UnimplementedDashboardServiceHandler) GetActivityFeed(context.Context, *co
 
 func (UnimplementedDashboardServiceHandler) GetCronExecutionTimeseries(context.Context, *connect.Request[v1.GetCronExecutionTimeseriesRequest]) (*connect.Response[v1.GetCronExecutionTimeseriesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DashboardService.GetCronExecutionTimeseries is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) GetActivityMetrics(context.Context, *connect.Request[v1.GetActivityMetricsRequest]) (*connect.Response[v1.GetActivityMetricsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.DashboardService.GetActivityMetrics is not implemented"))
 }
 
 // DaemonServiceClient is a client for the agents.v1.DaemonService service.

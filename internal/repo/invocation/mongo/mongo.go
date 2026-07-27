@@ -218,6 +218,22 @@ func (s *Store) StatusSummaries(ctx context.Context, workspaceID string, agentNa
 	return out, nil
 }
 
+func (s *Store) CountByTimeRange(ctx context.Context, start, end time.Time) (int64, int64, error) {
+	window := bson.M{"started_at": bson.M{"$gte": start, "$lt": end}}
+	total, err := s.coll.CountDocuments(ctx, window)
+	if err != nil {
+		return 0, 0, fmt.Errorf("count invocations: %w", err)
+	}
+	failed, err := s.coll.CountDocuments(ctx, bson.M{
+		"started_at": bson.M{"$gte": start, "$lt": end},
+		"status":     agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED.String(),
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("count failed invocations: %w", err)
+	}
+	return total, failed, nil
+}
+
 func drain(ctx context.Context, cursor *mongo.Cursor) ([]*agentsv1.Invocation, error) {
 	var out []*agentsv1.Invocation
 	for cursor.Next(ctx) {

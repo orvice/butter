@@ -2691,6 +2691,33 @@ Aggregates `cron_executions` into time buckets for the Overview chart.
 | `success` | int32 |  |
 | `error` | int32 |  |
 
+#### GetActivityMetrics
+
+```
+POST /api/agents.v1.DashboardService/GetActivityMetrics
+```
+
+Run-volume counts over a rolling window, for the Overview "Activity" metric
+cards. Aggregates across all workspaces (admin-only, like the rest of
+`DashboardService`).
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `range` | enum | `RANGE_1D`, `RANGE_7D` (default when unspecified), `RANGE_30D` |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_runs` | int32 | Agent invocations started within the window |
+| `agent_runs_failed` | int32 | Subset of `agent_runs` that ended in failure |
+| `automation_runs` | int32 | Cron/automation executions started within the window |
+| `automation_runs_failed` | int32 | Subset of `automation_runs` that ended in error |
+| `window_start` | timestamp | Half-open window start (inclusive) |
+| `window_end` | timestamp | Half-open window end (exclusive) |
+
 ---
 
 ### DaemonService
