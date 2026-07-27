@@ -54,27 +54,6 @@ const MANAGE_NAV: NavItem[] = [
     to: "/manage",
     icon: Settings2,
     label: "Manage",
-    activePrefixes: [
-      "/manage",
-      "/agents",
-      "/agent-files",
-      "/forum",
-      "/integrations",
-      "/mcp-servers",
-      "/remote-agents",
-      "/daemons",
-      "/channels",
-      "/operations",
-      "/automations",
-      "/cron",
-      "/sessions",
-      "/workspaces",
-      "/model-providers",
-      "/notify-groups",
-      "/api-tokens",
-      "/profile",
-      "/admin",
-    ],
   },
 ];
 
@@ -110,6 +89,7 @@ function WorkspaceSwitcher() {
 
 function isActiveNav(item: NavItem, pathname: string) {
   if (item.to === "/") return pathname === "/";
+  if (item.to === "/manage") return pathname !== "/" && pathname !== "/chat" && !pathname.startsWith("/chat/");
   return (item.activePrefixes ?? [item.to]).some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
