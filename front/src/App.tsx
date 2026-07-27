@@ -12,6 +12,7 @@ import DashboardLayout from "@/layouts/dashboard-layout";
 const LoginPage = lazy(() => import("@/pages/login"));
 const OAuthCallbackPage = lazy(() => import("@/pages/auth-oauth-callback"));
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
+const ManagePage = lazy(() => import("@/pages/manage"));
 const IntegrationsPage = lazy(() => import("@/pages/integrations"));
 const OperationsPage = lazy(() => import("@/pages/operations"));
 const AgentListPage = lazy(() => import("@/pages/agents/list"));
@@ -77,6 +78,7 @@ export default function App() {
                       <Route path="/auth/oauth/callback/:provider" element={<OAuthCallbackPage />} />
                       <Route element={<DashboardLayout />}>
                         <Route index element={<DashboardPage />} />
+                        <Route path="manage" element={<ManagePage />} />
                         <Route path="agents" element={<AgentListPage />} />
                         <Route path="agents/create" element={<AgentCreatePage />} />
                         <Route path="agents/:name/edit" element={<AgentEditPage />} />
