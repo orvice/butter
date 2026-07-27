@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ImageUp, Trash2, Upload } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { ThemeControls } from "@/components/theme-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -152,6 +153,16 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
   return (
     <div className="space-y-6">
       <PageHeader title="Profile" />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>Choose the dashboard theme and layout density.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemeControls />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
