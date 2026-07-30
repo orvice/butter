@@ -286,14 +286,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col bg-sidebar">
       {/* Brand + collapse */}
-      <div className="flex items-center justify-between px-3 pb-2 pt-3">
+      <div className="flex h-12 items-center justify-between px-3">
         <Link to="/" onClick={onNavigate} className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <ButterLogo />
         </Link>
         <SidebarCollapseButton />
       </div>
 
-      {/* New Chat — most prominent */}
+      {/* New Chat - most prominent */}
       <div className="px-3 pb-2">
         <Link
           to="/chat?new=1"
@@ -578,7 +578,7 @@ export default function DashboardLayout() {
     <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
       {/* Desktop sidebar */}
       {!sidebarHidden && (
-        <aside className="hidden w-72 shrink-0 border-r border-sidebar-border md:block">
+        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
           <SidebarContent />
         </aside>
       )}
