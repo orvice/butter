@@ -13,6 +13,7 @@ import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { AgentAvatar, StatusBadge, type RunStatus } from "@/components/butter/primitives";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -120,63 +121,62 @@ function AutomationRow({
           navigate(`/automations/${encodeURIComponent(job.name)}`);
         }
       }}
-      className="group flex w-full cursor-pointer flex-col gap-3 border-b border-border px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-accent/40 md:flex-row md:items-center md:gap-4 md:px-6"
+      className="group grid w-full cursor-pointer grid-cols-2 gap-x-4 gap-y-3 border-b border-border px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:grid-cols-3 md:px-5 lg:grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] lg:items-center lg:gap-4 lg:px-5 lg:py-3.5"
     >
-      {/* status + name */}
-      <div className="flex min-w-0 flex-1 items-start gap-3">
-        <div className="mt-0.5">
-          <AgentAvatar name={job.agent_name} size="md" />
-        </div>
+      <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-3 lg:col-span-1">
+        <AgentAvatar name={job.agent_name} size="md" />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-medium">{job.name}</span>
-            <StatusBadge status={status} />
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <CalendarClock className="size-3.5" />
-              <code className="font-mono">{job.schedule}</code>
-            </span>
-            <span>{job.agent_name}</span>
-            <span className="inline-flex items-center gap-1">
-              <DeliveryIcon className="size-3.5" />
-              {delivery.label}
-            </span>
-            {lastRunAgo && <span>Last run {lastRunAgo}</span>}
-          </div>
+          <div className="truncate text-sm font-semibold">{job.name}</div>
+          <div className="mt-0.5 truncate text-xs text-muted-foreground">{job.agent_name}</div>
         </div>
       </div>
 
-      {/* actions */}
+      <div className="min-w-0">
+        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground lg:hidden">
+          Schedule
+        </div>
+        <div className="flex min-w-0 items-center gap-1.5 text-xs text-foreground">
+          <CalendarClock className="size-3.5 shrink-0 text-muted-foreground lg:hidden" />
+          <code className="truncate font-mono">{job.schedule}</code>
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground lg:hidden">
+          Delivery
+        </div>
+        <div className="flex min-w-0 items-center gap-1.5 text-xs">
+          <DeliveryIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate">{delivery.label}</span>
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground lg:hidden">
+          Last run
+        </div>
+        <div className="truncate text-xs text-muted-foreground">{lastRunAgo ?? "Not run"}</div>
+      </div>
+
+      <div className="min-w-0">
+        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground lg:hidden">
+          Status
+        </div>
+        <StatusBadge status={status} className="max-w-full" />
+      </div>
+
       <div
-        className="flex items-center gap-1.5 self-end md:self-center"
+        className="col-span-2 flex min-w-0 items-center justify-end gap-2 border-t border-border/70 pt-3 md:col-span-2 md:border-t-0 md:pt-0 lg:col-span-1"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        <span
-          role="switch"
-          aria-checked={enabled}
-          aria-label="Toggle enabled"
-          tabIndex={0}
-          onClick={toggleEnabled}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              toggleEnabled();
-            }
-          }}
-          className={cn(
-            "relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-colors",
-            enabled ? "bg-success" : "bg-muted-foreground/30",
-          )}
-        >
-          <span
-            className={cn(
-              "inline-block size-4 translate-x-0.5 rounded-full bg-background transition-transform",
-              enabled && "translate-x-[18px]",
-            )}
-          />
-        </span>
+        <Switch
+          checked={enabled}
+          disabled={updateMutation.isPending}
+          onCheckedChange={toggleEnabled}
+          aria-label={`${enabled ? "Disable" : "Enable"} ${job.name}`}
+          className="mr-auto lg:mr-1"
+        />
         <Button
           variant="outline"
           size="sm"
@@ -192,7 +192,11 @@ function AutomationRow({
           Run now
         </Button>
         <DropdownMenu>
-          <DropdownMenuTrigger className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+          <DropdownMenuTrigger
+            aria-label={`More actions for ${job.name}`}
+            title="More actions"
+            className="rounded-md p-1.5 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+          >
             <MoreVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={6}>
@@ -249,6 +253,28 @@ export default function AutomationListPage() {
     return s === "failed" || s === "waiting";
   }).length;
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusFilter, number> = {
+      all: jobs.length,
+      failed: 0,
+      waiting: 0,
+      success: 0,
+      disabled: 0,
+    };
+    for (const job of jobs) {
+      const status = jobStatus(job, lastByJob.get(job.name));
+      if (
+        status === "failed" ||
+        status === "waiting" ||
+        status === "success" ||
+        status === "disabled"
+      ) {
+        counts[status] += 1;
+      }
+    }
+    return counts;
+  }, [jobs, lastByJob]);
+
   const filters: { key: StatusFilter; label: string }[] = [
     { key: "all", label: "All" },
     { key: "failed", label: "Failed" },
@@ -263,8 +289,8 @@ export default function AutomationListPage() {
         title="Automations"
         subtitle={
           needsAttention > 0
-            ? `${needsAttention} need attention · ${enabledCount} active`
-            : `${enabledCount} active automations`
+            ? `${jobs.length} automations, ${enabledCount} active, ${needsAttention} need attention`
+            : `${jobs.length} automations, ${enabledCount} active`
         }
         actions={
           <Button size="sm" render={<Link to="/automations/create" />}>
@@ -273,9 +299,32 @@ export default function AutomationListPage() {
           </Button>
         }
       />
-      <PageScroll className="max-w-5xl">
+      <PageScroll className="max-w-6xl">
         {isLoading ? (
-          <Skeleton className="h-64" />
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <div className="hidden grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] gap-4 border-b border-border bg-muted/35 px-5 py-2.5 lg:grid">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <Skeleton key={index} className="h-3 w-16" />
+              ))}
+            </div>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="grid grid-cols-2 gap-4 border-b border-border px-4 py-4 last:border-b-0 md:grid-cols-3 lg:grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] lg:px-5"
+              >
+                <div className="col-span-2 flex items-center gap-3 md:col-span-3 lg:col-span-1">
+                  <Skeleton className="size-8 shrink-0 rounded-md" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-28" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+                {Array.from({ length: 5 }).map((__, cellIndex) => (
+                  <Skeleton key={cellIndex} className="h-5 w-full max-w-24" />
+                ))}
+              </div>
+            ))}
+          </div>
         ) : jobs.length === 0 ? (
           <div className="mx-auto max-w-md rounded-lg border border-dashed border-border bg-card/40 px-6 py-14 text-center">
             <div className="mx-auto flex size-11 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -293,40 +342,60 @@ export default function AutomationListPage() {
           </div>
         ) : (
           <>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative w-full sm:max-w-xs">
+            <div className="mb-4 flex flex-col gap-2 rounded-lg border border-border bg-card p-2 lg:flex-row lg:items-center">
+              <div className="relative w-full lg:max-w-[17rem] lg:shrink-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search automations"
-                  className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none focus:border-ring"
+                  className="h-9 w-full rounded-md border border-transparent bg-muted/55 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:bg-background"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-card p-0.5">
+              <div className="flex flex-wrap items-center gap-1 lg:min-w-0">
                 {filters.map((f) => (
                   <button
                     key={f.key}
                     type="button"
                     onClick={() => setFilter(f.key)}
                     className={cn(
-                      "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                      "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors",
                       filter === f.key
-                        ? "bg-secondary text-secondary-foreground"
-                        : "text-muted-foreground hover:text-foreground",
+                        ? "bg-secondary text-secondary-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     )}
                   >
-                    {f.label}
+                    <span>{f.label}</span>
+                    <span
+                      className={cn(
+                        "tabular-nums text-[0.68rem]",
+                        filter === f.key ? "text-secondary-foreground/70" : "text-muted-foreground/70",
+                      )}
+                    >
+                      {statusCounts[f.key]}
+                    </span>
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="overflow-hidden rounded-lg border border-border bg-card">
+              <div className="hidden grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] gap-4 border-b border-border bg-muted/35 px-5 py-2.5 text-[0.68rem] font-medium uppercase text-muted-foreground lg:grid">
+                <span>Automation</span>
+                <span>Schedule</span>
+                <span>Delivery</span>
+                <span>Last run</span>
+                <span>Status</span>
+                <span className="text-right">Controls</span>
+              </div>
               {sorted.length === 0 ? (
-                <p className="py-16 text-center text-sm text-muted-foreground">
-                  No automations match your filters.
-                </p>
+                <div className="px-6 py-14 text-center">
+                  <Search className="mx-auto size-5 text-muted-foreground" />
+                  <p className="mt-3 text-sm font-medium">No matching automations</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Try a different search or status filter.
+                  </p>
+                </div>
               ) : (
                 sorted.map((j) => (
                   <AutomationRow
