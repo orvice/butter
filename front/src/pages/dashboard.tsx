@@ -3,26 +3,33 @@ import { Link } from "react-router-dom";
 import { useOverview, useActivityFeed, useActivityMetrics } from "@/api/dashboard";
 import { useAgents } from "@/api/agents";
 import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
+import { AgentAvatar } from "@/components/butter/primitives";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
-  Activity as ActivityIcon,
   AlertTriangle,
   ArrowRight,
-  Bot,
   Check,
   CheckCircle2,
+  CircleDashed,
+  Clock3,
+  Database,
+  HardDrive,
   Link2,
   Loader2,
   Plus,
   RefreshCw,
+  Server,
   Terminal,
   Workflow,
 } from "lucide-react";
-import type { ActivityEvent, ComponentHealth, CronTimeseriesRange } from "@/types/api";
-
-/* --------------------------------- helpers -------------------------------- */
+import type {
+  ActivityEvent,
+  ComponentHealth,
+  ComponentHealthStatus,
+  CronTimeseriesRange,
+} from "@/types/api";
 
 function relTime(iso?: string): string {
   if (!iso) return "";
@@ -39,15 +46,7 @@ function relTime(iso?: string): string {
 
 type Tone = "danger" | "warning" | "running" | "success" | "muted";
 
-const toneBar: Record<Tone, string> = {
-  danger: "bg-danger",
-  warning: "bg-warning",
-  running: "bg-running",
-  success: "bg-success",
-  muted: "bg-muted-foreground/40",
-};
-
-const toneChip: Record<Tone, string> = {
+const toneIcon: Record<Tone, string> = {
   danger: "bg-danger-muted text-danger-foreground",
   warning: "bg-warning-muted text-warning-foreground",
   running: "bg-running-muted text-running-foreground",
@@ -55,34 +54,141 @@ const toneChip: Record<Tone, string> = {
   muted: "bg-muted text-muted-foreground",
 };
 
-/* --------------------------------- metrics -------------------------------- */
-
-function MetricCard({
-  label,
-  value,
-  icon,
-  suffix,
+function SectionHeader({
+  title,
+  description,
+  aside,
 }: {
-  label: string;
-  value: number;
-  icon: ReactNode;
-  suffix?: string;
+  title: string;
+  description?: string;
+  aside?: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <span className="text-muted-foreground/70 [&_svg]:size-4">{icon}</span>
+    <div className="mb-3 flex min-h-8 items-end justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
       </div>
-      <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">
-        {value.toLocaleString()}
-        {suffix && <span className="ml-0.5 text-lg text-muted-foreground">{suffix}</span>}
-      </p>
+      {aside && <div className="shrink-0 text-xs text-muted-foreground">{aside}</div>}
     </div>
   );
 }
 
-/* ----------------------------- needs attention ---------------------------- */
+function healthLabel(status?: ComponentHealthStatus) {
+  switch (status) {
+    case "STATUS_HEALTHY":
+      return "Healthy";
+    case "STATUS_DEGRADED":
+      return "Degraded";
+    case "STATUS_DOWN":
+      return "Down";
+    default:
+      return "Unknown";
+  }
+}
+
+function healthTone(status?: ComponentHealthStatus): Tone {
+  if (status === "STATUS_HEALTHY") return "success";
+  if (status === "STATUS_DEGRADED") return "warning";
+  if (status === "STATUS_DOWN") return "danger";
+  return "muted";
+}
+
+function HealthItem({
+  label,
+  health,
+  icon,
+}: {
+  label: string;
+  health?: ComponentHealth;
+  icon: ReactNode;
+}) {
+  const tone = healthTone(health?.status);
+  return (
+    <div className="flex min-w-0 items-center gap-2.5 px-3 py-2.5 sm:px-4">
+      <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5", toneIcon[tone])}>
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-baseline gap-1.5">
+          <p className="text-sm font-medium">{healthLabel(health?.status)}</p>
+          {typeof health?.latency_ms === "number" && health.latency_ms > 0 && (
+            <span className="font-mono text-[0.68rem] text-muted-foreground">
+              {health.latency_ms}ms
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SystemHealth({ health }: { health?: { mongodb?: ComponentHealth; redis?: ComponentHealth; runner?: ComponentHealth } }) {
+  const items = [health?.mongodb, health?.redis, health?.runner];
+  const problemCount = items.filter(
+    (item) => item?.status === "STATUS_DEGRADED" || item?.status === "STATUS_DOWN",
+  ).length;
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
+      <div className="grid md:grid-cols-[minmax(220px,1.35fr)_repeat(3,minmax(128px,1fr))]">
+        <div
+          className={cn(
+            "flex items-center gap-3 border-b border-border px-4 py-3 md:border-b-0 md:border-r",
+            problemCount > 0 ? "bg-warning-muted/35" : "bg-success-muted/30",
+          )}
+        >
+          <span
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-md",
+              problemCount > 0
+                ? "bg-warning-muted text-warning-foreground"
+                : "bg-success-muted text-success-foreground",
+            )}
+          >
+            {problemCount > 0 ? <AlertTriangle className="size-4" /> : <CheckCircle2 className="size-4" />}
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">
+              {problemCount > 0 ? `${problemCount} system issue${problemCount === 1 ? "" : "s"}` : "Systems operational"}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {problemCount > 0 ? "Review infrastructure health" : "All core services are responding"}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 divide-x divide-border md:contents">
+          <HealthItem label="Database" health={health?.mongodb} icon={<Database />} />
+          <HealthItem label="Cache" health={health?.redis} icon={<HardDrive />} />
+          <HealthItem label="Runner" health={health?.runner} icon={<Server />} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  detail,
+  emphasis,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className={cn("min-w-0 px-4 py-4 sm:px-5", emphasis && "bg-elevated-accent/60")}>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1.5 font-mono text-2xl font-semibold tabular-nums tracking-normal sm:text-3xl">
+        {value}
+      </p>
+      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
 
 type Attention = {
   id: string;
@@ -95,70 +201,57 @@ type Attention = {
   action?: { label: string; to: string };
 };
 
-function AttentionCard({ item }: { item: Attention }) {
+function AttentionRow({ item }: { item: Attention }) {
   return (
-    <div className="relative flex items-start gap-3 overflow-hidden rounded-lg border border-border bg-card p-4">
-      <span className={cn("absolute inset-y-0 left-0 w-[3px]", toneBar[item.tone])} />
-      <span
-        className={cn(
-          "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full [&_svg]:size-4",
-          toneChip[item.tone],
-        )}
-      >
+    <div className="flex items-start gap-3 border-b border-border px-4 py-3.5 last:border-b-0">
+      <span className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5", toneIcon[item.tone])}>
         {item.icon}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium">{item.title}</p>
-          {item.time && (
-            <span className="shrink-0 text-xs text-muted-foreground">{item.time}</span>
-          )}
+          {item.time && <span className="shrink-0 text-xs text-muted-foreground">{item.time}</span>}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{item.meta}</p>
-        {item.detail && (
-          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.detail}</p>
-        )}
+        {item.detail && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.detail}</p>}
       </div>
       {item.action && (
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           className="shrink-0"
+          nativeButton={false}
           render={<Link to={item.action.to} />}
         >
           {item.action.label}
+          <ArrowRight className="size-3.5" />
         </Button>
       )}
     </div>
   );
 }
 
-/* -------------------------------- active now ------------------------------ */
-
 function ActiveRow({ event }: { event: ActivityEvent }) {
   const title = event.message?.trim() || event.actor || "Agent run";
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-running-muted text-running-foreground">
-          <Loader2 className="size-4 animate-spin" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{title}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {event.actor ?? "unknown"}
-            {event.timestamp && ` · started ${relTime(event.timestamp)}`}
-          </p>
-        </div>
+    <div className="flex items-center gap-3 border-b border-border px-4 py-3.5 last:border-b-0">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-running-muted text-running-foreground">
+        <Loader2 className="size-3.5 animate-spin" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{title}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {event.actor ?? "Unknown agent"}
+          {event.timestamp && ` · started ${relTime(event.timestamp)}`}
+        </p>
       </div>
-      <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-running-muted">
-        <div className="h-full w-full animate-pulse bg-running" />
-      </div>
+      <span className="hidden items-center gap-1.5 text-xs font-medium text-running-foreground sm:flex">
+        <span className="size-1.5 rounded-full bg-running animate-blink" />
+        Running
+      </span>
     </div>
   );
 }
-
-/* ----------------------------- recent activity ---------------------------- */
 
 function activityTone(kind: string): { tone: Tone; icon: ReactNode } {
   switch (kind) {
@@ -180,49 +273,34 @@ function ActivityRow({ event }: { event: ActivityEvent }) {
   const { tone, icon } = activityTone(event.kind ?? "");
   const title = event.message?.trim() || event.actor || "Activity";
   return (
-    <li className="flex gap-3 px-2 py-2.5">
-      <span
-        className={cn(
-          "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full [&_svg]:size-3.5",
-          toneChip[tone],
-        )}
-      >
+    <li className="group flex gap-3 px-1 py-2.5">
+      <span className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5", toneIcon[tone])}>
         {icon}
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 border-b border-border pb-2.5 group-last:border-b-0 group-last:pb-0">
         <p className="line-clamp-2 text-sm leading-snug">{title}</p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {event.actor ?? "unknown"}
-          {event.timestamp && ` · ${relTime(event.timestamp)}`}
+        <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+          <span className="truncate">{event.actor ?? "Unknown"}</span>
+          {event.timestamp && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="shrink-0">{relTime(event.timestamp)}</span>
+            </>
+          )}
         </p>
       </div>
     </li>
   );
 }
 
-/* --------------------------------- section -------------------------------- */
-
-function SectionHeader({
-  title,
-  aside,
-  icon,
-}: {
-  title: string;
-  aside?: ReactNode;
-  icon?: ReactNode;
-}) {
+function EmptyRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div className="mb-2 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        {icon && <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>}
-        <h2 className="text-sm font-medium">{title}</h2>
-      </div>
-      {aside && <div className="text-xs text-muted-foreground">{aside}</div>}
+    <div className="flex min-h-24 items-center justify-center gap-2.5 px-4 py-5 text-sm text-muted-foreground">
+      <span className="[&_svg]:size-4">{icon}</span>
+      <span>{children}</span>
     </div>
   );
 }
-
-/* --------------------------------- page ----------------------------------- */
 
 export default function DashboardPage() {
   const [range, setRange] = useState<CronTimeseriesRange>("RANGE_7D");
@@ -232,7 +310,6 @@ export default function DashboardPage() {
   const { data: agentsData } = useAgents({ page_size: 10 });
 
   const health = overviewData?.health;
-
   const agentRuns = metrics?.agent_runs ?? 0;
   const automationRuns = metrics?.automation_runs ?? 0;
   const failedRuns = (metrics?.agent_runs_failed ?? 0) + (metrics?.automation_runs_failed ?? 0);
@@ -253,9 +330,7 @@ export default function DashboardPage() {
       { label: "Runner", health: health?.runner },
     ];
     return components
-      .filter(
-        (c) => c.health?.status === "STATUS_DEGRADED" || c.health?.status === "STATUS_DOWN",
-      )
+      .filter((c) => c.health?.status === "STATUS_DEGRADED" || c.health?.status === "STATUS_DOWN")
       .map((c) => {
         const down = c.health?.status === "STATUS_DOWN";
         return {
@@ -289,198 +364,163 @@ export default function DashboardPage() {
   );
 
   const needsAttention = [...infraAttention, ...errorAttention];
-  const attentionCount = needsAttention.length;
   const attentionShown = needsAttention.slice(0, 6);
-
-  const activeNow = useMemo(
-    () => events.filter((e) => e.kind === "invocation").slice(0, 6),
-    [events],
-  );
-  const recent = events.slice(0, 8);
+  const activeNow = useMemo(() => events.filter((e) => e.kind === "invocation").slice(0, 6), [events]);
+  const recent = events.slice(0, 5);
 
   return (
     <Page>
       <PageHeader
         title="Overview"
-        subtitle="Everything happening across this workspace"
+        subtitle="Workspace health and recent agent activity"
         actions={
           <>
-            <Button variant="outline" size="sm" render={<Link to="/automations" />}>
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link to="/automations" />}
+            >
               <Workflow className="size-4" />
               Automations
             </Button>
-            <Button size="sm" render={<Link to="/chat?new=1" />}>
+            <Button size="sm" nativeButton={false} render={<Link to="/chat?new=1" />}>
               <Plus className="size-4" />
               New chat
             </Button>
           </>
         }
       />
-      <PageScroll className="max-w-7xl">
+      <PageScroll className="max-w-[1320px] py-4 md:py-5">
         {loadingOverview ? (
           <div className="space-y-5">
-            <Skeleton className="h-14" />
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-28" />
-              ))}
+            <Skeleton className="h-20" />
+            <Skeleton className="h-32" />
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,0.8fr)]">
+              <Skeleton className="h-72" />
+              <Skeleton className="h-96" />
             </div>
-            <Skeleton className="h-72" />
           </div>
         ) : (
-          <>
-            {/* Attention banner */}
-            <div
-              className={cn(
-                "mb-6 flex items-center gap-2.5 rounded-lg border px-4 py-3",
-                attentionCount > 0
-                  ? "border-warning/40 bg-warning-muted/40"
-                  : "border-success/40 bg-success-muted/40",
-              )}
-            >
-              {attentionCount > 0 ? (
-                <AlertTriangle className="size-4 shrink-0 text-warning-foreground" />
-              ) : (
-                <CheckCircle2 className="size-4 shrink-0 text-success-foreground" />
-              )}
-              <div className="text-sm">
-                <span className="font-medium">
-                  {attentionCount > 0
-                    ? `${attentionCount} ${attentionCount === 1 ? "item needs" : "items need"} attention`
-                    : "All systems operational"}
-                </span>
-                <span className="ml-2 text-muted-foreground">
-                  {attentionCount > 0
-                    ? "Review the items below to keep things running."
-                    : "Database, cache, and runner are healthy."}
-                </span>
-              </div>
-            </div>
+          <div className="space-y-5">
+            <SystemHealth health={health} />
 
-            {/* Activity — run volume over the selected window */}
-            <section className="mb-6">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-medium">Activity</h2>
-                <div className="inline-flex rounded-md border border-border p-0.5">
-                  {ranges.map((r) => (
-                    <button
-                      key={r.key}
-                      onClick={() => setRange(r.key)}
-                      className={cn(
-                        "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                        range === r.key
-                          ? "bg-secondary text-secondary-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <MetricCard label="Agent runs" value={agentRuns} icon={<Bot />} />
-                <MetricCard label="Automation runs" value={automationRuns} icon={<Workflow />} />
-                <MetricCard label="Failed runs" value={failedRuns} icon={<AlertTriangle />} />
-                <MetricCard label="Success rate" value={successRate} suffix="%" icon={<CheckCircle2 />} />
+            <section>
+              <SectionHeader
+                title="Run activity"
+                description="Execution volume across agents and automations"
+                aside={
+                  <div className="inline-flex rounded-md border border-border bg-card p-0.5">
+                    {ranges.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setRange(item.key)}
+                        aria-pressed={range === item.key}
+                        className={cn(
+                          "rounded px-2.5 py-1 text-xs font-medium transition-colors active:translate-y-px",
+                          range === item.key
+                            ? "bg-secondary text-secondary-foreground shadow-sm"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                }
+              />
+              <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card shadow-card [&>*:nth-child(even)]:border-l [&>*:nth-child(n+3)]:border-t sm:grid-cols-4 sm:divide-x sm:divide-border sm:[&>*:nth-child(even)]:border-l-0 sm:[&>*:nth-child(n+3)]:border-t-0">
+                <Metric label="Agent runs" value={agentRuns.toLocaleString()} detail="Agent invocations" emphasis />
+                <Metric label="Automation runs" value={automationRuns.toLocaleString()} detail="Scheduled executions" />
+                <Metric label="Failed runs" value={failedRuns.toLocaleString()} detail={failedRuns > 0 ? "Requires review" : "No failures"} />
+                <Metric label="Success rate" value={`${successRate}%`} detail={`${totalRuns.toLocaleString()} total runs`} />
               </div>
             </section>
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {/* Left: needs attention + active now */}
-              <div className="flex flex-col gap-6 lg:col-span-2">
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,0.8fr)]">
+              <div className="space-y-5">
                 <section>
                   <SectionHeader
                     title="Needs attention"
-                    aside={attentionCount > 0 ? `${attentionCount} open` : undefined}
+                    description="Failures and degraded infrastructure"
+                    aside={needsAttention.length > 0 ? `${needsAttention.length} open` : "Clear"}
                   />
-                  {attentionShown.length === 0 ? (
-                    <div className="rounded-lg border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-                      Nothing needs attention right now.
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {attentionShown.map((item) => (
-                        <AttentionCard key={item.id} item={item} />
-                      ))}
-                    </div>
-                  )}
+                  <div className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
+                    {attentionShown.length === 0 ? (
+                      <EmptyRow icon={<CheckCircle2 className="text-success-foreground" />}>
+                        Nothing needs attention right now
+                      </EmptyRow>
+                    ) : (
+                      attentionShown.map((item) => <AttentionRow key={item.id} item={item} />)
+                    )}
+                  </div>
                 </section>
 
                 <section>
                   <SectionHeader
                     title="Active now"
-                    aside={
-                      activeNow.length > 0 ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="size-1.5 rounded-full bg-running animate-blink" />
-                          {activeNow.length} running
-                        </span>
-                      ) : undefined
-                    }
+                    description="Agent runs currently in progress"
+                    aside={activeNow.length > 0 ? `${activeNow.length} running` : "Idle"}
                   />
-                  {activeNow.length === 0 ? (
-                    <div className="rounded-lg border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-                      Nothing running right now.
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {activeNow.map((e) => (
-                        <ActiveRow key={e.id} event={e} />
-                      ))}
-                    </div>
-                  )}
+                  <div className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
+                    {activeNow.length === 0 ? (
+                      <EmptyRow icon={<CircleDashed />}>No agent runs are active</EmptyRow>
+                    ) : (
+                      activeNow.map((event) => <ActiveRow key={event.id} event={event} />)
+                    )}
+                  </div>
                 </section>
               </div>
 
-              {/* Right: recent activity + quick start */}
-              <div className="flex flex-col gap-6 lg:col-span-1">
+              <aside className="space-y-5">
                 <section>
-                  <SectionHeader title="Recent activity" icon={<ActivityIcon />} />
-                  <div className="rounded-lg border border-border bg-card p-1">
-                    {recent.length === 0 ? (
-                      <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                        No recent activity.
-                      </p>
-                    ) : (
-                      <ol>
-                        {recent.map((e) => (
-                          <ActivityRow key={e.id} event={e} />
-                        ))}
-                      </ol>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => activityQuery.refetch()}
-                    className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <RefreshCw className={cn("size-3", activityQuery.isFetching && "animate-spin")} />
-                    Refresh
-                  </button>
+                  <SectionHeader
+                    title="Recent activity"
+                    description="Latest workspace events"
+                    aside={
+                      <button
+                        type="button"
+                        onClick={() => activityQuery.refetch()}
+                        aria-label="Refresh recent activity"
+                        className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:translate-y-px"
+                      >
+                        <RefreshCw className={cn("size-3.5", activityQuery.isFetching && "animate-spin")} />
+                      </button>
+                    }
+                  />
+                  {recent.length === 0 ? (
+                    <div className="rounded-lg border border-border bg-card shadow-card">
+                      <EmptyRow icon={<Clock3 />}>No recent activity</EmptyRow>
+                    </div>
+                  ) : (
+                    <ol className="rounded-lg border border-border bg-card px-3 py-1 shadow-card">
+                      {recent.map((event) => <ActivityRow key={event.id} event={event} />)}
+                    </ol>
+                  )}
                 </section>
 
                 {quickStartAgents.length > 0 && (
                   <section>
-                    <SectionHeader title="Quick start" />
-                    <div className="flex flex-col gap-2">
-                      {quickStartAgents.map((a) => (
+                    <SectionHeader title="Start a chat" description="Jump into an available agent" />
+                    <div className="grid grid-cols-2 gap-2">
+                      {quickStartAgents.map((agent) => (
                         <Link
-                          key={a.name}
-                          to={`/chat?new=1&agent=${encodeURIComponent(a.name)}`}
-                          className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent"
+                          key={agent.name}
+                          to={`/chat?new=1&agent=${encodeURIComponent(agent.name)}`}
+                          className="group flex min-w-0 items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left shadow-card transition-colors hover:bg-accent active:translate-y-px"
                         >
-                          <Bot className="size-4 text-muted-foreground" />
-                          <span className="flex-1 truncate font-medium">{a.name}</span>
-                          <ArrowRight className="size-3.5 text-muted-foreground" />
+                          <AgentAvatar name={agent.name} size="sm" />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">{agent.name}</span>
+                          <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                         </Link>
                       ))}
                     </div>
                   </section>
                 )}
-              </div>
+              </aside>
             </div>
-          </>
+          </div>
         )}
       </PageScroll>
     </Page>

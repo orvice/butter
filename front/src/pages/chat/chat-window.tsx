@@ -18,6 +18,7 @@ import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api
 import {
   ArrowUp,
   ChevronDown,
+  Copy,
   ExternalLink,
   Loader2,
   MoreHorizontal,
@@ -110,6 +111,8 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
     }
     return out;
   }, [persistedEvents, pendingBaseEventIds, optimisticUserEvent, streamingEvents, streamingResponse]);
+  const visibleEvents = useMemo(() => events.filter(isRenderableEvent), [events]);
+  const timelineEvents = useMemo(() => groupToolEvents(visibleEvents), [visibleEvents]);
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -152,7 +155,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
       return;
     }
 
-    // Attachments stay visible (and in state) while the run is in flight —
+    // Attachments stay visible (and in state) while the run is in flight.
     // the picker is disabled during pending, and they are only cleared once
     // the send actually succeeds, so any failure path keeps them for retry.
     const runId = newRunId();
@@ -293,21 +296,27 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
       onDrop={handleDrop}
     >
       {/* Chat header */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
-        <div className="flex min-w-0 items-center gap-2.5 md:pl-8">
+      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-3 md:px-5">
+        <div className="flex min-w-0 items-center gap-2.5 md:pl-7">
           <AgentAvatar name={agentName ?? "?"} size="sm" />
           <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-semibold leading-tight">
+            <span className="truncate text-sm font-medium leading-tight">
               {agentName ?? "Unknown agent"}
             </span>
-            <span className="truncate font-mono text-[0.65rem] leading-tight text-muted-foreground">
-              {sessionId}
+            <span
+              title={sessionId}
+              className="truncate font-mono text-[0.65rem] leading-tight text-muted-foreground/80"
+            >
+              Session {sessionId.slice(0, 8)}
             </span>
           </span>
         </div>
 
         <DropdownMenu>
-          <DropdownMenuTrigger className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+          <DropdownMenuTrigger
+            aria-label="Chat options"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={6}>
@@ -321,13 +330,20 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
 
       {/* Messages */}
       <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl px-4">
+        <div className="mx-auto w-full max-w-5xl px-3 sm:px-5 lg:px-6">
           {liveQuery.isLoading ? (
-            <div className="space-y-3 py-4">
-              <Skeleton className="h-16 w-2/3" />
-              <Skeleton className="ml-auto h-16 w-1/2" />
+            <div className="space-y-6 py-8">
+              <div className="flex gap-3">
+                <Skeleton className="size-8 shrink-0 rounded-md" />
+                <div className="w-full max-w-xl space-y-2">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                </div>
+              </div>
+              <Skeleton className="ml-auto h-14 w-1/2 max-w-md rounded-lg" />
             </div>
-          ) : events.length === 0 ? (
+          ) : visibleEvents.length === 0 ? (
             <div className="flex min-h-[50vh] flex-col items-center justify-center text-center">
               <AgentAvatar name={agentName ?? "?"} size="lg" />
               <h2 className="mt-3 text-lg font-semibold">{agentName ?? "Unknown agent"}</h2>
@@ -336,13 +352,27 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
               </p>
             </div>
           ) : (
-            <div className="py-2">
-              {events.map((evt) => (
-                <MessageRow key={evt.eventId} event={evt} agentName={agentName ?? "agent"} />
-              ))}
+            <div className="py-4 sm:py-6">
+              {timelineEvents.map((evt, index) => {
+                const previous = timelineEvents[index - 1];
+                const showIdentity =
+                  evt.role !== "user" &&
+                  (!previous || previous.role === "user" || previous.author !== evt.author);
+                return (
+                  <MessageRow
+                    key={evt.eventId}
+                    event={evt}
+                    agentName={agentName ?? "agent"}
+                    showIdentity={showIdentity}
+                  />
+                );
+              })}
               {pending && (
-                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                  <Loader2 className="size-3 animate-spin" /> Agent is thinking…
+                <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 py-2">
+                  <span />
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="size-3 animate-spin" /> Thinking…
+                  </div>
                 </div>
               )}
             </div>
@@ -351,8 +381,8 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 border-t border-border bg-background">
-        <div className="mx-auto w-full max-w-3xl px-3 pb-3 pt-3 md:px-4 md:pb-4">
+      <div className="shrink-0 border-t border-border/60 bg-background">
+        <div className="mx-auto w-full max-w-4xl px-3 pb-2.5 pt-3 sm:px-5 md:pb-3.5">
           {attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {attachments.map((file, index) => (
@@ -380,7 +410,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
           )}
           <div
             className={cn(
-              "flex items-end gap-2 rounded-xl border border-border bg-card p-2 shadow-sm transition-colors focus-within:border-ring",
+              "flex items-end gap-2 rounded-lg border border-border/70 bg-card p-2 shadow-sm transition-[border-color,box-shadow] focus-within:border-foreground/20 focus-within:ring-2 focus-within:ring-ring/10",
               !agentName && "opacity-60",
             )}
           >
@@ -397,7 +427,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
               disabled={!agentName || pending}
               onClick={openFilePicker}
               aria-label="Attach images"
-              className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none"
+              className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:pointer-events-none"
             >
               <Paperclip className="size-4" />
             </button>
@@ -415,17 +445,17 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
               onPaste={handlePaste}
               placeholder={
                 agentName
-                  ? `Message ${agentName}…`
+                  ? `Message ${agentName}...`
                   : "This chat is missing an agent reference; cannot send."
               }
-              className="max-h-40 min-h-6 flex-1 resize-none bg-transparent py-1.5 text-[0.9rem] leading-relaxed outline-none placeholder:text-muted-foreground"
+              className="max-h-40 min-h-6 flex-1 resize-none bg-transparent py-1.5 text-[0.9rem] leading-relaxed outline-none placeholder:text-muted-foreground/75"
             />
             {pending ? (
               <button
                 type="button"
                 onClick={() => void handleStop()}
                 aria-label="Stop generating"
-                className="shrink-0 rounded-md bg-secondary p-2 text-secondary-foreground hover:bg-secondary/80"
+                className="shrink-0 rounded-md bg-secondary p-2 text-secondary-foreground transition-colors hover:bg-secondary/80 active:scale-[0.98]"
               >
                 <Square className="size-4 fill-current" />
               </button>
@@ -435,13 +465,13 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
                 onClick={() => void handleSend()}
                 disabled={!canSend}
                 aria-label="Send message"
-                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-opacity hover:bg-primary/90 disabled:opacity-40"
+                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-colors hover:bg-primary/90 active:scale-[0.98] disabled:opacity-35"
               >
                 <ArrowUp className="size-4" />
               </button>
             )}
           </div>
-          <p className="mt-1.5 text-center text-xs text-muted-foreground">
+          <p className="mt-1.5 text-center text-[0.68rem] text-muted-foreground/80">
             Butter can make mistakes. Verify important actions before running them.
           </p>
         </div>
@@ -506,6 +536,50 @@ function appendUniqueEvent(out: ParsedEvent[], seen: Set<string>, event: ParsedE
   out.push(event);
 }
 
+function isRenderableEvent(event: ParsedEvent): boolean {
+  return (
+    event.text.trim().length > 0 ||
+    event.toolCalls.length > 0 ||
+    event.toolResponses.length > 0
+  );
+}
+
+function groupToolEvents(events: ParsedEvent[]): ParsedEvent[] {
+  const grouped: ParsedEvent[] = [];
+
+  for (const event of events) {
+    const previous = grouped[grouped.length - 1];
+    const isToolOnly =
+      event.role !== "user" &&
+      event.text.trim().length === 0 &&
+      (event.toolCalls.length > 0 || event.toolResponses.length > 0);
+    const previousIsToolOnly =
+      previous &&
+      previous.role !== "user" &&
+      previous.text.trim().length === 0 &&
+      (previous.toolCalls.length > 0 || previous.toolResponses.length > 0);
+
+    if (
+      isToolOnly &&
+      previousIsToolOnly &&
+      previous.author === event.author &&
+      previous.traceUrl === event.traceUrl
+    ) {
+      grouped[grouped.length - 1] = {
+        ...previous,
+        eventId: `${previous.eventId}:${event.eventId}`,
+        toolCalls: [...previous.toolCalls, ...event.toolCalls],
+        toolResponses: [...previous.toolResponses, ...event.toolResponses],
+      };
+      continue;
+    }
+
+    grouped.push(event);
+  }
+
+  return grouped;
+}
+
 function payloadToParsedEvent(payload: ChatStreamPayload): ParsedEvent | null {
   const evt = payload.event;
   if (!evt?.event_id) return null;
@@ -535,23 +609,29 @@ const MARKDOWN_COMPONENTS: Components = {
   table: MarkdownTable,
   th: MarkdownTableHeader,
   td: MarkdownTableCell,
-  p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
+  p: ({ children }) => (
+    <p className="my-2 max-w-[72ch] first:mt-0 last:mb-0">{children}</p>
+  ),
   ul: ({ children }) => (
-    <ul className="my-1.5 list-disc space-y-1 pl-5 first:mt-0 last:mb-0">{children}</ul>
+    <ul className="my-2 max-w-[72ch] list-disc space-y-1 pl-5 first:mt-0 last:mb-0">
+      {children}
+    </ul>
   ),
   ol: ({ children }) => (
-    <ol className="my-1.5 list-decimal space-y-1 pl-5 first:mt-0 last:mb-0">{children}</ol>
+    <ol className="my-2 max-w-[72ch] list-decimal space-y-1 pl-5 first:mt-0 last:mb-0">
+      {children}
+    </ol>
   ),
   li: ({ children }) => <li className="pl-1">{children}</li>,
   blockquote: ({ children }) => (
-    <blockquote className="my-1.5 border-l-2 border-border pl-3 italic opacity-90 first:mt-0 last:mb-0">
+    <blockquote className="my-2 max-w-[72ch] border-l-2 border-border pl-3 italic text-muted-foreground first:mt-0 last:mb-0">
       {children}
     </blockquote>
   ),
   hr: () => <hr className="my-3 border-border" />,
-  h1: ({ children }) => <h1 className="my-2 text-lg font-semibold first:mt-0 last:mb-0">{children}</h1>,
-  h2: ({ children }) => <h2 className="my-2 text-base font-semibold first:mt-0 last:mb-0">{children}</h2>,
-  h3: ({ children }) => <h3 className="my-2 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>,
+  h1: ({ children }) => <h1 className="my-3 max-w-[72ch] text-lg font-semibold first:mt-0 last:mb-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="my-3 max-w-[72ch] text-base font-semibold first:mt-0 last:mb-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="my-2 max-w-[72ch] text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>,
 };
 
 function MarkdownLink(props: ComponentProps<"a">) {
@@ -579,7 +659,7 @@ function MarkdownCode({ children, className }: ComponentProps<"code">) {
 
 function MarkdownPre({ children }: ComponentProps<"pre">) {
   return (
-    <pre className="scrollbar-thin my-2 overflow-x-auto rounded-md border border-border bg-card p-3 text-foreground first:mt-0 last:mb-0">
+    <pre className="scrollbar-thin my-2 max-w-full overflow-x-auto rounded-md border border-border/70 bg-muted/35 p-3 text-foreground first:mt-0 last:mb-0">
       {children}
     </pre>
   );
@@ -587,60 +667,107 @@ function MarkdownPre({ children }: ComponentProps<"pre">) {
 
 function MarkdownTable({ children }: ComponentProps<"table">) {
   return (
-    <div className="scrollbar-thin my-2 overflow-x-auto first:mt-0 last:mb-0">
-      <table className="w-full border-collapse text-left text-xs">{children}</table>
+    <div className="scrollbar-thin my-3 max-w-full overflow-x-auto rounded-md border border-border/70 first:mt-0 last:mb-0">
+      <table className="w-full min-w-[42rem] border-separate border-spacing-0 text-left text-xs">
+        {children}
+      </table>
     </div>
   );
 }
 
 function MarkdownTableHeader({ children }: ComponentProps<"th">) {
-  return <th className="border border-border px-2 py-1 font-semibold">{children}</th>;
+  return (
+    <th className="whitespace-nowrap border-b border-border bg-muted/55 px-3 py-2 font-semibold text-foreground">
+      {children}
+    </th>
+  );
 }
 
 function MarkdownTableCell({ children }: ComponentProps<"td">) {
-  return <td className="border border-border px-2 py-1 align-top">{children}</td>;
+  return (
+    <td className="border-b border-border/50 px-3 py-2 align-top leading-5 last:border-r-0">
+      {children}
+    </td>
+  );
 }
 
-function ToolBlock({
-  kind,
-  name,
-  preview,
+function ToolActivity({
+  calls,
+  responses,
 }: {
-  kind: "call" | "response";
-  name: string;
-  preview?: string;
+  calls: ToolCallSummary[];
+  responses: ToolResponseSummary[];
 }) {
-  const [open, setOpen] = useState(false);
+  const steps = [
+    ...calls.map((item) => ({ kind: "Arguments", name: item.name, preview: item.argsPreview })),
+    ...responses.map((item) => ({ kind: "Response", name: item.name, preview: item.responsePreview })),
+  ];
+  const names = Array.from(new Set(steps.map((step) => step.name)));
+
   return (
-    <div className="my-2 overflow-hidden rounded-md border border-border bg-card/60">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
-      >
-        <Wrench className="size-3.5 text-muted-foreground" />
-        <span className="font-mono text-xs">{name}</span>
-        <span className="text-xs font-medium text-muted-foreground">
-          {kind === "call" ? "Tool call" : "Tool response"}
+    <details className="group/tool my-2 max-w-[72ch] overflow-hidden rounded-md border border-border/60 bg-muted/20">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-muted/45 [&::-webkit-details-marker]:hidden">
+        <Wrench className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate font-mono text-xs text-foreground/85">
+          {names.join(", ")}
         </span>
-        {preview && (
-          <ChevronDown
-            className={cn(
-              "ml-auto size-4 text-muted-foreground transition-transform",
-              open && "rotate-180",
+        <span className="shrink-0 text-[0.7rem] text-muted-foreground">
+          {steps.length} {steps.length === 1 ? "step" : "steps"}
+        </span>
+        <ChevronDown className="ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform group-open/tool:rotate-180" />
+      </summary>
+      <div className="space-y-2 border-t border-border/60 px-2.5 py-2">
+        {steps.map((step, index) => (
+          <div key={`${step.kind}-${step.name}-${index}`}>
+            <div className="mb-1 flex items-center gap-2 text-[0.68rem] text-muted-foreground">
+              <span>{step.kind}</span>
+              <span className="font-mono text-foreground/75">{step.name}</span>
+            </div>
+            {step.preview && (
+              <pre className="scrollbar-thin max-h-64 overflow-auto rounded bg-muted/55 p-2 font-mono text-xs leading-5">
+                {step.preview}
+              </pre>
             )}
-          />
-        )}
-      </button>
-      {open && preview && (
-        <div className="border-t border-border px-3 py-2">
-          <p className="mb-1 text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
-            {kind === "call" ? "Arguments" : "Response"}
-          </p>
-          <pre className="scrollbar-thin overflow-x-auto rounded bg-muted/60 p-2 font-mono text-xs">
-            {preview}
-          </pre>
-        </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function MessageActions({ event }: { event: ParsedEvent }) {
+  const hasText = event.text.trim().length > 0;
+  if (!hasText && !event.traceUrl) return null;
+
+  return (
+    <div className="mt-1 flex min-h-6 items-center gap-0.5 text-muted-foreground opacity-100 transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover/message:opacity-100">
+      {hasText && (
+        <button
+          type="button"
+          title="Copy message"
+          aria-label="Copy message"
+          onClick={() => {
+            void navigator.clipboard.writeText(event.text).then(
+              () => toast.success("Message copied"),
+              () => toast.error("Failed to copy message"),
+            );
+          }}
+          className="rounded-md p-1.5 transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Copy className="size-3.5" />
+        </button>
+      )}
+      {event.traceUrl && (
+        <a
+          href={event.traceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open trace"
+          aria-label="Open trace"
+          className="rounded-md p-1.5 transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ExternalLink className="size-3.5" />
+        </a>
       )}
     </div>
   );
@@ -649,19 +776,20 @@ function ToolBlock({
 const MessageRow = memo(function MessageRow({
   event,
   agentName,
+  showIdentity,
 }: {
   event: ParsedEvent;
   agentName: string;
+  showIdentity: boolean;
 }) {
   const isUser = event.role === "user";
   const hasText = event.text.trim().length > 0;
   const hasTools = event.toolCalls.length > 0 || event.toolResponses.length > 0;
-  if (!hasText && !hasTools) return null;
 
   if (isUser) {
     return (
-      <div className="flex flex-col items-end gap-1 py-3">
-        <div className="max-w-[80%] rounded-lg rounded-tr-sm bg-secondary px-3.5 py-2.5 text-[0.9rem] leading-relaxed text-secondary-foreground">
+      <div className="group/message flex flex-col items-end py-3 sm:py-4">
+        <div className="max-w-[88%] rounded-lg rounded-tr-sm bg-secondary px-3.5 py-2.5 text-[0.9rem] leading-relaxed text-secondary-foreground sm:max-w-[min(80%,48rem)]">
           <ReactMarkdown remarkPlugins={MARKDOWN_REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
             {event.text}
           </ReactMarkdown>
@@ -671,43 +799,44 @@ const MessageRow = memo(function MessageRow({
   }
 
   return (
-    <div className="flex gap-3 py-3">
-      <AgentAvatar name={event.author || agentName} size="sm" className="mt-0.5" />
-      <div className="min-w-0 flex-1">
-        <div className="mb-0.5 flex items-center gap-2">
-          <span className="text-sm font-medium">{event.author || agentName}</span>
-          {event.timestamp && (
-            <span className="text-xs text-muted-foreground">
-              {new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-        </div>
+    <div
+      className={cn(
+        "group/message grid grid-cols-[2rem_minmax(0,1fr)] gap-3",
+        showIdentity ? "pt-4" : "pt-1",
+        hasText ? "pb-2" : "pb-0.5",
+      )}
+    >
+      <div className="pt-0.5">
+        {showIdentity && <AgentAvatar name={event.author || agentName} size="sm" />}
+      </div>
+      <div className="min-w-0">
+        {showIdentity && (
+          <div className="mb-1 flex min-h-5 items-center gap-2">
+            <span className="text-sm font-medium">{event.author || agentName}</span>
+            {event.timestamp && (
+              <span className="text-[0.7rem] text-muted-foreground/80">
+                {new Date(event.timestamp).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
+          </div>
+        )}
 
-        {event.toolCalls.map((tc: ToolCallSummary, i: number) => (
-          <ToolBlock key={`call-${i}`} kind="call" name={tc.name} preview={tc.argsPreview} />
-        ))}
-        {event.toolResponses.map((tr: ToolResponseSummary, i: number) => (
-          <ToolBlock key={`resp-${i}`} kind="response" name={tr.name} preview={tr.responsePreview} />
-        ))}
+        {hasTools && (
+          <ToolActivity calls={event.toolCalls} responses={event.toolResponses} />
+        )}
 
         {hasText && (
-          <div className="text-[0.9rem] leading-relaxed text-foreground">
+          <div className="text-[0.9rem] leading-6 text-foreground">
             <ReactMarkdown remarkPlugins={MARKDOWN_REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
               {event.text}
             </ReactMarkdown>
           </div>
         )}
 
-        {event.traceUrl && (
-          <a
-            href={event.traceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 inline-flex items-center gap-1 text-[0.7rem] text-muted-foreground hover:text-foreground"
-          >
-            <ExternalLink className="size-2.5" /> trace
-          </a>
-        )}
+        <MessageActions event={event} />
       </div>
     </div>
   );
