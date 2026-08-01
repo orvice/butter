@@ -115,7 +115,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 - `ChannelService`：渠道配置 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
 - `AutomationService`：自动化工作流 CRUD + `RunAutomationNow` + `ListAutomationRuns` / `GetAutomationRun` / `ListAutomationStepRuns`。
 - `CronJobService`：定时任务 CRUD + `ListCronExecutions`（分页）+ `RunCronJobNow`。
-- `SessionService`：`Create` / `Get`（含 duration / event trace_url）/ `List`（channel/user/date 过滤 + 分页 + total）/ `Delete` / `Reply`。
+- `SessionService`：`Create` / `Get`（含 duration / event trace_url）/ `List`（channel/user/date 过滤 + 分页 + total）/ `Delete` / `Reply` / `UpdateSessionTitle`（first-class title，有效标题优先级：first-class title → legacy state["title"] → agent name → 缩短 session ID）。
 - `ModelProviderService`：LLM Provider 配置 CRUD（workspace 范围）。
 - `NotifyGroupService`：通知组 CRUD，供 cron 投递。
 - `AgentFileService`：workspace 范围的文件空间与文件 CRUD（含 `SearchAgentFiles`）。

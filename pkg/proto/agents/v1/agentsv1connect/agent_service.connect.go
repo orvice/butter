@@ -219,6 +219,9 @@ const (
 	// SessionServiceReplySessionProcedure is the fully-qualified name of the SessionService's
 	// ReplySession RPC.
 	SessionServiceReplySessionProcedure = "/agents.v1.SessionService/ReplySession"
+	// SessionServiceUpdateSessionTitleProcedure is the fully-qualified name of the SessionService's
+	// UpdateSessionTitle RPC.
+	SessionServiceUpdateSessionTitleProcedure = "/agents.v1.SessionService/UpdateSessionTitle"
 )
 
 // AgentServiceClient is a client for the agents.v1.AgentService service.
@@ -2004,6 +2007,8 @@ type SessionServiceClient interface {
 	DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[v1.DeleteSessionResponse], error)
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error)
+	// UpdateSessionTitle sets a first-class title on a session.
+	UpdateSessionTitle(context.Context, *connect.Request[v1.UpdateSessionTitleRequest]) (*connect.Response[v1.UpdateSessionTitleResponse], error)
 }
 
 // NewSessionServiceClient constructs a client for the agents.v1.SessionService service. By default,
@@ -2047,16 +2052,23 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("ReplySession")),
 			connect.WithClientOptions(opts...),
 		),
+		updateSessionTitle: connect.NewClient[v1.UpdateSessionTitleRequest, v1.UpdateSessionTitleResponse](
+			httpClient,
+			baseURL+SessionServiceUpdateSessionTitleProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("UpdateSessionTitle")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // sessionServiceClient implements SessionServiceClient.
 type sessionServiceClient struct {
-	createSession *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
-	getSession    *connect.Client[v1.GetSessionRequest, v1.GetSessionResponse]
-	listSessions  *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
-	deleteSession *connect.Client[v1.DeleteSessionRequest, v1.DeleteSessionResponse]
-	replySession  *connect.Client[v1.ReplySessionRequest, v1.ReplySessionResponse]
+	createSession      *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
+	getSession         *connect.Client[v1.GetSessionRequest, v1.GetSessionResponse]
+	listSessions       *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
+	deleteSession      *connect.Client[v1.DeleteSessionRequest, v1.DeleteSessionResponse]
+	replySession       *connect.Client[v1.ReplySessionRequest, v1.ReplySessionResponse]
+	updateSessionTitle *connect.Client[v1.UpdateSessionTitleRequest, v1.UpdateSessionTitleResponse]
 }
 
 // CreateSession calls agents.v1.SessionService.CreateSession.
@@ -2084,6 +2096,11 @@ func (c *sessionServiceClient) ReplySession(ctx context.Context, req *connect.Re
 	return c.replySession.CallUnary(ctx, req)
 }
 
+// UpdateSessionTitle calls agents.v1.SessionService.UpdateSessionTitle.
+func (c *sessionServiceClient) UpdateSessionTitle(ctx context.Context, req *connect.Request[v1.UpdateSessionTitleRequest]) (*connect.Response[v1.UpdateSessionTitleResponse], error) {
+	return c.updateSessionTitle.CallUnary(ctx, req)
+}
+
 // SessionServiceHandler is an implementation of the agents.v1.SessionService service.
 type SessionServiceHandler interface {
 	// CreateSession creates a new session for the given agent.
@@ -2096,6 +2113,8 @@ type SessionServiceHandler interface {
 	DeleteSession(context.Context, *connect.Request[v1.DeleteSessionRequest]) (*connect.Response[v1.DeleteSessionResponse], error)
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error)
+	// UpdateSessionTitle sets a first-class title on a session.
+	UpdateSessionTitle(context.Context, *connect.Request[v1.UpdateSessionTitleRequest]) (*connect.Response[v1.UpdateSessionTitleResponse], error)
 }
 
 // NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2135,6 +2154,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("ReplySession")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceUpdateSessionTitleHandler := connect.NewUnaryHandler(
+		SessionServiceUpdateSessionTitleProcedure,
+		svc.UpdateSessionTitle,
+		connect.WithSchema(sessionServiceMethods.ByName("UpdateSessionTitle")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SessionServiceCreateSessionProcedure:
@@ -2147,6 +2172,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceDeleteSessionHandler.ServeHTTP(w, r)
 		case SessionServiceReplySessionProcedure:
 			sessionServiceReplySessionHandler.ServeHTTP(w, r)
+		case SessionServiceUpdateSessionTitleProcedure:
+			sessionServiceUpdateSessionTitleHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2174,4 +2201,8 @@ func (UnimplementedSessionServiceHandler) DeleteSession(context.Context, *connec
 
 func (UnimplementedSessionServiceHandler) ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.ReplySession is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) UpdateSessionTitle(context.Context, *connect.Request[v1.UpdateSessionTitleRequest]) (*connect.Response[v1.UpdateSessionTitleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.UpdateSessionTitle is not implemented"))
 }
