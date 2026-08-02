@@ -545,6 +545,22 @@ func (s *Service) ModelProviders() []agentsv1.ModelProvider {
 	return s.providers
 }
 
+// GetAgentMeta returns the named agent's configured model, owning workspace
+// and agent type in a single lookup. ok is false when the agent is unknown
+// or has no proto config (dynamically registered agents). The lookup is by
+// bare agent name: agent names are expected to be unique across workspaces
+// in this iteration (see AGENTS.md), so the returned workspace is
+// unambiguous.
+func (s *Service) GetAgentMeta(name string) (model, workspaceID string, agentType agentsv1.AgentType, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pb, found := s.agentsProto[name]
+	if !found {
+		return "", "", agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED, false
+	}
+	return pb.GetConfig().GetModel(), pb.GetWorkspaceId(), pb.GetType(), true
+}
+
 // GetAgentModel returns the model name configured for the named agent, or empty string.
 func (s *Service) GetAgentModel(name string) string {
 	s.mu.Lock()

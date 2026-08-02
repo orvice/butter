@@ -183,6 +183,38 @@ input parts + ContextInfo
 
 当 agent 配置、MCP server 或 remote agent 发生变更时，`ConfigRuntime.ReloadRunner` 会重新构建 proto agent registry，并清空 runner 与 model override 缓存。
 
+## Session 标题生成（LLM）
+
+Web Chat 首轮完成后，客户端调用 `SessionService.GenerateSessionTitle`（dashboard 在 `StreamAgent` 收到 `final` 并 refetch session 后触发）。实现位于 `internal/application/session_service.go` 与 `session_title_llm.go`。
+
+```text
+GenerateSessionTitle
+  -> load session + all events
+  -> if effective title exists (first-class / legacy state["title"]): return generated=false
+  -> titleGenerator.generate (when resolver + provider lister wired):
+      derive agent name from events (first non-"user" author, skip tool-only)
+      resolve workspace_id + agent type + model via runner.Service.GetAgentMeta (TitleModelResolver)
+      ListModelProviders(workspace_id only) via config repo
+      model_ref = chat_title_model || agent.config.model; each candidate must
+        resolve (alias/name) inside the workspace provider list — otherwise it
+        is skipped, so no call can use credentials outside the workspace
+      skip LLM when: no agent, no workspace, non-LLM agent, no candidate resolves
+      prompt input = first user message + first final assistant response
+        (Event.IsFinalResponse; partials and tool-call text skipped)
+      direct non-streaming LLM call (fixed prompt, 10s timeout, max 64 output tokens)
+      normalize to single line, max 30 Unicode code points
+  -> on LLM skip/failure: deriveAutoTitle (deterministic truncation / "Image chat")
+  -> SetSessionTitleIfEmpty (Mongo CAS on adk_sessions.title)
+```
+
+**与 Runner 的边界：** 标题生成不走 `runner.Service.Run`，不执行 ADK agent、工具或 workflow；是一次独立的 `internalagent.ResolveModel` + `GenerateContent` 调用。
+
+**装配：** `internal/app/routes.go` 从 YAML `chat_title_model` 调用 `SetChatTitleModel`；`channels.go` 把 `runner.Service` 作为 `TitleModelResolver`、config repo 作为 `WorkspaceModelProviderLister` 注入 `SessionServiceServer`。
+
+**副作用约束：** 不追加 session events、不写 `invocations`、不碰 ADK memory、不更新 `last_update_time`。手动 `UpdateSessionTitle` 与并发 CAS 保证 manual-title-wins。
+
+**日志：** `session_id`、`workspace_id`、`model_ref`、`outcome` / `fallback_reason`、`elapsed_ms`。
+
 ## Skills 存储与运行时
 
 Skills 是 workspace 级共享的 agentskills.io 能力包，服务于 ADK `skilltoolset`（ADR 0004）。
@@ -256,7 +288,7 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 - `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools` + MCP OAuth2 流程（`StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`）。
 - `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
 - `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
-- `SessionService`：`Create` / `Get`（含 duration + trace_url）/ `List`（filter + page）/ `Delete` / `Reply` / `UpdateSessionTitle`。Title 存为 Butter-owned 元数据（`adk_sessions.title`），不经由 ADK state；有效标题优先级：first-class title → legacy `state["title"]` → agent name → shortened session ID。重命名不影响 `last_update_time` 和排序。
+- `SessionService`：`Create` / `Get`（含 duration + trace_url）/ `List`（filter + page）/ `Delete` / `Reply` / `UpdateSessionTitle` / `GenerateSessionTitle`。Title 存为 Butter-owned 元数据（`adk_sessions.title`），不经由 ADK state；有效标题优先级：first-class title → legacy `state["title"]` → agent name → shortened session ID。`GenerateSessionTitle` 在首轮对话后尝试 LLM 标题（可选 YAML `chat_title_model`，按 agent workspace 解析 provider），失败则确定性截断；见上文 Session 标题生成。重命名与自动生成均不影响 `last_update_time` 和排序。
 - `AutomationService`：自动化工作流 CRUD + `RunAutomationNow` + run/step-run history 查询。
 - `CronJobService`：定时任务 CRUD + `ListCronExecutions` + `RunCronJobNow`，含 timeout/retry/concurrency/notify/output reliability policy。
 - `ModelProviderService`：LLM Provider CRUD。

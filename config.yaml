@@ -129,6 +129,12 @@ langfuse:
   # release: ""       # app version tag
   # serviceName: ""   # OTel service name, defaults to "langfuse-adk"
 
+# Optional model alias for LLM-generated chat titles. When set, the first
+# web-chat turn uses this model to produce a concise title. Uses the
+# agent's own model as fallback. Omit or leave empty for deterministic
+# (text-truncation) titles only.
+# chat_title_model: "flash"
+
 # Model provider mappings
 # Maps model names to provider backends. If a model isn't listed here, Gemini is used as default.
 model_providers:

@@ -58,6 +58,10 @@ type SessionServiceServer struct {
 	titleStore      SessionTitleStore
 	langfuseHost    string
 	deleteListeners []SessionDeleteListener
+
+	titleResolver       TitleModelResolver
+	titleProviderLister WorkspaceModelProviderLister
+	chatTitleModel      string
 }
 
 // SessionDeleteListener observes successful session deletions with the
@@ -128,6 +132,46 @@ func (s *SessionServiceServer) getTitleStore() SessionTitleStore {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.titleStore
+}
+
+// SetTitleModelResolver wires the model/agent resolver used for LLM title
+// generation. Typically backed by runner.Service.
+func (s *SessionServiceServer) SetTitleModelResolver(r TitleModelResolver) {
+	if r == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.titleResolver = r
+}
+
+// SetTitleProviderLister wires the workspace-scoped model provider lister
+// used for LLM title generation.
+func (s *SessionServiceServer) SetTitleProviderLister(l WorkspaceModelProviderLister) {
+	if l == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.titleProviderLister = l
+}
+
+// SetChatTitleModel configures the dedicated model alias for LLM title
+// generation. Empty means fall back to the agent's configured model.
+func (s *SessionServiceServer) SetChatTitleModel(model string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.chatTitleModel = model
+}
+
+func (s *SessionServiceServer) titleGen() titleGenerator {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return titleGenerator{
+		resolver:       s.titleResolver,
+		providerLister: s.titleProviderLister,
+		chatTitleModel: s.chatTitleModel,
+	}
 }
 
 // SetLangfuseHost wires the Langfuse base URL used to render trace_url on
@@ -683,15 +727,23 @@ func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *co
 		events = append(events, evt)
 	}
 
-	title := deriveAutoTitle(events)
+	logger := log.FromContext(ctx)
+
+	// Try LLM-based title generation first.
+	llmTitle, llmOK := s.titleGen().generate(ctx, events, req.Msg.GetSessionId())
+	var title string
+	if llmOK {
+		title = llmTitle
+	} else {
+		title = deriveAutoTitle(events)
+	}
+
 	if title == "" {
 		return connect.NewResponse(&agentsv1.GenerateSessionTitleResponse{
 			Session:   sessionToInfo(sessResp.Session),
 			Generated: false,
 		}), nil
 	}
-
-	logger := log.FromContext(ctx)
 
 	// Atomic CAS: write only if no first-class title exists yet.
 	info, generated, err := titleStore.SetSessionTitleIfEmpty(
@@ -705,10 +757,14 @@ func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *co
 	}
 
 	if generated {
+		method := "deterministic"
+		if llmOK {
+			method = "llm"
+		}
 		logger.Info("auto-generated session title",
 			"app_name", req.Msg.GetAppName(),
 			"session_id", req.Msg.GetSessionId(),
-			"title", title,
+			"method", method,
 		)
 	}
 

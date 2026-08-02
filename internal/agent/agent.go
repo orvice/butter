@@ -123,7 +123,7 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1
 		"disallow_transfer_to_peers", acfg.GetDisallowTransferToPeers(),
 	)
 
-	m, err := resolveModel(ctx, acfg.GetModel(), providers)
+	m, err := ResolveModel(ctx, acfg.GetModel(), providers)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: creating model %q: %w", pb.GetName(), acfg.GetModel(), err)
 	}
