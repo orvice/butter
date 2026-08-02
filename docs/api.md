@@ -2139,6 +2139,86 @@ session. Renaming does not change `last_update_time` or conversation ordering.
 - `not_found` — session does not exist
 - `failed_precondition` — title store not yet initialized
 
+#### GenerateSessionTitle
+
+```
+POST /api/agents.v1.SessionService/GenerateSessionTitle
+```
+
+Derives a best-effort title from the first conversation turn and persists it
+only while no **effective** title exists (first-class `title`, legacy
+`state["title"]`, or a title set concurrently via `UpdateSessionTitle`).
+The dashboard chat UI calls this after the first `StreamAgent` turn completes
+(`final` received and session refetched). Duplicate calls return the existing
+title with `generated: false`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `app_name` | string | Required |
+| `user_id` | string | Required |
+| `session_id` | string | Required |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session` | SessionInfo | Effective session info after the call |
+| `generated` | bool | `true` when this call derived and persisted a new title; `false` when an effective title already existed or was set concurrently |
+
+**Authorization:** Same self-only policy as `UpdateSessionTitle` — non-admin
+callers may only generate titles for sessions whose `user_id` matches their
+authenticated identity; admins may generate for any session.
+
+**Errors:** `invalid_argument` (missing field), `unauthenticated`,
+`permission_denied`, `not_found`, `failed_precondition` (session or title store
+unavailable).
+
+#### LLM session title generation
+
+When the runtime wires a model resolver and workspace-scoped provider lister
+(production default), title generation attempts a **direct LLM call** before
+deterministic text truncation. Optional YAML `chat_title_model` (model alias)
+selects a dedicated title model; when unset, the agent's configured
+`config.model` is used instead. If the LLM path cannot run or fails, the
+handler falls back to truncation with no further provider calls.
+
+**Model selection** (server-side, not client-controlled):
+
+1. Derive the agent from loaded session events — first non-`user` author,
+   skipping tool-only events.
+2. Resolve the agent's owning workspace from the runtime agent registry
+   (`runner.Service`).
+3. List `ModelProvider` records for that workspace only; resolve the model
+   alias via the same rules as agent execution.
+4. Prefer `chat_title_model` when configured; otherwise use the agent's
+   configured `config.model`.
+5. Missing agent, empty workspace, unresolved model, or a non-LLM agent type
+   (Loop / Sequential / Parallel / Workflow) skips the LLM path and uses
+   deterministic fallback with no provider call.
+
+**LLM call:** One non-streaming request with fixed instructions (never executes
+agents, tools, MCP, or workflow nodes). The prompt includes the first user
+message and first assistant response (input bounded; output capped at 64 tokens
+server-side, normalized to a single line of at most 30 Unicode code points in
+the user's language). Timeout is 10 seconds. Errors, timeouts, or empty model
+output fall back to deterministic truncation.
+
+**Cost and data flow:**
+
+| Aspect | Behavior |
+|--------|----------|
+| When billed | At most one extra provider API call per successful first-turn title attempt (only when the LLM path runs and the session still has no effective title) |
+| What is sent | Truncated first user + assistant text and fixed title instructions — not the full session history |
+| Workspace scope | Provider credentials and alias resolution use the **agent's workspace**, not the caller's `X-Workspace-ID` (session CRUD is not workspace-scoped) |
+| Side effects | Does **not** append session events, record an `Invocation`, mutate ADK memory, or change `last_update_time`; only CAS-writes `adk_sessions.title` when empty |
+| Observability | Structured logs: `session_id`, `workspace_id`, `model_ref`, `outcome`, `fallback_reason`, `elapsed_ms`. The call is outside the normal agent invocation path and is not listed in `ListAgentInvocations` |
+| Tracing | May appear in Langfuse as a direct model call when Langfuse is configured; it does not create a dashboard-visible invocation row |
+
+Manual titles always win: `UpdateSessionTitle` and concurrent CAS updates prevent
+auto-generation from overwriting user-chosen names.
+
 #### SessionInfo Object
 
 | Field | Type | Description |

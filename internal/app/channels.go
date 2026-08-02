@@ -85,6 +85,7 @@ type BootstrapResult struct {
 	LangfuseHost          string
 	SessionCounter        func(ctx context.Context) (int64, error)
 	SessionTitleStore     application.SessionTitleStore
+	ChatTitleModel        string
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -319,5 +320,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		AgentFileMaxBytes:     cfg.AgentFiles.EffectiveMaxFileBytes(),
 		LangfuseHost:          cfg.Langfuse.Host,
 		SessionCounter:        sessionSvc.CountSessions,
+		ChatTitleModel:        cfg.ChatTitleModel,
 	}, nil
 }

@@ -16,6 +16,7 @@ type AppConfig struct {
 	APIToken         string                   `yaml:"apiToken"`
 	Auth             AuthConfig               `yaml:"auth"`
 	SystemAgentModel string                   `yaml:"system_agent_model"`
+	ChatTitleModel   string                   `yaml:"chat_title_model"`
 
 	Langfuse langfuse.Config `yaml:"langfuse"`
 

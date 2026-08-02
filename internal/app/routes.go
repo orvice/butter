@@ -152,6 +152,15 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if result.SessionTitleStore != nil {
 		h.sessionSvcServer.SetTitleStore(result.SessionTitleStore)
 	}
+	if result.RunnerSvc != nil {
+		h.sessionSvcServer.SetTitleModelResolver(result.RunnerSvc)
+	}
+	if h.modelProviderRepo != nil {
+		h.sessionSvcServer.SetTitleProviderLister(h.modelProviderRepo)
+	}
+	if result.ChatTitleModel != "" {
+		h.sessionSvcServer.SetChatTitleModel(result.ChatTitleModel)
+	}
 	if result.CronScheduler != nil {
 		h.cronSvcServer.SetScheduler(result.CronScheduler)
 		// Deleting a paused session abandons its workflow (ADR 0002); the

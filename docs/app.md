@@ -115,7 +115,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 - `ChannelService`：渠道配置 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
 - `AutomationService`：自动化工作流 CRUD + `RunAutomationNow` + `ListAutomationRuns` / `GetAutomationRun` / `ListAutomationStepRuns`。
 - `CronJobService`：定时任务 CRUD + `ListCronExecutions`（分页）+ `RunCronJobNow`。
-- `SessionService`：`Create` / `Get`（含 duration / event trace_url）/ `List`（channel/user/date 过滤 + 分页 + total）/ `Delete` / `Reply` / `UpdateSessionTitle`（first-class title，有效标题优先级：first-class title → legacy state["title"] → agent name → 缩短 session ID）。
+- `SessionService`：`Create` / `Get`（含 duration / event trace_url）/ `List`（channel/user/date 过滤 + 分页 + total）/ `Delete` / `Reply` / `UpdateSessionTitle` / `GenerateSessionTitle`（first-class title，有效标题优先级：first-class title → legacy state["title"] → agent name → 缩短 session ID；首轮后可 LLM 自动生成，见 §8）。
 - `ModelProviderService`：LLM Provider 配置 CRUD（workspace 范围）。
 - `NotifyGroupService`：通知组 CRUD，供 cron 投递。
 - `AgentFileService`：workspace 范围的文件空间与文件 CRUD（含 `SearchAgentFiles`）。
@@ -157,6 +157,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 - **ADK Memory**：MongoDB memory service 保存长期记忆。
 - **ContextInfo**：runner 调用统一携带 channel、session、user、source、uuid，作为执行上下文。
 - **会话维度的 Agent Runner 缓存**：按 `channel:agent:model` 维度缓存 ADK runner 实例。
+- **LLM 自动标题（Web Chat）**：首轮对话完成后 dashboard 调用 `GenerateSessionTitle`。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。
 
 ## 9. 自动化工作流
 

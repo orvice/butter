@@ -545,6 +545,30 @@ func (s *Service) ModelProviders() []agentsv1.ModelProvider {
 	return s.providers
 }
 
+// GetAgentWorkspaceID returns the workspace_id of the named agent, or empty
+// if the agent is not found or has no workspace binding.
+func (s *Service) GetAgentWorkspaceID(name string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pb, ok := s.agentsProto[name]
+	if !ok {
+		return ""
+	}
+	return pb.GetWorkspaceId()
+}
+
+// GetAgentType returns the agent type of the named agent, or
+// AGENT_TYPE_UNSPECIFIED if the agent is not found.
+func (s *Service) GetAgentType(name string) agentsv1.AgentType {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pb, ok := s.agentsProto[name]
+	if !ok {
+		return agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED
+	}
+	return pb.GetType()
+}
+
 // GetAgentModel returns the model name configured for the named agent, or empty string.
 func (s *Service) GetAgentModel(name string) string {
 	s.mu.Lock()
