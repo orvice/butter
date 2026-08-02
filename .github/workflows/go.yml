@@ -75,5 +75,6 @@ jobs:
     - name: Integration Test
       env:
         MONGO_URI: mongodb://localhost:27017
+        BUTTER_TEST_MONGO_URI: mongodb://localhost:27017
         REDIS_ADDR: localhost:6379
       run: go test -v ./...

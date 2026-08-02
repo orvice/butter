@@ -154,6 +154,71 @@ func TestListSessionsSeam_EffectiveTitles(t *testing.T) {
 	}
 }
 
+func TestGenerateSessionTitleSeam_Success(t *testing.T) {
+	sess := &fakeSessionWithEvents{
+		fakeSession: fakeSession{id: "s1", title: "", state: &fakeState{data: map[string]any{}}},
+		events:      []*session.Event{makeEvent("user", textPart("Seam test question"))},
+	}
+	store := &stubTitleStore{}
+	svc := NewSessionServiceServer()
+	svc.SetSessionService(&titleSeamSessionService{sessions: []session.Session{sess}})
+	svc.SetTitleStore(store)
+	client := newSessionSeamClient(t, svc, asUser("u1"))
+
+	resp, err := client.GenerateSessionTitle(context.Background(), connect.NewRequest(&agentsv1.GenerateSessionTitleRequest{
+		AppName: "test", UserId: "u1", SessionId: "s1",
+	}))
+	if err != nil {
+		t.Fatalf("GenerateSessionTitle over seam: %v", err)
+	}
+	if !resp.Msg.GetGenerated() {
+		t.Fatal("expected generated=true")
+	}
+	if got := resp.Msg.GetSession().GetTitle(); got != "Seam test question" {
+		t.Fatalf("expected derived title over the wire, got %q", got)
+	}
+}
+
+func TestGenerateSessionTitleSeam_NonOwnerDenied(t *testing.T) {
+	store := &stubTitleStore{}
+	svc := NewSessionServiceServer()
+	svc.SetTitleStore(store)
+	svc.SetSessionService(&titleSeamSessionService{})
+	client := newSessionSeamClient(t, svc, asUser("u1"))
+
+	_, err := client.GenerateSessionTitle(context.Background(), connect.NewRequest(&agentsv1.GenerateSessionTitleRequest{
+		AppName: "web", UserId: "someone-else", SessionId: "s1",
+	}))
+	if connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("expected PermissionDenied over seam, got %v", err)
+	}
+}
+
+func TestGenerateSessionTitleSeam_ExistingTitleNoOp(t *testing.T) {
+	sess := &fakeSessionWithEvents{
+		fakeSession: fakeSession{id: "s1", title: "Already Set", state: &fakeState{data: map[string]any{}}},
+		events:      []*session.Event{makeEvent("user", textPart("Hello"))},
+	}
+	store := &stubTitleStore{}
+	svc := NewSessionServiceServer()
+	svc.SetSessionService(&titleSeamSessionService{sessions: []session.Session{sess}})
+	svc.SetTitleStore(store)
+	client := newSessionSeamClient(t, svc, asAdmin)
+
+	resp, err := client.GenerateSessionTitle(context.Background(), connect.NewRequest(&agentsv1.GenerateSessionTitleRequest{
+		AppName: "test", UserId: "u1", SessionId: "s1",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Msg.GetGenerated() {
+		t.Fatal("expected generated=false when title exists")
+	}
+	if got := resp.Msg.GetSession().GetTitle(); got != "Already Set" {
+		t.Fatalf("expected existing title, got %q", got)
+	}
+}
+
 func TestGetSessionSeam_LegacyTitleFallback(t *testing.T) {
 	svc := NewSessionServiceServer()
 	svc.SetSessionService(&titleSeamSessionService{sessions: []session.Session{

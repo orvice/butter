@@ -88,6 +88,17 @@ interface UpdateSessionTitleParams {
   title: string;
 }
 
+interface GenerateSessionTitleParams {
+  app_name: string;
+  user_id: string;
+  session_id: string;
+}
+
+interface GenerateSessionTitleResult {
+  session: SessionInfo;
+  generated: boolean;
+}
+
 function parseTimestamp(s: string | undefined) {
   if (!s) return undefined;
   const date = new Date(s);
@@ -198,6 +209,28 @@ async function updateSessionTitle(params: UpdateSessionTitleParams): Promise<{ s
   });
   if (!res.session) throw new Error("rename returned nothing");
   return { session: infoFromProto(res.session) };
+}
+
+async function generateSessionTitle(params: GenerateSessionTitleParams): Promise<GenerateSessionTitleResult> {
+  const res = await client.generateSessionTitle({
+    appName: params.app_name,
+    userId: params.user_id,
+    sessionId: params.session_id,
+  });
+  if (!res.session) throw new Error("generate returned nothing");
+  return { session: infoFromProto(res.session), generated: res.generated };
+}
+
+export function useGenerateSessionTitle() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: generateSessionTitle,
+    onSuccess: (data) => {
+      if (data.generated) {
+        qc.invalidateQueries({ queryKey: ["sessions"] });
+      }
+    },
+  });
 }
 
 export function useUpdateSessionTitle() {

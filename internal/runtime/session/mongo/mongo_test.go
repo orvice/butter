@@ -146,3 +146,143 @@ func TestSetSessionTitle_MissingSessionReturnsErrSessionNotFound(t *testing.T) {
 		t.Fatalf("expected ErrSessionNotFound, got %v", err)
 	}
 }
+
+func TestSetSessionTitleIfEmpty_WritesWhenEmpty(t *testing.T) {
+	svc := newService(t, testDB(t))
+	ctx := context.Background()
+
+	if _, err := svc.Create(ctx, &session.CreateRequest{AppName: "web", UserID: "u1", SessionID: "s1"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	before := getSession(t, svc, "web", "u1", "s1").LastUpdateTime()
+
+	result, generated, err := svc.SetSessionTitleIfEmpty(ctx, "web", "u1", "s1", "Auto Title")
+	if err != nil {
+		t.Fatalf("SetSessionTitleIfEmpty: %v", err)
+	}
+	if !generated {
+		t.Fatal("expected generated=true when title was empty")
+	}
+	if result.Title != "Auto Title" {
+		t.Fatalf("expected title %q, got %q", "Auto Title", result.Title)
+	}
+
+	after := getSession(t, svc, "web", "u1", "s1")
+	if !after.LastUpdateTime().Equal(before) {
+		t.Fatalf("CAS must not change last_update_time: before=%v after=%v", before, after.LastUpdateTime())
+	}
+}
+
+func TestSetSessionTitleIfEmpty_DoesNotOverwriteExisting(t *testing.T) {
+	svc := newService(t, testDB(t))
+	ctx := context.Background()
+
+	if _, err := svc.Create(ctx, &session.CreateRequest{AppName: "web", UserID: "u1", SessionID: "s1"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if _, err := svc.SetSessionTitle(ctx, "web", "u1", "s1", "Manual Title"); err != nil {
+		t.Fatalf("SetSessionTitle: %v", err)
+	}
+
+	result, generated, err := svc.SetSessionTitleIfEmpty(ctx, "web", "u1", "s1", "Auto Title")
+	if err != nil {
+		t.Fatalf("SetSessionTitleIfEmpty: %v", err)
+	}
+	if generated {
+		t.Fatal("expected generated=false when title already set")
+	}
+	if result.Title != "Manual Title" {
+		t.Fatalf("expected existing title %q, got %q", "Manual Title", result.Title)
+	}
+}
+
+func TestSetSessionTitleIfEmpty_LegacyStateTitleBlocksWrite(t *testing.T) {
+	svc := newService(t, testDB(t))
+	ctx := context.Background()
+
+	if _, err := svc.Create(ctx, &session.CreateRequest{
+		AppName:   "web",
+		UserID:    "u1",
+		SessionID: "s1",
+		State:     map[string]any{"title": "Legacy Title"},
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	result, generated, err := svc.SetSessionTitleIfEmpty(ctx, "web", "u1", "s1", "Auto Title")
+	if err != nil {
+		t.Fatalf("SetSessionTitleIfEmpty: %v", err)
+	}
+	if generated {
+		t.Fatal("expected generated=false when legacy state title exists")
+	}
+	if result.Title != "" {
+		t.Fatalf("first-class title must stay empty, got %q", result.Title)
+	}
+}
+
+func TestSetSessionTitleIfEmpty_ConcurrentOneWinner(t *testing.T) {
+	svc := newService(t, testDB(t))
+	ctx := context.Background()
+
+	if _, err := svc.Create(ctx, &session.CreateRequest{AppName: "web", UserID: "u1", SessionID: "s1"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	before := getSession(t, svc, "web", "u1", "s1").LastUpdateTime()
+
+	const n = 10
+	type casResult struct {
+		title     string
+		generated bool
+		err       error
+	}
+	results := make(chan casResult, n)
+	for i := 0; i < n; i++ {
+		go func(idx int) {
+			title := fmt.Sprintf("Title-%d", idx)
+			r, g, e := svc.SetSessionTitleIfEmpty(ctx, "web", "u1", "s1", title)
+			if e != nil {
+				results <- casResult{err: e}
+				return
+			}
+			results <- casResult{title: r.Title, generated: g}
+		}(i)
+	}
+
+	winners := 0
+	var winnerTitle string
+	for i := 0; i < n; i++ {
+		r := <-results
+		if r.err != nil {
+			t.Fatalf("CAS error: %v", r.err)
+		}
+		if r.generated {
+			winners++
+			winnerTitle = r.title
+		}
+	}
+	if winners != 1 {
+		t.Fatalf("expected exactly 1 winner, got %d", winners)
+	}
+
+	after := getSession(t, svc, "web", "u1", "s1")
+	titled, ok := after.(interface{ Title() string })
+	if !ok {
+		t.Fatal("session does not expose Title()")
+	}
+	if titled.Title() != winnerTitle {
+		t.Fatalf("persisted title %q != winner %q", titled.Title(), winnerTitle)
+	}
+	if !after.LastUpdateTime().Equal(before) {
+		t.Fatalf("CAS must not change last_update_time: before=%v after=%v", before, after.LastUpdateTime())
+	}
+}
+
+func TestSetSessionTitleIfEmpty_MissingSessionReturnsNotFound(t *testing.T) {
+	svc := newService(t, testDB(t))
+
+	_, _, err := svc.SetSessionTitleIfEmpty(context.Background(), "web", "u1", "does-not-exist", "x")
+	if !errors.Is(err, mongosession.ErrSessionNotFound) {
+		t.Fatalf("expected ErrSessionNotFound, got %v", err)
+	}
+}

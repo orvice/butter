@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { parseSessionEvent, parseSessionEvents, type ParsedEvent, type ToolCallSummary, type ToolResponseSummary } from "@/lib/session-events";
 import { buildInputParts, type InputPartInit } from "@/lib/image-attachments";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
-import { useLiveSession, useReplySession, useUpdateSessionTitle } from "@/api/sessions";
+import { useGenerateSessionTitle, useLiveSession, useReplySession, useUpdateSessionTitle } from "@/api/sessions";
 import { InlineTitleInput } from "@/components/inline-title-input";
 import { sessionTitle } from "@/lib/session-title";
 import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api/chat";
@@ -87,10 +87,24 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
   const liveQuery = useLiveSession(APP_NAME, userId, sessionId, pending);
   const reply = useReplySession();
   const renameMutation = useUpdateSessionTitle();
+  const generateTitle = useGenerateSessionTitle();
   // Keyed by session so switching chats implicitly leaves edit mode without
   // an effect-driven state reset.
   const [editingTitleFor, setEditingTitleFor] = useState<string | null>(null);
   const editingTitle = editingTitleFor === sessionId;
+
+  function maybeGenerateTitle() {
+    if (!session || !sessionId) return;
+    const hasEffectiveTitle =
+      (session.title && session.title.trim()) ||
+      (typeof session.state?.["title"] === "string" && (session.state["title"] as string).trim());
+    if (hasEffectiveTitle) return;
+    generateTitle.mutate({
+      app_name: APP_NAME,
+      user_id: userId,
+      session_id: sessionId,
+    });
+  }
 
   const persistedEvents = useMemo<ParsedEvent[]>(
     () => parseSessionEvents(liveQuery.data?.session_detail.events),
@@ -237,6 +251,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
       );
       await liveQuery.refetch();
       clearAttachments();
+      maybeGenerateTitle();
     } catch (err) {
       if (isAbortError(err)) {
         toast.info("Chat stopped");
@@ -252,6 +267,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
             parts,
           });
           clearAttachments();
+          maybeGenerateTitle();
         } catch (fallbackErr) {
           toast.error(fallbackErr instanceof Error ? fallbackErr.message : "Failed to send message");
           setDraft(text);
