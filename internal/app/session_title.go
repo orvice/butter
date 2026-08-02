@@ -29,11 +29,26 @@ func (m *mongoTitleStore) SetSessionTitle(ctx context.Context, appName, userID, 
 		}
 		return nil, err
 	}
+	return titleResultToInfo(result), nil
+}
+
+func (m *mongoTitleStore) SetSessionTitleIfEmpty(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, bool, error) {
+	result, generated, err := m.svc.SetSessionTitleIfEmpty(ctx, appName, userID, sessionID, title)
+	if err != nil {
+		if errors.Is(err, mongosession.ErrSessionNotFound) {
+			return nil, false, fmt.Errorf("%w: %s/%s/%s", application.ErrSessionNotFound, appName, userID, sessionID)
+		}
+		return nil, false, err
+	}
+	return titleResultToInfo(result), generated, nil
+}
+
+func titleResultToInfo(r mongosession.SessionTitleResult) *agentsv1.SessionInfo {
 	return &agentsv1.SessionInfo{
-		SessionId:      result.SessionID,
-		AppName:        result.AppName,
-		UserId:         result.UserID,
-		Title:          result.Title,
-		LastUpdateTime: timestamppb.New(result.LastUpdateTime),
-	}, nil
+		SessionId:      r.SessionID,
+		AppName:        r.AppName,
+		UserId:         r.UserID,
+		Title:          r.Title,
+		LastUpdateTime: timestamppb.New(r.LastUpdateTime),
+	}
 }

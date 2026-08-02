@@ -98,6 +98,59 @@ type SessionTitleResult struct {
 	LastUpdateTime time.Time
 }
 
+// SetSessionTitleIfEmpty is an atomic compare-and-set that writes the title
+// only when the first-class title is currently empty AND the legacy
+// state["title"] is absent or blank. Returns (result, true) when a new title
+// was actually written, or (current, false) when an effective title already
+// existed. last_update_time is never changed.
+func (s *Service) SetSessionTitleIfEmpty(ctx context.Context, appName, userID, sessionID, title string) (SessionTitleResult, bool, error) {
+	filter := bson.M{
+		"app_name":   appName,
+		"user_id":    userID,
+		"session_id": sessionID,
+		"$or": bson.A{
+			bson.M{"title": bson.M{"$exists": false}},
+			bson.M{"title": ""},
+		},
+	}
+	update := bson.M{"$set": bson.M{"title": title}}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	var doc sessionDoc
+	if err := s.sessions.FindOneAndUpdate(ctx, filter, update, opts).Decode(&doc); err != nil {
+		if err == mongo.ErrNoDocuments {
+			// Either the session doesn't exist or the title is already set.
+			// Check which case by trying to find the session.
+			var existing sessionDoc
+			lookupFilter := bson.M{
+				"app_name":   appName,
+				"user_id":    userID,
+				"session_id": sessionID,
+			}
+			if findErr := s.sessions.FindOne(ctx, lookupFilter).Decode(&existing); findErr != nil {
+				if findErr == mongo.ErrNoDocuments {
+					return SessionTitleResult{}, false, fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, appName, userID, sessionID)
+				}
+				return SessionTitleResult{}, false, fmt.Errorf("looking up session: %w", findErr)
+			}
+			return SessionTitleResult{
+				SessionID:      existing.SessionID,
+				AppName:        existing.AppName,
+				UserID:         existing.UserID,
+				Title:          existing.Title,
+				LastUpdateTime: existing.LastUpdateTime,
+			}, false, nil
+		}
+		return SessionTitleResult{}, false, fmt.Errorf("cas update session title: %w", err)
+	}
+	return SessionTitleResult{
+		SessionID:      doc.SessionID,
+		AppName:        doc.AppName,
+		UserID:         doc.UserID,
+		Title:          doc.Title,
+		LastUpdateTime: doc.LastUpdateTime,
+	}, true, nil
+}
+
 // New creates a new MongoDB session service and ensures indexes.
 func New(ctx context.Context, db *mongo.Database) (*Service, error) {
 	logger := log.FromContext(ctx)

@@ -22,6 +22,9 @@ type stubTitleStore struct {
 	setCalled int
 	lastTitle string
 	notFound  bool
+	// existingTitle simulates a pre-existing title for CAS tests.
+	existingTitle string
+	casCalled     int
 }
 
 func (s *stubTitleStore) SetSessionTitle(_ context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, error) {
@@ -39,6 +42,31 @@ func (s *stubTitleStore) SetSessionTitle(_ context.Context, appName, userID, ses
 		UserId:    userID,
 		Title:     title,
 	}, nil
+}
+
+func (s *stubTitleStore) SetSessionTitleIfEmpty(_ context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, bool, error) {
+	s.casCalled++
+	if s.setErr != nil {
+		return nil, false, s.setErr
+	}
+	if s.notFound {
+		return nil, false, fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, appName, userID, sessionID)
+	}
+	if s.existingTitle != "" {
+		return &agentsv1.SessionInfo{
+			SessionId: sessionID,
+			AppName:   appName,
+			UserId:    userID,
+			Title:     s.existingTitle,
+		}, false, nil
+	}
+	s.lastTitle = title
+	return &agentsv1.SessionInfo{
+		SessionId: sessionID,
+		AppName:   appName,
+		UserId:    userID,
+		Title:     title,
+	}, true, nil
 }
 
 func newTitleTestService(store *stubTitleStore) *SessionServiceServer {

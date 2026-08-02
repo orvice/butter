@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"butterfly.orx.me/core/log"
@@ -42,6 +43,10 @@ var ErrSessionNotFound = errors.New("session not found")
 // internal/app; the ADK session.Service interface is not changed.
 type SessionTitleStore interface {
 	SetSessionTitle(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, error)
+	// SetSessionTitleIfEmpty atomically sets the title only when no
+	// first-class title is currently persisted. Returns (info, true) when a
+	// new title was written, or (info, false) when an existing title won.
+	SetSessionTitleIfEmpty(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, bool, error)
 }
 
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
@@ -484,6 +489,230 @@ func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {
 	}
 
 	return info
+}
+
+const maxAutoTitleCodePoints = 30
+
+// truncateCodePoints returns s truncated to at most n Unicode code points.
+func truncateCodePoints(s string, n int) string {
+	count := 0
+	for i := range s {
+		if count >= n {
+			return s[:i]
+		}
+		count++
+	}
+	return s
+}
+
+// normalizeAutoTitle collapses whitespace, trims, and limits to
+// maxAutoTitleCodePoints Unicode code points.
+func normalizeAutoTitle(s string) string {
+	s = normalizeTitle(s)
+	if s == "" {
+		return ""
+	}
+	return truncateCodePoints(s, maxAutoTitleCodePoints)
+}
+
+// firstEventText extracts the first non-blank text from a genai.Content's
+// Parts, ignoring function calls and function responses.
+func firstEventText(content *genai.Content) string {
+	if content == nil {
+		return ""
+	}
+	for _, part := range content.Parts {
+		if part == nil {
+			continue
+		}
+		if s := strings.TrimSpace(part.Text); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// hasOnlyNonTextParts returns true when the content contains at least one
+// part, but none of them are usable text (e.g. all images/inline-data).
+func hasOnlyNonTextParts(content *genai.Content) bool {
+	if content == nil || len(content.Parts) == 0 {
+		return false
+	}
+	for _, part := range content.Parts {
+		if part == nil {
+			continue
+		}
+		if strings.TrimSpace(part.Text) != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// deriveAutoTitle walks session events and returns a deterministic title:
+//  1. First user text (truncated)
+//  2. First assistant text (truncated)
+//  3. "Image chat" when input contained non-text parts but no usable text
+//  4. "" when no useful content was found
+func deriveAutoTitle(events []*session.Event) string {
+	var firstUserText, firstAssistantText string
+	hasUserNonTextParts := false
+
+	for _, evt := range events {
+		if evt.Content == nil {
+			continue
+		}
+		// Skip tool calls and tool responses: events whose only parts
+		// are FunctionCall or FunctionResponse.
+		if isToolOnlyEvent(evt) {
+			continue
+		}
+
+		text := firstEventText(evt.Content)
+		if evt.Author == "user" {
+			if firstUserText == "" {
+				firstUserText = text
+				if text == "" && hasOnlyNonTextParts(evt.Content) {
+					hasUserNonTextParts = true
+				}
+			}
+		} else if firstAssistantText == "" {
+			firstAssistantText = text
+		}
+
+		if firstUserText != "" && firstAssistantText != "" {
+			break
+		}
+	}
+
+	if firstUserText != "" {
+		return normalizeAutoTitle(firstUserText)
+	}
+	if firstAssistantText != "" {
+		return normalizeAutoTitle(firstAssistantText)
+	}
+	if hasUserNonTextParts {
+		return "Image chat"
+	}
+	return ""
+}
+
+// isToolOnlyEvent returns true when the event contains at least one
+// FunctionCall or FunctionResponse and no other meaningful content.
+func isToolOnlyEvent(evt *session.Event) bool {
+	if evt.Content == nil || len(evt.Content.Parts) == 0 {
+		return false
+	}
+	hasTool := false
+	for _, part := range evt.Content.Parts {
+		if part == nil {
+			continue
+		}
+		if part.FunctionCall != nil || part.FunctionResponse != nil {
+			hasTool = true
+			continue
+		}
+		if strings.TrimFunc(part.Text, unicode.IsSpace) != "" ||
+			part.InlineData != nil ||
+			part.FileData != nil {
+			return false
+		}
+	}
+	return hasTool
+}
+
+func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *connect.Request[agentsv1.GenerateSessionTitleRequest]) (*connect.Response[agentsv1.GenerateSessionTitleResponse], error) {
+	if req.Msg.GetAppName() == "" {
+		return nil, connectx.RequiredArgument("app_name")
+	}
+	if req.Msg.GetUserId() == "" {
+		return nil, connectx.RequiredArgument("user_id")
+	}
+	if req.Msg.GetSessionId() == "" {
+		return nil, connectx.RequiredArgument("session_id")
+	}
+
+	// Same self-only non-admin authorization policy as UpdateSessionTitle.
+	if !auth.IsAdmin(ctx) {
+		user, ok := auth.UserFromContext(ctx)
+		if !ok {
+			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+		}
+		if user.GetId() != req.Msg.GetUserId() {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot generate title for another user's session"))
+		}
+	}
+
+	sessionSvc := s.getSessionSvc()
+	if sessionSvc == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
+	}
+	titleStore := s.getTitleStore()
+	if titleStore == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session title store not available"))
+	}
+
+	// Load session with all events.
+	sessResp, err := sessionSvc.Get(ctx, &session.GetRequest{
+		AppName:   req.Msg.GetAppName(),
+		UserID:    req.Msg.GetUserId(),
+		SessionID: req.Msg.GetSessionId(),
+	})
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "session not found") {
+			return nil, connectx.NotFound(err.Error())
+		}
+		return nil, connectx.InternalWith(err)
+	}
+
+	// If an effective title already exists, return it without generating.
+	existing := effectiveTitle(sessResp.Session)
+	if existing != "" {
+		return connect.NewResponse(&agentsv1.GenerateSessionTitleResponse{
+			Session:   sessionToInfo(sessResp.Session),
+			Generated: false,
+		}), nil
+	}
+
+	// Collect events for title derivation.
+	var events []*session.Event
+	for evt := range sessResp.Session.Events().All() {
+		events = append(events, evt)
+	}
+
+	title := deriveAutoTitle(events)
+	if title == "" {
+		return connect.NewResponse(&agentsv1.GenerateSessionTitleResponse{
+			Session:   sessionToInfo(sessResp.Session),
+			Generated: false,
+		}), nil
+	}
+
+	logger := log.FromContext(ctx)
+
+	// Atomic CAS: write only if no first-class title exists yet.
+	info, generated, err := titleStore.SetSessionTitleIfEmpty(
+		ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId(), title,
+	)
+	if err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			return nil, connectx.NotFound(err.Error())
+		}
+		return nil, connectx.InternalWith(err)
+	}
+
+	if generated {
+		logger.Info("auto-generated session title",
+			"app_name", req.Msg.GetAppName(),
+			"session_id", req.Msg.GetSessionId(),
+			"title", title,
+		)
+	}
+
+	return connect.NewResponse(&agentsv1.GenerateSessionTitleResponse{
+		Session:   info,
+		Generated: generated,
+	}), nil
 }
 
 func eventToProtoWithTrace(evt *session.Event, langfuseHost string) *agentsv1.SessionEvent {

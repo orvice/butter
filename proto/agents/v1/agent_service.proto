@@ -725,6 +725,11 @@ service SessionService {
   rpc ReplySession(ReplySessionRequest) returns (ReplySessionResponse);
   // UpdateSessionTitle sets a first-class title on a session.
   rpc UpdateSessionTitle(UpdateSessionTitleRequest) returns (UpdateSessionTitleResponse);
+  // GenerateSessionTitle derives a best-effort title from the first
+  // conversation turn and persists it only while no effective title exists.
+  // Manual, legacy, and concurrent titles always win. Returns the effective
+  // SessionInfo and whether this call actually generated a new title.
+  rpc GenerateSessionTitle(GenerateSessionTitleRequest) returns (GenerateSessionTitleResponse);
 }
 
 // --- Session messages ---
@@ -839,6 +844,19 @@ message SessionDetail {
   repeated SessionEvent events = 2;
   // Wallclock duration between the first and last recorded events.
   google.protobuf.Duration duration = 3;
+}
+
+message GenerateSessionTitleRequest {
+  string app_name = 1;
+  string user_id = 2;
+  string session_id = 3;
+}
+
+message GenerateSessionTitleResponse {
+  SessionInfo session = 1;
+  // True when this call derived and persisted a new title; false when an
+  // effective title already existed or was set concurrently.
+  bool generated = 2;
 }
 
 // SessionEvent is a serializable representation of a session event.

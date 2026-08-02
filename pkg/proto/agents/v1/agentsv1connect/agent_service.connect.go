@@ -222,6 +222,9 @@ const (
 	// SessionServiceUpdateSessionTitleProcedure is the fully-qualified name of the SessionService's
 	// UpdateSessionTitle RPC.
 	SessionServiceUpdateSessionTitleProcedure = "/agents.v1.SessionService/UpdateSessionTitle"
+	// SessionServiceGenerateSessionTitleProcedure is the fully-qualified name of the SessionService's
+	// GenerateSessionTitle RPC.
+	SessionServiceGenerateSessionTitleProcedure = "/agents.v1.SessionService/GenerateSessionTitle"
 )
 
 // AgentServiceClient is a client for the agents.v1.AgentService service.
@@ -2009,6 +2012,11 @@ type SessionServiceClient interface {
 	ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error)
 	// UpdateSessionTitle sets a first-class title on a session.
 	UpdateSessionTitle(context.Context, *connect.Request[v1.UpdateSessionTitleRequest]) (*connect.Response[v1.UpdateSessionTitleResponse], error)
+	// GenerateSessionTitle derives a best-effort title from the first
+	// conversation turn and persists it only while no effective title exists.
+	// Manual, legacy, and concurrent titles always win. Returns the effective
+	// SessionInfo and whether this call actually generated a new title.
+	GenerateSessionTitle(context.Context, *connect.Request[v1.GenerateSessionTitleRequest]) (*connect.Response[v1.GenerateSessionTitleResponse], error)
 }
 
 // NewSessionServiceClient constructs a client for the agents.v1.SessionService service. By default,
@@ -2058,17 +2066,24 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("UpdateSessionTitle")),
 			connect.WithClientOptions(opts...),
 		),
+		generateSessionTitle: connect.NewClient[v1.GenerateSessionTitleRequest, v1.GenerateSessionTitleResponse](
+			httpClient,
+			baseURL+SessionServiceGenerateSessionTitleProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("GenerateSessionTitle")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // sessionServiceClient implements SessionServiceClient.
 type sessionServiceClient struct {
-	createSession      *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
-	getSession         *connect.Client[v1.GetSessionRequest, v1.GetSessionResponse]
-	listSessions       *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
-	deleteSession      *connect.Client[v1.DeleteSessionRequest, v1.DeleteSessionResponse]
-	replySession       *connect.Client[v1.ReplySessionRequest, v1.ReplySessionResponse]
-	updateSessionTitle *connect.Client[v1.UpdateSessionTitleRequest, v1.UpdateSessionTitleResponse]
+	createSession        *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
+	getSession           *connect.Client[v1.GetSessionRequest, v1.GetSessionResponse]
+	listSessions         *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
+	deleteSession        *connect.Client[v1.DeleteSessionRequest, v1.DeleteSessionResponse]
+	replySession         *connect.Client[v1.ReplySessionRequest, v1.ReplySessionResponse]
+	updateSessionTitle   *connect.Client[v1.UpdateSessionTitleRequest, v1.UpdateSessionTitleResponse]
+	generateSessionTitle *connect.Client[v1.GenerateSessionTitleRequest, v1.GenerateSessionTitleResponse]
 }
 
 // CreateSession calls agents.v1.SessionService.CreateSession.
@@ -2101,6 +2116,11 @@ func (c *sessionServiceClient) UpdateSessionTitle(ctx context.Context, req *conn
 	return c.updateSessionTitle.CallUnary(ctx, req)
 }
 
+// GenerateSessionTitle calls agents.v1.SessionService.GenerateSessionTitle.
+func (c *sessionServiceClient) GenerateSessionTitle(ctx context.Context, req *connect.Request[v1.GenerateSessionTitleRequest]) (*connect.Response[v1.GenerateSessionTitleResponse], error) {
+	return c.generateSessionTitle.CallUnary(ctx, req)
+}
+
 // SessionServiceHandler is an implementation of the agents.v1.SessionService service.
 type SessionServiceHandler interface {
 	// CreateSession creates a new session for the given agent.
@@ -2115,6 +2135,11 @@ type SessionServiceHandler interface {
 	ReplySession(context.Context, *connect.Request[v1.ReplySessionRequest]) (*connect.Response[v1.ReplySessionResponse], error)
 	// UpdateSessionTitle sets a first-class title on a session.
 	UpdateSessionTitle(context.Context, *connect.Request[v1.UpdateSessionTitleRequest]) (*connect.Response[v1.UpdateSessionTitleResponse], error)
+	// GenerateSessionTitle derives a best-effort title from the first
+	// conversation turn and persists it only while no effective title exists.
+	// Manual, legacy, and concurrent titles always win. Returns the effective
+	// SessionInfo and whether this call actually generated a new title.
+	GenerateSessionTitle(context.Context, *connect.Request[v1.GenerateSessionTitleRequest]) (*connect.Response[v1.GenerateSessionTitleResponse], error)
 }
 
 // NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2160,6 +2185,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("UpdateSessionTitle")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceGenerateSessionTitleHandler := connect.NewUnaryHandler(
+		SessionServiceGenerateSessionTitleProcedure,
+		svc.GenerateSessionTitle,
+		connect.WithSchema(sessionServiceMethods.ByName("GenerateSessionTitle")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SessionServiceCreateSessionProcedure:
@@ -2174,6 +2205,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceReplySessionHandler.ServeHTTP(w, r)
 		case SessionServiceUpdateSessionTitleProcedure:
 			sessionServiceUpdateSessionTitleHandler.ServeHTTP(w, r)
+		case SessionServiceGenerateSessionTitleProcedure:
+			sessionServiceGenerateSessionTitleHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2205,4 +2238,8 @@ func (UnimplementedSessionServiceHandler) ReplySession(context.Context, *connect
 
 func (UnimplementedSessionServiceHandler) UpdateSessionTitle(context.Context, *connect.Request[v1.UpdateSessionTitleRequest]) (*connect.Response[v1.UpdateSessionTitleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.UpdateSessionTitle is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) GenerateSessionTitle(context.Context, *connect.Request[v1.GenerateSessionTitleRequest]) (*connect.Response[v1.GenerateSessionTitleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.GenerateSessionTitle is not implemented"))
 }

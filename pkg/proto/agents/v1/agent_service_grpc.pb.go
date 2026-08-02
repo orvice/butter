@@ -2604,12 +2604,13 @@ var ChannelService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	SessionService_CreateSession_FullMethodName      = "/agents.v1.SessionService/CreateSession"
-	SessionService_GetSession_FullMethodName         = "/agents.v1.SessionService/GetSession"
-	SessionService_ListSessions_FullMethodName       = "/agents.v1.SessionService/ListSessions"
-	SessionService_DeleteSession_FullMethodName      = "/agents.v1.SessionService/DeleteSession"
-	SessionService_ReplySession_FullMethodName       = "/agents.v1.SessionService/ReplySession"
-	SessionService_UpdateSessionTitle_FullMethodName = "/agents.v1.SessionService/UpdateSessionTitle"
+	SessionService_CreateSession_FullMethodName        = "/agents.v1.SessionService/CreateSession"
+	SessionService_GetSession_FullMethodName           = "/agents.v1.SessionService/GetSession"
+	SessionService_ListSessions_FullMethodName         = "/agents.v1.SessionService/ListSessions"
+	SessionService_DeleteSession_FullMethodName        = "/agents.v1.SessionService/DeleteSession"
+	SessionService_ReplySession_FullMethodName         = "/agents.v1.SessionService/ReplySession"
+	SessionService_UpdateSessionTitle_FullMethodName   = "/agents.v1.SessionService/UpdateSessionTitle"
+	SessionService_GenerateSessionTitle_FullMethodName = "/agents.v1.SessionService/GenerateSessionTitle"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -2628,6 +2629,11 @@ type SessionServiceClient interface {
 	ReplySession(ctx context.Context, in *ReplySessionRequest, opts ...grpc.CallOption) (*ReplySessionResponse, error)
 	// UpdateSessionTitle sets a first-class title on a session.
 	UpdateSessionTitle(ctx context.Context, in *UpdateSessionTitleRequest, opts ...grpc.CallOption) (*UpdateSessionTitleResponse, error)
+	// GenerateSessionTitle derives a best-effort title from the first
+	// conversation turn and persists it only while no effective title exists.
+	// Manual, legacy, and concurrent titles always win. Returns the effective
+	// SessionInfo and whether this call actually generated a new title.
+	GenerateSessionTitle(ctx context.Context, in *GenerateSessionTitleRequest, opts ...grpc.CallOption) (*GenerateSessionTitleResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -2698,6 +2704,16 @@ func (c *sessionServiceClient) UpdateSessionTitle(ctx context.Context, in *Updat
 	return out, nil
 }
 
+func (c *sessionServiceClient) GenerateSessionTitle(ctx context.Context, in *GenerateSessionTitleRequest, opts ...grpc.CallOption) (*GenerateSessionTitleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateSessionTitleResponse)
+	err := c.cc.Invoke(ctx, SessionService_GenerateSessionTitle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -2714,6 +2730,11 @@ type SessionServiceServer interface {
 	ReplySession(context.Context, *ReplySessionRequest) (*ReplySessionResponse, error)
 	// UpdateSessionTitle sets a first-class title on a session.
 	UpdateSessionTitle(context.Context, *UpdateSessionTitleRequest) (*UpdateSessionTitleResponse, error)
+	// GenerateSessionTitle derives a best-effort title from the first
+	// conversation turn and persists it only while no effective title exists.
+	// Manual, legacy, and concurrent titles always win. Returns the effective
+	// SessionInfo and whether this call actually generated a new title.
+	GenerateSessionTitle(context.Context, *GenerateSessionTitleRequest) (*GenerateSessionTitleResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -2741,6 +2762,9 @@ func (UnimplementedSessionServiceServer) ReplySession(context.Context, *ReplySes
 }
 func (UnimplementedSessionServiceServer) UpdateSessionTitle(context.Context, *UpdateSessionTitleRequest) (*UpdateSessionTitleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateSessionTitle not implemented")
+}
+func (UnimplementedSessionServiceServer) GenerateSessionTitle(context.Context, *GenerateSessionTitleRequest) (*GenerateSessionTitleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateSessionTitle not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -2871,6 +2895,24 @@ func _SessionService_UpdateSessionTitle_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_GenerateSessionTitle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateSessionTitleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).GenerateSessionTitle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_GenerateSessionTitle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).GenerateSessionTitle(ctx, req.(*GenerateSessionTitleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2901,6 +2943,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateSessionTitle",
 			Handler:    _SessionService_UpdateSessionTitle_Handler,
+		},
+		{
+			MethodName: "GenerateSessionTitle",
+			Handler:    _SessionService_GenerateSessionTitle_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
