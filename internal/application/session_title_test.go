@@ -18,11 +18,10 @@ import (
 
 // stubTitleStore implements SessionTitleStore for tests.
 type stubTitleStore struct {
-	setErr     error
-	setCalled  int
-	lastTitle  string
-	titles     map[string]string // sessionID → title
-	notFound   bool
+	setErr    error
+	setCalled int
+	lastTitle string
+	notFound  bool
 }
 
 func (s *stubTitleStore) SetSessionTitle(_ context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, error) {
@@ -32,7 +31,7 @@ func (s *stubTitleStore) SetSessionTitle(_ context.Context, appName, userID, ses
 		return nil, s.setErr
 	}
 	if s.notFound {
-		return nil, fmt.Errorf("session not found: %s/%s/%s", appName, userID, sessionID)
+		return nil, fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, appName, userID, sessionID)
 	}
 	return &agentsv1.SessionInfo{
 		SessionId: sessionID,
@@ -40,10 +39,6 @@ func (s *stubTitleStore) SetSessionTitle(_ context.Context, appName, userID, ses
 		UserId:    userID,
 		Title:     title,
 	}, nil
-}
-
-func (s *stubTitleStore) ListSessionTitles(_ context.Context, _, _ string) (map[string]string, error) {
-	return s.titles, nil
 }
 
 func newTitleTestService(store *stubTitleStore) *SessionServiceServer {
@@ -255,21 +250,21 @@ type fakeSession struct {
 	title string
 }
 
-func (s *fakeSession) ID() string              { return s.id }
-func (s *fakeSession) AppName() string         { return "test" }
-func (s *fakeSession) UserID() string          { return "u1" }
-func (s *fakeSession) State() session.State    { return s.state }
-func (s *fakeSession) Events() session.Events  { return &emptyEvents{} }
+func (s *fakeSession) ID() string             { return s.id }
+func (s *fakeSession) AppName() string        { return "test" }
+func (s *fakeSession) UserID() string         { return "u1" }
+func (s *fakeSession) State() session.State   { return s.state }
+func (s *fakeSession) Events() session.Events { return &emptyEvents{} }
 
 type emptyEvents struct{}
 
 func (e *emptyEvents) All() iter.Seq[*session.Event] {
 	return func(func(*session.Event) bool) {}
 }
-func (e *emptyEvents) Len() int                { return 0 }
-func (e *emptyEvents) At(int) *session.Event   { return nil }
+func (e *emptyEvents) Len() int                  { return 0 }
+func (e *emptyEvents) At(int) *session.Event     { return nil }
 func (s *fakeSession) LastUpdateTime() time.Time { return time.Time{} }
-func (s *fakeSession) Title() string           { return s.title }
+func (s *fakeSession) Title() string             { return s.title }
 
 type fakeState struct {
 	data map[string]any
@@ -316,6 +311,18 @@ func TestEffectiveTitle_LegacyFallback(t *testing.T) {
 	got := effectiveTitle(sess)
 	if got != "Legacy Title" {
 		t.Fatalf("expected legacy title, got %q", got)
+	}
+}
+
+func TestEffectiveTitle_LegacyTrimmed(t *testing.T) {
+	sess := &fakeSession{
+		id:    "s1",
+		title: "",
+		state: &fakeState{data: map[string]any{"title": "  Old Title  "}},
+	}
+	got := effectiveTitle(sess)
+	if got != "Old Title" {
+		t.Fatalf("expected trimmed legacy title, got %q", got)
 	}
 }
 

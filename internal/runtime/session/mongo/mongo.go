@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"iter"
 	"sync"
@@ -22,6 +23,10 @@ const (
 	sessionsCollection = "adk_sessions"
 	eventsCollection   = "adk_events"
 )
+
+// ErrSessionNotFound is wrapped into errors returned when a session addressed
+// by app_name/user_id/session_id does not exist; callers match with errors.Is.
+var ErrSessionNotFound = errors.New("session not found")
 
 // sessionDoc is the MongoDB document for a session.
 type sessionDoc struct {
@@ -71,7 +76,7 @@ func (s *Service) SetSessionTitle(ctx context.Context, appName, userID, sessionI
 	var doc sessionDoc
 	if err := s.sessions.FindOneAndUpdate(ctx, filter, update, opts).Decode(&doc); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return SessionTitleResult{}, fmt.Errorf("session not found: %s/%s/%s", appName, userID, sessionID)
+			return SessionTitleResult{}, fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, appName, userID, sessionID)
 		}
 		return SessionTitleResult{}, fmt.Errorf("updating session title: %w", err)
 	}
@@ -91,57 +96,6 @@ type SessionTitleResult struct {
 	UserID         string
 	Title          string
 	LastUpdateTime time.Time
-}
-
-// GetSessionTitle returns the first-class title stored on a session, or ""
-// if the session exists but has no title set.
-func (s *Service) GetSessionTitle(ctx context.Context, appName, userID, sessionID string) (string, error) {
-	filter := bson.M{
-		"app_name":   appName,
-		"user_id":    userID,
-		"session_id": sessionID,
-	}
-	var doc sessionDoc
-	if err := s.sessions.FindOne(ctx, filter).Decode(&doc); err != nil {
-		if err == mongo.ErrNoDocuments {
-			return "", fmt.Errorf("session not found: %s/%s/%s", appName, userID, sessionID)
-		}
-		return "", fmt.Errorf("finding session title: %w", err)
-	}
-	return doc.Title, nil
-}
-
-// ListSessionTitles returns a map of session_id → title for all sessions
-// matching the given coordinates. Sessions without a title are omitted.
-func (s *Service) ListSessionTitles(ctx context.Context, appName, userID string) (map[string]string, error) {
-	filter := bson.M{}
-	if appName != "" {
-		filter["app_name"] = appName
-	}
-	if userID != "" {
-		filter["user_id"] = userID
-	}
-	filter["title"] = bson.M{"$ne": ""}
-
-	projection := bson.M{"session_id": 1, "title": 1}
-	cursor, err := s.sessions.Find(ctx, filter, options.Find().SetProjection(projection))
-	if err != nil {
-		return nil, fmt.Errorf("listing session titles: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	result := make(map[string]string)
-	for cursor.Next(ctx) {
-		var doc struct {
-			SessionID string `bson:"session_id"`
-			Title     string `bson:"title"`
-		}
-		if err := cursor.Decode(&doc); err != nil {
-			return nil, fmt.Errorf("decoding session title: %w", err)
-		}
-		result[doc.SessionID] = doc.Title
-	}
-	return result, cursor.Err()
 }
 
 // New creates a new MongoDB session service and ensures indexes.
@@ -268,7 +222,7 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 				"app_name", req.AppName,
 				"session_id", req.SessionID,
 			)
-			return nil, fmt.Errorf("session not found: %s/%s/%s", req.AppName, req.UserID, req.SessionID)
+			return nil, fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, req.AppName, req.UserID, req.SessionID)
 		}
 		return nil, fmt.Errorf("finding session: %w", err)
 	}

@@ -32,12 +32,16 @@ type sessionReplyRunner interface {
 	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 }
 
+// ErrSessionNotFound must be wrapped into the error a SessionTitleStore
+// returns when the addressed session does not exist, so the RPC layer can map
+// it to CodeNotFound with errors.Is instead of matching message text.
+var ErrSessionNotFound = errors.New("session not found")
+
 // SessionTitleStore is the narrow contract for Butter-owned session title
 // metadata. The Mongo session service implements it via an adapter wired in
 // internal/app; the ADK session.Service interface is not changed.
 type SessionTitleStore interface {
 	SetSessionTitle(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, error)
-	ListSessionTitles(ctx context.Context, appName, userID string) (map[string]string, error)
 }
 
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
@@ -426,7 +430,7 @@ func (s *SessionServiceServer) UpdateSessionTitle(ctx context.Context, req *conn
 
 	info, err := titleStore.SetSessionTitle(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId(), title)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "session not found") {
+		if errors.Is(err, ErrSessionNotFound) {
 			return nil, connectx.NotFound(err.Error())
 		}
 		return nil, connectx.InternalWith(err)
@@ -450,8 +454,10 @@ func effectiveTitle(sess session.Session) string {
 		}
 	}
 	if v, err := sess.State().Get("title"); err == nil {
-		if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-			return s
+		if s, ok := v.(string); ok {
+			if trimmed := strings.TrimSpace(s); trimmed != "" {
+				return trimmed
+			}
 		}
 	}
 	return ""

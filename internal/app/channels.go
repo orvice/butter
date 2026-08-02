@@ -9,7 +9,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"google.golang.org/adk/v2/session"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/application"
@@ -51,7 +50,6 @@ import (
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
-	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 // BootstrapResult holds the services created during bootstrap.
@@ -322,31 +320,4 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LangfuseHost:          cfg.Langfuse.Host,
 		SessionCounter:        sessionSvc.CountSessions,
 	}, nil
-}
-
-// mongoTitleStore adapts *mongosession.Service to application.SessionTitleStore.
-type mongoTitleStore struct {
-	svc *mongosession.Service
-}
-
-func newMongoTitleStore(svc *mongosession.Service) *mongoTitleStore {
-	return &mongoTitleStore{svc: svc}
-}
-
-func (m *mongoTitleStore) SetSessionTitle(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, error) {
-	result, err := m.svc.SetSessionTitle(ctx, appName, userID, sessionID, title)
-	if err != nil {
-		return nil, err
-	}
-	return &agentsv1.SessionInfo{
-		SessionId:      result.SessionID,
-		AppName:        result.AppName,
-		UserId:         result.UserID,
-		Title:          result.Title,
-		LastUpdateTime: timestamppb.New(result.LastUpdateTime),
-	}, nil
-}
-
-func (m *mongoTitleStore) ListSessionTitles(ctx context.Context, appName, userID string) (map[string]string, error) {
-	return m.svc.ListSessionTitles(ctx, appName, userID)
 }
