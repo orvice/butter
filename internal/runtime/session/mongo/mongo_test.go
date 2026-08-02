@@ -196,6 +196,31 @@ func TestSetSessionTitleIfEmpty_DoesNotOverwriteExisting(t *testing.T) {
 	}
 }
 
+func TestSetSessionTitleIfEmpty_LegacyStateTitleBlocksWrite(t *testing.T) {
+	svc := newService(t, testDB(t))
+	ctx := context.Background()
+
+	if _, err := svc.Create(ctx, &session.CreateRequest{
+		AppName:   "web",
+		UserID:    "u1",
+		SessionID: "s1",
+		State:     map[string]any{"title": "Legacy Title"},
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	result, generated, err := svc.SetSessionTitleIfEmpty(ctx, "web", "u1", "s1", "Auto Title")
+	if err != nil {
+		t.Fatalf("SetSessionTitleIfEmpty: %v", err)
+	}
+	if generated {
+		t.Fatal("expected generated=false when legacy state title exists")
+	}
+	if result.Title != "" {
+		t.Fatalf("first-class title must stay empty, got %q", result.Title)
+	}
+}
+
 func TestSetSessionTitleIfEmpty_ConcurrentOneWinner(t *testing.T) {
 	svc := newService(t, testDB(t))
 	ctx := context.Background()

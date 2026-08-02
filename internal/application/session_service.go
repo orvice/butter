@@ -43,9 +43,10 @@ var ErrSessionNotFound = errors.New("session not found")
 // internal/app; the ADK session.Service interface is not changed.
 type SessionTitleStore interface {
 	SetSessionTitle(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, error)
-	// SetSessionTitleIfEmpty atomically sets the title only when no
-	// first-class title is currently persisted. Returns (info, true) when a
-	// new title was written, or (info, false) when an existing title won.
+	// SetSessionTitleIfEmpty atomically sets the title only when neither a
+	// first-class title nor a legacy state["title"] is currently persisted.
+	// Returns (info, true) when a new title was written, or (info, false)
+	// when an existing title won.
 	SetSessionTitleIfEmpty(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, bool, error)
 }
 
@@ -580,7 +581,9 @@ func deriveAutoTitle(events []*session.Event) string {
 			firstAssistantText = text
 		}
 
-		if firstUserText != "" && firstAssistantText != "" {
+		// User text always wins, so once it is found there is nothing
+		// left to look for.
+		if firstUserText != "" {
 			break
 		}
 	}

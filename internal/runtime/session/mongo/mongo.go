@@ -100,18 +100,22 @@ type SessionTitleResult struct {
 
 // SetSessionTitleIfEmpty is an atomic compare-and-set that writes the title
 // only when the first-class title is currently empty AND the legacy
-// state["title"] is absent or blank. Returns (result, true) when a new title
-// was actually written, or (current, false) when an effective title already
-// existed. last_update_time is never changed.
+// state["title"] is absent, null, or the empty string. The legacy guard is
+// deliberately conservative: any other present value blocks the write, even
+// one the read path would ignore (whitespace-only or non-string), so an
+// auto-generated title can never shadow a concurrently written legacy title.
+// Returns (result, true) when a new title was actually written, or
+// (current, false) when an effective title already existed.
+// last_update_time is never changed.
 func (s *Service) SetSessionTitleIfEmpty(ctx context.Context, appName, userID, sessionID, title string) (SessionTitleResult, bool, error) {
+	// {"$in": [nil, ""]} matches documents where the field is missing, null,
+	// or the empty string.
 	filter := bson.M{
-		"app_name":   appName,
-		"user_id":    userID,
-		"session_id": sessionID,
-		"$or": bson.A{
-			bson.M{"title": bson.M{"$exists": false}},
-			bson.M{"title": ""},
-		},
+		"app_name":    appName,
+		"user_id":     userID,
+		"session_id":  sessionID,
+		"title":       bson.M{"$in": bson.A{nil, ""}},
+		"state.title": bson.M{"$in": bson.A{nil, ""}},
 	}
 	update := bson.M{"$set": bson.M{"title": title}}
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
