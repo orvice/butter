@@ -44,13 +44,13 @@ type WorkspaceModelProviderLister interface {
 
 // titleGenerator bundles the dependencies for LLM title generation.
 // resolveModel and timeout are seams for tests; their zero values select the
-// production defaults (internalagent.ResolveModel, titleGenTimeout).
+// production defaults (internalagent.ResolveModelPtr, titleGenTimeout).
 type titleGenerator struct {
 	resolver       TitleModelResolver
 	providerLister WorkspaceModelProviderLister
 	chatTitleModel string
 
-	resolveModel func(ctx context.Context, modelRef string, providers []agentsv1.ModelProvider) (model.LLM, error)
+	resolveModel func(ctx context.Context, modelRef string, providers []*agentsv1.ModelProvider) (model.LLM, error)
 	timeout      time.Duration
 }
 
@@ -225,7 +225,7 @@ func (g titleGenerator) generate(ctx context.Context, events []*session.Event, s
 	// call can leave the workspace.
 	var candidates []string
 	if g.chatTitleModel != "" {
-		if _, found := internalagent.ResolveModelAlias(g.chatTitleModel, providers); found {
+		if _, found := internalagent.ResolveModelAliasPtr(g.chatTitleModel, providers); found {
 			candidates = append(candidates, g.chatTitleModel)
 		} else {
 			logger.Info("dedicated title model not found in workspace, trying agent model",
@@ -236,7 +236,7 @@ func (g titleGenerator) generate(ctx context.Context, events []*session.Event, s
 		}
 	}
 	if agentModel != "" && agentModel != g.chatTitleModel {
-		if _, found := internalagent.ResolveModelAlias(agentModel, providers); found {
+		if _, found := internalagent.ResolveModelAliasPtr(agentModel, providers); found {
 			candidates = append(candidates, agentModel)
 		}
 	}
@@ -253,7 +253,7 @@ func (g titleGenerator) generate(ctx context.Context, events []*session.Event, s
 
 	resolve := g.resolveModel
 	if resolve == nil {
-		resolve = internalagent.ResolveModel
+		resolve = internalagent.ResolveModelPtr
 	}
 
 	var llm model.LLM
@@ -346,7 +346,7 @@ func (g titleGenerator) generate(ctx context.Context, events []*session.Event, s
 	return title, true
 }
 
-func resolveWorkspaceProviders(ctx context.Context, lister WorkspaceModelProviderLister, workspaceID string) ([]agentsv1.ModelProvider, error) {
+func resolveWorkspaceProviders(ctx context.Context, lister WorkspaceModelProviderLister, workspaceID string) ([]*agentsv1.ModelProvider, error) {
 	if lister == nil {
 		return nil, nil
 	}
@@ -354,10 +354,10 @@ func resolveWorkspaceProviders(ctx context.Context, lister WorkspaceModelProvide
 	if err != nil {
 		return nil, err
 	}
-	out := make([]agentsv1.ModelProvider, len(ptrs))
-	for i, p := range ptrs {
+	out := ptrs[:0]
+	for _, p := range ptrs {
 		if p != nil {
-			out[i] = *p
+			out = append(out, p)
 		}
 	}
 	return out, nil

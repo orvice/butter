@@ -102,10 +102,10 @@ type fakeResolve struct {
 	llm       model.LLM
 	err       error
 	refs      []string
-	providers [][]agentsv1.ModelProvider
+	providers [][]*agentsv1.ModelProvider
 }
 
-func (f *fakeResolve) fn(_ context.Context, modelRef string, providers []agentsv1.ModelProvider) (model.LLM, error) {
+func (f *fakeResolve) fn(_ context.Context, modelRef string, providers []*agentsv1.ModelProvider) (model.LLM, error) {
 	f.refs = append(f.refs, modelRef)
 	f.providers = append(f.providers, providers)
 	if f.err != nil {

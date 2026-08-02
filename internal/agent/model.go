@@ -15,10 +15,13 @@ import (
 // ResolveModel looks up the model ref (alias or name) in the provider list and returns the appropriate model.LLM.
 // Resolution order: alias match → name match → Gemini fallback.
 func ResolveModel(ctx context.Context, modelRef string, providers []agentsv1.ModelProvider) (model.LLM, error) {
-	return resolveModel(ctx, modelRef, providers)
+	return ResolveModelPtr(ctx, modelRef, providerPtrs(providers))
 }
 
-func resolveModel(ctx context.Context, modelRef string, providers []agentsv1.ModelProvider) (model.LLM, error) {
+// ResolveModelPtr is ResolveModel over an already-pointer provider list, for
+// callers (e.g. repo-backed listings) that hold *agentsv1.ModelProvider —
+// converting those to values would copy proto lock state (govet copylocks).
+func ResolveModelPtr(ctx context.Context, modelRef string, providers []*agentsv1.ModelProvider) (model.LLM, error) {
 	modelName, provider := resolveModelConfig(modelRef, providers)
 	if provider != nil {
 		return createModelFromProvider(ctx, modelName, provider)
@@ -31,6 +34,11 @@ func resolveModel(ctx context.Context, modelRef string, providers []agentsv1.Mod
 // ResolveModelAlias resolves a model reference (alias or name) to the actual provider model name.
 // Returns the resolved model name and true if found, or the original ref and false if not found.
 func ResolveModelAlias(modelRef string, providers []agentsv1.ModelProvider) (modelName string, found bool) {
+	return ResolveModelAliasPtr(modelRef, providerPtrs(providers))
+}
+
+// ResolveModelAliasPtr is ResolveModelAlias over an already-pointer provider list.
+func ResolveModelAliasPtr(modelRef string, providers []*agentsv1.ModelProvider) (modelName string, found bool) {
 	name, provider := resolveModelConfig(modelRef, providers)
 	if provider != nil {
 		return name, true
@@ -38,12 +46,20 @@ func ResolveModelAlias(modelRef string, providers []agentsv1.ModelProvider) (mod
 	return modelRef, false
 }
 
+// providerPtrs views a value slice as pointers without copying the messages.
+func providerPtrs(providers []agentsv1.ModelProvider) []*agentsv1.ModelProvider {
+	out := make([]*agentsv1.ModelProvider, len(providers))
+	for i := range providers {
+		out[i] = &providers[i]
+	}
+	return out
+}
+
 // resolveModelConfig finds the actual model name and provider for a given ref (alias or name).
 // Searches by alias first, then by name.
-func resolveModelConfig(modelRef string, providers []agentsv1.ModelProvider) (modelName string, provider *agentsv1.ModelProvider) {
+func resolveModelConfig(modelRef string, providers []*agentsv1.ModelProvider) (modelName string, provider *agentsv1.ModelProvider) {
 	// First pass: search by alias.
-	for i := range providers {
-		p := &providers[i]
+	for _, p := range providers {
 		for _, m := range p.GetModels() {
 			if m.GetAlias() != "" && m.GetAlias() == modelRef {
 				return m.GetName(), p
@@ -52,8 +68,7 @@ func resolveModelConfig(modelRef string, providers []agentsv1.ModelProvider) (mo
 	}
 
 	// Second pass: search by name.
-	for i := range providers {
-		p := &providers[i]
+	for _, p := range providers {
 		for _, m := range p.GetModels() {
 			if m.GetName() == modelRef {
 				return m.GetName(), p
