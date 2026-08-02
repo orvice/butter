@@ -5,9 +5,11 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import type { AuthUser } from "@/api/auth";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { useSessions } from "@/api/sessions";
+import { useSessions, useUpdateSessionTitle } from "@/api/sessions";
 import { ButterLogo } from "@/components/butter/logo";
 import { AgentAvatar } from "@/components/butter/primitives";
+import { InlineTitleInput } from "@/components/inline-title-input";
+import { sessionAgentName, sessionTitle } from "@/lib/session-title";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,8 +32,10 @@ import {
   LayoutDashboard,
   LogOut,
   Menu as MenuIcon,
+  MoreHorizontal,
   PanelLeft,
   PanelLeftClose,
+  Pencil,
   Search,
   Settings,
   SquarePen,
@@ -41,19 +45,6 @@ import {
 
 const CHAT_APP_NAME = "web-chat";
 const SIDEBAR_HIDDEN_KEY = "butter.sidebar.hidden";
-
-function sessionAgentName(state: SessionInfo["state"]): string | undefined {
-  if (!state) return undefined;
-  const v = state["agent_name"];
-  return typeof v === "string" && v ? v : undefined;
-}
-
-function sessionTitle(session: SessionInfo): string {
-  const state = session.state;
-  const title = state?.["title"];
-  if (typeof title === "string" && title.trim()) return title;
-  return sessionAgentName(state) ?? session.session_id.slice(0, 12);
-}
 
 type SessionGroupKey = "today" | "week" | "older";
 
@@ -105,16 +96,100 @@ function NavButton({
   );
 }
 
+function ConversationRow({
+  session,
+  active,
+  renaming,
+  onNavigate,
+  onRenameStart,
+  onRenameEnd,
+}: {
+  session: SessionInfo;
+  active: boolean;
+  renaming: boolean;
+  onNavigate?: () => void;
+  onRenameStart: () => void;
+  onRenameEnd: () => void;
+}) {
+  const renameMutation = useUpdateSessionTitle();
+  const agent = sessionAgentName(session.state);
+
+  if (renaming) {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-sidebar-accent/60 px-2.5 py-1">
+        {agent && (
+          <AgentAvatar name={agent} size="sm" className="size-4 shrink-0 rounded text-[0.6rem]" />
+        )}
+        <InlineTitleInput
+          initial={sessionTitle(session)}
+          onSave={async (title) => {
+            await renameMutation.mutateAsync({
+              app_name: session.app_name,
+              user_id: session.user_id,
+              session_id: session.session_id,
+              title,
+            });
+          }}
+          onClose={onRenameEnd}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "group relative flex items-center rounded-md text-sm transition-colors",
+        active
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+      )}
+    >
+      <Link
+        to={`/chat?session=${encodeURIComponent(session.session_id)}`}
+        onClick={onNavigate}
+        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-2.5 pr-1"
+      >
+        {agent && (
+          <AgentAvatar name={agent} size="sm" className="size-4 shrink-0 rounded text-[0.6rem]" />
+        )}
+        <span className="truncate">{sessionTitle(session)}</span>
+      </Link>
+      {/* Visible without hover on touch widths; hover/focus-revealed on desktop. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="Chat actions"
+          className="mr-1 shrink-0 rounded p-1 text-muted-foreground opacity-100 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-foreground md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100 md:data-[popup-open]:opacity-100"
+        >
+          <MoreHorizontal className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" sideOffset={4}>
+          <DropdownMenuItem onClick={onRenameStart}>
+            <Pencil />
+            Rename
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 function ConversationGroup({
   title,
   items,
   activeSessionId,
+  renamingSessionId,
   onNavigate,
+  onRenameStart,
+  onRenameEnd,
 }: {
   title: string;
   items: SessionInfo[];
   activeSessionId: string | null;
+  renamingSessionId: string | null;
   onNavigate?: () => void;
+  onRenameStart: (sessionId: string) => void;
+  onRenameEnd: () => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -123,33 +198,18 @@ function ConversationGroup({
         {title}
       </div>
       <ul>
-        {items.map((s) => {
-          const agent = sessionAgentName(s.state);
-          const active = s.session_id === activeSessionId;
-          return (
-            <li key={s.session_id}>
-              <Link
-                to={`/chat?session=${encodeURIComponent(s.session_id)}`}
-                onClick={onNavigate}
-                className={cn(
-                  "group flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
-                  active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-                )}
-              >
-                {agent && (
-                  <AgentAvatar
-                    name={agent}
-                    size="sm"
-                    className="size-4 rounded text-[0.6rem]"
-                  />
-                )}
-                <span className="truncate">{sessionTitle(s)}</span>
-              </Link>
-            </li>
-          );
-        })}
+        {items.map((s) => (
+          <li key={s.session_id}>
+            <ConversationRow
+              session={s}
+              active={s.session_id === activeSessionId}
+              renaming={s.session_id === renamingSessionId}
+              onNavigate={onNavigate}
+              onRenameStart={() => onRenameStart(s.session_id)}
+              onRenameEnd={onRenameEnd}
+            />
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -255,6 +315,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const [searchParams] = useSearchParams();
   const { user, logout } = useAuth();
   const [query, setQuery] = useState("");
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
 
   const userId = user?.id ?? "";
   const sessionsQuery = useSessions(
@@ -359,19 +420,28 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               title="Today"
               items={groups.today}
               activeSessionId={activeSessionId}
+              renamingSessionId={renamingSessionId}
               onNavigate={onNavigate}
+              onRenameStart={setRenamingSessionId}
+              onRenameEnd={() => setRenamingSessionId(null)}
             />
             <ConversationGroup
               title="Previous 7 days"
               items={groups.week}
               activeSessionId={activeSessionId}
+              renamingSessionId={renamingSessionId}
               onNavigate={onNavigate}
+              onRenameStart={setRenamingSessionId}
+              onRenameEnd={() => setRenamingSessionId(null)}
             />
             <ConversationGroup
               title="Older"
               items={groups.older}
               activeSessionId={activeSessionId}
+              renamingSessionId={renamingSessionId}
               onNavigate={onNavigate}
+              onRenameStart={setRenamingSessionId}
+              onRenameEnd={() => setRenamingSessionId(null)}
             />
           </>
         )}

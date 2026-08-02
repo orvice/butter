@@ -311,6 +311,8 @@ export interface SessionInfo {
   state?: Record<string, unknown>;
   last_update_time?: string;
   turn_count?: number;
+  /** Effective first-class title; empty when only fallbacks apply. */
+  title?: string;
 }
 
 export interface SessionEvent {

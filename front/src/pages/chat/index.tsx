@@ -6,15 +6,10 @@ import { useCreateSession, useDeleteSession, useSessions } from "@/api/sessions"
 import { DeleteDialog } from "@/components/delete-dialog";
 import { AgentSelector } from "./agent-selector";
 import { ChatWindow } from "./chat-window";
+import { sessionAgentName, sessionTitle } from "@/lib/session-title";
 import type { SessionInfo } from "@/types/api";
 
 const APP_NAME = "web-chat";
-
-function agentNameOf(state: SessionInfo["state"]): string | null {
-  if (!state) return null;
-  const v = state["agent_name"];
-  return typeof v === "string" ? v : null;
-}
 
 export default function ChatPage() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -60,7 +55,7 @@ export default function ChatPage() {
     return sessions[0] ?? null;
   }, [wantsNewChat, requestedSessionId, sessions]);
 
-  const activeAgent = activeSession ? agentNameOf(activeSession.state) : null;
+  const activeAgent = activeSession ? sessionAgentName(activeSession.state) ?? null : null;
 
   async function handleCreate(agentName: string) {
     if (!userId) {
@@ -141,7 +136,7 @@ export default function ChatPage() {
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Delete chat"
-        description={`Delete chat "${deleteTarget?.session_id}"? This cannot be undone.`}
+        description={`Delete chat "${deleteTarget ? sessionTitle(deleteTarget) : ""}"? This cannot be undone.`}
         loading={deleteMutation.isPending}
         onConfirm={handleDeleteConfirm}
       />

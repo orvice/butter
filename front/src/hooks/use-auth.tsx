@@ -31,24 +31,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loginWorkspaces, setLoginWorkspaces] = useState<Workspace[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(() => !!localStorage.getItem(TOKEN_KEY));
+  const [loginPending, setLoginPending] = useState(false);
+  // Loading means restoring a session (token present, user not yet fetched)
+  // or an explicit login() in flight; derived so the effect below never has
+  // to sync it back into state.
+  const isLoading = loginPending || (!!token && !user);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!token) {
-      setUser(null);
-      setLoginWorkspaces([]);
-      setIsLoading(false);
-      return;
-    }
+    // Every path that clears the token (logout, login failure, meRequest
+    // failure) already clears user/workspaces, so a missing token — or an
+    // already-restored user — needs no state sync here.
+    if (!token || user?.id) return;
 
-    if (user?.id) {
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
     void meRequest()
       .then((res) => {
         if (cancelled) return;
@@ -67,9 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(null);
         setUser(null);
         setLoginWorkspaces([]);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
       });
 
     return () => {
@@ -87,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
-      setIsLoading(true);
+      setLoginPending(true);
       const res = await loginRequest(username, password);
       if (!res.token) return false;
       localStorage.setItem(TOKEN_KEY, res.token);
@@ -102,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoginWorkspaces([]);
       return false;
     } finally {
-      setIsLoading(false);
+      setLoginPending(false);
     }
   }, []);
 
@@ -112,7 +105,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     setLoginWorkspaces([]);
-    setIsLoading(false);
   }, []);
 
   const refreshUser = useCallback((next: AuthUser) => {
