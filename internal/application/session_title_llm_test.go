@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -136,10 +137,10 @@ func TestBuildTitleInput_UserAndAssistant(t *testing.T) {
 	if input == "" {
 		t.Fatal("expected non-empty input")
 	}
-	if !contains(input, "User: Hello world") {
+	if !strings.Contains(input, "User: Hello world") {
 		t.Fatalf("expected user text in input, got %q", input)
 	}
-	if !contains(input, "Assistant: Hi there") {
+	if !strings.Contains(input, "Assistant: Hi there") {
 		t.Fatalf("expected assistant text in input, got %q", input)
 	}
 }
@@ -149,7 +150,7 @@ func TestBuildTitleInput_UserOnly(t *testing.T) {
 		makeEvent("user", textPart("Hello world")),
 	}
 	input := buildTitleInput(events)
-	if !contains(input, "User: Hello world") {
+	if !strings.Contains(input, "User: Hello world") {
 		t.Fatalf("expected user text in input, got %q", input)
 	}
 }
@@ -169,10 +170,10 @@ func TestBuildTitleInput_SkipsToolEvents(t *testing.T) {
 		makeEvent("agent", textPart("Answer")),
 	}
 	input := buildTitleInput(events)
-	if !contains(input, "User: Question") {
+	if !strings.Contains(input, "User: Question") {
 		t.Fatalf("expected user text, got %q", input)
 	}
-	if !contains(input, "Assistant: Answer") {
+	if !strings.Contains(input, "Assistant: Answer") {
 		t.Fatalf("expected assistant text, got %q", input)
 	}
 }
@@ -329,34 +330,24 @@ func TestGenerateLLMTitle_WorkspaceIsolation(t *testing.T) {
 		"agent-b": {model: "flash", workspaceID: "ws-b", agentType: agentsv1.AgentType_AGENT_TYPE_LLM},
 	}}
 
-	providerA := &agentsv1.ModelProvider{
-		Name:        "provider-a",
-		Type:        "openai",
-		ApiKey:      "key-a",
-		WorkspaceId: "ws-a",
-		Models:      []*agentsv1.ModelConfig{{Name: "gpt-4o", Alias: "flash"}},
-	}
-	providerB := &agentsv1.ModelProvider{
-		Name:        "provider-b",
-		Type:        "openai",
-		ApiKey:      "key-b",
-		WorkspaceId: "ws-b",
-		Models:      []*agentsv1.ModelConfig{{Name: "gpt-4o", Alias: "flash"}},
-	}
-	lister := &fakeProviderLister{
-		providers: map[string][]*agentsv1.ModelProvider{
-			"ws-a": {providerA},
-			"ws-b": {providerB},
+	// Track which workspace's providers were queried.
+	lister := &trackingProviderLister{
+		inner: &fakeProviderLister{
+			providers: map[string][]*agentsv1.ModelProvider{
+				"ws-a": {},
+				"ws-b": {},
+			},
 		},
 	}
 
-	// generateLLMTitle will try to create a real OpenAI model, which will
-	// fail because the API key is fake. But the important thing is it
-	// resolves providers from ws-a, not ws-b.
+	// Falls back because no provider matches, but we assert it queried ws-a.
 	_, ok := generateLLMTitle(context.Background(), events, "", resolver, lister, "s1")
-	// We expect fallback because the OpenAI model creation will fail with
-	// an actual API call, but the workspace isolation logic is exercised.
-	_ = ok
+	if ok {
+		t.Fatal("expected fallback (no real provider)")
+	}
+	if lister.queriedWorkspace != "ws-a" {
+		t.Fatalf("expected workspace 'ws-a' to be queried, got %q", lister.queriedWorkspace)
+	}
 }
 
 func TestGenerateLLMTitle_PrefersDedicatedModel(t *testing.T) {
@@ -368,20 +359,19 @@ func TestGenerateLLMTitle_PrefersDedicatedModel(t *testing.T) {
 		"agent": {model: "expensive-model", workspaceID: "ws1", agentType: agentsv1.AgentType_AGENT_TYPE_LLM},
 	}}
 
-	// With chat_title_model set, the dedicated model should be preferred
-	// over the agent's own model.
 	lister := &fakeProviderLister{providers: map[string][]*agentsv1.ModelProvider{
 		"ws1": {},
 	}}
 
-	// This will fall back because no provider matches the model, but it
-	// exercises the preference logic: the dedicated model "cheap-model"
-	// should be tried instead of "expensive-model".
+	// With chat_title_model="cheap-model" set, the dedicated model should
+	// be tried. Since no provider matches either, falls back.
 	_, ok := generateLLMTitle(context.Background(), events, "cheap-model", resolver, lister, "s1")
-	_ = ok
+	if ok {
+		t.Fatal("expected fallback when no provider matches")
+	}
 }
 
-func TestGenerateLLMTitle_AgentModelFallback(t *testing.T) {
+func TestGenerateLLMTitle_AgentModelFallback_WhenDedicatedFails(t *testing.T) {
 	events := []*session.Event{
 		makeEvent("user", textPart("Hello")),
 		makeEvent("agent", textPart("Hi")),
@@ -390,13 +380,31 @@ func TestGenerateLLMTitle_AgentModelFallback(t *testing.T) {
 		"agent": {model: "agent-model", workspaceID: "ws1", agentType: agentsv1.AgentType_AGENT_TYPE_LLM},
 	}}
 
-	// With no chat_title_model, the agent's model should be used.
 	lister := &fakeProviderLister{providers: map[string][]*agentsv1.ModelProvider{
 		"ws1": {},
 	}}
 
-	_, ok := generateLLMTitle(context.Background(), events, "", resolver, lister, "s1")
-	_ = ok
+	// With chat_title_model="bad-model", dedicated fails, then the agent's
+	// "agent-model" should be tried. Both fail here (no matching provider),
+	// but the retry logic is exercised.
+	_, ok := generateLLMTitle(context.Background(), events, "bad-model", resolver, lister, "s1")
+	if ok {
+		t.Fatal("expected fallback when no provider matches")
+	}
+}
+
+func TestGenerateLLMTitle_UnspecifiedAgentType(t *testing.T) {
+	events := []*session.Event{
+		makeEvent("user", textPart("Hello")),
+		makeEvent("agent", textPart("Hi")),
+	}
+	resolver := &fakeTitleResolver{agents: map[string]fakeAgentInfo{
+		"agent": {model: "flash", workspaceID: "ws1", agentType: agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED},
+	}}
+	_, ok := generateLLMTitle(context.Background(), events, "", resolver, nil, "s1")
+	if ok {
+		t.Fatal("expected fallback for AGENT_TYPE_UNSPECIFIED")
+	}
 }
 
 // --- GenerateSessionTitle handler-level tests for LLM ---
@@ -461,12 +469,12 @@ func TestGenerateSessionTitle_ExistingTitleStillWins(t *testing.T) {
 		fakeSession: fakeSession{id: "s1", title: "Manual Title", state: &fakeState{data: map[string]any{}}},
 		events: []*session.Event{
 			makeEvent("user", textPart("Hello")),
-			makeEvent("agent", textPart("Hi")),
+			makeEvent("my-agent", textPart("Hi")),
 		},
 	}
 	store := &stubTitleStore{}
 	resolver := &fakeTitleResolver{agents: map[string]fakeAgentInfo{
-		"agent": {model: "flash", workspaceID: "ws1", agentType: agentsv1.AgentType_AGENT_TYPE_LLM},
+		"my-agent": {model: "flash", workspaceID: "ws1", agentType: agentsv1.AgentType_AGENT_TYPE_LLM},
 	}}
 	svc := newLLMTitleTestService(store, resolver, nil, "flash", sess)
 
@@ -513,15 +521,14 @@ func TestGenerateSessionTitle_ConcurrentManualUpdateStillWins(t *testing.T) {
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
+// trackingProviderLister wraps a WorkspaceModelProviderLister and records
+// the workspace that was queried.
+type trackingProviderLister struct {
+	inner             WorkspaceModelProviderLister
+	queriedWorkspace  string
 }
 
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+func (t *trackingProviderLister) ListModelProviders(ctx context.Context, workspaceID string) ([]*agentsv1.ModelProvider, error) {
+	t.queriedWorkspace = workspaceID
+	return t.inner.ListModelProviders(ctx, workspaceID)
 }

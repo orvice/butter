@@ -73,7 +73,7 @@ func deriveAgentNameFromEvents(events []*session.Event) string {
 func buildTitleInput(events []*session.Event) string {
 	var userText, assistantText string
 	for _, evt := range events {
-		if evt.Content == nil || isToolOnlyEvent(evt) {
+		if evt.Content == nil || evt.Partial || isToolOnlyEvent(evt) {
 			continue
 		}
 		text := firstEventText(evt.Content)
@@ -160,7 +160,7 @@ func generateLLMTitle(
 	}
 
 	agentType := resolver.GetAgentType(agentName)
-	if agentType != agentsv1.AgentType_AGENT_TYPE_LLM && agentType != agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED {
+	if agentType != agentsv1.AgentType_AGENT_TYPE_LLM {
 		logger.Info("llm title generation skipped: non-LLM agent",
 			"session_id", sessionID,
 			"agent", agentName,
@@ -198,6 +198,20 @@ func generateLLMTitle(
 	}
 
 	llm, err := internalagent.ResolveModel(ctx, modelRef, providers)
+	if err != nil && chatTitleModel != "" {
+		// Dedicated model failed; try the agent's own model as fallback.
+		agentModel := resolver.GetAgentModel(agentName)
+		if agentModel != "" && agentModel != modelRef {
+			logger.Info("dedicated title model failed, trying agent model",
+				"session_id", sessionID,
+				"dedicated_model", modelRef,
+				"agent_model", agentModel,
+				"err", err,
+			)
+			modelRef = agentModel
+			llm, err = internalagent.ResolveModel(ctx, agentModel, providers)
+		}
+	}
 	if err != nil {
 		logger.Warn("llm title generation skipped: model resolution failed",
 			"session_id", sessionID,
