@@ -164,10 +164,14 @@ func (s *SessionServiceServer) SetChatTitleModel(model string) {
 	s.chatTitleModel = model
 }
 
-func (s *SessionServiceServer) getTitleModelDeps() (TitleModelResolver, WorkspaceModelProviderLister, string) {
+func (s *SessionServiceServer) titleGen() titleGenerator {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.titleResolver, s.titleProviderLister, s.chatTitleModel
+	return titleGenerator{
+		resolver:       s.titleResolver,
+		providerLister: s.titleProviderLister,
+		chatTitleModel: s.chatTitleModel,
+	}
 }
 
 // SetLangfuseHost wires the Langfuse base URL used to render trace_url on
@@ -726,8 +730,7 @@ func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *co
 	logger := log.FromContext(ctx)
 
 	// Try LLM-based title generation first.
-	resolver, providerLister, chatModel := s.getTitleModelDeps()
-	llmTitle, llmOK := generateLLMTitle(ctx, events, chatModel, resolver, providerLister, req.Msg.GetSessionId())
+	llmTitle, llmOK := s.titleGen().generate(ctx, events, req.Msg.GetSessionId())
 	var title string
 	if llmOK {
 		title = llmTitle

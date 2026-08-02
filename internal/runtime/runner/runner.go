@@ -545,28 +545,20 @@ func (s *Service) ModelProviders() []agentsv1.ModelProvider {
 	return s.providers
 }
 
-// GetAgentWorkspaceID returns the workspace_id of the named agent, or empty
-// if the agent is not found or has no workspace binding.
-func (s *Service) GetAgentWorkspaceID(name string) string {
+// GetAgentMeta returns the named agent's configured model, owning workspace
+// and agent type in a single lookup. ok is false when the agent is unknown
+// or has no proto config (dynamically registered agents). The lookup is by
+// bare agent name: agent names are expected to be unique across workspaces
+// in this iteration (see AGENTS.md), so the returned workspace is
+// unambiguous.
+func (s *Service) GetAgentMeta(name string) (model, workspaceID string, agentType agentsv1.AgentType, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	pb, ok := s.agentsProto[name]
-	if !ok {
-		return ""
+	pb, found := s.agentsProto[name]
+	if !found {
+		return "", "", agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED, false
 	}
-	return pb.GetWorkspaceId()
-}
-
-// GetAgentType returns the agent type of the named agent, or
-// AGENT_TYPE_UNSPECIFIED if the agent is not found.
-func (s *Service) GetAgentType(name string) agentsv1.AgentType {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	pb, ok := s.agentsProto[name]
-	if !ok {
-		return agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED
-	}
-	return pb.GetType()
+	return pb.GetConfig().GetModel(), pb.GetWorkspaceId(), pb.GetType(), true
 }
 
 // GetAgentModel returns the model name configured for the named agent, or empty string.

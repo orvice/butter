@@ -7,26 +7,32 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
-	"google.golang.org/adk/v2/session"
 )
 
 const (
-	titleGenTimeout    = 10 * time.Second
-	titleGenMaxTokens  = 64
-	titleGenMaxInputCP = 2000
+	titleGenTimeout   = 10 * time.Second
+	titleGenMaxTokens = 64
+	// titleGenMaxInputCodePoints bounds the combined conversation excerpt
+	// (user + assistant text) fed to the model, in Unicode code points.
+	titleGenMaxInputCodePoints = 2000
+	// titleGenMinAssistantCodePoints is the minimum input budget reserved
+	// for the assistant excerpt when one exists, carved out of the total.
+	titleGenMinAssistantCodePoints = 200
 )
 
-// TitleModelResolver provides workspace-scoped model and agent metadata
-// needed by LLM title generation. The runner.Service implements this
-// interface; tests substitute a fake.
+// TitleModelResolver provides workspace-scoped agent metadata needed by LLM
+// title generation. The runner.Service implements this interface; tests
+// substitute a fake.
 type TitleModelResolver interface {
-	GetAgentModel(name string) string
-	GetAgentWorkspaceID(name string) string
-	GetAgentType(name string) agentsv1.AgentType
+	// GetAgentMeta returns the named agent's configured model, owning
+	// workspace and agent type in a single lookup. ok is false when the
+	// agent is unknown.
+	GetAgentMeta(name string) (model, workspaceID string, agentType agentsv1.AgentType, ok bool)
 }
 
 // WorkspaceModelProviderLister lists model providers scoped to a single
@@ -34,6 +40,18 @@ type TitleModelResolver interface {
 // a fake.
 type WorkspaceModelProviderLister interface {
 	ListModelProviders(ctx context.Context, workspaceID string) ([]*agentsv1.ModelProvider, error)
+}
+
+// titleGenerator bundles the dependencies for LLM title generation.
+// resolveModel and timeout are seams for tests; their zero values select the
+// production defaults (internalagent.ResolveModel, titleGenTimeout).
+type titleGenerator struct {
+	resolver       TitleModelResolver
+	providerLister WorkspaceModelProviderLister
+	chatTitleModel string
+
+	resolveModel func(ctx context.Context, modelRef string, providers []agentsv1.ModelProvider) (model.LLM, error)
+	timeout      time.Duration
 }
 
 // titlePrompt is fixed instructions for LLM title generation. The
@@ -68,8 +86,9 @@ func deriveAgentNameFromEvents(events []*session.Event) string {
 }
 
 // buildTitleInput constructs the LLM input from the first user message and
-// first final assistant response. The combined text is bounded by
-// titleGenMaxInputCP code points.
+// the first final assistant response (per session.Event.IsFinalResponse, so
+// intermediate text emitted alongside tool calls is skipped). The combined
+// text is bounded by titleGenMaxInputCodePoints code points.
 func buildTitleInput(events []*session.Event) string {
 	var userText, assistantText string
 	for _, evt := range events {
@@ -80,9 +99,11 @@ func buildTitleInput(events []*session.Event) string {
 		if text == "" {
 			continue
 		}
-		if evt.Author == "user" && userText == "" {
-			userText = text
-		} else if evt.Author != "user" && assistantText == "" {
+		if evt.Author == "user" {
+			if userText == "" {
+				userText = text
+			}
+		} else if assistantText == "" && evt.IsFinalResponse() {
 			assistantText = text
 		}
 		if userText != "" && assistantText != "" {
@@ -90,39 +111,39 @@ func buildTitleInput(events []*session.Event) string {
 		}
 	}
 
+	userBudget := titleGenMaxInputCodePoints
+	if assistantText != "" {
+		userBudget -= titleGenMinAssistantCodePoints
+	}
+	userText = truncateCodePoints(userText, userBudget)
+
 	var sb strings.Builder
 	if userText != "" {
 		sb.WriteString("\nUser: ")
-		sb.WriteString(truncateCodePoints(userText, titleGenMaxInputCP))
+		sb.WriteString(userText)
 	}
 	if assistantText != "" {
 		sb.WriteString("\nAssistant: ")
-		remaining := titleGenMaxInputCP - len([]rune(userText))
-		if remaining < 200 {
-			remaining = 200
-		}
-		sb.WriteString(truncateCodePoints(assistantText, remaining))
+		sb.WriteString(truncateCodePoints(assistantText, titleGenMaxInputCodePoints-len([]rune(userText))))
 	}
 	return sb.String()
 }
 
-// generateLLMTitle attempts LLM-based title generation. It resolves the
-// model within the agent's workspace, makes a single non-streaming LLM
-// call, and normalizes the output. Returns (title, true) on success, or
-// ("", false) when the caller should fall back to deterministic generation.
+// generate attempts LLM-based title generation. It resolves the model within
+// the agent's workspace, makes a single non-streaming LLM call, and
+// normalizes the output. Returns (title, true) on success, or ("", false)
+// when the caller should fall back to deterministic generation.
 //
 // This function never executes an agent, tools, or workflow nodes. It makes
-// a direct model call with fixed instructions and bounded input/output.
-func generateLLMTitle(
-	ctx context.Context,
-	events []*session.Event,
-	chatTitleModel string,
-	resolver TitleModelResolver,
-	providerLister WorkspaceModelProviderLister,
-	sessionID string,
-) (string, bool) {
+// a direct model call with fixed instructions and bounded input/output. A
+// model ref that does not resolve to a provider inside the agent's workspace
+// is treated as unresolved: generation falls back without any provider call,
+// so credentials outside the workspace (including process-global defaults)
+// are never used.
+func (g titleGenerator) generate(ctx context.Context, events []*session.Event, sessionID string) (string, bool) {
 	logger := log.FromContext(ctx)
 	start := time.Now()
+	elapsedMS := func() int64 { return time.Since(start).Milliseconds() }
 
 	input := buildTitleInput(events)
 	if input == "" {
@@ -137,94 +158,136 @@ func generateLLMTitle(
 		logger.Info("llm title generation skipped: no agent found in session events",
 			"session_id", sessionID,
 			"fallback_reason", "no_agent",
+			"elapsed_ms", elapsedMS(),
 		)
 		return "", false
 	}
 
-	if resolver == nil {
+	if g.resolver == nil {
 		logger.Info("llm title generation skipped: no model resolver",
 			"session_id", sessionID,
 			"fallback_reason", "no_resolver",
+			"elapsed_ms", elapsedMS(),
 		)
 		return "", false
 	}
 
-	workspaceID := resolver.GetAgentWorkspaceID(agentName)
-	if workspaceID == "" {
+	agentModel, workspaceID, agentType, ok := g.resolver.GetAgentMeta(agentName)
+	if !ok || workspaceID == "" {
 		logger.Info("llm title generation skipped: agent has no workspace",
 			"session_id", sessionID,
 			"agent", agentName,
 			"fallback_reason", "no_workspace",
+			"elapsed_ms", elapsedMS(),
 		)
 		return "", false
 	}
 
-	agentType := resolver.GetAgentType(agentName)
 	if agentType != agentsv1.AgentType_AGENT_TYPE_LLM {
 		logger.Info("llm title generation skipped: non-LLM agent",
 			"session_id", sessionID,
 			"agent", agentName,
+			"workspace_id", workspaceID,
 			"agent_type", agentType.String(),
 			"fallback_reason", "non_llm_agent",
+			"elapsed_ms", elapsedMS(),
 		)
 		return "", false
 	}
 
-	// Resolve model: prefer dedicated chat_title_model, then agent's model.
-	modelRef := chatTitleModel
-	if modelRef == "" {
-		modelRef = resolver.GetAgentModel(agentName)
-	}
-	if modelRef == "" {
+	if g.chatTitleModel == "" && agentModel == "" {
 		logger.Info("llm title generation skipped: no model configured",
 			"session_id", sessionID,
 			"agent", agentName,
 			"workspace_id", workspaceID,
 			"fallback_reason", "no_model",
+			"elapsed_ms", elapsedMS(),
 		)
 		return "", false
 	}
 
 	// Resolve model providers within the agent's workspace only.
-	providers, err := resolveWorkspaceProviders(ctx, providerLister, workspaceID)
+	providers, err := resolveWorkspaceProviders(ctx, g.providerLister, workspaceID)
 	if err != nil {
 		logger.Warn("llm title generation skipped: provider list error",
 			"session_id", sessionID,
 			"workspace_id", workspaceID,
 			"err", err,
 			"fallback_reason", "provider_error",
+			"elapsed_ms", elapsedMS(),
 		)
 		return "", false
 	}
 
-	llm, err := internalagent.ResolveModel(ctx, modelRef, providers)
-	if err != nil && chatTitleModel != "" {
-		// Dedicated model failed; try the agent's own model as fallback.
-		agentModel := resolver.GetAgentModel(agentName)
-		if agentModel != "" && agentModel != modelRef {
-			logger.Info("dedicated title model failed, trying agent model",
+	// Candidate refs in preference order: dedicated chat_title_model first,
+	// then the agent's own model. Each candidate must resolve to a provider
+	// registered in the agent's workspace; unresolved refs are skipped so no
+	// call can leave the workspace.
+	var candidates []string
+	if g.chatTitleModel != "" {
+		if _, found := internalagent.ResolveModelAlias(g.chatTitleModel, providers); found {
+			candidates = append(candidates, g.chatTitleModel)
+		} else {
+			logger.Info("dedicated title model not found in workspace, trying agent model",
 				"session_id", sessionID,
-				"dedicated_model", modelRef,
-				"agent_model", agentModel,
-				"err", err,
+				"workspace_id", workspaceID,
+				"dedicated_model", g.chatTitleModel,
 			)
-			modelRef = agentModel
-			llm, err = internalagent.ResolveModel(ctx, agentModel, providers)
 		}
 	}
-	if err != nil {
+	if agentModel != "" && agentModel != g.chatTitleModel {
+		if _, found := internalagent.ResolveModelAlias(agentModel, providers); found {
+			candidates = append(candidates, agentModel)
+		}
+	}
+	if len(candidates) == 0 {
+		logger.Info("llm title generation skipped: no model resolves in workspace",
+			"session_id", sessionID,
+			"agent", agentName,
+			"workspace_id", workspaceID,
+			"fallback_reason", "model_not_in_workspace",
+			"elapsed_ms", elapsedMS(),
+		)
+		return "", false
+	}
+
+	resolve := g.resolveModel
+	if resolve == nil {
+		resolve = internalagent.ResolveModel
+	}
+
+	var llm model.LLM
+	var modelRef string
+	for _, ref := range candidates {
+		llm, err = resolve(ctx, ref, providers)
+		if err == nil {
+			modelRef = ref
+			break
+		}
+		logger.Info("title model construction failed, trying next candidate",
+			"session_id", sessionID,
+			"workspace_id", workspaceID,
+			"model_ref", ref,
+			"err", err,
+		)
+	}
+	if llm == nil {
 		logger.Warn("llm title generation skipped: model resolution failed",
 			"session_id", sessionID,
 			"workspace_id", workspaceID,
-			"model_ref", modelRef,
 			"err", err,
 			"fallback_reason", "model_resolution_error",
+			"elapsed_ms", elapsedMS(),
 		)
 		return "", false
 	}
 
 	// Make the direct LLM call with a bounded timeout.
-	genCtx, cancel := context.WithTimeout(ctx, titleGenTimeout)
+	timeout := g.timeout
+	if timeout == 0 {
+		timeout = titleGenTimeout
+	}
+	genCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	prompt := titlePrompt + input
@@ -234,7 +297,7 @@ func generateLLMTitle(
 		},
 		Config: &genai.GenerateContentConfig{
 			MaxOutputTokens: titleGenMaxTokens,
-			Temperature:     ptrFloat32(0.3),
+			Temperature:     genai.Ptr[float32](0.3),
 		},
 	}
 
@@ -247,14 +310,13 @@ func generateLLMTitle(
 		}
 		lastResp = resp
 	}
-	elapsed := time.Since(start)
 
 	if genErr != nil {
 		logger.Warn("llm title generation failed: model call error",
 			"session_id", sessionID,
 			"workspace_id", workspaceID,
 			"model_ref", modelRef,
-			"elapsed_ms", elapsed.Milliseconds(),
+			"elapsed_ms", elapsedMS(),
 			"err", genErr,
 			"fallback_reason", "model_error",
 		)
@@ -268,7 +330,7 @@ func generateLLMTitle(
 			"session_id", sessionID,
 			"workspace_id", workspaceID,
 			"model_ref", modelRef,
-			"elapsed_ms", elapsed.Milliseconds(),
+			"elapsed_ms", elapsedMS(),
 			"fallback_reason", "empty_output",
 		)
 		return "", false
@@ -278,7 +340,7 @@ func generateLLMTitle(
 		"session_id", sessionID,
 		"workspace_id", workspaceID,
 		"model_ref", modelRef,
-		"elapsed_ms", elapsed.Milliseconds(),
+		"elapsed_ms", elapsedMS(),
 		"outcome", "success",
 	)
 	return title, true
@@ -315,5 +377,3 @@ func extractModelResponseText(resp *model.LLMResponse) string {
 	}
 	return ""
 }
-
-func ptrFloat32(f float32) *float32 { return &f }

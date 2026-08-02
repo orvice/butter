@@ -2200,7 +2200,9 @@ handler falls back to truncation with no further provider calls.
 
 **LLM call:** One non-streaming request with fixed instructions (never executes
 agents, tools, MCP, or workflow nodes). The prompt includes the first user
-message and first assistant response (input bounded; output capped at 64 tokens
+message and the first **final** assistant response — partial chunks and
+intermediate text emitted alongside tool calls are skipped (input bounded;
+output capped at 64 tokens
 server-side, normalized to a single line of at most 30 Unicode code points in
 the user's language). Timeout is 10 seconds. Errors, timeouts, or empty model
 output fall back to deterministic truncation.

@@ -191,12 +191,16 @@ Web Chat 首轮完成后，客户端调用 `SessionService.GenerateSessionTitle`
 GenerateSessionTitle
   -> load session + all events
   -> if effective title exists (first-class / legacy state["title"]): return generated=false
-  -> generateLLMTitle (when resolver + provider lister wired):
+  -> titleGenerator.generate (when resolver + provider lister wired):
       derive agent name from events (first non-"user" author, skip tool-only)
-      resolve workspace_id + agent type + model from runner.Service (TitleModelResolver)
+      resolve workspace_id + agent type + model via runner.Service.GetAgentMeta (TitleModelResolver)
       ListModelProviders(workspace_id only) via config repo
-      model_ref = chat_title_model || agent.config.model
-      skip LLM when: no agent, no workspace, non-LLM agent, unresolved model
+      model_ref = chat_title_model || agent.config.model; each candidate must
+        resolve (alias/name) inside the workspace provider list — otherwise it
+        is skipped, so no call can use credentials outside the workspace
+      skip LLM when: no agent, no workspace, non-LLM agent, no candidate resolves
+      prompt input = first user message + first final assistant response
+        (Event.IsFinalResponse; partials and tool-call text skipped)
       direct non-streaming LLM call (fixed prompt, 10s timeout, max 64 output tokens)
       normalize to single line, max 30 Unicode code points
   -> on LLM skip/failure: deriveAutoTitle (deterministic truncation / "Image chat")
