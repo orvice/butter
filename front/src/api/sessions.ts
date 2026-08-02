@@ -20,6 +20,7 @@ function infoFromProto(s: PbSessionInfo): SessionInfo {
     state: s.state,
     last_update_time: tsToISO(s.lastUpdateTime),
     turn_count: s.turnCount,
+    title: s.title,
   };
 }
 
@@ -78,6 +79,13 @@ interface CreateSessionParams {
   user_id: string;
   session_id?: string;
   state?: Record<string, unknown>;
+}
+
+interface UpdateSessionTitleParams {
+  app_name: string;
+  user_id: string;
+  session_id: string;
+  title: string;
 }
 
 function parseTimestamp(s: string | undefined) {
@@ -175,6 +183,29 @@ export function useCreateSession() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: createSession,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sessions"] });
+    },
+  });
+}
+
+async function updateSessionTitle(params: UpdateSessionTitleParams): Promise<{ session: SessionInfo }> {
+  const res = await client.updateSessionTitle({
+    appName: params.app_name,
+    userId: params.user_id,
+    sessionId: params.session_id,
+    title: params.title,
+  });
+  if (!res.session) throw new Error("rename returned nothing");
+  return { session: infoFromProto(res.session) };
+}
+
+export function useUpdateSessionTitle() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateSessionTitle,
+    // Both the session list and per-session detail keys start with
+    // "sessions", so one invalidation converges sidebar and chat header.
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sessions"] });
     },

@@ -723,6 +723,8 @@ service SessionService {
   rpc DeleteSession(DeleteSessionRequest) returns (DeleteSessionResponse);
   // ReplySession sends a user message to an existing session and returns the agent response.
   rpc ReplySession(ReplySessionRequest) returns (ReplySessionResponse);
+  // UpdateSessionTitle sets a first-class title on a session.
+  rpc UpdateSessionTitle(UpdateSessionTitleRequest) returns (UpdateSessionTitleResponse);
 }
 
 // --- Session messages ---
@@ -804,6 +806,19 @@ message ReplySessionResponse {
   string response = 1;
 }
 
+message UpdateSessionTitleRequest {
+  string app_name = 1;
+  string user_id = 2;
+  string session_id = 3;
+  // New title for the session. Trimmed and normalized to one line;
+  // must be non-blank and at most 100 Unicode code points.
+  string title = 4;
+}
+
+message UpdateSessionTitleResponse {
+  SessionInfo session = 1;
+}
+
 // SessionInfo is a lightweight session summary (no events).
 message SessionInfo {
   string session_id = 1;
@@ -813,6 +828,9 @@ message SessionInfo {
   google.protobuf.Timestamp last_update_time = 5;
   // Number of recorded events (rough "turn" count).
   int32 turn_count = 6;
+  // First-class session title. Effective-title precedence: this field,
+  // then legacy state["title"], then agent name, then shortened session ID.
+  string title = 7;
 }
 
 // SessionDetail includes the session info plus recent events.

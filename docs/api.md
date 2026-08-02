@@ -2106,6 +2106,39 @@ Sends a user message to an existing session and returns the agent response.
 |-------|------|-------------|
 | `response` | string | Agent's response text |
 
+#### UpdateSessionTitle
+
+```
+POST /api/agents.v1.SessionService/UpdateSessionTitle
+```
+
+Sets a first-class title on a session. Non-admin callers may only update sessions
+whose `user_id` matches their authenticated identity; admins may update any
+session. Renaming does not change `last_update_time` or conversation ordering.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `app_name` | string | Required |
+| `user_id` | string | Required |
+| `session_id` | string | Required |
+| `title` | string | Required. Trimmed and normalized to one line; must be non-blank and at most 100 Unicode code points. Duplicate titles are allowed |
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session` | SessionInfo | Updated session info with the new title |
+
+**Errors:**
+
+- `invalid_argument` — blank title, title over 100 code points, or missing required field
+- `unauthenticated` — no authenticated user on context
+- `permission_denied` — non-admin caller tried to update another user's session
+- `not_found` — session does not exist
+- `failed_precondition` — title store not yet initialized
+
 #### SessionInfo Object
 
 | Field | Type | Description |
@@ -2116,6 +2149,7 @@ Sends a user message to an existing session and returns the agent response.
 | `state` | object | Session state data |
 | `last_update_time` | timestamp | Last update time |
 | `turn_count` | int32 | Number of recorded events (populated by `GetSession`) |
+| `title` | string | First-class session title. Effective-title precedence: this field, then legacy `state["title"]`, then agent name (frontend), then shortened session ID (frontend). New writes never update the legacy state key |
 
 #### SessionDetail Object
 

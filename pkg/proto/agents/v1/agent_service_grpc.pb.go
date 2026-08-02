@@ -2604,11 +2604,12 @@ var ChannelService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	SessionService_CreateSession_FullMethodName = "/agents.v1.SessionService/CreateSession"
-	SessionService_GetSession_FullMethodName    = "/agents.v1.SessionService/GetSession"
-	SessionService_ListSessions_FullMethodName  = "/agents.v1.SessionService/ListSessions"
-	SessionService_DeleteSession_FullMethodName = "/agents.v1.SessionService/DeleteSession"
-	SessionService_ReplySession_FullMethodName  = "/agents.v1.SessionService/ReplySession"
+	SessionService_CreateSession_FullMethodName      = "/agents.v1.SessionService/CreateSession"
+	SessionService_GetSession_FullMethodName         = "/agents.v1.SessionService/GetSession"
+	SessionService_ListSessions_FullMethodName       = "/agents.v1.SessionService/ListSessions"
+	SessionService_DeleteSession_FullMethodName      = "/agents.v1.SessionService/DeleteSession"
+	SessionService_ReplySession_FullMethodName       = "/agents.v1.SessionService/ReplySession"
+	SessionService_UpdateSessionTitle_FullMethodName = "/agents.v1.SessionService/UpdateSessionTitle"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -2625,6 +2626,8 @@ type SessionServiceClient interface {
 	DeleteSession(ctx context.Context, in *DeleteSessionRequest, opts ...grpc.CallOption) (*DeleteSessionResponse, error)
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(ctx context.Context, in *ReplySessionRequest, opts ...grpc.CallOption) (*ReplySessionResponse, error)
+	// UpdateSessionTitle sets a first-class title on a session.
+	UpdateSessionTitle(ctx context.Context, in *UpdateSessionTitleRequest, opts ...grpc.CallOption) (*UpdateSessionTitleResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -2685,6 +2688,16 @@ func (c *sessionServiceClient) ReplySession(ctx context.Context, in *ReplySessio
 	return out, nil
 }
 
+func (c *sessionServiceClient) UpdateSessionTitle(ctx context.Context, in *UpdateSessionTitleRequest, opts ...grpc.CallOption) (*UpdateSessionTitleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateSessionTitleResponse)
+	err := c.cc.Invoke(ctx, SessionService_UpdateSessionTitle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -2699,6 +2712,8 @@ type SessionServiceServer interface {
 	DeleteSession(context.Context, *DeleteSessionRequest) (*DeleteSessionResponse, error)
 	// ReplySession sends a user message to an existing session and returns the agent response.
 	ReplySession(context.Context, *ReplySessionRequest) (*ReplySessionResponse, error)
+	// UpdateSessionTitle sets a first-class title on a session.
+	UpdateSessionTitle(context.Context, *UpdateSessionTitleRequest) (*UpdateSessionTitleResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -2723,6 +2738,9 @@ func (UnimplementedSessionServiceServer) DeleteSession(context.Context, *DeleteS
 }
 func (UnimplementedSessionServiceServer) ReplySession(context.Context, *ReplySessionRequest) (*ReplySessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReplySession not implemented")
+}
+func (UnimplementedSessionServiceServer) UpdateSessionTitle(context.Context, *UpdateSessionTitleRequest) (*UpdateSessionTitleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateSessionTitle not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -2835,6 +2853,24 @@ func _SessionService_ReplySession_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_UpdateSessionTitle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateSessionTitleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).UpdateSessionTitle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_UpdateSessionTitle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).UpdateSessionTitle(ctx, req.(*UpdateSessionTitleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2861,6 +2897,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReplySession",
 			Handler:    _SessionService_ReplySession_Handler,
+		},
+		{
+			MethodName: "UpdateSessionTitle",
+			Handler:    _SessionService_UpdateSessionTitle_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

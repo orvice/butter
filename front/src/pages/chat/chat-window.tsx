@@ -13,7 +13,9 @@ import { cn } from "@/lib/utils";
 import { parseSessionEvent, parseSessionEvents, type ParsedEvent, type ToolCallSummary, type ToolResponseSummary } from "@/lib/session-events";
 import { buildInputParts, type InputPartInit } from "@/lib/image-attachments";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
-import { useLiveSession, useReplySession } from "@/api/sessions";
+import { useLiveSession, useReplySession, useUpdateSessionTitle } from "@/api/sessions";
+import { InlineTitleInput } from "@/components/inline-title-input";
+import { sessionTitle } from "@/lib/session-title";
 import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api/chat";
 import {
   ArrowUp,
@@ -23,6 +25,7 @@ import {
   Loader2,
   MoreHorizontal,
   Paperclip,
+  Pencil,
   Square,
   Trash2,
   Wrench,
@@ -83,6 +86,11 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
 
   const liveQuery = useLiveSession(APP_NAME, userId, sessionId, pending);
   const reply = useReplySession();
+  const renameMutation = useUpdateSessionTitle();
+  // Keyed by session so switching chats implicitly leaves edit mode without
+  // an effect-driven state reset.
+  const [editingTitleFor, setEditingTitleFor] = useState<string | null>(null);
+  const editingTitle = editingTitleFor === sessionId;
 
   const persistedEvents = useMemo<ParsedEvent[]>(
     () => parseSessionEvents(liveQuery.data?.session_detail.events),
@@ -297,17 +305,44 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
     >
       {/* Chat header */}
       <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-3 md:px-5">
-        <div className="flex min-w-0 items-center gap-2.5 md:pl-7">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 md:pl-7">
           <AgentAvatar name={agentName ?? "?"} size="sm" />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-medium leading-tight">
-              {agentName ?? "Unknown agent"}
-            </span>
+          <span className="flex min-w-0 max-w-md flex-1 flex-col">
+            {editingTitle ? (
+              <InlineTitleInput
+                initial={sessionTitle(session)}
+                onSave={async (title) => {
+                  await renameMutation.mutateAsync({
+                    app_name: session.app_name,
+                    user_id: session.user_id,
+                    session_id: session.session_id,
+                    title,
+                  });
+                }}
+                onClose={() => setEditingTitleFor(null)}
+                className="text-sm font-medium"
+              />
+            ) : (
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="truncate text-sm font-medium leading-tight">
+                  {sessionTitle(session)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditingTitleFor(sessionId)}
+                  aria-label="Rename chat"
+                  title="Rename chat"
+                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+              </span>
+            )}
             <span
               title={sessionId}
               className="truncate font-mono text-[0.65rem] leading-tight text-muted-foreground/80"
             >
-              Session {sessionId.slice(0, 8)}
+              {agentName ?? "Unknown agent"} · {sessionId.slice(0, 8)}
             </span>
           </span>
         </div>

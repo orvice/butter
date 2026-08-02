@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"iter"
 	"sync"
@@ -23,6 +24,10 @@ const (
 	eventsCollection   = "adk_events"
 )
 
+// ErrSessionNotFound is wrapped into errors returned when a session addressed
+// by app_name/user_id/session_id does not exist; callers match with errors.Is.
+var ErrSessionNotFound = errors.New("session not found")
+
 // sessionDoc is the MongoDB document for a session.
 type sessionDoc struct {
 	SessionID      string         `bson:"session_id"`
@@ -30,6 +35,7 @@ type sessionDoc struct {
 	UserID         string         `bson:"user_id"`
 	State          map[string]any `bson:"state"`
 	LastUpdateTime time.Time      `bson:"last_update_time"`
+	Title          string         `bson:"title,omitempty"`
 }
 
 // eventDoc is the MongoDB document for an event.
@@ -55,6 +61,41 @@ type Service struct {
 // dashboard overview. Returns 0 if the underlying collection cannot be read.
 func (s *Service) CountSessions(ctx context.Context) (int64, error) {
 	return s.sessions.CountDocuments(ctx, bson.M{})
+}
+
+// SetSessionTitle updates the first-class title on a session document without
+// touching last_update_time, so rename does not reorder conversation history.
+func (s *Service) SetSessionTitle(ctx context.Context, appName, userID, sessionID, title string) (SessionTitleResult, error) {
+	filter := bson.M{
+		"app_name":   appName,
+		"user_id":    userID,
+		"session_id": sessionID,
+	}
+	update := bson.M{"$set": bson.M{"title": title}}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	var doc sessionDoc
+	if err := s.sessions.FindOneAndUpdate(ctx, filter, update, opts).Decode(&doc); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return SessionTitleResult{}, fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, appName, userID, sessionID)
+		}
+		return SessionTitleResult{}, fmt.Errorf("updating session title: %w", err)
+	}
+	return SessionTitleResult{
+		SessionID:      doc.SessionID,
+		AppName:        doc.AppName,
+		UserID:         doc.UserID,
+		Title:          doc.Title,
+		LastUpdateTime: doc.LastUpdateTime,
+	}, nil
+}
+
+// SessionTitleResult carries the post-update session snapshot.
+type SessionTitleResult struct {
+	SessionID      string
+	AppName        string
+	UserID         string
+	Title          string
+	LastUpdateTime time.Time
 }
 
 // New creates a new MongoDB session service and ensures indexes.
@@ -181,7 +222,7 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 				"app_name", req.AppName,
 				"session_id", req.SessionID,
 			)
-			return nil, fmt.Errorf("session not found: %s/%s/%s", req.AppName, req.UserID, req.SessionID)
+			return nil, fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, req.AppName, req.UserID, req.SessionID)
 		}
 		return nil, fmt.Errorf("finding session: %w", err)
 	}
@@ -248,6 +289,7 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 		state:          newState(doc.State),
 		events:         newEvents(events),
 		lastUpdateTime: doc.LastUpdateTime,
+		title:          doc.Title,
 	}
 
 	logger.Debug("session loaded",
@@ -295,6 +337,7 @@ func (s *Service) List(ctx context.Context, req *session.ListRequest) (*session.
 			state:          newState(doc.State),
 			events:         newEvents(nil),
 			lastUpdateTime: doc.LastUpdateTime,
+			title:          doc.Title,
 		})
 	}
 
@@ -430,7 +473,7 @@ func (s *Service) AppendEvent(ctx context.Context, sess session.Session, evt *se
 	return nil
 }
 
-// mongoSession implements session.Session.
+// mongoSession implements session.Session and carries the Butter-owned title.
 type mongoSession struct {
 	id             string
 	appName        string
@@ -438,6 +481,7 @@ type mongoSession struct {
 	state          *stateImpl
 	events         *eventsImpl
 	lastUpdateTime time.Time
+	title          string
 }
 
 func (s *mongoSession) ID() string                { return s.id }
@@ -446,6 +490,9 @@ func (s *mongoSession) UserID() string            { return s.userID }
 func (s *mongoSession) State() session.State      { return s.state }
 func (s *mongoSession) Events() session.Events    { return s.events }
 func (s *mongoSession) LastUpdateTime() time.Time { return s.lastUpdateTime }
+
+// Title returns the Butter-owned first-class title. Empty means unset.
+func (s *mongoSession) Title() string { return s.title }
 
 // stateImpl implements session.State backed by a map.
 type stateImpl struct {

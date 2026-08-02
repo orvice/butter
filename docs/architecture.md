@@ -256,7 +256,7 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 - `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools` + MCP OAuth2 流程（`StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`）。
 - `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
 - `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
-- `SessionService`：`Create` / `Get`（含 duration + trace_url）/ `List`（filter + page）/ `Delete` / `Reply`。
+- `SessionService`：`Create` / `Get`（含 duration + trace_url）/ `List`（filter + page）/ `Delete` / `Reply` / `UpdateSessionTitle`。Title 存为 Butter-owned 元数据（`adk_sessions.title`），不经由 ADK state；有效标题优先级：first-class title → legacy `state["title"]` → agent name → shortened session ID。重命名不影响 `last_update_time` 和排序。
 - `AutomationService`：自动化工作流 CRUD + `RunAutomationNow` + run/step-run history 查询。
 - `CronJobService`：定时任务 CRUD + `ListCronExecutions` + `RunCronJobNow`，含 timeout/retry/concurrency/notify/output reliability policy。
 - `ModelProviderService`：LLM Provider CRUD。

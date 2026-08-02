@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -30,11 +32,24 @@ type sessionReplyRunner interface {
 	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 }
 
+// ErrSessionNotFound must be wrapped into the error a SessionTitleStore
+// returns when the addressed session does not exist, so the RPC layer can map
+// it to CodeNotFound with errors.Is instead of matching message text.
+var ErrSessionNotFound = errors.New("session not found")
+
+// SessionTitleStore is the narrow contract for Butter-owned session title
+// metadata. The Mongo session service implements it via an adapter wired in
+// internal/app; the ADK session.Service interface is not changed.
+type SessionTitleStore interface {
+	SetSessionTitle(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, error)
+}
+
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
 type SessionServiceServer struct {
 	mu              sync.RWMutex
 	sessionSvc      session.Service
 	runnerSvc       sessionReplyRunner
+	titleStore      SessionTitleStore
 	langfuseHost    string
 	deleteListeners []SessionDeleteListener
 }
@@ -91,6 +106,22 @@ func (s *SessionServiceServer) SetRunnerService(svc *runner.Service) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runnerSvc = svc
+}
+
+// SetTitleStore wires the Butter-owned session title persistence.
+func (s *SessionServiceServer) SetTitleStore(store SessionTitleStore) {
+	if store == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.titleStore = store
+}
+
+func (s *SessionServiceServer) getTitleStore() SessionTitleStore {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.titleStore
 }
 
 // SetLangfuseHost wires the Langfuse base URL used to render trace_url on
@@ -351,12 +382,94 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 	return connect.NewResponse(&agentsv1.ReplySessionResponse{Response: response}), nil
 }
 
+const maxTitleCodePoints = 100
+
+// normalizeTitle trims whitespace and collapses the value to a single line.
+func normalizeTitle(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "\r\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return s
+}
+
+func (s *SessionServiceServer) UpdateSessionTitle(ctx context.Context, req *connect.Request[agentsv1.UpdateSessionTitleRequest]) (*connect.Response[agentsv1.UpdateSessionTitleResponse], error) {
+	if req.Msg.GetAppName() == "" {
+		return nil, connectx.RequiredArgument("app_name")
+	}
+	if req.Msg.GetUserId() == "" {
+		return nil, connectx.RequiredArgument("user_id")
+	}
+	if req.Msg.GetSessionId() == "" {
+		return nil, connectx.RequiredArgument("session_id")
+	}
+
+	title := normalizeTitle(req.Msg.GetTitle())
+	if title == "" {
+		return nil, connectx.InvalidArgument("title", "must not be blank")
+	}
+	if utf8.RuneCountInString(title) > maxTitleCodePoints {
+		return nil, connectx.InvalidArgument("title", "must be at most 100 Unicode code points")
+	}
+
+	// Authorization: non-admin must match the requested user_id.
+	if !auth.IsAdmin(ctx) {
+		user, ok := auth.UserFromContext(ctx)
+		if !ok {
+			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+		}
+		if user.GetId() != req.Msg.GetUserId() {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot update another user's session title"))
+		}
+	}
+
+	titleStore := s.getTitleStore()
+	if titleStore == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session title store not available"))
+	}
+
+	info, err := titleStore.SetSessionTitle(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId(), title)
+	if err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			return nil, connectx.NotFound(err.Error())
+		}
+		return nil, connectx.InternalWith(err)
+	}
+
+	return connect.NewResponse(&agentsv1.UpdateSessionTitleResponse{Session: info}), nil
+}
+
+// titleFromSession returns the Butter-owned first-class title if the
+// session implementation exposes one (mongoSession does).
+type titledSession interface {
+	Title() string
+}
+
+// effectiveTitle resolves the title according to precedence:
+// first-class title → legacy state["title"] → empty (caller falls back).
+func effectiveTitle(sess session.Session) string {
+	if ts, ok := sess.(titledSession); ok {
+		if t := ts.Title(); t != "" {
+			return t
+		}
+	}
+	if v, err := sess.State().Get("title"); err == nil {
+		if s, ok := v.(string); ok {
+			if trimmed := strings.TrimSpace(s); trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+	return ""
+}
+
 func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {
 	info := &agentsv1.SessionInfo{
 		SessionId:      sess.ID(),
 		AppName:        sess.AppName(),
 		UserId:         sess.UserID(),
 		LastUpdateTime: timestamppb.New(sess.LastUpdateTime()),
+		Title:          effectiveTitle(sess),
 	}
 
 	// Convert state to protobuf Struct.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -175,11 +175,10 @@ export function ScheduleBuilder({ value, onChange }: ScheduleBuilderProps) {
   const [simple, setSimple] = useState<SimpleState>(initialSimple ?? DEFAULT_SIMPLE);
 
   // When the incoming `value` changes externally (e.g. edit page hydrating),
-  // re-sync once if we haven't user-edited yet.
-  const hydrated = useRef(false);
-  useEffect(() => {
-    if (hydrated.current) return;
-    if (!value) return;
+  // re-sync once if we haven't user-edited yet. Render-phase state adjustment
+  // (not an effect) so React re-renders immediately without a stale paint.
+  const [hydrated, setHydrated] = useState(false);
+  if (!hydrated && value) {
     const parsed = parseSimple(value);
     if (parsed) {
       setSimple(parsed);
@@ -187,8 +186,8 @@ export function ScheduleBuilder({ value, onChange }: ScheduleBuilderProps) {
     } else {
       setMode("advanced");
     }
-    hydrated.current = true;
-  }, [value]);
+    setHydrated(true);
+  }
 
   // Push simple-built cron upward whenever it changes (only while in simple mode).
   useEffect(() => {

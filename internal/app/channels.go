@@ -84,6 +84,7 @@ type BootstrapResult struct {
 	SkillResourceMaxCount int
 	LangfuseHost          string
 	SessionCounter        func(ctx context.Context) (int64, error)
+	SessionTitleStore     application.SessionTitleStore
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -289,6 +290,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	return &BootstrapResult{
 		RunnerSvc:             runnerSvc,
 		SessionSvc:            sessionSvc,
+		SessionTitleStore:     newMongoTitleStore(sessionSvc),
 		CronScheduler:         cronScheduler,
 		CronRepo:              cronExecRepo,
 		CronJobRepo:           cronJobRepo,
