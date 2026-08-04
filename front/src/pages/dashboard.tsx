@@ -345,7 +345,6 @@ export default function DashboardPage() {
           title: `${c.label} ${down ? "unavailable" : "degraded"}`,
           meta: "Infrastructure",
           detail: c.health?.detail,
-          action: { label: "Details", to: "/operations" },
         };
       });
   }, [health]);
@@ -363,7 +362,7 @@ export default function DashboardPage() {
           meta: `Agent run${e.actor ? ` · ${e.actor}` : ""}`,
           detail: e.message,
           time: relTime(e.timestamp),
-          action: { label: "View", to: "/operations" },
+          action: { label: "Sessions", to: "/sessions" },
         })),
     [events],
   );

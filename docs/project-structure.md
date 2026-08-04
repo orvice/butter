@@ -62,7 +62,6 @@ butter/
 │       │   ├── dashboard.tsx
 │       │   ├── integrations.tsx
 │       │   ├── login.tsx
-│       │   ├── operations.tsx
 │       │   ├── profile.tsx
 │       │   └── workspaces.tsx
 │       └── types/

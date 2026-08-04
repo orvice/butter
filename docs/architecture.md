@@ -411,7 +411,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 
 ## 前端 Dashboard 与镜像
 
-- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。一级页包含：Login、Chat、Forum、Dashboard(Overview)、Agents、MCP Servers、Remote Agents、Daemons、Channels、Sessions、Cron、Automations、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Operations、Admin 等（见 `front/src/pages/`）。
+- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。一级页包含：Login、Chat、Forum、Dashboard(Overview)、Agents、MCP Servers、Remote Agents、Daemons、Channels、Sessions、Automations、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Admin 等（见 `front/src/pages/`）。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）生成到 `front/src/gen/`，运行时类型走 `@bufbuild/protobuf`。
 - 后端镜像：`ghcr.io/<owner>/<repo>`（根 `Dockerfile`，distroless static + cosign 签名）。
 - 前端镜像：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行 + SPA fallback + `/healthz`）。
