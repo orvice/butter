@@ -26,6 +26,7 @@ type engineRunner struct {
 	mu      sync.Mutex
 	outputs []string
 	errs    []error
+	pending []runner.PendingInput
 	block   chan struct{}
 	calls   int
 }
@@ -34,7 +35,7 @@ func (r *engineRunner) HasAgentInWorkspace(workspaceID, name string) bool {
 	return workspaceID == "ws1" && name == "agent1"
 }
 
-func (r *engineRunner) RunSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (string, error) {
+func (r *engineRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
 	r.mu.Lock()
 	r.calls++
 	call := r.calls
@@ -43,7 +44,7 @@ func (r *engineRunner) RunSSE(ctx context.Context, _ string, _ []*genai.Part, _ 
 		select {
 		case <-r.block:
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return &runner.TurnResult{}, ctx.Err()
 		}
 	}
 	r.mu.Lock()
@@ -52,16 +53,19 @@ func (r *engineRunner) RunSSE(ctx context.Context, _ string, _ []*genai.Part, _ 
 		err := r.errs[0]
 		r.errs = r.errs[1:]
 		if err != nil {
-			return "", err
+			return &runner.TurnResult{}, err
 		}
 	}
-	if len(r.outputs) >= call {
-		return r.outputs[call-1], nil
+	turn := &runner.TurnResult{Pending: r.pending}
+	switch {
+	case len(r.outputs) >= call:
+		turn.Output = r.outputs[call-1]
+	case len(r.outputs) > 0:
+		turn.Output = r.outputs[len(r.outputs)-1]
+	default:
+		turn.Output = "ok"
 	}
-	if len(r.outputs) > 0 {
-		return r.outputs[len(r.outputs)-1], nil
-	}
-	return "ok", nil
+	return turn, nil
 }
 
 type engineNotifyRepo struct {
@@ -228,6 +232,158 @@ func TestEngineRunNowExecutesAllStepTypes(t *testing.T) {
 	}
 	if total != 1 || len(posts) != 1 || posts[0].GetBody() != "posted" {
 		t.Fatalf("forum posts = len %d total %d, want one created post", len(posts), total)
+	}
+}
+
+func TestEngineInvokeAgentPauseRecordsWaitingInput(t *testing.T) {
+	ctx := context.Background()
+	engine, runRepo, runnerSvc, stepRepo := newMinimalEngine()
+	runnerSvc.outputs = []string{"Approve deploy to prod? (yes/no)"}
+	runnerSvc.pending = []runner.PendingInput{{InterruptID: "call-1", Question: "Approve deploy to prod? (yes/no)"}}
+
+	run, err := engine.Execute(ctx, &agentsv1.Automation{
+		Name:        "approval",
+		Enabled:     true,
+		WorkspaceId: "ws1",
+		Steps: []*agentsv1.AutomationStep{
+			{Name: "ask", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1", Input: "deploy"}},
+			// A later step must NOT run while the workflow is paused (Option A).
+			{Name: "after", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1"}},
+		},
+	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT {
+		t.Fatalf("status = %s, want WAITING_INPUT", run.GetStatus())
+	}
+	if got, want := run.GetSessionAppName(), "automation:approval"; got != want {
+		t.Fatalf("session_app_name = %q, want %q", got, want)
+	}
+	if got, want := run.GetSessionUserId(), "automation:ws1"; got != want {
+		t.Fatalf("session_user_id = %q, want %q", got, want)
+	}
+	if got, want := run.GetSessionId(), "automation:"+run.GetId(); got != want {
+		t.Fatalf("session_id = %q, want %q", got, want)
+	}
+	if run.GetAgentName() != "agent1" {
+		t.Fatalf("agent_name = %q, want agent1", run.GetAgentName())
+	}
+	if run.GetFinishedAt() != nil {
+		t.Fatal("finished_at set, want nil for a waiting run")
+	}
+
+	// The run must be discoverable by its session coordinates for resume.
+	waiting, err := runRepo.ListWaitingBySession(ctx, run.GetSessionAppName(), run.GetSessionUserId(), run.GetSessionId())
+	if err != nil {
+		t.Fatalf("ListWaitingBySession: %v", err)
+	}
+	if len(waiting) != 1 || waiting[0].GetId() != run.GetId() {
+		t.Fatalf("waiting runs = %v, want [%s]", ids(waiting), run.GetId())
+	}
+
+	// Only the paused step ran; the later step is untouched.
+	steps, _ := stepRepo.ListByRun(ctx, "ws1", run.GetId())
+	if len(steps) != 1 || steps[0].GetStepName() != "ask" {
+		t.Fatalf("steps = %v, want only [ask]", stepNames(steps))
+	}
+}
+
+func stepNames(steps []*agentsv1.AutomationStepRun) []string {
+	out := make([]string, len(steps))
+	for i, s := range steps {
+		out[i] = s.GetStepName()
+	}
+	return out
+}
+
+// pauseRun drives an automation to a WAITING_INPUT state and returns the run.
+func pauseRun(t *testing.T, ctx context.Context, engine *Engine, runnerSvc *engineRunner) *agentsv1.AutomationRun {
+	t.Helper()
+	runnerSvc.outputs = []string{"Approve? (yes/no)"}
+	runnerSvc.pending = []runner.PendingInput{{InterruptID: "call-1", Question: "Approve? (yes/no)"}}
+	run, err := engine.Execute(ctx, &agentsv1.Automation{
+		Name:        "approval",
+		Enabled:     true,
+		WorkspaceId: "ws1",
+		Steps: []*agentsv1.AutomationStep{
+			{Name: "ask", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1", Input: "deploy"}},
+		},
+	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT {
+		t.Fatalf("setup status = %s, want WAITING_INPUT", run.GetStatus())
+	}
+	return run
+}
+
+func TestEngineHandleTurnResumesWaitingRun(t *testing.T) {
+	ctx := context.Background()
+	engine, runRepo, runnerSvc, _ := newMinimalEngine()
+	run := pauseRun(t, ctx, engine, runnerSvc)
+
+	ctxInfo := &agentsv1.ContextInfo{
+		ChannelName: run.GetSessionAppName(),
+		UserId:      run.GetSessionUserId(),
+		SessionId:   run.GetSessionId(),
+	}
+
+	// A turn that is still interrupted must leave the run waiting.
+	engine.HandleTurn(ctxInfo, &runner.TurnResult{Output: "still asking", Pending: []runner.PendingInput{{InterruptID: "call-1"}}}, nil)
+	if got, _ := runRepo.Get(ctx, "ws1", run.GetId()); got.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT {
+		t.Fatalf("after interrupted turn: status = %s, want WAITING_INPUT", got.GetStatus())
+	}
+
+	// A completed turn on the run's session finalizes it to SUCCEEDED.
+	engine.HandleTurn(ctxInfo, &runner.TurnResult{Output: "Deploy approved."}, nil)
+	got, err := runRepo.Get(ctx, "ws1", run.GetId())
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED {
+		t.Fatalf("status = %s, want SUCCEEDED", got.GetStatus())
+	}
+	if got.GetFinishedAt() == nil {
+		t.Fatal("finished_at nil, want set on terminal run")
+	}
+	// The run must no longer be discoverable as waiting.
+	waiting, _ := runRepo.ListWaitingBySession(ctx, run.GetSessionAppName(), run.GetSessionUserId(), run.GetSessionId())
+	if len(waiting) != 0 {
+		t.Fatalf("still waiting = %v, want none", ids(waiting))
+	}
+}
+
+func TestEngineHandleTurnIgnoresNonAutomationSession(t *testing.T) {
+	ctx := context.Background()
+	engine, runRepo, runnerSvc, _ := newMinimalEngine()
+	run := pauseRun(t, ctx, engine, runnerSvc)
+
+	// A reply on an ordinary chat session must not touch automation runs.
+	engine.HandleTurn(&agentsv1.ContextInfo{ChannelName: "telegram", UserId: "u1", SessionId: "chat-42"}, &runner.TurnResult{Output: "hi"}, nil)
+	if got, _ := runRepo.Get(ctx, "ws1", run.GetId()); got.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT {
+		t.Fatalf("status = %s, want WAITING_INPUT untouched", got.GetStatus())
+	}
+}
+
+func TestEngineHandleSessionDeletedCancelsWaitingRun(t *testing.T) {
+	ctx := context.Background()
+	engine, runRepo, runnerSvc, _ := newMinimalEngine()
+	run := pauseRun(t, ctx, engine, runnerSvc)
+
+	engine.HandleSessionDeleted(run.GetSessionAppName(), run.GetSessionUserId(), run.GetSessionId())
+
+	got, err := runRepo.Get(ctx, "ws1", run.GetId())
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_CANCELLED {
+		t.Fatalf("status = %s, want CANCELLED", got.GetStatus())
+	}
+	if got.GetError() == "" {
+		t.Fatal("error empty, want an abandonment reason")
 	}
 }
 

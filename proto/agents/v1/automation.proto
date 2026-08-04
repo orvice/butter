@@ -252,6 +252,22 @@ message AutomationRun {
   // @gotags: json:"duration_ms,omitempty" yaml:"duration_ms,omitempty" bson:"duration_ms,omitempty"
   int64 duration_ms = 9;
 
+  // Session coordinates of a run paused on a Human Input node (WAITING_INPUT).
+  // Empty for every other status. A reply to these coordinates via ReplySession
+  // resumes the paused workflow and finalizes the run (ADR-0003, mirroring cron).
+  // @gotags: json:"session_app_name,omitempty" yaml:"session_app_name,omitempty" bson:"session_app_name,omitempty"
+  string session_app_name = 10;
+
+  // @gotags: json:"session_user_id,omitempty" yaml:"session_user_id,omitempty" bson:"session_user_id,omitempty"
+  string session_user_id = 11;
+
+  // @gotags: json:"session_id,omitempty" yaml:"session_id,omitempty" bson:"session_id,omitempty"
+  string session_id = 12;
+
+  // Name of the agent that paused; the agent a reply must address.
+  // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty" bson:"agent_name,omitempty"
+  string agent_name = 13;
+
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
 }
@@ -263,6 +279,9 @@ enum AutomationRunStatus {
   AUTOMATION_RUN_STATUS_FAILED = 3;
   AUTOMATION_RUN_STATUS_SKIPPED = 4;
   AUTOMATION_RUN_STATUS_CANCELLED = 5;
+  // The run's invoke_agent step paused on a Human Input node and waits for a
+  // human reply on the recorded session coordinates (ADR-0003).
+  AUTOMATION_RUN_STATUS_WAITING_INPUT = 6;
 }
 
 message AutomationStepRun {

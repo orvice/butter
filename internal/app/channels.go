@@ -253,7 +253,14 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		Runner:          runnerSvc,
 		NotifyGroupRepo: notifyGroupRepo,
 		ForumRepo:       forumRepo,
+		SessionService:  sessionSvc,
+		Context:         ctx,
 	})
+	// Close the resume loop (issue #176): the engine observes every runner turn
+	// so a session reply that completes a paused workflow also finalizes the
+	// session's WAITING_INPUT automation run, whatever entry point the reply
+	// used (mirrors the cron scheduler's HandleTurn).
+	runnerSvc.AddTurnListener(automationEngine.HandleTurn)
 	automationScheduler, err := internalautomation.NewScheduler(ctx, automationDefRepo, automationEngine)
 	if err != nil {
 		logger.Error("failed to create automation scheduler", "err", err)

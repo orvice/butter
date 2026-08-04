@@ -14,7 +14,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"butterfly.orx.me/core/log"
 	"github.com/google/uuid"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -29,15 +31,25 @@ import (
 
 const (
 	defaultMaxStoredOutputBytes = 4096
-	automationAppNamePrefix     = "automation:"
 	automationAuthorKind        = "system"
+	// automationSessionPrefix marks every session coordinate the engine mints
+	// for an invoke_agent turn; the resume listeners rely on it to skip
+	// ordinary chat traffic (mirrors cron's cronSessionPrefix).
+	automationSessionPrefix = "automation:"
 )
+
+// Session coordinates for an invoke_agent turn are deterministic from the
+// automation name, workspace, and run ID, so invokeAgent (which runs the turn)
+// and waitForInput / the resume path all derive the same values.
+func automationSessionAppName(name string) string      { return automationSessionPrefix + name }
+func automationSessionUserID(workspaceID string) string { return automationSessionPrefix + workspaceID }
+func automationSessionID(runID string) string          { return automationSessionPrefix + runID }
 
 var ErrAutomationDisabled = errors.New("automation disabled")
 
 type runnerService interface {
 	HasAgentInWorkspace(workspaceID, name string) bool
-	RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
+	RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error)
 }
 
 type notifySender interface {
@@ -48,12 +60,25 @@ type httpDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// sessionDeleter is the slice of the ADK session.Service the engine needs to
+// delete a run's per-run session once its execution is terminal, so paused
+// sessions do not accumulate (mirrors cron's cleanup, #134). Optional.
+type sessionDeleter interface {
+	Delete(ctx context.Context, req *session.DeleteRequest) error
+}
+
 type EngineOptions struct {
 	Runner          runnerService
 	NotifyGroupRepo configrepo.NotifyGroupRepository
 	Notifier        notifySender
 	ForumRepo       forum.Repository
 	HTTPClient      httpDoer
+	// SessionService, if set, deletes a run's session when the run reaches a
+	// terminal state via the resume path.
+	SessionService sessionDeleter
+	// Context is the base context for resume-path work driven by listeners
+	// (which carry no context of their own). Defaults to context.Background().
+	Context context.Context
 }
 
 // Engine executes automation definitions and records run/step state.
@@ -67,6 +92,8 @@ type Engine struct {
 	notifier        notifySender
 	forumRepo       forum.Repository
 	httpClient      httpDoer
+	sessionSvc      sessionDeleter
+	baseCtx         context.Context
 
 	mu      sync.Mutex
 	running map[string]*runningAutomation
@@ -86,6 +113,10 @@ func NewEngine(defRepo DefinitionRepo, runRepo RunRepo, stepRepo StepRunRepo, op
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: notify.DefaultHTTPTimeout}
 	}
+	baseCtx := opts.Context
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
 	return &Engine{
 		defRepo:         defRepo,
 		runRepo:         runRepo,
@@ -95,6 +126,8 @@ func NewEngine(defRepo DefinitionRepo, runRepo RunRepo, stepRepo StepRunRepo, op
 		notifier:        notifier,
 		forumRepo:       opts.ForumRepo,
 		httpClient:      httpClient,
+		sessionSvc:      opts.SessionService,
+		baseCtx:         baseCtx,
 		running:         make(map[string]*runningAutomation),
 	}
 }
@@ -228,7 +261,7 @@ func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, trigger
 			return e.finishRun(runCtx, run, runStatusFromErr(runCtx.Err()), runCtx.Err().Error()), nil
 		default:
 		}
-		stepRun, output, err := e.executeStep(runCtx, a, run, step, int32(i+1), state)
+		stepRun, output, pending, err := e.executeStep(runCtx, a, run, step, int32(i+1), state)
 		if err != nil {
 			status := agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED
 			if stepRun.GetStatus() == agentsv1.AutomationStepRunStatus_AUTOMATION_STEP_RUN_STATUS_CANCELLED {
@@ -236,10 +269,159 @@ func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, trigger
 			}
 			return e.finishRun(runCtx, run, status, err.Error()), nil
 		}
+		if len(pending) > 0 {
+			// The invoked Workflow Agent paused on a Human Input node (ADR-0003).
+			// The run is not finished: it waits for a human reply on its session
+			// coordinates. Later steps do not run until a reply resumes the
+			// workflow and HandleTurn finalizes the run (Option A).
+			return e.waitForInput(runCtx, a, run, step.GetInvokeAgent().GetAgentName(), pending), nil
+		}
 		state.recordStepOutput(step.GetName(), output)
 	}
 
 	return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED, ""), nil
+}
+
+// waitForInput records a run paused on a Human Input node: WAITING_INPUT with
+// the session coordinates a reply must address. finished_at stays unset — the
+// run is not terminal — until a reply resumes it (HandleTurn) or the session is
+// deleted (HandleSessionDeleted). Automations have no top-level delivery
+// config, so the node's question is surfaced only through the paused step's
+// recorded output (issue #176).
+func (e *Engine) waitForInput(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, agentName string, pending []runner.PendingInput) *agentsv1.AutomationRun {
+	run.Status = agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT
+	run.FinishedAt = nil
+	run.DurationMs = 0
+	run.Error = ""
+	run.AgentName = agentName
+	run.SessionAppName = automationSessionAppName(a.GetName())
+	run.SessionUserId = automationSessionUserID(a.GetWorkspaceId())
+	run.SessionId = automationSessionID(run.GetId())
+	_ = e.runRepo.Save(context.WithoutCancel(ctx), run)
+	log.FromContext(ctx).Info("automation run waiting for human input",
+		"automation", a.GetName(),
+		"workspace_id", a.GetWorkspaceId(),
+		"run_id", run.GetId(),
+		"agent", agentName,
+		"pending_interrupts", len(pending),
+	)
+	return run
+}
+
+// HandleTurn observes the outcome of every agent turn (registered as a runner
+// turn listener). It closes the resume loop: a human answers a paused
+// automation workflow by messaging its per-run session — through ReplySession
+// or any other entry point — and when a turn on that session ends with no
+// pending Interrupt, the session's WAITING_INPUT run reaches SUCCEEDED with the
+// resumed output. Mirrors cron's HandleTurn (ADR-0003).
+//
+// The initial pausing turn is invisible here: it is still Interrupted (early
+// return), and it fires before waitForInput persists the WAITING_INPUT record.
+func (e *Engine) HandleTurn(ctxInfo *agentsv1.ContextInfo, turn *runner.TurnResult, runErr error) {
+	if ctxInfo == nil || turn == nil || runErr != nil || turn.Interrupted() {
+		return
+	}
+	e.finalizeWaitingBySession(ctxInfo.GetChannelName(), ctxInfo.GetUserId(), ctxInfo.GetSessionId(),
+		"completed by session reply", true,
+		func(run *agentsv1.AutomationRun) {
+			run.Status = agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED
+			e.recordResumedOutput(run, turn.Output)
+		})
+}
+
+// HandleSessionDeleted observes session deletions (registered as a session
+// delete listener on the SessionService RPC). Deleting a paused session is the
+// documented way to abandon its workflow (ADR-0002), so the session's
+// WAITING_INPUT run transitions to CANCELLED — otherwise it waits forever on a
+// session that no longer exists (mirrors cron's HandleSessionDeleted, #132).
+func (e *Engine) HandleSessionDeleted(appName, userID, sessionID string) {
+	// cleanupSession=false: the session was already deleted; nothing to clean.
+	e.finalizeWaitingBySession(appName, userID, sessionID,
+		"cancelled by session deletion", false,
+		func(run *agentsv1.AutomationRun) {
+			run.Status = agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_CANCELLED
+			run.Error = "session deleted before a human answered"
+		})
+}
+
+// finalizeWaitingBySession closes every WAITING_INPUT run recorded for the
+// session coordinates: finalize sets the terminal state, then the record is
+// persisted. action names the transition in logs; cleanupSession deletes the
+// now-terminal run's session — pass false when the session is already gone.
+func (e *Engine) finalizeWaitingBySession(appName, userID, sessionID, action string, cleanupSession bool, finalize func(run *agentsv1.AutomationRun)) {
+	// Automation sessions are the only ones that can carry waiting runs; skip
+	// the repo lookup for ordinary chat traffic.
+	if !strings.HasPrefix(sessionID, automationSessionPrefix) {
+		return
+	}
+	ctx := e.baseCtx
+	logger := log.FromContext(ctx)
+	waiting, err := e.runRepo.ListWaitingBySession(ctx, appName, userID, sessionID)
+	if err != nil {
+		logger.Error("failed to look up waiting automation runs", "session_id", sessionID, "err", err)
+		return
+	}
+	now := time.Now().UTC()
+	for _, run := range waiting {
+		finalize(run)
+		run.FinishedAt = timestamppb.New(now)
+		run.DurationMs = now.Sub(run.GetStartedAt().AsTime()).Milliseconds()
+		if saveErr := e.runRepo.Save(ctx, run); saveErr != nil {
+			logger.Error("failed to finalize waiting automation run",
+				"automation", run.GetAutomationName(),
+				"workspace_id", run.GetWorkspaceId(),
+				"run_id", run.GetId(),
+				"err", saveErr,
+			)
+			continue
+		}
+		logger.Info("waiting automation run "+action,
+			"automation", run.GetAutomationName(),
+			"workspace_id", run.GetWorkspaceId(),
+			"run_id", run.GetId(),
+			"duration_ms", run.GetDurationMs(),
+		)
+		if cleanupSession {
+			e.cleanupSession(run.GetSessionAppName(), run.GetSessionUserId(), run.GetSessionId())
+		}
+	}
+}
+
+// recordResumedOutput writes the workflow's post-answer output onto the run's
+// paused step — the highest-order step run, which is the invoke_agent step that
+// waited. Automations store output on step runs (the run has no output field),
+// so this is where the "real output" of a resumed run becomes observable.
+func (e *Engine) recordResumedOutput(run *agentsv1.AutomationRun, output string) {
+	if e.stepRepo == nil || strings.TrimSpace(output) == "" {
+		return
+	}
+	steps, err := e.stepRepo.ListByRun(e.baseCtx, run.GetWorkspaceId(), run.GetId())
+	if err != nil || len(steps) == 0 {
+		return
+	}
+	paused := steps[len(steps)-1]
+	paused.OutputJson = marshalJSON(map[string]any{"response": output})
+	paused.Truncated = false
+	if err := e.stepRepo.Save(e.baseCtx, paused); err != nil {
+		log.FromContext(e.baseCtx).Warn("failed to record resumed automation step output",
+			"run_id", run.GetId(), "step", paused.GetStepName(), "err", err)
+	}
+}
+
+// cleanupSession deletes a terminal run's per-run session. Failures only log —
+// a leftover session is debris, not an error the run should surface.
+func (e *Engine) cleanupSession(appName, userID, sessionID string) {
+	if e.sessionSvc == nil {
+		return
+	}
+	if err := e.sessionSvc.Delete(e.baseCtx, &session.DeleteRequest{
+		AppName:   appName,
+		UserID:    userID,
+		SessionID: sessionID,
+	}); err != nil {
+		log.FromContext(e.baseCtx).Warn("failed to delete finished automation session",
+			"app_name", appName, "session_id", sessionID, "err", err)
+	}
 }
 
 func (e *Engine) recordSkipped(ctx context.Context, a *agentsv1.Automation, triggerType agentsv1.AutomationTriggerType, triggerPayloadJSON, reason string) (*agentsv1.AutomationRun, error) {
@@ -275,7 +457,7 @@ func (e *Engine) finishRun(ctx context.Context, run *agentsv1.AutomationRun, sta
 	return run
 }
 
-func (e *Engine) executeStep(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationStep, order int32, state *executionState) (*agentsv1.AutomationStepRun, string, error) {
+func (e *Engine) executeStep(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationStep, order int32, state *executionState) (*agentsv1.AutomationStepRun, string, []runner.PendingInput, error) {
 	policy := effectiveStepPolicy(a.GetPolicy(), step.GetPolicy())
 	inputJSON := stepInputJSON(step)
 	inputPreview, _ := truncateUTF8(inputJSON, effectiveMaxOutputBytes(policy))
@@ -293,10 +475,10 @@ func (e *Engine) executeStep(ctx context.Context, a *agentsv1.Automation, run *a
 		WorkspaceId:    a.GetWorkspaceId(),
 	}
 	if err := e.stepRepo.Save(ctx, stepRun); err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 
-	output, invocationID, attempts, err := e.executeStepWithRetry(ctx, a, run, step, policy, state)
+	output, invocationID, pending, attempts, err := e.executeStepWithRetry(ctx, a, run, step, policy, state)
 	finished := time.Now().UTC()
 	stepRun.AttemptCount = attempts
 	stepRun.FinishedAt = timestamppb.New(finished)
@@ -307,15 +489,18 @@ func (e *Engine) executeStep(ctx context.Context, a *agentsv1.Automation, run *a
 		stepRun.Status = stepStatusFromErr(err)
 		stepRun.Error = err.Error()
 	} else {
+		// A step that paused on a Human Input node still ran its turn without
+		// error and produced the node's question as output — it is SUCCEEDED;
+		// the run (not the step) carries the WAITING_INPUT signal via pending.
 		stepRun.Status = agentsv1.AutomationStepRunStatus_AUTOMATION_STEP_RUN_STATUS_SUCCEEDED
 	}
 	if saveErr := e.stepRepo.Save(context.WithoutCancel(ctx), stepRun); saveErr != nil && err == nil {
-		return stepRun, output, saveErr
+		return stepRun, output, pending, saveErr
 	}
-	return stepRun, output, err
+	return stepRun, output, pending, err
 }
 
-func (e *Engine) executeStepWithRetry(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationStep, policy *agentsv1.AutomationPolicy, state *executionState) (string, string, int32, error) {
+func (e *Engine) executeStepWithRetry(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationStep, policy *agentsv1.AutomationPolicy, state *executionState) (string, string, []runner.PendingInput, int32, error) {
 	totalAttempts := int32(1)
 	if retry := policy.GetRetry(); retry != nil && retry.GetMaxAttempts() > 0 {
 		totalAttempts += retry.GetMaxAttempts()
@@ -324,6 +509,7 @@ func (e *Engine) executeStepWithRetry(ctx context.Context, a *agentsv1.Automatio
 	var (
 		output       string
 		invocationID string
+		pending      []runner.PendingInput
 		err          error
 	)
 	for attempt := int32(1); attempt <= totalAttempts; attempt++ {
@@ -332,16 +518,16 @@ func (e *Engine) executeStepWithRetry(ctx context.Context, a *agentsv1.Automatio
 		if timeout := policy.GetTimeout(); timeout != nil && timeout.AsDuration() > 0 {
 			attemptCtx, cancel = context.WithTimeout(ctx, timeout.AsDuration())
 		}
-		output, invocationID, err = e.executeStepAction(attemptCtx, a, run, step, state)
+		output, invocationID, pending, err = e.executeStepAction(attemptCtx, a, run, step, state)
 		cancel()
 		if err == nil {
-			return output, invocationID, attempt, nil
+			return output, invocationID, pending, attempt, nil
 		}
 		if attempt == totalAttempts || ctx.Err() != nil {
 			if ctx.Err() != nil {
-				return output, invocationID, attempt, ctx.Err()
+				return output, invocationID, nil, attempt, ctx.Err()
 			}
-			return output, invocationID, attempt, err
+			return output, invocationID, nil, attempt, err
 		}
 		backoff := time.Duration(0)
 		if retry := policy.GetRetry(); retry != nil && retry.GetBackoff() != nil {
@@ -355,39 +541,39 @@ func (e *Engine) executeStepWithRetry(ctx context.Context, a *agentsv1.Automatio
 		case <-timer.C:
 		case <-ctx.Done():
 			timer.Stop()
-			return output, invocationID, attempt, ctx.Err()
+			return output, invocationID, nil, attempt, ctx.Err()
 		}
 	}
-	return output, invocationID, totalAttempts, err
+	return output, invocationID, nil, totalAttempts, err
 }
 
-func (e *Engine) executeStepAction(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationStep, state *executionState) (string, string, error) {
+func (e *Engine) executeStepAction(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationStep, state *executionState) (string, string, []runner.PendingInput, error) {
 	switch step.GetType() {
 	case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT:
 		return e.invokeAgent(ctx, a, run, step.GetInvokeAgent())
 	case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CALL_WEBHOOK:
 		out, err := e.callWebhook(ctx, step.GetCallWebhook())
-		return out, "", err
+		return out, "", nil, err
 	case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP:
 		out, err := e.sendNotifyGroup(ctx, a.GetWorkspaceId(), step.GetSendNotifyGroup())
-		return out, "", err
+		return out, "", nil, err
 	case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CREATE_FORUM_POST:
 		out, err := e.createForumPost(ctx, a, step.GetCreateForumPost())
-		return out, "", err
+		return out, "", nil, err
 	default:
-		return "", "", fmt.Errorf("unsupported automation step type %s", step.GetType())
+		return "", "", nil, fmt.Errorf("unsupported automation step type %s", step.GetType())
 	}
 }
 
-func (e *Engine) invokeAgent(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationInvokeAgentStep) (string, string, error) {
+func (e *Engine) invokeAgent(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationInvokeAgentStep) (string, string, []runner.PendingInput, error) {
 	if e.runner == nil {
-		return "", "", errors.New("runner service is not configured")
+		return "", "", nil, errors.New("runner service is not configured")
 	}
 	if step.GetAgentName() == "" {
-		return "", "", errors.New("invoke_agent.agent_name is required")
+		return "", "", nil, errors.New("invoke_agent.agent_name is required")
 	}
 	if !e.runner.HasAgentInWorkspace(a.GetWorkspaceId(), step.GetAgentName()) {
-		return "", "", fmt.Errorf("agent %q not found in workspace %q", step.GetAgentName(), a.GetWorkspaceId())
+		return "", "", nil, fmt.Errorf("agent %q not found in workspace %q", step.GetAgentName(), a.GetWorkspaceId())
 	}
 	input := step.GetInput()
 	if input == "" {
@@ -396,19 +582,23 @@ func (e *Engine) invokeAgent(ctx context.Context, a *agentsv1.Automation, run *a
 	invocationID := uuid.NewString()
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        invocationID,
-		ChannelName: automationAppNamePrefix + a.GetName(),
-		SessionId:   "automation:" + run.GetId(),
-		UserId:      "automation:" + a.GetWorkspaceId(),
+		ChannelName: automationSessionAppName(a.GetName()),
+		SessionId:   automationSessionID(run.GetId()),
+		UserId:      automationSessionUserID(a.GetWorkspaceId()),
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
 		ChannelType: "automation",
 		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
 		WorkspaceId: a.GetWorkspaceId(),
 	}
-	output, err := e.runner.RunSSE(ctx, step.GetAgentName(), []*genai.Part{genai.NewPartFromText(input)}, step.GetModelOverride(), ctxInfo, nil, nil)
-	if err != nil {
-		return marshalJSON(map[string]any{"invocation_id": invocationID, "response": output}), invocationID, err
+	turn, err := e.runner.RunTurnSSE(ctx, step.GetAgentName(), []*genai.Part{genai.NewPartFromText(input)}, step.GetModelOverride(), ctxInfo, nil, nil)
+	if turn == nil {
+		turn = &runner.TurnResult{}
 	}
-	return marshalJSON(map[string]any{"invocation_id": invocationID, "response": output}), invocationID, nil
+	out := marshalJSON(map[string]any{"invocation_id": invocationID, "response": turn.Output})
+	if err != nil {
+		return out, invocationID, nil, err
+	}
+	return out, invocationID, turn.Pending, nil
 }
 
 func (e *Engine) callWebhook(ctx context.Context, step *agentsv1.AutomationCallWebhookStep) (string, error) {
