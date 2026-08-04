@@ -24,7 +24,7 @@ export default function ChannelEditPage() {
 
   return (
     <Page>
-      <PageHeader title="Edit Channel" subtitle={name} />
+      <PageHeader className="max-w-3xl" title="Edit Channel" subtitle={name} />
       <PageScroll className="max-w-3xl">
         {isLoading ? (
           <Skeleton className="h-96" />

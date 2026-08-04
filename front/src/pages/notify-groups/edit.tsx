@@ -32,7 +32,7 @@ export default function NotifyGroupEditPage() {
 
   return (
     <Page>
-      <PageHeader title="Edit Notify Group" subtitle={name} />
+      <PageHeader className="max-w-3xl" title="Edit Notify Group" subtitle={name} />
       <PageScroll className="max-w-3xl">
         <NotifyGroupForm
           initialValue={data?.notify_group}

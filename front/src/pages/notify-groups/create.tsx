@@ -22,6 +22,7 @@ export default function NotifyGroupCreatePage() {
   return (
     <Page>
       <PageHeader
+        className="max-w-3xl"
         title="Create Notify Group"
         subtitle="Configure outbound notification targets for cron jobs."
       />

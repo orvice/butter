@@ -22,6 +22,7 @@ export default function RemoteAgentCreatePage() {
   return (
     <Page>
       <PageHeader
+        className="max-w-3xl"
         title="Create Remote Agent"
         subtitle="Register an external orchestrator or autonomous daemon instance."
       />

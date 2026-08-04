@@ -53,7 +53,7 @@ function ServerRow({ server }: { server: MCPServer }) {
   const transport = (server.transport ?? "MCP_SERVER_TRANSPORT_UNSPECIFIED") as MCPServerTransport;
   const Icon = TRANSPORT_ICON[transport];
   return (
-    <div className="grid gap-3 border-b px-5 py-4 last:border-b-0 md:grid-cols-[1.7fr_0.8fr_0.8fr_0.5fr_auto] md:items-center">
+    <div className="grid gap-3 border-b px-4 py-4 last:border-b-0 sm:grid-cols-2 md:px-5 xl:grid-cols-[1.7fr_0.8fr_0.8fr_0.5fr_auto] xl:items-center">
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-muted">
           <Icon className="h-4 w-4 text-muted-foreground" />
@@ -172,8 +172,8 @@ export default function IntegrationsPage() {
         }
       />
       <PageScroll>
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(320px,0.8fr)]">
+        <div className="space-y-6">
           <Card>
             <CardHeader className="flex flex-row items-start justify-between border-b pb-4">
               <div>
@@ -191,7 +191,7 @@ export default function IntegrationsPage() {
                 <div className="p-8 text-center text-sm text-muted-foreground">No MCP servers configured.</div>
               ) : (
                 <div>
-                  <div className="hidden grid-cols-[1.7fr_0.8fr_0.8fr_0.5fr_auto] border-b bg-muted/60 px-5 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground md:grid">
+                  <div className="hidden grid-cols-[1.7fr_0.8fr_0.8fr_0.5fr_auto] border-b bg-muted/60 px-5 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground xl:grid">
                     <span>Server</span>
                     <span>Transport</span>
                     <span>Status</span>
@@ -214,7 +214,7 @@ export default function IntegrationsPage() {
             </CardHeader>
             <CardContent>
               {loadingRemote ? (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 lg:grid-cols-2">
                   {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-32" />)}
                 </div>
               ) : remoteAgents.length === 0 ? (
@@ -222,7 +222,7 @@ export default function IntegrationsPage() {
                   No remote agents registered.
                 </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 lg:grid-cols-2">
                   {remoteAgents.map((agent) => <RemoteAgentCard key={agent.id} agent={agent} />)}
                 </div>
               )}
@@ -230,7 +230,7 @@ export default function IntegrationsPage() {
           </Card>
         </div>
 
-        <Card className="xl:sticky xl:top-5 xl:self-start">
+        <Card className="2xl:sticky 2xl:top-6 2xl:self-start">
           <CardHeader className="border-b pb-4">
             <CardTitle className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-primary" />

@@ -22,6 +22,7 @@ export default function ChannelCreatePage() {
   return (
     <Page>
       <PageHeader
+        className="max-w-3xl"
         title="Create Channel"
         subtitle="Bind an agent to a platform entry point like Telegram or Discord."
       />

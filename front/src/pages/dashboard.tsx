@@ -64,12 +64,12 @@ function SectionHeader({
   aside?: ReactNode;
 }) {
   return (
-    <div className="mb-3 flex min-h-8 items-end justify-between gap-3">
+    <div className="mb-3 flex min-h-8 flex-col items-start justify-between gap-2 sm:flex-row sm:items-end sm:gap-4">
       <div>
         <h2 className="text-sm font-semibold">{title}</h2>
         {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
       </div>
-      {aside && <div className="shrink-0 text-xs text-muted-foreground">{aside}</div>}
+      {aside && <div className="shrink-0 text-xs text-muted-foreground sm:text-end">{aside}</div>}
     </div>
   );
 }
@@ -132,10 +132,10 @@ function SystemHealth({ health }: { health?: { mongodb?: ComponentHealth; redis?
 
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
-      <div className="grid md:grid-cols-[minmax(220px,1.35fr)_repeat(3,minmax(128px,1fr))]">
+      <div className="grid lg:grid-cols-[minmax(220px,1.35fr)_repeat(3,minmax(128px,1fr))]">
         <div
           className={cn(
-            "flex items-center gap-3 border-b border-border px-4 py-3 md:border-b-0 md:border-r",
+            "flex items-center gap-3 border-b border-border px-4 py-3 lg:border-b-0 lg:border-e",
             problemCount > 0 ? "bg-warning-muted/35" : "bg-success-muted/30",
           )}
         >
@@ -158,7 +158,7 @@ function SystemHealth({ health }: { health?: { mongodb?: ComponentHealth; redis?
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-3 divide-x divide-border md:contents">
+        <div className="grid grid-cols-1 divide-y divide-border min-[480px]:grid-cols-3 min-[480px]:divide-x min-[480px]:divide-y-0 lg:contents">
           <HealthItem label="Database" health={health?.mongodb} icon={<Database />} />
           <HealthItem label="Cache" health={health?.redis} icon={<HardDrive />} />
           <HealthItem label="Runner" health={health?.runner} icon={<Server />} />
@@ -376,6 +376,7 @@ export default function DashboardPage() {
   return (
     <Page>
       <PageHeader
+        className="max-w-[1320px]"
         title="Overview"
         subtitle="Workspace health and recent agent activity"
         actions={

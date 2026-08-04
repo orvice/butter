@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { PageActions } from "@/components/butter/page-parts";
 import {
   HeadersEditor,
   entriesToRecord,
@@ -246,10 +247,10 @@ export default function MCPServerForm({
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <PageActions>
           <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
           <Button type="submit" disabled={loading}>{loading ? "Saving..." : submitLabel}</Button>
-        </div>
+        </PageActions>
       </form>
     </Form>
   );

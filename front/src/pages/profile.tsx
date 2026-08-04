@@ -153,6 +153,7 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
   return (
     <Page>
       <PageHeader
+        className="max-w-3xl"
         title="Profile"
         subtitle="Manage your account details, avatar, password, and appearance."
       />

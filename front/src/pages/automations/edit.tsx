@@ -2,7 +2,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useCronJob, useUpdateCronJob } from "@/api/cron";
-import { Page, PageScroll } from "@/components/butter/page-parts";
+import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AutomationForm } from "./form";
 import type { CronJob } from "@/types/api";
@@ -43,23 +43,24 @@ export default function AutomationEditPage() {
 
   return (
     <Page>
-      <div className="border-b border-border px-4 py-4 md:px-6">
-        <Link
-          to={`/automations/${encodeURIComponent(job.name)}`}
-          className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          Automations
-          <ChevronRight className="size-3" />
-          {job.name}
-          <ChevronRight className="size-3" />
-          <span className="text-foreground">Edit</span>
-        </Link>
-        <h1 className="text-lg font-semibold tracking-tight">Edit {job.name}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Update the schedule, agent, reliability, and delivery settings.
-        </p>
-      </div>
+      <PageHeader
+        className="max-w-3xl"
+        title={`Edit ${job.name}`}
+        subtitle="Update the schedule, agent, reliability, and delivery settings."
+        breadcrumb={
+          <Link
+            to={`/automations/${encodeURIComponent(job.name)}`}
+            className="inline-flex min-w-0 items-center gap-1.5 hover:text-foreground"
+          >
+            <ArrowLeft className="size-3.5 shrink-0" />
+            <span>Automations</span>
+            <ChevronRight className="size-3 shrink-0" />
+            <span className="truncate">{job.name}</span>
+            <ChevronRight className="size-3 shrink-0" />
+            <span className="text-foreground">Edit</span>
+          </Link>
+        }
+      />
       <PageScroll className="max-w-3xl">
         <AutomationForm
           mode="edit"

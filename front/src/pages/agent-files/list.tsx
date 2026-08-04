@@ -383,17 +383,19 @@ export default function AgentFilesPage() {
                 ) : (
                   <div className="overflow-hidden rounded-md border">
                     {files.map((file) => (
-                      <div key={file.path} className="grid gap-3 border-b p-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_120px_120px_130px_auto] md:items-center">
-                        <button type="button" className="min-w-0 text-left" onClick={() => openEditFile(file)}>
+                      <div key={file.path} className="grid gap-3 border-b p-3 last:border-b-0 xl:grid-cols-[minmax(0,1fr)_120px_120px_130px_auto] xl:items-center">
+                        <button type="button" className="min-w-0 text-start" onClick={() => openEditFile(file)}>
                           <div className="flex min-w-0 items-center gap-2">
                             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                             <span className="truncate font-mono text-sm">{file.path}</span>
                           </div>
                         </button>
-                        <span className="text-xs text-muted-foreground">{formatBytes(file.size_bytes)}</span>
-                        <span className="text-xs text-muted-foreground">v{String(file.version ?? 0)}</span>
-                        <span className="text-xs text-muted-foreground">{formatDate(file.updated_at)}</span>
-                        <div className="flex justify-end gap-1">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground xl:contents">
+                          <span><span className="me-1 font-medium text-foreground/70 xl:hidden">Size</span>{formatBytes(file.size_bytes)}</span>
+                          <span><span className="me-1 font-medium text-foreground/70 xl:hidden">Version</span>v{String(file.version ?? 0)}</span>
+                          <span><span className="me-1 font-medium text-foreground/70 xl:hidden">Updated</span>{formatDate(file.updated_at)}</span>
+                        </div>
+                        <div className="flex justify-end gap-1 xl:justify-self-end">
                           <Button variant="ghost" size="icon-sm" title="Edit file" onClick={() => openEditFile(file)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
