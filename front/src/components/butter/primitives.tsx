@@ -141,7 +141,11 @@ export function AgentAvatar({
         src={iconUrl}
         alt=""
         aria-hidden
-        className={cn("shrink-0 object-cover", sizes[size], className)}
+        className={cn(
+          "shrink-0 object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10",
+          sizes[size],
+          className,
+        )}
       />
     );
   }

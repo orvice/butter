@@ -8,12 +8,17 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  static: isStatic = false,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { static?: boolean }) {
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      data-static={isStatic || undefined}
+      className={cn(
+        buttonVariants({ variant, size, className }),
+        isStatic && "active:not-aria-[haspopup]:scale-100",
+      )}
       {...props}
     />
   )

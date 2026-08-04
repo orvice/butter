@@ -9,6 +9,7 @@
     --font-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
     --shadow-card: var(--shadow-card-token);
+    --shadow-card-hover: var(--shadow-card-hover-token);
     --shadow-dropdown: var(--shadow-dropdown-token);
     --shadow-header: var(--shadow-header-token);
     --shadow-sidebar: var(--shadow-sidebar-token);
@@ -116,8 +117,17 @@
     --chart-4: oklch(0.62 0.14 305);
     --chart-5: oklch(0.6 0.18 27);
 
-    --shadow-card-token: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-dropdown-token: 0 4px 18px rgba(0, 0, 0, 0.11);
+    --shadow-card-token:
+        0 0 0 1px oklch(0 0 0 / 0.055),
+        0 1px 2px -1px oklch(0 0 0 / 0.08),
+        0 2px 4px 0 oklch(0 0 0 / 0.035);
+    --shadow-card-hover-token:
+        0 0 0 1px oklch(0 0 0 / 0.075),
+        0 1px 2px -1px oklch(0 0 0 / 0.1),
+        0 3px 8px -2px oklch(0 0 0 / 0.075);
+    --shadow-dropdown-token:
+        0 0 0 1px oklch(0 0 0 / 0.08),
+        0 8px 24px -8px oklch(0 0 0 / 0.2);
     --shadow-header-token: none;
     --shadow-sidebar-token: none;
     --content-header-bg: color-mix(in srgb, var(--background) 75%, transparent);
@@ -178,8 +188,11 @@
     --chart-4: oklch(0.72 0.14 305);
     --chart-5: oklch(0.7 0.16 27);
 
-    --shadow-card-token: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-dropdown-token: 0 4px 18px rgba(0, 0, 0, 0.4);
+    --shadow-card-token: 0 0 0 1px oklch(1 0 0 / 0.08);
+    --shadow-card-hover-token: 0 0 0 1px oklch(1 0 0 / 0.13);
+    --shadow-dropdown-token:
+        0 0 0 1px oklch(1 0 0 / 0.12),
+        0 8px 24px -8px oklch(0 0 0 / 0.62);
     --shadow-header-token: none;
     --shadow-sidebar-token: none;
     --content-header-bg: color-mix(in srgb, var(--background) 75%, transparent);
@@ -922,8 +935,25 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
-.animate-blink {
-  animation: butter-blink 1s ease-in-out infinite;
+@media (prefers-reduced-motion: no-preference) {
+  .animate-blink {
+    animation: butter-blink 1s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-spin {
+    animation-iteration-count: infinite !important;
+  }
 }
 
 @layer base {

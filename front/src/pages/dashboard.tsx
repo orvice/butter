@@ -131,7 +131,7 @@ function SystemHealth({ health }: { health?: { mongodb?: ComponentHealth; redis?
   ).length;
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
+    <section className="overflow-hidden rounded-lg border border-transparent bg-card shadow-card">
       <div className="grid lg:grid-cols-[minmax(220px,1.35fr)_repeat(3,minmax(128px,1fr))]">
         <div
           className={cn(
@@ -424,7 +424,7 @@ export default function DashboardPage() {
                         onClick={() => setRange(item.key)}
                         aria-pressed={range === item.key}
                         className={cn(
-                          "rounded px-2.5 py-1 text-xs font-medium transition-colors active:translate-y-px",
+                          "rounded px-2.5 py-1 text-xs font-medium transition-[color,background-color,box-shadow,scale] duration-150 ease-out active:scale-[0.96] motion-reduce:active:scale-100",
                           range === item.key
                             ? "bg-accent text-accent-foreground shadow-sm"
                             : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -436,7 +436,7 @@ export default function DashboardPage() {
                   </div>
                 }
               />
-              <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card shadow-card [&>*:nth-child(even)]:border-l [&>*:nth-child(n+3)]:border-t sm:grid-cols-4 sm:divide-x sm:divide-border sm:[&>*:nth-child(even)]:border-l-0 sm:[&>*:nth-child(n+3)]:border-t-0">
+              <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-transparent bg-card shadow-card [&>*:nth-child(even)]:border-l [&>*:nth-child(n+3)]:border-t sm:grid-cols-4 sm:divide-x sm:divide-border sm:[&>*:nth-child(even)]:border-l-0 sm:[&>*:nth-child(n+3)]:border-t-0">
                 <Metric label="Agent runs" value={agentRuns.toLocaleString()} detail="Agent invocations" emphasis />
                 <Metric label="Automation runs" value={automationRuns.toLocaleString()} detail="Scheduled executions" />
                 <Metric label="Failed runs" value={failedRuns.toLocaleString()} detail={failedRuns > 0 ? "Requires review" : "No failures"} />
@@ -452,7 +452,7 @@ export default function DashboardPage() {
                     description="Failures and degraded infrastructure"
                     aside={needsAttention.length > 0 ? `${needsAttention.length} open` : "Clear"}
                   />
-                  <div className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
+                  <div className="overflow-hidden rounded-lg border border-transparent bg-card shadow-card">
                     {attentionShown.length === 0 ? (
                       <EmptyRow icon={<CheckCircle2 className="text-success-foreground" />}>
                         Nothing needs attention right now
@@ -469,7 +469,7 @@ export default function DashboardPage() {
                     description="Agent runs currently in progress"
                     aside={activeNow.length > 0 ? `${activeNow.length} running` : "Idle"}
                   />
-                  <div className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
+                  <div className="overflow-hidden rounded-lg border border-transparent bg-card shadow-card">
                     {activeNow.length === 0 ? (
                       <EmptyRow icon={<CircleDashed />}>No agent runs are active</EmptyRow>
                     ) : (
@@ -489,18 +489,18 @@ export default function DashboardPage() {
                         type="button"
                         onClick={() => activityQuery.refetch()}
                         aria-label="Refresh recent activity"
-                        className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:translate-y-px"
+                        className="inline-flex size-7 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100"
                       >
                         <RefreshCw className={cn("size-3.5", activityQuery.isFetching && "animate-spin")} />
                       </button>
                     }
                   />
                   {recent.length === 0 ? (
-                    <div className="rounded-lg border border-border bg-card shadow-card">
+                    <div className="rounded-lg border border-transparent bg-card shadow-card">
                       <EmptyRow icon={<Clock3 />}>No recent activity</EmptyRow>
                     </div>
                   ) : (
-                    <ol className="rounded-lg border border-border bg-card px-3 py-1 shadow-card">
+                    <ol className="rounded-lg border border-transparent bg-card px-3 py-1 shadow-card">
                       {recent.map((event) => <ActivityRow key={event.id} event={event} />)}
                     </ol>
                   )}
@@ -514,11 +514,11 @@ export default function DashboardPage() {
                         <Link
                           key={agent.name}
                           to={`/chat?new=1&agent=${encodeURIComponent(agent.name)}`}
-                          className="group flex min-w-0 items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left shadow-card transition-colors hover:bg-accent active:translate-y-px"
+                          className="group flex min-w-0 touch-manipulation items-center gap-2.5 rounded-lg border border-transparent bg-card px-3 py-2.5 text-left shadow-card transition-[background-color,box-shadow,scale] duration-150 ease-out hover:bg-accent hover:shadow-card-hover active:scale-[0.96] motion-reduce:active:scale-100"
                         >
                           <AgentAvatar name={agent.name} size="sm" />
                           <span className="min-w-0 flex-1 truncate text-sm font-medium">{agent.name}</span>
-                          <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                          <ArrowRight className="size-3.5 shrink-0 text-muted-foreground motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:group-hover:translate-x-0.5" />
                         </Link>
                       ))}
                     </div>

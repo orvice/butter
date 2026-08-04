@@ -201,7 +201,7 @@ function ProfileContent({ user, refreshUser }: { user: AuthUser; refreshUser: (u
                 <img
                   src={avatarPreview || storedAvatar}
                   alt=""
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
                 />
               ) : (
                 <ImageUp className="h-8 w-8 text-muted-foreground" />
