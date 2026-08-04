@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useDaemonRuntimes } from "@/api/daemons";
@@ -101,7 +101,10 @@ export default function RemoteAgentForm({
       password: "",
     },
   });
-  const protocol = form.watch("protocol") as RemoteAgentProtocol;
+  const protocol = useWatch({
+    control: form.control,
+    name: "protocol",
+  }) as RemoteAgentProtocol;
   const runtimes = runtimeData?.runtimes ?? [];
   const isEdit = mode === "edit";
 
