@@ -180,9 +180,14 @@ function Metric({
   emphasis?: boolean;
 }) {
   return (
-    <div className={cn("min-w-0 px-4 py-4 sm:px-5", emphasis && "bg-elevated-accent/60")}>
+    <div className={cn("min-w-0 px-4 py-4 sm:px-5", emphasis && "bg-accent/65")}>
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1.5 font-mono text-2xl font-semibold tabular-nums tracking-normal sm:text-3xl">
+      <p
+        className={cn(
+          "mt-1.5 font-mono text-2xl font-semibold tabular-nums tracking-normal sm:text-3xl",
+          emphasis && "text-accent-foreground",
+        )}
+      >
         {value}
       </p>
       <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
@@ -420,7 +425,7 @@ export default function DashboardPage() {
                         className={cn(
                           "rounded px-2.5 py-1 text-xs font-medium transition-colors active:translate-y-px",
                           range === item.key
-                            ? "bg-secondary text-secondary-foreground shadow-sm"
+                            ? "bg-accent text-accent-foreground shadow-sm"
                             : "text-muted-foreground hover:bg-muted hover:text-foreground",
                         )}
                       >

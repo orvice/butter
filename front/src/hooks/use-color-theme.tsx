@@ -28,8 +28,8 @@ const COLOR_THEMES: ColorTheme[] = [
   {
     id: "default",
     name: "Butter Ops",
-    description: "Warm neutral operational palette",
-    swatches: ["#e0a63a", "#3f9e63", "#f5f2ea"],
+    description: "Teal actions with balanced operational signals",
+    swatches: ["#04686c", "#3f9e63", "#f6fafb"],
   },
   {
     id: "material-green",
