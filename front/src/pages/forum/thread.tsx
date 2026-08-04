@@ -243,7 +243,7 @@ export default function ForumThreadPage() {
               );
             })}
             {isProcessing ? (
-              <Card className="border-dashed">
+              <Card className="border-border border-dashed">
                 <CardContent className="flex items-center gap-3 p-4 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>{processingAgent ? `${processingAgent} is working on a reply.` : "Agent is working on a reply."}</span>

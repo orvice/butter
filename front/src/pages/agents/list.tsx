@@ -92,7 +92,7 @@ function AgentCard({
   const lastRun = timeAgo(runtime?.last_run_at);
 
   return (
-    <div className="group relative flex flex-col rounded-lg border border-border bg-card p-4 transition-colors hover:border-ring/50">
+    <div className="group relative flex flex-col rounded-lg border border-transparent bg-card p-4 shadow-card transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:border-ring/40 hover:shadow-card-hover">
       <div className="flex items-start gap-3">
         <AgentAvatar name={agent.name} iconUrl={agentIconUrl(agent)} size="lg" />
         <div className="min-w-0 flex-1">

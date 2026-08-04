@@ -67,7 +67,7 @@ function ChannelCard({ channel }: { channel: AgentChannel }) {
       : channel.discord?.bot_token;
 
   return (
-    <Card className="relative">
+    <Card className="relative transition-[box-shadow] duration-150 ease-out hover:shadow-card-hover">
       <div className={`absolute left-0 top-0 h-full w-1 ${platform === "AGENT_CHANNEL_PLATFORM_TELEGRAM" ? "bg-sky-500" : "bg-indigo-500"}`} />
       <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">

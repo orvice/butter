@@ -445,13 +445,13 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
                     src={previewUrls[index]}
                     alt={file.name}
                     title={file.name}
-                    className="h-14 w-14 rounded-md border border-border object-cover"
+                    className="h-14 w-14 rounded-md object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
                   />
                   <button
                     type="button"
                     onClick={() => removeAttachment(index)}
                     aria-label={`Remove ${file.name}`}
-                    className="absolute -right-1.5 -top-1.5 rounded-full border border-border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+                    className="absolute -right-2 -top-2 inline-flex size-6 touch-manipulation items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-[color,background-color,scale] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100"
                   >
                     <X className="size-3" />
                   </button>
@@ -478,7 +478,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
               disabled={!agentName || pending}
               onClick={openFilePicker}
               aria-label="Attach images"
-              className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:pointer-events-none"
+              className="shrink-0 touch-manipulation rounded-md p-2 text-muted-foreground transition-[color,background-color,scale] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100 disabled:pointer-events-none"
             >
               <Paperclip className="size-4" />
             </button>
@@ -506,7 +506,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
                 type="button"
                 onClick={() => void handleStop()}
                 aria-label="Stop generating"
-                className="shrink-0 rounded-md bg-secondary p-2 text-secondary-foreground transition-colors hover:bg-secondary/80 active:scale-[0.98]"
+                className="shrink-0 touch-manipulation rounded-md bg-secondary p-2 text-secondary-foreground transition-[background-color,scale] duration-150 ease-out hover:bg-secondary/80 active:scale-[0.96] motion-reduce:active:scale-100"
               >
                 <Square className="size-4 fill-current" />
               </button>
@@ -516,7 +516,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
                 onClick={() => void handleSend()}
                 disabled={!canSend}
                 aria-label="Send message"
-                className="shrink-0 rounded-md bg-primary p-2 text-primary-foreground transition-colors hover:bg-primary/90 active:scale-[0.98] disabled:opacity-35"
+                className="shrink-0 touch-manipulation rounded-md bg-primary p-2 text-primary-foreground transition-[background-color,opacity,scale] duration-150 ease-out hover:bg-primary/90 active:scale-[0.96] motion-reduce:active:scale-100 disabled:opacity-35"
               >
                 <ArrowUp className="size-4" />
               </button>

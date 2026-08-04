@@ -69,7 +69,11 @@ export function AgentIconUpload({ agentName, value, onChange }: AgentIconUploadP
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
           {displayUrl ? (
-            <img src={displayUrl} alt="" className="h-full w-full object-cover" />
+            <img
+              src={displayUrl}
+              alt=""
+              className="h-full w-full object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
+            />
           ) : (
             <Bot className="h-7 w-7 text-muted-foreground" />
           )}

@@ -264,7 +264,13 @@ function UserMenu({ user, logout }: { user: AuthUser | null; logout: () => void 
     <DropdownMenu>
       <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-sidebar-accent/60">
         <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-          {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : initial}
+          {avatar ? (
+            <img
+              src={avatar}
+              alt=""
+              className="h-full w-full object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
+            />
+          ) : initial}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{name}</span>
