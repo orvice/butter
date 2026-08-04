@@ -32,7 +32,7 @@ export default function ModelProviderEditPage() {
 
   return (
     <Page>
-      <PageHeader title="Edit Model Provider" subtitle={name} />
+      <PageHeader className="max-w-3xl" title="Edit Model Provider" subtitle={name} />
       <PageScroll className="max-w-3xl">
         <ModelProviderForm
           mode="edit"

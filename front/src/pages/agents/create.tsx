@@ -26,7 +26,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Page, PageScroll } from "@/components/butter/page-parts";
+import { Page, PageActions, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { enumLabel } from "@/lib/constants";
 import type { AgentFileMountPermission, AgentType } from "@/types/api";
 
@@ -109,21 +109,19 @@ export default function AgentCreatePage() {
 
   return (
     <Page>
-      <div className="border-b border-border px-4 py-4 md:px-6">
-        <Link
-          to="/agents"
-          className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          Agents
-          <ChevronRight className="size-3" />
-          <span className="text-foreground">Create</span>
-        </Link>
-        <h1 className="text-lg font-semibold tracking-tight">Create Agent</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Start with identity and model settings, then optionally connect tools and file spaces.
-        </p>
-      </div>
+      <PageHeader
+        className="max-w-4xl"
+        title="Create Agent"
+        subtitle="Start with identity and model settings, then optionally connect tools and file spaces."
+        breadcrumb={
+          <Link to="/agents" className="inline-flex items-center gap-1.5 hover:text-foreground">
+            <ArrowLeft className="size-3.5" />
+            Agents
+            <ChevronRight className="size-3" />
+            <span className="text-foreground">Create</span>
+          </Link>
+        }
+      />
 
       <PageScroll className="max-w-4xl">
         <Form {...form}>
@@ -329,14 +327,14 @@ export default function AgentCreatePage() {
             </CardContent>
           </Card>
 
-          <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <PageActions>
             <Button variant="outline" render={<Link to="/agents" />}>
               Cancel
             </Button>
             <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? "Creating..." : "Create Agent"}
             </Button>
-          </div>
+          </PageActions>
         </form>
         </Form>
       </PageScroll>

@@ -29,7 +29,7 @@ export default function RemoteAgentEditPage() {
 
   return (
     <Page>
-      <PageHeader title="Edit Remote Agent" subtitle={id} />
+      <PageHeader className="max-w-3xl" title="Edit Remote Agent" subtitle={id} />
       <PageScroll className="max-w-3xl">
         <RemoteAgentForm
           mode="edit"

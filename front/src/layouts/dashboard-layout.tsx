@@ -148,7 +148,7 @@ function ConversationRow({
       <Link
         to={`/chat?session=${encodeURIComponent(session.session_id)}`}
         onClick={onNavigate}
-        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-2.5 pr-1"
+        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 ps-2.5 pe-1"
       >
         {agent && (
           <AgentAvatar name={agent} size="sm" className="size-4 shrink-0 rounded text-[0.6rem]" />
@@ -159,7 +159,7 @@ function ConversationRow({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label="Chat actions"
-          className="mr-1 shrink-0 rounded p-1 text-muted-foreground opacity-100 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-foreground md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100 md:data-[popup-open]:opacity-100"
+          className="me-1 shrink-0 rounded p-1 text-muted-foreground opacity-100 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-foreground md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100 md:data-[popup-open]:opacity-100"
         >
           <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
@@ -398,12 +398,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Conversation search */}
       <div className="px-3 pb-2">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search chats"
-            className="w-full rounded-md border border-sidebar-border bg-background/60 py-1.5 pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring"
+            className="w-full rounded-md border border-sidebar-border bg-background/60 py-1.5 ps-8 pe-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring"
           />
         </div>
       </div>
@@ -514,7 +514,7 @@ function SidebarShowButton() {
       type="button"
       onClick={() => setHidden(false)}
       aria-label="Show sidebar"
-      className="absolute left-3 top-3 z-30 hidden rounded-md border border-border bg-card p-1.5 text-muted-foreground shadow-sm hover:bg-muted md:inline-flex"
+      className="absolute start-3 top-3 z-30 hidden rounded-md border border-border bg-card p-1.5 text-muted-foreground shadow-sm hover:bg-muted md:inline-flex"
     >
       <PanelLeft className="size-4" />
     </button>
@@ -648,7 +648,7 @@ export default function DashboardLayout() {
     <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
       {/* Desktop sidebar */}
       {!sidebarHidden && (
-        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
+        <aside className="hidden w-60 shrink-0 border-e border-sidebar-border md:block lg:w-64">
           <SidebarContent />
         </aside>
       )}
@@ -661,7 +661,7 @@ export default function DashboardLayout() {
             onClick={() => setMobileNavOpen(false)}
             aria-hidden
           />
-          <div className="absolute inset-y-0 left-0 w-[85%] max-w-xs border-r border-sidebar-border shadow-xl">
+          <div className="absolute inset-y-0 start-0 w-[85%] max-w-xs border-e border-sidebar-border shadow-xl">
             <SidebarContent onNavigate={() => setMobileNavOpen(false)} />
           </div>
         </div>

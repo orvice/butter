@@ -185,7 +185,7 @@ export default function ChannelListPage() {
       />
       <PageScroll className="space-y-6">
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-64" />)}
           </div>
         ) : channels.length === 0 ? (
@@ -193,7 +193,7 @@ export default function ChannelListPage() {
             No channels configured yet.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {channels.map((c) => (
               <ChannelCard key={c.name} channel={c} />
             ))}
@@ -209,7 +209,7 @@ export default function ChannelListPage() {
           </CardHeader>
           <CardContent className="space-y-6 pt-5">
             <div className="rounded-lg border p-4">
-              <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
                 <div>
                   <h3 className="text-lg font-semibold">ConnectRPC/HTTP API</h3>
                   <p className="text-sm text-muted-foreground">Synchronous agent execution endpoint.</p>
@@ -219,29 +219,29 @@ export default function ChannelListPage() {
                   Live
                 </Badge>
               </div>
-              <div className="relative rounded-lg border border-border bg-muted/60 p-4 font-mono text-[13px]">
+              <div className="relative rounded-lg border border-border bg-muted/60 p-4 pe-12 font-mono text-[13px]">
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  className="absolute right-3 top-3 text-muted-foreground"
+                  className="absolute end-3 top-3 text-muted-foreground"
                   aria-label="Copy endpoint"
                   onClick={() => void copyText("/api/agents.v1.AgentService/InvokeAgent", "Endpoint copied")}
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
                 <span className="font-semibold text-success-foreground">POST</span>
-                <span className="ml-2 break-all">/api/agents.v1.AgentService/InvokeAgent</span>
+                <span className="ms-2 break-all">/api/agents.v1.AgentService/InvokeAgent</span>
               </div>
             </div>
 
             <div>
-              <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
                   <h3 className="text-lg font-semibold">APITokenAuthMiddleware</h3>
                   <p className="text-sm text-muted-foreground">Bearer tokens for external webhook ingestion.</p>
                 </div>
-                <Button variant="outline" onClick={() => navigate("/api-tokens")}>
-                  <KeyRound className="mr-2 h-4 w-4" />
+                <Button className="w-full sm:w-auto" variant="outline" onClick={() => navigate("/api-tokens")}>
+                  <KeyRound className="h-4 w-4" />
                   Manage Tokens
                 </Button>
               </div>
@@ -251,15 +251,21 @@ export default function ChannelListPage() {
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-lg border">
-                  <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr] bg-muted/60 px-4 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
+                  <div className="hidden grid-cols-[1.2fr_0.8fr_0.8fr] bg-muted/60 px-4 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground sm:grid">
                     <span>Token Name</span>
                     <span>Prefix</span>
                     <span>Created</span>
                   </div>
                   {tokens.slice(0, 4).map((token) => (
-                    <div key={token.id} className="grid grid-cols-[1.2fr_0.8fr_0.8fr] border-t px-4 py-3 text-sm">
-                      <span className="font-medium">{token.name}</span>
-                      <code className="text-muted-foreground">{token.prefix || "-"}</code>
+                    <div
+                      key={token.id}
+                      className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-2 border-t px-4 py-3 text-sm sm:grid-cols-[1.2fr_0.8fr_0.8fr] sm:gap-0"
+                    >
+                      <span className="text-xs font-medium text-muted-foreground sm:hidden">Name</span>
+                      <span className="min-w-0 truncate font-medium">{token.name}</span>
+                      <span className="text-xs font-medium text-muted-foreground sm:hidden">Prefix</span>
+                      <code className="min-w-0 truncate text-muted-foreground">{token.prefix || "-"}</code>
+                      <span className="text-xs font-medium text-muted-foreground sm:hidden">Created</span>
                       <span className="text-muted-foreground">{token.created_at ? new Date(token.created_at).toLocaleDateString() : "-"}</span>
                     </div>
                   ))}

@@ -230,7 +230,7 @@ export default function WorkspacePage() {
       />
       <PageScroll className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <CardHeader className="flex flex-col items-start justify-between gap-3 sm:flex-row">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -273,7 +273,7 @@ export default function WorkspacePage() {
                   placeholder="Describe what this workspace is for"
                 />
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 [&>*]:w-full sm:[&>*]:w-auto">
                 <Button type="submit" disabled={updateWorkspace.isPending}>
                   {updateWorkspace.isPending ? "Saving..." : "Save changes"}
                 </Button>
@@ -290,18 +290,18 @@ export default function WorkspacePage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <CardHeader className="flex flex-col items-start justify-between gap-4 xl:flex-row">
           <div>
             <CardTitle>Members</CardTitle>
             <CardDescription>Add people to the active workspace and adjust their roles.</CardDescription>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto] xl:w-auto xl:min-w-[34rem]">
             <Select
               value={memberUserId || undefined}
               onValueChange={(value) => setMemberUserId(value ?? "")}
               disabled={usersLoading || availableUsers.length === 0}
             >
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder={usersLoading ? "Loading users" : "Select a user"} />
               </SelectTrigger>
               <SelectContent>
@@ -313,7 +313,7 @@ export default function WorkspacePage() {
               </SelectContent>
             </Select>
             <Select value={memberRole} onValueChange={(value) => setMemberRole(value ?? "member")}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Role" />
               </SelectTrigger>
               <SelectContent>

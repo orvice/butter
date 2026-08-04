@@ -121,9 +121,9 @@ function AutomationRow({
           navigate(`/automations/${encodeURIComponent(job.name)}`);
         }
       }}
-      className="group grid w-full cursor-pointer grid-cols-2 gap-x-4 gap-y-3 border-b border-border px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:grid-cols-3 md:px-5 lg:grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] lg:items-center lg:gap-4 lg:px-5 lg:py-3.5"
+      className="group grid w-full cursor-pointer grid-cols-2 gap-x-4 gap-y-3 border-b border-border px-4 py-4 text-start transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:grid-cols-3 md:px-5 xl:grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] xl:items-center xl:gap-4 xl:px-5 xl:py-3.5"
     >
-      <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-3 lg:col-span-1">
+      <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-3 xl:col-span-1">
         <AgentAvatar name={job.agent_name} size="md" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold">{job.name}</div>
@@ -132,17 +132,17 @@ function AutomationRow({
       </div>
 
       <div className="min-w-0">
-        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground lg:hidden">
+        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground xl:hidden">
           Schedule
         </div>
         <div className="flex min-w-0 items-center gap-1.5 text-xs text-foreground">
-          <CalendarClock className="size-3.5 shrink-0 text-muted-foreground lg:hidden" />
+          <CalendarClock className="size-3.5 shrink-0 text-muted-foreground xl:hidden" />
           <code className="truncate font-mono">{job.schedule}</code>
         </div>
       </div>
 
       <div className="min-w-0">
-        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground lg:hidden">
+        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground xl:hidden">
           Delivery
         </div>
         <div className="flex min-w-0 items-center gap-1.5 text-xs">
@@ -152,21 +152,21 @@ function AutomationRow({
       </div>
 
       <div className="min-w-0">
-        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground lg:hidden">
+        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground xl:hidden">
           Last run
         </div>
         <div className="truncate text-xs text-muted-foreground">{lastRunAgo ?? "Not run"}</div>
       </div>
 
       <div className="min-w-0">
-        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground lg:hidden">
+        <div className="mb-1 text-[0.68rem] font-medium uppercase text-muted-foreground xl:hidden">
           Status
         </div>
         <StatusBadge status={status} className="max-w-full" />
       </div>
 
       <div
-        className="col-span-2 flex min-w-0 items-center justify-end gap-2 border-t border-border/70 pt-3 md:col-span-2 md:border-t-0 md:pt-0 lg:col-span-1"
+        className="col-span-2 flex min-w-0 items-center justify-end gap-2 border-t border-border/70 pt-3 md:col-span-2 md:border-t-0 md:pt-0 xl:col-span-1"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
@@ -175,7 +175,7 @@ function AutomationRow({
           disabled={updateMutation.isPending}
           onCheckedChange={toggleEnabled}
           aria-label={`${enabled ? "Disable" : "Enable"} ${job.name}`}
-          className="mr-auto lg:mr-1"
+          className="me-auto xl:me-1"
         />
         <Button
           variant="outline"
@@ -286,6 +286,7 @@ export default function AutomationListPage() {
   return (
     <Page>
       <PageHeader
+        className="max-w-6xl"
         title="Automations"
         subtitle={
           needsAttention > 0
@@ -302,7 +303,7 @@ export default function AutomationListPage() {
       <PageScroll className="max-w-6xl">
         {isLoading ? (
           <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <div className="hidden grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] gap-4 border-b border-border bg-muted/35 px-5 py-2.5 lg:grid">
+            <div className="hidden grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] gap-4 border-b border-border bg-muted/35 px-5 py-2.5 xl:grid">
               {Array.from({ length: 6 }).map((_, index) => (
                 <Skeleton key={index} className="h-3 w-16" />
               ))}
@@ -310,9 +311,9 @@ export default function AutomationListPage() {
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="grid grid-cols-2 gap-4 border-b border-border px-4 py-4 last:border-b-0 md:grid-cols-3 lg:grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] lg:px-5"
+                className="grid grid-cols-2 gap-4 border-b border-border px-4 py-4 last:border-b-0 md:grid-cols-3 xl:grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] xl:px-5"
               >
-                <div className="col-span-2 flex items-center gap-3 md:col-span-3 lg:col-span-1">
+                <div className="col-span-2 flex items-center gap-3 md:col-span-3 xl:col-span-1">
                   <Skeleton className="size-8 shrink-0 rounded-md" />
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <Skeleton className="h-3.5 w-28" />
@@ -380,7 +381,7 @@ export default function AutomationListPage() {
             </div>
 
             <div className="overflow-hidden rounded-lg border border-border bg-card">
-              <div className="hidden grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] gap-4 border-b border-border bg-muted/35 px-5 py-2.5 text-[0.68rem] font-medium uppercase text-muted-foreground lg:grid">
+              <div className="hidden grid-cols-[minmax(190px,1.5fr)_minmax(100px,.72fr)_minmax(110px,.75fr)_90px_125px_190px] gap-4 border-b border-border bg-muted/35 px-5 py-2.5 text-[0.68rem] font-medium uppercase text-muted-foreground xl:grid">
                 <span>Automation</span>
                 <span>Schedule</span>
                 <span>Delivery</span>

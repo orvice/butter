@@ -22,6 +22,7 @@ export default function ModelProviderCreatePage() {
   return (
     <Page>
       <PageHeader
+        className="max-w-3xl"
         title="Create Model Provider"
         subtitle="Register an LLM provider and the models it exposes to agents and channels."
       />

@@ -25,6 +25,7 @@ export default function MCPServerEditPage() {
   return (
     <Page>
       <PageHeader
+        className="max-w-3xl"
         title="Edit MCP Server"
         subtitle="Review endpoint and authentication changes before saving because agents may use this server immediately."
       />

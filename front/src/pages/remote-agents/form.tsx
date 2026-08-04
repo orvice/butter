@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { PageActions } from "@/components/butter/page-parts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { RemoteAgent, RemoteAgentProtocol } from "@/types/api";
 
@@ -258,10 +259,10 @@ export default function RemoteAgentForm({
             )}
           </CardContent>
         </Card>
-        <div className="flex gap-3">
+        <PageActions>
           <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
           <Button type="submit" disabled={loading}>{loading ? "Saving..." : submitLabel}</Button>
-        </div>
+        </PageActions>
       </form>
     </Form>
   );

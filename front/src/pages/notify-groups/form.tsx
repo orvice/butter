@@ -7,6 +7,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { PageActions } from "@/components/butter/page-parts";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -294,10 +295,10 @@ export default function NotifyGroupForm({ initialValue, submitting, submitLabel,
           </CardContent>
         </Card>
 
-        <div className="flex gap-3">
+        <PageActions>
           <Button type="button" variant="outline" onClick={() => navigate("/notify-groups")}>Cancel</Button>
           <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : submitLabel}</Button>
-        </div>
+        </PageActions>
       </form>
     </Form>
   );

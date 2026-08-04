@@ -19,6 +19,7 @@ export default function MCPServerCreatePage() {
   return (
     <Page>
       <PageHeader
+        className="max-w-3xl"
         title="Create MCP Server"
         subtitle="Connect an HTTP or SSE MCP endpoint, then choose the authentication method it requires."
       />

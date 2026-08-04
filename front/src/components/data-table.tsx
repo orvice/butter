@@ -50,7 +50,7 @@ export function DataTable<T>({ columns, data, isLoading, emptyMessage = "No data
 
   return (
     <div className="rounded-[0.6rem] border bg-card shadow-card">
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden overflow-x-auto lg:block">
         <Table className="min-w-full whitespace-nowrap">
           <TableHeader>
             <TableRow>
@@ -72,7 +72,7 @@ export function DataTable<T>({ columns, data, isLoading, emptyMessage = "No data
           </TableBody>
         </Table>
       </div>
-      <div className="divide-y md:hidden">
+      <div className="divide-y lg:hidden">
         {data.map((row, i) => (
           <div key={i} className="space-y-3 p-4">
             {columns.map((col) => (

@@ -25,7 +25,7 @@ import {
   FormItem,
   FormLabel,
 } from "@/components/ui/form";
-import { Page, PageScroll } from "@/components/butter/page-parts";
+import { Page, PageActions, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { AGENT_TYPE_LABELS, enumLabel } from "@/lib/constants";
 import { useTheme } from "next-themes";
 import { AgentModelSelect } from "./model-select";
@@ -222,21 +222,19 @@ export default function AgentEditPage() {
 
   return (
     <Page>
-      <div className="border-b border-border px-4 py-4 md:px-6">
-        <Link
-          to="/agents"
-          className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          Agents
-          <ChevronRight className="size-3" />
-          <span className="text-foreground">{name}</span>
-        </Link>
-        <h1 className="text-lg font-semibold tracking-tight">Edit Agent</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Use the guided form for common settings or JSON mode for advanced agent topology.
-        </p>
-      </div>
+      <PageHeader
+        className="max-w-4xl"
+        title="Edit Agent"
+        subtitle="Use the guided form for common settings or JSON mode for advanced agent topology."
+        breadcrumb={
+          <Link to="/agents" className="inline-flex min-w-0 items-center gap-1.5 hover:text-foreground">
+            <ArrowLeft className="size-3.5 shrink-0" />
+            <span>Agents</span>
+            <ChevronRight className="size-3 shrink-0" />
+            <span className="truncate text-foreground">{name}</span>
+          </Link>
+        }
+      />
 
       <PageScroll className="max-w-4xl">
         <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -453,14 +451,14 @@ export default function AgentEditPage() {
                 </Card>
               )}
 
-              <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <PageActions>
                 <Button variant="outline" render={<Link to="/agents" />}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? "Saving..." : "Save"}
                 </Button>
-              </div>
+              </PageActions>
             </form>
           </Form>
         </TabsContent>
@@ -478,14 +476,14 @@ export default function AgentEditPage() {
               />
             </CardContent>
           </Card>
-          <div className="sticky bottom-0 z-10 mt-6 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <PageActions>
             <Button variant="outline" render={<Link to="/agents" />}>
               Cancel
             </Button>
             <Button onClick={onJsonSubmit} disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "Saving..." : "Save"}
             </Button>
-          </div>
+          </PageActions>
         </TabsContent>
         </Tabs>
       </PageScroll>

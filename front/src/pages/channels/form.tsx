@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { PageActions } from "@/components/butter/page-parts";
 import type { AgentChannel, AgentChannelPlatform, AgentTriggerType } from "@/types/api";
 
 const schema = z.object({
@@ -279,10 +280,10 @@ export default function ChannelForm({
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-0 z-10 -mx-1 flex gap-3 border-t bg-background/95 px-1 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <PageActions>
           <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
           <Button type="submit" disabled={loading}>{loading ? "Saving..." : submitLabel}</Button>
-        </div>
+        </PageActions>
       </form>
     </Form>
   );

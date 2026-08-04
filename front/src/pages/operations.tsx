@@ -85,7 +85,7 @@ function CronRow({ job, execution }: { job: CronJob; execution?: CronExecution }
   const DeliveryIcon = DELIVERY_META[delivery].icon;
 
   return (
-    <div className="grid gap-3 border-b border-border px-5 py-4 last:border-b-0 lg:grid-cols-[1.2fr_1fr_1fr_0.8fr_1fr_auto] lg:items-center">
+    <div className="grid gap-3 border-b border-border px-4 py-4 last:border-b-0 sm:grid-cols-2 md:px-5 xl:grid-cols-[1.2fr_1fr_1fr_0.8fr_1fr_auto] xl:items-center">
       <div>
         <div className="font-medium">{job.name}</div>
         {job.input ? <div className="line-clamp-1 text-xs text-muted-foreground">{job.input}</div> : null}
@@ -143,8 +143,8 @@ function SessionRow({
     <div
       role="button"
       tabIndex={0}
-      className={`grid w-full cursor-pointer gap-3 border-b border-border px-5 py-3 text-left text-sm transition-colors last:border-b-0 md:grid-cols-[1.4fr_1fr_1fr_0.5fr_0.8fr] md:items-center ${
-        selected ? "border-l-2 border-l-primary bg-primary/5" : "border-l-2 border-l-transparent hover:bg-muted/50"
+      className={`grid w-full cursor-pointer gap-3 border-b border-border border-s-2 px-4 py-3 text-start text-sm transition-colors last:border-b-0 md:px-5 xl:grid-cols-[1.4fr_1fr_1fr_0.5fr_0.8fr] xl:items-center ${
+        selected ? "border-s-primary bg-primary/5" : "border-s-transparent hover:bg-muted/50"
       }`}
       onClick={() => onSelect(session)}
       onKeyDown={(event) => {
@@ -161,7 +161,7 @@ function SessionRow({
       <Link
         to={sessionDetailPath(session)}
         onClick={(event) => event.stopPropagation()}
-        className="flex items-center justify-self-start gap-1 text-primary hover:underline md:justify-self-end"
+        className="flex items-center justify-self-start gap-1 text-primary hover:underline xl:justify-self-end"
         aria-label={`Open session ${session.session_id} in full page`}
       >
         <Maximize2 className="h-3.5 w-3.5" />
@@ -328,7 +328,7 @@ export default function OperationsPage() {
             <div className="p-8 text-center text-sm text-muted-foreground">No cron jobs yet.</div>
           ) : (
             <div>
-              <div className="hidden grid-cols-[1.2fr_1fr_1fr_0.8fr_1fr_auto] border-b border-border bg-muted/60 px-5 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground lg:grid">
+              <div className="hidden grid-cols-[1.2fr_1fr_1fr_0.8fr_1fr_auto] border-b border-border bg-muted/60 px-5 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground xl:grid">
                 <span>Job Name</span>
                 <span>Schedule</span>
                 <span>Target Agent</span>
@@ -407,7 +407,7 @@ export default function OperationsPage() {
               <div className="p-8 text-center text-sm text-muted-foreground">No sessions found.</div>
             ) : (
               <div>
-                <div className="hidden grid-cols-[1.4fr_1fr_1fr_0.5fr_0.8fr] border-b border-border bg-muted/60 px-5 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground md:grid">
+                <div className="hidden grid-cols-[1.4fr_1fr_1fr_0.5fr_0.8fr] border-b border-border bg-muted/60 px-5 py-3 text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground xl:grid">
                   <span>Session ID</span>
                   <span>Channel</span>
                   <span>Start Time</span>
