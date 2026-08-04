@@ -260,7 +260,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 - `front/` 是 Vite + React 19 + shadcn/ui 应用，TanStack Query 做数据层。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 page 层 boundary。Chat 流式走 `AgentService.StreamAgent`（`chat.ts`）；头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
-- 一级页（`front/src/pages/`）：Login / Chat / Forum / Dashboard(Overview) / Agents / MCP Servers / Remote Agents / Daemons / Channels / Sessions / Cron / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Users / Profile / Integrations / Operations / Admin。
+- 一级页（`front/src/pages/`）：Login / Chat / Forum / Dashboard(Overview) / Agents / MCP Servers / Remote Agents / Daemons / Channels / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Users / Profile / Integrations / Admin。
 - 全部页面消费上面 12-16 节描述的 RPC；细节见 `docs/api.md`。
 
 ## 19. 部署形态
