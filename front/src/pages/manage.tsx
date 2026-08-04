@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   UserCircle,
   Users,
-  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -58,10 +57,9 @@ const GROUPS: ManageGroup[] = [
     ],
   },
   {
-    title: "Automation & Operations",
+    title: "Automation & Activity",
     description: "Schedule work and inspect background activity.",
     items: [
-      { label: "Operations", description: "Review jobs, executions, and sessions.", to: "/operations", icon: Workflow },
       { label: "Automations", description: "Schedule recurring agent runs and deliveries.", to: "/automations", icon: CalendarClock },
       { label: "Sessions", description: "Inspect saved agent sessions.", to: "/sessions", icon: FileText },
       { label: "Notify Groups", description: "Configure notification destinations.", to: "/notify-groups", icon: Bell },

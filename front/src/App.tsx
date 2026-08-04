@@ -14,7 +14,6 @@ const OAuthCallbackPage = lazy(() => import("@/pages/auth-oauth-callback"));
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
 const ManagePage = lazy(() => import("@/pages/manage"));
 const IntegrationsPage = lazy(() => import("@/pages/integrations"));
-const OperationsPage = lazy(() => import("@/pages/operations"));
 const AgentListPage = lazy(() => import("@/pages/agents/list"));
 const AgentCreatePage = lazy(() => import("@/pages/agents/create"));
 const AgentEditPage = lazy(() => import("@/pages/agents/edit"));
@@ -102,7 +101,8 @@ export default function App() {
                         <Route path="forum/:id" element={<ForumThreadPage />} />
                         <Route path="sessions" element={<SessionListPage />} />
                         <Route path="sessions/detail" element={<SessionDetailPage />} />
-                        <Route path="operations" element={<OperationsPage />} />
+                        {/* Operations was a duplicate CronJob and session view. */}
+                        <Route path="operations" element={<Navigate to="/sessions" replace />} />
                         <Route path="automations" element={<AutomationListPage />} />
                         <Route path="automations/create" element={<AutomationCreatePage />} />
                         <Route path="automations/:name" element={<AutomationDetailPage />} />
