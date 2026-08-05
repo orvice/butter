@@ -82,15 +82,15 @@ export function NavUser({ user }: NavUserProps) {
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
-                  <Link to='/settings/account'>
-                    <BadgeCheck />
-                    Account
+                  <Link to='/profile'>
+                    <UserIcon />
+                    Profile
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to='/settings'>
-                    <UserIcon />
-                    Profile
+                  <Link to='/settings/appearance'>
+                    <BadgeCheck />
+                    Appearance
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuGroup>

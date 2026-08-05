@@ -144,17 +144,14 @@ export const sidebarData: SidebarData = {
       title: 'Other',
       items: [
         {
+          title: 'Profile',
+          url: '/profile',
+          icon: Users,
+        },
+        {
           title: 'Settings',
           icon: Settings,
           items: [
-            {
-              title: 'Profile',
-              url: '/settings',
-            },
-            {
-              title: 'Account',
-              url: '/settings/account',
-            },
             {
               title: 'Appearance',
               url: '/settings/appearance',

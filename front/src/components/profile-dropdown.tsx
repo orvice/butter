@@ -48,10 +48,7 @@ export function ProfileDropdown() {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
-              <Link to='/settings'>Profile</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to='/settings/account'>Account</Link>
+              <Link to='/profile'>Profile</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to='/settings/appearance'>Appearance</Link>

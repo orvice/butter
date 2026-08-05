@@ -51,10 +51,8 @@ import { Route as AuthenticatedRemoteAgentsCreateRouteImport } from './routes/_a
 import { Route as AuthenticatedSessionsIndexRouteImport } from './routes/_authenticated/sessions/index'
 import { Route as AuthenticatedSessionsDetailRouteImport } from './routes/_authenticated/sessions/detail'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
-import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
-import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedAgentsNameEditRouteImport } from './routes/_authenticated/agents/$name.edit'
 import { Route as AuthenticatedAutomationsNameIndexRouteImport } from './routes/_authenticated/automations/$name.index'
 import { Route as AuthenticatedAutomationsNameEditRouteImport } from './routes/_authenticated/automations/$name.edit'
@@ -296,12 +294,6 @@ const AuthenticatedSettingsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
-const AuthenticatedSettingsAccountRoute =
-  AuthenticatedSettingsAccountRouteImport.update({
-    id: '/account',
-    path: '/account',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
 const AuthenticatedSettingsAppearanceRoute =
   AuthenticatedSettingsAppearanceRouteImport.update({
     id: '/appearance',
@@ -312,12 +304,6 @@ const AuthenticatedSettingsDisplayRoute =
   AuthenticatedSettingsDisplayRouteImport.update({
     id: '/display',
     path: '/display',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedSettingsNotificationsRoute =
-  AuthenticatedSettingsNotificationsRouteImport.update({
-    id: '/notifications',
-    path: '/notifications',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
 const AuthenticatedAgentsNameEditRoute =
@@ -418,10 +404,8 @@ export interface FileRoutesByFullPath {
   '/notify-groups/create': typeof AuthenticatedNotifyGroupsCreateRoute
   '/remote-agents/create': typeof AuthenticatedRemoteAgentsCreateRoute
   '/sessions/detail': typeof AuthenticatedSessionsDetailRoute
-  '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
-  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/agents/': typeof AuthenticatedAgentsIndexRoute
   '/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -475,10 +459,8 @@ export interface FileRoutesByTo {
   '/notify-groups/create': typeof AuthenticatedNotifyGroupsCreateRoute
   '/remote-agents/create': typeof AuthenticatedRemoteAgentsCreateRoute
   '/sessions/detail': typeof AuthenticatedSessionsDetailRoute
-  '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
-  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/agents': typeof AuthenticatedAgentsIndexRoute
   '/automations': typeof AuthenticatedAutomationsIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
@@ -535,10 +517,8 @@ export interface FileRoutesById {
   '/_authenticated/notify-groups/create': typeof AuthenticatedNotifyGroupsCreateRoute
   '/_authenticated/remote-agents/create': typeof AuthenticatedRemoteAgentsCreateRoute
   '/_authenticated/sessions/detail': typeof AuthenticatedSessionsDetailRoute
-  '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
-  '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/agents/': typeof AuthenticatedAgentsIndexRoute
   '/_authenticated/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -595,10 +575,8 @@ export interface FileRouteTypes {
     | '/notify-groups/create'
     | '/remote-agents/create'
     | '/sessions/detail'
-    | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
-    | '/settings/notifications'
     | '/agents/'
     | '/automations/'
     | '/channels/'
@@ -652,10 +630,8 @@ export interface FileRouteTypes {
     | '/notify-groups/create'
     | '/remote-agents/create'
     | '/sessions/detail'
-    | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
-    | '/settings/notifications'
     | '/agents'
     | '/automations'
     | '/channels'
@@ -711,10 +687,8 @@ export interface FileRouteTypes {
     | '/_authenticated/notify-groups/create'
     | '/_authenticated/remote-agents/create'
     | '/_authenticated/sessions/detail'
-    | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
-    | '/_authenticated/settings/notifications'
     | '/_authenticated/agents/'
     | '/_authenticated/automations/'
     | '/_authenticated/channels/'
@@ -1046,13 +1020,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
-    '/_authenticated/settings/account': {
-      id: '/_authenticated/settings/account'
-      path: '/account'
-      fullPath: '/settings/account'
-      preLoaderRoute: typeof AuthenticatedSettingsAccountRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
     '/_authenticated/settings/appearance': {
       id: '/_authenticated/settings/appearance'
       path: '/appearance'
@@ -1065,13 +1032,6 @@ declare module '@tanstack/react-router' {
       path: '/display'
       fullPath: '/settings/display'
       preLoaderRoute: typeof AuthenticatedSettingsDisplayRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/settings/notifications': {
-      id: '/_authenticated/settings/notifications'
-      path: '/notifications'
-      fullPath: '/settings/notifications'
-      preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
     '/_authenticated/agents/$name/edit': {
@@ -1155,20 +1115,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedSettingsRouteRouteChildren {
-  AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedSettingsDisplayRoute: typeof AuthenticatedSettingsDisplayRoute
-  AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
 }
 
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
-    AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
     AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
     AuthenticatedSettingsDisplayRoute: AuthenticatedSettingsDisplayRoute,
-    AuthenticatedSettingsNotificationsRoute:
-      AuthenticatedSettingsNotificationsRoute,
     AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   }
 

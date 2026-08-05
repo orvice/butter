@@ -1,6 +1,19 @@
 # Butter Frontend
 
-React + TypeScript + Vite dashboard for Butter.
+React + TypeScript + Vite dashboard for Butter, built on the
+[shadcn-admin](https://github.com/satnaing/shadcn-admin) template:
+TanStack Router (file-based routes in `src/routes/`), Radix-based
+shadcn/ui components (`src/components/ui/`), Tailwind CSS v4,
+TanStack Query, and Zustand for auth state.
+
+## Structure
+
+- `src/routes/` — TanStack Router file routes (`_authenticated/` requires login)
+- `src/features/<name>/` — page implementations, one directory per resource
+- `src/api/` — ConnectRPC clients + React Query hooks (Bearer + X-Workspace-ID interceptor)
+- `src/gen/` — generated protobuf-es/Connect clients (do not edit)
+- `src/components/` — shared components (`ui/` = shadcn, `layout/` = shell/sidebar)
+- `src/context/`, `src/stores/` — providers (theme, workspace) and the auth store
 
 ## Local development
 
