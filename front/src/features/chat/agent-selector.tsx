@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import type { Agent } from '@/types/api'
+import { Search } from 'lucide-react'
 import { useAgents } from '@/api/agents'
+import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 import { AgentAvatar } from '@/components/butter/primitives'
 import { agentIconUrl } from '@/features/agents/icon-utils'
-import { cn } from '@/lib/utils'
-import { Loader2, Search } from 'lucide-react'
-import type { Agent } from '@/types/api'
 
 export function AgentSelector({
   onPick,
@@ -31,9 +32,17 @@ export function AgentSelector({
 
   if (isLoading) {
     return (
-      <div className='flex flex-col items-center gap-3 text-sm text-muted-foreground'>
-        <Loader2 className='size-5 animate-spin' />
-        Loading agents…
+      <div className='mx-auto w-full max-w-3xl'>
+        <div className='space-y-2'>
+          <Skeleton className='h-7 w-44' />
+          <Skeleton className='h-4 w-64 max-w-full' />
+        </div>
+        <Skeleton className='mt-6 h-10 w-full max-w-md' />
+        <div className='mt-6 grid gap-2.5 sm:grid-cols-2'>
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className='h-[76px] rounded-lg' />
+          ))}
+        </div>
       </div>
     )
   }
@@ -56,24 +65,23 @@ export function AgentSelector({
   }
 
   return (
-    <div className='mx-auto w-full max-w-2xl'>
-      <div className='text-center'>
-        <h1 className='text-2xl font-semibold tracking-tight text-balance'>
-          What can we get done today?
+    <div className='mx-auto w-full max-w-3xl'>
+      <div>
+        <h1 className='font-manrope text-2xl font-semibold text-balance'>
+          Start a new chat
         </h1>
-        <p className='mt-2 text-sm text-muted-foreground text-pretty'>
-          Pick an agent to start a new conversation. Each chat stays with one
-          agent.
+        <p className='mt-1.5 text-sm text-muted-foreground'>
+          Choose an agent to begin.
         </p>
       </div>
 
-      <div className='relative mx-auto mt-6 max-w-md'>
+      <div className='relative mt-6 max-w-md'>
         <Search className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder='Search agents'
-          className='w-full rounded-md border border-border bg-card py-2 pr-3 pl-9 text-sm outline-none focus:border-ring'
+          className='h-10 w-full rounded-md border border-border bg-card pr-3 pl-9 text-sm transition-[border-color,box-shadow] outline-none focus:border-ring focus:ring-2 focus:ring-ring/10'
         />
       </div>
 
@@ -83,7 +91,7 @@ export function AgentSelector({
             No agents match “{query}”.
           </p>
         ) : (
-          <div className='grid gap-2 sm:grid-cols-2'>
+          <div className='grid gap-2.5 sm:grid-cols-2'>
             {filtered.map((a: Agent) => (
               <button
                 key={a.name}
@@ -91,13 +99,17 @@ export function AgentSelector({
                 disabled={busy}
                 onClick={() => onPick(a.name)}
                 className={cn(
-                  'flex items-start gap-3 rounded-lg border border-border bg-card p-3 text-left transition-colors',
+                  'flex min-h-[76px] items-start gap-3 rounded-lg border border-border bg-card p-3.5 text-left transition-[border-color,background-color,scale]',
                   busy
                     ? 'cursor-wait opacity-60'
-                    : 'hover:border-ring/60 hover:bg-accent/50'
+                    : 'hover:border-ring/60 hover:bg-accent/50 active:scale-[0.99] motion-reduce:active:scale-100'
                 )}
               >
-                <AgentAvatar name={a.name} iconUrl={agentIconUrl(a)} size='md' />
+                <AgentAvatar
+                  name={a.name}
+                  iconUrl={agentIconUrl(a)}
+                  size='md'
+                />
                 <div className='min-w-0 flex-1'>
                   <span className='block truncate text-sm font-medium'>
                     {a.name}

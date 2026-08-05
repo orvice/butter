@@ -314,15 +314,15 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
 
   return (
     <div
-      className={cn("flex min-h-0 flex-1 flex-col", isDragOver && "ring-2 ring-inset ring-ring/50")}
+      className={cn("flex min-h-0 flex-1 flex-col bg-background", isDragOver && "ring-2 ring-inset ring-ring/50")}
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* Chat header */}
-      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-3 md:px-5">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5 md:pl-7">
+      <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/95 px-2.5 sm:px-4 md:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <AgentAvatar name={agentName ?? "?"} size="sm" />
           <span className="flex min-w-0 max-w-md flex-1 flex-col">
             {editingTitle ? (
@@ -341,7 +341,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
               />
             ) : (
               <span className="flex min-w-0 items-center gap-1">
-                <span className="truncate text-sm font-medium leading-tight">
+                <span className="truncate text-sm font-semibold leading-tight">
                   {sessionTitle(session)}
                 </span>
                 <button
@@ -349,7 +349,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
                   onClick={() => setEditingTitleFor(sessionId)}
                   aria-label="Rename chat"
                   title="Rename chat"
-                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="inline-flex size-9 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100"
                 >
                   <Pencil className="size-3.5" />
                 </button>
@@ -359,7 +359,8 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
               title={sessionId}
               className="truncate font-mono text-[0.65rem] leading-tight text-muted-foreground/80"
             >
-              {agentName ?? "Unknown agent"} · {sessionId.slice(0, 8)}
+              {agentName ?? "Unknown agent"}
+              <span className="hidden sm:inline"> / {sessionId.slice(0, 8)}</span>
             </span>
           </span>
         </div>
@@ -367,7 +368,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Chat options"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex size-9 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100"
           >
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
@@ -382,7 +383,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
 
       {/* Messages */}
       <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl px-3 sm:px-5 lg:px-6">
+        <div className="mx-auto w-full max-w-4xl px-3.5 sm:px-5 lg:px-6">
           {liveQuery.isLoading ? (
             <div className="space-y-6 py-8">
               <div className="flex gap-3">
@@ -433,8 +434,8 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 border-t border-border/60 bg-background">
-        <div className="mx-auto w-full max-w-4xl px-3 pb-2.5 pt-3 sm:px-5 md:pb-3.5">
+      <div className="shrink-0 border-t border-border/60 bg-background/95 backdrop-blur-sm">
+        <div className="mx-auto w-full max-w-4xl px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-5 md:pb-3.5">
           {attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {attachments.map((file, index) => (
@@ -462,7 +463,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
           )}
           <div
             className={cn(
-              "flex items-end gap-2 rounded-lg border border-border/70 bg-card p-2 shadow-sm transition-[border-color,box-shadow] focus-within:border-foreground/20 focus-within:ring-2 focus-within:ring-ring/10",
+              "flex items-end gap-1.5 rounded-lg border border-border/70 bg-card p-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:ring-2 focus-within:ring-ring/10 sm:gap-2 sm:p-2",
               !agentName && "opacity-60",
             )}
           >
@@ -479,7 +480,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
               disabled={!agentName || pending}
               onClick={openFilePicker}
               aria-label="Attach images"
-              className="shrink-0 touch-manipulation rounded-md p-2 text-muted-foreground transition-[color,background-color,scale] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100 disabled:pointer-events-none"
+              className="inline-flex size-10 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100 disabled:pointer-events-none"
             >
               <Paperclip className="size-4" />
             </button>
@@ -500,14 +501,14 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
                   ? `Message ${agentName}...`
                   : "This chat is missing an agent reference; cannot send."
               }
-              className="max-h-40 min-h-6 flex-1 resize-none bg-transparent py-1.5 text-[0.9rem] leading-relaxed outline-none placeholder:text-muted-foreground/75"
+              className="max-h-40 min-h-10 flex-1 resize-none bg-transparent py-2.5 text-[0.9rem] leading-5 outline-none placeholder:text-muted-foreground/75"
             />
             {pending ? (
               <button
                 type="button"
                 onClick={() => void handleStop()}
                 aria-label="Stop generating"
-                className="shrink-0 touch-manipulation rounded-md bg-secondary p-2 text-secondary-foreground transition-[background-color,scale] duration-150 ease-out hover:bg-secondary/80 active:scale-[0.96] motion-reduce:active:scale-100"
+                className="inline-flex size-10 shrink-0 touch-manipulation items-center justify-center rounded-md bg-secondary text-secondary-foreground transition-[background-color,scale] duration-150 ease-out hover:bg-secondary/80 active:scale-[0.96] motion-reduce:active:scale-100"
               >
                 <Square className="size-4 fill-current" />
               </button>
@@ -517,13 +518,13 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
                 onClick={() => void handleSend()}
                 disabled={!canSend}
                 aria-label="Send message"
-                className="shrink-0 touch-manipulation rounded-md bg-primary p-2 text-primary-foreground transition-[background-color,opacity,scale] duration-150 ease-out hover:bg-primary/90 active:scale-[0.96] motion-reduce:active:scale-100 disabled:opacity-35"
+                className="inline-flex size-10 shrink-0 touch-manipulation items-center justify-center rounded-md bg-primary text-primary-foreground transition-[background-color,opacity,scale] duration-150 ease-out hover:bg-primary/90 active:scale-[0.96] motion-reduce:active:scale-100 disabled:opacity-35"
               >
                 <ArrowUp className="size-4" />
               </button>
             )}
           </div>
-          <p className="mt-1.5 text-center text-[0.68rem] text-muted-foreground/80">
+          <p className="mt-1.5 px-2 text-center text-[0.7rem] leading-4 text-muted-foreground/80">
             Butter can make mistakes. Verify important actions before running them.
           </p>
         </div>
@@ -804,7 +805,7 @@ function MessageActions({ event }: { event: ParsedEvent }) {
               () => toast.error("Failed to copy message"),
             );
           }}
-          className="rounded-md p-1.5 transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
         >
           <Copy className="size-3.5" />
         </button>
@@ -816,7 +817,7 @@ function MessageActions({ event }: { event: ParsedEvent }) {
           rel="noopener noreferrer"
           title="Open trace"
           aria-label="Open trace"
-          className="rounded-md p-1.5 transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
         >
           <ExternalLink className="size-3.5" />
         </a>
@@ -841,7 +842,7 @@ const MessageRow = memo(function MessageRow({
   if (isUser) {
     return (
       <div className="group/message flex flex-col items-end py-3 sm:py-4">
-        <div className="max-w-[88%] rounded-lg rounded-tr-sm bg-secondary px-3.5 py-2.5 text-[0.9rem] leading-relaxed text-secondary-foreground sm:max-w-[min(80%,48rem)]">
+        <div className="max-w-[92%] rounded-lg rounded-tr-sm bg-secondary px-3.5 py-2.5 text-[0.9rem] leading-relaxed text-secondary-foreground sm:max-w-[min(80%,48rem)]">
           <ReactMarkdown remarkPlugins={MARKDOWN_REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
             {event.text}
           </ReactMarkdown>
@@ -853,7 +854,7 @@ const MessageRow = memo(function MessageRow({
   return (
     <div
       className={cn(
-        "group/message grid grid-cols-[2rem_minmax(0,1fr)] gap-3",
+        "group/message grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2.5 sm:grid-cols-[2rem_minmax(0,1fr)] sm:gap-3",
         showIdentity ? "pt-4" : "pt-1",
         hasText ? "pb-2" : "pb-0.5",
       )}

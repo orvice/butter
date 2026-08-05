@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
+import type { SessionInfo } from '@/types/api'
 import { MoreHorizontal, Pencil, Search, SquarePen } from 'lucide-react'
 import { useSessions, useUpdateSessionTitle } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
 import { CHAT_APP_NAME } from '@/lib/constants'
 import { sessionAgentName, sessionTitle } from '@/lib/session-title'
 import { cn } from '@/lib/utils'
-import { AgentAvatar } from '@/components/butter/primitives'
-import { InlineTitleInput } from '@/components/inline-title-input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +21,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import type { SessionInfo } from '@/types/api'
+import { AgentAvatar } from '@/components/butter/primitives'
+import { InlineTitleInput } from '@/components/inline-title-input'
 
 type SessionGroupKey = 'today' | 'week' | 'older'
 
@@ -30,7 +30,11 @@ function sessionGroup(session: SessionInfo): SessionGroupKey {
   if (!session.last_update_time) return 'older'
   const updated = new Date(session.last_update_time)
   const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  )
   if (updated >= startOfToday) return 'today'
   if (now.getTime() - updated.getTime() < 7 * 24 * 60 * 60 * 1000) return 'week'
   return 'older'
@@ -46,7 +50,9 @@ export function NavChatHistory() {
   const user = useAuthStore((state) => state.auth.user)
   const location = useLocation()
   const [query, setQuery] = useState('')
-  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(
+    null
+  )
 
   const userId = user?.id ?? ''
   const sessionsQuery = useSessions(
@@ -76,11 +82,14 @@ export function NavChatHistory() {
   )
 
   return (
-    <SidebarGroup className='group-data-[collapsible=icon]:hidden'>
+    <SidebarGroup className='py-1 group-data-[collapsible=icon]:hidden'>
       <SidebarGroupLabel>Chats</SidebarGroupLabel>
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton asChild>
+          <SidebarMenuButton
+            asChild
+            className='h-9 border border-sidebar-border bg-background/60 font-medium shadow-none'
+          >
             <Link to='/chat' search={{ new: 1 }}>
               <SquarePen />
               <span>New Chat</span>
@@ -94,19 +103,21 @@ export function NavChatHistory() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder='Search chats'
-          className='w-full rounded-md border border-sidebar-border bg-background/60 py-1.5 ps-8 pe-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring'
+          className='h-9 w-full rounded-md border border-sidebar-border bg-background/60 py-0 ps-8 pe-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-sidebar-ring/10'
         />
       </div>
       {filtered.length === 0 ? (
         <p className='px-3 py-4 text-center text-xs text-muted-foreground'>
-          {sessionsQuery.isLoading ? 'Loading chats…' : 'No conversations found.'}
+          {sessionsQuery.isLoading
+            ? 'Loading chats…'
+            : 'No conversations found.'}
         </p>
       ) : (
         groups.map(
           ({ key, items }) =>
             items.length > 0 && (
               <div key={key}>
-                <div className='px-2.5 pt-2 pb-1 text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase'>
+                <div className='px-2.5 pt-2.5 pb-1 text-[0.7rem] font-medium text-muted-foreground'>
                   {GROUP_TITLES[key]}
                 </div>
                 <SidebarMenu>
@@ -148,7 +159,7 @@ function ConversationRow({
   if (renaming) {
     return (
       <SidebarMenuItem>
-        <div className='flex items-center gap-2 rounded-md bg-sidebar-accent/60 px-2.5 py-1'>
+        <div className='flex h-10 items-center gap-2 rounded-md bg-sidebar-accent/60 px-2.5'>
           {agent && (
             <AgentAvatar
               name={agent}
@@ -178,7 +189,10 @@ function ConversationRow({
       <SidebarMenuButton
         asChild
         isActive={active}
-        className={cn(!active && 'text-sidebar-foreground/75')}
+        className={cn(
+          'h-10 ps-2.5 pe-10',
+          !active && 'text-sidebar-foreground/75'
+        )}
       >
         <Link to='/chat' search={{ session: session.session_id }}>
           {agent && (
@@ -195,7 +209,7 @@ function ConversationRow({
         <DropdownMenuTrigger asChild>
           <SidebarMenuAction
             aria-label='Chat actions'
-            className='opacity-100 md:opacity-0 md:group-focus-within/row:opacity-100 md:group-hover/row:opacity-100 md:data-[state=open]:opacity-100'
+            className='end-0.5 top-0.5 size-9 opacity-100 md:opacity-0 md:group-focus-within/row:opacity-100 md:group-hover/row:opacity-100 md:data-[state=open]:opacity-100'
           >
             <MoreHorizontal className='size-4' />
           </SidebarMenuAction>

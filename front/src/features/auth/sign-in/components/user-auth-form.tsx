@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
-import { Loader2, LogIn } from 'lucide-react'
+import { AlertCircle, Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   beginOAuthFlow,
@@ -61,6 +61,7 @@ export function UserAuthForm({
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       username: '',
       password: '',
@@ -68,17 +69,22 @@ export function UserAuthForm({
   })
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
+    form.clearErrors('root')
     setIsLoading(true)
     try {
       const ok = await auth.login(data.username.trim(), data.password)
       if (!ok) {
-        toast.error('Invalid username or password.')
+        form.setError('root', {
+          message: 'Sign-in failed. Check your username and password.',
+        })
         return
       }
       const targetPath = redirectTo || '/'
       navigate({ to: targetPath, replace: true })
     } catch {
-      toast.error('Connection failed. Is the server running?')
+      form.setError('root', {
+        message: 'Connection failed. Check the server and try again.',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -97,7 +103,9 @@ export function UserAuthForm({
       }
       window.location.assign(url)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed to start OAuth flow.')
+      toast.error(
+        e instanceof Error ? e.message : 'Failed to start OAuth flow.'
+      )
       setOauthLoading(null)
     }
   }
@@ -106,7 +114,7 @@ export function UserAuthForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-3', className)}
+        className={cn('grid gap-5', className)}
         {...props}
       >
         <FormField
@@ -119,7 +127,14 @@ export function UserAuthForm({
                 <Input
                   placeholder='username'
                   autoComplete='username'
+                  autoFocus
+                  disabled={isLoading || !!oauthLoading}
+                  className='h-11 bg-background px-3.5 shadow-none'
                   {...field}
+                  onChange={(event) => {
+                    field.onChange(event)
+                    form.clearErrors('root')
+                  }}
                 />
               </FormControl>
               <FormMessage />
@@ -136,26 +151,50 @@ export function UserAuthForm({
                 <PasswordInput
                   placeholder='********'
                   autoComplete='current-password'
+                  disabled={isLoading || !!oauthLoading}
+                  inputClassName='h-11 bg-background px-3.5 pe-11 shadow-none'
                   {...field}
+                  onChange={(event) => {
+                    field.onChange(event)
+                    form.clearErrors('root')
+                  }}
                 />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button className='mt-2' disabled={isLoading}>
+        {form.formState.errors.root?.message && (
+          <div
+            role='alert'
+            className='flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/8 px-3 py-2.5 text-sm leading-5 text-destructive'
+          >
+            <AlertCircle className='mt-0.5 size-4 shrink-0' />
+            <span>{form.formState.errors.root.message}</span>
+          </div>
+        )}
+
+        <Button
+          type='submit'
+          className='h-11 w-full bg-[#2b658b] text-white shadow-none hover:bg-[#245a7a] active:translate-y-px dark:bg-[#82c4ea] dark:text-[#112f42] dark:hover:bg-[#99d0ef]'
+          disabled={
+            isLoading ||
+            !!oauthLoading ||
+            (!form.formState.isValid && !form.formState.errors.root)
+          }
+        >
           {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-          Sign in
+          {isLoading ? 'Signing in' : 'Sign in'}
         </Button>
 
         {oauthProviders.length > 0 && (
           <>
-            <div className='relative my-2'>
+            <div className='relative my-1'>
               <div className='absolute inset-0 flex items-center'>
                 <span className='w-full border-t' />
               </div>
               <div className='relative flex justify-center text-xs uppercase'>
-                <span className='bg-background px-2 text-muted-foreground'>
+                <span className='bg-background px-3 text-muted-foreground'>
                   Or continue with
                 </span>
               </div>
@@ -171,6 +210,7 @@ export function UserAuthForm({
                     type='button'
                     disabled={!!oauthLoading || isLoading}
                     onClick={() => handleOAuth(p.name)}
+                    className='h-11 w-full shadow-none active:translate-y-px'
                   >
                     <OAuthProviderIcon
                       provider={p.name}

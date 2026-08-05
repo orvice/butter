@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
+import type { SessionInfo } from '@/types/api'
 import { toast } from 'sonner'
-import {
-  useCreateSession,
-  useDeleteSession,
-  useSessions,
-} from '@/api/sessions'
-import { useAuth } from '@/hooks/use-auth'
+import { useCreateSession, useDeleteSession, useSessions } from '@/api/sessions'
 import { CHAT_APP_NAME } from '@/lib/constants'
 import { sessionAgentName, sessionTitle } from '@/lib/session-title'
+import { useAuth } from '@/hooks/use-auth'
 import { DeleteDialog } from '@/components/delete-dialog'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -17,7 +14,6 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { AgentSelector } from './agent-selector'
 import { ChatWindow } from './chat-window'
-import type { SessionInfo } from '@/types/api'
 
 export function ChatPage() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
@@ -137,11 +133,13 @@ export function ChatPage() {
     // New-chat / empty state — centered agent selector
     content = (
       <div className='flex min-h-0 flex-1 flex-col'>
-        <div className='scrollbar-thin flex flex-1 items-center justify-center overflow-y-auto p-4'>
-          <AgentSelector
-            onPick={(name) => void handleCreate(name)}
-            busy={createMutation.isPending}
-          />
+        <div className='flex flex-1 scrollbar-thin overflow-y-auto px-4 py-8 sm:px-6'>
+          <div className='my-auto w-full'>
+            <AgentSelector
+              onPick={(name) => void handleCreate(name)}
+              busy={createMutation.isPending}
+            />
+          </div>
         </div>
       </div>
     )
@@ -168,9 +166,12 @@ export function ChatPage() {
 
   return (
     <>
-      <Header fixed>
-        <Search />
-        <div className='ms-auto flex items-center space-x-4'>
+      <Header
+        fixed
+        className='h-14 border-b border-border/60 bg-background/95 [&_[data-slot=sidebar-trigger]]:size-10 [&_[data-slot=sidebar-trigger]]:scale-100'
+      >
+        <Search className='max-sm:size-10 max-sm:flex-none max-sm:justify-center max-sm:px-0 sm:w-44 md:w-52 lg:w-60 xl:w-72 max-sm:[&_svg]:static max-sm:[&_svg]:translate-y-0 max-sm:[&>span]:sr-only' />
+        <div className='ms-auto flex items-center gap-1 sm:gap-2 [&>button]:size-10 [&>button]:scale-100'>
           <ThemeSwitch />
           <ProfileDropdown />
         </div>
