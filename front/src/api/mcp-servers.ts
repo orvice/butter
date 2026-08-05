@@ -15,7 +15,7 @@ import {
   type MCPOAuthConnectionStatus as PbMCPOAuthStatus,
 } from "@/gen/agents/v1/agent_service_pb";
 import {
-  MCPServerStatus_State,
+  type MCPServerStatus_State,
   type MCPServerStatus as PbMCPServerStatus,
   type MCPTool as PbMCPTool,
 } from "@/gen/agents/v1/dashboard_pb";

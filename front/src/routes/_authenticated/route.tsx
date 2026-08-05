@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
+import { WorkspaceProvider } from '@/context/workspace-provider'
 import { AuthenticatedLayout } from '@/components/layout/authenticated-layout'
+import { WorkspaceGate } from '@/components/layout/workspace-gate'
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: ({ location }) => {
@@ -25,5 +27,13 @@ function AuthenticatedGuard() {
     void auth.restore()
   }, [auth])
 
-  return <AuthenticatedLayout />
+  return (
+    <WorkspaceProvider>
+      <AuthenticatedLayout>
+        <WorkspaceGate>
+          <Outlet />
+        </WorkspaceGate>
+      </AuthenticatedLayout>
+    </WorkspaceProvider>
+  )
 }

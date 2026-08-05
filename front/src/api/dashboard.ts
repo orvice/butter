@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { WORKSPACE_KEY } from "@/lib/constants";
 import {
-  ComponentHealth_Status,
+  type ComponentHealth_Status,
   DashboardService,
   GetActivityMetricsRequest_Range,
   GetCronExecutionTimeseriesRequest_Range,

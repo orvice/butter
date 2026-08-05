@@ -5,7 +5,7 @@ import {
   CronConcurrencyPolicy,
   CronDeliverySchema,
   CronDeliveryType,
-  CronExecutionStatus,
+  type CronExecutionStatus,
   CronJobSchema,
   CronNotifyOn,
   CronRetryPolicySchema,
@@ -271,7 +271,7 @@ export function useRunCronJobNow() {
 
 export function useCronExecutions(jobName?: string, pageSize?: number, pageToken?: string) {
   return useQuery({
-    queryKey: ["cron-executions", { jobName, page: pageToken }],
+    queryKey: ["cron-executions", { jobName, pageSize, page: pageToken }],
     queryFn: () => listCronExecutions({ job_name: jobName, page_size: pageSize, page_token: pageToken }),
   });
 }

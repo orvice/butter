@@ -14,7 +14,7 @@ import {
 } from "@/gen/agents/v1/agentchannel_pb";
 import { ChannelService } from "@/gen/agents/v1/agent_service_pb";
 import {
-  ChannelStatus_State,
+  type ChannelStatus_State,
   type ChannelStatus as PbChannelStatus,
 } from "@/gen/agents/v1/dashboard_pb";
 import type {
