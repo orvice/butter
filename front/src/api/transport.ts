@@ -24,8 +24,8 @@ const authInterceptor: Interceptor = (next) => async (req) => {
       // the login page — login.tsx handles its own redirects.
       if (!isProbeRequest(req.url)) {
         localStorage.removeItem(TOKEN_KEY);
-        if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-          window.location.href = "/login";
+        if (typeof window !== "undefined" && window.location.pathname !== "/sign-in") {
+          window.location.href = "/sign-in";
         }
       }
     }

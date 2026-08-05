@@ -37,7 +37,7 @@ export async function apiFetch<TRes>(path: string, init: RequestInit = {}): Prom
 
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
-    window.location.href = "/login";
+    window.location.href = "/sign-in";
     throw new ApiError("unauthenticated", "Invalid or expired token");
   }
 
