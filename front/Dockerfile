@@ -12,10 +12,8 @@ RUN npm ci
 # Copy the rest of the frontend source.
 COPY . .
 
-# Build the Vite bundle directly. We skip `tsc -b` because compile-time
-# type errors in pre-existing form pages do not affect the runtime
-# bundle and would otherwise fail the build.
-RUN npx vite build
+# Type-check and build the Vite bundle.
+RUN npm run build
 
 # --- Runtime stage -------------------------------------------------------
 FROM nginx:1.27-alpine

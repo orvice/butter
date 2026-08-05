@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { useAuthStore, useIsAdmin } from '@/stores/auth-store'
 import { useLayout } from '@/context/layout-provider'
 import {
@@ -8,6 +9,7 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { sidebarData } from './data/sidebar-data'
+import { NavChatHistory } from './nav-chat-history'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
 import { WorkspaceSwitcher } from './workspace-switcher'
@@ -33,8 +35,11 @@ export function AppSidebar() {
         <WorkspaceSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        {navGroups.map((props) => (
-          <NavGroup key={props.title} {...props} />
+        {navGroups.map((props, index) => (
+          <Fragment key={props.title}>
+            <NavGroup {...props} />
+            {index === 0 && <NavChatHistory />}
+          </Fragment>
         ))}
       </SidebarContent>
       <SidebarFooter>
