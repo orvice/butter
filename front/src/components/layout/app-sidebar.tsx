@@ -1,5 +1,4 @@
-import { Fragment } from 'react'
-import { useAuthStore, useIsAdmin } from '@/stores/auth-store'
+import { useAuthStore } from '@/stores/auth-store'
 import { useLayout } from '@/context/layout-provider'
 import {
   Sidebar,
@@ -11,13 +10,13 @@ import {
 import { sidebarData } from './data/sidebar-data'
 import { NavChatHistory } from './nav-chat-history'
 import { NavGroup } from './nav-group'
+import { NavManage } from './nav-manage'
 import { NavUser } from './nav-user'
 import { WorkspaceSwitcher } from './workspace-switcher'
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const user = useAuthStore((state) => state.auth.user)
-  const isAdmin = useIsAdmin()
 
   const navUser = {
     name: user?.display_name || user?.displayName || user?.username || 'User',
@@ -25,9 +24,7 @@ export function AppSidebar() {
     avatar: user?.avatar_url || user?.avatarUrl || '',
   }
 
-  const navGroups = sidebarData.navGroups.filter(
-    (group) => group.title !== 'Admin' || isAdmin
-  )
+  const generalGroup = sidebarData.navGroups[0]
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
@@ -35,14 +32,11 @@ export function AppSidebar() {
         <WorkspaceSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        {navGroups.map((props, index) => (
-          <Fragment key={props.title}>
-            <NavGroup {...props} />
-            {index === 0 && <NavChatHistory />}
-          </Fragment>
-        ))}
+        {generalGroup && <NavGroup {...generalGroup} />}
+        <NavChatHistory />
       </SidebarContent>
       <SidebarFooter>
+        <NavManage />
         <NavUser user={navUser} />
       </SidebarFooter>
       <SidebarRail />

@@ -70,8 +70,8 @@ export function NavUser({ user }: NavUserProps) {
                   <Avatar className='h-8 w-8 rounded-lg'>
                     <AvatarImage src={user.avatar} alt={user.name} />
                     <AvatarFallback className='rounded-lg'>
-                    {user.name.trim().charAt(0).toUpperCase() || '?'}
-                  </AvatarFallback>
+                      {user.name.trim().charAt(0).toUpperCase() || '?'}
+                    </AvatarFallback>
                   </Avatar>
                   <div className='grid flex-1 text-start text-sm leading-tight'>
                     <span className='truncate font-semibold'>{user.name}</span>
@@ -88,9 +88,9 @@ export function NavUser({ user }: NavUserProps) {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to='/settings/appearance'>
+                  <Link to='/manage' search={{ tab: 'preferences' }}>
                     <BadgeCheck />
-                    Appearance
+                    Preferences
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
