@@ -32,6 +32,20 @@
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  /* Status colors used by run/health badges across the dashboard. */
+  --running: oklch(0.62 0.14 245);
+  --running-foreground: oklch(0.34 0.085 245);
+  --running-muted: oklch(0.945 0.028 245);
+  --success: oklch(0.62 0.15 150);
+  --success-foreground: oklch(0.33 0.09 150);
+  --success-muted: oklch(0.945 0.04 150);
+  --warning: oklch(0.7 0.15 55);
+  --warning-foreground: oklch(0.37 0.105 45);
+  --warning-muted: oklch(0.95 0.029 55);
+  --danger: oklch(0.6 0.21 27);
+  --danger-foreground: oklch(0.39 0.158 27);
+  --danger-muted: oklch(0.95 0.024 25);
 }
 
 .dark {
@@ -58,6 +72,19 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+
+  --running: oklch(0.72 0.13 245);
+  --running-foreground: oklch(0.86 0.074 245);
+  --running-muted: oklch(0.28 0.05 245);
+  --success: oklch(0.7 0.15 150);
+  --success-foreground: oklch(0.86 0.12 150);
+  --success-muted: oklch(0.28 0.05 150);
+  --warning: oklch(0.8 0.13 55);
+  --warning-foreground: oklch(0.88 0.078 60);
+  --warning-muted: oklch(0.3 0.05 55);
+  --danger: oklch(0.68 0.19 25);
+  --danger-foreground: oklch(0.87 0.069 25);
+  --danger-muted: oklch(0.29 0.07 25);
 }
 
 @theme inline {
@@ -99,4 +126,16 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-running: var(--running);
+  --color-running-foreground: var(--running-foreground);
+  --color-running-muted: var(--running-muted);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-muted: var(--danger-muted);
 }
