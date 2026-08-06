@@ -7,7 +7,7 @@ import {
 } from "@/gen/agents/v1/agent_pb";
 import { RemoteAgentService } from "@/gen/agents/v1/agent_service_pb";
 import {
-  RemoteAgentStatus_State,
+  type RemoteAgentStatus_State,
   type RemoteAgentStatus as PbRemoteAgentStatus,
 } from "@/gen/agents/v1/dashboard_pb";
 import type {

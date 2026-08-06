@@ -5,7 +5,7 @@ import { WORKSPACE_KEY } from "@/lib/constants";
 import {
   DaemonRuntimeSchema,
   DaemonService,
-  DaemonStatus_State,
+  type DaemonStatus_State,
   type BridgeDiagnostics as PbBridgeDiagnostics,
   type DaemonRuntime as PbDaemonRuntime,
   type DaemonStatus as PbDaemonStatus,

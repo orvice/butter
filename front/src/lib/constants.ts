@@ -192,3 +192,4 @@ export const TOKEN_KEY = "butter_token";
 export const WORKSPACE_KEY = "butter_workspace_id";
 export const COLOR_THEME_KEY = "butter_color_theme";
 export const LAYOUT_DENSITY_KEY = "butter_layout_density";
+export const CHAT_APP_NAME = "web-chat";
