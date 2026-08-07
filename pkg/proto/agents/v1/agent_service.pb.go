@@ -89,8 +89,8 @@ const (
 	MigrationReadiness_MIGRATION_READINESS_MISSING_ID MigrationReadiness = 2
 	// The agent's Agent ID conflicts with another agent in the workspace.
 	MigrationReadiness_MIGRATION_READINESS_CONFLICT MigrationReadiness = 3
-	// The agent references sub-agents or channel/cron dependencies that
-	// are themselves not ready.
+	// The agent references sub-agents or workflow nodes whose targets
+	// have not been assigned an Agent ID.
 	MigrationReadiness_MIGRATION_READINESS_INCOMPLETE_DEPS MigrationReadiness = 4
 )
 

@@ -455,14 +455,12 @@ func TestUpdateAgent_CannotSetAgentIDViaCRUD(t *testing.T) {
 
 	seedAgent(t, store, wsTest, "no-id")
 
-	resp, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
+	_, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
 		Agent: &agentsv1.Agent{Name: "no-id", AgentId: "sneaky", Description: "updated"},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.Msg.GetAgent().GetAgentId() != "" {
-		t.Fatalf("expected agent_id stripped on update, got %q", resp.Msg.GetAgent().GetAgentId())
+	cerr, ok := err.(*connect.Error)
+	if !ok || cerr.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument when setting agent_id via UpdateAgent, got %v", err)
 	}
 }
 

@@ -207,17 +207,13 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, toConnectError(err)
 	}
 
-	// Enforce agent_id immutability: UpdateAgent may not set or change agent_id.
+	// Enforce agent_id immutability: agent_id can only be set via AssignAgentID.
 	update := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
-	if prev.GetAgentId() != "" {
-		if update.GetAgentId() != "" && update.GetAgentId() != prev.GetAgentId() {
-			return nil, connect.NewError(connect.CodeInvalidArgument,
-				fmt.Errorf("agent_id is immutable; use AssignAgentID to set it"))
-		}
-		update.AgentId = prev.GetAgentId()
-	} else {
-		update.AgentId = ""
+	if update.GetAgentId() != "" && update.GetAgentId() != prev.GetAgentId() {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			fmt.Errorf("agent_id cannot be set or changed via UpdateAgent; use AssignAgentID"))
 	}
+	update.AgentId = prev.GetAgentId()
 
 	logger.Info("updating agent", "workspace_id", wsID, "agent", update.GetName())
 
@@ -540,6 +536,10 @@ func (s *AgentServiceServer) AssignAgentID(ctx context.Context, req *connect.Req
 		},
 	)
 	if err != nil {
+		if errors.Is(err, configrepo.ErrAlreadyExists) {
+			return nil, connect.NewError(connect.CodeAlreadyExists,
+				fmt.Errorf("agent_id %q is already in use in this workspace", agentID))
+		}
 		logger.Error("assign agent id failed", "workspace_id", wsID, "agent", name, "agent_id", agentID, "err", err)
 		return nil, toConnectError(err)
 	}

@@ -2952,8 +2952,8 @@ export enum MigrationReadiness {
   CONFLICT = 3,
 
   /**
-   * The agent references sub-agents or channel/cron dependencies that
-   * are themselves not ready.
+   * The agent references sub-agents or workflow nodes whose targets
+   * have not been assigned an Agent ID.
    *
    * @generated from enum value: MIGRATION_READINESS_INCOMPLETE_DEPS = 4;
    */
