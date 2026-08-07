@@ -7,6 +7,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -33,6 +34,9 @@ type configDoc struct {
 	WorkspaceID string `bson:"workspace_id"`
 	Name        string `bson:"name"`
 	Spec        string `bson:"spec"`
+	// AgentID is a top-level queryable copy of the Agent's slug ID.
+	// Populated only for agent documents; empty for other entity types.
+	AgentID string `bson:"agent_id,omitempty"`
 }
 
 // Store implements all config repository interfaces backed by MongoDB.
@@ -61,7 +65,7 @@ func New(db *mongo.Database) *Store {
 }
 
 // EnsureIndexes creates the (workspace_id, name) compound indexes for fast
-// per-workspace listings.
+// per-workspace listings and the partial unique index on agent_id.
 func (s *Store) EnsureIndexes(ctx context.Context) error {
 	collections := []*mongo.Collection{s.agents, s.globalMCP, s.mcpServers, s.remoteAgents, s.daemonRuntimes, s.channels, s.modelProviders, s.notifyGroups}
 	for _, c := range collections {
@@ -72,6 +76,22 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 			return fmt.Errorf("create %s index: %w", c.Name(), err)
 		}
 	}
+
+	// Partial unique index on (workspace_id, agent_id) for agents that have
+	// been assigned an ID. Guards workspace-level uniqueness at the DB layer
+	// and closes the check-then-set race in AssignAgentID.
+	_, err := s.agents.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "agent_id", Value: 1}},
+		Options: options.Index().
+			SetUnique(true).
+			SetPartialFilterExpression(bson.M{
+				"agent_id": bson.M{"$exists": true, "$gt": ""},
+			}),
+	})
+	if err != nil {
+		return fmt.Errorf("create agents agent_id unique index: %w", err)
+	}
+
 	return nil
 }
 
@@ -188,7 +208,7 @@ func (s *Store) CreateAgent(ctx context.Context, workspaceID string, agent *agen
 	if err != nil {
 		return nil, err
 	}
-	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId()}
 	if _, err := s.agents.InsertOne(ctx, doc); err != nil {
 		return nil, mapError("agent", workspaceID, clone.GetName(), err)
 	}
@@ -202,7 +222,7 @@ func (s *Store) UpdateAgent(ctx context.Context, workspaceID string, agent *agen
 	if err != nil {
 		return nil, err
 	}
-	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId()}
 	res, err := s.agents.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
 	if err != nil {
 		return nil, mapError("agent", workspaceID, clone.GetName(), err)
@@ -211,6 +231,17 @@ func (s *Store) UpdateAgent(ctx context.Context, workspaceID string, agent *agen
 		return nil, mapError("agent", workspaceID, clone.GetName(), mongo.ErrNoDocuments)
 	}
 	return clone, nil
+}
+
+func (s *Store) AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error) {
+	n, err := s.agents.CountDocuments(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"agent_id":     agentID,
+	})
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func (s *Store) DeleteAgent(ctx context.Context, workspaceID, name string) error {

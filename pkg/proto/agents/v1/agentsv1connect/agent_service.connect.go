@@ -81,6 +81,12 @@ const (
 	// AgentServiceStreamAgentProcedure is the fully-qualified name of the AgentService's StreamAgent
 	// RPC.
 	AgentServiceStreamAgentProcedure = "/agents.v1.AgentService/StreamAgent"
+	// AgentServiceAssignAgentIDProcedure is the fully-qualified name of the AgentService's
+	// AssignAgentID RPC.
+	AgentServiceAssignAgentIDProcedure = "/agents.v1.AgentService/AssignAgentID"
+	// AgentServiceGetMigrationReadinessProcedure is the fully-qualified name of the AgentService's
+	// GetMigrationReadiness RPC.
+	AgentServiceGetMigrationReadinessProcedure = "/agents.v1.AgentService/GetMigrationReadiness"
 	// MCPServerServiceListMCPServersProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPServers RPC.
 	MCPServerServiceListMCPServersProcedure = "/agents.v1.MCPServerService/ListMCPServers"
@@ -263,6 +269,16 @@ type AgentServiceClient interface {
 	// gets typed cancellation / failed-precondition codes instead of an
 	// ad-hoc string payload.
 	StreamAgent(context.Context, *connect.Request[v1.StreamAgentRequest]) (*connect.ServerStreamForClient[v1.StreamAgentResponse], error)
+	// AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
+	// existing Agent identified by name. Only workspace owners and
+	// administrators may call this; ordinary members receive PermissionDenied.
+	// Rejects invalid slugs, reserved values, duplicates, and attempts to
+	// reassign an already-set ID.
+	AssignAgentID(context.Context, *connect.Request[v1.AssignAgentIDRequest]) (*connect.Response[v1.AssignAgentIDResponse], error)
+	// GetMigrationReadiness reports whether each Agent in the workspace is
+	// ready for the identity migration (has a valid Agent ID, all entry-point
+	// dependencies resolved, etc.).
+	GetMigrationReadiness(context.Context, *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error)
 }
 
 // NewAgentServiceClient constructs a client for the agents.v1.AgentService service. By default, it
@@ -348,6 +364,18 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("StreamAgent")),
 			connect.WithClientOptions(opts...),
 		),
+		assignAgentID: connect.NewClient[v1.AssignAgentIDRequest, v1.AssignAgentIDResponse](
+			httpClient,
+			baseURL+AgentServiceAssignAgentIDProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("AssignAgentID")),
+			connect.WithClientOptions(opts...),
+		),
+		getMigrationReadiness: connect.NewClient[v1.GetMigrationReadinessRequest, v1.GetMigrationReadinessResponse](
+			httpClient,
+			baseURL+AgentServiceGetMigrationReadinessProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("GetMigrationReadiness")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -365,6 +393,8 @@ type agentServiceClient struct {
 	listAgentRuntimeStatuses *connect.Client[v1.ListAgentRuntimeStatusesRequest, v1.ListAgentRuntimeStatusesResponse]
 	cancelAgentInvocation    *connect.Client[v1.CancelAgentInvocationRequest, v1.CancelAgentInvocationResponse]
 	streamAgent              *connect.Client[v1.StreamAgentRequest, v1.StreamAgentResponse]
+	assignAgentID            *connect.Client[v1.AssignAgentIDRequest, v1.AssignAgentIDResponse]
+	getMigrationReadiness    *connect.Client[v1.GetMigrationReadinessRequest, v1.GetMigrationReadinessResponse]
 }
 
 // ListAgents calls agents.v1.AgentService.ListAgents.
@@ -427,6 +457,16 @@ func (c *agentServiceClient) StreamAgent(ctx context.Context, req *connect.Reque
 	return c.streamAgent.CallServerStream(ctx, req)
 }
 
+// AssignAgentID calls agents.v1.AgentService.AssignAgentID.
+func (c *agentServiceClient) AssignAgentID(ctx context.Context, req *connect.Request[v1.AssignAgentIDRequest]) (*connect.Response[v1.AssignAgentIDResponse], error) {
+	return c.assignAgentID.CallUnary(ctx, req)
+}
+
+// GetMigrationReadiness calls agents.v1.AgentService.GetMigrationReadiness.
+func (c *agentServiceClient) GetMigrationReadiness(ctx context.Context, req *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error) {
+	return c.getMigrationReadiness.CallUnary(ctx, req)
+}
+
 // AgentServiceHandler is an implementation of the agents.v1.AgentService service.
 type AgentServiceHandler interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
@@ -463,6 +503,16 @@ type AgentServiceHandler interface {
 	// gets typed cancellation / failed-precondition codes instead of an
 	// ad-hoc string payload.
 	StreamAgent(context.Context, *connect.Request[v1.StreamAgentRequest], *connect.ServerStream[v1.StreamAgentResponse]) error
+	// AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
+	// existing Agent identified by name. Only workspace owners and
+	// administrators may call this; ordinary members receive PermissionDenied.
+	// Rejects invalid slugs, reserved values, duplicates, and attempts to
+	// reassign an already-set ID.
+	AssignAgentID(context.Context, *connect.Request[v1.AssignAgentIDRequest]) (*connect.Response[v1.AssignAgentIDResponse], error)
+	// GetMigrationReadiness reports whether each Agent in the workspace is
+	// ready for the identity migration (has a valid Agent ID, all entry-point
+	// dependencies resolved, etc.).
+	GetMigrationReadiness(context.Context, *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -544,6 +594,18 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("StreamAgent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceAssignAgentIDHandler := connect.NewUnaryHandler(
+		AgentServiceAssignAgentIDProcedure,
+		svc.AssignAgentID,
+		connect.WithSchema(agentServiceMethods.ByName("AssignAgentID")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceGetMigrationReadinessHandler := connect.NewUnaryHandler(
+		AgentServiceGetMigrationReadinessProcedure,
+		svc.GetMigrationReadiness,
+		connect.WithSchema(agentServiceMethods.ByName("GetMigrationReadiness")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceListAgentsProcedure:
@@ -570,6 +632,10 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceCancelAgentInvocationHandler.ServeHTTP(w, r)
 		case AgentServiceStreamAgentProcedure:
 			agentServiceStreamAgentHandler.ServeHTTP(w, r)
+		case AgentServiceAssignAgentIDProcedure:
+			agentServiceAssignAgentIDHandler.ServeHTTP(w, r)
+		case AgentServiceGetMigrationReadinessProcedure:
+			agentServiceGetMigrationReadinessHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -625,6 +691,14 @@ func (UnimplementedAgentServiceHandler) CancelAgentInvocation(context.Context, *
 
 func (UnimplementedAgentServiceHandler) StreamAgent(context.Context, *connect.Request[v1.StreamAgentRequest], *connect.ServerStream[v1.StreamAgentResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.StreamAgent is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) AssignAgentID(context.Context, *connect.Request[v1.AssignAgentIDRequest]) (*connect.Response[v1.AssignAgentIDResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.AssignAgentID is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) GetMigrationReadiness(context.Context, *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.GetMigrationReadiness is not implemented"))
 }
 
 // MCPServerServiceClient is a client for the agents.v1.MCPServerService service.

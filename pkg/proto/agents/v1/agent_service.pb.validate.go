@@ -3197,6 +3197,593 @@ var _ interface {
 	ErrorName() string
 } = DeleteAgentResponseValidationError{}
 
+// Validate checks the field values on AssignAgentIDRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *AssignAgentIDRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AssignAgentIDRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// AssignAgentIDRequestMultiError, or nil if none found.
+func (m *AssignAgentIDRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AssignAgentIDRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	// no validation rules for AgentId
+
+	if len(errors) > 0 {
+		return AssignAgentIDRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// AssignAgentIDRequestMultiError is an error wrapping multiple validation
+// errors returned by AssignAgentIDRequest.ValidateAll() if the designated
+// constraints aren't met.
+type AssignAgentIDRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AssignAgentIDRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AssignAgentIDRequestMultiError) AllErrors() []error { return m }
+
+// AssignAgentIDRequestValidationError is the validation error returned by
+// AssignAgentIDRequest.Validate if the designated constraints aren't met.
+type AssignAgentIDRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AssignAgentIDRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AssignAgentIDRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AssignAgentIDRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AssignAgentIDRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AssignAgentIDRequestValidationError) ErrorName() string {
+	return "AssignAgentIDRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e AssignAgentIDRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAssignAgentIDRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AssignAgentIDRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AssignAgentIDRequestValidationError{}
+
+// Validate checks the field values on AssignAgentIDResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *AssignAgentIDResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AssignAgentIDResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// AssignAgentIDResponseMultiError, or nil if none found.
+func (m *AssignAgentIDResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AssignAgentIDResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetAgent()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AssignAgentIDResponseValidationError{
+					field:  "Agent",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AssignAgentIDResponseValidationError{
+					field:  "Agent",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetAgent()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AssignAgentIDResponseValidationError{
+				field:  "Agent",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return AssignAgentIDResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// AssignAgentIDResponseMultiError is an error wrapping multiple validation
+// errors returned by AssignAgentIDResponse.ValidateAll() if the designated
+// constraints aren't met.
+type AssignAgentIDResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AssignAgentIDResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AssignAgentIDResponseMultiError) AllErrors() []error { return m }
+
+// AssignAgentIDResponseValidationError is the validation error returned by
+// AssignAgentIDResponse.Validate if the designated constraints aren't met.
+type AssignAgentIDResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AssignAgentIDResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AssignAgentIDResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AssignAgentIDResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AssignAgentIDResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AssignAgentIDResponseValidationError) ErrorName() string {
+	return "AssignAgentIDResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e AssignAgentIDResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAssignAgentIDResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AssignAgentIDResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AssignAgentIDResponseValidationError{}
+
+// Validate checks the field values on GetMigrationReadinessRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetMigrationReadinessRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetMigrationReadinessRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetMigrationReadinessRequestMultiError, or nil if none found.
+func (m *GetMigrationReadinessRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetMigrationReadinessRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return GetMigrationReadinessRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetMigrationReadinessRequestMultiError is an error wrapping multiple
+// validation errors returned by GetMigrationReadinessRequest.ValidateAll() if
+// the designated constraints aren't met.
+type GetMigrationReadinessRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetMigrationReadinessRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetMigrationReadinessRequestMultiError) AllErrors() []error { return m }
+
+// GetMigrationReadinessRequestValidationError is the validation error returned
+// by GetMigrationReadinessRequest.Validate if the designated constraints
+// aren't met.
+type GetMigrationReadinessRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetMigrationReadinessRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetMigrationReadinessRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetMigrationReadinessRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetMigrationReadinessRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetMigrationReadinessRequestValidationError) ErrorName() string {
+	return "GetMigrationReadinessRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetMigrationReadinessRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetMigrationReadinessRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetMigrationReadinessRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetMigrationReadinessRequestValidationError{}
+
+// Validate checks the field values on GetMigrationReadinessResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetMigrationReadinessResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetMigrationReadinessResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GetMigrationReadinessResponseMultiError, or nil if none found.
+func (m *GetMigrationReadinessResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetMigrationReadinessResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetStatuses() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetMigrationReadinessResponseValidationError{
+						field:  fmt.Sprintf("Statuses[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetMigrationReadinessResponseValidationError{
+						field:  fmt.Sprintf("Statuses[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return GetMigrationReadinessResponseValidationError{
+					field:  fmt.Sprintf("Statuses[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return GetMigrationReadinessResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetMigrationReadinessResponseMultiError is an error wrapping multiple
+// validation errors returned by GetMigrationReadinessResponse.ValidateAll()
+// if the designated constraints aren't met.
+type GetMigrationReadinessResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetMigrationReadinessResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetMigrationReadinessResponseMultiError) AllErrors() []error { return m }
+
+// GetMigrationReadinessResponseValidationError is the validation error
+// returned by GetMigrationReadinessResponse.Validate if the designated
+// constraints aren't met.
+type GetMigrationReadinessResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetMigrationReadinessResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetMigrationReadinessResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetMigrationReadinessResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetMigrationReadinessResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetMigrationReadinessResponseValidationError) ErrorName() string {
+	return "GetMigrationReadinessResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetMigrationReadinessResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetMigrationReadinessResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetMigrationReadinessResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetMigrationReadinessResponseValidationError{}
+
+// Validate checks the field values on AgentMigrationStatus with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *AgentMigrationStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AgentMigrationStatus with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// AgentMigrationStatusMultiError, or nil if none found.
+func (m *AgentMigrationStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AgentMigrationStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	// no validation rules for AgentId
+
+	// no validation rules for Readiness
+
+	// no validation rules for Detail
+
+	if len(errors) > 0 {
+		return AgentMigrationStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// AgentMigrationStatusMultiError is an error wrapping multiple validation
+// errors returned by AgentMigrationStatus.ValidateAll() if the designated
+// constraints aren't met.
+type AgentMigrationStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AgentMigrationStatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AgentMigrationStatusMultiError) AllErrors() []error { return m }
+
+// AgentMigrationStatusValidationError is the validation error returned by
+// AgentMigrationStatus.Validate if the designated constraints aren't met.
+type AgentMigrationStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AgentMigrationStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AgentMigrationStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AgentMigrationStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AgentMigrationStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AgentMigrationStatusValidationError) ErrorName() string {
+	return "AgentMigrationStatusValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e AgentMigrationStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAgentMigrationStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AgentMigrationStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AgentMigrationStatusValidationError{}
+
 // Validate checks the field values on InvokeAgentRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.

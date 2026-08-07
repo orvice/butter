@@ -31,6 +31,8 @@ const (
 	AgentService_ListAgentRuntimeStatuses_FullMethodName = "/agents.v1.AgentService/ListAgentRuntimeStatuses"
 	AgentService_CancelAgentInvocation_FullMethodName    = "/agents.v1.AgentService/CancelAgentInvocation"
 	AgentService_StreamAgent_FullMethodName              = "/agents.v1.AgentService/StreamAgent"
+	AgentService_AssignAgentID_FullMethodName            = "/agents.v1.AgentService/AssignAgentID"
+	AgentService_GetMigrationReadiness_FullMethodName    = "/agents.v1.AgentService/GetMigrationReadiness"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -73,6 +75,16 @@ type AgentServiceClient interface {
 	// gets typed cancellation / failed-precondition codes instead of an
 	// ad-hoc string payload.
 	StreamAgent(ctx context.Context, in *StreamAgentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamAgentResponse], error)
+	// AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
+	// existing Agent identified by name. Only workspace owners and
+	// administrators may call this; ordinary members receive PermissionDenied.
+	// Rejects invalid slugs, reserved values, duplicates, and attempts to
+	// reassign an already-set ID.
+	AssignAgentID(ctx context.Context, in *AssignAgentIDRequest, opts ...grpc.CallOption) (*AssignAgentIDResponse, error)
+	// GetMigrationReadiness reports whether each Agent in the workspace is
+	// ready for the identity migration (has a valid Agent ID, all entry-point
+	// dependencies resolved, etc.).
+	GetMigrationReadiness(ctx context.Context, in *GetMigrationReadinessRequest, opts ...grpc.CallOption) (*GetMigrationReadinessResponse, error)
 }
 
 type agentServiceClient struct {
@@ -212,6 +224,26 @@ func (c *agentServiceClient) StreamAgent(ctx context.Context, in *StreamAgentReq
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_StreamAgentClient = grpc.ServerStreamingClient[StreamAgentResponse]
 
+func (c *agentServiceClient) AssignAgentID(ctx context.Context, in *AssignAgentIDRequest, opts ...grpc.CallOption) (*AssignAgentIDResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AssignAgentIDResponse)
+	err := c.cc.Invoke(ctx, AgentService_AssignAgentID_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetMigrationReadiness(ctx context.Context, in *GetMigrationReadinessRequest, opts ...grpc.CallOption) (*GetMigrationReadinessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMigrationReadinessResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetMigrationReadiness_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -252,6 +284,16 @@ type AgentServiceServer interface {
 	// gets typed cancellation / failed-precondition codes instead of an
 	// ad-hoc string payload.
 	StreamAgent(*StreamAgentRequest, grpc.ServerStreamingServer[StreamAgentResponse]) error
+	// AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
+	// existing Agent identified by name. Only workspace owners and
+	// administrators may call this; ordinary members receive PermissionDenied.
+	// Rejects invalid slugs, reserved values, duplicates, and attempts to
+	// reassign an already-set ID.
+	AssignAgentID(context.Context, *AssignAgentIDRequest) (*AssignAgentIDResponse, error)
+	// GetMigrationReadiness reports whether each Agent in the workspace is
+	// ready for the identity migration (has a valid Agent ID, all entry-point
+	// dependencies resolved, etc.).
+	GetMigrationReadiness(context.Context, *GetMigrationReadinessRequest) (*GetMigrationReadinessResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -297,6 +339,12 @@ func (UnimplementedAgentServiceServer) CancelAgentInvocation(context.Context, *C
 }
 func (UnimplementedAgentServiceServer) StreamAgent(*StreamAgentRequest, grpc.ServerStreamingServer[StreamAgentResponse]) error {
 	return status.Error(codes.Unimplemented, "method StreamAgent not implemented")
+}
+func (UnimplementedAgentServiceServer) AssignAgentID(context.Context, *AssignAgentIDRequest) (*AssignAgentIDResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AssignAgentID not implemented")
+}
+func (UnimplementedAgentServiceServer) GetMigrationReadiness(context.Context, *GetMigrationReadinessRequest) (*GetMigrationReadinessResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMigrationReadiness not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -528,6 +576,42 @@ func _AgentService_StreamAgent_Handler(srv interface{}, stream grpc.ServerStream
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_StreamAgentServer = grpc.ServerStreamingServer[StreamAgentResponse]
 
+func _AgentService_AssignAgentID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AssignAgentIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).AssignAgentID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_AssignAgentID_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).AssignAgentID(ctx, req.(*AssignAgentIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetMigrationReadiness_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMigrationReadinessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetMigrationReadiness(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetMigrationReadiness_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetMigrationReadiness(ctx, req.(*GetMigrationReadinessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -578,6 +662,14 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelAgentInvocation",
 			Handler:    _AgentService_CancelAgentInvocation_Handler,
+		},
+		{
+			MethodName: "AssignAgentID",
+			Handler:    _AgentService_AssignAgentID_Handler,
+		},
+		{
+			MethodName: "GetMigrationReadiness",
+			Handler:    _AgentService_GetMigrationReadiness_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

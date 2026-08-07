@@ -137,6 +137,17 @@ func (s *Store) UpdateAgent(_ context.Context, workspaceID string, agent *agents
 	return cloneAgent(stored), nil
 }
 
+func (s *Store) AgentIDExists(_ context.Context, workspaceID, agentID string) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, a := range s.agents[workspaceID] {
+		if a.GetAgentId() == agentID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *Store) DeleteAgent(_ context.Context, workspaceID, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
