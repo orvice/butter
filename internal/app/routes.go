@@ -240,6 +240,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if h.authSvcServer != nil {
 			h.authSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 		}
+		h.agentSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 	}
 	if h.dashboardSvcServer != nil {
 		if result.MongoDB != nil {

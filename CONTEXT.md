@@ -7,10 +7,31 @@ Multi-tenant agent orchestration service: proto/YAML-configured agents built on 
 ### Agent orchestration
 
 **Agent**:
-A configured unit of behaviour instantiated as an ADK agent. Typed as LLM, Loop, Sequential, Parallel, or Workflow.
+A workspace-scoped, independently managed unit of behaviour instantiated as an ADK agent. Typed as LLM, Loop, Sequential, Parallel, or Workflow, and identified by an immutable Agent ID.
+
+**Agent ID**:
+An immutable, workspace-unique slug that identifies an Agent in APIs, relationships, and repository paths. The display name may change without changing the Agent ID.
+_Avoid_: agent name, agent UUID
 
 **Sub-agent**:
-An agent nested under a parent agent in the config tree; built recursively and available for transfer or as workflow node targets.
+An independent Agent referenced by another Agent as a child. It is not embedded in the parent configuration, and an Agent may have at most one parent relationship.
+_Avoid_: nested agent, embedded agent
+
+**Agent Content**:
+The human-authored description and prompt text of an Agent. A repository-bound workspace treats the bound repository as the source of truth for this content.
+_Avoid_: agent config
+
+**Effective Agent**:
+The runnable Agent produced by combining its operational configuration with the currently active Agent Content revision.
+
+**Workspace Repository Binding**:
+The association between a Workspace and one repository location, consisting of a Git host, repository, branch, and root path. The binding determines where that workspace reads and writes Agent Content.
+
+**Observed Revision**:
+The most recent repository revision known to Butter, whether or not its Agent Content passed validation.
+
+**Active Revision**:
+The last validated repository revision used to build Effective Agents. It remains active when a newer observed revision is invalid or temporarily unavailable.
 
 **Remote Agent**:
 An externally hosted agent (A2A, OpenCode HTTP, or Daemon protocol) referenced by ID from a shared registry and attached as a sub-agent.

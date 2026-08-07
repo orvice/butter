@@ -48,6 +48,16 @@ service AgentService {
   // gets typed cancellation / failed-precondition codes instead of an
   // ad-hoc string payload.
   rpc StreamAgent(StreamAgentRequest) returns (stream StreamAgentResponse);
+  // AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
+  // existing Agent identified by name. Only workspace owners and
+  // administrators may call this; ordinary members receive PermissionDenied.
+  // Rejects invalid slugs, reserved values, duplicates, and attempts to
+  // reassign an already-set ID.
+  rpc AssignAgentID(AssignAgentIDRequest) returns (AssignAgentIDResponse);
+  // GetMigrationReadiness reports whether each Agent in the workspace is
+  // ready for the identity migration (has a valid Agent ID, all entry-point
+  // dependencies resolved, etc.).
+  rpc GetMigrationReadiness(GetMigrationReadinessRequest) returns (GetMigrationReadinessResponse);
 }
 
 // MCPServerService manages MCP Server configurations.
@@ -293,6 +303,50 @@ message DeleteAgentRequest {
 }
 
 message DeleteAgentResponse {}
+
+// --- AssignAgentID messages ---
+
+message AssignAgentIDRequest {
+  // Name of the existing agent (the current lookup key).
+  string name = 1;
+  // The slug to assign as the Agent ID.
+  string agent_id = 2;
+}
+
+message AssignAgentIDResponse {
+  Agent agent = 1;
+}
+
+// --- Migration readiness messages ---
+
+message GetMigrationReadinessRequest {}
+
+message GetMigrationReadinessResponse {
+  repeated AgentMigrationStatus statuses = 1;
+}
+
+// MigrationReadiness classifies an agent's readiness for the identity
+// migration.
+enum MigrationReadiness {
+  MIGRATION_READINESS_UNSPECIFIED = 0;
+  // The agent has a valid Agent ID and all dependencies are resolved.
+  MIGRATION_READINESS_READY = 1;
+  // The agent has not been assigned an Agent ID.
+  MIGRATION_READINESS_MISSING_ID = 2;
+  // The agent's Agent ID conflicts with another agent in the workspace.
+  MIGRATION_READINESS_CONFLICT = 3;
+  // The agent references sub-agents or channel/cron dependencies that
+  // are themselves not ready.
+  MIGRATION_READINESS_INCOMPLETE_DEPS = 4;
+}
+
+message AgentMigrationStatus {
+  string name = 1;
+  string agent_id = 2;
+  MigrationReadiness readiness = 3;
+  // Human-readable detail when readiness is not READY.
+  string detail = 4;
+}
 
 message InvokeAgentRequest {
   // Name of the agent to invoke (required).

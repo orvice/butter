@@ -21,6 +21,10 @@ type AgentRepository interface {
 	UpdateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error)
 	DeleteAgent(ctx context.Context, workspaceID, name string) error
 
+	// AgentIDExists reports whether the given agent_id is already taken
+	// within the workspace.
+	AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error)
+
 	// ListAgentsAcrossWorkspaces returns agents from every workspace, used by
 	// the runtime to (re)build runners across all configured tenants.
 	ListAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.Agent, error)

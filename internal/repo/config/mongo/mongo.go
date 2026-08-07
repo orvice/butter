@@ -213,6 +213,17 @@ func (s *Store) UpdateAgent(ctx context.Context, workspaceID string, agent *agen
 	return clone, nil
 }
 
+func (s *Store) AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error) {
+	n, err := s.agents.CountDocuments(ctx, bson.M{
+		"workspace_id":     workspaceID,
+		"spec.agent_id": agentID,
+	})
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 func (s *Store) DeleteAgent(ctx context.Context, workspaceID, name string) error {
 	res, err := s.agents.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, name)})
 	if err != nil {

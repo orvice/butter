@@ -18,6 +18,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
+	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
@@ -44,6 +45,7 @@ type AgentServiceServer struct {
 	runtime   ConfigRuntime
 	runnerSvc agentRunner
 	invRepo   invocation.Repository
+	wsRepo    workspacerepo.Repository
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
@@ -68,6 +70,12 @@ func (s *AgentServiceServer) SetRunnerService(svc *runner.Service) {
 // ListAgentInvocations.
 func (s *AgentServiceServer) SetInvocationRepo(repo invocation.Repository) {
 	s.invRepo = repo
+}
+
+// SetWorkspaceRepo wires the workspace repository used by
+// AssignAgentID for role-based authorization.
+func (s *AgentServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
+	s.wsRepo = repo
 }
 
 func (s *AgentServiceServer) ListAgents(ctx context.Context, req *connect.Request[agentsv1.ListAgentsRequest]) (*connect.Response[agentsv1.ListAgentsResponse], error) {
@@ -157,24 +165,28 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	// agent_id must be assigned through AssignAgentID, not via CreateAgent.
+	agent := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
+	agent.AgentId = ""
+
 	logger := log.FromContext(ctx)
-	logger.Info("creating agent", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "type", req.Msg.GetAgent().GetType().String())
+	logger.Info("creating agent", "workspace_id", wsID, "agent", agent.GetName(), "type", agent.GetType().String())
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.CreateAgent(ctx, wsID, req.Msg.GetAgent())
+			return s.repo.CreateAgent(ctx, wsID, agent)
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if err := s.repo.DeleteAgent(ctx, wsID, req.Msg.GetAgent().GetName()); err != nil {
+			if err := s.repo.DeleteAgent(ctx, wsID, agent.GetName()); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
 		},
 	)
 	if err != nil {
-		logger.Error("create agent failed", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "err", err)
+		logger.Error("create agent failed", "workspace_id", wsID, "agent", agent.GetName(), "err", err)
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent created", "workspace_id", wsID, "agent", a.GetName(), "type", a.GetType().String())
@@ -194,11 +206,24 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("updating agent", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName())
+
+	// Enforce agent_id immutability: UpdateAgent may not set or change agent_id.
+	update := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
+	if prev.GetAgentId() != "" {
+		if update.GetAgentId() != "" && update.GetAgentId() != prev.GetAgentId() {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				fmt.Errorf("agent_id is immutable; use AssignAgentID to set it"))
+		}
+		update.AgentId = prev.GetAgentId()
+	} else {
+		update.AgentId = ""
+	}
+
+	logger.Info("updating agent", "workspace_id", wsID, "agent", update.GetName())
 
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.UpdateAgent(ctx, wsID, req.Msg.GetAgent())
+			return s.repo.UpdateAgent(ctx, wsID, update)
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -457,6 +482,180 @@ func (s *AgentServiceServer) runtimeStatuses(ctx context.Context, workspaceID st
 		}
 	}
 	return out, nil
+}
+
+func (s *AgentServiceServer) AssignAgentID(ctx context.Context, req *connect.Request[agentsv1.AssignAgentIDRequest]) (*connect.Response[agentsv1.AssignAgentIDResponse], error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnerOrAdmin(ctx, wsID); err != nil {
+		return nil, err
+	}
+	name := req.Msg.GetName()
+	if name == "" {
+		return nil, connectx.RequiredArgument("name")
+	}
+	agentID := req.Msg.GetAgentId()
+	if err := internalagent.ValidateAgentID(agentID); err != nil {
+		return nil, connectx.InvalidArgument("agent_id", err.Error())
+	}
+
+	logger := log.FromContext(ctx)
+
+	existing, err := s.repo.GetAgent(ctx, wsID, name)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if existing.GetAgentId() != "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("agent %q already has agent_id %q; agent IDs are immutable once assigned", name, existing.GetAgentId()))
+	}
+
+	taken, err := s.repo.AgentIDExists(ctx, wsID, agentID)
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	if taken {
+		return nil, connect.NewError(connect.CodeAlreadyExists,
+			fmt.Errorf("agent_id %q is already in use in this workspace", agentID))
+	}
+
+	updated := proto.Clone(existing).(*agentsv1.Agent)
+	updated.AgentId = agentID
+
+	result, err := mutateWithRuntime(
+		func() (*agentsv1.Agent, error) {
+			return s.repo.UpdateAgent(ctx, wsID, updated)
+		},
+		func() error {
+			return s.reloadRuntime(ctx)
+		},
+		func() error {
+			rollback := proto.Clone(existing).(*agentsv1.Agent)
+			if _, err := s.repo.UpdateAgent(ctx, wsID, rollback); err != nil {
+				return err
+			}
+			return s.reloadRuntime(ctx)
+		},
+	)
+	if err != nil {
+		logger.Error("assign agent id failed", "workspace_id", wsID, "agent", name, "agent_id", agentID, "err", err)
+		return nil, toConnectError(err)
+	}
+	logger.Info("agent id assigned", "workspace_id", wsID, "agent", name, "agent_id", agentID)
+	return connect.NewResponse(&agentsv1.AssignAgentIDResponse{Agent: result}), nil
+}
+
+func (s *AgentServiceServer) GetMigrationReadiness(ctx context.Context, _ *connect.Request[agentsv1.GetMigrationReadinessRequest]) (*connect.Response[agentsv1.GetMigrationReadinessResponse], error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	agents, err := s.repo.ListAgents(ctx, wsID)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+
+	idSet := make(map[string]int)
+	for _, a := range agents {
+		if id := a.GetAgentId(); id != "" {
+			idSet[id]++
+		}
+	}
+
+	agentsByName := make(map[string]*agentsv1.Agent, len(agents))
+	for _, a := range agents {
+		agentsByName[a.GetName()] = a
+	}
+
+	statuses := make([]*agentsv1.AgentMigrationStatus, 0, len(agents))
+	for _, a := range agents {
+		status := &agentsv1.AgentMigrationStatus{
+			Name:    a.GetName(),
+			AgentId: a.GetAgentId(),
+		}
+
+		switch {
+		case a.GetAgentId() == "":
+			status.Readiness = agentsv1.MigrationReadiness_MIGRATION_READINESS_MISSING_ID
+			status.Detail = "agent has not been assigned an Agent ID"
+		case idSet[a.GetAgentId()] > 1:
+			status.Readiness = agentsv1.MigrationReadiness_MIGRATION_READINESS_CONFLICT
+			status.Detail = fmt.Sprintf("agent_id %q is used by %d agents", a.GetAgentId(), idSet[a.GetAgentId()])
+		default:
+			if detail := checkSubAgentDeps(a, agentsByName); detail != "" {
+				status.Readiness = agentsv1.MigrationReadiness_MIGRATION_READINESS_INCOMPLETE_DEPS
+				status.Detail = detail
+			} else {
+				status.Readiness = agentsv1.MigrationReadiness_MIGRATION_READINESS_READY
+			}
+		}
+
+		statuses = append(statuses, status)
+	}
+
+	return connect.NewResponse(&agentsv1.GetMigrationReadinessResponse{Statuses: statuses}), nil
+}
+
+// checkSubAgentDeps verifies that all sub-agents of a have agent IDs assigned
+// and exist in the workspace. Returns a human-readable detail string if any
+// dependency is unresolved, or empty string if all dependencies are ready.
+func checkSubAgentDeps(a *agentsv1.Agent, byName map[string]*agentsv1.Agent) string {
+	for _, sub := range a.GetSubAgents() {
+		dep, ok := byName[sub.GetName()]
+		if !ok {
+			return fmt.Sprintf("sub-agent %q not found in workspace", sub.GetName())
+		}
+		if dep.GetAgentId() == "" {
+			return fmt.Sprintf("sub-agent %q is missing an Agent ID", sub.GetName())
+		}
+	}
+	if wf := a.GetConfig().GetWorkflow(); wf != nil {
+		for _, node := range wf.GetNodes() {
+			if node.GetKind() != agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT {
+				continue
+			}
+			agentRef := node.GetAgent()
+			dep, ok := byName[agentRef]
+			if !ok {
+				return fmt.Sprintf("workflow node %q references agent %q which is not found in workspace", node.GetName(), agentRef)
+			}
+			if dep.GetAgentId() == "" {
+				return fmt.Sprintf("workflow node %q references agent %q which is missing an Agent ID", node.GetName(), agentRef)
+			}
+		}
+	}
+	return ""
+}
+
+// requireOwnerOrAdmin checks that the caller is a global admin or holds
+// the "owner" or "admin" role in the workspace.
+func (s *AgentServiceServer) requireOwnerOrAdmin(ctx context.Context, workspaceID string) error {
+	if auth.IsAdmin(ctx) {
+		return nil
+	}
+	if s.wsRepo == nil {
+		return connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("workspace store not available"))
+	}
+	user, ok := auth.UserFromContext(ctx)
+	if !ok {
+		return connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+	}
+	member, err := s.wsRepo.GetMember(ctx, workspaceID, user.GetId())
+	if err != nil {
+		if errors.Is(err, workspacerepo.ErrNotFound) {
+			return connect.NewError(connect.CodePermissionDenied, errors.New("insufficient workspace role"))
+		}
+		return connectx.InternalWith(err)
+	}
+	role := member.GetRole()
+	if role == "owner" || role == "admin" {
+		return nil
+	}
+	return connect.NewError(connect.CodePermissionDenied, errors.New("only workspace owners and administrators can assign Agent IDs"))
 }
 
 func (s *AgentServiceServer) reloadRuntime(ctx context.Context) error {

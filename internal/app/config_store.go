@@ -183,6 +183,10 @@ func (s *ConfigStore) DeleteAgent(ctx context.Context, workspaceID, name string)
 	return s.current().DeleteAgent(ctx, workspaceID, name)
 }
 
+func (s *ConfigStore) AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error) {
+	return s.current().AgentIDExists(ctx, workspaceID, agentID)
+}
+
 // --- MCP Servers ---
 
 func (s *ConfigStore) ListMCPServers(ctx context.Context, workspaceID string) ([]*agentsv1.MCPServer, error) {
