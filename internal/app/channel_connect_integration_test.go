@@ -120,15 +120,25 @@ func newConnectIntegrationFixture(t *testing.T) *connectIntegrationFixture {
 func TestChannelService_ConnectIntegration(t *testing.T) {
 	fx := newConnectIntegrationFixture(t)
 
+	// A channel binds to an agent by agent_id, so seed the agents first.
+	agentClient := agentsv1connect.NewAgentServiceClient(fx.httpClient(), fx.baseURL(), fx.clientOptions()...)
+	for _, id := range []string{"agent-alpha", "agent-beta"} {
+		if _, err := agentClient.CreateAgent(fx.ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
+			Agent: &agentsv1.Agent{Name: id, AgentId: id},
+		})); err != nil {
+			t.Fatalf("seed agent %q: %v", id, err)
+		}
+	}
+
 	client := agentsv1connect.NewChannelServiceClient(fx.httpClient(), fx.baseURL(), fx.clientOptions()...)
 
 	createResp, err := client.CreateChannel(fx.ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{
-			Name:      "telegram-main",
-			AgentName: "agent-alpha",
-			Platform:  agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
-			Enabled:   true,
-			Telegram:  &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
+			Name:     "telegram-main",
+			AgentId:  "agent-alpha",
+			Platform: agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
+			Enabled:  true,
+			Telegram: &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
 		},
 	}))
 	if err != nil {
@@ -143,11 +153,11 @@ func TestChannelService_ConnectIntegration(t *testing.T) {
 
 	updateResp, err := client.UpdateChannel(fx.ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
 		Channel: &agentsv1.AgentChannel{
-			Name:      "telegram-main",
-			AgentName: "agent-beta",
-			Platform:  agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
-			Enabled:   true,
-			Telegram:  &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
+			Name:     "telegram-main",
+			AgentId:  "agent-beta",
+			Platform: agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
+			Enabled:  true,
+			Telegram: &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
 		},
 	}))
 	if err != nil {

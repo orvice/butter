@@ -14,6 +14,7 @@ import { parseSessionEvent, parseSessionEvents, type ParsedEvent, type ToolCallS
 import { buildInputParts, type InputPartInit } from "@/lib/image-attachments";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useGenerateSessionTitle, useLiveSession, useReplySession, useUpdateSessionTitle } from "@/api/sessions";
+import { useAgents } from "@/api/agents";
 import { InlineTitleInput } from "@/components/inline-title-input";
 import { sessionTitle } from "@/lib/session-title";
 import { CHAT_APP_NAME } from "@/lib/constants";
@@ -89,6 +90,16 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete }: Ch
 
   const liveQuery = useLiveSession(APP_NAME, userId, sessionId, pending);
   const reply = useReplySession();
+  // Sessions created before the Agent ID migration only stored agent_name.
+  // The backend now requires agent_id on ReplySession/StreamAgent, so resolve
+  // the stored name to its agent_id via the loaded agents list.
+  const { data: agentsData } = useAgents({ page_size: 200 });
+  const agents = agentsData?.agents;
+  const resolvedAgentId = useMemo(() => {
+    if (agentId) return agentId;
+    if (!agentName || !agents) return undefined;
+    return agents.find((a) => a.name === agentName)?.agent_id;
+  }, [agentId, agentName, agents]);
   const renameMutation = useUpdateSessionTitle();
   const generateTitle = useGenerateSessionTitle();
   // Keyed by session so switching chats implicitly leaves edit mode without
@@ -160,6 +171,14 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete }: Ch
     const text = draft.trim();
     const images = attachments;
     if ((!text && images.length === 0) || !agentName || pending || sendingRef.current) return;
+    if (!resolvedAgentId) {
+      toast.error(
+        agents
+          ? `Agent "${agentName}" is no longer available; cannot resume this chat.`
+          : "Agents are still loading; please try again in a moment.",
+      );
+      return;
+    }
     sendingRef.current = true;
 
     if (images.length > 0) {
@@ -207,7 +226,7 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete }: Ch
       await streamChat(
         {
           agent_name: agentName,
-          agent_id: agentId ?? undefined,
+          agent_id: resolvedAgentId,
           app_name: APP_NAME,
           user_id: userId,
           session_id: sessionId,
@@ -264,7 +283,7 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete }: Ch
         try {
           await reply.mutateAsync({
             agent_name: agentName,
-            agent_id: agentId ?? undefined,
+            agent_id: resolvedAgentId,
             app_name: APP_NAME,
             user_id: userId,
             session_id: sessionId,

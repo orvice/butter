@@ -30,7 +30,8 @@ export function ForumListPage() {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  const [agentName, setAgentName] = useState('')
+  // Opaque agent ref: the immutable agent_id when the agent has one, else the name.
+  const [agentRef, setAgentRef] = useState('')
   const [labelsInput, setLabelsInput] = useState('')
 
   async function handleCreate() {
@@ -41,17 +42,18 @@ export function ForumListPage() {
       return
     }
     try {
+      const selectedAgent = agents.find((a) => (a.agent_id || a.name) === agentRef)
       const resp = await createMutation.mutateAsync({
         title: cleanTitle,
         body: cleanBody,
-        agent_names: agentName ? [agentName] : [],
+        agent_ids: agentRef ? [selectedAgent?.agent_id || agentRef] : [],
         labels: parseLabels(labelsInput),
       })
       toast.success('Thread created')
       setOpen(false)
       setTitle('')
       setBody('')
-      setAgentName('')
+      setAgentRef('')
       setLabelsInput('')
       navigate({ to: '/forum/$id', params: { id: resp.thread.id } })
     } catch (err) {
@@ -164,14 +166,14 @@ export function ForumListPage() {
             </div>
             <div className='space-y-2'>
               <Label>Default agent</Label>
-              <Select value={agentName || 'none'} onValueChange={(v) => setAgentName(v && v !== 'none' ? v : '')}>
+              <Select value={agentRef || 'none'} onValueChange={(v) => setAgentRef(v && v !== 'none' ? v : '')}>
                 <SelectTrigger>
                   <SelectValue placeholder='Optional agent' />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='none'>No default agent</SelectItem>
                   {agents.map((agent) => (
-                    <SelectItem key={agent.name} value={agent.name}>{agent.name}</SelectItem>
+                    <SelectItem key={agent.agent_id || agent.name} value={agent.agent_id || agent.name}>{agent.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

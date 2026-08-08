@@ -400,9 +400,11 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 		return nil, err
 	}
 
-	// The workspace header scopes agent resolution to the intended tenant;
-	// without one, resolution is global (agent names/ids are unique across
-	// workspaces in this iteration).
+	// The workspace header scopes agent resolution to the intended tenant.
+	// It is also stamped onto ContextInfo so the runner re-checks the resolved
+	// agent belongs to this workspace before executing — without it a request
+	// carrying no X-Workspace-ID would resolve an agent_id across tenants
+	// (agent_ids are only workspace-unique) and run it unscoped.
 	wsID, _ := workspace.FromContext(ctx)
 	agentName, err := resolveAgentRunnerRef(runnerSvc, wsID, req.Msg.GetAgentId())
 	if err != nil {
@@ -413,6 +415,7 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 		SessionId:   req.Msg.GetSessionId(),
 		UserId:      req.Msg.GetUserId(),
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
+		WorkspaceId: wsID,
 	}
 
 	logger := log.FromContext(ctx)

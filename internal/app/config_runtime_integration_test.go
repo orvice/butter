@@ -126,8 +126,9 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 
 	_, err = agentSvc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{
-			Name: "workflow-agent",
-			Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL,
+			Name:    "workflow-agent",
+			AgentId: "workflow-agent",
+			Type:    agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL,
 			Config: &agentsv1.AgentConfig{
 				McpServerIds:   []string{"mcp-1"},
 				RemoteAgentIds: []string{"remote-1"},
