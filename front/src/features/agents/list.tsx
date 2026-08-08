@@ -32,6 +32,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   Bot,
+  Fingerprint,
+  ListChecks,
   MessageSquarePlus,
   MoreVertical,
   Pencil,
@@ -43,6 +45,8 @@ import {
 } from 'lucide-react'
 import { AGENT_TYPE_LABELS } from '@/lib/constants'
 import { agentIconUrl } from './icon-utils'
+import { AssignAgentIDDialog } from './assign-id-dialog'
+import { MigrationReadinessDialog } from './migration-readiness-dialog'
 import { cn } from '@/lib/utils'
 import type { Agent, AgentRuntimeStatus } from '@/types/api'
 
@@ -80,11 +84,13 @@ function AgentCard({
   runtime,
   onDelete,
   onRun,
+  onAssignId,
 }: {
   agent: Agent
   runtime?: AgentRuntimeStatus
   onDelete: () => void
   onRun: () => void
+  onAssignId: () => void
 }) {
   const navigate = useNavigate()
   const status = runtimeStatusOf(runtime)
@@ -112,6 +118,11 @@ function AgentCard({
             <DropdownMenuItem onClick={onRun}>
               <Play /> Run once
             </DropdownMenuItem>
+            {!agent.agent_id && (
+              <DropdownMenuItem onClick={onAssignId}>
+                <Fingerprint /> Assign Agent ID
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant='destructive' onClick={onDelete}>
               <Trash2 /> Delete
@@ -131,6 +142,22 @@ function AgentCard({
         <span className='rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.7rem] text-muted-foreground'>
           {AGENT_TYPE_LABELS[agent.type ?? 'AGENT_TYPE_UNSPECIFIED']}
         </span>
+        {agent.agent_id ? (
+          <span className='inline-flex items-center gap-1 rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.7rem] text-muted-foreground'>
+            <Fingerprint className='size-3' />
+            {agent.agent_id}
+          </span>
+        ) : (
+          <button
+            type='button'
+            onClick={onAssignId}
+            className='inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[0.7rem] text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-400'
+            title='This agent has no Agent ID yet. Assign one to prepare for the identity migration.'
+          >
+            <Fingerprint className='size-3' />
+            No Agent ID
+          </button>
+        )}
         {agent.enable_a2a && (
           <span className='rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[0.7rem] text-muted-foreground'>
             A2A
@@ -177,6 +204,8 @@ export function AgentList() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<RuntimeFilter>('all')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [assignTarget, setAssignTarget] = useState<string | null>(null)
+  const [readinessOpen, setReadinessOpen] = useState(false)
   const [invokeTarget, setInvokeTarget] = useState<Agent | null>(null)
   const [invokeInput, setInvokeInput] = useState('')
   const [invokeResult, setInvokeResult] = useState<{ session_id: string; response: string } | null>(null)
@@ -206,6 +235,10 @@ export function AgentList() {
         subtitle='Browse agents and start a conversation, or configure how they work.'
         actions={
           <>
+            <Button variant='outline' size='sm' onClick={() => setReadinessOpen(true)}>
+              <ListChecks className='size-4' />
+              Agent IDs
+            </Button>
             <Button
               variant='outline'
               size='sm'
@@ -301,6 +334,7 @@ export function AgentList() {
                       setInvokeResult(null)
                       setInvokeInput('')
                     }}
+                    onAssignId={() => setAssignTarget(a.name)}
                   />
                 ))}
               </div>
@@ -308,6 +342,19 @@ export function AgentList() {
           </>
         )}
       </PageScroll>
+
+      <AssignAgentIDDialog
+        key={assignTarget ?? ''}
+        agentName={assignTarget}
+        open={!!assignTarget}
+        onOpenChange={(open) => !open && setAssignTarget(null)}
+      />
+
+      <MigrationReadinessDialog
+        open={readinessOpen}
+        onOpenChange={setReadinessOpen}
+        onAssign={(name) => setAssignTarget(name)}
+      />
 
       <DeleteDialog
         open={!!deleteTarget}
