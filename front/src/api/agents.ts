@@ -2,11 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { AgentSchema } from "@/gen/agents/v1/agent_pb";
 import {
+  AgentMigrationStatusSchema,
   AgentRuntimeStatusSchema,
   AgentService,
   InvocationSchema,
 } from "@/gen/agents/v1/agent_service_pb";
-import type { Agent, AgentRuntimeStatus, Invocation } from "@/types/api";
+import type { Agent, AgentMigrationStatus, AgentRuntimeStatus, Invocation } from "@/types/api";
 import { tsToISO } from "./_proto-bridge";
 import { makeClient } from "./transport";
 
@@ -84,6 +85,26 @@ async function updateAgent(agent: Agent): Promise<{ agent: Agent }> {
 
 async function deleteAgent(name: string): Promise<void> {
   await client.deleteAgent({ name });
+}
+
+interface AssignAgentIDParams {
+  name: string;
+  agent_id: string;
+}
+
+async function assignAgentID(params: AssignAgentIDParams): Promise<{ agent: Agent }> {
+  const res = await client.assignAgentID({ name: params.name, agentId: params.agent_id });
+  if (!res.agent) throw new Error("assign returned nothing");
+  return { agent: agentFromProto(res.agent) };
+}
+
+async function getMigrationReadiness(): Promise<{ statuses: AgentMigrationStatus[] }> {
+  const res = await client.getMigrationReadiness({});
+  return {
+    statuses: res.statuses.map(
+      (s) => toJson(AgentMigrationStatusSchema, s, { useProtoFieldName: true }) as unknown as AgentMigrationStatus,
+    ),
+  };
 }
 
 interface InvokeAgentParams {
@@ -198,6 +219,26 @@ export function useDeleteAgent() {
   return useMutation({
     mutationFn: deleteAgent,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agents"] }),
+  });
+}
+
+export function useAssignAgentID() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: assignAgentID,
+    onSuccess: (_data, params) => {
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["agents", params.name] });
+      qc.invalidateQueries({ queryKey: ["agent-migration-readiness"] });
+    },
+  });
+}
+
+export function useMigrationReadiness(enabled = true) {
+  return useQuery({
+    queryKey: ["agent-migration-readiness"],
+    queryFn: getMigrationReadiness,
+    enabled,
   });
 }
 

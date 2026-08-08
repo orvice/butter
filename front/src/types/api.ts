@@ -170,6 +170,7 @@ export interface AgentConfig {
 
 export interface Agent {
   name: string;
+  agent_id?: string;
   description?: string;
   sub_agents?: Agent[];
   labels?: Record<string, string>;
@@ -178,6 +179,20 @@ export interface Agent {
   type?: AgentType;
   enable_a2a?: boolean;
   enable_openai_api?: boolean;
+}
+
+export type MigrationReadiness =
+  | "MIGRATION_READINESS_UNSPECIFIED"
+  | "MIGRATION_READINESS_READY"
+  | "MIGRATION_READINESS_MISSING_ID"
+  | "MIGRATION_READINESS_CONFLICT"
+  | "MIGRATION_READINESS_INCOMPLETE_DEPS";
+
+export interface AgentMigrationStatus {
+  name: string;
+  agent_id?: string;
+  readiness?: MigrationReadiness;
+  detail?: string;
 }
 
 export interface AgentFileSpace {
