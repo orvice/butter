@@ -33,6 +33,7 @@ type doc struct {
 	ID          string    `bson:"_id"`
 	WorkspaceID string    `bson:"workspace_id,omitempty"`
 	AgentName   string    `bson:"agent_name,omitempty"`
+	AgentID     string    `bson:"agent_id,omitempty"`
 	SessionID   string    `bson:"session_id,omitempty"`
 	StartedAt   time.Time `bson:"started_at,omitempty"`
 	Status      string    `bson:"status,omitempty"`
@@ -48,6 +49,7 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 	_, err := s.coll.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "agent_name", Value: 1}, {Key: "started_at", Value: -1}}},
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "agent_id", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "session_id", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "started_at", Value: -1}}},
 	})
@@ -66,6 +68,7 @@ func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 		ID:          inv.GetId(),
 		WorkspaceID: inv.GetWorkspaceId(),
 		AgentName:   inv.GetAgentName(),
+		AgentID:     inv.GetAgentId(),
 		SessionID:   inv.GetSessionId(),
 		Status:      inv.GetStatus().String(),
 		Spec:        string(b),
@@ -96,6 +99,9 @@ func (s *Store) List(ctx context.Context, filter invocation.ListFilter, pageSize
 	q := bson.M{}
 	if filter.WorkspaceID != "" {
 		q["workspace_id"] = filter.WorkspaceID
+	}
+	if filter.AgentID != "" {
+		q["agent_id"] = filter.AgentID
 	}
 	if filter.AgentName != "" {
 		q["agent_name"] = filter.AgentName

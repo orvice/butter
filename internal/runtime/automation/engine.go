@@ -41,14 +41,14 @@ const (
 // Session coordinates for an invoke_agent turn are deterministic from the
 // automation name, workspace, and run ID, so invokeAgent (which runs the turn)
 // and waitForInput / the resume path all derive the same values.
-func automationSessionAppName(name string) string      { return automationSessionPrefix + name }
+func automationSessionAppName(name string) string       { return automationSessionPrefix + name }
 func automationSessionUserID(workspaceID string) string { return automationSessionPrefix + workspaceID }
-func automationSessionID(runID string) string          { return automationSessionPrefix + runID }
+func automationSessionID(runID string) string           { return automationSessionPrefix + runID }
 
 var ErrAutomationDisabled = errors.New("automation disabled")
 
 type runnerService interface {
-	HasAgentInWorkspace(workspaceID, name string) bool
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 	RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error)
 }
 
@@ -274,7 +274,8 @@ func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, trigger
 			// The run is not finished: it waits for a human reply on its session
 			// coordinates. Later steps do not run until a reply resumes the
 			// workflow and HandleTurn finalizes the run (Option A).
-			return e.waitForInput(runCtx, a, run, step.GetInvokeAgent().GetAgentName(), pending), nil
+			agentName, agentID := e.resolveWaitAgent(a, step.GetInvokeAgent())
+			return e.waitForInput(runCtx, a, run, agentName, agentID, pending), nil
 		}
 		state.recordStepOutput(step.GetName(), output)
 	}
@@ -288,12 +289,13 @@ func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, trigger
 // deleted (HandleSessionDeleted). Automations have no top-level delivery
 // config, so the node's question is surfaced only through the paused step's
 // recorded output (issue #176).
-func (e *Engine) waitForInput(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, agentName string, pending []runner.PendingInput) *agentsv1.AutomationRun {
+func (e *Engine) waitForInput(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, agentName, agentID string, pending []runner.PendingInput) *agentsv1.AutomationRun {
 	run.Status = agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_WAITING_INPUT
 	run.FinishedAt = nil
 	run.DurationMs = 0
 	run.Error = ""
 	run.AgentName = agentName
+	run.AgentId = agentID
 	run.SessionAppName = automationSessionAppName(a.GetName())
 	run.SessionUserId = automationSessionUserID(a.GetWorkspaceId())
 	run.SessionId = automationSessionID(run.GetId())
@@ -565,15 +567,28 @@ func (e *Engine) executeStepAction(ctx context.Context, a *agentsv1.Automation, 
 	}
 }
 
+// resolveWaitAgent derives the (runtime name, agent_id) pair a paused run
+// records so a human reply addresses the right agent. Falls back to the
+// step's agent_id when resolution misses — the run already paused, so the
+// record must still carry the reference.
+func (e *Engine) resolveWaitAgent(a *agentsv1.Automation, step *agentsv1.AutomationInvokeAgentStep) (string, string) {
+	name, ok := e.runner.ResolveAgentRef(a.GetWorkspaceId(), step.GetAgentId())
+	if !ok {
+		return "", step.GetAgentId()
+	}
+	return name, step.GetAgentId()
+}
+
 func (e *Engine) invokeAgent(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationInvokeAgentStep) (string, string, []runner.PendingInput, error) {
 	if e.runner == nil {
 		return "", "", nil, errors.New("runner service is not configured")
 	}
-	if step.GetAgentName() == "" {
-		return "", "", nil, errors.New("invoke_agent.agent_name is required")
+	if step.GetAgentId() == "" {
+		return "", "", nil, errors.New("invoke_agent.agent_id is required")
 	}
-	if !e.runner.HasAgentInWorkspace(a.GetWorkspaceId(), step.GetAgentName()) {
-		return "", "", nil, fmt.Errorf("agent %q not found in workspace %q", step.GetAgentName(), a.GetWorkspaceId())
+	agentName, ok := e.runner.ResolveAgentRef(a.GetWorkspaceId(), step.GetAgentId())
+	if !ok {
+		return "", "", nil, fmt.Errorf("agent %q not found in workspace %q", step.GetAgentId(), a.GetWorkspaceId())
 	}
 	input := step.GetInput()
 	if input == "" {
@@ -590,7 +605,7 @@ func (e *Engine) invokeAgent(ctx context.Context, a *agentsv1.Automation, run *a
 		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
 		WorkspaceId: a.GetWorkspaceId(),
 	}
-	turn, err := e.runner.RunTurnSSE(ctx, step.GetAgentName(), []*genai.Part{genai.NewPartFromText(input)}, step.GetModelOverride(), ctxInfo, nil, nil)
+	turn, err := e.runner.RunTurnSSE(ctx, agentName, []*genai.Part{genai.NewPartFromText(input)}, step.GetModelOverride(), ctxInfo, nil, nil)
 	if turn == nil {
 		turn = &runner.TurnResult{}
 	}

@@ -31,9 +31,33 @@ type streamTestRunner struct {
 	gotParts []*genai.Part
 	response string
 	events   []*session.Event
+	idToName map[string]string
 }
 
 func (r *streamTestRunner) IsReservedAgentName(string) bool { return false }
+
+// ResolveAgentRef resolves agent_id to a runtime name. When idToName is nil
+// the fake runs in identity mode (any non-empty id resolves to itself); when
+// it is non-nil only its entries resolve, so tests can assert a miss.
+func (r *streamTestRunner) ResolveAgentRef(_, agentID string) (string, bool) {
+	if agentID == "" {
+		return "", false
+	}
+	if r.idToName == nil {
+		return agentID, true
+	}
+	name, ok := r.idToName[agentID]
+	return name, ok
+}
+
+func (r *streamTestRunner) GetAgentIdentity(name string) (string, string, bool) {
+	for id, n := range r.idToName {
+		if n == name {
+			return id, name, true
+		}
+	}
+	return name, name, true
+}
 
 func (r *streamTestRunner) Run(_ context.Context, agentName string, parts []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (string, error) {
 	r.gotAgent, r.gotParts = agentName, parts
@@ -104,7 +128,7 @@ func TestStreamAgent_PartsTextAndImageReachRunner(t *testing.T) {
 
 	imgData := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3}
 	final, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "vision-agent",
+		AgentId:   "vision-agent",
 		Parts: []*agentsv1.InputPart{
 			textInput("what is in this picture?"),
 			imageInput("image/png", imgData),
@@ -139,7 +163,7 @@ func TestStreamAgent_MessageOnlyBackwardCompat(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	final, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "chat-agent",
+		AgentId:   "chat-agent",
 		Message:   "hi there",
 	})
 	if err != nil {
@@ -158,7 +182,7 @@ func TestStreamAgent_PartsTakePriorityOverMessage(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "chat-agent",
+		AgentId:   "chat-agent",
 		Message:   "ignored legacy text",
 		Parts:     []*agentsv1.InputPart{textInput("from parts")},
 	})
@@ -175,7 +199,7 @@ func TestStreamAgent_ImageOnlyPartsAccepted(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	final, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "vision-agent",
+		AgentId:   "vision-agent",
 		Parts:     []*agentsv1.InputPart{imageInput("image/jpeg", []byte{0xff, 0xd8, 0xff})},
 	})
 	if err != nil {
@@ -205,7 +229,7 @@ func TestStreamAgent_UnsupportedMimeTypeRejected(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "vision-agent",
+		AgentId:   "vision-agent",
 		Parts:     []*agentsv1.InputPart{imageInput("application/pdf", []byte("%PDF-1.7"))},
 	})
 	assertInvalidArgument(t, err)
@@ -220,7 +244,7 @@ func TestStreamAgent_OversizedImageRejected(t *testing.T) {
 
 	oversized := make([]byte, 10<<20+1)
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "vision-agent",
+		AgentId:   "vision-agent",
 		Parts:     []*agentsv1.InputPart{imageInput("image/png", oversized)},
 	})
 	assertInvalidArgument(t, err)
@@ -236,7 +260,7 @@ func TestStreamAgent_TotalPayloadOverLimitRejected(t *testing.T) {
 	// Three 7 MiB images: each under the 10 MiB per-image cap, 21 MiB total.
 	img := make([]byte, 7<<20)
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "vision-agent",
+		AgentId:   "vision-agent",
 		Parts: []*agentsv1.InputPart{
 			imageInput("image/png", img),
 			imageInput("image/png", img),
@@ -258,7 +282,7 @@ func TestStreamAgent_TooManyImagesRejected(t *testing.T) {
 		parts = append(parts, imageInput("image/png", []byte{1}))
 	}
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "vision-agent",
+		AgentId:   "vision-agent",
 		Parts:     parts,
 	})
 	assertInvalidArgument(t, err)
@@ -272,7 +296,7 @@ func TestStreamAgent_EmptyPartsAndMessageRejected(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "chat-agent",
+		AgentId:   "chat-agent",
 	})
 	assertInvalidArgument(t, err)
 }
@@ -285,7 +309,7 @@ func TestStreamAgent_OversizedTextPartRejected(t *testing.T) {
 	// `parts` cannot bypass the text input limit.
 	huge := strings.Repeat("a", 1<<20+1)
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentName: "chat-agent",
+		AgentId:   "chat-agent",
 		Parts:     []*agentsv1.InputPart{textInput(huge)},
 	})
 	assertInvalidArgument(t, err)
@@ -310,7 +334,7 @@ func TestStreamAgent_EventsStreamAsTextDeltaAndRunEventFrames(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	stream, err := client.StreamAgent(context.Background(), connect.NewRequest(&agentsv1.StreamAgentRequest{
-		AgentName: "chat-agent",
+		AgentId:   "chat-agent",
 		Message:   "hi",
 	}))
 	if err != nil {
@@ -355,5 +379,58 @@ func TestStreamAgent_EventsStreamAsTextDeltaAndRunEventFrames(t *testing.T) {
 	}
 	if final != "hello world" {
 		t.Fatalf("expected final response %q, got %q", "hello world", final)
+	}
+}
+
+func TestStreamAgent_ByAgentID(t *testing.T) {
+	fake := &streamTestRunner{response: "resolved", idToName: map[string]string{"vision-v2": "vision-agent"}}
+	client := newStreamAgentTestClient(t, fake)
+
+	stream, err := client.StreamAgent(context.Background(), connect.NewRequest(&agentsv1.StreamAgentRequest{
+		AgentId: "vision-v2",
+		Message: "hello",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+
+	var startedAgentID, finalAgentID, final string
+	for stream.Receive() {
+		if s := stream.Msg().GetStarted(); s != nil {
+			startedAgentID = s.GetAgentId()
+		}
+		if f := stream.Msg().GetFinal(); f != nil {
+			final, finalAgentID = f.GetResponse(), f.GetAgentId()
+		}
+	}
+	if err := stream.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if fake.gotAgent != "vision-agent" {
+		t.Fatalf("runner invoked with %q, want vision-agent (resolved from agent_id)", fake.gotAgent)
+	}
+	if final != "resolved" {
+		t.Fatalf("final = %q, want resolved", final)
+	}
+	if startedAgentID != "vision-v2" || finalAgentID != "vision-v2" {
+		t.Fatalf("agent_id echo = started %q final %q, want vision-v2", startedAgentID, finalAgentID)
+	}
+}
+
+func TestStreamAgent_UnknownAgentIDIsNotFound(t *testing.T) {
+	fake := &streamTestRunner{idToName: map[string]string{}}
+	client := newStreamAgentTestClient(t, fake)
+
+	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
+		AgentId:   "ghost",
+		AgentName: "vision-agent", // must not fall back to the legacy name
+		Message:   "hello",
+	})
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("err = %v, want CodeNotFound", err)
+	}
+	if fake.gotAgent != "" {
+		t.Fatalf("runner was invoked with %q despite unknown agent_id", fake.gotAgent)
 	}
 }

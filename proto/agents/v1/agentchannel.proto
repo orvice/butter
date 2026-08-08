@@ -10,8 +10,13 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 message AgentChannel {
   // @gotags: json:"name,omitempty" yaml:"name,omitempty"
   string name = 1 [(validate.rules).string.min_len = 1];
+  // Legacy agent name binding. Deprecated: use agent_id. Retained so
+  // historical records stay readable; the service layer backfills agent_id.
   // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty"
-  string agent_name = 2 [(validate.rules).string.min_len = 1];
+  string agent_name = 2;
+  // Immutable agent_id of the bound agent. Preferred over agent_name.
+  // @gotags: json:"agent_id,omitempty" yaml:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 8;
   // @gotags: json:"platform,omitempty" yaml:"platform,omitempty"
   AgentChannelPlatform platform = 3;
   // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"

@@ -59,7 +59,7 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 
 	// Create
 	createResp, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "a1", Description: "test"},
+		Agent: &agentsv1.Agent{Name: "a1", AgentId: "a1", Description: "test"},
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 
 	// Create duplicate
 	_, err = svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "a1"},
+		Agent: &agentsv1.Agent{Name: "a1", AgentId: "a1-dup"},
 	}))
 	if err == nil {
 		t.Fatal("expected error")
@@ -416,7 +416,7 @@ func TestAgentServiceServer_ReloadsRuntime(t *testing.T) {
 	svc.SetRuntime(runtime)
 
 	_, err := svc.CreateAgent(testCtx(), connect.NewRequest(&agentsv1.CreateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "a1"},
+		Agent: &agentsv1.Agent{Name: "a1", AgentId: "a1"},
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -435,7 +435,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
 		_, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
-			Agent: &agentsv1.Agent{Name: "a1"},
+			Agent: &agentsv1.Agent{Name: "a1", AgentId: "a1"},
 		}))
 		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
@@ -564,17 +564,15 @@ func TestRemoteAgentServiceServer_ReloadErrorRollsBackCreate(t *testing.T) {
 // graph. mutate, when non-nil, corrupts it.
 func workflowTestAgent(mutate func(a *agentsv1.Agent)) *agentsv1.Agent {
 	a := &agentsv1.Agent{
-		Name: "wf",
-		Type: agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		SubAgents: []*agentsv1.Agent{
-			{Name: "step_a", Config: &agentsv1.AgentConfig{Model: "m1"}},
-			{Name: "step_b", Config: &agentsv1.AgentConfig{Model: "m1"}},
-		},
+		Name:          "wf",
+		AgentId:       "wf",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		ChildAgentIds: []string{"step-a", "step-b"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "step_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "step_a"},
-					{Name: "step_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "step_b"},
+					{Name: "step_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "step-a"},
+					{Name: "step_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "step-b"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "step_a"},
@@ -589,10 +587,27 @@ func workflowTestAgent(mutate func(a *agentsv1.Agent)) *agentsv1.Agent {
 	return a
 }
 
+// seedWorkflowStepAgents creates the independent step agents workflowTestAgent
+// references via child_agent_ids.
+func seedWorkflowStepAgents(t *testing.T, store configrepo.AgentRepository) {
+	t.Helper()
+	for _, step := range []struct{ name, id string }{{"step_a", "step-a"}, {"step_b", "step-b"}} {
+		if _, err := store.CreateAgent(context.Background(), wsTest, &agentsv1.Agent{
+			Name:        step.name,
+			AgentId:     step.id,
+			WorkspaceId: wsTest,
+			Config:      &agentsv1.AgentConfig{Model: "m1"},
+		}); err != nil {
+			t.Fatalf("seed step agent %s: %v", step.name, err)
+		}
+	}
+}
+
 func TestAgentServiceServer_WorkflowGraphValidation(t *testing.T) {
 	store := memory.New()
 	svc := NewAgentServiceServer(store)
 	ctx := testCtx()
+	seedWorkflowStepAgents(t, store)
 
 	// A valid workflow graph saves fine.
 	if _, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
@@ -605,6 +620,7 @@ func TestAgentServiceServer_WorkflowGraphValidation(t *testing.T) {
 	_, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
 		Agent: workflowTestAgent(func(a *agentsv1.Agent) {
 			a.Name = "wf-bad"
+			a.AgentId = "wf-bad"
 			a.Config.Workflow.Edges[1].To = "missing"
 		}),
 	}))

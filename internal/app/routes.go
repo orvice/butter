@@ -351,6 +351,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	remoteConnectPath, remoteConnectHandler := agentsv1connect.NewRemoteAgentServiceHandler(remoteSvcServer, connectOpts...)
 	automationConnectPath, automationConnectHandler := agentsv1connect.NewAutomationServiceHandler(automationSvcServer, connectOpts...)
 	channelSvcServer := application.NewChannelServiceServer(configStore)
+	channelSvcServer.SetAgentRepo(configStore)
 	channelConnectPath, channelConnectHandler := agentsv1connect.NewChannelServiceHandler(channelSvcServer, connectOpts...)
 	sessionSvcServer := application.NewSessionServiceServer()
 	sessionConnectPath, sessionConnectHandler := agentsv1connect.NewSessionServiceHandler(sessionSvcServer, connectOpts...)

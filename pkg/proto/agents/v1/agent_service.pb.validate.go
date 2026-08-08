@@ -573,6 +573,8 @@ func (m *AgentRuntimeStatus) validate(all bool) error {
 
 	// no validation rules for InFlight
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return AgentRuntimeStatusMultiError(errors)
 	}
@@ -676,6 +678,8 @@ func (m *GetAgentRuntimeStatusRequest) validate(all bool) error {
 	var errors []error
 
 	// no validation rules for Name
+
+	// no validation rules for AgentId
 
 	if len(errors) > 0 {
 		return GetAgentRuntimeStatusRequestMultiError(errors)
@@ -1410,6 +1414,8 @@ func (m *StreamAgentRequest) validate(all bool) error {
 
 	}
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return StreamAgentRequestMultiError(errors)
 	}
@@ -1789,6 +1795,8 @@ func (m *StreamAgentStarted) validate(all bool) error {
 
 	// no validation rules for AgentName
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return StreamAgentStartedMultiError(errors)
 	}
@@ -1938,6 +1946,8 @@ func (m *StreamAgentRunEvent) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return StreamAgentRunEventMultiError(errors)
 	}
@@ -2048,6 +2058,8 @@ func (m *StreamAgentTextDelta) validate(all bool) error {
 
 	// no validation rules for Text
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return StreamAgentTextDeltaMultiError(errors)
 	}
@@ -2157,6 +2169,8 @@ func (m *StreamAgentFinal) validate(all bool) error {
 	// no validation rules for AgentName
 
 	// no validation rules for Response
+
+	// no validation rules for AgentId
 
 	if len(errors) > 0 {
 		return StreamAgentFinalMultiError(errors)
@@ -4182,6 +4196,8 @@ func (m *InvokeAgentRequest) validate(all bool) error {
 
 	// no validation rules for ModelOverride
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return InvokeAgentRequestMultiError(errors)
 	}
@@ -4472,6 +4488,10 @@ func (m *Invocation) validate(all bool) error {
 
 	// no validation rules for Source
 
+	// no validation rules for AgentId
+
+	// no validation rules for AgentDisplayName
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
@@ -4580,6 +4600,8 @@ func (m *ListAgentInvocationsRequest) validate(all bool) error {
 	// no validation rules for PageSize
 
 	// no validation rules for PageToken
+
+	// no validation rules for AgentId
 
 	if len(errors) > 0 {
 		return ListAgentInvocationsRequestMultiError(errors)
@@ -14960,6 +14982,8 @@ func (m *ReplySessionRequest) validate(all bool) error {
 		}
 
 	}
+
+	// no validation rules for AgentId
 
 	if len(errors) > 0 {
 		return ReplySessionRequestMultiError(errors)

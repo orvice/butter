@@ -68,16 +68,9 @@ func (m *AgentChannel) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if utf8.RuneCountInString(m.GetAgentName()) < 1 {
-		err := AgentChannelValidationError{
-			field:  "AgentName",
-			reason: "value length must be at least 1 runes",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for AgentName
+
+	// no validation rules for AgentId
 
 	// no validation rules for Platform
 

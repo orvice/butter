@@ -314,9 +314,11 @@ message DaemonTaskInFlight {
   string current_step = 7;
   // Latest progress percentage in [0, 100]; 0 when unknown.
   int32 progress = 8;
-  // Agent name that triggered the dispatch.
+  // Legacy name of the agent that triggered the dispatch.
   string agent_name = 9;
   string workspace_id = 10;
+  // Immutable agent_id of the agent that triggered the dispatch, when known.
+  string agent_id = 11;
 }
 
 message DaemonStatus {

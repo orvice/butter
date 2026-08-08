@@ -172,6 +172,8 @@ func (m *DaemonTask) validate(all bool) error {
 
 	// no validation rules for AgentName
 
+	// no validation rules for AgentId
+
 	// no validation rules for Input
 
 	// no validation rules for SessionId

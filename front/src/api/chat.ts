@@ -12,7 +12,10 @@ const sessionClient = makeClient(SessionService);
 const agentClient = makeClient(AgentService);
 
 export interface SendChatParams {
-  agent_name: string;
+  /** Legacy agent name; fallback for agents without an agent_id. */
+  agent_name?: string;
+  /** Immutable agent_id of the agent to invoke. Preferred over agent_name. */
+  agent_id?: string;
   app_name: string;
   user_id: string;
   session_id: string;
@@ -45,6 +48,7 @@ export interface ChatStreamPayload {
   invocation_id?: string;
   session_id?: string;
   agent_name?: string;
+  agent_id?: string;
   response?: string;
   text_delta?: string;
   error?: string;
@@ -61,7 +65,8 @@ export interface ChatStreamHandlers {
 
 export async function replySession(params: SendChatParams): Promise<ReplySessionResponse> {
   const res = await sessionClient.replySession({
-    agentName: params.agent_name,
+    agentName: params.agent_name ?? "",
+    agentId: params.agent_id ?? "",
     appName: params.app_name,
     userId: params.user_id,
     sessionId: params.session_id,
@@ -92,7 +97,8 @@ export async function streamChat(
   try {
     const stream = agentClient.streamAgent(
       {
-        agentName: params.agent_name,
+        agentName: params.agent_name ?? "",
+        agentId: params.agent_id ?? "",
         appName: params.app_name,
         userId: params.user_id,
         sessionId: params.session_id,
@@ -111,6 +117,7 @@ export async function streamChat(
             invocation_id: v.invocationId,
             session_id: v.sessionId,
             agent_name: v.agentName,
+            agent_id: v.agentId,
           });
           break;
         }
@@ -120,6 +127,7 @@ export async function streamChat(
             invocation_id: v.invocationId,
             session_id: v.sessionId,
             agent_name: v.agentName,
+            agent_id: v.agentId,
             text_delta: v.text,
           });
           break;
@@ -130,6 +138,7 @@ export async function streamChat(
             invocation_id: v.invocationId,
             session_id: v.sessionId,
             agent_name: v.agentName,
+            agent_id: v.agentId,
             event: {
               event_id: v.eventId,
               invocation_id: v.invocationId,
@@ -149,6 +158,7 @@ export async function streamChat(
             invocation_id: v.invocationId,
             session_id: v.sessionId,
             agent_name: v.agentName,
+            agent_id: v.agentId,
             response: v.response,
           };
           handlers.onFinal?.(finalPayload);
@@ -166,6 +176,7 @@ export async function streamChat(
     handlers.onError?.({
       session_id: params.session_id,
       agent_name: params.agent_name,
+      agent_id: params.agent_id,
       error: message,
     });
     throw new ApiError("stream_error", message);

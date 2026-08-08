@@ -60,13 +60,42 @@ The server CORS middleware allows `Authorization`, `Content-Type`,
 ### Field naming
 
 Generated protobuf clients use their language-native field names. In the
-current TypeScript client that means camelCase, for example `agentName` and
+current TypeScript client that means camelCase, for example `agentId` and
 `modelOverride`.
 
 Plain JSON HTTP calls should use proto field names, which are snake_case:
-`agent_name`, `model_override`, `display_name`, `expires_at`. The server also
+`agent_id`, `model_override`, `display_name`, `expires_at`. The server also
 accepts camelCase on JSON input for compatibility, but JSON responses use
 snake_case.
+
+### Agent references: `agent_id`
+
+Agents are identified by an **immutable, workspace-unique slug** called the
+Agent ID (`agent_id`, e.g. `"assistant"`). Every interface that invokes or
+binds an agent now addresses it **strictly by `agent_id`**; the mutable
+display name lives in `display_name` and never participates in lookup.
+
+`agent_id` is **required** wherever an agent is invoked or bound —
+`InvokeAgent`, `StreamAgent`, `ReplySession`, channel / cron / automation
+create-update, forum threads and `InvokeAgentInThread`, the A2A endpoints, and
+the OpenAI-compatible API. A missing `agent_id` fails with `invalid_argument`
+("agent_id is required"); an id that matches no agent fails with `not_found` —
+there is never a fallback to the name.
+
+The legacy `agent_name` request fields still exist on the wire for backward
+compatibility but are **ignored as an input** on these interfaces. They survive
+only as read-only output — invocation and execution history written before the
+migration carries `agent_name`, and services stamp the resolved runtime name
+into `agent_name` as a display label. Read/observability queries that filter
+historical records (`ListAgentInvocations`, the runtime-status lookups) still
+accept a legacy name for those pre-migration rows.
+
+Pre-existing channel, cron, and automation records that referenced an agent
+only by legacy name are migrated to `agent_id` by a **one-time startup
+backfill**: on boot the server resolves each name-only record to the agent's
+assigned `agent_id` and rewrites it, so those records keep resolving after the
+upgrade. Records whose name no longer maps to an assigned `agent_id` are logged
+and left untouched rather than failing startup.
 
 ### Plain JSON examples
 
@@ -114,12 +143,15 @@ curl -sS "$BUTTER_BASE_URL/api/agents.v1.AgentService/InvokeAgent" \
   -H "Authorization: Bearer $BUTTER_TOKEN" \
   -H "X-Workspace-ID: $BUTTER_WORKSPACE_ID" \
   -d '{
-    "agent_name": "assistant",
+    "agent_id": "assistant",
     "input": "Summarize today'\''s channel activity.",
     "app_name": "external-app",
     "user_id": "u-123"
   }'
 ```
+
+`agent_id` is the agent's immutable slug and is **required**; the legacy
+`agent_name` field is ignored on this RPC.
 
 ### TypeScript Connect-Web client
 
@@ -178,7 +210,7 @@ Stream chat:
 
 ```ts
 const stream = agentClient.streamAgent({
-  agentName: "assistant",
+  agentId: "assistant",
   message: "What changed in this workspace?",
   appName: "external-app",
   userId: "u-123",
@@ -208,7 +240,7 @@ Abort/cancel a stream from the browser:
 ```ts
 const controller = new AbortController();
 const stream = agentClient.streamAgent(
-  { agentName: "assistant", message: "Run a long task" },
+  { agentId: "assistant", message: "Run a long task" },
   { signal: controller.signal },
 );
 
@@ -323,10 +355,15 @@ Returns runtime status for the config storage backend. Requires Bearer token aut
 
 ### A2A Protocol
 
+A2A routes are addressed by `:agent_ref`, which **is** the agent's immutable
+`agent_id` — the legacy-name match was removed. Only an agent that has an
+`agent_id` and `enable_a2a: true` is reachable; any other ref returns
+`agent not found`. The agent card advertises the `agent_id` URL.
+
 #### Get Agent Card
 
 ```
-GET /a2a/:agent_name/.well-known/agent.json
+GET /a2a/:agent_ref/.well-known/agent.json
 ```
 
 Returns agent metadata for A2A discovery. Only available for agents with `enable_a2a: true`.
@@ -348,7 +385,7 @@ Returns agent metadata for A2A discovery. Only available for agents with `enable
 #### Send Task
 
 ```
-POST /a2a/:agent_name
+POST /a2a/:agent_ref
 ```
 
 Sends a task to an agent using JSON-RPC 2.0.
@@ -751,7 +788,8 @@ POST /api/agents.v1.AgentService/GetAgent
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Agent name |
+| `agent_id` | string | Look up by immutable Agent ID (preferred). When set, `name` is ignored |
+| `name` | string | Legacy name lookup. Deprecated: use `agent_id` |
 
 **Response:**
 
@@ -777,6 +815,19 @@ POST /api/agents.v1.AgentService/CreateAgent
 |-------|------|-------------|
 | `agent` | Agent | Created agent |
 
+**V2 create contract:**
+
+- `agent.agent_id` is **required** — an immutable, workspace-unique slug
+  matching `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$` (1–64 lowercase
+  alphanumerics and hyphens, starting and ending alphanumeric). The reserved
+  slugs `user`, `system`, `admin`, `start`, `default`, `api`, `new` are
+  rejected, as is an `agent_id` already used in the workspace
+  (`already_exists`).
+- Embedded `agent.sub_agents` are **rejected** (`invalid_argument`): create
+  child agents as independent records and reference them via
+  `child_agent_ids` (validated against the workspace's agents).
+- New agents are created with `lifecycle_status: ACTIVE`.
+
 #### UpdateAgent
 
 ```
@@ -795,6 +846,13 @@ POST /api/agents.v1.AgentService/UpdateAgent
 |-------|------|-------------|
 | `agent` | Agent | Updated agent |
 
+`agent_id` and `lifecycle_status` cannot be changed here — setting a
+different `agent_id` fails with `invalid_argument` (use `AssignAgentID`).
+Embedded `sub_agents` are read-only legacy state: any change to them is
+rejected, while unchanged round-trips of legacy records are allowed. To
+restructure a legacy tree, run `MigrateAgentsV2` and compose via
+`child_agent_ids`.
+
 #### DeleteAgent
 
 ```
@@ -805,7 +863,8 @@ POST /api/agents.v1.AgentService/DeleteAgent
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Agent name to delete |
+| `agent_id` | string | Identify by immutable Agent ID (preferred). When set, `name` is ignored |
+| `name` | string | Legacy name lookup. Deprecated: use `agent_id` |
 
 **Response:** `{}`
 
@@ -821,7 +880,8 @@ One-shot agent run. If `session_id` is empty an ephemeral id `invoke-<uuid>` is 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_name` | string | Required |
+| `agent_id` | string | **Required.** Immutable Agent ID of the agent to invoke. Missing → `invalid_argument`; unknown → `not_found` (never falls back to the name) |
+| `agent_name` | string | Ignored. Retained on the wire for backward compatibility only |
 | `input` | string | Required input text |
 | `app_name` | string | Defaults to `"api"` |
 | `user_id` | string | Defaults to `"api"` |
@@ -854,7 +914,8 @@ Requires the same Bearer token as other `/api` RPCs. Non-admin callers must set
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_name` | string | Required |
+| `agent_id` | string | **Required.** Immutable Agent ID of the agent to invoke. Missing → `invalid_argument`; unknown → aborts with `not_found` (never falls back to the name) |
+| `agent_name` | string | Ignored. Retained on the wire for backward compatibility only |
 | `message` | string | User prompt. Required when `parts` is empty; ignored when `parts` is set |
 | `app_name` | string | ADK app name; defaults to `"api"` |
 | `user_id` | string | ADK user id; defaults to `"api"` |
@@ -884,10 +945,13 @@ Image-only requests (no text part) are accepted.
 
 | Variant | Description |
 |---------|-------------|
-| `started` | First message. `invocation_id`, `session_id`, `agent_name`. Use `invocation_id` with `CancelAgentInvocation`. |
+| `started` | First message. `invocation_id`, `session_id`, `agent_name`, `agent_id`. Use `invocation_id` with `CancelAgentInvocation`. |
 | `text_delta` | Partial assistant text chunk (`text`). |
 | `run_event` | Full ADK `session.Event` mirror: `event_id`, `author`, `branch`, `partial`, `final_response`, `content_json`, `timestamp`. |
 | `final` | Terminal success. `response` text; server closes the stream after this. |
+
+Every stream variant carries the resolved agent's `agent_id` alongside the
+legacy `agent_name` (empty for agents without an assigned ID).
 
 Terminal failures are **`connect.Error`** on the RPC (e.g. `failed_precondition`
 when the runner is unavailable or workspace header is missing), not an in-stream
@@ -944,7 +1008,8 @@ Returns the latest invocation state for an agent.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Agent name |
+| `agent_id` | string | Immutable Agent ID (preferred over `name`) |
+| `name` | string | Legacy name lookup. Deprecated: use `agent_id` |
 
 **Response:** `{ "status": AgentRuntimeStatus }` (see below).
 
@@ -954,13 +1019,14 @@ Returns the latest invocation state for an agent.
 POST /api/agents.v1.AgentService/ListAgentRuntimeStatuses
 ```
 
-Batched variant; if `names` is empty, returns statuses for all configured agents.
+Batched variant; if both filter lists are empty, returns statuses for all configured agents.
 
 **Request:**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `names` | string[] | Optional filter list |
+| `agent_ids` | string[] | Filter by immutable Agent IDs (preferred over `names`) |
+| `names` | string[] | Legacy name filter. Deprecated: use `agent_ids` |
 
 **Response:**
 
@@ -980,7 +1046,8 @@ Returns persisted invocation records, optionally filtered.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_name` | string | Optional filter |
+| `agent_id` | string | Optional filter by immutable Agent ID (preferred over `agent_name`) |
+| `agent_name` | string | Legacy name filter. Deprecated: use `agent_id`. Historical records written before the migration carry only `agent_name` |
 | `session_id` | string | Optional filter |
 | `page_size` | int32 | Defaults to 20 |
 | `page_token` | string | Pagination token |
@@ -993,18 +1060,69 @@ Returns persisted invocation records, optionally filtered.
 | `next_page_token` | string | Empty if last page |
 | `total` | int32 | Total matching records |
 
+#### AssignAgentID
+
+```
+POST /api/agents.v1.AgentService/AssignAgentID
+```
+
+Assigns the immutable, workspace-unique slug Agent ID to an existing (legacy)
+agent identified by name. Workspace owners/admins only. Rejects invalid
+slugs, reserved values, duplicates, and reassignment of an already-set ID.
+
+**Request:** `{ "name": "<agent-name>", "agent_id": "<slug>" }`
+
+**Response:** `{ "agent": Agent }`
+
+#### GetMigrationReadiness
+
+```
+POST /api/agents.v1.AgentService/GetMigrationReadiness
+```
+
+Reports each agent's readiness for the identity migration.
+
+**Request:** `{}`
+
+**Response:** `{ "statuses": AgentMigrationStatus[] }` — each with `name`,
+`agent_id`, `readiness` (`READY`, `MISSING_ID`, `CONFLICT`,
+`INCOMPLETE_DEPS`), and a human-readable `detail`.
+
+#### MigrateAgentsV2
+
+```
+POST /api/agents.v1.AgentService/MigrateAgentsV2
+```
+
+Expands eligible legacy embedded `sub_agents` trees into independent Agent
+records with ID-based composition (`child_agent_ids` / workflow node
+`agent_id`). Legacy records stay readable until this migration runs.
+
+**Request:** `{ "mode": "MIGRATE_MODE_DRY_RUN" | "MIGRATE_MODE_APPLY" | "MIGRATE_MODE_VERIFY" }`
+
+**Response:** `{ "mode", "results": MigrateAgentResult[], "total", "migrated", "skipped", "errors" }` —
+each result carries `name`, `agent_id`, an `action` string (`expanded`,
+`skipped`, `already_independent`, `missing_id`, `error`, `ok`,
+`migration_required`), and `detail`.
+
 #### Agent Object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Unique name (required, cannot be "user"; must be globally unique across workspaces while the runtime keeps a flat view) |
+| `agent_id` | string | Immutable, workspace-unique slug identifier — the primary reference for every consumer. Required on `CreateAgent`; assigned to legacy agents via `AssignAgentID`; cannot be changed or reused once set |
+| `name` | string | Legacy runtime name (required, cannot be "user"; must be globally unique across workspaces while the runtime keeps a flat view). Deprecated as a reference — use `agent_id` |
+| `display_name` | string | Mutable human-readable UI label; never participates in lookup |
 | `description` | string | Description for LLM delegation |
-| `sub_agents` | Agent[] | Nested sub-agents |
+| `sub_agents` | Agent[] | Legacy nested sub-agents. Read-only: rejected on create, immutable on update; migrated to independent records by `MigrateAgentsV2` |
+| `child_agent_ids` | string[] | Ordered child Agent ID references for LLM/Loop/Sequential/Parallel composition (replaces embedded `sub_agents` for V2 agents) |
+| `lifecycle_status` | enum | Whether the agent is runnable; new agents are created `ACTIVE` |
+| `legacy_name` | string | Original name preserved during the V2 migration observation period |
 | `labels` | map\<string,string\> | Routing/indexing labels |
 | `metadata` | map\<string,string\> | Custom annotations |
 | `config` | AgentConfig | Execution settings (see below) |
 | `type` | enum | `AGENT_TYPE_LLM`, `AGENT_TYPE_LOOP`, `AGENT_TYPE_SEQUENTIAL`, `AGENT_TYPE_PARALLEL`, `AGENT_TYPE_WORKFLOW` |
 | `enable_a2a` | bool | Expose via A2A protocol |
+| `enable_openai_api` | bool | Expose via the OpenAI-compatible API |
 | `workspace_id` | string | Owning workspace (server-enforced from `X-Workspace-ID` on writes; returned on reads) |
 
 #### AgentConfig Object
@@ -1049,7 +1167,8 @@ Declares a Workflow Agent's directed graph. See [ADR 0001](adr/0001-workflow-gra
 |-------|------|-------------|
 | `name` | string | Unique node name within the graph |
 | `kind` | enum | `WORKFLOW_NODE_KIND_AGENT`, `WORKFLOW_NODE_KIND_HUMAN_INPUT`, `WORKFLOW_NODE_KIND_ROUTER`, `WORKFLOW_NODE_KIND_JOIN` |
-| `agent` | string | AGENT nodes: name of a sub-agent to run |
+| `agent_id` | string | AGENT nodes (V2): Agent ID of an independent agent to run. Preferred over `agent` |
+| `agent` | string | AGENT nodes: legacy sub-agent name. Deprecated: use `agent_id`; retained for migration compat |
 | `question` | string | HUMAN_INPUT nodes: the question presented to the human |
 | `parallel_worker` | bool | AGENT nodes only: fan-out concurrently over list-typed input |
 | `retry` | WorkflowRetryConfig | Retry policy for failed activations |
@@ -1133,7 +1252,8 @@ Endpoints:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Agent name |
+| `name` | string | Legacy runtime name that keys the invocation summaries |
+| `agent_id` | string | Immutable Agent ID of the agent, when assigned |
 | `state` | enum | `AGENT_RUNTIME_STATE_IDLE`, `AGENT_RUNTIME_STATE_RUNNING`, `AGENT_RUNTIME_STATE_FAILED` |
 | `last_run_at` | timestamp | Most recent invocation finished_at (or started_at if still running) |
 | `last_invocation_id` | string | Id of the most recent invocation |
@@ -1144,7 +1264,9 @@ Endpoints:
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | Unique id (matches `ContextInfo.uuid`) |
-| `agent_name` | string |  |
+| `agent_id` | string | Immutable Agent ID snapshot of the invoked agent. Empty on historical records written before the migration |
+| `agent_display_name` | string | Display-name snapshot taken at invocation time so historical rows stay readable after renames |
+| `agent_name` | string | Legacy runtime name of the invoked agent |
 | `app_name` | string | Channel / app the invocation was triggered from |
 | `user_id` | string |  |
 | `session_id` | string |  |
@@ -1910,6 +2032,11 @@ POST /api/agents.v1.ChannelService/CreateChannel
 
 Creates an `AgentChannel` configuration and reloads the channel manager.
 
+The channel binds to an agent via `agent_id`, which is **required** on create
+and update; the legacy `agent_name` is no longer accepted as an input. The
+service validates `agent_id` against the workspace and stamps the resolved
+runtime name into `agent_name` for display only.
+
 **Request:** `{ "channel": AgentChannel }`
 
 **Response:** `{ "channel": AgentChannel }`
@@ -2092,7 +2219,8 @@ Sends a user message to an existing session and returns the agent response.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_name` | string | Agent to invoke |
+| `agent_id` | string | **Required.** Immutable Agent ID of the agent to invoke. Missing → `invalid_argument`; unknown → `not_found` (never falls back to the name) |
+| `agent_name` | string | Ignored. Retained on the wire for backward compatibility only |
 | `app_name` | string | Channel/app name |
 | `user_id` | string | User ID |
 | `session_id` | string | Session ID |
@@ -2317,7 +2445,7 @@ scheduled.
         "name": "summarize",
         "type": "AUTOMATION_STEP_TYPE_INVOKE_AGENT",
         "invoke_agent": {
-          "agent_name": "assistant",
+          "agent_id": "assistant",
           "input": "Generate today's workspace summary."
         }
       },
@@ -2450,7 +2578,7 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 |-------|------|-------------|
 | `name` | string | Stable step name recorded in step-run history |
 | `type` | enum | `INVOKE_AGENT`, `CALL_WEBHOOK`, `SEND_NOTIFY_GROUP`, `CREATE_FORUM_POST` |
-| `invoke_agent` | object | `agent_name`, `input`, optional `model_override` |
+| `invoke_agent` | object | `agent_id` (**required**), `input`, optional `model_override`. `agent_id` is validated against the workspace on write and the resolved runtime name is stamped into `agent_name` for display; legacy `agent_name` is not accepted as an input, and an unknown `agent_id` fails validation |
 | `call_webhook` | object | `url`, `method`, `payload_json`, `headers` |
 | `send_notify_group` | object | `notify_group_name`, `title`, `message` |
 | `create_forum_post` | object | `thread_id`, `body` |
@@ -2478,6 +2606,9 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 | `error` | string | Failure reason |
 | `started_at` / `finished_at` | timestamp | Run timing |
 | `duration_ms` | int64 | Wallclock duration |
+| `session_app_name` / `session_user_id` / `session_id` | string | Set when `WAITING_INPUT`: `ReplySession` coordinates of the paused workflow |
+| `agent_id` | string | Set when `WAITING_INPUT`: immutable Agent ID of the paused agent — the agent a reply must address |
+| `agent_name` | string | Display-only runtime name of the paused agent; historical records may carry only this |
 | `workspace_id` | string | Owning workspace |
 
 #### AutomationStepRun Object
@@ -2564,7 +2695,7 @@ POST /api/agents.v1.CronJobService/CreateCronJob
   "cron_job": {
     "name": "daily-summary",
     "schedule": "0 9 * * *",
-    "agent_name": "assistant",
+    "agent_id": "assistant",
     "input": "Generate a daily summary",
     "timezone": "Asia/Shanghai",
     "enabled": true,
@@ -2658,7 +2789,8 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 |-------|------|-------------|
 | `name` | string | Unique name within a workspace (required) |
 | `schedule` | string | Cron expression or predefined schedule (required) |
-| `agent_name` | string | Agent to execute (required; resolved by name globally) |
+| `agent_id` | string | **Required** on create/update. Immutable Agent ID of the agent to execute; validated against the workspace, with the resolved runtime name stamped into `agent_name` for display. Runtime execution resolves strictly by `agent_id` |
+| `agent_name` | string | Display-only runtime name stamped by the service; not accepted as an input |
 | `input` | string | Message to send to agent |
 | `timezone` | string | IANA timezone (default UTC) |
 | `enabled` | bool | Whether the job is active |
@@ -2698,7 +2830,8 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 |-------|------|-------------|
 | `id` | string | Unique execution ID |
 | `job_name` | string | Cron job name |
-| `agent_name` | string | Agent that was executed |
+| `agent_id` | string | Immutable Agent ID of the executed agent, when known |
+| `agent_name` | string | Legacy name of the agent that was executed |
 | `status` | enum | `SUCCESS`, `ERROR`, `SKIPPED`, `CANCELLED`, `WAITING_INPUT` |
 | `input` | string | Input message sent |
 | `output` | string | Agent output preview or error message |
@@ -2715,7 +2848,7 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `session_id` | string | Set when status is `WAITING_INPUT`: `session_id` for `SessionService.ReplySession` |
 | `workspace_id` | string | Workspace that owns the parent cron job |
 
-**Waiting executions (approval-style jobs):** a cron-run Workflow Agent that pauses on a Human Input node records its execution as `WAITING_INPUT` and delivers the node's question through the job's delivery target together with the session coordinates above. Answer by calling `SessionService.ReplySession` with those coordinates and the job's `agent_name`; the workflow resumes and the execution reaches a terminal state. To abandon instead, delete the session via `SessionService.DeleteSession` with the same coordinates: the execution transitions to `CANCELLED` with the reason recorded in `error`, and the cancellation is delivered per the job's `notify_on` policy (cancellations count as failures). Sessions removed outside that RPC (e.g. direct database cleanup) are not reconciled. Otherwise a paused execution waits indefinitely.
+**Waiting executions (approval-style jobs):** a cron-run Workflow Agent that pauses on a Human Input node records its execution as `WAITING_INPUT` and delivers the node's question through the job's delivery target together with the session coordinates above and the paused agent's `agent_id` (rendered as `agent_id=<id>`; webhook payloads carry both `agent_id` and the display-only `agent_name`). Answer by calling `SessionService.ReplySession` with those coordinates and the paused execution's `agent_id`; the workflow resumes and the execution reaches a terminal state. To abandon instead, delete the session via `SessionService.DeleteSession` with the same coordinates: the execution transitions to `CANCELLED` with the reason recorded in `error`, and the cancellation is delivered per the job's `notify_on` policy (cancellations count as failures). Sessions removed outside that RPC (e.g. direct database cleanup) are not reconciled. Otherwise a paused execution waits indefinitely.
 
 ---
 
@@ -2980,7 +3113,8 @@ Tasks currently in flight across connected daemons.
 | `elapsed` | duration | Wallclock since dispatch |
 | `current_step` | string | Latest progress label reported by the daemon |
 | `progress` | int32 | 0–100; 0 when unknown |
-| `agent_name` | string | Agent that triggered the dispatch |
+| `agent_id` | string | Immutable Agent ID of the agent that triggered the dispatch, when known |
+| `agent_name` | string | Legacy name of the agent that triggered the dispatch |
 | `workspace_id` | string | Owning workspace |
 
 #### GetBridgeDiagnostics
@@ -3183,6 +3317,13 @@ Manages forum threads and posts within a workspace. Requires `X-Workspace-ID`.
 | `CreatePost` | `POST /api/agents.v1.ForumService/CreatePost` | Appends a post to a thread |
 | `DeletePost` | `POST /api/agents.v1.ForumService/DeletePost` | Deletes a single post |
 | `InvokeAgentInThread` | `POST /api/agents.v1.ForumService/InvokeAgentInThread` | Invokes an agent in thread context |
+
+Agents are referenced by Agent ID throughout: `ForumThread.agent_ids` and
+`ForumPost.author_agent_id` carry the immutable IDs. Create/Update thread take
+`agent_ids` and `InvokeAgentInThread` **requires** `agent_id`; `agent_names` is
+no longer an input. The service resolves each id, stamps the runtime name into
+the read-only `agent_names` / `agent_name` output fields, and skips any id that
+does not resolve.
 
 ---
 

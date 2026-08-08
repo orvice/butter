@@ -23,6 +23,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/transport/connectx"
+	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/adk/v2/session"
 )
@@ -31,6 +32,7 @@ import (
 // depends on; tests substitute a fake implementation.
 type sessionReplyRunner interface {
 	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 }
 
 // ErrSessionNotFound must be wrapped into the error a SessionTitleStore
@@ -397,16 +399,29 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, err
 	}
+
+	// The workspace header scopes agent resolution to the intended tenant.
+	// It is also stamped onto ContextInfo so the runner re-checks the resolved
+	// agent belongs to this workspace before executing — without it a request
+	// carrying no X-Workspace-ID would resolve an agent_id across tenants
+	// (agent_ids are only workspace-unique) and run it unscoped.
+	wsID, _ := workspace.FromContext(ctx)
+	agentName, err := resolveAgentRunnerRef(runnerSvc, wsID, req.Msg.GetAgentId())
+	if err != nil {
+		return nil, err
+	}
 	ctxInfo := &agentsv1.ContextInfo{
 		ChannelName: req.Msg.GetAppName(),
 		SessionId:   req.Msg.GetSessionId(),
 		UserId:      req.Msg.GetUserId(),
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
+		WorkspaceId: wsID,
 	}
 
 	logger := log.FromContext(ctx)
 	logger.Info("replying to session",
-		"agent", req.Msg.GetAgentName(),
+		"agent", agentName,
+		"agent_id", req.Msg.GetAgentId(),
 		"app_name", req.Msg.GetAppName(),
 		"user_id", req.Msg.GetUserId(),
 		"session_id", req.Msg.GetSessionId(),
@@ -414,10 +429,10 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 		"parts", len(req.Msg.GetParts()),
 	)
 	start := time.Now()
-	response, err := runnerSvc.Run(ctx, req.Msg.GetAgentName(), parts, req.Msg.GetModelOverride(), ctxInfo, nil, nil)
+	response, err := runnerSvc.Run(ctx, agentName, parts, req.Msg.GetModelOverride(), ctxInfo, nil, nil)
 	if err != nil {
 		logger.Error("session reply failed",
-			"agent", req.Msg.GetAgentName(),
+			"agent", agentName,
 			"session_id", req.Msg.GetSessionId(),
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"err", err,
@@ -425,7 +440,7 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("session reply completed",
-		"agent", req.Msg.GetAgentName(),
+		"agent", agentName,
 		"session_id", req.Msg.GetSessionId(),
 		"elapsed_ms", time.Since(start).Milliseconds(),
 	)

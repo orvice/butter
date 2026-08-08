@@ -39,6 +39,17 @@ func newBlockingForumRunner() *blockingForumRunner {
 	}
 }
 
+func (r *blockingForumRunner) ResolveAgentRef(_, agentID string) (string, bool) {
+	if agentID == "" {
+		return "", false
+	}
+	return agentID, true
+}
+
+func (r *blockingForumRunner) GetAgentIdentity(name string) (string, string, bool) {
+	return "", name, true
+}
+
 func (r *blockingForumRunner) Run(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (string, error) {
 	<-r.release
 	close(r.done)
@@ -74,7 +85,7 @@ func TestForumServiceInvokeAgentInThreadRejectsConcurrentProcessing(t *testing.T
 			<-start
 			_, err := svc.InvokeAgentInThread(ctx, connect.NewRequest(&agentsv1.InvokeAgentInThreadRequest{
 				ThreadId:  "thread-1",
-				AgentName: "agent-1",
+				AgentId:   "agent-1",
 				Message:   "please help",
 			}))
 			errs <- err
@@ -149,7 +160,7 @@ func TestForumServiceInvokeAgentInThreadRecentPostsFailureDoesNotMarkProcessing(
 
 	_, err := svc.InvokeAgentInThread(ctx, connect.NewRequest(&agentsv1.InvokeAgentInThreadRequest{
 		ThreadId:  "thread-1",
-		AgentName: "agent-1",
+		AgentId:   "agent-1",
 		Message:   "please help",
 	}))
 	var twerr *connect.Error

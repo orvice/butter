@@ -99,6 +99,7 @@ func TestDeliveryDefaults(t *testing.T) {
 	job := &agentsv1.CronJob{
 		Name:      "test",
 		Schedule:  "@daily",
+		AgentId:   "assistant",
 		AgentName: "assistant",
 		Enabled:   true,
 	}
@@ -110,6 +111,7 @@ func TestDeliveryDefaults(t *testing.T) {
 	job2 := &agentsv1.CronJob{
 		Name:      "test2",
 		Schedule:  "@daily",
+		AgentId:   "assistant",
 		AgentName: "assistant",
 		Enabled:   true,
 		Delivery: &agentsv1.CronDelivery{
@@ -124,6 +126,7 @@ func TestDeliveryDefaults(t *testing.T) {
 	job3 := &agentsv1.CronJob{
 		Name:      "test3",
 		Schedule:  "@daily",
+		AgentId:   "assistant",
 		AgentName: "assistant",
 		Enabled:   true,
 		Delivery: &agentsv1.CronDelivery{
@@ -227,8 +230,13 @@ type testCronRunner struct {
 	onTurn func(*agentsv1.ContextInfo, *runner.TurnResult, error)
 }
 
-func (r *testCronRunner) HasAgentInWorkspace(string, string) bool {
-	return true
+// ResolveAgentRef resolves any non-empty agent_id to a same-named agent in
+// these tests (id doubles as the runtime name); an empty id misses.
+func (r *testCronRunner) ResolveAgentRef(_, agentID string) (string, bool) {
+	if agentID == "" {
+		return "", false
+	}
+	return agentID, true
 }
 
 func (r *testCronRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, ctxInfo *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
@@ -329,6 +337,7 @@ func TestExecuteJobPausedWorkflowRecordsWaitingInput(t *testing.T) {
 	exec := s.executeJob(&agentsv1.CronJob{
 		Name:        "approve-deploy",
 		WorkspaceId: "ws1",
+		AgentId:     "release-flow",
 		AgentName:   "release-flow",
 		Schedule:    "@daily",
 	})
@@ -380,6 +389,7 @@ func TestPausedWorkflowDeliversQuestionWithSessionCoordinates(t *testing.T) {
 	exec := s.executeJob(&agentsv1.CronJob{
 		Name:        "approve-deploy",
 		WorkspaceId: "ws1",
+		AgentId:     "release-flow",
 		AgentName:   "release-flow",
 		Schedule:    "@daily",
 		Delivery: &agentsv1.CronDelivery{
@@ -395,7 +405,7 @@ func TestPausedWorkflowDeliversQuestionWithSessionCoordinates(t *testing.T) {
 	for _, want := range []string{
 		"Deploy v2 to production?", // the node's question
 		"waiting_input",            // the state, so the reader knows it blocks
-		"agent_name=release-flow",  // ReplySession coordinates follow
+		"agent_id=release-flow",    // ReplySession coordinates follow
 		"app_name=cron:approve-deploy",
 		"user_id=cron:approve-deploy",
 		// The full per-execution session ID, not just the job scope — a reply
@@ -430,6 +440,7 @@ func TestDeliverWebhookWaitingInputCarriesSessionCoordinates(t *testing.T) {
 	}, &agentsv1.CronExecution{
 		Id:             "exec-1",
 		JobName:        "approve-deploy",
+		AgentId:        "release-flow",
 		AgentName:      "release-flow",
 		Status:         agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT,
 		Output:         "Deploy v2 to production?",
@@ -501,6 +512,7 @@ func TestDeliverNotifyGroupWaitingInputCarriesSessionCoordinates(t *testing.T) {
 	}, &agentsv1.CronExecution{
 		Id:             "exec-1",
 		JobName:        "approve-deploy",
+		AgentId:        "release-flow",
 		AgentName:      "release-flow",
 		Status:         agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT,
 		Output:         "Deploy v2 to production?",
@@ -512,7 +524,7 @@ func TestDeliverNotifyGroupWaitingInputCarriesSessionCoordinates(t *testing.T) {
 
 	for _, want := range []string{
 		"Deploy v2 to production?",
-		"agent_name=release-flow",
+		"agent_id=release-flow",
 		"app_name=cron:approve-deploy",
 		"user_id=cron:approve-deploy",
 		"session_id=cron:approve-deploy:exec-1",
@@ -578,6 +590,7 @@ func waitingExecFixture() *agentsv1.CronExecution {
 	return &agentsv1.CronExecution{
 		Id:             "exec-1",
 		JobName:        "approve-deploy",
+		AgentId:        "release-flow",
 		AgentName:      "release-flow",
 		Status:         agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT,
 		Input:          "execute",
@@ -666,6 +679,7 @@ func TestHandleSessionDeletedCancelsWaitingExecution(t *testing.T) {
 		jobRepo: &testJobRepo{job: &agentsv1.CronJob{
 			Name:        "approve-deploy",
 			WorkspaceId: "ws1",
+			AgentId:     "release-flow",
 			AgentName:   "release-flow",
 			Schedule:    "@daily",
 			Delivery: &agentsv1.CronDelivery{
@@ -833,6 +847,7 @@ func TestExecuteJobDeletesSessionOnTerminalState(t *testing.T) {
 			exec := s.executeJob(&agentsv1.CronJob{
 				Name:        "approve-deploy",
 				WorkspaceId: "ws1",
+				AgentId:     "release-flow",
 				AgentName:   "release-flow",
 				Schedule:    "@daily",
 			})
@@ -871,6 +886,7 @@ func TestHandleTurnCompletesWaitingExecution(t *testing.T) {
 		jobRepo: &testJobRepo{job: &agentsv1.CronJob{
 			Name:        "approve-deploy",
 			WorkspaceId: "ws1",
+			AgentId:     "release-flow",
 			AgentName:   "release-flow",
 			Schedule:    "@daily",
 			Delivery: &agentsv1.CronDelivery{
@@ -983,6 +999,7 @@ func TestScheduledRerunWhileExecutionWaitsDoesNotAnswerIt(t *testing.T) {
 	job := &agentsv1.CronJob{
 		Name:              "approve-deploy",
 		WorkspaceId:       "ws1",
+		AgentId:           "release-flow",
 		AgentName:         "release-flow",
 		Schedule:          "@daily",
 		ConcurrencyPolicy: agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_ALLOW,
@@ -1047,6 +1064,7 @@ func TestExecuteJobUsesSSERunner(t *testing.T) {
 	exec := s.executeJob(&agentsv1.CronJob{
 		Name:        "daily-summary",
 		WorkspaceId: "ws1",
+		AgentId:     "assistant",
 		AgentName:   "assistant",
 		Input:       "summarize",
 	})
@@ -1078,6 +1096,7 @@ func TestLegacyCronDefaultsPreservePreviousBehavior(t *testing.T) {
 	exec := s.executeJob(&agentsv1.CronJob{
 		Name:        "legacy",
 		WorkspaceId: "ws1",
+		AgentId:     "assistant",
 		AgentName:   "assistant",
 		Schedule:    "@daily",
 	})
@@ -1114,6 +1133,7 @@ func TestExecuteJobRetriesUntilSuccess(t *testing.T) {
 	exec := s.executeJob(&agentsv1.CronJob{
 		Name:        "retry-job",
 		WorkspaceId: "ws1",
+		AgentId:     "assistant",
 		AgentName:   "assistant",
 		Schedule:    "@daily",
 		Retry:       &agentsv1.CronRetryPolicy{MaxAttempts: 1},
@@ -1142,6 +1162,7 @@ func TestExecuteJobTimeoutCancelsInvocation(t *testing.T) {
 	exec := s.executeJob(&agentsv1.CronJob{
 		Name:        "timeout-job",
 		WorkspaceId: "ws1",
+		AgentId:     "assistant",
 		AgentName:   "assistant",
 		Schedule:    "@daily",
 		Timeout:     durationpb.New(10 * time.Millisecond),
@@ -1214,6 +1235,7 @@ func TestExecuteJobSkipsWhileExecutionWaitsForInput(t *testing.T) {
 			exec := s.executeJobWithTrigger(&agentsv1.CronJob{
 				Name:              "approve-deploy",
 				WorkspaceId:       "ws1",
+				AgentId:           "release-flow",
 				AgentName:         "release-flow",
 				Schedule:          "@daily",
 				ConcurrencyPolicy: tc.policy,
@@ -1252,6 +1274,7 @@ func TestExecuteJobConcurrencySkipRecordsSkipped(t *testing.T) {
 	exec := s.executeJobWithTrigger(&agentsv1.CronJob{
 		Name:        "skip-job",
 		WorkspaceId: "ws1",
+		AgentId:     "assistant",
 		AgentName:   "assistant",
 		Schedule:    "@daily",
 	}, agentsv1.CronExecutionTriggerType_CRON_EXECUTION_TRIGGER_TYPE_SCHEDULE)
@@ -1279,6 +1302,7 @@ func TestExecuteJobConcurrencyAllowStartsOverlapping(t *testing.T) {
 	exec := s.executeJobWithTrigger(&agentsv1.CronJob{
 		Name:              "allow-job",
 		WorkspaceId:       "ws1",
+		AgentId:           "assistant",
 		AgentName:         "assistant",
 		Schedule:          "@daily",
 		ConcurrencyPolicy: agentsv1.CronConcurrencyPolicy_CRON_CONCURRENCY_POLICY_ALLOW,
@@ -1475,5 +1499,80 @@ func TestDeliverChannelSendsThroughConfiguredAgentChannel(t *testing.T) {
 	}
 	if sender.text == "" {
 		t.Fatal("expected non-empty delivery message")
+	}
+}
+
+// resolvingCronRunner is a testCronRunner with an explicit agent_id → name
+// table, for tests that exercise agent_id resolution end to end.
+type resolvingCronRunner struct {
+	testCronRunner
+	idToName map[string]string
+	gotAgent string
+}
+
+func (r *resolvingCronRunner) ResolveAgentRef(_, agentID string) (string, bool) {
+	name, ok := r.idToName[agentID]
+	return name, ok
+}
+
+func (r *resolvingCronRunner) RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, mo string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error) {
+	r.gotAgent = agentName
+	return r.testCronRunner.RunTurnSSE(ctx, agentName, parts, mo, ctxInfo, onEvent, onCompaction)
+}
+
+func TestExecuteJobResolvesAgentID(t *testing.T) {
+	cronRunner := &resolvingCronRunner{
+		testCronRunner: testCronRunner{output: "done"},
+		idToName:       map[string]string{"reporter-v2": "reporter"},
+	}
+	execRepo := &testExecutionRepo{}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: execRepo,
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "daily-report",
+		WorkspaceId: "ws1",
+		AgentId:     "reporter-v2",
+		Schedule:    "@daily",
+	})
+
+	if cronRunner.gotAgent != "reporter" {
+		t.Fatalf("runner invoked with %q, want reporter (resolved from agent_id)", cronRunner.gotAgent)
+	}
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+		t.Fatalf("status = %s, want success", exec.GetStatus())
+	}
+	if exec.GetAgentId() != "reporter-v2" {
+		t.Fatalf("execution agent_id = %q, want reporter-v2", exec.GetAgentId())
+	}
+}
+
+func TestExecuteJobUnknownAgentIDFails(t *testing.T) {
+	cronRunner := &resolvingCronRunner{idToName: map[string]string{}}
+	execRepo := &testExecutionRepo{}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: execRepo,
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "daily-report",
+		WorkspaceId: "ws1",
+		AgentId:     "ghost",
+		AgentName:   "reporter", // must not fall back to the legacy name
+		Schedule:    "@daily",
+	})
+
+	if cronRunner.gotAgent != "" {
+		t.Fatalf("runner was invoked with %q despite unknown agent_id", cronRunner.gotAgent)
+	}
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR {
+		t.Fatalf("status = %s, want error", exec.GetStatus())
 	}
 }

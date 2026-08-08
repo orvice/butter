@@ -40,16 +40,23 @@ func (h *A2AHandler) getRunner() *runner.Service {
 	return h.runnerSvc
 }
 
-// Register registers A2A routes on the Gin engine.
+// Register registers A2A routes on the Gin engine. The path segment is the
+// agent's immutable agent_id; the legacy agent name keeps working for agents
+// that have not been assigned an ID yet.
 func (h *A2AHandler) Register(r *gin.Engine) {
-	r.GET("/a2a/:agent_name/.well-known/agent.json", h.AgentCard)
-	r.POST("/a2a/:agent_name", h.TaskSend)
+	r.GET("/a2a/:agent_ref/.well-known/agent.json", h.AgentCard)
+	r.POST("/a2a/:agent_ref", h.TaskSend)
 }
 
-// findA2AAgent returns the agent proto config if it exists and has enable_a2a set.
-func (h *A2AHandler) findA2AAgent(name string) *agentsv1.Agent {
+// findA2AAgent returns the agent proto config addressed by its immutable
+// agent_id, if it exists and has enable_a2a set. agent_id is the sole agent
+// reference on the A2A interface (issue #213 contract step).
+func (h *A2AHandler) findA2AAgent(agentID string) *agentsv1.Agent {
+	if agentID == "" {
+		return nil
+	}
 	for i := range h.cfg.Agents {
-		if h.cfg.Agents[i].GetName() == name && h.cfg.Agents[i].GetEnableA2A() {
+		if h.cfg.Agents[i].GetAgentId() == agentID && h.cfg.Agents[i].GetEnableA2A() {
 			return &h.cfg.Agents[i]
 		}
 	}
@@ -58,9 +65,7 @@ func (h *A2AHandler) findA2AAgent(name string) *agentsv1.Agent {
 
 // AgentCard serves the A2A agent card for a specific agent.
 func (h *A2AHandler) AgentCard(c *gin.Context) {
-	agentName := c.Param("agent_name")
-
-	ag := h.findA2AAgent(agentName)
+	ag := h.findA2AAgent(c.Param("agent_ref"))
 	if ag == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "agent not found"})
 		return
@@ -72,13 +77,12 @@ func (h *A2AHandler) AgentCard(c *gin.Context) {
 
 // TaskSend handles A2A tasks/send JSON-RPC requests.
 func (h *A2AHandler) TaskSend(c *gin.Context) {
-	agentName := c.Param("agent_name")
-
-	ag := h.findA2AAgent(agentName)
+	ag := h.findA2AAgent(c.Param("agent_ref"))
 	if ag == nil {
 		c.JSON(http.StatusOK, jsonRPCError(nil, -32001, "agent not found"))
 		return
 	}
+	agentName := ag.GetName()
 
 	svc := h.getRunner()
 	if svc == nil {
@@ -179,7 +183,7 @@ func buildAgentCard(ag *agentsv1.Agent) AgentCard {
 	return AgentCard{
 		Name:        ag.GetName(),
 		Description: ag.GetDescription(),
-		URL:         "/a2a/" + ag.GetName(),
+		URL:         "/a2a/" + ag.GetAgentId(),
 		Version:     "0.1.0",
 		Capabilities: Capabilities{
 			Streaming: false,

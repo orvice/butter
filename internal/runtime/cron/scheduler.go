@@ -56,7 +56,7 @@ type Scheduler struct {
 }
 
 type runnerService interface {
-	HasAgentInWorkspace(workspaceID, name string) bool
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 	RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error)
 }
 
@@ -134,8 +134,8 @@ func validateJobConfig(job *agentsv1.CronJob) error {
 	if job.GetSchedule() == "" {
 		return errors.New("cron job schedule is required")
 	}
-	if job.GetAgentName() == "" {
-		return errors.New("cron job agent_name is required")
+	if job.GetAgentId() == "" {
+		return errors.New("cron job agent_id is required")
 	}
 	if _, err := parseJobSchedule(job); err != nil {
 		return err
@@ -289,19 +289,32 @@ func (s *Scheduler) UpdateJob(ctx context.Context, job *agentsv1.CronJob) error 
 	return s.registerJob(job)
 }
 
-// validateAgentScope checks that the cron job's target agent exists inside
-// the job's workspace. Called from AddJob/UpdateJob before persistence so a
-// caller in workspace A cannot leave a database record referencing
-// workspace B's agent, and so the user gets a typed error instead of a
-// silent registration failure after the row is already written.
+// validateAgentScope checks that the cron job's target agent_id exists inside
+// the job's workspace and rewrites agent_name to the resolved runtime name
+// for display. Called from AddJob/UpdateJob before persistence so a caller in
+// workspace A cannot leave a database record referencing workspace B's agent,
+// and so the user gets a typed error instead of a silent registration failure
+// after the row is already written.
 func (s *Scheduler) validateAgentScope(job *agentsv1.CronJob) error {
 	if s.runner == nil {
 		return nil
 	}
-	if !s.runner.HasAgentInWorkspace(job.GetWorkspaceId(), job.GetAgentName()) {
-		return fmt.Errorf("%w: agent %q in workspace %q", ErrAgentNotInWorkspace, job.GetAgentName(), job.GetWorkspaceId())
+	name, ok := s.runner.ResolveAgentRef(job.GetWorkspaceId(), job.GetAgentId())
+	if !ok {
+		return fmt.Errorf("%w: agent %q in workspace %q", ErrAgentNotInWorkspace, job.GetAgentId(), job.GetWorkspaceId())
 	}
+	job.AgentName = name
 	return nil
+}
+
+// resolveJobAgent resolves a stored job's agent_id to the registered runtime
+// name at execution time.
+func (s *Scheduler) resolveJobAgent(job *agentsv1.CronJob) (string, error) {
+	name, ok := s.runner.ResolveAgentRef(job.GetWorkspaceId(), job.GetAgentId())
+	if !ok {
+		return "", fmt.Errorf("cron job %q references unknown agent %q in workspace %q", job.GetName(), job.GetAgentId(), job.GetWorkspaceId())
+	}
+	return name, nil
 }
 
 // RemoveJob removes a cron job from persistence and unschedules it.
@@ -341,8 +354,8 @@ func (s *Scheduler) registerJob(job *agentsv1.CronJob) error {
 		return nil
 	}
 
-	if !s.runner.HasAgentInWorkspace(job.GetWorkspaceId(), job.GetAgentName()) {
-		return fmt.Errorf("cron job %q references unknown agent %q in workspace %q", job.GetName(), job.GetAgentName(), job.GetWorkspaceId())
+	if _, err := s.resolveJobAgent(job); err != nil {
+		return err
 	}
 
 	sched, err := parseJobSchedule(job)
@@ -397,8 +410,8 @@ func (s *Scheduler) RunJobNow(ctx context.Context, workspaceID, name string) (*a
 	if err != nil {
 		return nil, err
 	}
-	if !s.runner.HasAgentInWorkspace(job.GetWorkspaceId(), job.GetAgentName()) {
-		return nil, fmt.Errorf("cron job %q references unknown agent %q in workspace %q", name, job.GetAgentName(), job.GetWorkspaceId())
+	if _, err := s.resolveJobAgent(job); err != nil {
+		return nil, err
 	}
 	return s.executeJobWithTrigger(job, agentsv1.CronExecutionTriggerType_CRON_EXECUTION_TRIGGER_TYPE_MANUAL), nil
 }
@@ -540,6 +553,7 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 		Id:           execID,
 		JobName:      job.GetName(),
 		AgentName:    job.GetAgentName(),
+		AgentId:      job.GetAgentId(),
 		Status:       agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
 		Input:        input,
 		Output:       storedOutput,
@@ -617,16 +631,17 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 }
 
 func (s *Scheduler) runWithRetry(ctx context.Context, job *agentsv1.CronJob, parts []*genai.Part, ctxInfo *agentsv1.ContextInfo) (*runner.TurnResult, error, int32) {
+	agentName, err := s.resolveJobAgent(job)
+	if err != nil {
+		return &runner.TurnResult{}, err, 0
+	}
 	totalAttempts := int32(1)
 	if retry := job.GetRetry(); retry != nil && retry.GetMaxAttempts() > 0 {
 		totalAttempts += retry.GetMaxAttempts()
 	}
-	var (
-		turn *runner.TurnResult
-		err  error
-	)
+	var turn *runner.TurnResult
 	for attempt := int32(1); attempt <= totalAttempts; attempt++ {
-		turn, err = s.runner.RunTurnSSE(ctx, job.GetAgentName(), parts, "", ctxInfo, nil, nil)
+		turn, err = s.runner.RunTurnSSE(ctx, agentName, parts, "", ctxInfo, nil, nil)
 		if turn == nil {
 			turn = &runner.TurnResult{}
 		}
@@ -769,6 +784,7 @@ func (s *Scheduler) recordSkipped(job *agentsv1.CronJob, trigger agentsv1.CronEx
 		Id:            uuid.New().String(),
 		JobName:       job.GetName(),
 		AgentName:     job.GetAgentName(),
+		AgentId:       job.GetAgentId(),
 		Status:        agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SKIPPED,
 		Input:         effectiveInput(job),
 		StartedAt:     timestamppb.New(now),
@@ -877,6 +893,7 @@ func (s *Scheduler) deliverWebhook(job *agentsv1.CronJob, exec *agentsv1.CronExe
 	}
 	if exec.GetStatus() == agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
 		payload["agent_name"] = exec.GetAgentName()
+		payload["agent_id"] = exec.GetAgentId()
 		payload["session_app_name"] = exec.GetSessionAppName()
 		payload["session_user_id"] = exec.GetSessionUserId()
 		payload["session_id"] = exec.GetSessionId()
@@ -1088,9 +1105,13 @@ func replyCoordinates(exec *agentsv1.CronExecution) string {
 	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
 		return ""
 	}
+	agentRef := "agent_name=" + exec.GetAgentName()
+	if id := exec.GetAgentId(); id != "" {
+		agentRef = "agent_id=" + id
+	}
 	return fmt.Sprintf(
-		"Answer via SessionService.ReplySession: agent_name=%s app_name=%s user_id=%s session_id=%s",
-		exec.GetAgentName(), exec.GetSessionAppName(), exec.GetSessionUserId(), exec.GetSessionId(),
+		"Answer via SessionService.ReplySession: %s app_name=%s user_id=%s session_id=%s",
+		agentRef, exec.GetSessionAppName(), exec.GetSessionUserId(), exec.GetSessionId(),
 	)
 }
 

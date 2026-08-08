@@ -642,6 +642,7 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
 				return nil, fmt.Errorf("remote agent %q: DAEMON protocol requires workspace_id", ra.GetName())
 			}
 			bridge := daemon.NewBridge(daemonRegistry, workspaceID, runtimeID, acpRuntime)
+			bridge.SetHostAgentID(pb.GetAgentId())
 			a, err := bridge.BuildAgent(ra.GetName(), fmt.Sprintf("Daemon agent: %s", ra.GetName()))
 			if err != nil {
 				return nil, fmt.Errorf("creating daemon agent %q: %w", ra.GetName(), err)

@@ -27,6 +27,11 @@ type Bridge struct {
 	acpRuntime  string
 	workDirRoot string
 	metrics     *Metrics
+	// hostAgentID is the immutable agent_id of the server-side Agent this
+	// bridge is attached to; stamped on every DaemonTask so daemons can
+	// reference the triggering Agent by ID. Empty when the host has no
+	// assigned agent_id yet.
+	hostAgentID string
 }
 
 // NewBridge creates a bridge for a daemon runtime and ACP runtime pair. It
@@ -49,6 +54,12 @@ func NewBridge(registry *Registry, workspaceID, runtimeID, acpRuntime string) *B
 // latency observations.
 func (b *Bridge) SetMetrics(m *Metrics) {
 	b.metrics = m
+}
+
+// SetHostAgentID records the immutable agent_id of the Agent this bridge is
+// attached to (see Bridge.hostAgentID).
+func (b *Bridge) SetHostAgentID(id string) {
+	b.hostAgentID = id
 }
 
 // BuildAgent produces an agent.Agent via agent.New(). This is required because
@@ -88,6 +99,7 @@ func (b *Bridge) run(ctx agent.InvocationContext) iter.Seq2[*session.Event, erro
 		task := &agentsv1.DaemonTask{
 			TaskId:          uuid.NewString(),
 			AgentName:       ctx.Agent().Name(),
+			AgentId:         b.hostAgentID,
 			Input:           input,
 			SessionId:       ctx.Session().ID(),
 			UserId:          ctx.Session().UserID(),

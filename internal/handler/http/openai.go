@@ -178,7 +178,9 @@ func (h *OpenAIHandler) validateAndPrepare(c *gin.Context) (*chatRunContext, boo
 		return nil, false
 	}
 
-	agent, err := h.agentRepo.GetAgent(c.Request.Context(), workspaceID, req.Model)
+	// The request's model field is the agent's immutable agent_id — the sole
+	// agent reference on the OpenAI-compatible interface (issue #213).
+	agent, err := h.agentRepo.GetAgentByID(c.Request.Context(), workspaceID, req.Model)
 	if err != nil || agent == nil || !agent.GetEnableOpenaiApi() {
 		c.JSON(http.StatusNotFound, openaiError("model not found: "+req.Model, "invalid_request_error"))
 		return nil, false
@@ -373,9 +375,10 @@ func (h *OpenAIHandler) ListModels(c *gin.Context) {
 
 	models := make([]openaiModel, 0, len(agents))
 	for _, ag := range agents {
-		if ag.GetEnableOpenaiApi() {
+		if ag.GetEnableOpenaiApi() && ag.GetAgentId() != "" {
+			// The model id is the agent's immutable agent_id.
 			models = append(models, openaiModel{
-				ID:      ag.GetName(),
+				ID:      ag.GetAgentId(),
 				Object:  "model",
 				Created: 0,
 				OwnedBy: "butter",

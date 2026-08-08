@@ -5138,6 +5138,8 @@ func (m *DaemonTaskInFlight) validate(all bool) error {
 
 	// no validation rules for WorkspaceId
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return DaemonTaskInFlightMultiError(errors)
 	}

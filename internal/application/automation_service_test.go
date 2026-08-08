@@ -18,8 +18,11 @@ type automationTestRunner struct {
 	calls int
 }
 
-func (r *automationTestRunner) HasAgentInWorkspace(workspaceID, name string) bool {
-	return workspaceID == wsTest && name == "agent1"
+func (r *automationTestRunner) ResolveAgentRef(workspaceID, agentID string) (string, bool) {
+	if workspaceID == wsTest && agentID == "agent1-id" {
+		return "agent1", true
+	}
+	return "", false
 }
 
 func (r *automationTestRunner) RunTurnSSE(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (*runner.TurnResult, error) {
@@ -51,7 +54,7 @@ func validAutomation(name string) *agentsv1.Automation {
 			{
 				Name:        "invoke",
 				Type:        agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT,
-				InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1", Input: "run"},
+				InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id", Input: "run"},
 			},
 		},
 	}
@@ -168,7 +171,7 @@ func TestAutomationServiceRejectsInvokeAgentOutsideWorkspace(t *testing.T) {
 	svc, _, _, _, _ := newAutomationTestService()
 	ctx := testCtx()
 	automation := validAutomation("bad-agent")
-	automation.Steps[0].InvokeAgent.AgentName = "missing-agent"
+	automation.Steps[0].InvokeAgent.AgentId = "missing-agent"
 
 	_, err := svc.CreateAutomation(ctx, connect.NewRequest(&agentsv1.CreateAutomationRequest{Automation: automation}))
 	if codeOf(err) != connect.CodeInvalidArgument {
@@ -179,7 +182,7 @@ func TestAutomationServiceRejectsInvokeAgentOutsideWorkspace(t *testing.T) {
 		t.Fatalf("CreateAutomation valid: %v", err)
 	}
 	update := validAutomation("daily")
-	update.Steps[0].InvokeAgent.AgentName = "missing-agent"
+	update.Steps[0].InvokeAgent.AgentId = "missing-agent"
 	_, err = svc.UpdateAutomation(ctx, connect.NewRequest(&agentsv1.UpdateAutomationRequest{Automation: update}))
 	if codeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("UpdateAutomation code = %v, want invalid argument", err)

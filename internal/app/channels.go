@@ -260,6 +260,14 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		return nil, err
 	}
 
+	// One-time Agent ID cutover reconciliation (issue #213): fill agent_id on
+	// channels, cron jobs, and automations still referencing agents by the
+	// legacy name. This MUST run before the cron and automation schedulers
+	// load their jobs — those now reject records without an agent_id, and a
+	// legacy job rejected at registration would stay unscheduled until the
+	// next restart.
+	backfillConsumerAgentIDs(ctx, agentRepo, channelRepo, internalcron.NewMongoJobRepo(db), internalautomation.NewMongoDefinitionRepo(db))
+
 	// Initialize cron scheduler.
 	cronScheduler, cronExecRepo, cronJobRepo, err := startCron(ctx, db, runnerSvc, notifyGroupRepo, channelRepo)
 	if err != nil {

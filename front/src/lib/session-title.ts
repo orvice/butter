@@ -6,6 +6,13 @@ export function sessionAgentName(state: SessionInfo["state"]): string | undefine
   return typeof v === "string" && v ? v : undefined;
 }
 
+/** Immutable agent_id stored in session state; absent on sessions created before the Agent ID migration. */
+export function sessionAgentID(state: SessionInfo["state"]): string | undefined {
+  if (!state) return undefined;
+  const v = state["agent_id"];
+  return typeof v === "string" && v ? v : undefined;
+}
+
 /**
  * Effective display title, in precedence order: first-class title,
  * legacy state["title"], agent name, shortened session ID.

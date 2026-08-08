@@ -23,6 +23,7 @@ type taskState struct {
 	closed      bool
 	startedAt   time.Time
 	agentName   string
+	agentID     string
 	acpRuntime  string
 	workspaceID string
 	currentStep string
@@ -65,6 +66,7 @@ func (t *taskState) closeWith(update *agentsv1.DaemonTaskUpdate) {
 type TaskSnapshot struct {
 	TaskID      string
 	AgentName   string
+	AgentID     string
 	AcpRuntime  string
 	WorkspaceID string
 	StartedAt   time.Time
@@ -139,6 +141,7 @@ func (c *Connection) SendTask(task *agentsv1.DaemonTask) (<-chan *agentsv1.Daemo
 		resultCh:    resultCh,
 		startedAt:   time.Now(),
 		agentName:   task.GetAgentName(),
+		agentID:     task.GetAgentId(),
 		acpRuntime:  task.GetAcpRuntime(),
 		workspaceID: task.GetWorkspaceId(),
 	}
@@ -229,6 +232,7 @@ func (c *Connection) ActiveTaskSnapshots() []TaskSnapshot {
 		out = append(out, TaskSnapshot{
 			TaskID:      id,
 			AgentName:   t.agentName,
+			AgentID:     t.agentID,
 			AcpRuntime:  t.acpRuntime,
 			WorkspaceID: t.workspaceID,
 			StartedAt:   t.startedAt,

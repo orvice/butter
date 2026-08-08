@@ -45,18 +45,18 @@ type executionDoc struct {
 
 func docFromProto(e *agentsv1.CronExecution) *executionDoc {
 	return &executionDoc{
-		ID:            e.GetId(),
-		WorkspaceID:   e.GetWorkspaceId(),
-		JobName:       e.GetJobName(),
-		AgentName:     e.GetAgentName(),
-		Status:        int32(e.GetStatus()),
-		Input:         e.GetInput(),
-		Output:        e.GetOutput(),
-		Error:         e.GetError(),
-		StartedAt:     e.GetStartedAt().GetSeconds(),
-		FinishedAt:    e.GetFinishedAt().GetSeconds(),
-		DurationMs:    e.GetDurationMs(),
-		AttemptCount:  e.GetAttemptCount(),
+		ID:             e.GetId(),
+		WorkspaceID:    e.GetWorkspaceId(),
+		JobName:        e.GetJobName(),
+		AgentName:      e.GetAgentName(),
+		Status:         int32(e.GetStatus()),
+		Input:          e.GetInput(),
+		Output:         e.GetOutput(),
+		Error:          e.GetError(),
+		StartedAt:      e.GetStartedAt().GetSeconds(),
+		FinishedAt:     e.GetFinishedAt().GetSeconds(),
+		DurationMs:     e.GetDurationMs(),
+		AttemptCount:   e.GetAttemptCount(),
 		TriggerType:    int32(e.GetTriggerType()),
 		SkippedReason:  e.GetSkippedReason(),
 		Truncated:      e.GetTruncated(),
@@ -238,44 +238,44 @@ func (r *MongoExecutionRepo) GetByID(ctx context.Context, id string) (*agentsv1.
 // cronJobDoc is the MongoDB document for a cron job config. _id is the
 // composite "workspace_id:name".
 type cronJobDoc struct {
-	ID              string            `bson:"_id"`
-	WorkspaceID     string            `bson:"workspace_id"`
-	Name            string            `bson:"name"`
-	Schedule        string            `bson:"schedule"`
-	AgentName       string            `bson:"agent_name"`
-	Input           string            `bson:"input"`
-	Timezone        string            `bson:"timezone"`
-	Enabled         bool              `bson:"enabled"`
-	DeliveryType    int32             `bson:"delivery_type"`
-	WebhookURL      string            `bson:"webhook_url"`
-	ChannelName     string            `bson:"channel_name"`
-	ChatID          string            `bson:"chat_id"`
-	NotifyGroupName string            `bson:"notify_group_name"`
-	TimeoutMs       int64             `bson:"timeout_ms,omitempty"`
-	RetryMaxAttempts int32            `bson:"retry_max_attempts,omitempty"`
-	RetryBackoffMs  int64             `bson:"retry_backoff_ms,omitempty"`
-	ConcurrencyPolicy int32           `bson:"concurrency_policy,omitempty"`
-	NotifyOn        int32             `bson:"notify_on,omitempty"`
-	MaxOutputBytes  int32             `bson:"max_output_bytes,omitempty"`
-	Metadata        map[string]string `bson:"metadata,omitempty"`
+	ID                string            `bson:"_id"`
+	WorkspaceID       string            `bson:"workspace_id"`
+	Name              string            `bson:"name"`
+	Schedule          string            `bson:"schedule"`
+	AgentName         string            `bson:"agent_name"`
+	Input             string            `bson:"input"`
+	Timezone          string            `bson:"timezone"`
+	Enabled           bool              `bson:"enabled"`
+	DeliveryType      int32             `bson:"delivery_type"`
+	WebhookURL        string            `bson:"webhook_url"`
+	ChannelName       string            `bson:"channel_name"`
+	ChatID            string            `bson:"chat_id"`
+	NotifyGroupName   string            `bson:"notify_group_name"`
+	TimeoutMs         int64             `bson:"timeout_ms,omitempty"`
+	RetryMaxAttempts  int32             `bson:"retry_max_attempts,omitempty"`
+	RetryBackoffMs    int64             `bson:"retry_backoff_ms,omitempty"`
+	ConcurrencyPolicy int32             `bson:"concurrency_policy,omitempty"`
+	NotifyOn          int32             `bson:"notify_on,omitempty"`
+	MaxOutputBytes    int32             `bson:"max_output_bytes,omitempty"`
+	Metadata          map[string]string `bson:"metadata,omitempty"`
 }
 
 func jobCompositeID(workspaceID, name string) string { return workspaceID + ":" + name }
 
 func jobDocFromProto(j *agentsv1.CronJob) *cronJobDoc {
 	doc := &cronJobDoc{
-		ID:          jobCompositeID(j.GetWorkspaceId(), j.GetName()),
-		WorkspaceID: j.GetWorkspaceId(),
-		Name:        j.GetName(),
-		Schedule:    j.GetSchedule(),
-		AgentName:   j.GetAgentName(),
-		Input:       j.GetInput(),
-		Timezone:    j.GetTimezone(),
-		Enabled:     j.GetEnabled(),
-		Metadata:    j.GetMetadata(),
+		ID:                jobCompositeID(j.GetWorkspaceId(), j.GetName()),
+		WorkspaceID:       j.GetWorkspaceId(),
+		Name:              j.GetName(),
+		Schedule:          j.GetSchedule(),
+		AgentName:         j.GetAgentName(),
+		Input:             j.GetInput(),
+		Timezone:          j.GetTimezone(),
+		Enabled:           j.GetEnabled(),
+		Metadata:          j.GetMetadata(),
 		ConcurrencyPolicy: int32(j.GetConcurrencyPolicy()),
-		NotifyOn:    int32(j.GetNotifyOn()),
-		MaxOutputBytes: j.GetMaxOutputBytes(),
+		NotifyOn:          int32(j.GetNotifyOn()),
+		MaxOutputBytes:    j.GetMaxOutputBytes(),
 	}
 	if timeout := j.GetTimeout(); timeout != nil {
 		doc.TimeoutMs = timeout.AsDuration().Milliseconds()
@@ -298,17 +298,17 @@ func jobDocFromProto(j *agentsv1.CronJob) *cronJobDoc {
 
 func jobDocToProto(d *cronJobDoc) *agentsv1.CronJob {
 	job := &agentsv1.CronJob{
-		Name:        d.Name,
-		Schedule:    d.Schedule,
-		AgentName:   d.AgentName,
-		Input:       d.Input,
-		Timezone:    d.Timezone,
-		Enabled:     d.Enabled,
-		Metadata:    d.Metadata,
-		WorkspaceId: d.WorkspaceID,
+		Name:              d.Name,
+		Schedule:          d.Schedule,
+		AgentName:         d.AgentName,
+		Input:             d.Input,
+		Timezone:          d.Timezone,
+		Enabled:           d.Enabled,
+		Metadata:          d.Metadata,
+		WorkspaceId:       d.WorkspaceID,
 		ConcurrencyPolicy: agentsv1.CronConcurrencyPolicy(d.ConcurrencyPolicy),
-		NotifyOn:    agentsv1.CronNotifyOn(d.NotifyOn),
-		MaxOutputBytes: d.MaxOutputBytes,
+		NotifyOn:          agentsv1.CronNotifyOn(d.NotifyOn),
+		MaxOutputBytes:    d.MaxOutputBytes,
 	}
 	if d.TimeoutMs > 0 {
 		job.Timeout = durationpb.New(time.Duration(d.TimeoutMs) * time.Millisecond)

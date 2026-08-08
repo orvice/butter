@@ -110,7 +110,8 @@ type listCronJobsArgs struct{}
 type cronJobInfo struct {
 	Name      string `json:"name"`
 	Schedule  string `json:"schedule"`
-	AgentName string `json:"agent_name"`
+	AgentId   string `json:"agent_id"`
+	AgentName string `json:"agent_name,omitempty"`
 	Enabled   bool   `json:"enabled"`
 	Timezone  string `json:"timezone,omitempty"`
 	Input     string `json:"input,omitempty"`
@@ -134,6 +135,7 @@ func newListCronJobsTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 			infos = append(infos, cronJobInfo{
 				Name:      j.GetName(),
 				Schedule:  j.GetSchedule(),
+				AgentId:   j.GetAgentId(),
 				AgentName: j.GetAgentName(),
 				Enabled:   j.GetEnabled(),
 				Timezone:  j.GetTimezone(),
@@ -148,7 +150,7 @@ type createCronJobArgs struct {
 	WorkspaceID string `json:"workspace_id" jsonschema:"workspace id that owns this cron job"`
 	Name        string `json:"name" jsonschema:"unique name for the cron job"`
 	Schedule    string `json:"schedule" jsonschema:"cron expression in 5-field format, e.g. 0 9 * * *"`
-	AgentName   string `json:"agent_name" jsonschema:"name of the agent to execute"`
+	AgentID     string `json:"agent_id" jsonschema:"immutable agent_id of the agent to execute"`
 	Input       string `json:"input,omitempty" jsonschema:"input text to send to the agent"`
 	Timezone    string `json:"timezone,omitempty" jsonschema:"IANA timezone e.g. Asia/Shanghai, defaults to UTC"`
 	Enabled     bool   `json:"enabled" jsonschema:"whether the job is enabled"`
@@ -167,7 +169,7 @@ func newCreateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		job := &agentsv1.CronJob{
 			Name:        args.Name,
 			Schedule:    args.Schedule,
-			AgentName:   args.AgentName,
+			AgentId:     args.AgentID,
 			Input:       args.Input,
 			Timezone:    args.Timezone,
 			Enabled:     args.Enabled,
@@ -184,7 +186,7 @@ type updateCronJobArgs struct {
 	WorkspaceID string `json:"workspace_id" jsonschema:"workspace id that owns this cron job"`
 	Name        string `json:"name" jsonschema:"name of the cron job to update"`
 	Schedule    string `json:"schedule,omitempty" jsonschema:"new cron expression"`
-	AgentName   string `json:"agent_name,omitempty" jsonschema:"new agent name"`
+	AgentID     string `json:"agent_id,omitempty" jsonschema:"new agent_id to execute"`
 	Input       string `json:"input,omitempty" jsonschema:"new input text"`
 	Timezone    string `json:"timezone,omitempty" jsonschema:"new IANA timezone"`
 	Enabled     bool   `json:"enabled" jsonschema:"whether the job is enabled"`
@@ -207,8 +209,8 @@ func newUpdateCronJobTool(scheduler *cron.Scheduler) (tool.Tool, error) {
 		if args.Schedule != "" {
 			existing.Schedule = args.Schedule
 		}
-		if args.AgentName != "" {
-			existing.AgentName = args.AgentName
+		if args.AgentID != "" {
+			existing.AgentId = args.AgentID
 		}
 		if args.Input != "" {
 			existing.Input = args.Input

@@ -31,8 +31,12 @@ type engineRunner struct {
 	calls   int
 }
 
-func (r *engineRunner) HasAgentInWorkspace(workspaceID, name string) bool {
-	return workspaceID == "ws1" && name == "agent1"
+func (r *engineRunner) ResolveAgentRef(workspaceID, agentID string) (string, bool) {
+	// The fake registry maps agent1's id to its name; unknown ids miss.
+	if workspaceID == "ws1" && agentID == "agent1-id" {
+		return "agent1", true
+	}
+	return "", false
 }
 
 func (r *engineRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
@@ -194,7 +198,7 @@ func TestEngineRunNowExecutesAllStepTypes(t *testing.T) {
 			{Selector: "payload.kind", Operator: agentsv1.AutomationConditionOperator_AUTOMATION_CONDITION_OPERATOR_EQUALS, Value: "incident"},
 		},
 		Steps: []*agentsv1.AutomationStep{
-			{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1", Input: "summarize"}},
+			{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id", Input: "summarize"}},
 			{Name: "webhook", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CALL_WEBHOOK, CallWebhook: &agentsv1.AutomationCallWebhookStep{Url: "https://example.test/hook", PayloadJson: `{"ok":true}`}},
 			{Name: "notify", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP, SendNotifyGroup: &agentsv1.AutomationSendNotifyGroupStep{NotifyGroupName: "ops", Title: "done", Message: "ok"}},
 			{Name: "post", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CREATE_FORUM_POST, CreateForumPost: &agentsv1.AutomationCreateForumPostStep{ThreadId: "thread1", Body: "posted"}},
@@ -246,9 +250,9 @@ func TestEngineInvokeAgentPauseRecordsWaitingInput(t *testing.T) {
 		Enabled:     true,
 		WorkspaceId: "ws1",
 		Steps: []*agentsv1.AutomationStep{
-			{Name: "ask", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1", Input: "deploy"}},
+			{Name: "ask", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id", Input: "deploy"}},
 			// A later step must NOT run while the workflow is paused (Option A).
-			{Name: "after", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1"}},
+			{Name: "after", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id"}},
 		},
 	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
 	if err != nil {
@@ -308,7 +312,7 @@ func pauseRun(t *testing.T, ctx context.Context, engine *Engine, runnerSvc *engi
 		Enabled:     true,
 		WorkspaceId: "ws1",
 		Steps: []*agentsv1.AutomationStep{
-			{Name: "ask", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1", Input: "deploy"}},
+			{Name: "ask", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id", Input: "deploy"}},
 		},
 	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
 	if err != nil {
@@ -397,7 +401,7 @@ func TestEngineConditionFailureSkipsRun(t *testing.T) {
 		Conditions: []*agentsv1.AutomationCondition{
 			{Selector: "payload.kind", Operator: agentsv1.AutomationConditionOperator_AUTOMATION_CONDITION_OPERATOR_EQUALS, Value: "incident"},
 		},
-		Steps: []*agentsv1.AutomationStep{{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1"}}},
+		Steps: []*agentsv1.AutomationStep{{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id"}}},
 	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{"kind":"note"}`)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -423,7 +427,7 @@ func TestEngineStepFailureStopsLaterSteps(t *testing.T) {
 		WorkspaceId: "ws1",
 		Steps: []*agentsv1.AutomationStep{
 			{Name: "bad-webhook", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CALL_WEBHOOK, CallWebhook: &agentsv1.AutomationCallWebhookStep{Url: "https://example.test/fail"}},
-			{Name: "never", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1"}},
+			{Name: "never", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id"}},
 		},
 	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
 	if err != nil {
@@ -446,7 +450,7 @@ func TestEngineStepRetrySuccessAndExhaustion(t *testing.T) {
 		Name:        "retry-success",
 		Enabled:     true,
 		WorkspaceId: "ws1",
-		Steps:       []*agentsv1.AutomationStep{{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1"}, Policy: &agentsv1.AutomationPolicy{Retry: &agentsv1.AutomationRetryPolicy{MaxAttempts: 1}}}},
+		Steps:       []*agentsv1.AutomationStep{{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id"}, Policy: &agentsv1.AutomationPolicy{Retry: &agentsv1.AutomationRetryPolicy{MaxAttempts: 1}}}},
 	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
 	if err != nil {
 		t.Fatalf("Execute retry success: %v", err)
@@ -465,7 +469,7 @@ func TestEngineStepRetrySuccessAndExhaustion(t *testing.T) {
 		Name:        "retry-exhausted",
 		Enabled:     true,
 		WorkspaceId: "ws1",
-		Steps:       []*agentsv1.AutomationStep{{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1"}, Policy: &agentsv1.AutomationPolicy{Retry: &agentsv1.AutomationRetryPolicy{MaxAttempts: 1}}}},
+		Steps:       []*agentsv1.AutomationStep{{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id"}, Policy: &agentsv1.AutomationPolicy{Retry: &agentsv1.AutomationRetryPolicy{MaxAttempts: 1}}}},
 	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
 	if err != nil {
 		t.Fatalf("Execute retry exhausted: %v", err)
@@ -487,7 +491,7 @@ func TestEngineTimeoutAndOutputTruncation(t *testing.T) {
 		Name:        "timeout",
 		Enabled:     true,
 		WorkspaceId: "ws1",
-		Steps:       []*agentsv1.AutomationStep{{Name: "slow", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1"}, Policy: &agentsv1.AutomationPolicy{Timeout: durationpb.New(10 * time.Millisecond)}}},
+		Steps:       []*agentsv1.AutomationStep{{Name: "slow", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id"}, Policy: &agentsv1.AutomationPolicy{Timeout: durationpb.New(10 * time.Millisecond)}}},
 	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
 	if err != nil {
 		t.Fatalf("Execute timeout: %v", err)
@@ -502,7 +506,7 @@ func TestEngineTimeoutAndOutputTruncation(t *testing.T) {
 		Name:        "truncate",
 		Enabled:     true,
 		WorkspaceId: "ws1",
-		Steps:       []*agentsv1.AutomationStep{{Name: "big", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "agent1"}, Policy: &agentsv1.AutomationPolicy{MaxOutputBytes: 64}}},
+		Steps:       []*agentsv1.AutomationStep{{Name: "big", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id"}, Policy: &agentsv1.AutomationPolicy{MaxOutputBytes: 64}}},
 	}, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, `{}`)
 	if err != nil {
 		t.Fatalf("Execute truncate: %v", err)
@@ -525,4 +529,71 @@ func newMinimalEngine() (*Engine, *MemoryRunRepo, *engineRunner, *MemoryStepRunR
 		HTTPClient: &engineHTTPClient{statuses: []int{http.StatusInternalServerError}},
 	})
 	return engine, runRepo, runnerSvc, stepRepo
+}
+
+func TestEngineInvokeAgentResolvesAgentID(t *testing.T) {
+	ctx := context.Background()
+	defRepo := NewMemoryDefinitionRepo()
+	runRepo := NewMemoryRunRepo()
+	stepRepo := NewMemoryStepRunRepo()
+	runnerSvc := &engineRunner{outputs: []string{"agent output"}}
+	engine := NewEngine(defRepo, runRepo, stepRepo, EngineOptions{Runner: runnerSvc})
+
+	automation := &agentsv1.Automation{
+		Name:        "by-id",
+		Enabled:     true,
+		WorkspaceId: "ws1",
+		Trigger:     &agentsv1.AutomationTrigger{Type: agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL},
+		Steps: []*agentsv1.AutomationStep{
+			{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id", Input: "go"}},
+		},
+	}
+	if err := defRepo.Create(ctx, automation); err != nil {
+		t.Fatalf("create automation: %v", err)
+	}
+
+	run, err := engine.RunNow(ctx, "ws1", "by-id", "")
+	if err != nil {
+		t.Fatalf("RunNow: %v", err)
+	}
+	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED {
+		t.Fatalf("status = %s, want succeeded; err=%s", run.GetStatus(), run.GetError())
+	}
+	if runnerSvc.calls != 1 {
+		t.Fatalf("runner calls = %d, want 1 (resolved from agent_id)", runnerSvc.calls)
+	}
+}
+
+func TestEngineInvokeAgentUnknownAgentIDFails(t *testing.T) {
+	ctx := context.Background()
+	defRepo := NewMemoryDefinitionRepo()
+	runRepo := NewMemoryRunRepo()
+	stepRepo := NewMemoryStepRunRepo()
+	runnerSvc := &engineRunner{outputs: []string{"agent output"}}
+	engine := NewEngine(defRepo, runRepo, stepRepo, EngineOptions{Runner: runnerSvc})
+
+	automation := &agentsv1.Automation{
+		Name:        "ghost-id",
+		Enabled:     true,
+		WorkspaceId: "ws1",
+		Trigger:     &agentsv1.AutomationTrigger{Type: agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL},
+		Steps: []*agentsv1.AutomationStep{
+			// agent_name is valid but must not be used: agent_id wins.
+			{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "ghost", Input: "go"}},
+		},
+	}
+	if err := defRepo.Create(ctx, automation); err != nil {
+		t.Fatalf("create automation: %v", err)
+	}
+
+	run, err := engine.RunNow(ctx, "ws1", "ghost-id", "")
+	if err != nil {
+		t.Fatalf("RunNow: %v", err)
+	}
+	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED {
+		t.Fatalf("status = %s, want failed", run.GetStatus())
+	}
+	if runnerSvc.calls != 0 {
+		t.Fatalf("runner calls = %d, want 0 (unknown agent_id must not fall back)", runnerSvc.calls)
+	}
 }

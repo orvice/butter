@@ -32,7 +32,7 @@ type AutomationServiceServer struct {
 }
 
 type automationAgentValidator interface {
-	HasAgentInWorkspace(workspaceID, name string) bool
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 }
 
 func NewAutomationServiceServer() *AutomationServiceServer {
@@ -307,11 +307,19 @@ func validateAutomation(a *agentsv1.Automation, agent automationAgentValidator) 
 		}
 		switch step.GetType() {
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT:
-			if strings.TrimSpace(step.GetInvokeAgent().GetAgentName()) == "" {
-				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_name", i))
+			invoke := step.GetInvokeAgent()
+			agentID := strings.TrimSpace(invoke.GetAgentId())
+			if agentID == "" {
+				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_id", i))
 			}
-			if agent != nil && !agent.HasAgentInWorkspace(a.GetWorkspaceId(), step.GetInvokeAgent().GetAgentName()) {
-				return connectx.InvalidArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_name", i), fmt.Sprintf("agent %q does not exist in workspace %q", step.GetInvokeAgent().GetAgentName(), a.GetWorkspaceId()))
+			if agent != nil {
+				// agent_id is the sole reference; on success agent_name is set
+				// to the resolved runtime name for display.
+				name, ok := agent.ResolveAgentRef(a.GetWorkspaceId(), agentID)
+				if !ok {
+					return connectx.InvalidArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_id", i), fmt.Sprintf("agent %q does not exist in workspace %q", agentID, a.GetWorkspaceId()))
+				}
+				invoke.AgentName = name
 			}
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CALL_WEBHOOK:
 			if strings.TrimSpace(step.GetCallWebhook().GetUrl()) == "" {

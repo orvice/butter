@@ -40,9 +40,6 @@ func (s *AgentServiceServer) StreamAgent(
 	if s.runnerSvc == nil {
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
-	if req.Msg.GetAgentName() == "" {
-		return connectx.RequiredArgument("agent_name")
-	}
 	if len(req.Msg.GetParts()) == 0 && req.Msg.GetMessage() == "" {
 		return connectx.RequiredArgument("message")
 	}
@@ -52,6 +49,11 @@ func (s *AgentServiceServer) StreamAgent(
 	}
 
 	workspaceID, hasWorkspace := wsctx.FromContext(ctx)
+	agentName, err := resolveAgentRunnerRef(s.runnerSvc, workspaceID, req.Msg.GetAgentId())
+	if err != nil {
+		return err
+	}
+	agentID, _, _ := s.runnerSvc.GetAgentIdentity(agentName)
 	ctxInfo, err := streamorch.NewContextInfo(streamorch.ContextInfoInput{
 		AppName:       req.Msg.GetAppName(),
 		UserID:        req.Msg.GetUserId(),
@@ -70,7 +72,8 @@ func (s *AgentServiceServer) StreamAgent(
 	logger := log.FromContext(ctx)
 	logger.Info("streaming agent started",
 		"workspace_id", ctxInfo.GetWorkspaceId(),
-		"agent", req.Msg.GetAgentName(),
+		"agent", agentName,
+		"agent_id", agentID,
 		"session_id", ctxInfo.GetSessionId(),
 		"invocation_id", ctxInfo.GetUuid(),
 		"message_len", len(req.Msg.GetMessage()),
@@ -79,7 +82,7 @@ func (s *AgentServiceServer) StreamAgent(
 
 	sink := &streamAgentSink{ctx: ctx, stream: stream}
 	sink.start()
-	runErr := streamorch.Run(ctx, s.runnerSvc, req.Msg.GetAgentName(), parts, req.Msg.GetModelOverride(), ctxInfo, sink)
+	runErr := streamorch.Run(ctx, s.runnerSvc, streamorch.AgentRef{Name: agentName, ID: agentID}, parts, req.Msg.GetModelOverride(), ctxInfo, sink)
 	sendErr := sink.finish()
 
 	if runErr != nil {
@@ -91,7 +94,7 @@ func (s *AgentServiceServer) StreamAgent(
 		}
 		logger.Error("streaming agent failed",
 			"workspace_id", ctxInfo.GetWorkspaceId(),
-			"agent", req.Msg.GetAgentName(),
+			"agent", agentName,
 			"session_id", ctxInfo.GetSessionId(),
 			"invocation_id", ctxInfo.GetUuid(),
 			"err", runErr,
@@ -105,7 +108,7 @@ func (s *AgentServiceServer) StreamAgent(
 	}
 	logger.Info("streaming agent finished",
 		"workspace_id", ctxInfo.GetWorkspaceId(),
-		"agent", req.Msg.GetAgentName(),
+		"agent", agentName,
 		"session_id", ctxInfo.GetSessionId(),
 		"invocation_id", ctxInfo.GetUuid(),
 	)
@@ -166,6 +169,7 @@ func (s *streamAgentSink) Started(id streamorch.RunIdentity) error {
 				InvocationId: id.InvocationID,
 				SessionId:    id.SessionID,
 				AgentName:    id.AgentName,
+				AgentId:      id.AgentID,
 			},
 		},
 	})
@@ -180,6 +184,7 @@ func (s *streamAgentSink) TextDelta(id streamorch.RunIdentity, text string) erro
 				InvocationId: id.InvocationID,
 				SessionId:    id.SessionID,
 				AgentName:    id.AgentName,
+				AgentId:      id.AgentID,
 				Text:         text,
 			},
 		},
@@ -203,6 +208,7 @@ func (s *streamAgentSink) Final(id streamorch.RunIdentity, response string) erro
 				InvocationId: id.InvocationID,
 				SessionId:    id.SessionID,
 				AgentName:    id.AgentName,
+				AgentId:      id.AgentID,
 				Response:     response,
 			},
 		},
@@ -218,6 +224,7 @@ func streamAgentRunEvent(id streamorch.RunIdentity, evt *session.Event) *agentsv
 		InvocationId:  id.InvocationID,
 		SessionId:     id.SessionID,
 		AgentName:     id.AgentName,
+		AgentId:       id.AgentID,
 		EventId:       evt.ID,
 		Author:        evt.Author,
 		Branch:        evt.Branch,

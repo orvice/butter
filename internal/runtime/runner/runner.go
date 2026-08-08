@@ -1092,18 +1092,29 @@ func (s *Service) startInvocation(ctx context.Context, agentName string, parts [
 	if id == "" {
 		id = uuid.NewString()
 	}
+	// Snapshot the agent's immutable id and display name so the record stays
+	// meaningful after renames; historical records without an agent_id keep
+	// resolving through the legacy agent_name. Dynamically registered agents
+	// (no proto, e.g. the system agent) have no identity — fall back to the
+	// runtime name for display.
+	agentID, displayName, ok := s.GetAgentIdentity(agentName)
+	if !ok || displayName == "" {
+		displayName = agentName
+	}
 	inv := &agentsv1.Invocation{
-		Id:            id,
-		AgentName:     agentName,
-		AppName:       ctxInfo.GetChannelName(),
-		UserId:        ctxInfo.GetUserId(),
-		SessionId:     ctxInfo.GetSessionId(),
-		Status:        agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
-		Input:         truncate(joinTextParts(parts), 4096),
-		StartedAt:     timestamppb.New(time.Now().UTC()),
-		ModelOverride: modelOverride,
-		Source:        ctxInfo.GetSource().String(),
-		WorkspaceId:   ctxInfo.GetWorkspaceId(),
+		Id:               id,
+		AgentName:        agentName,
+		AgentId:          agentID,
+		AgentDisplayName: displayName,
+		AppName:          ctxInfo.GetChannelName(),
+		UserId:           ctxInfo.GetUserId(),
+		SessionId:        ctxInfo.GetSessionId(),
+		Status:           agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
+		Input:            truncate(joinTextParts(parts), 4096),
+		StartedAt:        timestamppb.New(time.Now().UTC()),
+		ModelOverride:    modelOverride,
+		Source:           ctxInfo.GetSource().String(),
+		WorkspaceId:      ctxInfo.GetWorkspaceId(),
 	}
 	// Best-effort: failures are logged but do not block the run.
 	if err := rec.Save(ctx, inv); err != nil {

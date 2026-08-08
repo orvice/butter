@@ -18,6 +18,7 @@ function threadFromProto(t: PbForumThread): ForumThread {
     created_by: t.createdBy,
     status: t.status,
     agent_names: t.agentNames,
+    agent_ids: t.agentIds,
     labels: t.labels,
     metadata: t.metadata,
     created_at: tsToISO(t.createdAt),
@@ -33,6 +34,7 @@ function postFromProto(p: PbForumPost): ForumPost {
     body: p.body,
     author_user_id: p.authorUserId,
     author_agent_name: p.authorAgentName,
+    author_agent_id: p.authorAgentId,
     author_kind: p.authorKind,
     invocation_id: p.invocationId,
     parent_post_id: p.parentPostId,
@@ -69,7 +71,7 @@ interface GetThreadResponse {
 interface CreateThreadParams {
   title: string;
   body: string;
-  agent_names?: string[];
+  agent_ids?: string[];
   labels?: string[];
   metadata?: Record<string, string>;
 }
@@ -84,7 +86,7 @@ export interface UpdateThreadParams {
   title?: string;
   body?: string;
   status?: string;
-  agent_names?: string[];
+  agent_ids?: string[];
   labels?: string[];
   metadata?: Record<string, string>;
 }
@@ -105,7 +107,7 @@ interface CreatePostResponse {
 
 interface InvokeAgentParams {
   thread_id: string;
-  agent_name: string;
+  agent_id: string;
   message?: string;
   model_override?: string;
   recent_post_limit?: number;
@@ -149,7 +151,7 @@ export async function createForumThread(params: CreateThreadParams): Promise<Cre
   const res = await client.createThread({
     title: params.title,
     body: params.body,
-    agentNames: params.agent_names ?? [],
+    agentIds: params.agent_ids ?? [],
     labels: params.labels ?? [],
     metadata: params.metadata ?? {},
   });
@@ -166,7 +168,7 @@ export async function updateForumThread(params: UpdateThreadParams): Promise<Upd
     title: params.title ?? "",
     body: params.body ?? "",
     status: params.status ?? "",
-    agentNames: params.agent_names ?? [],
+    agentIds: params.agent_ids ?? [],
     labels: params.labels ?? [],
     metadata: params.metadata ?? {},
   });
@@ -187,7 +189,7 @@ export async function createForumPost(params: CreatePostParams): Promise<CreateP
 export async function invokeAgentInThread(params: InvokeAgentParams): Promise<InvokeAgentResponse> {
   const res = await client.invokeAgentInThread({
     threadId: params.thread_id,
-    agentName: params.agent_name,
+    agentId: params.agent_id,
     message: params.message ?? "",
     modelOverride: params.model_override ?? "",
     recentPostLimit: params.recent_post_limit ?? 0,
