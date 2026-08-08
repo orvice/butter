@@ -155,6 +155,12 @@ func (m *Agent) validate(all bool) error {
 
 	// no validation rules for AgentId
 
+	// no validation rules for DisplayName
+
+	// no validation rules for LifecycleStatus
+
+	// no validation rules for LegacyName
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
@@ -709,6 +715,8 @@ func (m *WorkflowNode) validate(all bool) error {
 	// no validation rules for Agent
 
 	// no validation rules for Question
+
+	// no validation rules for AgentId
 
 	// no validation rules for ParallelWorker
 

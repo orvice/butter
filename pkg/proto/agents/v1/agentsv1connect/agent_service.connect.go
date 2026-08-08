@@ -87,6 +87,9 @@ const (
 	// AgentServiceGetMigrationReadinessProcedure is the fully-qualified name of the AgentService's
 	// GetMigrationReadiness RPC.
 	AgentServiceGetMigrationReadinessProcedure = "/agents.v1.AgentService/GetMigrationReadiness"
+	// AgentServiceMigrateAgentsV2Procedure is the fully-qualified name of the AgentService's
+	// MigrateAgentsV2 RPC.
+	AgentServiceMigrateAgentsV2Procedure = "/agents.v1.AgentService/MigrateAgentsV2"
 	// MCPServerServiceListMCPServersProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPServers RPC.
 	MCPServerServiceListMCPServersProcedure = "/agents.v1.MCPServerService/ListMCPServers"
@@ -279,6 +282,10 @@ type AgentServiceClient interface {
 	// ready for the identity migration (has a valid Agent ID, all entry-point
 	// dependencies resolved, etc.).
 	GetMigrationReadiness(context.Context, *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error)
+	// MigrateAgentsV2 expands eligible legacy Agent trees into independent
+	// Agent records with ID-based composition. Supports dry-run, apply, and
+	// verify modes.
+	MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error)
 }
 
 // NewAgentServiceClient constructs a client for the agents.v1.AgentService service. By default, it
@@ -376,6 +383,12 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("GetMigrationReadiness")),
 			connect.WithClientOptions(opts...),
 		),
+		migrateAgentsV2: connect.NewClient[v1.MigrateAgentsV2Request, v1.MigrateAgentsV2Response](
+			httpClient,
+			baseURL+AgentServiceMigrateAgentsV2Procedure,
+			connect.WithSchema(agentServiceMethods.ByName("MigrateAgentsV2")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -395,6 +408,7 @@ type agentServiceClient struct {
 	streamAgent              *connect.Client[v1.StreamAgentRequest, v1.StreamAgentResponse]
 	assignAgentID            *connect.Client[v1.AssignAgentIDRequest, v1.AssignAgentIDResponse]
 	getMigrationReadiness    *connect.Client[v1.GetMigrationReadinessRequest, v1.GetMigrationReadinessResponse]
+	migrateAgentsV2          *connect.Client[v1.MigrateAgentsV2Request, v1.MigrateAgentsV2Response]
 }
 
 // ListAgents calls agents.v1.AgentService.ListAgents.
@@ -467,6 +481,11 @@ func (c *agentServiceClient) GetMigrationReadiness(ctx context.Context, req *con
 	return c.getMigrationReadiness.CallUnary(ctx, req)
 }
 
+// MigrateAgentsV2 calls agents.v1.AgentService.MigrateAgentsV2.
+func (c *agentServiceClient) MigrateAgentsV2(ctx context.Context, req *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error) {
+	return c.migrateAgentsV2.CallUnary(ctx, req)
+}
+
 // AgentServiceHandler is an implementation of the agents.v1.AgentService service.
 type AgentServiceHandler interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
@@ -513,6 +532,10 @@ type AgentServiceHandler interface {
 	// ready for the identity migration (has a valid Agent ID, all entry-point
 	// dependencies resolved, etc.).
 	GetMigrationReadiness(context.Context, *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error)
+	// MigrateAgentsV2 expands eligible legacy Agent trees into independent
+	// Agent records with ID-based composition. Supports dry-run, apply, and
+	// verify modes.
+	MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -606,6 +629,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("GetMigrationReadiness")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceMigrateAgentsV2Handler := connect.NewUnaryHandler(
+		AgentServiceMigrateAgentsV2Procedure,
+		svc.MigrateAgentsV2,
+		connect.WithSchema(agentServiceMethods.ByName("MigrateAgentsV2")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceListAgentsProcedure:
@@ -636,6 +665,8 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceAssignAgentIDHandler.ServeHTTP(w, r)
 		case AgentServiceGetMigrationReadinessProcedure:
 			agentServiceGetMigrationReadinessHandler.ServeHTTP(w, r)
+		case AgentServiceMigrateAgentsV2Procedure:
+			agentServiceMigrateAgentsV2Handler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -699,6 +730,10 @@ func (UnimplementedAgentServiceHandler) AssignAgentID(context.Context, *connect.
 
 func (UnimplementedAgentServiceHandler) GetMigrationReadiness(context.Context, *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.GetMigrationReadiness is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.MigrateAgentsV2 is not implemented"))
 }
 
 // MCPServerServiceClient is a client for the agents.v1.MCPServerService service.

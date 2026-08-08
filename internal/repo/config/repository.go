@@ -21,6 +21,9 @@ type AgentRepository interface {
 	UpdateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error)
 	DeleteAgent(ctx context.Context, workspaceID, name string) error
 
+	// GetAgentByID returns the agent with the given workspace-scoped agent_id.
+	GetAgentByID(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error)
+
 	// AgentIDExists reports whether the given agent_id is already taken
 	// within the workspace.
 	AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error)

@@ -186,21 +186,26 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 
 	logger.Info("building agent registry", "agent_count", len(agents))
 
+	wsPools := buildWorkspacePools(agents)
+
 	for i := range agents {
 		name := agents[i].GetName()
+		if agents[i].GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED {
+			logger.Warn("skipping MIGRATION_REQUIRED agent", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
+			continue
+		}
+
 		logger.Info("building agent from proto",
 			"agent", name,
 			"type", agents[i].GetType().String(),
 			"description", agents[i].GetDescription(),
 		)
 
-		// The registry is keyed by name only; a cross-workspace duplicate
-		// would silently shadow the other workspace's agent.
 		if prev, ok := protoRegistry[name]; ok {
 			return nil, fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
 		}
 
-		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory)
+		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory, wsPools[agents[i].GetWorkspaceId()])
 		if err != nil {
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}
@@ -408,21 +413,22 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 	}
 	s.mu.Unlock()
 
+	wsPools := buildWorkspacePools(agents)
+
 	for i := range agents {
 		name := agents[i].GetName()
+		if agents[i].GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED {
+			logger.Warn("skipping MIGRATION_REQUIRED agent on reload", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
+			continue
+		}
 		if prev, ok := protoRegistry[name]; ok {
 			return fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
 		}
-		// A proto agent must never shadow a reserved builder agent (e.g. the
-		// built-in system agent); doing so would leave registry[name] pointing
-		// at the proto build while agentBuilders[name] still rebuilds the
-		// builder agent, an inconsistent state. Skip it so the builder stays
-		// authoritative.
 		if _, isReserved := reserved[name]; isReserved {
 			logger.Warn("skipping proto agent that collides with a reserved builder name", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
 			continue
 		}
-		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory)
+		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory, wsPools[agents[i].GetWorkspaceId()])
 		if err != nil {
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
 		}
@@ -586,10 +592,11 @@ func (s *Service) GetAgentStatus(name string) *AgentStatus {
 			mcpNamesByID[id] = s.mcpRegistry[i].GetName()
 		}
 	}
-	return buildAgentStatus(pb, mcpNamesByID)
+	pool := buildWorkspacePoolFromProtoRegistry(s.agentsProto, pb.GetWorkspaceId())
+	return buildAgentStatusWithPool(pb, mcpNamesByID, pool)
 }
 
-func buildAgentStatus(pb *agentsv1.Agent, mcpNamesByID map[string]string) *AgentStatus {
+func buildAgentStatusWithPool(pb *agentsv1.Agent, mcpNamesByID map[string]string, pool internalagent.AgentPool) *AgentStatus {
 	st := &AgentStatus{
 		Name:        pb.GetName(),
 		Description: pb.GetDescription(),
@@ -610,10 +617,50 @@ func buildAgentStatus(pb *agentsv1.Agent, mcpNamesByID map[string]string) *Agent
 		st.MCPServers = append(st.MCPServers, name)
 		seen[name] = struct{}{}
 	}
-	for _, sub := range pb.GetSubAgents() {
-		st.SubAgents = append(st.SubAgents, buildAgentStatus(sub, mcpNamesByID))
+	if len(pb.GetChildAgentIds()) > 0 && pool != nil {
+		for _, cid := range pb.GetChildAgentIds() {
+			if child, ok := pool[cid]; ok {
+				st.SubAgents = append(st.SubAgents, buildAgentStatusWithPool(child, mcpNamesByID, pool))
+			}
+		}
+	} else {
+		for _, sub := range pb.GetSubAgents() {
+			st.SubAgents = append(st.SubAgents, buildAgentStatusWithPool(sub, mcpNamesByID, pool))
+		}
 	}
 	return st
+}
+
+// buildWorkspacePools constructs per-workspace agent pools indexed by agent_id.
+// Each workspace gets its own pool so that duplicate agent_ids in different
+// workspaces cannot shadow each other.
+func buildWorkspacePools(agents []agentsv1.Agent) map[string]internalagent.AgentPool {
+	pools := make(map[string]internalagent.AgentPool)
+	for i := range agents {
+		ws := agents[i].GetWorkspaceId()
+		id := agents[i].GetAgentId()
+		if id == "" {
+			continue
+		}
+		if pools[ws] == nil {
+			pools[ws] = make(internalagent.AgentPool)
+		}
+		pools[ws][id] = &agents[i]
+	}
+	return pools
+}
+
+func buildWorkspacePoolFromProtoRegistry(protoRegistry map[string]*agentsv1.Agent, workspaceID string) internalagent.AgentPool {
+	pool := make(internalagent.AgentPool)
+	for _, pb := range protoRegistry {
+		if pb.GetWorkspaceId() != workspaceID {
+			continue
+		}
+		if id := pb.GetAgentId(); id != "" {
+			pool[id] = pb
+		}
+	}
+	return pool
 }
 
 // ClearSession deletes and recreates a session, effectively clearing its context.
@@ -687,7 +734,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 			clone.Config = &agentsv1.AgentConfig{}
 		}
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(deps))
+		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(deps), buildWorkspacePoolFromProtoRegistry(s.agentsProto, pb.GetWorkspaceId()))
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)

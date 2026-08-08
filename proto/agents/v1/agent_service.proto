@@ -58,6 +58,10 @@ service AgentService {
   // ready for the identity migration (has a valid Agent ID, all entry-point
   // dependencies resolved, etc.).
   rpc GetMigrationReadiness(GetMigrationReadinessRequest) returns (GetMigrationReadinessResponse);
+  // MigrateAgentsV2 expands eligible legacy Agent trees into independent
+  // Agent records with ID-based composition. Supports dry-run, apply, and
+  // verify modes.
+  rpc MigrateAgentsV2(MigrateAgentsV2Request) returns (MigrateAgentsV2Response);
 }
 
 // MCPServerService manages MCP Server configurations.
@@ -276,6 +280,9 @@ message StreamAgentFinal {
 
 message GetAgentRequest {
   string name = 1;
+  // Optional: look up by immutable agent_id instead of name.
+  // When set, name is ignored.
+  string agent_id = 2;
 }
 
 message GetAgentResponse {
@@ -300,6 +307,9 @@ message UpdateAgentResponse {
 
 message DeleteAgentRequest {
   string name = 1;
+  // Optional: identify by immutable agent_id instead of name.
+  // When set, name is ignored.
+  string agent_id = 2;
 }
 
 message DeleteAgentResponse {}
@@ -346,6 +356,42 @@ message AgentMigrationStatus {
   MigrationReadiness readiness = 3;
   // Human-readable detail when readiness is not READY.
   string detail = 4;
+}
+
+// --- MigrateAgentsV2 messages ---
+
+enum MigrateMode {
+  MIGRATE_MODE_UNSPECIFIED = 0;
+  // Report what would be migrated without making changes.
+  MIGRATE_MODE_DRY_RUN = 1;
+  // Expand eligible legacy trees into independent Agent records.
+  MIGRATE_MODE_APPLY = 2;
+  // Verify that all agents are fully migrated.
+  MIGRATE_MODE_VERIFY = 3;
+}
+
+message MigrateAgentsV2Request {
+  MigrateMode mode = 1;
+}
+
+// MigrateAgentResult describes what happened (or would happen) for one agent.
+message MigrateAgentResult {
+  string name = 1;
+  string agent_id = 2;
+  // Action taken: "expanded", "skipped", "already_independent",
+  // "missing_id", "error", "ok", or "migration_required".
+  string action = 3;
+  string detail = 4;
+}
+
+message MigrateAgentsV2Response {
+  MigrateMode mode = 1;
+  repeated MigrateAgentResult results = 2;
+  // Summary counts.
+  int32 total = 3;
+  int32 migrated = 4;
+  int32 skipped = 5;
+  int32 errors = 6;
 }
 
 message InvokeAgentRequest {

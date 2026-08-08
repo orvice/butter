@@ -103,7 +103,23 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 	if err != nil {
 		return err
 	}
+
+	migrationRequired := make(map[string]bool)
 	for _, agent := range agents {
+		if agent.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED {
+			if id := agent.GetAgentId(); id != "" {
+				migrationRequired[scopedKey(agent.GetWorkspaceId(), id)] = true
+			}
+		}
+	}
+
+	for _, agent := range agents {
+		if agent.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED {
+			continue
+		}
+		if hasTransitiveMigrationRequired(agent, migrationRequired, agents) {
+			continue
+		}
 		cfg.Agents = append(cfg.Agents, agentsv1.Agent{})
 		proto.Merge(&cfg.Agents[len(cfg.Agents)-1], agent)
 	}
@@ -147,6 +163,54 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 	return nil
 }
 
+func scopedKey(workspaceID, agentID string) string {
+	return workspaceID + "/" + agentID
+}
+
+// hasTransitiveMigrationRequired checks whether any child (via child_agent_ids)
+// transitively depends on a MIGRATION_REQUIRED agent. Keys are scoped by
+// workspace so duplicate agent_ids across workspaces don't interfere.
+func hasTransitiveMigrationRequired(agent *agentsv1.Agent, blocked map[string]bool, allAgents []*agentsv1.Agent) bool {
+	if len(agent.GetChildAgentIds()) == 0 {
+		return false
+	}
+	wsID := agent.GetWorkspaceId()
+	byID := make(map[string]*agentsv1.Agent, len(allAgents))
+	for _, a := range allAgents {
+		if a.GetWorkspaceId() != wsID {
+			continue
+		}
+		if id := a.GetAgentId(); id != "" {
+			byID[id] = a
+		}
+	}
+	visited := make(map[string]bool)
+	var walk func(id string) bool
+	walk = func(id string) bool {
+		if visited[id] {
+			return false
+		}
+		visited[id] = true
+		if blocked[scopedKey(wsID, id)] {
+			return true
+		}
+		if child, ok := byID[id]; ok {
+			for _, cid := range child.GetChildAgentIds() {
+				if walk(cid) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for _, cid := range agent.GetChildAgentIds() {
+		if walk(cid) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *ConfigStore) SyncToConfig(ctx context.Context, cfg *config.AppConfig) error {
 	return s.loadIntoConfig(ctx, cfg)
 }
@@ -181,6 +245,10 @@ func (s *ConfigStore) UpdateAgent(ctx context.Context, workspaceID string, agent
 
 func (s *ConfigStore) DeleteAgent(ctx context.Context, workspaceID, name string) error {
 	return s.current().DeleteAgent(ctx, workspaceID, name)
+}
+
+func (s *ConfigStore) GetAgentByID(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
+	return s.current().GetAgentByID(ctx, workspaceID, agentID)
 }
 
 func (s *ConfigStore) AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error) {

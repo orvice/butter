@@ -145,7 +145,12 @@ func (s *AgentServiceServer) GetAgent(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	a, err := s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
+	var a *agentsv1.Agent
+	if aid := req.Msg.GetAgentId(); aid != "" {
+		a, err = s.repo.GetAgentByID(ctx, wsID, aid)
+	} else {
+		a, err = s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
+	}
 	if err != nil {
 		return nil, toConnectError(err)
 	}
@@ -165,9 +170,41 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	// agent_id must be assigned through AssignAgentID, not via CreateAgent.
+
 	agent := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
-	agent.AgentId = ""
+
+	hasChildren := len(agent.GetChildAgentIds()) > 0
+	hasAgentID := agent.GetAgentId() != ""
+
+	if hasChildren && !hasAgentID {
+		return nil, connectx.RequiredArgument("agent_id (required when child_agent_ids is set)")
+	}
+	if hasAgentID {
+		if err := internalagent.ValidateAgentID(agent.GetAgentId()); err != nil {
+			return nil, connectx.InvalidArgument("agent_id", err.Error())
+		}
+		taken, err := s.repo.AgentIDExists(ctx, wsID, agent.GetAgentId())
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		if taken {
+			return nil, connect.NewError(connect.CodeAlreadyExists,
+				fmt.Errorf("agent_id %q is already in use in this workspace", agent.GetAgentId()))
+		}
+	}
+	if hasChildren {
+		agent.SubAgents = nil
+		agent.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE
+
+		pool, err := s.repo.ListAgents(ctx, wsID)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		agent.WorkspaceId = wsID
+		if err := internalagent.ValidateAgentRelationships(agent, pool); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+	}
 
 	logger := log.FromContext(ctx)
 	logger.Info("creating agent", "workspace_id", wsID, "agent", agent.GetName(), "type", agent.GetType().String())
@@ -207,13 +244,31 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, toConnectError(err)
 	}
 
-	// Enforce agent_id immutability: agent_id can only be set via AssignAgentID.
 	update := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
 	if update.GetAgentId() != "" && update.GetAgentId() != prev.GetAgentId() {
 		return nil, connect.NewError(connect.CodeInvalidArgument,
 			fmt.Errorf("agent_id cannot be set or changed via UpdateAgent; use AssignAgentID"))
 	}
 	update.AgentId = prev.GetAgentId()
+	update.LifecycleStatus = prev.GetLifecycleStatus()
+	update.LegacyName = prev.GetLegacyName()
+
+	if len(update.GetChildAgentIds()) > 0 {
+		pool, err := s.repo.ListAgents(ctx, wsID)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		update.WorkspaceId = wsID
+		for i, a := range pool {
+			if a.GetName() == update.GetName() {
+				pool[i] = update
+				break
+			}
+		}
+		if err := internalagent.ValidateAgentRelationships(update, pool); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+	}
 
 	logger.Info("updating agent", "workspace_id", wsID, "agent", update.GetName())
 
@@ -245,15 +300,33 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	prev, err := s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
+
+	var prev *agentsv1.Agent
+	if aid := req.Msg.GetAgentId(); aid != "" {
+		prev, err = s.repo.GetAgentByID(ctx, wsID, aid)
+	} else {
+		prev, err = s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
+	}
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("deleting agent", "workspace_id", wsID, "agent", req.Msg.GetName())
+	agentName := prev.GetName()
+
+	if agentID := prev.GetAgentId(); agentID != "" {
+		pool, err := s.repo.ListAgents(ctx, wsID)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		if err := internalagent.ValidateNoOrphanedReferences(agentID, pool); err != nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		}
+	}
+
+	logger.Info("deleting agent", "workspace_id", wsID, "agent", agentName)
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteAgent(ctx, wsID, req.Msg.GetName())
+			return s.repo.DeleteAgent(ctx, wsID, agentName)
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -266,10 +339,10 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		},
 	)
 	if err != nil {
-		logger.Error("delete agent failed", "workspace_id", wsID, "agent", req.Msg.GetName(), "err", err)
+		logger.Error("delete agent failed", "workspace_id", wsID, "agent", agentName, "err", err)
 		return nil, toConnectError(err)
 	}
-	logger.Info("agent deleted", "workspace_id", wsID, "agent", req.Msg.GetName())
+	logger.Info("agent deleted", "workspace_id", wsID, "agent", agentName)
 	return connect.NewResponse(&agentsv1.DeleteAgentResponse{}), nil
 }
 
@@ -656,6 +729,10 @@ func (s *AgentServiceServer) requireOwnerOrAdmin(ctx context.Context, workspaceI
 		return nil
 	}
 	return connect.NewError(connect.CodePermissionDenied, errors.New("only workspace owners and administrators can assign Agent IDs"))
+}
+
+func (s *AgentServiceServer) MigrateAgentsV2(ctx context.Context, req *connect.Request[agentsv1.MigrateAgentsV2Request]) (*connect.Response[agentsv1.MigrateAgentsV2Response], error) {
+	return migrateAgentsV2(ctx, s, req)
 }
 
 func (s *AgentServiceServer) reloadRuntime(ctx context.Context) error {

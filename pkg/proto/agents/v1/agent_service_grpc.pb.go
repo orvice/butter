@@ -33,6 +33,7 @@ const (
 	AgentService_StreamAgent_FullMethodName              = "/agents.v1.AgentService/StreamAgent"
 	AgentService_AssignAgentID_FullMethodName            = "/agents.v1.AgentService/AssignAgentID"
 	AgentService_GetMigrationReadiness_FullMethodName    = "/agents.v1.AgentService/GetMigrationReadiness"
+	AgentService_MigrateAgentsV2_FullMethodName          = "/agents.v1.AgentService/MigrateAgentsV2"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -85,6 +86,10 @@ type AgentServiceClient interface {
 	// ready for the identity migration (has a valid Agent ID, all entry-point
 	// dependencies resolved, etc.).
 	GetMigrationReadiness(ctx context.Context, in *GetMigrationReadinessRequest, opts ...grpc.CallOption) (*GetMigrationReadinessResponse, error)
+	// MigrateAgentsV2 expands eligible legacy Agent trees into independent
+	// Agent records with ID-based composition. Supports dry-run, apply, and
+	// verify modes.
+	MigrateAgentsV2(ctx context.Context, in *MigrateAgentsV2Request, opts ...grpc.CallOption) (*MigrateAgentsV2Response, error)
 }
 
 type agentServiceClient struct {
@@ -244,6 +249,16 @@ func (c *agentServiceClient) GetMigrationReadiness(ctx context.Context, in *GetM
 	return out, nil
 }
 
+func (c *agentServiceClient) MigrateAgentsV2(ctx context.Context, in *MigrateAgentsV2Request, opts ...grpc.CallOption) (*MigrateAgentsV2Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MigrateAgentsV2Response)
+	err := c.cc.Invoke(ctx, AgentService_MigrateAgentsV2_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -294,6 +309,10 @@ type AgentServiceServer interface {
 	// ready for the identity migration (has a valid Agent ID, all entry-point
 	// dependencies resolved, etc.).
 	GetMigrationReadiness(context.Context, *GetMigrationReadinessRequest) (*GetMigrationReadinessResponse, error)
+	// MigrateAgentsV2 expands eligible legacy Agent trees into independent
+	// Agent records with ID-based composition. Supports dry-run, apply, and
+	// verify modes.
+	MigrateAgentsV2(context.Context, *MigrateAgentsV2Request) (*MigrateAgentsV2Response, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -345,6 +364,9 @@ func (UnimplementedAgentServiceServer) AssignAgentID(context.Context, *AssignAge
 }
 func (UnimplementedAgentServiceServer) GetMigrationReadiness(context.Context, *GetMigrationReadinessRequest) (*GetMigrationReadinessResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMigrationReadiness not implemented")
+}
+func (UnimplementedAgentServiceServer) MigrateAgentsV2(context.Context, *MigrateAgentsV2Request) (*MigrateAgentsV2Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method MigrateAgentsV2 not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -612,6 +634,24 @@ func _AgentService_GetMigrationReadiness_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_MigrateAgentsV2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MigrateAgentsV2Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).MigrateAgentsV2(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_MigrateAgentsV2_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).MigrateAgentsV2(ctx, req.(*MigrateAgentsV2Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -670,6 +710,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetMigrationReadiness",
 			Handler:    _AgentService_GetMigrationReadiness_Handler,
+		},
+		{
+			MethodName: "MigrateAgentsV2",
+			Handler:    _AgentService_MigrateAgentsV2_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

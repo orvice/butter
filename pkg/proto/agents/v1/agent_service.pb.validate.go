@@ -2260,6 +2260,8 @@ func (m *GetAgentRequest) validate(all bool) error {
 
 	// no validation rules for Name
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return GetAgentRequestMultiError(errors)
 	}
@@ -3014,6 +3016,8 @@ func (m *DeleteAgentRequest) validate(all bool) error {
 	var errors []error
 
 	// no validation rules for Name
+
+	// no validation rules for AgentId
 
 	if len(errors) > 0 {
 		return DeleteAgentRequestMultiError(errors)
@@ -3783,6 +3787,366 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = AgentMigrationStatusValidationError{}
+
+// Validate checks the field values on MigrateAgentsV2Request with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MigrateAgentsV2Request) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MigrateAgentsV2Request with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MigrateAgentsV2RequestMultiError, or nil if none found.
+func (m *MigrateAgentsV2Request) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MigrateAgentsV2Request) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Mode
+
+	if len(errors) > 0 {
+		return MigrateAgentsV2RequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// MigrateAgentsV2RequestMultiError is an error wrapping multiple validation
+// errors returned by MigrateAgentsV2Request.ValidateAll() if the designated
+// constraints aren't met.
+type MigrateAgentsV2RequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MigrateAgentsV2RequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MigrateAgentsV2RequestMultiError) AllErrors() []error { return m }
+
+// MigrateAgentsV2RequestValidationError is the validation error returned by
+// MigrateAgentsV2Request.Validate if the designated constraints aren't met.
+type MigrateAgentsV2RequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MigrateAgentsV2RequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MigrateAgentsV2RequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MigrateAgentsV2RequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MigrateAgentsV2RequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MigrateAgentsV2RequestValidationError) ErrorName() string {
+	return "MigrateAgentsV2RequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MigrateAgentsV2RequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMigrateAgentsV2Request.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MigrateAgentsV2RequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MigrateAgentsV2RequestValidationError{}
+
+// Validate checks the field values on MigrateAgentResult with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MigrateAgentResult) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MigrateAgentResult with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MigrateAgentResultMultiError, or nil if none found.
+func (m *MigrateAgentResult) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MigrateAgentResult) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	// no validation rules for AgentId
+
+	// no validation rules for Action
+
+	// no validation rules for Detail
+
+	if len(errors) > 0 {
+		return MigrateAgentResultMultiError(errors)
+	}
+
+	return nil
+}
+
+// MigrateAgentResultMultiError is an error wrapping multiple validation errors
+// returned by MigrateAgentResult.ValidateAll() if the designated constraints
+// aren't met.
+type MigrateAgentResultMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MigrateAgentResultMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MigrateAgentResultMultiError) AllErrors() []error { return m }
+
+// MigrateAgentResultValidationError is the validation error returned by
+// MigrateAgentResult.Validate if the designated constraints aren't met.
+type MigrateAgentResultValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MigrateAgentResultValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MigrateAgentResultValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MigrateAgentResultValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MigrateAgentResultValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MigrateAgentResultValidationError) ErrorName() string {
+	return "MigrateAgentResultValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MigrateAgentResultValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMigrateAgentResult.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MigrateAgentResultValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MigrateAgentResultValidationError{}
+
+// Validate checks the field values on MigrateAgentsV2Response with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MigrateAgentsV2Response) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MigrateAgentsV2Response with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MigrateAgentsV2ResponseMultiError, or nil if none found.
+func (m *MigrateAgentsV2Response) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MigrateAgentsV2Response) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Mode
+
+	for idx, item := range m.GetResults() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, MigrateAgentsV2ResponseValidationError{
+						field:  fmt.Sprintf("Results[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, MigrateAgentsV2ResponseValidationError{
+						field:  fmt.Sprintf("Results[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return MigrateAgentsV2ResponseValidationError{
+					field:  fmt.Sprintf("Results[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Total
+
+	// no validation rules for Migrated
+
+	// no validation rules for Skipped
+
+	// no validation rules for Errors
+
+	if len(errors) > 0 {
+		return MigrateAgentsV2ResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// MigrateAgentsV2ResponseMultiError is an error wrapping multiple validation
+// errors returned by MigrateAgentsV2Response.ValidateAll() if the designated
+// constraints aren't met.
+type MigrateAgentsV2ResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MigrateAgentsV2ResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MigrateAgentsV2ResponseMultiError) AllErrors() []error { return m }
+
+// MigrateAgentsV2ResponseValidationError is the validation error returned by
+// MigrateAgentsV2Response.Validate if the designated constraints aren't met.
+type MigrateAgentsV2ResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MigrateAgentsV2ResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MigrateAgentsV2ResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MigrateAgentsV2ResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MigrateAgentsV2ResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MigrateAgentsV2ResponseValidationError) ErrorName() string {
+	return "MigrateAgentsV2ResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MigrateAgentsV2ResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMigrateAgentsV2Response.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MigrateAgentsV2ResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MigrateAgentsV2ResponseValidationError{}
 
 // Validate checks the field values on InvokeAgentRequest with the rules
 // defined in the proto definition for this message. If any rules are

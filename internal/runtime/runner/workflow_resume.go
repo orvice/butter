@@ -17,12 +17,29 @@ import (
 // Workflow Agent anywhere. Implicit resume applies only to such agents: a
 // session may be reused with a different agent_name, and a message meant
 // for an unrelated agent must not be rewrapped as an Interrupt's answer.
+//
+// When the agent uses V2 child_agent_ids, the pool is consulted instead of
+// the embedded sub_agents.
 func containsWorkflowAgent(pb *agentsv1.Agent) bool {
+	return containsWorkflowAgentWithPool(pb, nil)
+}
+
+func containsWorkflowAgentWithPool(pb *agentsv1.Agent, pool map[string]*agentsv1.Agent) bool {
 	if pb == nil {
 		return false
 	}
 	if pb.GetType() == agentsv1.AgentType_AGENT_TYPE_WORKFLOW {
 		return true
+	}
+	if len(pb.GetChildAgentIds()) > 0 && pool != nil {
+		for _, cid := range pb.GetChildAgentIds() {
+			if child, ok := pool[cid]; ok {
+				if containsWorkflowAgentWithPool(child, pool) {
+					return true
+				}
+			}
+		}
+		return false
 	}
 	return slices.ContainsFunc(pb.GetSubAgents(), containsWorkflowAgent)
 }

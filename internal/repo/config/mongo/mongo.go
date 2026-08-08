@@ -233,6 +233,22 @@ func (s *Store) UpdateAgent(ctx context.Context, workspaceID string, agent *agen
 	return clone, nil
 }
 
+func (s *Store) GetAgentByID(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
+	var doc configDoc
+	err := s.agents.FindOne(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"agent_id":     agentID,
+	}).Decode(&doc)
+	if err != nil {
+		return nil, mapError("agent", workspaceID, agentID, err)
+	}
+	a := &agentsv1.Agent{}
+	if err := unmarshal(doc.Spec, a); err != nil {
+		return nil, fmt.Errorf("unmarshal agent by id %q: %w", agentID, err)
+	}
+	return a, nil
+}
+
 func (s *Store) AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error) {
 	n, err := s.agents.CountDocuments(ctx, bson.M{
 		"workspace_id": workspaceID,
