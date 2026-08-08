@@ -41,12 +41,12 @@ import (
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
-	"go.orx.me/apps/butter/internal/repo/repocache"
-	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
-	repocachemongo "go.orx.me/apps/butter/internal/repo/repocache/mongo"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
+	"go.orx.me/apps/butter/internal/repo/repocache"
+	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
+	repocachemongo "go.orx.me/apps/butter/internal/repo/repocache/mongo"
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	skillmongo "go.orx.me/apps/butter/internal/repo/skill/mongo"
@@ -219,6 +219,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := bindingRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create repo binding indexes", "err", err)
+		return nil, err
+	}
+	if err := cacheRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create repo cache indexes", "err", err)
 		return nil, err
 	}
 	oauthProviders := provider.BuildRegistry(cfg.Auth)

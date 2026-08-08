@@ -373,8 +373,12 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	gitHostSvcServer := application.NewGitHostServiceServer(nil)
 	gitHostConnectPath, gitHostConnectHandler := agentsv1connect.NewGitHostServiceHandler(gitHostSvcServer, connectOpts...)
 	repoBindingSvcServer := application.NewRepoBindingServiceServer(nil, nil)
+	repoBindingSvcServer.SetAgentRepo(configStore)
 	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg.
 	repoBindingSvcServer.SetEncryptionKeyProvider(func() string { return cfg.Git.EncryptionKey })
+	repoBindingSvcServer.SetCacheLimitsProvider(func() (int64, int64) {
+		return cfg.Git.EffectiveMaxFileBytes(), cfg.Git.EffectiveMaxWorkspaceCacheBytes()
+	})
 	repoBindingConnectPath, repoBindingConnectHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(repoBindingSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 

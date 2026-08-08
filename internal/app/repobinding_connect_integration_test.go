@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
+	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -42,6 +43,22 @@ func fakeGitHubHost(t *testing.T) *httptest.Server {
 				`"permissions":{"admin":false,"maintain":false,"push":true,"triage":false,"pull":true}}`)
 		case "/repos/acme/agents/branches/main":
 			fmt.Fprint(w, `{"name":"main","commit":{"sha":"abc123"}}`)
+		case "/repos/acme/agents/git/ref/heads/abc123":
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprint(w, `{"message":"Not Found"}`)
+		case "/repos/acme/agents/git/commits/abc123":
+			fmt.Fprint(w, `{"tree":{"sha":"root-tree"}}`)
+		case "/repos/acme/agents/git/trees/root-tree":
+			fmt.Fprint(w, `{"tree":[{"path":"butter","type":"tree","sha":"butter-tree"}]}`)
+		case "/repos/acme/agents/git/trees/butter-tree":
+			fmt.Fprint(w, `{"tree":[`+
+				`{"path":"agents","mode":"040000","type":"tree","sha":"tree-agents"},`+
+				`{"path":"agents/integration-agent","mode":"040000","type":"tree","sha":"tree-agent"},`+
+				`{"path":"agents/integration-agent/prompt.md","mode":"100644","type":"blob","size":19,"sha":"blob-prompt"}`+
+				`]}`)
+		case "/repos/acme/agents/contents/butter/agents/integration-agent/prompt.md":
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprint(w, "Integration prompt.")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprint(w, `{"message":"Not Found"}`)
@@ -69,8 +86,14 @@ func TestRepoBindingServices_ConnectIntegration(t *testing.T) {
 	handlers.Wire(&BootstrapResult{
 		GitHostRepo:     githostmemory.New(),
 		RepoBindingRepo: repobindingmemory.New(),
+		RepoCacheRepo:   repocachememory.New(),
 		WorkspaceRepo:   wsRepo,
 	})
+	if _, err := handlers.AgentRepo().CreateAgent(t.Context(), "ws-test", &agentsv1.Agent{
+		Name: "Integration Agent", AgentId: "integration-agent",
+	}); err != nil {
+		t.Fatalf("seed agent: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -144,7 +167,37 @@ func TestRepoBindingServices_ConnectIntegration(t *testing.T) {
 		t.Fatalf("binding leaks PAT: %s", s)
 	}
 
-	// 5. A wrong workspace header sees no binding (workspace isolation).
+	// 5. Synchronization and cache-only browsing cross the real ConnectRPC
+	// handler and provider adapter. This slice observes content but does not
+	// publish an active revision yet.
+	syncResp, err := bindingClient.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("SyncWorkspaceRepository: %v", err)
+	}
+	if syncResp.Msg.GetEntriesSynced() != 3 || syncResp.Msg.GetBinding().GetObservedCommitSha() != "abc123" {
+		t.Fatalf("unexpected sync response: %v", syncResp.Msg)
+	}
+	listResp, err := bindingClient.ListRepositoryEntries(ctx, connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{Path: "agents"}))
+	if err != nil {
+		t.Fatalf("ListRepositoryEntries: %v", err)
+	}
+	if len(listResp.Msg.GetEntries()) != 1 || !listResp.Msg.GetEntries()[0].GetClaimed() {
+		t.Fatalf("claimed directory missing from cache listing: %v", listResp.Msg.GetEntries())
+	}
+	if listResp.Msg.GetObservedCommitSha() != "abc123" || listResp.Msg.GetActiveCommitSha() != "" {
+		t.Fatalf("revision metadata = observed %q active %q", listResp.Msg.GetObservedCommitSha(), listResp.Msg.GetActiveCommitSha())
+	}
+	fileResp, err := bindingClient.GetRepositoryFile(ctx, connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/integration-agent/prompt.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetRepositoryFile: %v", err)
+	}
+	if fileResp.Msg.GetContent() != "Integration prompt." || fileResp.Msg.GetActiveCommitSha() != "" {
+		t.Fatalf("unexpected cached file response: %v", fileResp.Msg)
+	}
+
+	// 6. A wrong workspace header sees no binding (workspace isolation).
 	otherOpts := []connect.ClientOption{connect.WithInterceptors(workspaceHeaderInterceptor("ws-other"))}
 	otherClient := agentsv1connect.NewWorkspaceRepoBindingServiceClient(server.Client(), server.URL+"/api", otherOpts...)
 	otherResp, err := otherClient.GetWorkspaceRepoBinding(ctx, connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
@@ -155,7 +208,7 @@ func TestRepoBindingServices_ConnectIntegration(t *testing.T) {
 		t.Fatalf("binding visible across workspaces: %v", otherResp.Msg.GetBinding())
 	}
 
-	// 6. Delete removes binding and credential.
+	// 7. Delete removes binding and credential.
 	if _, err := bindingClient.DeleteWorkspaceRepoBinding(ctx, connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{})); err != nil {
 		t.Fatalf("DeleteWorkspaceRepoBinding: %v", err)
 	}

@@ -17,10 +17,12 @@ import (
 
 	"go.orx.me/apps/butter/internal/gitprovider"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
-	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
+	"go.orx.me/apps/butter/internal/repo/repocache"
+	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -33,13 +35,13 @@ const (
 
 // fakeProviderClient implements gitprovider.Client deterministically.
 type fakeProviderClient struct {
-	repo      *gitprovider.Repository
-	repoErr   error
-	branches  map[string]string
-	trees     map[string][]gitprovider.TreeEntry // keyed by "ref:path"
-	blobs     map[string][]byte                  // keyed by "ref:path"
-	treeErr   error
-	blobErr   error
+	repo     *gitprovider.Repository
+	repoErr  error
+	branches map[string]string
+	trees    map[string][]gitprovider.TreeEntry // keyed by "ref:path"
+	blobs    map[string][]byte                  // keyed by "ref:path"
+	treeErr  error
+	blobErr  error
 }
 
 func (f *fakeProviderClient) GetRepository(context.Context) (*gitprovider.Repository, error) {
@@ -86,6 +88,7 @@ type bindingFixture struct {
 	bindingRepo *repobindingmemory.Store
 	hostRepo    *githostmemory.Store
 	wsRepo      *workspacememory.Store
+	agentRepo   *configmemory.Store
 	fake        *fakeProviderClient
 	// lastProviderCfg captures what the service handed the provider factory.
 	lastProviderCfg *gitprovider.Config
@@ -97,6 +100,7 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 		bindingRepo: repobindingmemory.New(),
 		hostRepo:    githostmemory.New(),
 		wsRepo:      workspacememory.New(),
+		agentRepo:   configmemory.New(),
 		fake: &fakeProviderClient{
 			repo: &gitprovider.Repository{
 				FullName: "acme/agents", Private: true, DefaultBranch: "main",
@@ -127,9 +131,15 @@ func newBindingFixture(t *testing.T) *bindingFixture {
 			t.Fatalf("seed member: %v", err)
 		}
 	}
+	if _, err := fx.agentRepo.CreateAgent(ctx, "ws-a", &agentsv1.Agent{
+		Name: "My Agent", AgentId: "my-agent",
+	}); err != nil {
+		t.Fatalf("seed agent: %v", err)
+	}
 
 	svc := NewRepoBindingServiceServer(fx.bindingRepo, fx.hostRepo)
 	svc.SetWorkspaceRepo(fx.wsRepo)
+	svc.SetAgentRepo(fx.agentRepo)
 	svc.SetEncryptionKeyProvider(func() string { return testEncryptionKey })
 	svc.SetProviderClientFactory(func(cfg gitprovider.Config) (gitprovider.Client, error) {
 		fx.lastProviderCfg = &cfg
@@ -773,6 +783,16 @@ func TestListRepositoryEntries(t *testing.T) {
 		if len(resp.Msg.GetEntries()) == 0 {
 			t.Fatal("expected entries under agents/")
 		}
+		claimed := map[string]bool{}
+		for _, entry := range resp.Msg.GetEntries() {
+			claimed[entry.GetPath()] = entry.GetClaimed()
+		}
+		if !claimed["agents/my-agent"] {
+			t.Fatal("known Agent directory should be claimed")
+		}
+		if claimed["agents/unclaimed-dir"] {
+			t.Fatal("unknown Agent directory should remain unclaimed")
+		}
 	})
 }
 
@@ -1056,6 +1076,71 @@ func TestBindingInvalidationOnUpdate(t *testing.T) {
 	wantCode(t, err, connect.CodeNotFound)
 }
 
+type deleteFailingCache struct {
+	repocache.Repository
+}
+
+func (c *deleteFailingCache) Delete(context.Context, string) error {
+	return errors.New("cache delete failed")
+}
+
+func TestBindingUpdateCannotReadOldCacheWhenInvalidationFails(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	failing := &deleteFailingCache{Repository: fx.svc.cacheRepo}
+	fx.svc.SetCacheRepo(failing)
+
+	binding := validBinding()
+	binding.RootPath = "new-root"
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: binding})); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	_, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestSyncWorkspaceLimitDoesNotPublishPartialSnapshot(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("initial Sync: %v", err)
+	}
+
+	const newSHA = "limit456"
+	fx.fake.branches["main"] = newSHA
+	fx.fake.trees[newSHA+":"] = []gitprovider.TreeEntry{
+		{Path: "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+		{Path: "agents/my-agent", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agent"},
+		{Path: "agents/my-agent/a.md", Kind: gitprovider.TreeEntryFile, Size: 8, SHA: "blob-a"},
+		{Path: "agents/my-agent/b.md", Kind: gitprovider.TreeEntryFile, Size: 8, SHA: "blob-b"},
+	}
+	fx.fake.blobs[newSHA+":agents/my-agent/a.md"] = []byte("12345678")
+	fx.fake.blobs[newSHA+":agents/my-agent/b.md"] = []byte("abcdefgh")
+	fx.svc.SetCacheLimitsProvider(func() (int64, int64) { return 1024, 10 })
+
+	_, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	wantCode(t, err, connect.CodeFailedPrecondition)
+
+	oldFile, getErr := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	if getErr != nil {
+		t.Fatalf("old complete snapshot should remain readable: %v", getErr)
+	}
+	if oldFile.Msg.GetCommitSha() != "abc123" {
+		t.Fatalf("cache commit = %q, want abc123", oldFile.Msg.GetCommitSha())
+	}
+	if oldFile.Msg.GetObservedCommitSha() != newSHA {
+		t.Fatalf("observed commit = %q, want %q", oldFile.Msg.GetObservedCommitSha(), newSHA)
+	}
+	_, getErr = fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/a.md",
+	}))
+	wantCode(t, getErr, connect.CodeNotFound)
+}
+
 func TestBindingInvalidationOnDelete(t *testing.T) {
 	fx := newSyncFixture(t)
 	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
@@ -1084,8 +1169,8 @@ func TestListRepositoryEntriesResponseSHAs(t *testing.T) {
 	if resp.Msg.GetObservedCommitSha() != "abc123" {
 		t.Fatalf("observed_commit_sha = %q, want abc123", resp.Msg.GetObservedCommitSha())
 	}
-	if resp.Msg.GetActiveCommitSha() != "abc123" {
-		t.Fatalf("active_commit_sha = %q, want abc123", resp.Msg.GetActiveCommitSha())
+	if resp.Msg.GetActiveCommitSha() != "" {
+		t.Fatalf("active_commit_sha = %q, want empty before publication", resp.Msg.GetActiveCommitSha())
 	}
 }
 
@@ -1104,7 +1189,7 @@ func TestGetRepositoryFileResponseSHAs(t *testing.T) {
 	if resp.Msg.GetObservedCommitSha() != "abc123" {
 		t.Fatalf("observed_commit_sha = %q, want abc123", resp.Msg.GetObservedCommitSha())
 	}
-	if resp.Msg.GetActiveCommitSha() != "abc123" {
-		t.Fatalf("active_commit_sha = %q, want abc123", resp.Msg.GetActiveCommitSha())
+	if resp.Msg.GetActiveCommitSha() != "" {
+		t.Fatalf("active_commit_sha = %q, want empty before publication", resp.Msg.GetActiveCommitSha())
 	}
 }

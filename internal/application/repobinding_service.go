@@ -18,9 +18,10 @@ import (
 	"butterfly.orx.me/core/log"
 	"go.orx.me/apps/butter/internal/gitprovider"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	githostrepo "go.orx.me/apps/butter/internal/repo/githost"
-	"go.orx.me/apps/butter/internal/repo/repocache"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
+	"go.orx.me/apps/butter/internal/repo/repocache"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -37,7 +38,7 @@ const (
 	notCheckedDetail         = "not checked: repository unreachable"
 	credentialRejectedDetail = "credential rejected by host (expired or revoked?)"
 
-	defaultMaxFileBytes      = 256 * 1024      // 256 KiB per file
+	defaultMaxFileBytes      = 256 * 1024       // 256 KiB per file
 	defaultMaxWorkspaceCache = 20 * 1024 * 1024 // 20 MiB per workspace
 )
 
@@ -52,6 +53,7 @@ type RepoBindingServiceServer struct {
 	repo          repobindingrepo.Repository
 	hostRepo      githostrepo.Repository
 	workspaceRepo workspacerepo.Repository
+	agentRepo     configrepo.AgentRepository
 	cacheRepo     repocache.Repository
 	// encryptionKey returns the configured PAT encryption key. Lazy because
 	// SetupRoutes runs before the YAML config is loaded.
@@ -59,8 +61,7 @@ type RepoBindingServiceServer struct {
 	// newProviderClient builds the git provider client; tests substitute a
 	// fake. Defaults to gitprovider.New.
 	newProviderClient func(gitprovider.Config) (gitprovider.Client, error)
-	maxFileBytes      int64
-	maxCacheBytes     int64
+	cacheLimits       func() (maxFileBytes, maxCacheBytes int64)
 }
 
 func NewRepoBindingServiceServer(repo repobindingrepo.Repository, hostRepo githostrepo.Repository) *RepoBindingServiceServer {
@@ -69,8 +70,9 @@ func NewRepoBindingServiceServer(repo repobindingrepo.Repository, hostRepo githo
 		hostRepo:          hostRepo,
 		encryptionKey:     func() string { return "" },
 		newProviderClient: gitprovider.New,
-		maxFileBytes:      defaultMaxFileBytes,
-		maxCacheBytes:     defaultMaxWorkspaceCache,
+		cacheLimits: func() (int64, int64) {
+			return defaultMaxFileBytes, defaultMaxWorkspaceCache
+		},
 	}
 }
 
@@ -85,6 +87,12 @@ func (s *RepoBindingServiceServer) SetWorkspaceRepo(repo workspacerepo.Repositor
 	s.workspaceRepo = repo
 }
 
+// SetAgentRepo wires the workspace-scoped Agent repository used to mark
+// cached agents/<agent-id> paths as claimed.
+func (s *RepoBindingServiceServer) SetAgentRepo(repo configrepo.AgentRepository) {
+	s.agentRepo = repo
+}
+
 // SetEncryptionKeyProvider wires the lazy PAT encryption key source.
 func (s *RepoBindingServiceServer) SetEncryptionKeyProvider(fn func() string) {
 	if fn != nil {
@@ -95,6 +103,13 @@ func (s *RepoBindingServiceServer) SetEncryptionKeyProvider(fn func() string) {
 // SetCacheRepo wires the repository cache storage.
 func (s *RepoBindingServiceServer) SetCacheRepo(repo repocache.Repository) {
 	s.cacheRepo = repo
+}
+
+// SetCacheLimitsProvider wires lazily loaded repository cache limits.
+func (s *RepoBindingServiceServer) SetCacheLimitsProvider(fn func() (int64, int64)) {
+	if fn != nil {
+		s.cacheLimits = fn
+	}
 }
 
 // SetProviderClientFactory overrides the git provider client constructor
@@ -196,6 +211,27 @@ func providerKind(kind agentsv1.GitHostKind) (gitprovider.Kind, error) {
 	default:
 		return "", errors.New("git host has no supported provider kind")
 	}
+}
+
+func repoCacheBindingKey(binding *agentsv1.WorkspaceRepoBinding) string {
+	location := strings.Join([]string{
+		binding.GetGitHostId(),
+		strings.ToLower(binding.GetRepository()),
+		binding.GetBranch(),
+		binding.GetRootPath(),
+		fmt.Sprint(binding.GetContentSchemaVersion()),
+	}, "\x00")
+	sum := sha256.Sum256([]byte(location))
+	return hex.EncodeToString(sum[:])
+}
+
+func isClaimedAgentPath(entryPath string, knownAgentIDs map[string]struct{}) bool {
+	parts := strings.Split(entryPath, "/")
+	if len(parts) < 2 || parts[0] != "agents" {
+		return false
+	}
+	_, ok := knownAgentIDs[parts[1]]
+	return ok
 }
 
 // sanitizeBinding validates and normalizes caller-supplied binding fields,
@@ -659,6 +695,14 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
+	bindingKey := repoCacheBindingKey(binding)
+	maxFileBytes, maxCacheBytes := s.cacheLimits()
+	if maxFileBytes <= 0 {
+		maxFileBytes = defaultMaxFileBytes
+	}
+	if maxCacheBytes <= 0 {
+		maxCacheBytes = defaultMaxWorkspaceCache
+	}
 
 	headSHA, err := client.GetBranchHead(ctx, binding.GetBranch())
 	if err != nil {
@@ -672,8 +716,8 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 
 	// Idempotent: skip if already synced to this commit.
 	if binding.GetObservedCommitSha() == headSHA {
-		cachedSHA, cacheErr := s.cacheRepo.GetCommitSHA(ctx, ws)
-		if cacheErr == nil && cachedSHA == headSHA {
+		metadata, cacheErr := s.cacheRepo.GetMetadata(ctx, ws)
+		if cacheErr == nil && metadata.BindingKey == bindingKey && metadata.CommitSHA == headSHA {
 			logger.Info("sync skipped (idempotent)", "workspace_id", ws, "sha", headSHA)
 			return connect.NewResponse(&agentsv1.SyncWorkspaceRepositoryResponse{
 				Binding:       binding,
@@ -706,6 +750,18 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 	var cacheEntries []*agentsv1.RepoCacheEntry
 	var blobs []repocache.CachedBlob
 	var totalBytes int64
+	knownAgentIDs := make(map[string]struct{})
+	if s.agentRepo != nil {
+		agents, listErr := s.agentRepo.ListAgents(ctx, ws)
+		if listErr != nil {
+			return nil, connectx.InternalWith(listErr)
+		}
+		for _, agent := range agents {
+			if agentID := agent.GetAgentId(); agentID != "" {
+				knownAgentIDs[agentID] = struct{}{}
+			}
+		}
+	}
 
 	for _, te := range treeEntries {
 		// Full repo-relative path (used for blob fetching).
@@ -732,6 +788,7 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 			Kind:        kind,
 			Size:        te.Size,
 			ContentHash: te.SHA,
+			Claimed:     isClaimedAgentPath(cachePath, knownAgentIDs),
 		}
 		cacheEntries = append(cacheEntries, entry)
 
@@ -743,8 +800,8 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		}
 		// Pre-check with reported size when available (GitHub provides it;
 		// GitLab may not). Actual size is re-checked after download.
-		if te.Size > 0 && te.Size > s.maxFileBytes {
-			logger.Warn("skipping oversized file", "path", cachePath, "size", te.Size, "max", s.maxFileBytes)
+		if te.Size > 0 && te.Size > maxFileBytes {
+			logger.Warn("skipping oversized file", "path", cachePath, "size", te.Size, "max", maxFileBytes)
 			continue
 		}
 
@@ -759,13 +816,18 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		}
 
 		actualSize := int64(len(data))
-		if actualSize > s.maxFileBytes {
-			logger.Warn("skipping oversized file (post-download)", "path", cachePath, "size", actualSize, "max", s.maxFileBytes)
+		if actualSize > maxFileBytes {
+			logger.Warn("skipping oversized file (post-download)", "path", cachePath, "size", actualSize, "max", maxFileBytes)
 			continue
 		}
-		if totalBytes+actualSize > s.maxCacheBytes {
-			logger.Warn("workspace cache limit reached", "workspace_id", ws, "total", totalBytes, "max", s.maxCacheBytes)
-			break
+		if totalBytes+actualSize > maxCacheBytes {
+			syncErr := fmt.Sprintf("sync failed: workspace cache content exceeds configured limit of %d bytes", maxCacheBytes)
+			binding.ObservedCommitSha = headSHA
+			binding.LastSyncError = syncErr
+			if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
+				logger.Error("persist sync limit error failed", "workspace_id", ws, "err", putErr)
+			}
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New(syncErr))
 		}
 
 		h := sha256.Sum256(data)
@@ -779,7 +841,10 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		})
 	}
 
-	if err := s.cacheRepo.PutSnapshot(ctx, ws, headSHA, cacheEntries, blobs); err != nil {
+	if err := s.cacheRepo.PutSnapshot(ctx, ws, repocache.SnapshotMetadata{
+		BindingKey: bindingKey,
+		CommitSHA:  headSHA,
+	}, cacheEntries, blobs); err != nil {
 		logger.Error("persist cache snapshot failed", "workspace_id", ws, "err", err)
 		return nil, connectx.InternalWith(err)
 	}
@@ -837,14 +902,17 @@ func (s *RepoBindingServiceServer) ListRepositoryEntries(ctx context.Context, re
 	if err := validateCachePath(dirPath); dirPath != "" && err != nil {
 		return nil, connectx.InvalidArgument("path", err.Error())
 	}
-	commitSHA, err := s.cacheRepo.GetCommitSHA(ctx, ws)
+	metadata, err := s.cacheRepo.GetMetadata(ctx, ws)
 	if err != nil {
 		if errors.Is(err, repocache.ErrNotFound) {
 			return nil, connectx.NotFound("no cached repository data; trigger a sync first")
 		}
 		return nil, connectx.InternalWith(err)
 	}
-	entries, err := s.cacheRepo.ListEntries(ctx, ws, dirPath)
+	if metadata.BindingKey != repoCacheBindingKey(binding) {
+		return nil, connectx.NotFound("no cached repository data for the current binding; trigger a sync first")
+	}
+	entries, err := s.cacheRepo.ListEntries(ctx, ws, metadata.SnapshotID, dirPath)
 	if err != nil {
 		if errors.Is(err, repocache.ErrNotFound) {
 			return nil, connectx.NotFound("no cached repository data; trigger a sync first")
@@ -852,10 +920,10 @@ func (s *RepoBindingServiceServer) ListRepositoryEntries(ctx context.Context, re
 		return nil, connectx.InternalWith(err)
 	}
 	return connect.NewResponse(&agentsv1.ListRepositoryEntriesResponse{
-		CommitSha:         commitSHA,
+		CommitSha:         metadata.CommitSHA,
 		Entries:           entries,
 		ObservedCommitSha: binding.GetObservedCommitSha(),
-		ActiveCommitSha:   commitSHA,
+		ActiveCommitSha:   binding.GetActiveCommitSha(),
 	}), nil
 }
 
@@ -881,21 +949,24 @@ func (s *RepoBindingServiceServer) GetRepositoryFile(ctx context.Context, req *c
 	if err := validateCachePath(filePath); err != nil {
 		return nil, connectx.InvalidArgument("path", err.Error())
 	}
-	commitSHA, err := s.cacheRepo.GetCommitSHA(ctx, ws)
+	metadata, err := s.cacheRepo.GetMetadata(ctx, ws)
 	if err != nil {
 		if errors.Is(err, repocache.ErrNotFound) {
 			return nil, connectx.NotFound("no cached repository data; trigger a sync first")
 		}
 		return nil, connectx.InternalWith(err)
 	}
-	entry, err := s.cacheRepo.GetEntry(ctx, ws, filePath)
+	if metadata.BindingKey != repoCacheBindingKey(binding) {
+		return nil, connectx.NotFound("no cached repository data for the current binding; trigger a sync first")
+	}
+	entry, err := s.cacheRepo.GetEntry(ctx, ws, metadata.SnapshotID, filePath)
 	if err != nil {
 		if errors.Is(err, repocache.ErrNotFound) {
 			return nil, connectx.NotFound("file not found in cache")
 		}
 		return nil, connectx.InternalWith(err)
 	}
-	content, err := s.cacheRepo.GetBlob(ctx, ws, filePath)
+	content, err := s.cacheRepo.GetBlob(ctx, ws, metadata.SnapshotID, filePath)
 	if err != nil {
 		if errors.Is(err, repocache.ErrNotFound) {
 			return nil, connectx.NotFound("file content not cached (may exceed size limit)")
@@ -903,11 +974,11 @@ func (s *RepoBindingServiceServer) GetRepositoryFile(ctx context.Context, req *c
 		return nil, connectx.InternalWith(err)
 	}
 	return connect.NewResponse(&agentsv1.GetRepositoryFileResponse{
-		CommitSha:         commitSHA,
+		CommitSha:         metadata.CommitSHA,
 		Entry:             entry,
 		Content:           string(content),
 		ObservedCommitSha: binding.GetObservedCommitSha(),
-		ActiveCommitSha:   commitSHA,
+		ActiveCommitSha:   binding.GetActiveCommitSha(),
 	}), nil
 }
 
