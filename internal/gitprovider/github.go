@@ -194,6 +194,16 @@ func (c *githubClient) walkTree(ctx context.Context, rootTreeSHA, path string) (
 	return current, nil
 }
 
+func (c *githubClient) CompareCommits(ctx context.Context, base, head string) (*CommitComparison, error) {
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := c.get(ctx, "/repos/"+c.repo+"/compare/"+url.PathEscape(base)+"..."+url.PathEscape(head), &body); err != nil {
+		return nil, err
+	}
+	return &CommitComparison{Status: body.Status}, nil
+}
+
 func (c *githubClient) GetBlob(ctx context.Context, ref, path string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.base+"/repos/"+c.repo+"/contents/"+path+"?ref="+url.QueryEscape(ref), nil)

@@ -246,4 +246,32 @@ func Run(t *testing.T, factory Factory) {
 			t.Fatalf("store was mutated through returned pointer: %v", got)
 		}
 	})
+
+	t.Run("WebhookSecretLifecycle", func(t *testing.T) {
+		repo := factory(t)
+		put(t, repo, "ws-a")
+
+		if err := repo.SetWebhookSecret(ctx, "ws-a", "encrypted-secret"); err != nil {
+			t.Fatalf("SetWebhookSecret: %v", err)
+		}
+		secret, err := repo.GetWebhookSecret(ctx, "ws-a")
+		if err != nil {
+			t.Fatalf("GetWebhookSecret: %v", err)
+		}
+		if secret != "encrypted-secret" {
+			t.Fatalf("secret = %q, want encrypted-secret", secret)
+		}
+		got, _ := repo.Get(ctx, "ws-a")
+		if !got.GetWebhookSecretSet() {
+			t.Fatal("webhook_secret_set should be true")
+		}
+
+		if err := repo.SetWebhookSecret(ctx, "ws-a", ""); err != nil {
+			t.Fatalf("clear SetWebhookSecret: %v", err)
+		}
+		_, err = repo.GetWebhookSecret(ctx, "ws-a")
+		if err == nil {
+			t.Fatal("expected error after clearing webhook secret")
+		}
+	})
 }

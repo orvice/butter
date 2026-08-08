@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -9,6 +11,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -16,8 +19,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"butterfly.orx.me/core/log"
+	"go.orx.me/apps/butter/internal/agentcontent"
 	"go.orx.me/apps/butter/internal/gitprovider"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	githostrepo "go.orx.me/apps/butter/internal/repo/githost"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
@@ -55,6 +60,7 @@ type RepoBindingServiceServer struct {
 	workspaceRepo workspacerepo.Repository
 	agentRepo     configrepo.AgentRepository
 	cacheRepo     repocache.Repository
+	contentRepo   agentcontentrepo.Repository
 	// encryptionKey returns the configured PAT encryption key. Lazy because
 	// SetupRoutes runs before the YAML config is loaded.
 	encryptionKey func() string
@@ -62,6 +68,14 @@ type RepoBindingServiceServer struct {
 	// fake. Defaults to gitprovider.New.
 	newProviderClient func(gitprovider.Config) (gitprovider.Client, error)
 	cacheLimits       func() (maxFileBytes, maxCacheBytes int64)
+	// configRuntime triggers runner reload after successful publication.
+	configRuntime ConfigRuntime
+	// webhookBaseURL is the externally reachable base URL for webhook
+	// callbacks, e.g. "https://butter.example.com".
+	webhookBaseURL func() string
+	// publishMu serializes publication per workspace (single-instance; a
+	// distributed lease would replace this for multi-instance deployments).
+	publishMu sync.Map // workspace_id → *sync.Mutex
 }
 
 func NewRepoBindingServiceServer(repo repobindingrepo.Repository, hostRepo githostrepo.Repository) *RepoBindingServiceServer {
@@ -118,6 +132,29 @@ func (s *RepoBindingServiceServer) SetProviderClientFactory(fn func(gitprovider.
 	if fn != nil {
 		s.newProviderClient = fn
 	}
+}
+
+// SetContentRepo wires the agent content snapshot storage.
+func (s *RepoBindingServiceServer) SetContentRepo(repo agentcontentrepo.Repository) {
+	s.contentRepo = repo
+}
+
+// SetConfigRuntime wires the runtime reload trigger used after publication.
+func (s *RepoBindingServiceServer) SetConfigRuntime(rt ConfigRuntime) {
+	s.configRuntime = rt
+}
+
+// SetWebhookBaseURL wires the lazy webhook callback base URL provider.
+func (s *RepoBindingServiceServer) SetWebhookBaseURL(fn func() string) {
+	if fn != nil {
+		s.webhookBaseURL = fn
+	}
+}
+
+// publishMutex returns or creates the per-workspace publication mutex.
+func (s *RepoBindingServiceServer) publishMutex(workspaceID string) *sync.Mutex {
+	v, _ := s.publishMu.LoadOrStore(workspaceID, &sync.Mutex{})
+	return v.(*sync.Mutex)
 }
 
 func (s *RepoBindingServiceServer) requireRepos() error {
@@ -706,12 +743,45 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 
 	headSHA, err := client.GetBranchHead(ctx, binding.GetBranch())
 	if err != nil {
+		// Provider failure: enter DEGRADED state but keep active agents.
 		syncErr := "sync failed: " + providerErrDetail(err)
 		binding.LastSyncError = syncErr
+		if errors.Is(err, gitprovider.ErrUnauthorized) || errors.Is(err, gitprovider.ErrForbidden) {
+			binding.Status = &agentsv1.RepoBindingStatus{
+				State: agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_DEGRADED,
+				Error: syncErr,
+			}
+		}
 		if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
 			logger.Error("persist sync error failed", "workspace_id", ws, "err", putErr)
 		}
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New(syncErr))
+	}
+
+	// Non-fast-forward detection: if we have a known baseline and the new
+	// HEAD is not a descendant, the branch was force-pushed.
+	baseline := binding.GetActiveCommitSha()
+	if baseline == "" {
+		baseline = binding.GetObservedCommitSha()
+	}
+	if baseline != "" && baseline != headSHA {
+		cmp, cmpErr := client.CompareCommits(ctx, baseline, headSHA)
+		if cmpErr == nil && cmp.Status == "diverged" {
+			logger.Warn("non-fast-forward detected", "workspace_id", ws,
+				"baseline", baseline, "new_head", headSHA)
+			binding.Status = &agentsv1.RepoBindingStatus{
+				State: agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_DIVERGED,
+				Error: fmt.Sprintf("non-fast-forward: new HEAD %s is not a descendant of %s", headSHA[:minLen(headSHA, 12)], baseline[:minLen(baseline, 12)]),
+			}
+			binding.ObservedCommitSha = headSHA
+			binding.LastSyncError = binding.Status.GetError()
+			if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
+				logger.Error("persist diverged status failed", "workspace_id", ws, "err", putErr)
+			}
+			return connect.NewResponse(&agentsv1.SyncWorkspaceRepositoryResponse{
+				Binding: binding,
+			}), nil
+		}
 	}
 
 	// Idempotent: skip if already synced to this commit.
@@ -860,9 +930,24 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 	}
 
 	logger.Info("repo sync completed", "workspace_id", ws, "sha", headSHA, "entries", len(cacheEntries), "blobs", len(blobs))
+
+	// Attempt publication of the newly synced cache.
+	published, pubErrors, pubErr := s.publishActiveRevision(ctx, ws)
+	if pubErr != nil {
+		logger.Error("publication after sync failed", "workspace_id", ws, "err", pubErr)
+	}
+
+	// Re-read binding for final state.
+	final, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		final = stored
+	}
+
 	return connect.NewResponse(&agentsv1.SyncWorkspaceRepositoryResponse{
-		Binding:       stored,
-		EntriesSynced: int32(len(cacheEntries)),
+		Binding:           final,
+		EntriesSynced:     int32(len(cacheEntries)),
+		Published:         published,
+		PublicationErrors: pubErrors,
 	}), nil
 }
 
@@ -999,6 +1084,13 @@ func treeEntryKindToProto(k gitprovider.TreeEntryKind) agentsv1.RepoCacheEntryKi
 	}
 }
 
+func minLen(s string, n int) int {
+	if len(s) < n {
+		return len(s)
+	}
+	return n
+}
+
 // validateCachePath rejects dangerous path patterns: absolute paths,
 // traversal segments, backslashes, and NUL bytes.
 func validateCachePath(p string) error {
@@ -1017,4 +1109,285 @@ func validateCachePath(p string) error {
 		}
 	}
 	return nil
+}
+
+// ── Publication pipeline (issue #216) ───────────────────────────────────
+
+// publishActiveRevision validates the current observed cache, writes an
+// Agent Content snapshot, sets active_commit_sha, and reloads the runner.
+// On validation failure, the active revision is unchanged.
+func (s *RepoBindingServiceServer) publishActiveRevision(ctx context.Context, ws string) (published bool, validationErrors []string, err error) {
+	if s.contentRepo == nil || s.cacheRepo == nil {
+		return false, nil, nil
+	}
+
+	mu := s.publishMutex(ws)
+	mu.Lock()
+	defer mu.Unlock()
+
+	logger := log.FromContext(ctx)
+
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return false, nil, err
+	}
+
+	observedSHA := binding.GetObservedCommitSha()
+	if observedSHA == "" {
+		return false, nil, nil
+	}
+
+	// Idempotent: already published this revision.
+	if binding.GetActiveCommitSha() == observedSHA {
+		return true, nil, nil
+	}
+
+	metadata, err := s.cacheRepo.GetMetadata(ctx, ws)
+	if err != nil {
+		return false, nil, fmt.Errorf("cache metadata: %w", err)
+	}
+	if metadata.CommitSHA != observedSHA {
+		return false, nil, fmt.Errorf("cache SHA %q does not match observed %q", metadata.CommitSHA, observedSHA)
+	}
+
+	agents, err := s.agentRepo.ListAgents(ctx, ws)
+	if err != nil {
+		return false, nil, fmt.Errorf("list agents: %w", err)
+	}
+	var agentIDs []string
+	for _, a := range agents {
+		if id := a.GetAgentId(); id != "" {
+			agentIDs = append(agentIDs, id)
+		}
+	}
+
+	blobReader := func(p string) ([]byte, bool) {
+		data, err := s.cacheRepo.GetBlob(ctx, ws, metadata.SnapshotID, p)
+		if err != nil {
+			return nil, false
+		}
+		return data, true
+	}
+
+	parsed := agentcontent.Parse(blobReader, agentIDs)
+	if len(parsed.Content) == 0 {
+		logger.Info("publication skipped: no agent content in cache", "workspace_id", ws)
+		binding.LastPublicationError = ""
+		binding.PublicationErrors = nil
+		_, _ = s.repo.Put(ctx, ws, binding)
+		return true, nil, nil
+	}
+
+	validationErrs := agentcontent.Validate(parsed.Content, agents)
+	if len(validationErrs) > 0 {
+		errStrs := make([]string, len(validationErrs))
+		for i, ve := range validationErrs {
+			errStrs[i] = ve.Error()
+		}
+		logger.Warn("publication failed: validation errors", "workspace_id", ws, "errors", errStrs)
+		binding.LastPublicationError = fmt.Sprintf("%d validation error(s)", len(validationErrs))
+		binding.PublicationErrors = errStrs
+		if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
+			logger.Error("persist publication errors failed", "workspace_id", ws, "err", putErr)
+		}
+		return false, errStrs, nil
+	}
+
+	snapshot := agentcontent.Snapshot{
+		CommitSHA: observedSHA,
+		Entries:   parsed.Content,
+	}
+	if err := s.contentRepo.PutSnapshot(ctx, ws, snapshot); err != nil {
+		return false, nil, fmt.Errorf("store content snapshot: %w", err)
+	}
+
+	binding.ActiveCommitSha = observedSHA
+	binding.LastPublicationError = ""
+	binding.PublicationErrors = nil
+	if _, err := s.repo.Put(ctx, ws, binding); err != nil {
+		return false, nil, fmt.Errorf("advance active revision: %w", err)
+	}
+
+	if s.configRuntime != nil {
+		if err := s.configRuntime.ReloadRunner(ctx); err != nil {
+			logger.Error("runner reload after publication failed", "workspace_id", ws, "err", err)
+			return true, nil, nil
+		}
+	}
+
+	logger.Info("publication succeeded", "workspace_id", ws, "active_commit_sha", observedSHA,
+		"agents_published", len(parsed.Content))
+	return true, nil, nil
+}
+
+func (s *RepoBindingServiceServer) PublishWorkspaceRepository(ctx context.Context, _ *connect.Request[agentsv1.PublishWorkspaceRepositoryRequest]) (*connect.Response[agentsv1.PublishWorkspaceRepositoryResponse], error) {
+	if err := s.requireRepos(); err != nil {
+		return nil, err
+	}
+	ws, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireBindingRole(ctx, ws); err != nil {
+		return nil, err
+	}
+
+	_, validationErrors, pubErr := s.publishActiveRevision(ctx, ws)
+	if pubErr != nil {
+		return nil, connectx.InternalWith(pubErr)
+	}
+
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+	return connect.NewResponse(&agentsv1.PublishWorkspaceRepositoryResponse{
+		Binding:          binding,
+		ValidationErrors: validationErrors,
+	}), nil
+}
+
+// ── Webhook secret management (issue #216) ──────────────────────────────
+
+func (s *RepoBindingServiceServer) ConfigureWebhookSecret(ctx context.Context, _ *connect.Request[agentsv1.ConfigureWebhookSecretRequest]) (*connect.Response[agentsv1.ConfigureWebhookSecretResponse], error) {
+	if err := s.requireRepos(); err != nil {
+		return nil, err
+	}
+	ws, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireBindingRole(ctx, ws); err != nil {
+		return nil, err
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return nil, connectx.Internal("failed to generate webhook secret")
+	}
+	secretHex := hex.EncodeToString(secret)
+
+	cipher, err := s.cipher()
+	if err != nil {
+		return nil, err
+	}
+	ciphertext, encErr := cipher.Encrypt([]byte(secretHex))
+	if encErr != nil {
+		return nil, connectx.Internal("failed to encrypt webhook secret")
+	}
+
+	if err := s.repo.SetWebhookSecret(ctx, ws, ciphertext); err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+
+	binding.WebhookSecretSet = true
+	stored, err := s.repo.Put(ctx, ws, binding)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+
+	callbackURL := "/api/webhooks/repository/" + ws
+	if s.webhookBaseURL != nil {
+		if base := s.webhookBaseURL(); base != "" {
+			callbackURL = strings.TrimRight(base, "/") + callbackURL
+		}
+	}
+
+	log.FromContext(ctx).Info("webhook secret configured", "workspace_id", ws)
+	return connect.NewResponse(&agentsv1.ConfigureWebhookSecretResponse{
+		Binding:       stored,
+		WebhookSecret: secretHex,
+		CallbackUrl:   callbackURL,
+	}), nil
+}
+
+// VerifyWebhookSignature checks a GitHub-style HMAC-SHA256 signature or a
+// GitLab-style secret token header. Returns true if the signature is valid.
+func (s *RepoBindingServiceServer) VerifyWebhookSignature(ctx context.Context, ws string, body []byte, signatureHeader, tokenHeader string) bool {
+	if s.repo == nil {
+		return false
+	}
+	ciphertext, err := s.repo.GetWebhookSecret(ctx, ws)
+	if err != nil {
+		return false
+	}
+	cipher, err := s.cipher()
+	if err != nil {
+		return false
+	}
+	secret, err := cipher.Decrypt(ciphertext)
+	if err != nil {
+		return false
+	}
+	secretStr := string(secret)
+
+	// GitHub: X-Hub-Signature-256 = sha256=<hex>
+	if signatureHeader != "" {
+		expected := "sha256=" + computeHMACSHA256(secretStr, body)
+		return hmac.Equal([]byte(expected), []byte(signatureHeader))
+	}
+
+	// GitLab: X-Gitlab-Token = <secret>
+	if tokenHeader != "" {
+		return hmac.Equal([]byte(secretStr), []byte(tokenHeader))
+	}
+	return false
+}
+
+func computeHMACSHA256(secret string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// TriggerSyncAndPublish runs a full sync + publication for the workspace.
+// Used by webhook handler and periodic reconciliation. The context is
+// elevated to admin so the role check is bypassed.
+func (s *RepoBindingServiceServer) TriggerSyncAndPublish(ctx context.Context, ws string) error {
+	ctx = auth.WithAdmin(withWorkspace(ctx, ws))
+	_, err := s.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	return err
+}
+
+// ── Baseline acceptance (issue #216) ────────────────────────────────────
+
+func (s *RepoBindingServiceServer) AcceptRepositoryBaseline(ctx context.Context, _ *connect.Request[agentsv1.AcceptRepositoryBaselineRequest]) (*connect.Response[agentsv1.AcceptRepositoryBaselineResponse], error) {
+	if err := s.requireRepos(); err != nil {
+		return nil, err
+	}
+	ws, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireBindingRole(ctx, ws); err != nil {
+		return nil, err
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+	if binding.GetStatus().GetState() != agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_DIVERGED {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("binding is not in DIVERGED state"))
+	}
+
+	// Reset state to OK so the sync proceeds normally.
+	binding.Status = &agentsv1.RepoBindingStatus{
+		State: agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_OK,
+	}
+	if _, err := s.repo.Put(ctx, ws, binding); err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+
+	// Re-sync and publish.
+	syncResp, syncErr := s.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if syncErr != nil {
+		return nil, syncErr
+	}
+	return connect.NewResponse(&agentsv1.AcceptRepositoryBaselineResponse{
+		Binding: syncResp.Msg.GetBinding(),
+	}), nil
 }

@@ -7,6 +7,9 @@ package application
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
@@ -15,6 +18,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
 	"go.orx.me/apps/butter/internal/gitprovider"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
@@ -35,13 +39,15 @@ const (
 
 // fakeProviderClient implements gitprovider.Client deterministically.
 type fakeProviderClient struct {
-	repo     *gitprovider.Repository
-	repoErr  error
-	branches map[string]string
-	trees    map[string][]gitprovider.TreeEntry // keyed by "ref:path"
-	blobs    map[string][]byte                  // keyed by "ref:path"
-	treeErr  error
-	blobErr  error
+	repo        *gitprovider.Repository
+	repoErr     error
+	branches    map[string]string
+	branchErr   error // if set, GetBranchHead returns this error
+	trees       map[string][]gitprovider.TreeEntry // keyed by "ref:path"
+	blobs       map[string][]byte                  // keyed by "ref:path"
+	treeErr     error
+	blobErr     error
+	comparisons map[string]string // keyed by "base...head" → status
 }
 
 func (f *fakeProviderClient) GetRepository(context.Context) (*gitprovider.Repository, error) {
@@ -52,6 +58,9 @@ func (f *fakeProviderClient) GetRepository(context.Context) (*gitprovider.Reposi
 }
 
 func (f *fakeProviderClient) GetBranchHead(_ context.Context, branch string) (string, error) {
+	if f.branchErr != nil {
+		return "", f.branchErr
+	}
 	sha, ok := f.branches[branch]
 	if !ok {
 		return "", gitprovider.ErrNotFound
@@ -81,6 +90,18 @@ func (f *fakeProviderClient) GetBlob(_ context.Context, ref, path string) ([]byt
 		return nil, gitprovider.ErrNotFound
 	}
 	return data, nil
+}
+
+func (f *fakeProviderClient) CompareCommits(_ context.Context, base, head string) (*gitprovider.CommitComparison, error) {
+	if base == head {
+		return &gitprovider.CommitComparison{Status: "identical"}, nil
+	}
+	if f.comparisons != nil {
+		if status, ok := f.comparisons[base+"..."+head]; ok {
+			return &gitprovider.CommitComparison{Status: status}, nil
+		}
+	}
+	return &gitprovider.CommitComparison{Status: "ahead"}, nil
 }
 
 type bindingFixture struct {
@@ -1191,5 +1212,324 @@ func TestGetRepositoryFileResponseSHAs(t *testing.T) {
 	}
 	if resp.Msg.GetActiveCommitSha() != "" {
 		t.Fatalf("active_commit_sha = %q, want empty before publication", resp.Msg.GetActiveCommitSha())
+	}
+}
+
+// ── Publication tests (issue #216) ──────────────────────────────────────
+
+// fakeConfigRuntime records ReloadRunner calls.
+type fakeConfigRuntime struct {
+	reloadCount int
+	reloadErr   error
+}
+
+func (f *fakeConfigRuntime) ReloadRunner(_ context.Context) error {
+	f.reloadCount++
+	return f.reloadErr
+}
+func (f *fakeConfigRuntime) ReloadChannels(context.Context) error { return nil }
+
+func newPublicationFixture(t *testing.T) (*bindingFixture, *fakeConfigRuntime) {
+	t.Helper()
+	fx := newSyncFixture(t)
+	rt := &fakeConfigRuntime{}
+	fx.svc.SetContentRepo(agentcontentmemory.New())
+	fx.svc.SetConfigRuntime(rt)
+	return fx, rt
+}
+
+func TestPublishSyncPublishesActiveRevision(t *testing.T) {
+	fx, rt := newPublicationFixture(t)
+
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if !resp.Msg.GetPublished() {
+		t.Fatal("sync should have published")
+	}
+	if len(resp.Msg.GetPublicationErrors()) != 0 {
+		t.Fatalf("unexpected publication errors: %v", resp.Msg.GetPublicationErrors())
+	}
+	binding := resp.Msg.GetBinding()
+	if binding.GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active_commit_sha = %q, want abc123", binding.GetActiveCommitSha())
+	}
+	if rt.reloadCount != 1 {
+		t.Fatalf("reload count = %d, want 1", rt.reloadCount)
+	}
+}
+
+func TestPublishExplicitRPC(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+
+	// Sync first to populate cache.
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	// Explicit publish should be idempotent.
+	pubResp, err := fx.svc.PublishWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.PublishWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if pubResp.Msg.GetBinding().GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active_commit_sha = %q", pubResp.Msg.GetBinding().GetActiveCommitSha())
+	}
+}
+
+func TestPublishLLMAgentWithoutPromptFails(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+
+	// Register an LLM agent that has no instruction.
+	if _, err := fx.agentRepo.CreateAgent(context.Background(), "ws-a", &agentsv1.Agent{
+		Name:    "LLM Agent",
+		AgentId: "llm-agent",
+		Type:    agentsv1.AgentType_AGENT_TYPE_LLM,
+		Config:  &agentsv1.AgentConfig{},
+	}); err != nil {
+		t.Fatalf("seed llm-agent: %v", err)
+	}
+
+	// Provide agents/llm-agent directory with only description.md (no prompt).
+	fx.fake.trees["abc123:"] = append(fx.fake.trees["abc123:"],
+		gitprovider.TreeEntry{Path: "agents/llm-agent", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-llm"},
+		gitprovider.TreeEntry{Path: "agents/llm-agent/description.md", Kind: gitprovider.TreeEntryFile, Size: 10, SHA: "blob-llm-desc"},
+	)
+	fx.fake.blobs["abc123:agents/llm-agent/description.md"] = []byte("LLM desc.")
+
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if resp.Msg.GetPublished() {
+		t.Fatal("should not publish with validation errors")
+	}
+	if len(resp.Msg.GetPublicationErrors()) == 0 {
+		t.Fatal("expected validation errors for LLM agent without prompt")
+	}
+	if resp.Msg.GetBinding().GetActiveCommitSha() != "" {
+		t.Fatalf("active_commit_sha should be empty, got %q", resp.Msg.GetBinding().GetActiveCommitSha())
+	}
+}
+
+func TestPublishFileResponseShowsActiveSHA(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	if resp.Msg.GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active_commit_sha = %q, want abc123", resp.Msg.GetActiveCommitSha())
+	}
+}
+
+func TestPublishInvalidKeepsLastGood(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+
+	// First sync + publish succeeds.
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync 1: %v", err)
+	}
+
+	// Add an LLM agent and advance branch.
+	if _, err := fx.agentRepo.CreateAgent(context.Background(), "ws-a", &agentsv1.Agent{
+		Name:    "Broken LLM",
+		AgentId: "broken-llm",
+		Type:    agentsv1.AgentType_AGENT_TYPE_LLM,
+	}); err != nil {
+		t.Fatalf("seed broken-llm: %v", err)
+	}
+	newSHA := "invalid456"
+	fx.fake.branches["main"] = newSHA
+	fx.fake.trees[newSHA+":"] = []gitprovider.TreeEntry{
+		{Path: "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+		{Path: "agents/broken-llm", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-broken"},
+		{Path: "agents/broken-llm/description.md", Kind: gitprovider.TreeEntryFile, Size: 5, SHA: "blob-broken"},
+	}
+	fx.fake.blobs[newSHA+":agents/broken-llm/description.md"] = []byte("Desc.")
+
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 2: %v", err)
+	}
+	if resp.Msg.GetPublished() {
+		t.Fatal("should not publish invalid revision")
+	}
+	if resp.Msg.GetBinding().GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active should stay at abc123, got %q", resp.Msg.GetBinding().GetActiveCommitSha())
+	}
+	if resp.Msg.GetBinding().GetObservedCommitSha() != newSHA {
+		t.Fatalf("observed should advance to %q, got %q", newSHA, resp.Msg.GetBinding().GetObservedCommitSha())
+	}
+}
+
+// ── Webhook tests (issue #216) ──────────────────────────────────────────
+
+func TestConfigureWebhookSecret(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+	fx.svc.SetWebhookBaseURL(func() string { return "https://butter.example.com" })
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+
+	resp, err := fx.svc.ConfigureWebhookSecret(ownerCtx(), connect.NewRequest(&agentsv1.ConfigureWebhookSecretRequest{}))
+	if err != nil {
+		t.Fatalf("ConfigureWebhookSecret: %v", err)
+	}
+	if resp.Msg.GetWebhookSecret() == "" {
+		t.Fatal("webhook secret is empty")
+	}
+	if resp.Msg.GetCallbackUrl() != "https://butter.example.com/api/webhooks/repository/ws-a" {
+		t.Fatalf("callback_url = %q", resp.Msg.GetCallbackUrl())
+	}
+	if !resp.Msg.GetBinding().GetWebhookSecretSet() {
+		t.Fatal("webhook_secret_set not reported")
+	}
+
+	// Verify HMAC signature against configured secret.
+	body := []byte(`{"ref":"refs/heads/main"}`)
+	mac := hmac.New(sha256.New, []byte(resp.Msg.GetWebhookSecret()))
+	mac.Write(body)
+	sig := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	if !fx.svc.VerifyWebhookSignature(context.Background(), "ws-a", body, sig, "") {
+		t.Fatal("valid GitHub HMAC should verify")
+	}
+	if fx.svc.VerifyWebhookSignature(context.Background(), "ws-a", body, "sha256=bad", "") {
+		t.Fatal("bad HMAC should fail")
+	}
+
+	// Verify GitLab-style token verification.
+	if !fx.svc.VerifyWebhookSignature(context.Background(), "ws-a", body, "", resp.Msg.GetWebhookSecret()) {
+		t.Fatal("valid GitLab token should verify")
+	}
+}
+
+// ── DEGRADED / DIVERGED tests (issue #216) ──────────────────────────────
+
+func TestSyncDegradedOnProviderFailure(t *testing.T) {
+	fx := newBindingFixture(t)
+	fx.svc.SetCacheRepo(repocachememory.New())
+	fx.svc.SetContentRepo(agentcontentmemory.New())
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+
+	// Simulate a revoked PAT: GetBranchHead returns ErrUnauthorized.
+	fx.fake.branchErr = gitprovider.ErrUnauthorized
+	_, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err == nil {
+		t.Fatal("expected error from unauthorized provider")
+	}
+
+	got, getErr := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if getErr != nil {
+		t.Fatalf("Get: %v", getErr)
+	}
+	state := got.Msg.GetBinding().GetStatus().GetState()
+	if state != agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_DEGRADED {
+		t.Fatalf("state = %v, want DEGRADED", state)
+	}
+}
+
+func TestSyncDivergedOnNonFastForward(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+
+	// First sync establishes observed SHA.
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 1: %v", err)
+	}
+	if resp.Msg.GetBinding().GetObservedCommitSha() != "abc123" {
+		t.Fatalf("observed = %q", resp.Msg.GetBinding().GetObservedCommitSha())
+	}
+
+	// Branch moves with a force-push (non-fast-forward).
+	fx.fake.branches["main"] = "force-pushed-sha"
+	fx.fake.comparisons = map[string]string{
+		"abc123...force-pushed-sha": "diverged",
+	}
+	fx.fake.trees["force-pushed-sha:"] = []gitprovider.TreeEntry{
+		{Path: "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+	}
+
+	resp2, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 2: %v", err)
+	}
+	state := resp2.Msg.GetBinding().GetStatus().GetState()
+	if state != agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_DIVERGED {
+		t.Fatalf("state = %v, want DIVERGED", state)
+	}
+}
+
+func TestAcceptRepositoryBaseline(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+
+	// First sync establishes observed SHA.
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync 1: %v", err)
+	}
+
+	// Force divergence.
+	fx.fake.branches["main"] = "force-pushed-sha"
+	fx.fake.comparisons = map[string]string{
+		"abc123...force-pushed-sha": "diverged",
+	}
+	fx.fake.trees["force-pushed-sha:"] = []gitprovider.TreeEntry{
+		{Path: "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+		{Path: "agents/my-agent", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agent"},
+		{Path: "agents/my-agent/prompt.md", Kind: gitprovider.TreeEntryFile, Size: 12, SHA: "blob-new"},
+	}
+	fx.fake.blobs["force-pushed-sha:agents/my-agent/prompt.md"] = []byte("New prompt!!")
+
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync 2: %v", err)
+	}
+
+	// Accept baseline resets DIVERGED and re-syncs.
+	fx.fake.comparisons = nil
+	resp, err := fx.svc.AcceptRepositoryBaseline(ownerCtx(), connect.NewRequest(&agentsv1.AcceptRepositoryBaselineRequest{}))
+	if err != nil {
+		t.Fatalf("AcceptRepositoryBaseline: %v", err)
+	}
+	state := resp.Msg.GetBinding().GetStatus().GetState()
+	if state == agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_DIVERGED {
+		t.Fatal("state should no longer be DIVERGED after acceptance")
+	}
+}
+
+func TestAcceptRepositoryBaselineRequiresDivergedState(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+	putBinding(t, fx, ownerCtx())
+
+	_, err := fx.svc.AcceptRepositoryBaseline(ownerCtx(), connect.NewRequest(&agentsv1.AcceptRepositoryBaselineRequest{}))
+	wantCode(t, err, connect.CodeFailedPrecondition)
+}
+
+// ── TriggerSyncAndPublish tests (issue #216) ────────────────────────────
+
+func TestTriggerSyncAndPublish(t *testing.T) {
+	fx, rt := newPublicationFixture(t)
+
+	err := fx.svc.TriggerSyncAndPublish(context.Background(), "ws-a")
+	if err != nil {
+		t.Fatalf("TriggerSyncAndPublish: %v", err)
+	}
+	if rt.reloadCount != 1 {
+		t.Fatalf("reload count = %d, want 1", rt.reloadCount)
+	}
+
+	binding, err := fx.bindingRepo.Get(context.Background(), "ws-a")
+	if err != nil {
+		t.Fatalf("Get binding: %v", err)
+	}
+	if binding.GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active_commit_sha = %q, want abc123", binding.GetActiveCommitSha())
 	}
 }

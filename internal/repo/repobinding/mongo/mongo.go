@@ -29,6 +29,7 @@ type bindingDoc struct {
 	Spec              string    `bson:"spec"`
 	Credential        string    `bson:"credential,omitempty"`
 	CredentialUpdated time.Time `bson:"credential_updated_at,omitempty"`
+	WebhookSecret     string    `bson:"webhook_secret,omitempty"`
 }
 
 // Store implements repobinding.Repository backed by MongoDB.
@@ -61,6 +62,7 @@ func decode(doc bindingDoc) (*agentsv1.WorkspaceRepoBinding, error) {
 	} else {
 		b.CredentialUpdatedAt = nil
 	}
+	b.WebhookSecretSet = doc.WebhookSecret != ""
 	return b, nil
 }
 
@@ -157,6 +159,32 @@ func (s *Store) GetCredential(ctx context.Context, workspaceID string) (string, 
 		return "", fmt.Errorf("repo binding (workspace %q): %w", workspaceID, repobindingrepo.ErrNoCredential)
 	}
 	return doc.Credential, nil
+}
+
+func (s *Store) SetWebhookSecret(ctx context.Context, workspaceID, ciphertext string) error {
+	update := bson.M{"$set": bson.M{"webhook_secret": ciphertext}}
+	if ciphertext == "" {
+		update = bson.M{"$unset": bson.M{"webhook_secret": ""}}
+	}
+	res, err := s.bindings.UpdateOne(ctx, bson.M{"_id": workspaceID}, update)
+	if err != nil {
+		return fmt.Errorf("set webhook secret (workspace %q): %w", workspaceID, err)
+	}
+	if res.MatchedCount == 0 {
+		return notFound(workspaceID)
+	}
+	return nil
+}
+
+func (s *Store) GetWebhookSecret(ctx context.Context, workspaceID string) (string, error) {
+	doc, err := s.findDoc(ctx, workspaceID)
+	if err != nil {
+		return "", err
+	}
+	if doc.WebhookSecret == "" {
+		return "", fmt.Errorf("repo binding (workspace %q): %w", workspaceID, repobindingrepo.ErrNoCredential)
+	}
+	return doc.WebhookSecret, nil
 }
 
 func (s *Store) ListAcrossWorkspaces(ctx context.Context) ([]*agentsv1.WorkspaceRepoBinding, error) {

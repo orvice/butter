@@ -30,6 +30,13 @@ var fakeBranches = map[string]string{
 	"release/v1": "0ddba11",
 }
 
+// fakeComparisons returns "ahead" unless overridden.
+var fakeComparisons = map[string]string{
+	"abc123...feedc0de": "ahead",
+	"feedc0de...abc123": "behind",
+	"abc123...abc123":   "identical",
+}
+
 var fakeFiles = map[string]string{
 	"agents/my-agent/prompt.md":      "You are a helpful agent.",
 	"agents/my-agent/description.md": "My agent description.",
@@ -120,6 +127,15 @@ func newGitHubFake(t *testing.T, apiPrefix string) http.Handler {
 				encoded := base64.StdEncoding.EncodeToString([]byte(content))
 				fmt.Fprintf(w, `{"content":%q,"encoding":"base64","size":%d}`, encoded, len(content))
 			}
+
+		case strings.HasPrefix(urlPath, "/repos/acme/agents/compare/"):
+			raw := strings.TrimPrefix(urlPath, "/repos/acme/agents/compare/")
+			basehead, _ := url.PathUnescape(raw)
+			status, ok := fakeComparisons[basehead]
+			if !ok {
+				status = "diverged"
+			}
+			fmt.Fprintf(w, `{"status":%q,"ahead_by":1,"behind_by":0}`, status)
 
 		case strings.HasPrefix(urlPath, "/repos/"):
 			w.WriteHeader(http.StatusNotFound)
@@ -237,6 +253,23 @@ func newGitLabFake(t *testing.T, apiPrefix string) http.Handler {
 			encoded := base64.StdEncoding.EncodeToString([]byte(content))
 			fmt.Fprintf(w, `{"file_name":%q,"file_path":%q,"size":%d,"encoding":"base64","content":%q}`,
 				filePath, filePath, len(content), encoded)
+
+		case strings.HasPrefix(urlPath, "/projects/"+project+"/repository/compare"):
+			from := r.URL.Query().Get("from")
+			to := r.URL.Query().Get("to")
+			key := from + "..." + to
+			status, ok := fakeComparisons[key]
+			if !ok {
+				status = "diverged"
+			}
+			switch status {
+			case "identical":
+				fmt.Fprint(w, `{"commits":[],"diffs":[],"compare_timeout":false,"compare_same_ref":true}`)
+			case "ahead":
+				fmt.Fprintf(w, `{"commits":[{"id":%q}],"diffs":[],"compare_timeout":false,"compare_same_ref":false}`, to)
+			default:
+				fmt.Fprint(w, `{"commits":[],"diffs":[],"compare_timeout":false,"compare_same_ref":false}`)
+			}
 
 		case strings.HasPrefix(urlPath, "/projects/"):
 			w.WriteHeader(http.StatusNotFound)

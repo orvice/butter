@@ -41,6 +41,8 @@ import (
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
+	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
+	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
@@ -91,6 +93,7 @@ type BootstrapResult struct {
 	GitHostRepo           githostrepo.Repository
 	RepoBindingRepo       repobindingrepo.Repository
 	RepoCacheRepo         repocache.Repository
+	AgentContentRepo      agentcontentrepo.Repository
 	SkillRepo             skillrepo.Repository
 	SkillMDMaxBytes       int64
 	SkillResourceMaxCount int
@@ -141,6 +144,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		gitHostRepo    githostrepo.Repository
 		bindingRepo    repobindingrepo.Repository
 		cacheRepo      repocache.Repository
+		contentRepo    agentcontentrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -168,6 +172,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		gitHostRepo = githostmongo.New(db)
 		bindingRepo = repobindingmongo.New(db)
 		cacheRepo = repocachemongo.New(db)
+		contentRepo = agentcontentmemory.New()
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -180,6 +185,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		gitHostRepo = githostmemory.New()
 		bindingRepo = repobindingmemory.New()
 		cacheRepo = repocachememory.New()
+		contentRepo = agentcontentmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -365,6 +371,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		GitHostRepo:           gitHostRepo,
 		RepoBindingRepo:       bindingRepo,
 		RepoCacheRepo:         cacheRepo,
+		AgentContentRepo:      contentRepo,
 		SkillRepo:             skillRepo,
 		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
 		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),

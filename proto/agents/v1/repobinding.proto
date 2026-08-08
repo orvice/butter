@@ -42,6 +42,10 @@ enum RepoBindingConnectionState {
   REPO_BINDING_CONNECTION_STATE_OK = 2;
   // At least one required check failed.
   REPO_BINDING_CONNECTION_STATE_FAILED = 3;
+  // PAT or provider failure; active Agents continue from last-known-good.
+  REPO_BINDING_CONNECTION_STATE_DEGRADED = 4;
+  // Non-fast-forward history detected; requires owner/admin baseline acceptance.
+  REPO_BINDING_CONNECTION_STATE_DIVERGED = 5;
 }
 
 message WorkspaceRepoBinding {
@@ -104,6 +108,19 @@ message WorkspaceRepoBinding {
   // Sanitized error from the most recent sync attempt. Empty on success.
   // @gotags: json:"last_sync_error,omitempty" yaml:"last_sync_error,omitempty" bson:"last_sync_error,omitempty"
   string last_sync_error = 15;
+
+  // Sanitized error from the most recent publication attempt. Empty on
+  // success. Per-agent validation errors appear in publication_errors.
+  // @gotags: json:"last_publication_error,omitempty" yaml:"last_publication_error,omitempty" bson:"last_publication_error,omitempty"
+  string last_publication_error = 16;
+
+  // Per-agent validation errors from the most recent publication attempt.
+  // @gotags: json:"publication_errors,omitempty" yaml:"publication_errors,omitempty" bson:"publication_errors,omitempty"
+  repeated string publication_errors = 17;
+
+  // Whether a webhook secret is stored for this binding. Server-owned.
+  // @gotags: json:"webhook_secret_set,omitempty" yaml:"webhook_secret_set,omitempty" bson:"webhook_secret_set,omitempty"
+  bool webhook_secret_set = 18;
 
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
@@ -201,6 +218,20 @@ service WorkspaceRepoBindingService {
   // GetRepositoryFile returns the cached content of a single Markdown file.
   // Reads only from the DB cache; never issues Git requests.
   rpc GetRepositoryFile(GetRepositoryFileRequest) returns (GetRepositoryFileResponse);
+
+  // PublishWorkspaceRepository validates the current observed revision's
+  // agent content and, on success, atomically advances the Active Revision
+  // and reloads the runner. Fails gracefully when validation errors are
+  // present; the binding reports per-agent errors.
+  rpc PublishWorkspaceRepository(PublishWorkspaceRepositoryRequest) returns (PublishWorkspaceRepositoryResponse);
+
+  // ConfigureWebhookSecret generates (or replaces) a webhook secret for the
+  // binding and returns the callback URL and the secret (shown only once).
+  rpc ConfigureWebhookSecret(ConfigureWebhookSecretRequest) returns (ConfigureWebhookSecretResponse);
+
+  // AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
+  // new baseline, re-syncs and publishes. Requires owner/admin role.
+  rpc AcceptRepositoryBaseline(AcceptRepositoryBaselineRequest) returns (AcceptRepositoryBaselineResponse);
 }
 
 message GetWorkspaceRepoBindingRequest {}
@@ -248,6 +279,10 @@ message SyncWorkspaceRepositoryResponse {
   WorkspaceRepoBinding binding = 1;
   // Number of entries written to the cache during this sync.
   int32 entries_synced = 2;
+  // Whether publication was attempted and succeeded after this sync.
+  bool published = 3;
+  // Per-agent validation errors if publication failed.
+  repeated string publication_errors = 4;
 }
 
 // GetRepositorySyncStatus returns the current sync state without triggering
@@ -291,6 +326,38 @@ message GetRepositoryFileResponse {
   string observed_commit_sha = 4;
   // The commit SHA whose content is currently in the cache.
   string active_commit_sha = 5;
+}
+
+// PublishWorkspaceRepository validates the current observed cache and, when
+// valid, atomically writes Agent Content snapshots and advances the active
+// revision.
+message PublishWorkspaceRepositoryRequest {}
+
+message PublishWorkspaceRepositoryResponse {
+  WorkspaceRepoBinding binding = 1;
+  // Per-agent validation errors (empty on success).
+  repeated string validation_errors = 2;
+}
+
+// ConfigureWebhookSecret generates a new webhook secret for the binding.
+message ConfigureWebhookSecretRequest {}
+
+message ConfigureWebhookSecretResponse {
+  WorkspaceRepoBinding binding = 1;
+  // The webhook secret, shown only once. Store it in the Git host's webhook
+  // configuration. Never persisted in plaintext; subsequent reads only see
+  // webhook_secret_set=true on the binding.
+  string webhook_secret = 2;
+  // The callback URL to configure in the Git host webhook settings.
+  string callback_url = 3;
+}
+
+// AcceptRepositoryBaseline accepts a force-pushed HEAD as the new baseline
+// and re-syncs.
+message AcceptRepositoryBaselineRequest {}
+
+message AcceptRepositoryBaselineResponse {
+  WorkspaceRepoBinding binding = 1;
 }
 
 // RepoCacheEntryKind classifies a cached tree entry.

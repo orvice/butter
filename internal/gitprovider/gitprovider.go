@@ -76,6 +76,12 @@ const (
 	TreeEntrySubmodule TreeEntryKind = iota
 )
 
+// CommitComparison describes the relationship between two commits.
+type CommitComparison struct {
+	// Status is "identical", "ahead", "behind", or "diverged".
+	Status string
+}
+
 // Client is the per-binding handle onto one repository at one host.
 type Client interface {
 	// GetRepository fetches repository metadata and effective capabilities.
@@ -88,6 +94,10 @@ type Client interface {
 	GetTree(ctx context.Context, ref, path string) ([]TreeEntry, error)
 	// GetBlob returns the raw content of the file at the given ref and path.
 	GetBlob(ctx context.Context, ref, path string) ([]byte, error)
+	// CompareCommits checks whether head is a descendant of base. The
+	// returned status is "ahead" (head descends from base), "behind",
+	// "diverged", or "identical".
+	CompareCommits(ctx context.Context, base, head string) (*CommitComparison, error)
 }
 
 // Config assembles a Client. Token is held in memory only for the lifetime

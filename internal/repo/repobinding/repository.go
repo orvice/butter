@@ -48,6 +48,15 @@ type Repository interface {
 	// workspace has no binding, or ErrNoCredential when none was set.
 	GetCredential(ctx context.Context, workspaceID string) (string, error)
 
+	// SetWebhookSecret stores the encrypted webhook secret for an existing
+	// binding (ErrNotFound when the workspace has no binding). An empty
+	// ciphertext clears the stored secret.
+	SetWebhookSecret(ctx context.Context, workspaceID, ciphertext string) error
+	// GetWebhookSecret returns the stored webhook secret ciphertext,
+	// ErrNotFound when the workspace has no binding, or ErrNoCredential
+	// when none was set.
+	GetWebhookSecret(ctx context.Context, workspaceID string) (string, error)
+
 	// ListAcrossWorkspaces returns every workspace's binding — the flat view
 	// used to surface intentional repository overlap between workspaces.
 	ListAcrossWorkspaces(ctx context.Context) ([]*agentsv1.WorkspaceRepoBinding, error)

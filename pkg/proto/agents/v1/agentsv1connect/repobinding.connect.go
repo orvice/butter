@@ -61,6 +61,15 @@ const (
 	// WorkspaceRepoBindingServiceGetRepositoryFileProcedure is the fully-qualified name of the
 	// WorkspaceRepoBindingService's GetRepositoryFile RPC.
 	WorkspaceRepoBindingServiceGetRepositoryFileProcedure = "/agents.v1.WorkspaceRepoBindingService/GetRepositoryFile"
+	// WorkspaceRepoBindingServicePublishWorkspaceRepositoryProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's PublishWorkspaceRepository RPC.
+	WorkspaceRepoBindingServicePublishWorkspaceRepositoryProcedure = "/agents.v1.WorkspaceRepoBindingService/PublishWorkspaceRepository"
+	// WorkspaceRepoBindingServiceConfigureWebhookSecretProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's ConfigureWebhookSecret RPC.
+	WorkspaceRepoBindingServiceConfigureWebhookSecretProcedure = "/agents.v1.WorkspaceRepoBindingService/ConfigureWebhookSecret"
+	// WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's AcceptRepositoryBaseline RPC.
+	WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure = "/agents.v1.WorkspaceRepoBindingService/AcceptRepositoryBaseline"
 )
 
 // WorkspaceRepoBindingServiceClient is a client for the agents.v1.WorkspaceRepoBindingService
@@ -98,6 +107,17 @@ type WorkspaceRepoBindingServiceClient interface {
 	// GetRepositoryFile returns the cached content of a single Markdown file.
 	// Reads only from the DB cache; never issues Git requests.
 	GetRepositoryFile(context.Context, *connect.Request[v1.GetRepositoryFileRequest]) (*connect.Response[v1.GetRepositoryFileResponse], error)
+	// PublishWorkspaceRepository validates the current observed revision's
+	// agent content and, on success, atomically advances the Active Revision
+	// and reloads the runner. Fails gracefully when validation errors are
+	// present; the binding reports per-agent errors.
+	PublishWorkspaceRepository(context.Context, *connect.Request[v1.PublishWorkspaceRepositoryRequest]) (*connect.Response[v1.PublishWorkspaceRepositoryResponse], error)
+	// ConfigureWebhookSecret generates (or replaces) a webhook secret for the
+	// binding and returns the callback URL and the secret (shown only once).
+	ConfigureWebhookSecret(context.Context, *connect.Request[v1.ConfigureWebhookSecretRequest]) (*connect.Response[v1.ConfigureWebhookSecretResponse], error)
+	// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
+	// new baseline, re-syncs and publishes. Requires owner/admin role.
+	AcceptRepositoryBaseline(context.Context, *connect.Request[v1.AcceptRepositoryBaselineRequest]) (*connect.Response[v1.AcceptRepositoryBaselineResponse], error)
 }
 
 // NewWorkspaceRepoBindingServiceClient constructs a client for the
@@ -165,6 +185,24 @@ func NewWorkspaceRepoBindingServiceClient(httpClient connect.HTTPClient, baseURL
 			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("GetRepositoryFile")),
 			connect.WithClientOptions(opts...),
 		),
+		publishWorkspaceRepository: connect.NewClient[v1.PublishWorkspaceRepositoryRequest, v1.PublishWorkspaceRepositoryResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServicePublishWorkspaceRepositoryProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("PublishWorkspaceRepository")),
+			connect.WithClientOptions(opts...),
+		),
+		configureWebhookSecret: connect.NewClient[v1.ConfigureWebhookSecretRequest, v1.ConfigureWebhookSecretResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceConfigureWebhookSecretProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("ConfigureWebhookSecret")),
+			connect.WithClientOptions(opts...),
+		),
+		acceptRepositoryBaseline: connect.NewClient[v1.AcceptRepositoryBaselineRequest, v1.AcceptRepositoryBaselineResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("AcceptRepositoryBaseline")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -179,6 +217,9 @@ type workspaceRepoBindingServiceClient struct {
 	getRepositorySyncStatus           *connect.Client[v1.GetRepositorySyncStatusRequest, v1.GetRepositorySyncStatusResponse]
 	listRepositoryEntries             *connect.Client[v1.ListRepositoryEntriesRequest, v1.ListRepositoryEntriesResponse]
 	getRepositoryFile                 *connect.Client[v1.GetRepositoryFileRequest, v1.GetRepositoryFileResponse]
+	publishWorkspaceRepository        *connect.Client[v1.PublishWorkspaceRepositoryRequest, v1.PublishWorkspaceRepositoryResponse]
+	configureWebhookSecret            *connect.Client[v1.ConfigureWebhookSecretRequest, v1.ConfigureWebhookSecretResponse]
+	acceptRepositoryBaseline          *connect.Client[v1.AcceptRepositoryBaselineRequest, v1.AcceptRepositoryBaselineResponse]
 }
 
 // GetWorkspaceRepoBinding calls agents.v1.WorkspaceRepoBindingService.GetWorkspaceRepoBinding.
@@ -229,6 +270,22 @@ func (c *workspaceRepoBindingServiceClient) GetRepositoryFile(ctx context.Contex
 	return c.getRepositoryFile.CallUnary(ctx, req)
 }
 
+// PublishWorkspaceRepository calls
+// agents.v1.WorkspaceRepoBindingService.PublishWorkspaceRepository.
+func (c *workspaceRepoBindingServiceClient) PublishWorkspaceRepository(ctx context.Context, req *connect.Request[v1.PublishWorkspaceRepositoryRequest]) (*connect.Response[v1.PublishWorkspaceRepositoryResponse], error) {
+	return c.publishWorkspaceRepository.CallUnary(ctx, req)
+}
+
+// ConfigureWebhookSecret calls agents.v1.WorkspaceRepoBindingService.ConfigureWebhookSecret.
+func (c *workspaceRepoBindingServiceClient) ConfigureWebhookSecret(ctx context.Context, req *connect.Request[v1.ConfigureWebhookSecretRequest]) (*connect.Response[v1.ConfigureWebhookSecretResponse], error) {
+	return c.configureWebhookSecret.CallUnary(ctx, req)
+}
+
+// AcceptRepositoryBaseline calls agents.v1.WorkspaceRepoBindingService.AcceptRepositoryBaseline.
+func (c *workspaceRepoBindingServiceClient) AcceptRepositoryBaseline(ctx context.Context, req *connect.Request[v1.AcceptRepositoryBaselineRequest]) (*connect.Response[v1.AcceptRepositoryBaselineResponse], error) {
+	return c.acceptRepositoryBaseline.CallUnary(ctx, req)
+}
+
 // WorkspaceRepoBindingServiceHandler is an implementation of the
 // agents.v1.WorkspaceRepoBindingService service.
 type WorkspaceRepoBindingServiceHandler interface {
@@ -264,6 +321,17 @@ type WorkspaceRepoBindingServiceHandler interface {
 	// GetRepositoryFile returns the cached content of a single Markdown file.
 	// Reads only from the DB cache; never issues Git requests.
 	GetRepositoryFile(context.Context, *connect.Request[v1.GetRepositoryFileRequest]) (*connect.Response[v1.GetRepositoryFileResponse], error)
+	// PublishWorkspaceRepository validates the current observed revision's
+	// agent content and, on success, atomically advances the Active Revision
+	// and reloads the runner. Fails gracefully when validation errors are
+	// present; the binding reports per-agent errors.
+	PublishWorkspaceRepository(context.Context, *connect.Request[v1.PublishWorkspaceRepositoryRequest]) (*connect.Response[v1.PublishWorkspaceRepositoryResponse], error)
+	// ConfigureWebhookSecret generates (or replaces) a webhook secret for the
+	// binding and returns the callback URL and the secret (shown only once).
+	ConfigureWebhookSecret(context.Context, *connect.Request[v1.ConfigureWebhookSecretRequest]) (*connect.Response[v1.ConfigureWebhookSecretResponse], error)
+	// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
+	// new baseline, re-syncs and publishes. Requires owner/admin role.
+	AcceptRepositoryBaseline(context.Context, *connect.Request[v1.AcceptRepositoryBaselineRequest]) (*connect.Response[v1.AcceptRepositoryBaselineResponse], error)
 }
 
 // NewWorkspaceRepoBindingServiceHandler builds an HTTP handler from the service implementation. It
@@ -327,6 +395,24 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("GetRepositoryFile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workspaceRepoBindingServicePublishWorkspaceRepositoryHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServicePublishWorkspaceRepositoryProcedure,
+		svc.PublishWorkspaceRepository,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("PublishWorkspaceRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceRepoBindingServiceConfigureWebhookSecretHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceConfigureWebhookSecretProcedure,
+		svc.ConfigureWebhookSecret,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("ConfigureWebhookSecret")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceRepoBindingServiceAcceptRepositoryBaselineHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure,
+		svc.AcceptRepositoryBaseline,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("AcceptRepositoryBaseline")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.WorkspaceRepoBindingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkspaceRepoBindingServiceGetWorkspaceRepoBindingProcedure:
@@ -347,6 +433,12 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 			workspaceRepoBindingServiceListRepositoryEntriesHandler.ServeHTTP(w, r)
 		case WorkspaceRepoBindingServiceGetRepositoryFileProcedure:
 			workspaceRepoBindingServiceGetRepositoryFileHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServicePublishWorkspaceRepositoryProcedure:
+			workspaceRepoBindingServicePublishWorkspaceRepositoryHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceConfigureWebhookSecretProcedure:
+			workspaceRepoBindingServiceConfigureWebhookSecretHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure:
+			workspaceRepoBindingServiceAcceptRepositoryBaselineHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -390,4 +482,16 @@ func (UnimplementedWorkspaceRepoBindingServiceHandler) ListRepositoryEntries(con
 
 func (UnimplementedWorkspaceRepoBindingServiceHandler) GetRepositoryFile(context.Context, *connect.Request[v1.GetRepositoryFileRequest]) (*connect.Response[v1.GetRepositoryFileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.GetRepositoryFile is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) PublishWorkspaceRepository(context.Context, *connect.Request[v1.PublishWorkspaceRepositoryRequest]) (*connect.Response[v1.PublishWorkspaceRepositoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.PublishWorkspaceRepository is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) ConfigureWebhookSecret(context.Context, *connect.Request[v1.ConfigureWebhookSecretRequest]) (*connect.Response[v1.ConfigureWebhookSecretResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.ConfigureWebhookSecret is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) AcceptRepositoryBaseline(context.Context, *connect.Request[v1.AcceptRepositoryBaselineRequest]) (*connect.Response[v1.AcceptRepositoryBaselineResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.AcceptRepositoryBaseline is not implemented"))
 }

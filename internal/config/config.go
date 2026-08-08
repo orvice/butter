@@ -155,6 +155,14 @@ type GitConfig struct {
 	// MaxWorkspaceCacheBytes caps total Markdown content in one workspace
 	// snapshot. Zero uses the default 20 MiB.
 	MaxWorkspaceCacheBytes int64 `yaml:"max_workspace_cache_bytes"`
+
+	// WebhookBaseURL is the externally reachable base URL for webhook
+	// callbacks. The callback URL is <webhook_base_url>/api/webhooks/repository/<workspace_id>.
+	WebhookBaseURL string `yaml:"webhook_base_url"`
+
+	// ReconcileInterval is how often the background reconciler checks all
+	// repository bindings for drift. Zero uses the default of 5 minutes.
+	ReconcileInterval time.Duration `yaml:"reconcile_interval"`
 }
 
 func (g GitConfig) EffectiveMaxFileBytes() int64 {
@@ -169,6 +177,13 @@ func (g GitConfig) EffectiveMaxWorkspaceCacheBytes() int64 {
 		return 20 * 1024 * 1024
 	}
 	return g.MaxWorkspaceCacheBytes
+}
+
+func (g GitConfig) EffectiveReconcileInterval() time.Duration {
+	if g.ReconcileInterval <= 0 {
+		return 5 * time.Minute
+	}
+	return g.ReconcileInterval
 }
 
 type HTTPConfig struct {
