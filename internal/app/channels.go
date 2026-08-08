@@ -41,6 +41,9 @@ import (
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
+	"go.orx.me/apps/butter/internal/repo/repocache"
+	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
+	repocachemongo "go.orx.me/apps/butter/internal/repo/repocache/mongo"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
@@ -87,6 +90,7 @@ type BootstrapResult struct {
 	AgentFileMaxBytes     int64
 	GitHostRepo           githostrepo.Repository
 	RepoBindingRepo       repobindingrepo.Repository
+	RepoCacheRepo         repocache.Repository
 	SkillRepo             skillrepo.Repository
 	SkillMDMaxBytes       int64
 	SkillResourceMaxCount int
@@ -136,6 +140,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		oauthStateRepo oauthstate.Repository
 		gitHostRepo    githostrepo.Repository
 		bindingRepo    repobindingrepo.Repository
+		cacheRepo      repocache.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -162,6 +167,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		oauthStateRepo = oauthstatemongo.New(db)
 		gitHostRepo = githostmongo.New(db)
 		bindingRepo = repobindingmongo.New(db)
+		cacheRepo = repocachemongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -173,6 +179,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		oauthStateRepo = oauthstatememory.New()
 		gitHostRepo = githostmemory.New()
 		bindingRepo = repobindingmemory.New()
+		cacheRepo = repocachememory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -345,6 +352,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		AgentFileRepo:         fileRepo,
 		GitHostRepo:           gitHostRepo,
 		RepoBindingRepo:       bindingRepo,
+		RepoCacheRepo:         cacheRepo,
 		SkillRepo:             skillRepo,
 		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
 		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),

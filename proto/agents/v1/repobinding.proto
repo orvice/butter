@@ -89,6 +89,22 @@ message WorkspaceRepoBinding {
   // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
   google.protobuf.Timestamp updated_at = 11;
 
+  // SHA of the most recently observed remote HEAD (set during sync).
+  // @gotags: json:"observed_commit_sha,omitempty" yaml:"observed_commit_sha,omitempty" bson:"observed_commit_sha,omitempty"
+  string observed_commit_sha = 12;
+
+  // SHA of the last revision that passed full validation and was activated.
+  // @gotags: json:"active_commit_sha,omitempty" yaml:"active_commit_sha,omitempty" bson:"active_commit_sha,omitempty"
+  string active_commit_sha = 13;
+
+  // When the last successful sync completed.
+  // @gotags: json:"last_synced_at,omitempty" yaml:"last_synced_at,omitempty" bson:"last_synced_at,omitempty"
+  google.protobuf.Timestamp last_synced_at = 14;
+
+  // Sanitized error from the most recent sync attempt. Empty on success.
+  // @gotags: json:"last_sync_error,omitempty" yaml:"last_sync_error,omitempty" bson:"last_sync_error,omitempty"
+  string last_sync_error = 15;
+
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;
 }
@@ -168,6 +184,23 @@ service WorkspaceRepoBindingService {
   // capability as required by the write mode), persists the outcome on the
   // binding, and returns it.
   rpc ValidateWorkspaceRepoBinding(ValidateWorkspaceRepoBindingRequest) returns (ValidateWorkspaceRepoBindingResponse);
+
+  // SyncWorkspaceRepository reads the bound repository's managed tree and
+  // Markdown blobs into the workspace-scoped DB cache. Requires owner or
+  // admin role. The sync is idempotent when the remote HEAD has not changed.
+  rpc SyncWorkspaceRepository(SyncWorkspaceRepositoryRequest) returns (SyncWorkspaceRepositoryResponse);
+
+  // GetRepositorySyncStatus returns the binding with its current sync state
+  // without triggering a new synchronization.
+  rpc GetRepositorySyncStatus(GetRepositorySyncStatusRequest) returns (GetRepositorySyncStatusResponse);
+
+  // ListRepositoryEntries returns cached directory entries for a path within
+  // the managed tree. Reads only from the DB cache; never issues Git requests.
+  rpc ListRepositoryEntries(ListRepositoryEntriesRequest) returns (ListRepositoryEntriesResponse);
+
+  // GetRepositoryFile returns the cached content of a single Markdown file.
+  // Reads only from the DB cache; never issues Git requests.
+  rpc GetRepositoryFile(GetRepositoryFileRequest) returns (GetRepositoryFileResponse);
 }
 
 message GetWorkspaceRepoBindingRequest {}
@@ -204,4 +237,88 @@ message ValidateWorkspaceRepoBindingRequest {}
 
 message ValidateWorkspaceRepoBindingResponse {
   WorkspaceRepoBinding binding = 1;
+}
+
+// SyncWorkspaceRepository triggers a synchronization of the bound
+// repository's managed tree into the workspace-scoped DB cache. Requires
+// owner or admin role. Idempotent when the remote HEAD has not changed.
+message SyncWorkspaceRepositoryRequest {}
+
+message SyncWorkspaceRepositoryResponse {
+  WorkspaceRepoBinding binding = 1;
+  // Number of entries written to the cache during this sync.
+  int32 entries_synced = 2;
+}
+
+// GetRepositorySyncStatus returns the current sync state without triggering
+// a new synchronization. Available to every workspace member.
+message GetRepositorySyncStatusRequest {}
+
+message GetRepositorySyncStatusResponse {
+  WorkspaceRepoBinding binding = 1;
+}
+
+// ListRepositoryEntries returns cached directory entries for a path within
+// the managed tree. Reads only from the DB cache.
+message ListRepositoryEntriesRequest {
+  // Repository-relative path to list. Empty lists the root.
+  string path = 1;
+}
+
+message ListRepositoryEntriesResponse {
+  // Commit SHA the cache was built from (deprecated; use observed/active).
+  string commit_sha = 1;
+  repeated RepoCacheEntry entries = 2;
+  // The commit SHA last observed from the remote branch.
+  string observed_commit_sha = 3;
+  // The commit SHA whose content is currently in the cache.
+  string active_commit_sha = 4;
+}
+
+// GetRepositoryFile returns the cached content of a single file.
+message GetRepositoryFileRequest {
+  // Repository-relative file path.
+  string path = 1;
+}
+
+message GetRepositoryFileResponse {
+  // Commit SHA the cache was built from (deprecated; use observed/active).
+  string commit_sha = 1;
+  RepoCacheEntry entry = 2;
+  // UTF-8 file content.
+  string content = 3;
+  // The commit SHA last observed from the remote branch.
+  string observed_commit_sha = 4;
+  // The commit SHA whose content is currently in the cache.
+  string active_commit_sha = 5;
+}
+
+// RepoCacheEntryKind classifies a cached tree entry.
+enum RepoCacheEntryKind {
+  REPO_CACHE_ENTRY_KIND_UNSPECIFIED = 0;
+  REPO_CACHE_ENTRY_KIND_FILE = 1;
+  REPO_CACHE_ENTRY_KIND_DIRECTORY = 2;
+  REPO_CACHE_ENTRY_KIND_SYMLINK = 3;
+  REPO_CACHE_ENTRY_KIND_SUBMODULE = 4;
+}
+
+// RepoCacheEntry is one node in the cached repository tree.
+message RepoCacheEntry {
+  // @gotags: json:"path,omitempty" yaml:"path,omitempty" bson:"path,omitempty"
+  string path = 1;
+
+  // @gotags: json:"kind,omitempty" yaml:"kind,omitempty" bson:"kind,omitempty"
+  RepoCacheEntryKind kind = 2;
+
+  // File size in bytes (zero for directories).
+  // @gotags: json:"size,omitempty" yaml:"size,omitempty" bson:"size,omitempty"
+  int64 size = 3;
+
+  // Content hash (SHA from the provider) for deduplication and change detection.
+  // @gotags: json:"content_hash,omitempty" yaml:"content_hash,omitempty" bson:"content_hash,omitempty"
+  string content_hash = 4;
+
+  // Whether this entry maps to an Agent directory known to the workspace.
+  // @gotags: json:"claimed,omitempty" yaml:"claimed,omitempty" bson:"claimed,omitempty"
+  bool claimed = 5;
 }

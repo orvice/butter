@@ -2,10 +2,12 @@ package gitprovider
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // gitlabClient speaks the GitLab REST v4 dialect. base is the full API root:
@@ -95,4 +97,70 @@ func (c *gitlabClient) GetBranchHead(ctx context.Context, branch string) (string
 		return "", err
 	}
 	return body.Commit.ID, nil
+}
+
+func (c *gitlabClient) GetTree(ctx context.Context, ref, path string) ([]TreeEntry, error) {
+	q := url.Values{}
+	q.Set("ref", ref)
+	q.Set("recursive", "true")
+	q.Set("per_page", "100")
+	if path != "" {
+		q.Set("path", path)
+	}
+	var all []TreeEntry
+	page := 1
+	for {
+		q.Set("page", fmt.Sprintf("%d", page))
+		var items []struct {
+			Path string `json:"path"`
+			Type string `json:"type"`
+			Mode string `json:"mode"`
+			ID   string `json:"id"`
+		}
+		if err := c.get(ctx, c.projectPath()+"/repository/tree?"+q.Encode(), &items); err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			kind := TreeEntryFile
+			switch item.Type {
+			case "tree":
+				kind = TreeEntryDirectory
+			case "commit":
+				kind = TreeEntrySubmodule
+			case "blob":
+				if item.Mode == "120000" {
+					kind = TreeEntrySymlink
+				}
+			}
+			all = append(all, TreeEntry{
+				Path: item.Path,
+				Kind: kind,
+				SHA:  item.ID,
+			})
+		}
+		if len(items) < 100 {
+			break
+		}
+		page++
+	}
+	return all, nil
+}
+
+func (c *gitlabClient) GetBlob(ctx context.Context, ref, path string) ([]byte, error) {
+	encodedPath := url.PathEscape(path)
+	q := url.Values{}
+	q.Set("ref", ref)
+	var body struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+		Size     int64  `json:"size"`
+	}
+	apiPath := c.projectPath() + "/repository/files/" + encodedPath + "?" + q.Encode()
+	if err := c.get(ctx, apiPath, &body); err != nil {
+		return nil, err
+	}
+	if body.Encoding == "base64" {
+		return base64.StdEncoding.DecodeString(strings.ReplaceAll(body.Content, "\n", ""))
+	}
+	return []byte(body.Content), nil
 }

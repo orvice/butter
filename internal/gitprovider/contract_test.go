@@ -169,6 +169,52 @@ func TestProviderContract(t *testing.T) {
 				}
 			})
 
+		t.Run("GetTree", func(t *testing.T) {
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+				entries, err := c.GetTree(ctx, "main", "agents")
+				if err != nil {
+					t.Fatalf("GetTree: %v", err)
+				}
+				if len(entries) == 0 {
+					t.Fatal("expected non-empty tree")
+				}
+				hasFile := false
+				hasDir := false
+				for _, e := range entries {
+					if e.Kind == TreeEntryFile {
+						hasFile = true
+					}
+					if e.Kind == TreeEntryDirectory {
+						hasDir = true
+					}
+				}
+				if !hasFile {
+					t.Error("expected at least one file entry")
+				}
+				if !hasDir {
+					t.Error("expected at least one directory entry")
+				}
+			})
+
+			t.Run("GetBlob", func(t *testing.T) {
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+				data, err := c.GetBlob(ctx, "main", "agents/my-agent/prompt.md")
+				if err != nil {
+					t.Fatalf("GetBlob: %v", err)
+				}
+				if string(data) != "You are a helpful agent." {
+					t.Errorf("content = %q", string(data))
+				}
+			})
+
+			t.Run("GetBlobMissingFile", func(t *testing.T) {
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+				_, err := c.GetBlob(ctx, "main", "agents/missing.md")
+				if !errors.Is(err, ErrNotFound) {
+					t.Fatalf("err = %v, want ErrNotFound", err)
+				}
+			})
+
 			t.Run("ErrorsNeverContainToken", func(t *testing.T) {
 				c := newClientForTest(t, h.kind, srv.URL, "acme/nope", writeToken)
 				_, err := c.GetRepository(ctx)

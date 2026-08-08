@@ -49,6 +49,18 @@ const (
 	// WorkspaceRepoBindingServiceValidateWorkspaceRepoBindingProcedure is the fully-qualified name of
 	// the WorkspaceRepoBindingService's ValidateWorkspaceRepoBinding RPC.
 	WorkspaceRepoBindingServiceValidateWorkspaceRepoBindingProcedure = "/agents.v1.WorkspaceRepoBindingService/ValidateWorkspaceRepoBinding"
+	// WorkspaceRepoBindingServiceSyncWorkspaceRepositoryProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's SyncWorkspaceRepository RPC.
+	WorkspaceRepoBindingServiceSyncWorkspaceRepositoryProcedure = "/agents.v1.WorkspaceRepoBindingService/SyncWorkspaceRepository"
+	// WorkspaceRepoBindingServiceGetRepositorySyncStatusProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's GetRepositorySyncStatus RPC.
+	WorkspaceRepoBindingServiceGetRepositorySyncStatusProcedure = "/agents.v1.WorkspaceRepoBindingService/GetRepositorySyncStatus"
+	// WorkspaceRepoBindingServiceListRepositoryEntriesProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's ListRepositoryEntries RPC.
+	WorkspaceRepoBindingServiceListRepositoryEntriesProcedure = "/agents.v1.WorkspaceRepoBindingService/ListRepositoryEntries"
+	// WorkspaceRepoBindingServiceGetRepositoryFileProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's GetRepositoryFile RPC.
+	WorkspaceRepoBindingServiceGetRepositoryFileProcedure = "/agents.v1.WorkspaceRepoBindingService/GetRepositoryFile"
 )
 
 // WorkspaceRepoBindingServiceClient is a client for the agents.v1.WorkspaceRepoBindingService
@@ -73,6 +85,19 @@ type WorkspaceRepoBindingServiceClient interface {
 	// capability as required by the write mode), persists the outcome on the
 	// binding, and returns it.
 	ValidateWorkspaceRepoBinding(context.Context, *connect.Request[v1.ValidateWorkspaceRepoBindingRequest]) (*connect.Response[v1.ValidateWorkspaceRepoBindingResponse], error)
+	// SyncWorkspaceRepository reads the bound repository's managed tree and
+	// Markdown blobs into the workspace-scoped DB cache. Requires owner or
+	// admin role. The sync is idempotent when the remote HEAD has not changed.
+	SyncWorkspaceRepository(context.Context, *connect.Request[v1.SyncWorkspaceRepositoryRequest]) (*connect.Response[v1.SyncWorkspaceRepositoryResponse], error)
+	// GetRepositorySyncStatus returns the binding with its current sync state
+	// without triggering a new synchronization.
+	GetRepositorySyncStatus(context.Context, *connect.Request[v1.GetRepositorySyncStatusRequest]) (*connect.Response[v1.GetRepositorySyncStatusResponse], error)
+	// ListRepositoryEntries returns cached directory entries for a path within
+	// the managed tree. Reads only from the DB cache; never issues Git requests.
+	ListRepositoryEntries(context.Context, *connect.Request[v1.ListRepositoryEntriesRequest]) (*connect.Response[v1.ListRepositoryEntriesResponse], error)
+	// GetRepositoryFile returns the cached content of a single Markdown file.
+	// Reads only from the DB cache; never issues Git requests.
+	GetRepositoryFile(context.Context, *connect.Request[v1.GetRepositoryFileRequest]) (*connect.Response[v1.GetRepositoryFileResponse], error)
 }
 
 // NewWorkspaceRepoBindingServiceClient constructs a client for the
@@ -116,6 +141,30 @@ func NewWorkspaceRepoBindingServiceClient(httpClient connect.HTTPClient, baseURL
 			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("ValidateWorkspaceRepoBinding")),
 			connect.WithClientOptions(opts...),
 		),
+		syncWorkspaceRepository: connect.NewClient[v1.SyncWorkspaceRepositoryRequest, v1.SyncWorkspaceRepositoryResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceSyncWorkspaceRepositoryProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("SyncWorkspaceRepository")),
+			connect.WithClientOptions(opts...),
+		),
+		getRepositorySyncStatus: connect.NewClient[v1.GetRepositorySyncStatusRequest, v1.GetRepositorySyncStatusResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceGetRepositorySyncStatusProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("GetRepositorySyncStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		listRepositoryEntries: connect.NewClient[v1.ListRepositoryEntriesRequest, v1.ListRepositoryEntriesResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceListRepositoryEntriesProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("ListRepositoryEntries")),
+			connect.WithClientOptions(opts...),
+		),
+		getRepositoryFile: connect.NewClient[v1.GetRepositoryFileRequest, v1.GetRepositoryFileResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceGetRepositoryFileProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("GetRepositoryFile")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -126,6 +175,10 @@ type workspaceRepoBindingServiceClient struct {
 	deleteWorkspaceRepoBinding        *connect.Client[v1.DeleteWorkspaceRepoBindingRequest, v1.DeleteWorkspaceRepoBindingResponse]
 	setWorkspaceRepoBindingCredential *connect.Client[v1.SetWorkspaceRepoBindingCredentialRequest, v1.SetWorkspaceRepoBindingCredentialResponse]
 	validateWorkspaceRepoBinding      *connect.Client[v1.ValidateWorkspaceRepoBindingRequest, v1.ValidateWorkspaceRepoBindingResponse]
+	syncWorkspaceRepository           *connect.Client[v1.SyncWorkspaceRepositoryRequest, v1.SyncWorkspaceRepositoryResponse]
+	getRepositorySyncStatus           *connect.Client[v1.GetRepositorySyncStatusRequest, v1.GetRepositorySyncStatusResponse]
+	listRepositoryEntries             *connect.Client[v1.ListRepositoryEntriesRequest, v1.ListRepositoryEntriesResponse]
+	getRepositoryFile                 *connect.Client[v1.GetRepositoryFileRequest, v1.GetRepositoryFileResponse]
 }
 
 // GetWorkspaceRepoBinding calls agents.v1.WorkspaceRepoBindingService.GetWorkspaceRepoBinding.
@@ -156,6 +209,26 @@ func (c *workspaceRepoBindingServiceClient) ValidateWorkspaceRepoBinding(ctx con
 	return c.validateWorkspaceRepoBinding.CallUnary(ctx, req)
 }
 
+// SyncWorkspaceRepository calls agents.v1.WorkspaceRepoBindingService.SyncWorkspaceRepository.
+func (c *workspaceRepoBindingServiceClient) SyncWorkspaceRepository(ctx context.Context, req *connect.Request[v1.SyncWorkspaceRepositoryRequest]) (*connect.Response[v1.SyncWorkspaceRepositoryResponse], error) {
+	return c.syncWorkspaceRepository.CallUnary(ctx, req)
+}
+
+// GetRepositorySyncStatus calls agents.v1.WorkspaceRepoBindingService.GetRepositorySyncStatus.
+func (c *workspaceRepoBindingServiceClient) GetRepositorySyncStatus(ctx context.Context, req *connect.Request[v1.GetRepositorySyncStatusRequest]) (*connect.Response[v1.GetRepositorySyncStatusResponse], error) {
+	return c.getRepositorySyncStatus.CallUnary(ctx, req)
+}
+
+// ListRepositoryEntries calls agents.v1.WorkspaceRepoBindingService.ListRepositoryEntries.
+func (c *workspaceRepoBindingServiceClient) ListRepositoryEntries(ctx context.Context, req *connect.Request[v1.ListRepositoryEntriesRequest]) (*connect.Response[v1.ListRepositoryEntriesResponse], error) {
+	return c.listRepositoryEntries.CallUnary(ctx, req)
+}
+
+// GetRepositoryFile calls agents.v1.WorkspaceRepoBindingService.GetRepositoryFile.
+func (c *workspaceRepoBindingServiceClient) GetRepositoryFile(ctx context.Context, req *connect.Request[v1.GetRepositoryFileRequest]) (*connect.Response[v1.GetRepositoryFileResponse], error) {
+	return c.getRepositoryFile.CallUnary(ctx, req)
+}
+
 // WorkspaceRepoBindingServiceHandler is an implementation of the
 // agents.v1.WorkspaceRepoBindingService service.
 type WorkspaceRepoBindingServiceHandler interface {
@@ -178,6 +251,19 @@ type WorkspaceRepoBindingServiceHandler interface {
 	// capability as required by the write mode), persists the outcome on the
 	// binding, and returns it.
 	ValidateWorkspaceRepoBinding(context.Context, *connect.Request[v1.ValidateWorkspaceRepoBindingRequest]) (*connect.Response[v1.ValidateWorkspaceRepoBindingResponse], error)
+	// SyncWorkspaceRepository reads the bound repository's managed tree and
+	// Markdown blobs into the workspace-scoped DB cache. Requires owner or
+	// admin role. The sync is idempotent when the remote HEAD has not changed.
+	SyncWorkspaceRepository(context.Context, *connect.Request[v1.SyncWorkspaceRepositoryRequest]) (*connect.Response[v1.SyncWorkspaceRepositoryResponse], error)
+	// GetRepositorySyncStatus returns the binding with its current sync state
+	// without triggering a new synchronization.
+	GetRepositorySyncStatus(context.Context, *connect.Request[v1.GetRepositorySyncStatusRequest]) (*connect.Response[v1.GetRepositorySyncStatusResponse], error)
+	// ListRepositoryEntries returns cached directory entries for a path within
+	// the managed tree. Reads only from the DB cache; never issues Git requests.
+	ListRepositoryEntries(context.Context, *connect.Request[v1.ListRepositoryEntriesRequest]) (*connect.Response[v1.ListRepositoryEntriesResponse], error)
+	// GetRepositoryFile returns the cached content of a single Markdown file.
+	// Reads only from the DB cache; never issues Git requests.
+	GetRepositoryFile(context.Context, *connect.Request[v1.GetRepositoryFileRequest]) (*connect.Response[v1.GetRepositoryFileResponse], error)
 }
 
 // NewWorkspaceRepoBindingServiceHandler builds an HTTP handler from the service implementation. It
@@ -217,6 +303,30 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("ValidateWorkspaceRepoBinding")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workspaceRepoBindingServiceSyncWorkspaceRepositoryHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceSyncWorkspaceRepositoryProcedure,
+		svc.SyncWorkspaceRepository,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("SyncWorkspaceRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceRepoBindingServiceGetRepositorySyncStatusHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceGetRepositorySyncStatusProcedure,
+		svc.GetRepositorySyncStatus,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("GetRepositorySyncStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceRepoBindingServiceListRepositoryEntriesHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceListRepositoryEntriesProcedure,
+		svc.ListRepositoryEntries,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("ListRepositoryEntries")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceRepoBindingServiceGetRepositoryFileHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceGetRepositoryFileProcedure,
+		svc.GetRepositoryFile,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("GetRepositoryFile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.WorkspaceRepoBindingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkspaceRepoBindingServiceGetWorkspaceRepoBindingProcedure:
@@ -229,6 +339,14 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 			workspaceRepoBindingServiceSetWorkspaceRepoBindingCredentialHandler.ServeHTTP(w, r)
 		case WorkspaceRepoBindingServiceValidateWorkspaceRepoBindingProcedure:
 			workspaceRepoBindingServiceValidateWorkspaceRepoBindingHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceSyncWorkspaceRepositoryProcedure:
+			workspaceRepoBindingServiceSyncWorkspaceRepositoryHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceGetRepositorySyncStatusProcedure:
+			workspaceRepoBindingServiceGetRepositorySyncStatusHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceListRepositoryEntriesProcedure:
+			workspaceRepoBindingServiceListRepositoryEntriesHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceGetRepositoryFileProcedure:
+			workspaceRepoBindingServiceGetRepositoryFileHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -256,4 +374,20 @@ func (UnimplementedWorkspaceRepoBindingServiceHandler) SetWorkspaceRepoBindingCr
 
 func (UnimplementedWorkspaceRepoBindingServiceHandler) ValidateWorkspaceRepoBinding(context.Context, *connect.Request[v1.ValidateWorkspaceRepoBindingRequest]) (*connect.Response[v1.ValidateWorkspaceRepoBindingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.ValidateWorkspaceRepoBinding is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) SyncWorkspaceRepository(context.Context, *connect.Request[v1.SyncWorkspaceRepositoryRequest]) (*connect.Response[v1.SyncWorkspaceRepositoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.SyncWorkspaceRepository is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) GetRepositorySyncStatus(context.Context, *connect.Request[v1.GetRepositorySyncStatusRequest]) (*connect.Response[v1.GetRepositorySyncStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.GetRepositorySyncStatus is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) ListRepositoryEntries(context.Context, *connect.Request[v1.ListRepositoryEntriesRequest]) (*connect.Response[v1.ListRepositoryEntriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.ListRepositoryEntries is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) GetRepositoryFile(context.Context, *connect.Request[v1.GetRepositoryFileRequest]) (*connect.Response[v1.GetRepositoryFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.GetRepositoryFile is not implemented"))
 }

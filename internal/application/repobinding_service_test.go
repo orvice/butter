@@ -18,6 +18,7 @@ import (
 	"go.orx.me/apps/butter/internal/gitprovider"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
+	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
@@ -32,9 +33,13 @@ const (
 
 // fakeProviderClient implements gitprovider.Client deterministically.
 type fakeProviderClient struct {
-	repo     *gitprovider.Repository
-	repoErr  error
-	branches map[string]string
+	repo      *gitprovider.Repository
+	repoErr   error
+	branches  map[string]string
+	trees     map[string][]gitprovider.TreeEntry // keyed by "ref:path"
+	blobs     map[string][]byte                  // keyed by "ref:path"
+	treeErr   error
+	blobErr   error
 }
 
 func (f *fakeProviderClient) GetRepository(context.Context) (*gitprovider.Repository, error) {
@@ -50,6 +55,30 @@ func (f *fakeProviderClient) GetBranchHead(_ context.Context, branch string) (st
 		return "", gitprovider.ErrNotFound
 	}
 	return sha, nil
+}
+
+func (f *fakeProviderClient) GetTree(_ context.Context, ref, path string) ([]gitprovider.TreeEntry, error) {
+	if f.treeErr != nil {
+		return nil, f.treeErr
+	}
+	key := ref + ":" + path
+	entries, ok := f.trees[key]
+	if !ok {
+		return nil, gitprovider.ErrNotFound
+	}
+	return entries, nil
+}
+
+func (f *fakeProviderClient) GetBlob(_ context.Context, ref, path string) ([]byte, error) {
+	if f.blobErr != nil {
+		return nil, f.blobErr
+	}
+	key := ref + ":" + path
+	data, ok := f.blobs[key]
+	if !ok {
+		return nil, gitprovider.ErrNotFound
+	}
+	return data, nil
 }
 
 type bindingFixture struct {
@@ -621,4 +650,461 @@ func TestRepoBindingRequiresWorkspaceHeader(t *testing.T) {
 	ctx := auth.WithAuthenticated(context.Background(), &agentsv1.User{Id: "owner-user"}, nil)
 	_, err := fx.svc.GetWorkspaceRepoBinding(ctx, connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
 	wantCode(t, err, connect.CodeFailedPrecondition)
+}
+
+// ── Sync and cache tests (issue #215) ───────────────────────────────────
+
+func newSyncFixture(t *testing.T) *bindingFixture {
+	return newSyncFixtureWithRoot(t, "")
+}
+
+func newSyncFixtureWithRoot(t *testing.T, rootPath string) *bindingFixture {
+	t.Helper()
+	fx := newBindingFixture(t)
+	const sha = "abc123"
+
+	prefix := rootPath
+	if prefix != "" {
+		prefix = strings.TrimRight(prefix, "/") + "/"
+	}
+
+	fx.fake.trees = map[string][]gitprovider.TreeEntry{
+		sha + ":" + strings.TrimRight(rootPath, "/"): {
+			{Path: prefix + "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+			{Path: prefix + "agents/my-agent", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-my-agent"},
+			{Path: prefix + "agents/my-agent/prompt.md", Kind: gitprovider.TreeEntryFile, Size: 25, SHA: "blob-prompt"},
+			{Path: prefix + "agents/my-agent/description.md", Kind: gitprovider.TreeEntryFile, Size: 22, SHA: "blob-desc"},
+			{Path: prefix + "agents/unclaimed-dir", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-unclaimed"},
+			{Path: prefix + "agents/unclaimed-dir/notes.md", Kind: gitprovider.TreeEntryFile, Size: 11, SHA: "blob-notes"},
+		},
+	}
+	fx.fake.blobs = map[string][]byte{
+		sha + ":" + prefix + "agents/my-agent/prompt.md":      []byte("You are a helpful agent."),
+		sha + ":" + prefix + "agents/my-agent/description.md": []byte("My agent description."),
+		sha + ":" + prefix + "agents/unclaimed-dir/notes.md":  []byte("Some notes."),
+	}
+	fx.svc.SetCacheRepo(repocachememory.New())
+	b := validBinding()
+	b.RootPath = rootPath
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{
+		Binding: b,
+	})); err != nil {
+		t.Fatalf("PutWorkspaceRepoBinding: %v", err)
+	}
+	setCredential(t, fx, ownerCtx())
+	return fx
+}
+
+func TestSyncWorkspaceRepository(t *testing.T) {
+	fx := newSyncFixture(t)
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if resp.Msg.GetEntriesSynced() == 0 {
+		t.Fatal("expected entries synced > 0")
+	}
+	binding := resp.Msg.GetBinding()
+	if binding.GetObservedCommitSha() != "abc123" {
+		t.Fatalf("observed_commit_sha = %q, want abc123", binding.GetObservedCommitSha())
+	}
+	if binding.GetLastSyncedAt() == nil {
+		t.Fatal("last_synced_at not set")
+	}
+	if binding.GetLastSyncError() != "" {
+		t.Fatalf("last_sync_error = %q", binding.GetLastSyncError())
+	}
+}
+
+func TestSyncIdempotent(t *testing.T) {
+	fx := newSyncFixture(t)
+	resp1, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 1: %v", err)
+	}
+	if resp1.Msg.GetEntriesSynced() == 0 {
+		t.Fatal("first sync should populate cache")
+	}
+
+	resp2, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 2: %v", err)
+	}
+	if resp2.Msg.GetEntriesSynced() != 0 {
+		t.Fatalf("idempotent sync should return 0 entries_synced, got %d", resp2.Msg.GetEntriesSynced())
+	}
+}
+
+func TestSyncRequiresOwnerOrAdmin(t *testing.T) {
+	fx := newSyncFixture(t)
+	_, err := fx.svc.SyncWorkspaceRepository(memberCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	wantCode(t, err, connect.CodePermissionDenied)
+
+	_, err = fx.svc.SyncWorkspaceRepository(wsAdminCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("admin sync: %v", err)
+	}
+}
+
+func TestListRepositoryEntries(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListEntries root: %v", err)
+	}
+	if resp.Msg.GetCommitSha() != "abc123" {
+		t.Fatalf("commit_sha = %q", resp.Msg.GetCommitSha())
+	}
+	if len(resp.Msg.GetEntries()) == 0 {
+		t.Fatal("expected entries in root")
+	}
+
+	t.Run("subdirectory", func(t *testing.T) {
+		resp, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{
+			Path: "agents",
+		}))
+		if err != nil {
+			t.Fatalf("ListEntries agents: %v", err)
+		}
+		if len(resp.Msg.GetEntries()) == 0 {
+			t.Fatal("expected entries under agents/")
+		}
+	})
+}
+
+func TestListRepositoryEntriesNoCache(t *testing.T) {
+	fx := newSyncFixture(t)
+	_, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestGetRepositoryFile(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	if resp.Msg.GetCommitSha() != "abc123" {
+		t.Fatalf("commit_sha = %q", resp.Msg.GetCommitSha())
+	}
+	if resp.Msg.GetContent() != "You are a helpful agent." {
+		t.Fatalf("content = %q", resp.Msg.GetContent())
+	}
+	entry := resp.Msg.GetEntry()
+	if entry == nil {
+		t.Fatal("entry is nil")
+	}
+	if entry.GetPath() != "agents/my-agent/prompt.md" {
+		t.Fatalf("entry path = %q", entry.GetPath())
+	}
+	if entry.GetKind() != agentsv1.RepoCacheEntryKind_REPO_CACHE_ENTRY_KIND_FILE {
+		t.Fatalf("entry kind = %v", entry.GetKind())
+	}
+}
+
+func TestGetRepositoryFileMissing(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	_, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/nonexistent.md",
+	}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestGetRepositorySyncStatus(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.GetRepositorySyncStatus(memberCtx(), connect.NewRequest(&agentsv1.GetRepositorySyncStatusRequest{}))
+	if err != nil {
+		t.Fatalf("GetSyncStatus: %v", err)
+	}
+	binding := resp.Msg.GetBinding()
+	if binding.GetObservedCommitSha() != "abc123" {
+		t.Fatalf("observed_commit_sha = %q", binding.GetObservedCommitSha())
+	}
+}
+
+func TestSyncWorkspaceIsolation(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync ws-a: %v", err)
+	}
+
+	// ws-b has no binding and no cache — reads must fail.
+	wsBCtx := ctxAs("owner-user", "user", "ws-b")
+	for _, m := range []struct{ user, role string }{
+		{"owner-user", "owner"},
+	} {
+		if _, err := fx.wsRepo.AddMember(context.Background(), &agentsv1.WorkspaceMember{
+			WorkspaceId: "ws-b", UserId: m.user, Role: m.role,
+		}); err != nil {
+			t.Fatalf("seed ws-b member: %v", err)
+		}
+	}
+	_, err := fx.svc.ListRepositoryEntries(wsBCtx, connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestSyncPathTraversalRejected(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	cases := []string{
+		"../etc/passwd",
+		"/absolute/path",
+		"agents/../../../etc/passwd",
+	}
+	for _, p := range cases {
+		t.Run(p, func(t *testing.T) {
+			_, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{Path: p}))
+			wantCode(t, err, connect.CodeInvalidArgument)
+		})
+		t.Run("file/"+p, func(t *testing.T) {
+			_, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{Path: p}))
+			wantCode(t, err, connect.CodeInvalidArgument)
+		})
+	}
+}
+
+func TestSyncRecordsErrorOnBranchFailure(t *testing.T) {
+	fx := newSyncFixture(t)
+	fx.fake.branches = map[string]string{}
+	_, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err == nil {
+		t.Fatal("expected error when branch HEAD fails")
+	}
+
+	resp, getErr := fx.svc.GetRepositorySyncStatus(memberCtx(), connect.NewRequest(&agentsv1.GetRepositorySyncStatusRequest{}))
+	if getErr != nil {
+		t.Fatalf("GetSyncStatus: %v", getErr)
+	}
+	if resp.Msg.GetBinding().GetLastSyncError() == "" {
+		t.Fatal("last_sync_error not recorded")
+	}
+}
+
+func TestGetRepositoryFileRequiresPath(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	_, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{}))
+	wantCode(t, err, connect.CodeInvalidArgument)
+}
+
+func TestSyncWithRootPath(t *testing.T) {
+	fx := newSyncFixtureWithRoot(t, "content")
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if resp.Msg.GetEntriesSynced() == 0 {
+		t.Fatal("expected entries synced > 0")
+	}
+
+	// Entries should be relative to root_path (no "content/" prefix).
+	listResp, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListEntries root: %v", err)
+	}
+	if len(listResp.Msg.GetEntries()) == 0 {
+		t.Fatal("expected entries in root listing")
+	}
+	for _, e := range listResp.Msg.GetEntries() {
+		if strings.HasPrefix(e.GetPath(), "content/") {
+			t.Fatalf("entry path still contains root_path prefix: %q", e.GetPath())
+		}
+	}
+
+	// File access uses root-relative paths.
+	fileResp, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	if fileResp.Msg.GetContent() != "You are a helpful agent." {
+		t.Fatalf("content = %q", fileResp.Msg.GetContent())
+	}
+}
+
+func TestSyncBranchMovement(t *testing.T) {
+	fx := newSyncFixture(t)
+
+	// First sync at abc123.
+	resp1, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 1: %v", err)
+	}
+	if resp1.Msg.GetEntriesSynced() == 0 {
+		t.Fatal("first sync should populate cache")
+	}
+
+	// Move branch to a new commit.
+	newSHA := "def456"
+	fx.fake.branches["main"] = newSHA
+	fx.fake.trees[newSHA+":"] = []gitprovider.TreeEntry{
+		{Path: "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+		{Path: "agents/new-file.md", Kind: gitprovider.TreeEntryFile, Size: 8, SHA: "blob-new"},
+	}
+	fx.fake.blobs[newSHA+":agents/new-file.md"] = []byte("Updated!")
+
+	resp2, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 2: %v", err)
+	}
+	if resp2.Msg.GetEntriesSynced() == 0 {
+		t.Fatal("second sync with new SHA should populate cache")
+	}
+	if resp2.Msg.GetBinding().GetObservedCommitSha() != newSHA {
+		t.Fatalf("observed_commit_sha = %q, want %q", resp2.Msg.GetBinding().GetObservedCommitSha(), newSHA)
+	}
+
+	// Old file should be gone, new file should be present.
+	_, err = fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	wantCode(t, err, connect.CodeNotFound)
+
+	fileResp, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/new-file.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetFile new: %v", err)
+	}
+	if fileResp.Msg.GetContent() != "Updated!" {
+		t.Fatalf("content = %q", fileResp.Msg.GetContent())
+	}
+}
+
+func TestSyncGitLabSizeEnforcement(t *testing.T) {
+	fx := newBindingFixture(t)
+	const sha = "abc123"
+
+	// Simulate GitLab: tree entries have Size=0, actual blob is large.
+	fx.fake.trees = map[string][]gitprovider.TreeEntry{
+		sha + ":": {
+			{Path: "big-file.md", Kind: gitprovider.TreeEntryFile, Size: 0, SHA: "blob-big"},
+		},
+	}
+	bigContent := make([]byte, 2*1024*1024) // 2 MiB
+	for i := range bigContent {
+		bigContent[i] = 'A'
+	}
+	fx.fake.blobs = map[string][]byte{
+		sha + ":big-file.md": bigContent,
+	}
+	fx.svc.SetCacheRepo(repocachememory.New())
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	// The oversized file should be skipped but the sync should succeed.
+	if resp.Msg.GetBinding().GetLastSyncError() != "" {
+		t.Fatalf("unexpected sync error: %q", resp.Msg.GetBinding().GetLastSyncError())
+	}
+
+	// The large file's blob should NOT be cached.
+	_, err = fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "big-file.md",
+	}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestBindingInvalidationOnUpdate(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	// Confirm cache is populated.
+	_, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListEntries before update: %v", err)
+	}
+
+	// Update binding (changes repo config).
+	b := validBinding()
+	b.RootPath = "new-root"
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: b})); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	// Cache should be invalidated.
+	_, err = fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestBindingInvalidationOnDelete(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if _, err := fx.svc.DeleteWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{})); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	// List requires a binding, so it should fail with NotFound (no binding).
+	_, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestListRepositoryEntriesResponseSHAs(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListEntries: %v", err)
+	}
+	if resp.Msg.GetObservedCommitSha() != "abc123" {
+		t.Fatalf("observed_commit_sha = %q, want abc123", resp.Msg.GetObservedCommitSha())
+	}
+	if resp.Msg.GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active_commit_sha = %q, want abc123", resp.Msg.GetActiveCommitSha())
+	}
+}
+
+func TestGetRepositoryFileResponseSHAs(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	if resp.Msg.GetObservedCommitSha() != "abc123" {
+		t.Fatalf("observed_commit_sha = %q, want abc123", resp.Msg.GetObservedCommitSha())
+	}
+	if resp.Msg.GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active_commit_sha = %q, want abc123", resp.Msg.GetActiveCommitSha())
+	}
 }
