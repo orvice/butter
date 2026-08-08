@@ -392,23 +392,59 @@ func TestGetMigrationReadiness_Empty(t *testing.T) {
 	}
 }
 
-func TestLegacyCRUD_UnchangedWithoutAgentID(t *testing.T) {
+// TestCreateAgent_RequiresAgentID locks the V2 contract: the identity-less
+// create path was removed, so every new agent must carry an agent_id.
+func TestCreateAgent_RequiresAgentID(t *testing.T) {
+	svc := NewAgentServiceServer(memory.New())
+
+	_, err := svc.CreateAgent(testCtx(), connect.NewRequest(&agentsv1.CreateAgentRequest{
+		Agent: &agentsv1.Agent{Name: "legacy", Description: "no id"},
+	}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("err = %v, want CodeInvalidArgument (agent_id required)", err)
+	}
+}
+
+// TestCreateAgent_RejectsEmbeddedSubAgents locks the V2 contract: the
+// embedded sub_agents write path was removed in favor of child_agent_ids.
+func TestCreateAgent_RejectsEmbeddedSubAgents(t *testing.T) {
+	svc := NewAgentServiceServer(memory.New())
+
+	_, err := svc.CreateAgent(testCtx(), connect.NewRequest(&agentsv1.CreateAgentRequest{
+		Agent: &agentsv1.Agent{
+			Name:      "parent",
+			AgentId:   "parent",
+			SubAgents: []*agentsv1.Agent{{Name: "child"}},
+		},
+	}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("err = %v, want CodeInvalidArgument (sub_agents not writable)", err)
+	}
+}
+
+// TestUpdateAgent_LegacyRecordsStayEditable ensures a pre-migration record
+// (stored without an agent_id, with an embedded tree) can still round-trip
+// through UpdateAgent unchanged and be deleted by name, while mutating the
+// embedded tree is rejected.
+func TestUpdateAgent_LegacyRecordsStayEditable(t *testing.T) {
 	store := memory.New()
 	svc := NewAgentServiceServer(store)
 	ctx := testCtx()
 
-	created, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "legacy", Description: "no id"},
-	}))
-	if err != nil {
+	if _, err := store.CreateAgent(context.Background(), wsTest, &agentsv1.Agent{
+		Name:        "legacy",
+		Description: "no id",
+		SubAgents:   []*agentsv1.Agent{{Name: "embedded-child"}},
+	}); err != nil {
 		t.Fatal(err)
-	}
-	if created.Msg.GetAgent().GetAgentId() != "" {
-		t.Fatalf("expected no agent_id on create, got %q", created.Msg.GetAgent().GetAgentId())
 	}
 
 	updated, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "legacy", Description: "updated"},
+		Agent: &agentsv1.Agent{
+			Name:        "legacy",
+			Description: "updated",
+			SubAgents:   []*agentsv1.Agent{{Name: "embedded-child"}}, // unchanged round-trip
+		},
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -417,8 +453,19 @@ func TestLegacyCRUD_UnchangedWithoutAgentID(t *testing.T) {
 		t.Fatalf("expected description updated, got %q", updated.Msg.GetAgent().GetDescription())
 	}
 
-	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "legacy"}))
-	if err != nil {
+	// Mutating the embedded tree is a removed write path.
+	_, err = svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
+		Agent: &agentsv1.Agent{
+			Name:        "legacy",
+			Description: "updated",
+			SubAgents:   []*agentsv1.Agent{{Name: "embedded-child"}, {Name: "new-child"}},
+		},
+	}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("err = %v, want CodeInvalidArgument (sub_agents not writable)", err)
+	}
+
+	if _, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "legacy"})); err != nil {
 		t.Fatal(err)
 	}
 }

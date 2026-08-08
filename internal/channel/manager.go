@@ -7,6 +7,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 
 	"go.orx.me/apps/butter/internal/channel/discord"
 	"go.orx.me/apps/butter/internal/channel/telegram"
@@ -90,6 +91,24 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 				"platform", ch.GetPlatform().String(),
 			)
 			continue
+		}
+
+		// Resolve the channel's agent binding: agent_id preferred, legacy
+		// agent_name fallback for records written before the Agent ID
+		// migration. The poller pipeline dispatches by runtime name, so the
+		// config handed to it carries the resolved name.
+		if name, ok := m.runnerSvc.ResolveAgentRef(ch.GetWorkspaceId(), ch.GetAgentId(), ch.GetAgentName()); ok {
+			if name != ch.GetAgentName() {
+				ch = proto.Clone(ch).(*agentsv1.AgentChannel)
+				ch.AgentName = name
+			}
+		} else {
+			logger.Warn("channel references unknown agent; messages will fail until fixed",
+				"channel", ch.GetName(),
+				"workspace", ch.GetWorkspaceId(),
+				"agent_id", ch.GetAgentId(),
+				"agent_name", ch.GetAgentName(),
+			)
 		}
 
 		// Each channel only sees agents from its own workspace; passing the

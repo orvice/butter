@@ -40,16 +40,25 @@ func (h *A2AHandler) getRunner() *runner.Service {
 	return h.runnerSvc
 }
 
-// Register registers A2A routes on the Gin engine.
+// Register registers A2A routes on the Gin engine. The path segment is the
+// agent's immutable agent_id; the legacy agent name keeps working for agents
+// that have not been assigned an ID yet.
 func (h *A2AHandler) Register(r *gin.Engine) {
-	r.GET("/a2a/:agent_name/.well-known/agent.json", h.AgentCard)
-	r.POST("/a2a/:agent_name", h.TaskSend)
+	r.GET("/a2a/:agent_ref/.well-known/agent.json", h.AgentCard)
+	r.POST("/a2a/:agent_ref", h.TaskSend)
 }
 
-// findA2AAgent returns the agent proto config if it exists and has enable_a2a set.
-func (h *A2AHandler) findA2AAgent(name string) *agentsv1.Agent {
+// findA2AAgent returns the agent proto config if it exists and has enable_a2a
+// set. The reference is matched against agent_id first, then against the
+// legacy name so pre-migration URLs stay valid.
+func (h *A2AHandler) findA2AAgent(ref string) *agentsv1.Agent {
 	for i := range h.cfg.Agents {
-		if h.cfg.Agents[i].GetName() == name && h.cfg.Agents[i].GetEnableA2A() {
+		if h.cfg.Agents[i].GetAgentId() == ref && h.cfg.Agents[i].GetEnableA2A() {
+			return &h.cfg.Agents[i]
+		}
+	}
+	for i := range h.cfg.Agents {
+		if h.cfg.Agents[i].GetName() == ref && h.cfg.Agents[i].GetEnableA2A() {
 			return &h.cfg.Agents[i]
 		}
 	}
@@ -58,9 +67,7 @@ func (h *A2AHandler) findA2AAgent(name string) *agentsv1.Agent {
 
 // AgentCard serves the A2A agent card for a specific agent.
 func (h *A2AHandler) AgentCard(c *gin.Context) {
-	agentName := c.Param("agent_name")
-
-	ag := h.findA2AAgent(agentName)
+	ag := h.findA2AAgent(c.Param("agent_ref"))
 	if ag == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "agent not found"})
 		return
@@ -72,13 +79,12 @@ func (h *A2AHandler) AgentCard(c *gin.Context) {
 
 // TaskSend handles A2A tasks/send JSON-RPC requests.
 func (h *A2AHandler) TaskSend(c *gin.Context) {
-	agentName := c.Param("agent_name")
-
-	ag := h.findA2AAgent(agentName)
+	ag := h.findA2AAgent(c.Param("agent_ref"))
 	if ag == nil {
 		c.JSON(http.StatusOK, jsonRPCError(nil, -32001, "agent not found"))
 		return
 	}
+	agentName := ag.GetName()
 
 	svc := h.getRunner()
 	if svc == nil {
@@ -176,10 +182,16 @@ type Capabilities struct {
 }
 
 func buildAgentCard(ag *agentsv1.Agent) AgentCard {
+	// Advertise the immutable agent_id as the canonical URL; agents without
+	// one fall back to the legacy name path.
+	ref := ag.GetAgentId()
+	if ref == "" {
+		ref = ag.GetName()
+	}
 	return AgentCard{
 		Name:        ag.GetName(),
 		Description: ag.GetDescription(),
-		URL:         "/a2a/" + ag.GetName(),
+		URL:         "/a2a/" + ref,
 		Version:     "0.1.0",
 		Capabilities: Capabilities{
 			Streaming: false,

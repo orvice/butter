@@ -41,6 +41,79 @@ type ForumServiceServer struct {
 
 type forumAgentRunner interface {
 	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
+	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
+	GetAgentIdentity(name string) (agentID, displayName string, ok bool)
+}
+
+// forumAgentRef is one participating agent of a thread: the runtime name the
+// runner dispatches on plus the immutable agent_id (either may be empty when
+// the reference cannot currently be resolved).
+type forumAgentRef struct {
+	name string
+	id   string
+}
+
+// resolveThreadAgentRefs merges a thread's agent_ids (preferred) and legacy
+// agent_names into deduplicated (runtime name, agent_id) pairs. Unresolvable
+// references are kept as-is so the stored record never loses information;
+// invocation skips refs with no runtime name.
+func (s *ForumServiceServer) resolveThreadAgentRefs(workspaceID string, agentIDs, agentNames []string) []forumAgentRef {
+	runnerSvc := s.getRunner()
+	var refs []forumAgentRef
+	seenID := map[string]struct{}{}
+	seenName := map[string]struct{}{}
+	for _, id := range agentIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, dup := seenID[id]; dup {
+			continue
+		}
+		seenID[id] = struct{}{}
+		ref := forumAgentRef{id: id}
+		if runnerSvc != nil {
+			if name, ok := runnerSvc.ResolveAgentRef(workspaceID, id, ""); ok {
+				ref.name = name
+				seenName[name] = struct{}{}
+			}
+		}
+		refs = append(refs, ref)
+	}
+	for _, name := range agentNames {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, dup := seenName[name]; dup {
+			continue
+		}
+		seenName[name] = struct{}{}
+		ref := forumAgentRef{name: name}
+		if runnerSvc != nil {
+			if id, _, ok := runnerSvc.GetAgentIdentity(name); ok && id != "" {
+				if _, dup := seenID[id]; dup {
+					continue
+				}
+				seenID[id] = struct{}{}
+				ref.id = id
+			}
+		}
+		refs = append(refs, ref)
+	}
+	return refs
+}
+
+func threadAgentFields(refs []forumAgentRef) (ids, names []string) {
+	for _, ref := range refs {
+		if ref.id != "" {
+			ids = append(ids, ref.id)
+		}
+		if ref.name != "" {
+			names = append(names, ref.name)
+		}
+	}
+	return ids, names
 }
 
 func NewForumServiceServer(repo forum.Repository) *ForumServiceServer {
@@ -127,13 +200,16 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *connect.Requ
 	}
 	now := timestamppb.New(time.Now().UTC())
 	threadID := uuid.NewString()
+	agentRefs := s.resolveThreadAgentRefs(workspaceID, req.Msg.GetAgentIds(), req.Msg.GetAgentNames())
+	agentIDs, agentNames := threadAgentFields(agentRefs)
 	thread := &agentsv1.ForumThread{
 		Id:          threadID,
 		Title:       title,
 		Body:        body,
 		CreatedBy:   userID,
 		Status:      forumStatusOpen,
-		AgentNames:  append([]string(nil), req.Msg.GetAgentNames()...),
+		AgentIds:    agentIDs,
+		AgentNames:  agentNames,
 		Labels:      normalizeLabels(req.Msg.GetLabels()),
 		Metadata:    copyStringMap(req.Msg.GetMetadata()),
 		CreatedAt:   now,
@@ -157,17 +233,21 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *connect.Requ
 		_ = repo.DeleteThread(ctx, workspaceID, threadID)
 		return nil, connectx.InternalWith(err)
 	}
-	if runnerSvc := s.getRunner(); runnerSvc != nil && len(thread.GetAgentNames()) > 0 {
+	if runnerSvc := s.getRunner(); runnerSvc != nil && len(agentRefs) > 0 {
 		bgCtx := wsctx.WithID(context.Background(), workspaceID)
-		for _, agentName := range thread.GetAgentNames() {
-			agentName := agentName
-			go s.invokeAgentPost(bgCtx, repo, runnerSvc, thread, []*agentsv1.ForumPost{post}, agentName, userID)
+		for _, ref := range agentRefs {
+			if ref.name == "" {
+				log.FromContext(ctx).Warn("skipping unresolvable thread agent reference", "thread_id", threadID, "agent_id", ref.id)
+				continue
+			}
+			go s.invokeAgentPost(bgCtx, repo, runnerSvc, thread, []*agentsv1.ForumPost{post}, ref, userID)
 		}
 	}
 	return connect.NewResponse(&agentsv1.CreateThreadResponse{Thread: thread, FirstPost: post}), nil
 }
 
-func (s *ForumServiceServer) invokeAgentPost(ctx context.Context, repo forum.Repository, runnerSvc forumAgentRunner, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentName, userID string) {
+func (s *ForumServiceServer) invokeAgentPost(ctx context.Context, repo forum.Repository, runnerSvc forumAgentRunner, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentRef forumAgentRef, userID string) {
+	agentName := agentRef.name
 	logger := log.FromContext(ctx)
 	prompt := buildForumPrompt(thread, posts, userID, "")
 	invocationID := uuid.NewString()
@@ -195,6 +275,7 @@ func (s *ForumServiceServer) invokeAgentPost(ctx context.Context, repo forum.Rep
 		ThreadId:        thread.GetId(),
 		Body:            response,
 		AuthorAgentName: agentName,
+		AuthorAgentId:   agentRef.id,
 		AuthorKind:      forumAuthorAgent,
 		InvocationId:    invocationID,
 		CreatedAt:       now,
@@ -224,8 +305,9 @@ func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *connect.Requ
 	if v := strings.TrimSpace(req.Msg.GetStatus()); v != "" {
 		thread.Status = v
 	}
-	if req.Msg.GetAgentNames() != nil {
-		thread.AgentNames = append([]string(nil), req.Msg.GetAgentNames()...)
+	if req.Msg.GetAgentNames() != nil || req.Msg.GetAgentIds() != nil {
+		refs := s.resolveThreadAgentRefs(workspaceID, req.Msg.GetAgentIds(), req.Msg.GetAgentNames())
+		thread.AgentIds, thread.AgentNames = threadAgentFields(refs)
 	}
 	if req.Msg.GetLabels() != nil {
 		thread.Labels = normalizeLabels(req.Msg.GetLabels())
@@ -301,9 +383,15 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *conne
 	if runnerSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
-	agentName := strings.TrimSpace(req.Msg.GetAgentName())
-	if agentName == "" {
-		return nil, connectx.RequiredArgument("agent_name")
+	agentName, err := resolveAgentRunnerRef(runnerSvc, workspaceID, strings.TrimSpace(req.Msg.GetAgentId()), strings.TrimSpace(req.Msg.GetAgentName()))
+	if err != nil {
+		return nil, err
+	}
+	agentID := strings.TrimSpace(req.Msg.GetAgentId())
+	if agentID == "" {
+		if id, _, ok := runnerSvc.GetAgentIdentity(agentName); ok {
+			agentID = id
+		}
 	}
 	if _, err := repo.GetThread(ctx, workspaceID, req.Msg.GetThreadId()); err != nil {
 		return nil, mapForumErr(err)
@@ -346,11 +434,12 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *conne
 	logger := log.FromContext(ctx)
 	logger.Info("queued forum agent invocation", "thread_id", req.Msg.GetThreadId(), "agent", agentName, "workspace_id", workspaceID, "invocation_id", invocationID)
 	bgCtx := wsctx.WithID(context.Background(), workspaceID)
-	go s.invokeAgentForUserPost(bgCtx, repo, runnerSvc, thread, posts, agentName, userID, message, req.Msg.GetModelOverride(), invocationID)
+	go s.invokeAgentForUserPost(bgCtx, repo, runnerSvc, thread, posts, forumAgentRef{name: agentName, id: agentID}, userID, message, req.Msg.GetModelOverride(), invocationID)
 	return connect.NewResponse(&agentsv1.InvokeAgentInThreadResponse{Post: userPost}), nil
 }
 
-func (s *ForumServiceServer) invokeAgentForUserPost(ctx context.Context, repo forum.Repository, runnerSvc forumAgentRunner, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentName, userID, message, modelOverride, invocationID string) {
+func (s *ForumServiceServer) invokeAgentForUserPost(ctx context.Context, repo forum.Repository, runnerSvc forumAgentRunner, thread *agentsv1.ForumThread, posts []*agentsv1.ForumPost, agentRef forumAgentRef, userID, message, modelOverride, invocationID string) {
+	agentName := agentRef.name
 	logger := log.FromContext(ctx).With("thread_id", thread.GetId(), "agent", agentName, "invocation_id", invocationID)
 	prompt := buildForumPrompt(thread, posts, userID, message)
 	ctxInfo := &agentsv1.ContextInfo{
@@ -376,6 +465,7 @@ func (s *ForumServiceServer) invokeAgentForUserPost(ctx context.Context, repo fo
 		ThreadId:        thread.GetId(),
 		Body:            response,
 		AuthorAgentName: agentName,
+		AuthorAgentId:   agentRef.id,
 		AuthorKind:      forumAuthorAgent,
 		InvocationId:    invocationID,
 		CreatedAt:       now,

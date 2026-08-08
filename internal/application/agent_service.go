@@ -38,6 +38,24 @@ type agentRunner interface {
 	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 	RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 	CancelInvocation(id, workspaceID string) bool
+	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
+	GetAgentIdentity(name string) (agentID, displayName string, ok bool)
+}
+
+// resolveAgentRunnerRef maps a request's agent reference — agent_id preferred,
+// legacy agent_name fallback — to the registered runtime agent name. A
+// set-but-unknown agent_id is NotFound and never falls through to the name.
+func resolveAgentRunnerRef(r interface {
+	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
+}, workspaceID, agentID, agentName string) (string, error) {
+	if agentID == "" && agentName == "" {
+		return "", connectx.RequiredArgument("agent_id")
+	}
+	name, ok := r.ResolveAgentRef(workspaceID, agentID, agentName)
+	if !ok {
+		return "", connectx.NotFound(fmt.Sprintf("agent %q not found", runner.AgentRefLabel(agentID, agentName)))
+	}
+	return name, nil
 }
 
 type AgentServiceServer struct {
@@ -173,29 +191,30 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 
 	agent := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
 
-	hasChildren := len(agent.GetChildAgentIds()) > 0
-	hasAgentID := agent.GetAgentId() != ""
-
-	if hasChildren && !hasAgentID {
-		return nil, connectx.RequiredArgument("agent_id (required when child_agent_ids is set)")
+	// V2 contract: every new agent is created with an immutable agent_id and
+	// composes children via ID references — the embedded sub_agents write
+	// path is gone. Legacy records with embedded children stay readable
+	// until MigrateAgentsV2 expands them.
+	if agent.GetAgentId() == "" {
+		return nil, connectx.RequiredArgument("agent_id")
 	}
-	if hasAgentID {
-		if err := internalagent.ValidateAgentID(agent.GetAgentId()); err != nil {
-			return nil, connectx.InvalidArgument("agent_id", err.Error())
-		}
-		taken, err := s.repo.AgentIDExists(ctx, wsID, agent.GetAgentId())
-		if err != nil {
-			return nil, toConnectError(err)
-		}
-		if taken {
-			return nil, connect.NewError(connect.CodeAlreadyExists,
-				fmt.Errorf("agent_id %q is already in use in this workspace", agent.GetAgentId()))
-		}
+	if len(agent.GetSubAgents()) > 0 {
+		return nil, connectx.InvalidArgument("sub_agents",
+			"is no longer writable; create child agents and reference them via child_agent_ids")
 	}
-	if hasChildren {
-		agent.SubAgents = nil
-		agent.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE
-
+	if err := internalagent.ValidateAgentID(agent.GetAgentId()); err != nil {
+		return nil, connectx.InvalidArgument("agent_id", err.Error())
+	}
+	taken, err := s.repo.AgentIDExists(ctx, wsID, agent.GetAgentId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if taken {
+		return nil, connect.NewError(connect.CodeAlreadyExists,
+			fmt.Errorf("agent_id %q is already in use in this workspace", agent.GetAgentId()))
+	}
+	agent.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE
+	if len(agent.GetChildAgentIds()) > 0 {
 		pool, err := s.repo.ListAgents(ctx, wsID)
 		if err != nil {
 			return nil, toConnectError(err)
@@ -252,6 +271,14 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	update.AgentId = prev.GetAgentId()
 	update.LifecycleStatus = prev.GetLifecycleStatus()
 	update.LegacyName = prev.GetLegacyName()
+
+	// V2 contract: embedded sub_agents are read-only legacy state. A legacy
+	// agent can still be edited (its stored tree round-trips unchanged), but
+	// mutating the embedded tree requires migrating to child_agent_ids.
+	if !equalSubAgents(update.GetSubAgents(), prev.GetSubAgents()) {
+		return nil, connectx.InvalidArgument("sub_agents",
+			"is no longer writable; run MigrateAgentsV2 and compose via child_agent_ids")
+	}
 
 	if len(update.GetChildAgentIds()) > 0 {
 		pool, err := s.repo.ListAgents(ctx, wsID)
@@ -350,9 +377,6 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 	if s.runnerSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
-	if req.Msg.GetAgentName() == "" {
-		return nil, connectx.RequiredArgument("agent_name")
-	}
 	if req.Msg.GetInput() == "" {
 		return nil, connectx.RequiredArgument("input")
 	}
@@ -382,6 +406,10 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("workspace required (set X-Workspace-ID header)"))
 	}
+	agentName, err := resolveAgentRunnerRef(s.runnerSvc, wsID, req.Msg.GetAgentId(), req.Msg.GetAgentName())
+	if err != nil {
+		return nil, err
+	}
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        uuid.NewString(),
 		SessionId:   sessionID,
@@ -394,7 +422,8 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 	logger := log.FromContext(ctx)
 	logger.Info("invoking agent",
 		"workspace_id", wsID,
-		"agent", req.Msg.GetAgentName(),
+		"agent", agentName,
+		"agent_id", req.Msg.GetAgentId(),
 		"app_name", appName,
 		"user_id", userID,
 		"session_id", sessionID,
@@ -403,11 +432,11 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 	)
 	parts := []*genai.Part{{Text: req.Msg.GetInput()}}
 	start := time.Now()
-	response, err := s.runnerSvc.Run(ctx, req.Msg.GetAgentName(), parts, req.Msg.GetModelOverride(), ctxInfo, nil, nil)
+	response, err := s.runnerSvc.Run(ctx, agentName, parts, req.Msg.GetModelOverride(), ctxInfo, nil, nil)
 	if err != nil {
 		logger.Error("agent invocation failed",
 			"workspace_id", wsID,
-			"agent", req.Msg.GetAgentName(),
+			"agent", agentName,
 			"session_id", sessionID,
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"err", err,
@@ -416,7 +445,7 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 	}
 	logger.Info("agent invocation completed",
 		"workspace_id", wsID,
-		"agent", req.Msg.GetAgentName(),
+		"agent", agentName,
 		"session_id", sessionID,
 		"elapsed_ms", time.Since(start).Milliseconds(),
 	)
@@ -433,6 +462,7 @@ func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *conn
 	}
 	invs, next, total, err := s.invRepo.List(ctx, invocation.ListFilter{
 		WorkspaceID: wsID,
+		AgentID:     req.Msg.GetAgentId(),
 		AgentName:   req.Msg.GetAgentName(),
 		SessionID:   req.Msg.GetSessionId(),
 	}, req.Msg.GetPageSize(), req.Msg.GetPageToken())
@@ -470,14 +500,25 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 }
 
 func (s *AgentServiceServer) GetAgentRuntimeStatus(ctx context.Context, req *connect.Request[agentsv1.GetAgentRuntimeStatusRequest]) (*connect.Response[agentsv1.GetAgentRuntimeStatusResponse], error) {
-	if req.Msg.GetName() == "" {
-		return nil, connectx.RequiredArgument("name")
+	if req.Msg.GetAgentId() == "" && req.Msg.GetName() == "" {
+		return nil, connectx.RequiredArgument("agent_id")
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
 	}
-	statuses, err := s.runtimeStatuses(ctx, wsID, []string{req.Msg.GetName()})
+	target := statusTarget{name: req.Msg.GetName()}
+	if aid := req.Msg.GetAgentId(); aid != "" {
+		a, err := s.repo.GetAgentByID(ctx, wsID, aid)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		target = statusTarget{name: a.GetName(), agentID: aid}
+	} else if a, err := s.repo.GetAgent(ctx, wsID, target.name); err == nil {
+		// Legacy name lookup: backfill the agent_id when the agent has one.
+		target.agentID = a.GetAgentId()
+	}
+	statuses, err := s.runtimeStatuses(ctx, wsID, []statusTarget{target})
 	if err != nil {
 		return nil, err
 	}
@@ -489,33 +530,69 @@ func (s *AgentServiceServer) ListAgentRuntimeStatuses(ctx context.Context, req *
 	if err != nil {
 		return nil, err
 	}
-	names := req.Msg.GetNames()
-	if len(names) == 0 {
-		agents, err := s.repo.ListAgents(ctx, wsID)
-		if err != nil {
-			return nil, toConnectError(err)
+	agents, err := s.repo.ListAgents(ctx, wsID)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	byID := make(map[string]*agentsv1.Agent, len(agents))
+	byName := make(map[string]*agentsv1.Agent, len(agents))
+	for _, a := range agents {
+		if id := a.GetAgentId(); id != "" {
+			byID[id] = a
 		}
-		names = make([]string, 0, len(agents))
+		byName[a.GetName()] = a
+	}
+
+	var targets []statusTarget
+	switch {
+	case len(req.Msg.GetAgentIds()) > 0:
+		for _, id := range req.Msg.GetAgentIds() {
+			a, ok := byID[id]
+			if !ok {
+				return nil, connectx.NotFound(fmt.Sprintf("agent %q not found", id))
+			}
+			targets = append(targets, statusTarget{name: a.GetName(), agentID: id})
+		}
+	case len(req.Msg.GetNames()) > 0:
+		for _, name := range req.Msg.GetNames() {
+			t := statusTarget{name: name}
+			if a, ok := byName[name]; ok {
+				t.agentID = a.GetAgentId()
+			}
+			targets = append(targets, t)
+		}
+	default:
 		for _, a := range agents {
-			names = append(names, a.GetName())
+			targets = append(targets, statusTarget{name: a.GetName(), agentID: a.GetAgentId()})
 		}
 	}
-	statuses, err := s.runtimeStatuses(ctx, wsID, names)
+	statuses, err := s.runtimeStatuses(ctx, wsID, targets)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&agentsv1.ListAgentRuntimeStatusesResponse{Statuses: statuses}), nil
 }
 
-// runtimeStatuses derives AgentRuntimeStatus for the named agents from a single
-// invocation repo query. Agents with no invocations (or when the repo is not
-// wired) are reported as IDLE. The result preserves the order of names.
-func (s *AgentServiceServer) runtimeStatuses(ctx context.Context, workspaceID string, names []string) ([]*agentsv1.AgentRuntimeStatus, error) {
-	out := make([]*agentsv1.AgentRuntimeStatus, len(names))
-	for i, name := range names {
+// statusTarget names one agent whose runtime status is being derived: the
+// runtime (legacy) name keys the invocation summaries, the agent_id is echoed
+// on the status row so clients can key rows by the immutable identifier.
+type statusTarget struct {
+	name    string
+	agentID string
+}
+
+// runtimeStatuses derives AgentRuntimeStatus for the target agents from a
+// single invocation repo query. Agents with no invocations (or when the repo
+// is not wired) are reported as IDLE. The result preserves the target order.
+func (s *AgentServiceServer) runtimeStatuses(ctx context.Context, workspaceID string, targets []statusTarget) ([]*agentsv1.AgentRuntimeStatus, error) {
+	out := make([]*agentsv1.AgentRuntimeStatus, len(targets))
+	names := make([]string, len(targets))
+	for i, t := range targets {
+		names[i] = t.name
 		out[i] = &agentsv1.AgentRuntimeStatus{
-			Name:  name,
-			State: agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_IDLE,
+			Name:    t.name,
+			AgentId: t.agentID,
+			State:   agentsv1.AgentRuntimeState_AGENT_RUNTIME_STATE_IDLE,
 		}
 	}
 	if s.invRepo == nil || len(names) == 0 {

@@ -11,6 +11,7 @@ import { useMCPServers } from '@/api/mcp-servers'
 import { useRemoteAgents } from '@/api/remote-agents'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
@@ -84,10 +85,13 @@ function mergeAgentIconMetadata(metadata: Agent['metadata'] | undefined, iconUrl
 }
 
 export function AgentEdit() {
-  const { name } = useParams({ from: '/_authenticated/agents/$name/edit' })
+  // The $name param is an opaque ref: an immutable agent_id, or a plain name
+  // for agents without one (and old bookmarked URLs). useAgent tries the
+  // agent_id lookup first and falls back to the name.
+  const { name: agentRef } = useParams({ from: '/_authenticated/agents/$name/edit' })
   const navigate = useNavigate()
   const { resolvedTheme } = useTheme()
-  const { data, isLoading } = useAgent(name ?? '')
+  const { data, isLoading } = useAgent(agentRef ?? '')
   const { data: mcpData } = useMCPServers()
   const { data: remoteData, isLoading: isLoadingRemoteAgents } = useRemoteAgents()
   const updateMutation = useUpdateAgent()
@@ -231,7 +235,7 @@ export function AgentEdit() {
             <ArrowLeft className='size-3.5 shrink-0' />
             <span>Agents</span>
             <ChevronRight className='size-3 shrink-0' />
-            <span className='truncate text-foreground'>{name}</span>
+            <span className='truncate text-foreground'>{data?.agent?.name ?? agentRef}</span>
           </Link>
         }
       />
@@ -258,6 +262,15 @@ export function AgentEdit() {
                       <FormControl><Input {...field} disabled /></FormControl>
                     </FormItem>
                   )} />
+                  {data?.agent?.agent_id && (
+                    <div className='space-y-2'>
+                      <Label htmlFor='agent-id-readonly'>Agent ID</Label>
+                      <Input id='agent-id-readonly' value={data.agent.agent_id} disabled className='font-mono' />
+                      <p className='text-xs text-muted-foreground'>
+                        The Agent ID is immutable and can never be changed.
+                      </p>
+                    </div>
+                  )}
                   <FormField control={form.control} name='description' render={({ field }) => (
                     <FormItem>
                       <FormLabel>Description</FormLabel>

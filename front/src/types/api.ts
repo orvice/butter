@@ -356,6 +356,8 @@ export interface ForumThread {
   created_by?: string;
   status?: string;
   agent_names?: string[];
+  /** Immutable agent_ids of the participating agents. Preferred over agent_names. */
+  agent_ids?: string[];
   labels?: string[];
   metadata?: Record<string, string>;
   created_at?: string;
@@ -369,6 +371,8 @@ export interface ForumPost {
   body: string;
   author_user_id?: string;
   author_agent_name?: string;
+  /** Immutable agent_id of the authoring agent, when assigned. */
+  author_agent_id?: string;
   author_kind?: "user" | "agent" | "system" | string;
   invocation_id?: string;
   parent_post_id?: string;
@@ -401,6 +405,8 @@ export interface DiscordChannelConfig {
 export interface AgentChannel {
   name: string;
   agent_name: string;
+  /** Immutable agent_id of the bound agent. Preferred over agent_name. */
+  agent_id?: string;
   platform?: AgentChannelPlatform;
   enabled?: boolean;
   triggers?: AgentTrigger[];
@@ -423,6 +429,10 @@ export interface ChannelStatus {
 export interface Invocation {
   id: string;
   agent_name: string;
+  /** Immutable agent_id of the invoked agent; empty on historical records. */
+  agent_id?: string;
+  /** Display-name snapshot taken at invocation time. */
+  agent_display_name?: string;
   app_name?: string;
   user_id?: string;
   session_id?: string;
@@ -439,6 +449,8 @@ export interface Invocation {
 
 export interface AgentRuntimeStatus {
   name: string;
+  /** Immutable agent_id of the agent, when assigned. */
+  agent_id?: string;
   state?: AgentRuntimeState;
   last_run_at?: string;
   last_invocation_id?: string;
@@ -547,6 +559,8 @@ export interface DaemonTaskInFlight {
   current_step?: string;
   progress?: number;
   agent_name?: string;
+  /** Immutable agent_id of the agent running the task, when assigned. */
+  agent_id?: string;
   workspace_id?: string;
 }
 
@@ -631,6 +645,8 @@ export interface CronJob {
   name: string;
   schedule: string;
   agent_name: string;
+  /** Immutable agent_id of the target agent. Preferred over agent_name. */
+  agent_id?: string;
   input?: string;
   timezone?: string;
   enabled?: boolean;
@@ -647,6 +663,8 @@ export interface CronExecution {
   id: string;
   job_name: string;
   agent_name: string;
+  /** Immutable agent_id of the executed agent; empty on historical records. */
+  agent_id?: string;
   status: CronExecutionStatus;
   input?: string;
   output?: string;
@@ -747,7 +765,7 @@ export interface AutomationPolicy {
 export interface AutomationStep {
   name: string;
   type: AutomationStepType;
-  invoke_agent?: { agent_name: string; input?: string; model_override?: string };
+  invoke_agent?: { agent_name?: string; agent_id?: string; input?: string; model_override?: string };
   call_webhook?: { url: string; method?: string; payload_json?: string; headers?: Record<string, string> };
   send_notify_group?: { notify_group_name: string; title?: string; message?: string };
   create_forum_post?: { thread_id: string; body: string };
@@ -770,6 +788,8 @@ export interface Automation {
 export interface AutomationRun {
   id: string;
   automation_name: string;
+  /** Immutable agent_id of the invoked agent, when the run targeted one. */
+  agent_id?: string;
   trigger_type: AutomationTriggerType;
   status: AutomationRunStatus;
   trigger_payload_json?: string;

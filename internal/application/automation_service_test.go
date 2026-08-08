@@ -22,6 +22,26 @@ func (r *automationTestRunner) HasAgentInWorkspace(workspaceID, name string) boo
 	return workspaceID == wsTest && name == "agent1"
 }
 
+func (r *automationTestRunner) ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool) {
+	if agentID != "" {
+		if workspaceID == wsTest && agentID == "agent1-id" {
+			return "agent1", true
+		}
+		return "", false
+	}
+	if r.HasAgentInWorkspace(workspaceID, legacyName) {
+		return legacyName, true
+	}
+	return "", false
+}
+
+func (r *automationTestRunner) GetAgentIdentity(name string) (string, string, bool) {
+	if name == "agent1" {
+		return "agent1-id", "agent1", true
+	}
+	return "", name, true
+}
+
 func (r *automationTestRunner) RunTurnSSE(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (*runner.TurnResult, error) {
 	r.calls++
 	return &runner.TurnResult{Output: "agent done"}, nil

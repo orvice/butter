@@ -78,16 +78,9 @@ func (m *CronJob) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if utf8.RuneCountInString(m.GetAgentName()) < 1 {
-		err := CronJobValidationError{
-			field:  "AgentName",
-			reason: "value length must be at least 1 runes",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for AgentName
+
+	// no validation rules for AgentId
 
 	// no validation rules for Input
 
@@ -536,6 +529,8 @@ func (m *CronExecution) validate(all bool) error {
 	// no validation rules for JobName
 
 	// no validation rules for AgentName
+
+	// no validation rules for AgentId
 
 	// no validation rules for Status
 

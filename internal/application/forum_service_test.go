@@ -39,6 +39,20 @@ func newBlockingForumRunner() *blockingForumRunner {
 	}
 }
 
+func (r *blockingForumRunner) ResolveAgentRef(_, agentID, legacyName string) (string, bool) {
+	if agentID != "" {
+		return agentID, true
+	}
+	if legacyName == "" {
+		return "", false
+	}
+	return legacyName, true
+}
+
+func (r *blockingForumRunner) GetAgentIdentity(name string) (string, string, bool) {
+	return "", name, true
+}
+
 func (r *blockingForumRunner) Run(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (string, error) {
 	<-r.release
 	close(r.done)

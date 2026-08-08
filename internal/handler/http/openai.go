@@ -178,7 +178,12 @@ func (h *OpenAIHandler) validateAndPrepare(c *gin.Context) (*chatRunContext, boo
 		return nil, false
 	}
 
-	agent, err := h.agentRepo.GetAgent(c.Request.Context(), workspaceID, req.Model)
+	// The request's model field carries the agent's immutable agent_id;
+	// the legacy agent name keeps working for agents without an assigned ID.
+	agent, err := h.agentRepo.GetAgentByID(c.Request.Context(), workspaceID, req.Model)
+	if err != nil || agent == nil {
+		agent, err = h.agentRepo.GetAgent(c.Request.Context(), workspaceID, req.Model)
+	}
 	if err != nil || agent == nil || !agent.GetEnableOpenaiApi() {
 		c.JSON(http.StatusNotFound, openaiError("model not found: "+req.Model, "invalid_request_error"))
 		return nil, false
@@ -374,8 +379,14 @@ func (h *OpenAIHandler) ListModels(c *gin.Context) {
 	models := make([]openaiModel, 0, len(agents))
 	for _, ag := range agents {
 		if ag.GetEnableOpenaiApi() {
+			// The model id is the agent's immutable agent_id; agents without
+			// one are listed under their legacy name.
+			id := ag.GetAgentId()
+			if id == "" {
+				id = ag.GetName()
+			}
 			models = append(models, openaiModel{
-				ID:      ag.GetName(),
+				ID:      id,
 				Object:  "model",
 				Created: 0,
 				OwnedBy: "butter",

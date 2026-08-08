@@ -53,9 +53,15 @@ message DaemonTask {
   // @gotags: json:"task_id,omitempty" yaml:"task_id,omitempty"
   string task_id = 1;
 
-  // The agent name on the server side that triggered this task.
+  // Legacy name of the server-side agent that triggered this task.
+  // Deprecated: use agent_id.
   // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty"
   string agent_name = 2;
+
+  // Immutable agent_id of the server-side agent that triggered this task,
+  // when assigned. Preferred over agent_name.
+  // @gotags: json:"agent_id,omitempty" yaml:"agent_id,omitempty"
+  string agent_id = 12;
 
   // User input text to execute.
   // @gotags: json:"input,omitempty" yaml:"input,omitempty"

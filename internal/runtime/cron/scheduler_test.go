@@ -231,6 +231,22 @@ func (r *testCronRunner) HasAgentInWorkspace(string, string) bool {
 	return true
 }
 
+func (r *testCronRunner) ResolveAgentRef(_, agentID, legacyName string) (string, bool) {
+	if agentID != "" {
+		// Mirror runner.Service: agent_ids resolve to the same-named agent in
+		// these tests; a set-but-unknown id never falls back to the name.
+		return agentID, true
+	}
+	if legacyName == "" {
+		return "", false
+	}
+	return legacyName, true
+}
+
+func (r *testCronRunner) GetAgentIdentity(name string) (string, string, bool) {
+	return "", name, true
+}
+
 func (r *testCronRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, ctxInfo *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
 	r.runCalls++
 	r.ctxInfos = append(r.ctxInfos, ctxInfo)
@@ -1475,5 +1491,95 @@ func TestDeliverChannelSendsThroughConfiguredAgentChannel(t *testing.T) {
 	}
 	if sender.text == "" {
 		t.Fatal("expected non-empty delivery message")
+	}
+}
+
+// resolvingCronRunner is a testCronRunner with an explicit agent_id → name
+// table, for tests that exercise agent_id resolution end to end.
+type resolvingCronRunner struct {
+	testCronRunner
+	idToName map[string]string
+	gotAgent string
+}
+
+func (r *resolvingCronRunner) ResolveAgentRef(_, agentID, legacyName string) (string, bool) {
+	if agentID != "" {
+		name, ok := r.idToName[agentID]
+		return name, ok
+	}
+	if legacyName == "" {
+		return "", false
+	}
+	return legacyName, true
+}
+
+func (r *resolvingCronRunner) GetAgentIdentity(name string) (string, string, bool) {
+	for id, n := range r.idToName {
+		if n == name {
+			return id, name, true
+		}
+	}
+	return "", name, true
+}
+
+func (r *resolvingCronRunner) RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, mo string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error) {
+	r.gotAgent = agentName
+	return r.testCronRunner.RunTurnSSE(ctx, agentName, parts, mo, ctxInfo, onEvent, onCompaction)
+}
+
+func TestExecuteJobResolvesAgentID(t *testing.T) {
+	cronRunner := &resolvingCronRunner{
+		testCronRunner: testCronRunner{output: "done"},
+		idToName:       map[string]string{"reporter-v2": "reporter"},
+	}
+	execRepo := &testExecutionRepo{}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: execRepo,
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "daily-report",
+		WorkspaceId: "ws1",
+		AgentId:     "reporter-v2",
+		Schedule:    "@daily",
+	})
+
+	if cronRunner.gotAgent != "reporter" {
+		t.Fatalf("runner invoked with %q, want reporter (resolved from agent_id)", cronRunner.gotAgent)
+	}
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS {
+		t.Fatalf("status = %s, want success", exec.GetStatus())
+	}
+	if exec.GetAgentId() != "reporter-v2" {
+		t.Fatalf("execution agent_id = %q, want reporter-v2", exec.GetAgentId())
+	}
+}
+
+func TestExecuteJobUnknownAgentIDFails(t *testing.T) {
+	cronRunner := &resolvingCronRunner{idToName: map[string]string{}}
+	execRepo := &testExecutionRepo{}
+	s := &Scheduler{
+		ctx:      context.Background(),
+		runner:   cronRunner,
+		execRepo: execRepo,
+		notifier: notify.NewSender(nil),
+	}
+
+	exec := s.executeJob(&agentsv1.CronJob{
+		Name:        "daily-report",
+		WorkspaceId: "ws1",
+		AgentId:     "ghost",
+		AgentName:   "reporter", // must not fall back to the legacy name
+		Schedule:    "@daily",
+	})
+
+	if cronRunner.gotAgent != "" {
+		t.Fatalf("runner was invoked with %q despite unknown agent_id", cronRunner.gotAgent)
+	}
+	if exec.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_ERROR {
+		t.Fatalf("status = %s, want error", exec.GetStatus())
 	}
 }

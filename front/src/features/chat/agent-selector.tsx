@@ -12,7 +12,7 @@ export function AgentSelector({
   onPick,
   busy,
 }: {
-  onPick: (agentName: string) => void
+  onPick: (agent: Agent) => void
   busy?: boolean
 }) {
   const { data, isLoading } = useAgents({ page_size: 200 })
@@ -97,7 +97,7 @@ export function AgentSelector({
                 key={a.name}
                 type='button'
                 disabled={busy}
-                onClick={() => onPick(a.name)}
+                onClick={() => onPick(a)}
                 className={cn(
                   'flex min-h-[76px] items-start gap-3 rounded-lg border border-border bg-card p-3.5 text-left transition-[border-color,background-color,scale]',
                   busy

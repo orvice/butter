@@ -238,6 +238,8 @@ func (m *ForumPost) validate(all bool) error {
 
 	// no validation rules for AuthorAgentName
 
+	// no validation rules for AuthorAgentId
+
 	// no validation rules for AuthorKind
 
 	// no validation rules for InvocationId
@@ -2305,6 +2307,8 @@ func (m *InvokeAgentInThreadRequest) validate(all bool) error {
 	// no validation rules for ModelOverride
 
 	// no validation rules for RecentPostLimit
+
+	// no validation rules for AgentId
 
 	if len(errors) > 0 {
 		return InvokeAgentInThreadRequestMultiError(errors)

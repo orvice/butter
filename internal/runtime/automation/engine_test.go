@@ -35,6 +35,28 @@ func (r *engineRunner) HasAgentInWorkspace(workspaceID, name string) bool {
 	return workspaceID == "ws1" && name == "agent1"
 }
 
+func (r *engineRunner) ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool) {
+	if agentID != "" {
+		// The fake registry maps agent1's id to its name; unknown ids miss
+		// without falling back to the legacy name (runner.Service semantics).
+		if workspaceID == "ws1" && agentID == "agent1-id" {
+			return "agent1", true
+		}
+		return "", false
+	}
+	if r.HasAgentInWorkspace(workspaceID, legacyName) {
+		return legacyName, true
+	}
+	return "", false
+}
+
+func (r *engineRunner) GetAgentIdentity(name string) (string, string, bool) {
+	if name == "agent1" {
+		return "agent1-id", "agent1", true
+	}
+	return "", name, true
+}
+
 func (r *engineRunner) RunTurnSSE(ctx context.Context, _ string, _ []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
 	r.mu.Lock()
 	r.calls++
@@ -525,4 +547,71 @@ func newMinimalEngine() (*Engine, *MemoryRunRepo, *engineRunner, *MemoryStepRunR
 		HTTPClient: &engineHTTPClient{statuses: []int{http.StatusInternalServerError}},
 	})
 	return engine, runRepo, runnerSvc, stepRepo
+}
+
+func TestEngineInvokeAgentResolvesAgentID(t *testing.T) {
+	ctx := context.Background()
+	defRepo := NewMemoryDefinitionRepo()
+	runRepo := NewMemoryRunRepo()
+	stepRepo := NewMemoryStepRunRepo()
+	runnerSvc := &engineRunner{outputs: []string{"agent output"}}
+	engine := NewEngine(defRepo, runRepo, stepRepo, EngineOptions{Runner: runnerSvc})
+
+	automation := &agentsv1.Automation{
+		Name:        "by-id",
+		Enabled:     true,
+		WorkspaceId: "ws1",
+		Trigger:     &agentsv1.AutomationTrigger{Type: agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL},
+		Steps: []*agentsv1.AutomationStep{
+			{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id", Input: "go"}},
+		},
+	}
+	if err := defRepo.Create(ctx, automation); err != nil {
+		t.Fatalf("create automation: %v", err)
+	}
+
+	run, err := engine.RunNow(ctx, "ws1", "by-id", "")
+	if err != nil {
+		t.Fatalf("RunNow: %v", err)
+	}
+	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED {
+		t.Fatalf("status = %s, want succeeded; err=%s", run.GetStatus(), run.GetError())
+	}
+	if runnerSvc.calls != 1 {
+		t.Fatalf("runner calls = %d, want 1 (resolved from agent_id)", runnerSvc.calls)
+	}
+}
+
+func TestEngineInvokeAgentUnknownAgentIDFails(t *testing.T) {
+	ctx := context.Background()
+	defRepo := NewMemoryDefinitionRepo()
+	runRepo := NewMemoryRunRepo()
+	stepRepo := NewMemoryStepRunRepo()
+	runnerSvc := &engineRunner{outputs: []string{"agent output"}}
+	engine := NewEngine(defRepo, runRepo, stepRepo, EngineOptions{Runner: runnerSvc})
+
+	automation := &agentsv1.Automation{
+		Name:        "ghost-id",
+		Enabled:     true,
+		WorkspaceId: "ws1",
+		Trigger:     &agentsv1.AutomationTrigger{Type: agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL},
+		Steps: []*agentsv1.AutomationStep{
+			// agent_name is valid but must not be used: agent_id wins.
+			{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "ghost", AgentName: "agent1", Input: "go"}},
+		},
+	}
+	if err := defRepo.Create(ctx, automation); err != nil {
+		t.Fatalf("create automation: %v", err)
+	}
+
+	run, err := engine.RunNow(ctx, "ws1", "ghost-id", "")
+	if err != nil {
+		t.Fatalf("RunNow: %v", err)
+	}
+	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED {
+		t.Fatalf("status = %s, want failed", run.GetStatus())
+	}
+	if runnerSvc.calls != 0 {
+		t.Fatalf("runner calls = %d, want 0 (unknown agent_id must not fall back)", runnerSvc.calls)
+	}
 }

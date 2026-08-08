@@ -173,10 +173,15 @@ message AgentRuntimeStatus {
   string last_invocation_id = 4;
   // Number of in-flight (RUNNING) invocations for this agent.
   int32 in_flight = 5;
+  // Immutable agent_id of the agent, when assigned.
+  string agent_id = 6;
 }
 
 message GetAgentRuntimeStatusRequest {
+  // Legacy name lookup. Deprecated: use agent_id.
   string name = 1;
+  // Immutable agent_id of the agent. Preferred over name.
+  string agent_id = 2;
 }
 
 message GetAgentRuntimeStatusResponse {
@@ -184,7 +189,10 @@ message GetAgentRuntimeStatusResponse {
 }
 
 message ListAgentRuntimeStatusesRequest {
+  // Legacy name filter. Deprecated: use agent_ids.
   repeated string names = 1;
+  // Filter by immutable agent_ids. Preferred over names.
+  repeated string agent_ids = 2;
 }
 
 message ListAgentRuntimeStatusesResponse {
@@ -203,7 +211,7 @@ message CancelAgentInvocationResponse {
 // --- StreamAgent messages ---
 
 message StreamAgentRequest {
-  // Name of the agent to invoke. Required.
+  // Legacy agent name. Deprecated: use agent_id.
   string agent_name = 1;
   // User prompt to send to the agent. Required, non-empty.
   string message = 2;
@@ -221,6 +229,8 @@ message StreamAgentRequest {
   // empty, `message` is used as before. Validation (MIME whitelist,
   // size and count limits) happens in the application layer.
   repeated InputPart parts = 7;
+  // Immutable agent_id of the agent to invoke. Preferred over agent_name.
+  string agent_id = 8;
 }
 
 // StreamAgentResponse is sent for every observable transition during
@@ -242,6 +252,8 @@ message StreamAgentStarted {
   string invocation_id = 1;
   string session_id = 2;
   string agent_name = 3;
+  // Immutable agent_id of the resolved agent, when assigned.
+  string agent_id = 4;
 }
 
 // StreamAgentRunEvent mirrors a single ADK session.Event. content_json
@@ -258,6 +270,8 @@ message StreamAgentRunEvent {
   bool final_response = 8;
   string content_json = 9;
   google.protobuf.Timestamp timestamp = 10;
+  // Immutable agent_id of the resolved agent, when assigned.
+  string agent_id = 11;
 }
 
 // StreamAgentTextDelta is emitted for partial assistant-text chunks so
@@ -267,6 +281,8 @@ message StreamAgentTextDelta {
   string session_id = 2;
   string agent_name = 3;
   string text = 4;
+  // Immutable agent_id of the resolved agent, when assigned.
+  string agent_id = 5;
 }
 
 // StreamAgentFinal is sent once after the runner returns the final
@@ -276,6 +292,8 @@ message StreamAgentFinal {
   string session_id = 2;
   string agent_name = 3;
   string response = 4;
+  // Immutable agent_id of the resolved agent, when assigned.
+  string agent_id = 5;
 }
 
 message GetAgentRequest {
@@ -395,7 +413,7 @@ message MigrateAgentsV2Response {
 }
 
 message InvokeAgentRequest {
-  // Name of the agent to invoke (required).
+  // Legacy agent name. Deprecated: use agent_id.
   string agent_name = 1;
   // Input message text (required).
   string input = 2;
@@ -407,6 +425,8 @@ message InvokeAgentRequest {
   string session_id = 5;
   // Optional model override alias or full name.
   string model_override = 6;
+  // Immutable agent_id of the agent to invoke. Preferred over agent_name.
+  string agent_id = 7;
 }
 
 message InvokeAgentResponse {
@@ -454,12 +474,20 @@ message Invocation {
   string model_override = 13;
   // @gotags: bson:"source,omitempty"
   string source = 14;
+  // Immutable agent_id of the invoked agent. Empty on historical records
+  // written before the Agent ID migration.
+  // @gotags: bson:"agent_id,omitempty"
+  string agent_id = 15;
+  // Display-name snapshot taken at invocation time so historical rows stay
+  // readable after renames.
+  // @gotags: bson:"agent_display_name,omitempty"
+  string agent_display_name = 16;
   // @gotags: bson:"workspace_id,omitempty"
   string workspace_id = 100;
 }
 
 message ListAgentInvocationsRequest {
-  // Optional: filter by agent name. Empty returns all agents.
+  // Legacy: filter by agent name. Deprecated: use agent_id.
   string agent_name = 1;
   // Optional: filter by session id.
   string session_id = 2;
@@ -467,6 +495,8 @@ message ListAgentInvocationsRequest {
   int32 page_size = 3;
   // Pagination token from a previous response.
   string page_token = 4;
+  // Optional: filter by immutable agent_id. Preferred over agent_name.
+  string agent_id = 5;
 }
 
 message ListAgentInvocationsResponse {
@@ -889,7 +919,7 @@ message DeleteSessionRequest {
 message DeleteSessionResponse {}
 
 message ReplySessionRequest {
-  // Name of the agent to invoke.
+  // Legacy agent name. Deprecated: use agent_id.
   string agent_name = 1;
   // App name (channel name) for session lookup.
   string app_name = 2;
@@ -904,6 +934,8 @@ message ReplySessionRequest {
   // empty, `message` is used as before. Validation (MIME whitelist,
   // size and count limits) happens in the application layer.
   repeated InputPart parts = 7;
+  // Immutable agent_id of the agent to invoke. Preferred over agent_name.
+  string agent_id = 8;
 }
 
 message ReplySessionResponse {

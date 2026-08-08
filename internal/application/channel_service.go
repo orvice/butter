@@ -22,9 +22,10 @@ type ChannelStatusProvider interface {
 }
 
 type ChannelServiceServer struct {
-	repo    configrepo.ChannelRepository
-	runtime ConfigRuntime
-	manager ChannelStatusProvider
+	repo      configrepo.ChannelRepository
+	agentRepo configrepo.AgentRepository
+	runtime   ConfigRuntime
+	manager   ChannelStatusProvider
 }
 
 func NewChannelServiceServer(repo configrepo.ChannelRepository) *ChannelServiceServer {
@@ -37,6 +38,29 @@ func (s *ChannelServiceServer) SetRuntime(runtime ConfigRuntime) {
 
 func (s *ChannelServiceServer) SetChannelManager(m ChannelStatusProvider) {
 	s.manager = m
+}
+
+// SetAgentRepo wires the agent repository used to validate and normalize the
+// channel's agent binding on create/update.
+func (s *ChannelServiceServer) SetAgentRepo(repo configrepo.AgentRepository) {
+	s.agentRepo = repo
+}
+
+// normalizeChannelAgent validates the channel's agent reference and rewrites
+// it to the canonical (agent_id, runtime name) pair. agent_id is preferred;
+// the legacy agent_name path backfills a missing agent_id when the agent has
+// one, so channel records converge on ID references as they are touched.
+func (s *ChannelServiceServer) normalizeChannelAgent(ctx context.Context, wsID string, ch *agentsv1.AgentChannel) error {
+	if s.agentRepo == nil {
+		return nil
+	}
+	id, name, err := normalizeAgentRefWithRepo(ctx, s.agentRepo, wsID, ch.GetAgentId(), ch.GetAgentName(), "channel")
+	if err != nil {
+		return err
+	}
+	ch.AgentId = id
+	ch.AgentName = name
+	return nil
 }
 
 func (s *ChannelServiceServer) ListChannels(ctx context.Context, _ *connect.Request[agentsv1.ListChannelsRequest]) (*connect.Response[agentsv1.ListChannelsResponse], error) {
@@ -88,6 +112,9 @@ func (s *ChannelServiceServer) CreateChannel(ctx context.Context, req *connect.R
 	if err := validateChannelTriggers(req.Msg.GetChannel()); err != nil {
 		return nil, err
 	}
+	if err := s.normalizeChannelAgent(ctx, wsID, req.Msg.GetChannel()); err != nil {
+		return nil, err
+	}
 	logger := log.FromContext(ctx)
 	logger.Info("creating channel",
 		"workspace_id", wsID,
@@ -123,6 +150,9 @@ func (s *ChannelServiceServer) UpdateChannel(ctx context.Context, req *connect.R
 		return nil, err
 	}
 	if err := validateChannelTriggers(req.Msg.GetChannel()); err != nil {
+		return nil, err
+	}
+	if err := s.normalizeChannelAgent(ctx, wsID, req.Msg.GetChannel()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)

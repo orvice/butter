@@ -19,11 +19,23 @@ type replyTestRunner struct {
 	gotAgent string
 	gotParts []*genai.Part
 	response string
+	idToName map[string]string
 }
 
 func (r *replyTestRunner) Run(_ context.Context, agentName string, parts []*genai.Part, _ string, _ *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (string, error) {
 	r.gotAgent, r.gotParts = agentName, parts
 	return r.response, nil
+}
+
+func (r *replyTestRunner) ResolveAgentRef(_, agentID, legacyName string) (string, bool) {
+	if agentID != "" {
+		name, ok := r.idToName[agentID]
+		return name, ok
+	}
+	if legacyName == "" {
+		return "", false
+	}
+	return legacyName, true
 }
 
 func newReplySessionTestService(fake *replyTestRunner) *SessionServiceServer {
@@ -146,5 +158,47 @@ func TestReplySession_OversizedMessageRejected(t *testing.T) {
 	assertInvalidArgument(t, err)
 	if fake.gotParts != nil {
 		t.Fatalf("runner must not be invoked for rejected input, got %d parts", len(fake.gotParts))
+	}
+}
+
+func TestReplySession_ByAgentID(t *testing.T) {
+	fake := &replyTestRunner{response: "resumed", idToName: map[string]string{"chat-v2": "chat-agent"}}
+	svc := newReplySessionTestService(fake)
+
+	resp, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+		AgentId:   "chat-v2",
+		AppName:   "api",
+		UserId:    "u1",
+		SessionId: "s1",
+		Message:   "continue",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Msg.GetResponse() != "resumed" {
+		t.Fatalf("response = %q, want resumed", resp.Msg.GetResponse())
+	}
+	if fake.gotAgent != "chat-agent" {
+		t.Fatalf("runner invoked with %q, want chat-agent (resolved from agent_id)", fake.gotAgent)
+	}
+}
+
+func TestReplySession_UnknownAgentIDIsNotFound(t *testing.T) {
+	fake := &replyTestRunner{idToName: map[string]string{}}
+	svc := newReplySessionTestService(fake)
+
+	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+		AgentId:   "ghost",
+		AgentName: "chat-agent", // must not fall back to the legacy name
+		AppName:   "api",
+		UserId:    "u1",
+		SessionId: "s1",
+		Message:   "continue",
+	}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("err = %v, want CodeNotFound", err)
+	}
+	if fake.gotAgent != "" {
+		t.Fatalf("runner was invoked with %q despite unknown agent_id", fake.gotAgent)
 	}
 }

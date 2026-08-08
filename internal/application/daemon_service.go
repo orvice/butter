@@ -294,6 +294,7 @@ func (s *DaemonServiceServer) ListDaemonTasks(ctx context.Context, req *connect.
 				DaemonName:      c.Info.GetName(),
 				AcpRuntime:      acpRuntime,
 				AgentName:       snap.AgentName,
+				AgentId:         snap.AgentID,
 				CurrentStep:     snap.CurrentStep,
 				Progress:        snap.Progress,
 				WorkspaceId:     snap.WorkspaceID,

@@ -1248,16 +1248,9 @@ func (m *AutomationInvokeAgentStep) validate(all bool) error {
 
 	var errors []error
 
-	if utf8.RuneCountInString(m.GetAgentName()) < 1 {
-		err := AutomationInvokeAgentStepValidationError{
-			field:  "AgentName",
-			reason: "value length must be at least 1 runes",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for AgentName
+
+	// no validation rules for AgentId
 
 	// no validation rules for Input
 
@@ -2101,6 +2094,8 @@ func (m *AutomationRun) validate(all bool) error {
 	// no validation rules for SessionId
 
 	// no validation rules for AgentName
+
+	// no validation rules for AgentId
 
 	// no validation rules for WorkspaceId
 

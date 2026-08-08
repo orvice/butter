@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import type { SessionInfo } from '@/types/api'
+import type { Agent, SessionInfo } from '@/types/api'
 import { toast } from 'sonner'
+import { useAgents } from '@/api/agents'
 import { useCreateSession, useDeleteSession, useSessions } from '@/api/sessions'
 import { CHAT_APP_NAME } from '@/lib/constants'
-import { sessionAgentName, sessionTitle } from '@/lib/session-title'
+import {
+  sessionAgentID,
+  sessionAgentName,
+  sessionTitle,
+} from '@/lib/session-title'
 import { useAuth } from '@/hooks/use-auth'
 import { DeleteDialog } from '@/components/delete-dialog'
 import { Header } from '@/components/layout/header'
@@ -43,6 +48,14 @@ export function ChatPage() {
   const requestedSessionId = search.session ?? null
   const requestedAgent = search.agent ?? null
 
+  // The `agent` search param is an opaque ref: an immutable agent_id, or a
+  // plain name for old links / agents without an ID. Resolving it needs the
+  // agent list, so only fetch it while a quick-start link is pending.
+  const agentsQuery = useAgents(
+    { page_size: 200 },
+    { enabled: !!(wantsNewChat && requestedAgent && userId) }
+  )
+
   // Quick-start links (/chat?new=1&agent=x) create the session immediately.
   // The guard ref makes this fire once; the redirect replaces the URL so a
   // refresh lands on the created session instead of creating another one.
@@ -50,10 +63,15 @@ export function ChatPage() {
   useEffect(() => {
     if (!wantsNewChat || !requestedAgent || !userId || autoCreatedRef.current)
       return
+    const agents = agentsQuery.data?.agents
+    if (!agents) return
     autoCreatedRef.current = true
-    void handleCreate(requestedAgent)
+    const match =
+      agents.find((a) => a.agent_id === requestedAgent) ??
+      agents.find((a) => a.name === requestedAgent)
+    void handleCreate(match ?? { name: requestedAgent })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantsNewChat, requestedAgent, userId])
+  }, [wantsNewChat, requestedAgent, userId, agentsQuery.data])
 
   const activeSession = useMemo(() => {
     if (wantsNewChat) return null
@@ -66,8 +84,11 @@ export function ChatPage() {
   const activeAgent = activeSession
     ? (sessionAgentName(activeSession.state) ?? null)
     : null
+  const activeAgentId = activeSession
+    ? (sessionAgentID(activeSession.state) ?? null)
+    : null
 
-  async function handleCreate(agentName: string) {
+  async function handleCreate(agent: Pick<Agent, 'name' | 'agent_id'>) {
     if (!userId) {
       toast.error('Missing user context; please re-login.')
       return
@@ -76,7 +97,10 @@ export function ChatPage() {
       const resp = await createMutation.mutateAsync({
         app_name: CHAT_APP_NAME,
         user_id: userId,
-        state: { agent_name: agentName },
+        state: {
+          agent_name: agent.name,
+          ...(agent.agent_id ? { agent_id: agent.agent_id } : {}),
+        },
       })
       navigate({
         to: '/chat',
@@ -136,7 +160,7 @@ export function ChatPage() {
         <div className='flex flex-1 scrollbar-thin overflow-y-auto px-4 py-8 sm:px-6'>
           <div className='my-auto w-full'>
             <AgentSelector
-              onPick={(name) => void handleCreate(name)}
+              onPick={(agent) => void handleCreate(agent)}
               busy={createMutation.isPending}
             />
           </div>
@@ -150,6 +174,7 @@ export function ChatPage() {
           session={activeSession}
           userId={userId}
           agentName={activeAgent}
+          agentId={activeAgentId}
           onDelete={() => setDeleteTarget(activeSession)}
         />
         <DeleteDialog

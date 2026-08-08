@@ -112,7 +112,11 @@ function AgentCard({
             <MoreVertical className='size-4' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' sideOffset={6}>
-            <DropdownMenuItem onClick={() => navigate({ to: '/agents/$name/edit', params: { name: agent.name } })}>
+            <DropdownMenuItem
+              onClick={() =>
+                navigate({ to: '/agents/$name/edit', params: { name: agent.agent_id || agent.name } })
+              }
+            >
               <Pencil /> Edit
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onRun}>
@@ -175,7 +179,7 @@ function AgentCard({
           {lastRun ? `Last run ${lastRun}` : 'Not run yet'}
         </span>
         <Button size='sm' asChild>
-          <Link to='/chat' search={{ new: 1, agent: agent.name }}>
+          <Link to='/chat' search={{ new: 1, agent: agent.agent_id || agent.name }}>
             <MessageSquarePlus />
             Start Chat
           </Link>
@@ -188,12 +192,23 @@ function AgentCard({
 export function AgentList() {
   const { data, isLoading } = useAgents()
   const agents = useMemo(() => data?.agents ?? [], [data?.agents])
-  const names = useMemo(() => agents.map((a) => a.name), [agents])
-  const { data: runtimeData } = useAgentRuntimeStatuses(names)
+  // Query by immutable agent_id when assigned; fall back to name for agents
+  // that have not been migrated yet.
+  const statusParams = useMemo(
+    () => ({
+      agent_ids: agents.filter((a) => a.agent_id).map((a) => a.agent_id!),
+      names: agents.filter((a) => !a.agent_id).map((a) => a.name),
+    }),
+    [agents],
+  )
+  const { data: runtimeData } = useAgentRuntimeStatuses(statusParams)
 
   const runtimeMap = useMemo(() => {
     const m = new Map<string, AgentRuntimeStatus>()
-    for (const s of runtimeData?.statuses ?? []) m.set(s.name, s)
+    for (const s of runtimeData?.statuses ?? []) {
+      if (s.agent_id) m.set(s.agent_id, s)
+      if (s.name) m.set(s.name, s)
+    }
     return m
   }, [runtimeData])
 
@@ -203,7 +218,7 @@ export function AgentList() {
 
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<RuntimeFilter>('all')
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null)
   const [assignTarget, setAssignTarget] = useState<string | null>(null)
   const [readinessOpen, setReadinessOpen] = useState(false)
   const [invokeTarget, setInvokeTarget] = useState<Agent | null>(null)
@@ -214,7 +229,7 @@ export function AgentList() {
     () =>
       agents.filter(
         (a) =>
-          (filter === 'all' || runtimeStatusOf(runtimeMap.get(a.name)) === filter) &&
+          (filter === 'all' || runtimeStatusOf(runtimeMap.get(a.agent_id || a.name)) === filter) &&
           (a.name.toLowerCase().includes(query.toLowerCase()) ||
             (a.description ?? '').toLowerCase().includes(query.toLowerCase())),
       ),
@@ -325,10 +340,10 @@ export function AgentList() {
               <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
                 {filtered.map((a) => (
                   <AgentCard
-                    key={a.name}
+                    key={a.agent_id || a.name}
                     agent={a}
-                    runtime={runtimeMap.get(a.name)}
-                    onDelete={() => setDeleteTarget(a.name)}
+                    runtime={runtimeMap.get(a.agent_id || a.name)}
+                    onDelete={() => setDeleteTarget(a)}
                     onRun={() => {
                       setInvokeTarget(a)
                       setInvokeResult(null)
@@ -360,11 +375,11 @@ export function AgentList() {
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title='Delete Agent'
-        description={`Delete "${deleteTarget}"? This action cannot be undone.`}
+        description={`Delete "${deleteTarget?.name}"? This action cannot be undone.`}
         loading={deleteMutation.isPending}
         onConfirm={() => {
           if (deleteTarget) {
-            deleteMutation.mutate(deleteTarget, {
+            deleteMutation.mutate({ name: deleteTarget.name, agent_id: deleteTarget.agent_id }, {
               onSuccess: () => {
                 toast.success('Agent deleted')
                 setDeleteTarget(null)
@@ -428,7 +443,11 @@ export function AgentList() {
                   onClick={() =>
                     invokeTarget &&
                     invokeMutation.mutate(
-                      { agent_name: invokeTarget.name, input: invokeInput.trim() },
+                      {
+                        agent_name: invokeTarget.agent_id ? undefined : invokeTarget.name,
+                        agent_id: invokeTarget.agent_id,
+                        input: invokeInput.trim(),
+                      },
                       {
                         onSuccess: (res) => setInvokeResult(res),
                         onError: (err) => toast.error(err.message),

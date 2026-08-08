@@ -41,6 +41,15 @@ func (s *stubAgentRepo) GetAgent(_ context.Context, _ string, name string) (*age
 	return nil, configrepo.ErrNotFound
 }
 
+func (s *stubAgentRepo) GetAgentByID(_ context.Context, _ string, agentID string) (*agentsv1.Agent, error) {
+	for _, ag := range s.agents {
+		if ag.GetAgentId() != "" && ag.GetAgentId() == agentID {
+			return ag, nil
+		}
+	}
+	return nil, configrepo.ErrNotFound
+}
+
 func setupOpenAIRouter(repo configrepo.AgentRepository, authenticated bool) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

@@ -11,9 +11,12 @@ import (
 // ErrNotFound is returned by Get when an invocation does not exist.
 var ErrNotFound = errors.New("invocation not found")
 
-// ListFilter narrows results returned by List.
+// ListFilter narrows results returned by List. AgentID filters by the
+// immutable agent_id; AgentName is the legacy filter kept so historical
+// records written before the Agent ID migration stay reachable.
 type ListFilter struct {
 	WorkspaceID string
+	AgentID     string
 	AgentName   string
 	SessionID   string
 }

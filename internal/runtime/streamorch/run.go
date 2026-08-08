@@ -18,11 +18,21 @@ type Runner interface {
 
 // RunIdentity carries the identifiers that travel together across every
 // frame of one streaming run, so Sink implementations and callers pass one
-// value instead of the same three strings repeated per method.
+// value instead of the same strings repeated per method.
 type RunIdentity struct {
 	InvocationID string
 	SessionID    string
 	AgentName    string
+	// AgentID is the resolved agent's immutable agent_id; empty when the
+	// agent has not been assigned one yet.
+	AgentID string
+}
+
+// AgentRef identifies the resolved agent for a streaming run: the registered
+// runtime name plus its immutable agent_id (empty when not yet assigned).
+type AgentRef struct {
+	Name string
+	ID   string
 }
 
 // Sink receives ordered frames for a streaming run. Implementations are not
@@ -38,11 +48,13 @@ type Sink interface {
 // into ordered Sink frames, and returns the raw run error (or the first sink
 // error) on failure. Callers map the returned error to their own transport's
 // error scheme.
-func Run(ctx context.Context, r Runner, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, sink Sink) error {
+func Run(ctx context.Context, r Runner, agentRef AgentRef, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, sink Sink) error {
+	agentName := agentRef.Name
 	id := RunIdentity{
 		InvocationID: ctxInfo.GetUuid(),
 		SessionID:    ctxInfo.GetSessionId(),
 		AgentName:    agentName,
+		AgentID:      agentRef.ID,
 	}
 
 	if err := sink.Started(id); err != nil {

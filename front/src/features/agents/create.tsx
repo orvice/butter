@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ArrowLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, ChevronRight, TriangleAlert } from 'lucide-react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/form'
 import { Page, PageActions, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { enumLabel } from '@/lib/constants'
+import { suggestAgentID, validateAgentID } from './agent-id'
 import type { AgentFileMountPermission, AgentType } from '@/types/api'
 
 const MOUNT_PERMISSIONS = [
@@ -38,6 +40,10 @@ const MOUNT_PERMISSIONS = [
 
 const agentSchema = z.object({
   name: z.string().min(1, 'Name is required').refine((v) => v !== 'user', "Name cannot be 'user'"),
+  agent_id: z.string().superRefine((value, ctx) => {
+    const error = validateAgentID(value)
+    if (error) ctx.addIssue({ code: 'custom', message: error })
+  }),
   description: z.string().optional(),
   type: z.string(),
   enable_a2a: z.boolean(),
@@ -68,6 +74,7 @@ export function AgentCreate() {
     resolver: zodResolver(agentSchema),
     defaultValues: {
       name: '',
+      agent_id: '',
       description: '',
       type: 'AGENT_TYPE_LLM',
       enable_a2a: false,
@@ -83,10 +90,19 @@ export function AgentCreate() {
   const agentName = useWatch({ control: form.control, name: 'name' })
   const iconUrl = useWatch({ control: form.control, name: 'icon_url' })
 
+  // Suggest the slug from the name as the user types, until the user edits
+  // the Agent ID field themselves.
+  const [agentIdTouched, setAgentIdTouched] = useState(false)
+  useEffect(() => {
+    if (agentIdTouched) return
+    form.setValue('agent_id', suggestAgentID(agentName ?? ''))
+  }, [agentIdTouched, agentName, form])
+
   function onSubmit(values: AgentFormValues) {
     createMutation.mutate(
       {
         name: values.name,
+        agent_id: values.agent_id,
         description: values.description,
         type: values.type as AgentType,
         enable_a2a: values.enable_a2a,
@@ -135,10 +151,39 @@ export function AgentCreate() {
               <FormField control={form.control} name='name' render={({ field }) => (
                 <FormItem>
                   <FormLabel>Name</FormLabel>
-                  <FormControl><Input placeholder='my-agent' {...field} /></FormControl>
+                  <FormControl><Input placeholder='My Agent' {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
+              <FormField control={form.control} name='agent_id' render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Agent ID</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='my-agent'
+                      autoComplete='off'
+                      spellCheck={false}
+                      className='font-mono'
+                      {...field}
+                      onChange={(e) => {
+                        setAgentIdTouched(true)
+                        field.onChange(e)
+                      }}
+                    />
+                  </FormControl>
+                  <p className='text-xs text-muted-foreground'>
+                    1–64 lowercase letters, digits, or hyphens. Must be unique in this workspace.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <div className='flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-700 dark:text-amber-400'>
+                <TriangleAlert className='mt-0.5 size-4 shrink-0' />
+                <span>
+                  The Agent ID is <strong>immutable</strong> — once assigned it can never be changed or
+                  reused. Choose carefully before creating.
+                </span>
+              </div>
               <FormField control={form.control} name='description' render={({ field }) => (
                 <FormItem>
                   <FormLabel>Description</FormLabel>

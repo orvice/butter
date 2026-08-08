@@ -131,6 +131,7 @@ function channelFromProto(ch: PbAgentChannel): AgentChannel {
   return {
     name: ch.name,
     agent_name: ch.agentName,
+    agent_id: ch.agentId || undefined,
     platform: platformFromProto(ch.platform),
     enabled: ch.enabled,
     triggers: ch.triggers.map(triggerFromProto),
@@ -145,6 +146,7 @@ function channelToProto(ch: AgentChannel): PbAgentChannel {
   return create(AgentChannelSchema, {
     name: ch.name,
     agentName: ch.agent_name,
+    agentId: ch.agent_id ?? "",
     platform: platformToProto(ch.platform),
     enabled: ch.enabled ?? false,
     triggers: (ch.triggers ?? []).map(triggerToProto),

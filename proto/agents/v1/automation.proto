@@ -147,8 +147,14 @@ enum AutomationStepType {
 }
 
 message AutomationInvokeAgentStep {
+  // Legacy agent name. Deprecated: use agent_id. Retained so historical
+  // records stay readable; the service layer backfills agent_id.
   // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty" bson:"agent_name,omitempty"
-  string agent_name = 1 [(validate.rules).string.min_len = 1];
+  string agent_name = 1;
+
+  // Immutable agent_id of the agent to invoke. Preferred over agent_name.
+  // @gotags: json:"agent_id,omitempty" yaml:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 4;
 
   // @gotags: json:"input,omitempty" yaml:"input,omitempty" bson:"input,omitempty"
   string input = 2;
@@ -264,9 +270,15 @@ message AutomationRun {
   // @gotags: json:"session_id,omitempty" yaml:"session_id,omitempty" bson:"session_id,omitempty"
   string session_id = 12;
 
-  // Name of the agent that paused; the agent a reply must address.
+  // Legacy name of the agent that paused. Historical records written before
+  // the Agent ID migration carry only this field.
   // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty" bson:"agent_name,omitempty"
   string agent_name = 13;
+
+  // Immutable agent_id of the agent that paused; the agent a reply must
+  // address. Preferred over agent_name.
+  // @gotags: json:"agent_id,omitempty" yaml:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 14;
 
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   string workspace_id = 100;

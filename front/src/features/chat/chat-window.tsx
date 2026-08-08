@@ -43,6 +43,8 @@ interface ChatWindowProps {
   session: SessionInfo | null;
   userId: string;
   agentName: string | null;
+  /** Immutable agent_id from session state; preferred over agentName when set. */
+  agentId?: string | null;
   onDelete?: () => void;
 }
 
@@ -57,7 +59,7 @@ interface ChatRunState {
   invocationId: string | null;
 }
 
-export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowProps) {
+export function ChatWindow({ session, userId, agentName, agentId, onDelete }: ChatWindowProps) {
   const sessionId = session?.session_id ?? "";
   const [draft, setDraft] = useState("");
   const {
@@ -205,6 +207,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
       await streamChat(
         {
           agent_name: agentName,
+          agent_id: agentId ?? undefined,
           app_name: APP_NAME,
           user_id: userId,
           session_id: sessionId,
@@ -261,6 +264,7 @@ export function ChatWindow({ session, userId, agentName, onDelete }: ChatWindowP
         try {
           await reply.mutateAsync({
             agent_name: agentName,
+            agent_id: agentId ?? undefined,
             app_name: APP_NAME,
             user_id: userId,
             session_id: sessionId,

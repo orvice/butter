@@ -67,7 +67,7 @@ func TestRun_TextOnlyPartialEventEmitsOnlyDelta(t *testing.T) {
 	sink := &spySink{}
 	ctxInfo := &agentsv1.ContextInfo{Uuid: "inv-1", SessionId: "sess-1"}
 
-	if err := Run(context.Background(), fake, "chat-agent", []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink); err != nil {
+	if err := Run(context.Background(), fake, AgentRef{Name: "chat-agent"}, []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -94,7 +94,7 @@ func TestRun_MixedEventEmitsDeltaThenRunEvent(t *testing.T) {
 	sink := &spySink{}
 	ctxInfo := &agentsv1.ContextInfo{Uuid: "inv-1", SessionId: "sess-1"}
 
-	if err := Run(context.Background(), fake, "chat-agent", []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink); err != nil {
+	if err := Run(context.Background(), fake, AgentRef{Name: "chat-agent"}, []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -118,7 +118,7 @@ func TestRun_CancellationMidStreamStopsBeforeFinal(t *testing.T) {
 	sink := &spySink{}
 	ctxInfo := &agentsv1.ContextInfo{Uuid: "inv-1", SessionId: "sess-1"}
 
-	err := Run(context.Background(), fake, "chat-agent", []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
+	err := Run(context.Background(), fake, AgentRef{Name: "chat-agent"}, []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got %v", err)
 	}
@@ -139,7 +139,7 @@ func TestRun_ErrorPropagatesWithoutFinal(t *testing.T) {
 	sink := &spySink{}
 	ctxInfo := &agentsv1.ContextInfo{Uuid: "inv-1", SessionId: "sess-1"}
 
-	err := Run(context.Background(), fake, "chat-agent", []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
+	err := Run(context.Background(), fake, AgentRef{Name: "chat-agent"}, []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
 	if err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("expected error containing %q, got %v", "boom", err)
 	}
@@ -156,7 +156,7 @@ func TestRun_StartedFailureShortCircuitsBeforeRunnerCalled(t *testing.T) {
 	sink := &spySink{startErr: sinkErr}
 	ctxInfo := &agentsv1.ContextInfo{Uuid: "inv-1", SessionId: "sess-1"}
 
-	err := Run(context.Background(), fake, "chat-agent", []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
+	err := Run(context.Background(), fake, AgentRef{Name: "chat-agent"}, []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
 	if !errors.Is(err, sinkErr) {
 		t.Fatalf("expected the sink's Started error to propagate unchanged, got %v", err)
 	}
@@ -173,7 +173,7 @@ func TestRun_StartedThenFinalWithNoEvents(t *testing.T) {
 	sink := &spySink{}
 	ctxInfo := &agentsv1.ContextInfo{Uuid: "inv-1", SessionId: "sess-1"}
 
-	err := Run(context.Background(), fake, "chat-agent", []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
+	err := Run(context.Background(), fake, AgentRef{Name: "chat-agent"}, []*genai.Part{{Text: "hi"}}, "", ctxInfo, sink)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

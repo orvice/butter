@@ -33,6 +33,8 @@ type AutomationServiceServer struct {
 
 type automationAgentValidator interface {
 	HasAgentInWorkspace(workspaceID, name string) bool
+	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
+	GetAgentIdentity(name string) (agentID, displayName string, ok bool)
 }
 
 func NewAutomationServiceServer() *AutomationServiceServer {
@@ -307,11 +309,31 @@ func validateAutomation(a *agentsv1.Automation, agent automationAgentValidator) 
 		}
 		switch step.GetType() {
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT:
-			if strings.TrimSpace(step.GetInvokeAgent().GetAgentName()) == "" {
-				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_name", i))
+			invoke := step.GetInvokeAgent()
+			if strings.TrimSpace(invoke.GetAgentId()) == "" && strings.TrimSpace(invoke.GetAgentName()) == "" {
+				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_id", i))
 			}
-			if agent != nil && !agent.HasAgentInWorkspace(a.GetWorkspaceId(), step.GetInvokeAgent().GetAgentName()) {
-				return connectx.InvalidArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_name", i), fmt.Sprintf("agent %q does not exist in workspace %q", step.GetInvokeAgent().GetAgentName(), a.GetWorkspaceId()))
+			if agent != nil {
+				// agent_id preferred; a set-but-unknown id never falls back to
+				// the legacy name. On success the stored step is normalized:
+				// agent_name carries the resolved runtime name and a missing
+				// agent_id is backfilled when the agent has one.
+				name, ok := agent.ResolveAgentRef(a.GetWorkspaceId(), strings.TrimSpace(invoke.GetAgentId()), strings.TrimSpace(invoke.GetAgentName()))
+				if !ok {
+					ref := strings.TrimSpace(invoke.GetAgentId())
+					field := "agent_id"
+					if ref == "" {
+						ref = strings.TrimSpace(invoke.GetAgentName())
+						field = "agent_name"
+					}
+					return connectx.InvalidArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.%s", i, field), fmt.Sprintf("agent %q does not exist in workspace %q", ref, a.GetWorkspaceId()))
+				}
+				invoke.AgentName = name
+				if strings.TrimSpace(invoke.GetAgentId()) == "" {
+					if id, _, ok := agent.GetAgentIdentity(name); ok {
+						invoke.AgentId = id
+					}
+				}
 			}
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CALL_WEBHOOK:
 			if strings.TrimSpace(step.GetCallWebhook().GetUrl()) == "" {

@@ -51,6 +51,9 @@ func (s *Store) List(_ context.Context, filter invocation.ListFilter, pageSize i
 		if filter.WorkspaceID != "" && inv.GetWorkspaceId() != filter.WorkspaceID {
 			continue
 		}
+		if filter.AgentID != "" && inv.GetAgentId() != filter.AgentID {
+			continue
+		}
 		if filter.AgentName != "" && inv.GetAgentName() != filter.AgentName {
 			continue
 		}

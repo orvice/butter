@@ -31,8 +31,14 @@ message ForumThread {
   string created_by = 4;
   // @gotags: bson:"status,omitempty"
   string status = 5;
+  // Legacy agent names. Deprecated: use agent_ids. Retained so historical
+  // records stay readable; the service layer backfills agent_ids.
   // @gotags: bson:"agent_names,omitempty"
   repeated string agent_names = 6;
+  // Immutable agent_ids of the participating agents. Preferred over
+  // agent_names.
+  // @gotags: bson:"agent_ids,omitempty"
+  repeated string agent_ids = 11;
   // @gotags: bson:"metadata,omitempty"
   map<string, string> metadata = 7;
   // @gotags: bson:"created_at,omitempty"
@@ -54,8 +60,13 @@ message ForumPost {
   string body = 3;
   // @gotags: bson:"author_user_id,omitempty"
   string author_user_id = 4;
+  // Legacy author agent name. Historical records written before the Agent ID
+  // migration carry only this field.
   // @gotags: bson:"author_agent_name,omitempty"
   string author_agent_name = 5;
+  // Immutable agent_id of the authoring agent, when known.
+  // @gotags: bson:"author_agent_id,omitempty"
+  string author_agent_id = 11;
   // @gotags: bson:"author_kind,omitempty"
   string author_kind = 6;
   // @gotags: bson:"invocation_id,omitempty"
@@ -105,9 +116,12 @@ message GetThreadResponse {
 message CreateThreadRequest {
   string title = 1;
   string body = 2;
+  // Legacy agent names. Deprecated: use agent_ids.
   repeated string agent_names = 3;
   map<string, string> metadata = 4;
   repeated string labels = 5;
+  // Immutable agent_ids of participating agents. Preferred over agent_names.
+  repeated string agent_ids = 6;
 }
 
 message CreateThreadResponse {
@@ -120,9 +134,12 @@ message UpdateThreadRequest {
   string title = 2;
   string body = 3;
   string status = 4;
+  // Legacy agent names. Deprecated: use agent_ids.
   repeated string agent_names = 5;
   map<string, string> metadata = 6;
   repeated string labels = 7;
+  // Immutable agent_ids of participating agents. Preferred over agent_names.
+  repeated string agent_ids = 8;
 }
 
 message UpdateThreadResponse {
@@ -154,10 +171,13 @@ message DeletePostResponse {}
 
 message InvokeAgentInThreadRequest {
   string thread_id = 1;
+  // Legacy agent name. Deprecated: use agent_id.
   string agent_name = 2;
   string message = 3;
   string model_override = 4;
   int32 recent_post_limit = 5;
+  // Immutable agent_id of the agent to invoke. Preferred over agent_name.
+  string agent_id = 6;
 }
 
 message InvokeAgentInThreadResponse {
