@@ -29,6 +29,7 @@ func setupTestRouter(cfg *config.AppConfig) *gin.Engine {
 func TestAgentCard_EnabledAgent(t *testing.T) {
 	cfg := newTestConfig(agentsv1.Agent{
 		Name:        "test-agent",
+		AgentId:     "test-agent",
 		Description: "A test agent",
 		EnableA2A:   true,
 	})
@@ -57,6 +58,7 @@ func TestAgentCard_EnabledAgent(t *testing.T) {
 func TestAgentCard_DisabledAgent(t *testing.T) {
 	cfg := newTestConfig(agentsv1.Agent{
 		Name:      "disabled-agent",
+		AgentId:   "disabled-agent",
 		EnableA2A: false,
 	})
 	router := setupTestRouter(cfg)
@@ -86,6 +88,7 @@ func TestAgentCard_NonExistentAgent(t *testing.T) {
 func TestTaskSend_NoRunner(t *testing.T) {
 	cfg := newTestConfig(agentsv1.Agent{
 		Name:      "test-agent",
+		AgentId:   "test-agent",
 		EnableA2A: true,
 	})
 	router := setupTestRouter(cfg)
@@ -151,6 +154,7 @@ func TestTaskSend_UnknownAgent(t *testing.T) {
 func TestTaskSend_InvalidMethod(t *testing.T) {
 	cfg := newTestConfig(agentsv1.Agent{
 		Name:      "test-agent",
+		AgentId:   "test-agent",
 		EnableA2A: true,
 	})
 	gin.SetMode(gin.TestMode)
@@ -185,6 +189,7 @@ func TestTaskSend_UnauthorizedWithoutToken(t *testing.T) {
 		APIToken: "secret-token",
 		Agents: []agentsv1.Agent{{
 			Name:      "test-agent",
+			AgentId:   "test-agent",
 			EnableA2A: true,
 		}},
 	}

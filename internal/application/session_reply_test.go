@@ -27,15 +27,18 @@ func (r *replyTestRunner) Run(_ context.Context, agentName string, parts []*gena
 	return r.response, nil
 }
 
-func (r *replyTestRunner) ResolveAgentRef(_, agentID, legacyName string) (string, bool) {
-	if agentID != "" {
-		name, ok := r.idToName[agentID]
-		return name, ok
-	}
-	if legacyName == "" {
+// ResolveAgentRef resolves agent_id to a runtime name. nil idToName is
+// identity mode; a non-nil map resolves only its entries (so a test can
+// assert a miss).
+func (r *replyTestRunner) ResolveAgentRef(_, agentID string) (string, bool) {
+	if agentID == "" {
 		return "", false
 	}
-	return legacyName, true
+	if r.idToName == nil {
+		return agentID, true
+	}
+	name, ok := r.idToName[agentID]
+	return name, ok
 }
 
 func newReplySessionTestService(fake *replyTestRunner) *SessionServiceServer {
@@ -50,7 +53,7 @@ func TestReplySession_PartsTextAndImageReachRunner(t *testing.T) {
 
 	imgData := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 9, 8, 7}
 	resp, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
-		AgentName: "vision-agent",
+		AgentId:   "vision-agent",
 		AppName:   "telegram",
 		UserId:    "u1",
 		SessionId: "s1",
@@ -88,7 +91,7 @@ func TestReplySession_MessageOnlyBackwardCompat(t *testing.T) {
 	svc := newReplySessionTestService(fake)
 
 	resp, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
-		AgentName: "chat-agent",
+		AgentId:   "chat-agent",
 		AppName:   "api",
 		UserId:    "u1",
 		SessionId: "s1",
@@ -110,7 +113,7 @@ func TestReplySession_PartsTakePriorityOverMessage(t *testing.T) {
 	svc := newReplySessionTestService(fake)
 
 	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
-		AgentName: "chat-agent",
+		AgentId:   "chat-agent",
 		AppName:   "api",
 		UserId:    "u1",
 		SessionId: "s1",
@@ -130,7 +133,7 @@ func TestReplySession_UnsupportedMimeTypeRejected(t *testing.T) {
 	svc := newReplySessionTestService(fake)
 
 	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
-		AgentName: "vision-agent",
+		AgentId:   "vision-agent",
 		AppName:   "api",
 		UserId:    "u1",
 		SessionId: "s1",
@@ -149,7 +152,7 @@ func TestReplySession_OversizedMessageRejected(t *testing.T) {
 	// The legacy message field carries the same 1 MiB cap as StreamAgent's
 	// message and as a text part, so no input path is unbounded.
 	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
-		AgentName: "chat-agent",
+		AgentId:   "chat-agent",
 		AppName:   "api",
 		UserId:    "u1",
 		SessionId: "s1",

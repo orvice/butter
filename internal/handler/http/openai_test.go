@@ -75,8 +75,8 @@ func setupOpenAIRouter(repo configrepo.AgentRepository, authenticated bool) *gin
 func TestOpenAIModels_FiltersEnabledAgents(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "agent-enabled", EnableOpenaiApi: true},
-			{Name: "agent-disabled", EnableOpenaiApi: false},
+			{Name: "agent-enabled", AgentId: "agent-enabled", EnableOpenaiApi: true},
+			{Name: "agent-disabled", AgentId: "agent-disabled", EnableOpenaiApi: false},
 			{Name: "agent-unset"},
 		},
 	}
@@ -123,7 +123,7 @@ func TestOpenAIModels_FiltersEnabledAgents(t *testing.T) {
 func TestOpenAIModels_EmptyWhenNoneEnabled(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "agent-a", EnableOpenaiApi: false},
+			{Name: "agent-a", AgentId: "agent-a", EnableOpenaiApi: false},
 			{Name: "agent-b"},
 		},
 	}
@@ -156,7 +156,7 @@ func TestOpenAIModels_EmptyWhenNoneEnabled(t *testing.T) {
 func TestOpenAIModels_Unauthenticated(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "agent-enabled", EnableOpenaiApi: true},
+			{Name: "agent-enabled", AgentId: "agent-enabled", EnableOpenaiApi: true},
 		},
 	}
 	router := setupOpenAIRouter(repo, false)
@@ -220,7 +220,7 @@ func setupChatRouter(repo configrepo.AgentRepository, runnerSvc OpenAIRunnerServ
 func TestChatCompletions_NonStreaming_HappyPath(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{runResult: "Hello, world!"}
@@ -309,7 +309,7 @@ func TestChatCompletions_NonStreaming_HappyPath(t *testing.T) {
 func TestChatCompletions_ModelNotFound(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "other-agent", EnableOpenaiApi: true},
+			{Name: "other-agent", AgentId: "other-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{runResult: "should not be called"}
@@ -334,7 +334,7 @@ func TestChatCompletions_ModelNotFound(t *testing.T) {
 func TestChatCompletions_ModelDisabled(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "disabled-agent", EnableOpenaiApi: false},
+			{Name: "disabled-agent", AgentId: "disabled-agent", EnableOpenaiApi: false},
 		},
 	}
 	mr := &mockRunner{runResult: "should not be called"}
@@ -359,7 +359,7 @@ func TestChatCompletions_ModelDisabled(t *testing.T) {
 func TestChatCompletions_EmptyMessages(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{}
@@ -384,7 +384,7 @@ func TestChatCompletions_EmptyMessages(t *testing.T) {
 func TestChatCompletions_RunnerUnavailable(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	// No runner set (nil).
@@ -409,7 +409,7 @@ func TestChatCompletions_RunnerUnavailable(t *testing.T) {
 func TestChatCompletions_RunnerError(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{runErr: fmt.Errorf("model overloaded")}
@@ -436,7 +436,7 @@ func TestChatCompletions_RunnerError(t *testing.T) {
 func TestChatCompletions_Streaming_SSEFormat(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{
@@ -549,7 +549,7 @@ func TestChatCompletions_Streaming_SSEFormat(t *testing.T) {
 func TestChatCompletions_Streaming_FallsBackToFinalOutput(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	// Some providers and composite agents return final text without emitting
@@ -610,7 +610,7 @@ func TestChatCompletions_Streaming_ErrorBeforeStream(t *testing.T) {
 	// Error before streaming (model not found) should return JSON, not SSE.
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "other-agent", EnableOpenaiApi: true},
+			{Name: "other-agent", AgentId: "other-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{}
@@ -642,7 +642,7 @@ func TestChatCompletions_Streaming_ErrorBeforeStream(t *testing.T) {
 func TestChatCompletions_Streaming_EmptyMessages(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{}
@@ -668,7 +668,7 @@ func TestChatCompletions_Streaming_EmptyMessages(t *testing.T) {
 func TestChatCompletions_Streaming_RunnerUnavailable(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	router := setupChatRouter(repo, nil)
@@ -693,7 +693,7 @@ func TestChatCompletions_Streaming_RunnerUnavailable(t *testing.T) {
 func TestChatCompletions_Streaming_RunnerError(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{runErr: fmt.Errorf("model overloaded")}
@@ -728,7 +728,7 @@ func TestChatCompletions_Streaming_RunnerError(t *testing.T) {
 func TestChatCompletions_Streaming_IgnoresNonPartialEvents(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{
@@ -790,7 +790,7 @@ func TestChatCompletions_Streaming_IgnoresNonPartialEvents(t *testing.T) {
 func TestChatCompletions_Streaming_ChunkObjectFormat(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{
@@ -858,7 +858,7 @@ func TestChatCompletions_Streaming_ChunkObjectFormat(t *testing.T) {
 func TestChatCompletions_ArrayContentAccepted(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{runResult: "ok"}
@@ -886,7 +886,7 @@ func TestChatCompletions_ArrayContentAccepted(t *testing.T) {
 func TestChatCompletions_Streaming_SkipsThoughtParts(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{
@@ -930,7 +930,7 @@ func TestChatCompletions_Streaming_SkipsThoughtParts(t *testing.T) {
 func TestChatCompletions_Streaming_ChunksCarryCreated(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{
@@ -984,7 +984,7 @@ func makePartialEvent(text string) *session.Event {
 func TestChatCompletions_MessagesFormattedCorrectly(t *testing.T) {
 	repo := &stubAgentRepo{
 		agents: []*agentsv1.Agent{
-			{Name: "my-agent", EnableOpenaiApi: true},
+			{Name: "my-agent", AgentId: "my-agent", EnableOpenaiApi: true},
 		},
 	}
 	mr := &mockRunner{runResult: "ok"}

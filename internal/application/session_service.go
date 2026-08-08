@@ -32,7 +32,7 @@ import (
 // depends on; tests substitute a fake implementation.
 type sessionReplyRunner interface {
 	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
-	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 }
 
 // ErrSessionNotFound must be wrapped into the error a SessionTitleStore
@@ -404,7 +404,7 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 	// without one, resolution is global (agent names/ids are unique across
 	// workspaces in this iteration).
 	wsID, _ := workspace.FromContext(ctx)
-	agentName, err := resolveAgentRunnerRef(runnerSvc, wsID, req.Msg.GetAgentId(), req.Msg.GetAgentName())
+	agentName, err := resolveAgentRunnerRef(runnerSvc, wsID, req.Msg.GetAgentId())
 	if err != nil {
 		return nil, err
 	}

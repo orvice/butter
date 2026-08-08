@@ -36,15 +36,9 @@ func (r *invokeTestRunner) RunSSE(_ context.Context, agentName string, _ []*gena
 
 func (r *invokeTestRunner) CancelInvocation(string, string) bool { return false }
 
-func (r *invokeTestRunner) ResolveAgentRef(_, agentID, legacyName string) (string, bool) {
-	if agentID != "" {
-		name, ok := r.idToName[agentID]
-		return name, ok
-	}
-	if legacyName == "" {
-		return "", false
-	}
-	return legacyName, true
+func (r *invokeTestRunner) ResolveAgentRef(_, agentID string) (string, bool) {
+	name, ok := r.idToName[agentID]
+	return name, ok
 }
 
 func (r *invokeTestRunner) GetAgentIdentity(name string) (string, string, bool) {

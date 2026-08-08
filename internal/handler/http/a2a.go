@@ -48,17 +48,15 @@ func (h *A2AHandler) Register(r *gin.Engine) {
 	r.POST("/a2a/:agent_ref", h.TaskSend)
 }
 
-// findA2AAgent returns the agent proto config if it exists and has enable_a2a
-// set. The reference is matched against agent_id first, then against the
-// legacy name so pre-migration URLs stay valid.
-func (h *A2AHandler) findA2AAgent(ref string) *agentsv1.Agent {
-	for i := range h.cfg.Agents {
-		if h.cfg.Agents[i].GetAgentId() == ref && h.cfg.Agents[i].GetEnableA2A() {
-			return &h.cfg.Agents[i]
-		}
+// findA2AAgent returns the agent proto config addressed by its immutable
+// agent_id, if it exists and has enable_a2a set. agent_id is the sole agent
+// reference on the A2A interface (issue #213 contract step).
+func (h *A2AHandler) findA2AAgent(agentID string) *agentsv1.Agent {
+	if agentID == "" {
+		return nil
 	}
 	for i := range h.cfg.Agents {
-		if h.cfg.Agents[i].GetName() == ref && h.cfg.Agents[i].GetEnableA2A() {
+		if h.cfg.Agents[i].GetAgentId() == agentID && h.cfg.Agents[i].GetEnableA2A() {
 			return &h.cfg.Agents[i]
 		}
 	}
@@ -182,16 +180,10 @@ type Capabilities struct {
 }
 
 func buildAgentCard(ag *agentsv1.Agent) AgentCard {
-	// Advertise the immutable agent_id as the canonical URL; agents without
-	// one fall back to the legacy name path.
-	ref := ag.GetAgentId()
-	if ref == "" {
-		ref = ag.GetName()
-	}
 	return AgentCard{
 		Name:        ag.GetName(),
 		Description: ag.GetDescription(),
-		URL:         "/a2a/" + ref,
+		URL:         "/a2a/" + ag.GetAgentId(),
 		Version:     "0.1.0",
 		Capabilities: Capabilities{
 			Streaming: false,

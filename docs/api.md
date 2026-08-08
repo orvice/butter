@@ -68,18 +68,34 @@ Plain JSON HTTP calls should use proto field names, which are snake_case:
 accepts camelCase on JSON input for compatibility, but JSON responses use
 snake_case.
 
-### Agent references: `agent_id` vs `agent_name`
+### Agent references: `agent_id`
 
 Agents are identified by an **immutable, workspace-unique slug** called the
-Agent ID (`agent_id`, e.g. `"assistant"`). All RPCs that reference an agent
-take `agent_id` as the primary field; the mutable display name lives in
-`display_name` and never participates in lookup.
+Agent ID (`agent_id`, e.g. `"assistant"`). Every interface that invokes or
+binds an agent now addresses it **strictly by `agent_id`**; the mutable
+display name lives in `display_name` and never participates in lookup.
 
-The legacy `agent_name` fields are **deprecated**. They are still accepted as
-a fallback for agents that have not been assigned an Agent ID yet, but when
-`agent_id` is set and does not match any agent the call fails with
-`not_found` — it never falls back to the name. New integrations should send
-`agent_id` only.
+`agent_id` is **required** wherever an agent is invoked or bound —
+`InvokeAgent`, `StreamAgent`, `ReplySession`, channel / cron / automation
+create-update, forum threads and `InvokeAgentInThread`, the A2A endpoints, and
+the OpenAI-compatible API. A missing `agent_id` fails with `invalid_argument`
+("agent_id is required"); an id that matches no agent fails with `not_found` —
+there is never a fallback to the name.
+
+The legacy `agent_name` request fields still exist on the wire for backward
+compatibility but are **ignored as an input** on these interfaces. They survive
+only as read-only output — invocation and execution history written before the
+migration carries `agent_name`, and services stamp the resolved runtime name
+into `agent_name` as a display label. Read/observability queries that filter
+historical records (`ListAgentInvocations`, the runtime-status lookups) still
+accept a legacy name for those pre-migration rows.
+
+Pre-existing channel, cron, and automation records that referenced an agent
+only by legacy name are migrated to `agent_id` by a **one-time startup
+backfill**: on boot the server resolves each name-only record to the agent's
+assigned `agent_id` and rewrites it, so those records keep resolving after the
+upgrade. Records whose name no longer maps to an assigned `agent_id` are logged
+and left untouched rather than failing startup.
 
 ### Plain JSON examples
 
@@ -134,8 +150,8 @@ curl -sS "$BUTTER_BASE_URL/api/agents.v1.AgentService/InvokeAgent" \
   }'
 ```
 
-`agent_id` is the agent's immutable slug. The deprecated `agent_name` field
-still works for agents without an assigned Agent ID.
+`agent_id` is the agent's immutable slug and is **required**; the legacy
+`agent_name` field is ignored on this RPC.
 
 ### TypeScript Connect-Web client
 
@@ -339,10 +355,10 @@ Returns runtime status for the config storage backend. Requires Bearer token aut
 
 ### A2A Protocol
 
-A2A routes are addressed by `:agent_ref` — the agent's immutable `agent_id`.
-For agents that have not been assigned an Agent ID, the legacy agent name
-still matches so pre-migration URLs stay valid. The agent card advertises the
-`agent_id` URL as canonical.
+A2A routes are addressed by `:agent_ref`, which **is** the agent's immutable
+`agent_id` — the legacy-name match was removed. Only an agent that has an
+`agent_id` and `enable_a2a: true` is reachable; any other ref returns
+`agent not found`. The agent card advertises the `agent_id` URL.
 
 #### Get Agent Card
 
@@ -864,8 +880,8 @@ One-shot agent run. If `session_id` is empty an ephemeral id `invoke-<uuid>` is 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_id` | string | Immutable Agent ID of the agent to invoke (preferred). A set-but-unknown id fails `not_found` and never falls back to the name |
-| `agent_name` | string | Legacy agent name. Deprecated: use `agent_id`; accepted for agents without an assigned ID. One of `agent_id` / `agent_name` is required |
+| `agent_id` | string | **Required.** Immutable Agent ID of the agent to invoke. Missing → `invalid_argument`; unknown → `not_found` (never falls back to the name) |
+| `agent_name` | string | Ignored. Retained on the wire for backward compatibility only |
 | `input` | string | Required input text |
 | `app_name` | string | Defaults to `"api"` |
 | `user_id` | string | Defaults to `"api"` |
@@ -898,8 +914,8 @@ Requires the same Bearer token as other `/api` RPCs. Non-admin callers must set
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_id` | string | Immutable Agent ID of the agent to invoke (preferred). A set-but-unknown id aborts with `not_found` and never falls back to the name |
-| `agent_name` | string | Legacy agent name. Deprecated: use `agent_id`; accepted for agents without an assigned ID. One of `agent_id` / `agent_name` is required |
+| `agent_id` | string | **Required.** Immutable Agent ID of the agent to invoke. Missing → `invalid_argument`; unknown → aborts with `not_found` (never falls back to the name) |
+| `agent_name` | string | Ignored. Retained on the wire for backward compatibility only |
 | `message` | string | User prompt. Required when `parts` is empty; ignored when `parts` is set |
 | `app_name` | string | ADK app name; defaults to `"api"` |
 | `user_id` | string | ADK user id; defaults to `"api"` |
@@ -2016,10 +2032,10 @@ POST /api/agents.v1.ChannelService/CreateChannel
 
 Creates an `AgentChannel` configuration and reloads the channel manager.
 
-The channel binds to an agent via `agent_id` (preferred) or the legacy
-`agent_name`. The service normalizes the pair on write: `agent_id` is
-resolved first, and a missing `agent_id` is backfilled when the bound agent
-has one.
+The channel binds to an agent via `agent_id`, which is **required** on create
+and update; the legacy `agent_name` is no longer accepted as an input. The
+service validates `agent_id` against the workspace and stamps the resolved
+runtime name into `agent_name` for display only.
 
 **Request:** `{ "channel": AgentChannel }`
 
@@ -2203,8 +2219,8 @@ Sends a user message to an existing session and returns the agent response.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_id` | string | Immutable Agent ID of the agent to invoke (preferred). A set-but-unknown id fails `not_found` and never falls back to the name |
-| `agent_name` | string | Legacy agent name. Deprecated: use `agent_id`; accepted for agents without an assigned ID |
+| `agent_id` | string | **Required.** Immutable Agent ID of the agent to invoke. Missing → `invalid_argument`; unknown → `not_found` (never falls back to the name) |
+| `agent_name` | string | Ignored. Retained on the wire for backward compatibility only |
 | `app_name` | string | Channel/app name |
 | `user_id` | string | User ID |
 | `session_id` | string | Session ID |
@@ -2562,7 +2578,7 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 |-------|------|-------------|
 | `name` | string | Stable step name recorded in step-run history |
 | `type` | enum | `INVOKE_AGENT`, `CALL_WEBHOOK`, `SEND_NOTIFY_GROUP`, `CREATE_FORUM_POST` |
-| `invoke_agent` | object | `agent_id` (preferred) or legacy `agent_name`, `input`, optional `model_override`. The service normalizes the pair on write (resolve `agent_id` first, backfill from name); a set-but-unknown `agent_id` fails validation |
+| `invoke_agent` | object | `agent_id` (**required**), `input`, optional `model_override`. `agent_id` is validated against the workspace on write and the resolved runtime name is stamped into `agent_name` for display; legacy `agent_name` is not accepted as an input, and an unknown `agent_id` fails validation |
 | `call_webhook` | object | `url`, `method`, `payload_json`, `headers` |
 | `send_notify_group` | object | `notify_group_name`, `title`, `message` |
 | `create_forum_post` | object | `thread_id`, `body` |
@@ -2591,8 +2607,8 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 | `started_at` / `finished_at` | timestamp | Run timing |
 | `duration_ms` | int64 | Wallclock duration |
 | `session_app_name` / `session_user_id` / `session_id` | string | Set when `WAITING_INPUT`: `ReplySession` coordinates of the paused workflow |
-| `agent_id` | string | Set when `WAITING_INPUT`: immutable Agent ID of the paused agent — the agent a reply must address (preferred over `agent_name`) |
-| `agent_name` | string | Legacy name of the paused agent; historical records carry only this |
+| `agent_id` | string | Set when `WAITING_INPUT`: immutable Agent ID of the paused agent — the agent a reply must address |
+| `agent_name` | string | Display-only runtime name of the paused agent; historical records may carry only this |
 | `workspace_id` | string | Owning workspace |
 
 #### AutomationStepRun Object
@@ -2773,8 +2789,8 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 |-------|------|-------------|
 | `name` | string | Unique name within a workspace (required) |
 | `schedule` | string | Cron expression or predefined schedule (required) |
-| `agent_id` | string | Immutable Agent ID of the agent to execute (preferred). Create/update accept `agent_id` or legacy `agent_name`; the service normalizes and backfills both |
-| `agent_name` | string | Legacy agent name. Deprecated: use `agent_id`. One of `agent_id` / `agent_name` is required. Runtime execution resolves `agent_id` first with legacy-name fallback for historical records |
+| `agent_id` | string | **Required** on create/update. Immutable Agent ID of the agent to execute; validated against the workspace, with the resolved runtime name stamped into `agent_name` for display. Runtime execution resolves strictly by `agent_id` |
+| `agent_name` | string | Display-only runtime name stamped by the service; not accepted as an input |
 | `input` | string | Message to send to agent |
 | `timezone` | string | IANA timezone (default UTC) |
 | `enabled` | bool | Whether the job is active |
@@ -2832,7 +2848,7 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 | `session_id` | string | Set when status is `WAITING_INPUT`: `session_id` for `SessionService.ReplySession` |
 | `workspace_id` | string | Workspace that owns the parent cron job |
 
-**Waiting executions (approval-style jobs):** a cron-run Workflow Agent that pauses on a Human Input node records its execution as `WAITING_INPUT` and delivers the node's question through the job's delivery target together with the session coordinates above and the paused agent's `agent_id` (webhook payloads carry both `agent_id` and legacy `agent_name`). Answer by calling `SessionService.ReplySession` with those coordinates and the paused execution's `agent_id` (fall back to `agent_name` only for pre-migration records); the workflow resumes and the execution reaches a terminal state. To abandon instead, delete the session via `SessionService.DeleteSession` with the same coordinates: the execution transitions to `CANCELLED` with the reason recorded in `error`, and the cancellation is delivered per the job's `notify_on` policy (cancellations count as failures). Sessions removed outside that RPC (e.g. direct database cleanup) are not reconciled. Otherwise a paused execution waits indefinitely.
+**Waiting executions (approval-style jobs):** a cron-run Workflow Agent that pauses on a Human Input node records its execution as `WAITING_INPUT` and delivers the node's question through the job's delivery target together with the session coordinates above and the paused agent's `agent_id` (rendered as `agent_id=<id>`; webhook payloads carry both `agent_id` and the display-only `agent_name`). Answer by calling `SessionService.ReplySession` with those coordinates and the paused execution's `agent_id`; the workflow resumes and the execution reaches a terminal state. To abandon instead, delete the session via `SessionService.DeleteSession` with the same coordinates: the execution transitions to `CANCELLED` with the reason recorded in `error`, and the cancellation is delivered per the job's `notify_on` policy (cancellations count as failures). Sessions removed outside that RPC (e.g. direct database cleanup) are not reconciled. Otherwise a paused execution waits indefinitely.
 
 ---
 
@@ -3303,10 +3319,11 @@ Manages forum threads and posts within a workspace. Requires `X-Workspace-ID`.
 | `InvokeAgentInThread` | `POST /api/agents.v1.ForumService/InvokeAgentInThread` | Invokes an agent in thread context |
 
 Agents are referenced by Agent ID throughout: `ForumThread.agent_ids` and
-`ForumPost.author_agent_id` carry the immutable IDs, and Create/Update thread
-plus `InvokeAgentInThread` accept `agent_ids` / `agent_id` (preferred). The
-legacy `agent_names` / `agent_name` fields remain for historical records and
-agents without an assigned ID; the service backfills the ID form on write.
+`ForumPost.author_agent_id` carry the immutable IDs. Create/Update thread take
+`agent_ids` and `InvokeAgentInThread` **requires** `agent_id`; `agent_names` is
+no longer an input. The service resolves each id, stamps the runtime name into
+the read-only `agent_names` / `agent_name` output fields, and skips any id that
+does not resolve.
 
 ---
 

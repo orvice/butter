@@ -56,9 +56,7 @@ type Scheduler struct {
 }
 
 type runnerService interface {
-	HasAgentInWorkspace(workspaceID, name string) bool
-	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
-	GetAgentIdentity(name string) (agentID, displayName string, ok bool)
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 	RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error)
 }
 
@@ -136,7 +134,7 @@ func validateJobConfig(job *agentsv1.CronJob) error {
 	if job.GetSchedule() == "" {
 		return errors.New("cron job schedule is required")
 	}
-	if job.GetAgentId() == "" && job.GetAgentName() == "" {
+	if job.GetAgentId() == "" {
 		return errors.New("cron job agent_id is required")
 	}
 	if _, err := parseJobSchedule(job); err != nil {
@@ -291,54 +289,30 @@ func (s *Scheduler) UpdateJob(ctx context.Context, job *agentsv1.CronJob) error 
 	return s.registerJob(job)
 }
 
-// validateAgentScope checks that the cron job's target agent exists inside
-// the job's workspace and normalizes the job's agent reference: agent_id is
-// preferred (never falling back to the legacy name when set but unknown),
-// the legacy agent_name is rewritten to the resolved runtime name, and a
-// missing agent_id is backfilled when the agent has one. Called from
-// AddJob/UpdateJob before persistence so a caller in workspace A cannot
-// leave a database record referencing workspace B's agent, and so the user
-// gets a typed error instead of a silent registration failure after the row
-// is already written.
+// validateAgentScope checks that the cron job's target agent_id exists inside
+// the job's workspace and rewrites agent_name to the resolved runtime name
+// for display. Called from AddJob/UpdateJob before persistence so a caller in
+// workspace A cannot leave a database record referencing workspace B's agent,
+// and so the user gets a typed error instead of a silent registration failure
+// after the row is already written.
 func (s *Scheduler) validateAgentScope(job *agentsv1.CronJob) error {
 	if s.runner == nil {
 		return nil
 	}
-	name, ok := s.runner.ResolveAgentRef(job.GetWorkspaceId(), job.GetAgentId(), job.GetAgentName())
+	name, ok := s.runner.ResolveAgentRef(job.GetWorkspaceId(), job.GetAgentId())
 	if !ok {
-		return fmt.Errorf("%w: agent %q in workspace %q", ErrAgentNotInWorkspace, runner.AgentRefLabel(job.GetAgentId(), job.GetAgentName()), job.GetWorkspaceId())
+		return fmt.Errorf("%w: agent %q in workspace %q", ErrAgentNotInWorkspace, job.GetAgentId(), job.GetWorkspaceId())
 	}
 	job.AgentName = name
-	if job.GetAgentId() == "" {
-		if id, _, ok := s.runner.GetAgentIdentity(name); ok {
-			job.AgentId = id
-		}
-	}
 	return nil
 }
 
-// jobAgentID returns the agent_id to stamp on execution records: the job's
-// own agent_id, or (for legacy name-only jobs) the id of the agent its name
-// currently resolves to. Empty when neither is known.
-func (s *Scheduler) jobAgentID(job *agentsv1.CronJob) string {
-	if id := job.GetAgentId(); id != "" {
-		return id
-	}
-	if name, ok := s.runner.ResolveAgentRef(job.GetWorkspaceId(), "", job.GetAgentName()); ok {
-		if id, _, ok := s.runner.GetAgentIdentity(name); ok {
-			return id
-		}
-	}
-	return ""
-}
-
-// resolveJobAgent resolves a stored job's agent reference to the registered
-// runtime name at execution time: agent_id preferred, legacy agent_name
-// fallback for historical records written before the Agent ID migration.
+// resolveJobAgent resolves a stored job's agent_id to the registered runtime
+// name at execution time.
 func (s *Scheduler) resolveJobAgent(job *agentsv1.CronJob) (string, error) {
-	name, ok := s.runner.ResolveAgentRef(job.GetWorkspaceId(), job.GetAgentId(), job.GetAgentName())
+	name, ok := s.runner.ResolveAgentRef(job.GetWorkspaceId(), job.GetAgentId())
 	if !ok {
-		return "", fmt.Errorf("cron job %q references unknown agent %q in workspace %q", job.GetName(), runner.AgentRefLabel(job.GetAgentId(), job.GetAgentName()), job.GetWorkspaceId())
+		return "", fmt.Errorf("cron job %q references unknown agent %q in workspace %q", job.GetName(), job.GetAgentId(), job.GetWorkspaceId())
 	}
 	return name, nil
 }
@@ -579,7 +553,7 @@ func (s *Scheduler) runJob(job *agentsv1.CronJob, trigger agentsv1.CronExecution
 		Id:           execID,
 		JobName:      job.GetName(),
 		AgentName:    job.GetAgentName(),
-		AgentId:      s.jobAgentID(job),
+		AgentId:      job.GetAgentId(),
 		Status:       agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
 		Input:        input,
 		Output:       storedOutput,
@@ -810,7 +784,7 @@ func (s *Scheduler) recordSkipped(job *agentsv1.CronJob, trigger agentsv1.CronEx
 		Id:            uuid.New().String(),
 		JobName:       job.GetName(),
 		AgentName:     job.GetAgentName(),
-		AgentId:       s.jobAgentID(job),
+		AgentId:       job.GetAgentId(),
 		Status:        agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SKIPPED,
 		Input:         effectiveInput(job),
 		StartedAt:     timestamppb.New(now),

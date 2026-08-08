@@ -48,9 +48,7 @@ func automationSessionID(runID string) string           { return automationSessi
 var ErrAutomationDisabled = errors.New("automation disabled")
 
 type runnerService interface {
-	HasAgentInWorkspace(workspaceID, name string) bool
-	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
-	GetAgentIdentity(name string) (agentID, displayName string, ok bool)
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 	RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error)
 }
 
@@ -571,32 +569,26 @@ func (e *Engine) executeStepAction(ctx context.Context, a *agentsv1.Automation, 
 
 // resolveWaitAgent derives the (runtime name, agent_id) pair a paused run
 // records so a human reply addresses the right agent. Falls back to the
-// step's raw fields when resolution misses — the run already paused, so the
-// record must still carry the best-known reference.
+// step's agent_id when resolution misses — the run already paused, so the
+// record must still carry the reference.
 func (e *Engine) resolveWaitAgent(a *agentsv1.Automation, step *agentsv1.AutomationInvokeAgentStep) (string, string) {
-	name, ok := e.runner.ResolveAgentRef(a.GetWorkspaceId(), step.GetAgentId(), step.GetAgentName())
+	name, ok := e.runner.ResolveAgentRef(a.GetWorkspaceId(), step.GetAgentId())
 	if !ok {
-		return step.GetAgentName(), step.GetAgentId()
+		return "", step.GetAgentId()
 	}
-	id := step.GetAgentId()
-	if id == "" {
-		id, _, _ = e.runner.GetAgentIdentity(name)
-	}
-	return name, id
+	return name, step.GetAgentId()
 }
 
 func (e *Engine) invokeAgent(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationInvokeAgentStep) (string, string, []runner.PendingInput, error) {
 	if e.runner == nil {
 		return "", "", nil, errors.New("runner service is not configured")
 	}
-	if step.GetAgentId() == "" && step.GetAgentName() == "" {
+	if step.GetAgentId() == "" {
 		return "", "", nil, errors.New("invoke_agent.agent_id is required")
 	}
-	// agent_id preferred; the legacy agent_name fallback keeps historical
-	// records written before the Agent ID migration executable.
-	agentName, ok := e.runner.ResolveAgentRef(a.GetWorkspaceId(), step.GetAgentId(), step.GetAgentName())
+	agentName, ok := e.runner.ResolveAgentRef(a.GetWorkspaceId(), step.GetAgentId())
 	if !ok {
-		return "", "", nil, fmt.Errorf("agent %q not found in workspace %q", runner.AgentRefLabel(step.GetAgentId(), step.GetAgentName()), a.GetWorkspaceId())
+		return "", "", nil, fmt.Errorf("agent %q not found in workspace %q", step.GetAgentId(), a.GetWorkspaceId())
 	}
 	input := step.GetInput()
 	if input == "" {

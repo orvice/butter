@@ -46,15 +46,14 @@ func (s *ChannelServiceServer) SetAgentRepo(repo configrepo.AgentRepository) {
 	s.agentRepo = repo
 }
 
-// normalizeChannelAgent validates the channel's agent reference and rewrites
-// it to the canonical (agent_id, runtime name) pair. agent_id is preferred;
-// the legacy agent_name path backfills a missing agent_id when the agent has
-// one, so channel records converge on ID references as they are touched.
+// normalizeChannelAgent validates the channel's agent_id against the
+// workspace and rewrites agent_name to the resolved runtime name for display.
+// agent_id is the sole agent reference on the channel interface.
 func (s *ChannelServiceServer) normalizeChannelAgent(ctx context.Context, wsID string, ch *agentsv1.AgentChannel) error {
 	if s.agentRepo == nil {
 		return nil
 	}
-	id, name, err := normalizeAgentRefWithRepo(ctx, s.agentRepo, wsID, ch.GetAgentId(), ch.GetAgentName(), "channel")
+	id, name, err := normalizeAgentRefWithRepo(ctx, s.agentRepo, wsID, ch.GetAgentId(), "channel")
 	if err != nil {
 		return err
 	}

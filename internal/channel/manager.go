@@ -93,11 +93,10 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 			continue
 		}
 
-		// Resolve the channel's agent binding: agent_id preferred, legacy
-		// agent_name fallback for records written before the Agent ID
-		// migration. The poller pipeline dispatches by runtime name, so the
-		// config handed to it carries the resolved name.
-		if name, ok := m.runnerSvc.ResolveAgentRef(ch.GetWorkspaceId(), ch.GetAgentId(), ch.GetAgentName()); ok {
+		// Resolve the channel's agent by its agent_id. The poller pipeline
+		// dispatches by runtime name, so the config handed to it carries the
+		// resolved name.
+		if name, ok := m.runnerSvc.ResolveAgentRef(ch.GetWorkspaceId(), ch.GetAgentId()); ok {
 			if name != ch.GetAgentName() {
 				ch = proto.Clone(ch).(*agentsv1.AgentChannel)
 				ch.AgentName = name
@@ -107,7 +106,6 @@ func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
 				"channel", ch.GetName(),
 				"workspace", ch.GetWorkspaceId(),
 				"agent_id", ch.GetAgentId(),
-				"agent_name", ch.GetAgentName(),
 			)
 		}
 

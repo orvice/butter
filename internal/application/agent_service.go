@@ -38,22 +38,22 @@ type agentRunner interface {
 	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 	RunSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
 	CancelInvocation(id, workspaceID string) bool
-	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 	GetAgentIdentity(name string) (agentID, displayName string, ok bool)
 }
 
-// resolveAgentRunnerRef maps a request's agent reference — agent_id preferred,
-// legacy agent_name fallback — to the registered runtime agent name. A
-// set-but-unknown agent_id is NotFound and never falls through to the name.
+// resolveAgentRunnerRef maps a request's agent_id to the registered runtime
+// agent name. agent_id is the sole agent reference on every interface
+// (issue #213 contract step); an unknown id is NotFound.
 func resolveAgentRunnerRef(r interface {
-	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
-}, workspaceID, agentID, agentName string) (string, error) {
-	if agentID == "" && agentName == "" {
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
+}, workspaceID, agentID string) (string, error) {
+	if agentID == "" {
 		return "", connectx.RequiredArgument("agent_id")
 	}
-	name, ok := r.ResolveAgentRef(workspaceID, agentID, agentName)
+	name, ok := r.ResolveAgentRef(workspaceID, agentID)
 	if !ok {
-		return "", connectx.NotFound(fmt.Sprintf("agent %q not found", runner.AgentRefLabel(agentID, agentName)))
+		return "", connectx.NotFound(fmt.Sprintf("agent %q not found", agentID))
 	}
 	return name, nil
 }
@@ -406,7 +406,7 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("workspace required (set X-Workspace-ID header)"))
 	}
-	agentName, err := resolveAgentRunnerRef(s.runnerSvc, wsID, req.Msg.GetAgentId(), req.Msg.GetAgentName())
+	agentName, err := resolveAgentRunnerRef(s.runnerSvc, wsID, req.Msg.GetAgentId())
 	if err != nil {
 		return nil, err
 	}

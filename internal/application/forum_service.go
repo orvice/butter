@@ -41,7 +41,7 @@ type ForumServiceServer struct {
 
 type forumAgentRunner interface {
 	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
-	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 	GetAgentIdentity(name string) (agentID, displayName string, ok bool)
 }
 
@@ -53,15 +53,14 @@ type forumAgentRef struct {
 	id   string
 }
 
-// resolveThreadAgentRefs merges a thread's agent_ids (preferred) and legacy
-// agent_names into deduplicated (runtime name, agent_id) pairs. Unresolvable
-// references are kept as-is so the stored record never loses information;
-// invocation skips refs with no runtime name.
-func (s *ForumServiceServer) resolveThreadAgentRefs(workspaceID string, agentIDs, agentNames []string) []forumAgentRef {
+// resolveThreadAgentRefs turns a thread's agent_ids into deduplicated
+// (runtime name, agent_id) pairs. agent_id is the sole reference; an id that
+// does not currently resolve is kept (id set, name empty) so the stored
+// record retains it, and invocation skips refs with no runtime name.
+func (s *ForumServiceServer) resolveThreadAgentRefs(workspaceID string, agentIDs []string) []forumAgentRef {
 	runnerSvc := s.getRunner()
 	var refs []forumAgentRef
 	seenID := map[string]struct{}{}
-	seenName := map[string]struct{}{}
 	for _, id := range agentIDs {
 		id = strings.TrimSpace(id)
 		if id == "" {
@@ -73,30 +72,8 @@ func (s *ForumServiceServer) resolveThreadAgentRefs(workspaceID string, agentIDs
 		seenID[id] = struct{}{}
 		ref := forumAgentRef{id: id}
 		if runnerSvc != nil {
-			if name, ok := runnerSvc.ResolveAgentRef(workspaceID, id, ""); ok {
+			if name, ok := runnerSvc.ResolveAgentRef(workspaceID, id); ok {
 				ref.name = name
-				seenName[name] = struct{}{}
-			}
-		}
-		refs = append(refs, ref)
-	}
-	for _, name := range agentNames {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
-		}
-		if _, dup := seenName[name]; dup {
-			continue
-		}
-		seenName[name] = struct{}{}
-		ref := forumAgentRef{name: name}
-		if runnerSvc != nil {
-			if id, _, ok := runnerSvc.GetAgentIdentity(name); ok && id != "" {
-				if _, dup := seenID[id]; dup {
-					continue
-				}
-				seenID[id] = struct{}{}
-				ref.id = id
 			}
 		}
 		refs = append(refs, ref)
@@ -200,7 +177,7 @@ func (s *ForumServiceServer) CreateThread(ctx context.Context, req *connect.Requ
 	}
 	now := timestamppb.New(time.Now().UTC())
 	threadID := uuid.NewString()
-	agentRefs := s.resolveThreadAgentRefs(workspaceID, req.Msg.GetAgentIds(), req.Msg.GetAgentNames())
+	agentRefs := s.resolveThreadAgentRefs(workspaceID, req.Msg.GetAgentIds())
 	agentIDs, agentNames := threadAgentFields(agentRefs)
 	thread := &agentsv1.ForumThread{
 		Id:          threadID,
@@ -305,8 +282,8 @@ func (s *ForumServiceServer) UpdateThread(ctx context.Context, req *connect.Requ
 	if v := strings.TrimSpace(req.Msg.GetStatus()); v != "" {
 		thread.Status = v
 	}
-	if req.Msg.GetAgentNames() != nil || req.Msg.GetAgentIds() != nil {
-		refs := s.resolveThreadAgentRefs(workspaceID, req.Msg.GetAgentIds(), req.Msg.GetAgentNames())
+	if req.Msg.GetAgentIds() != nil {
+		refs := s.resolveThreadAgentRefs(workspaceID, req.Msg.GetAgentIds())
 		thread.AgentIds, thread.AgentNames = threadAgentFields(refs)
 	}
 	if req.Msg.GetLabels() != nil {
@@ -383,15 +360,10 @@ func (s *ForumServiceServer) InvokeAgentInThread(ctx context.Context, req *conne
 	if runnerSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner service not available"))
 	}
-	agentName, err := resolveAgentRunnerRef(runnerSvc, workspaceID, strings.TrimSpace(req.Msg.GetAgentId()), strings.TrimSpace(req.Msg.GetAgentName()))
+	agentID := strings.TrimSpace(req.Msg.GetAgentId())
+	agentName, err := resolveAgentRunnerRef(runnerSvc, workspaceID, agentID)
 	if err != nil {
 		return nil, err
-	}
-	agentID := strings.TrimSpace(req.Msg.GetAgentId())
-	if agentID == "" {
-		if id, _, ok := runnerSvc.GetAgentIdentity(agentName); ok {
-			agentID = id
-		}
 	}
 	if _, err := repo.GetThread(ctx, workspaceID, req.Msg.GetThreadId()); err != nil {
 		return nil, mapForumErr(err)

@@ -72,6 +72,7 @@ func buildIntegrationRouter(t *testing.T, upstream *fakeUpstream) *gin.Engine {
 
 	agents := []agentsv1.Agent{{
 		Name:            "echo-agent",
+		AgentId:         "echo-agent",
 		Description:     "test agent",
 		WorkspaceId:     "ws-a",
 		EnableOpenaiApi: true,

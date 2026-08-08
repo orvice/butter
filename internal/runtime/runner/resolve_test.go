@@ -3,6 +3,8 @@ package runner
 import (
 	"testing"
 
+	"google.golang.org/adk/v2/agent"
+
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -10,61 +12,59 @@ func newResolveTestService() *Service {
 	return NewServiceForTestAgents(
 		&agentsv1.Agent{Name: "researcher", AgentId: "researcher-v2", DisplayName: "Researcher", WorkspaceId: "ws-a"},
 		&agentsv1.Agent{Name: "writer", AgentId: "writer", WorkspaceId: "ws-a"},
-		&agentsv1.Agent{Name: "reviewer", WorkspaceId: "ws-b"}, // no agent_id assigned yet
+		&agentsv1.Agent{Name: "reviewer", WorkspaceId: "ws-b"}, // no agent_id assigned
 	)
 }
 
 func TestResolveAgentRefByID(t *testing.T) {
 	s := newResolveTestService()
 
-	name, ok := s.ResolveAgentRef("ws-a", "researcher-v2", "")
+	name, ok := s.ResolveAgentRef("ws-a", "researcher-v2")
 	if !ok || name != "researcher" {
 		t.Fatalf("ResolveAgentRef(ws-a, researcher-v2) = %q, %v; want researcher, true", name, ok)
 	}
 
 	// agent_id resolution is workspace-scoped.
-	if name, ok := s.ResolveAgentRef("ws-b", "researcher-v2", ""); ok {
+	if name, ok := s.ResolveAgentRef("ws-b", "researcher-v2"); ok {
 		t.Fatalf("ResolveAgentRef(ws-b, researcher-v2) = %q, true; want miss", name)
 	}
 
 	// Empty workspace is the admin/system path: resolve across workspaces.
-	if name, ok := s.ResolveAgentRef("", "researcher-v2", ""); !ok || name != "researcher" {
+	if name, ok := s.ResolveAgentRef("", "researcher-v2"); !ok || name != "researcher" {
 		t.Fatalf("ResolveAgentRef(\"\", researcher-v2) = %q, %v; want researcher, true", name, ok)
 	}
 }
 
-func TestResolveAgentRefPrefersIDOverLegacyName(t *testing.T) {
+func TestResolveAgentRefNoNameFallback(t *testing.T) {
 	s := newResolveTestService()
 
-	// When both are set, agent_id wins even if the legacy name points elsewhere.
-	name, ok := s.ResolveAgentRef("ws-a", "researcher-v2", "writer")
-	if !ok || name != "researcher" {
-		t.Fatalf("ResolveAgentRef(id+name) = %q, %v; want researcher, true", name, ok)
+	// The runtime name is not a resolvable reference — only agent_id is.
+	if name, ok := s.ResolveAgentRef("ws-a", "researcher"); ok {
+		t.Fatalf("ResolveAgentRef by runtime name = %q, true; want miss (name is not an id)", name)
 	}
-
-	// A set-but-unknown agent_id is a miss; it must not fall through to the
-	// legacy name, otherwise a caller could silently invoke the wrong agent.
-	if name, ok := s.ResolveAgentRef("ws-a", "nope", "writer"); ok {
-		t.Fatalf("ResolveAgentRef(unknown id) = %q, true; want miss", name)
+	// An agent without an assigned agent_id is simply unreachable by ref.
+	if name, ok := s.ResolveAgentRef("ws-b", "reviewer"); ok {
+		t.Fatalf("ResolveAgentRef(ws-b, reviewer) = %q, true; want miss (no agent_id)", name)
+	}
+	if name, ok := s.ResolveAgentRef("ws-a", ""); ok {
+		t.Fatalf("ResolveAgentRef(empty id) = %q, true; want miss", name)
 	}
 }
 
-func TestResolveAgentRefLegacyNameFallback(t *testing.T) {
-	s := newResolveTestService()
+func TestResolveAgentRefBuiltin(t *testing.T) {
+	s := NewServiceForTestAgents(
+		&agentsv1.Agent{Name: "helper", AgentId: "helper", WorkspaceId: "ws-a"},
+	)
+	// Register a builtin (no proto) whose name is its identifier.
+	s.agents["system"] = agent.Agent(nil)
 
-	name, ok := s.ResolveAgentRef("ws-b", "", "reviewer")
-	if !ok || name != "reviewer" {
-		t.Fatalf("ResolveAgentRef(ws-b, name=reviewer) = %q, %v; want reviewer, true", name, ok)
+	// Resolvable from the system context by name-as-id.
+	if name, ok := s.ResolveAgentRef("", "system"); !ok || name != "system" {
+		t.Fatalf("ResolveAgentRef(\"\", system) = %q, %v; want system, true", name, ok)
 	}
-
-	// Legacy name resolution enforces the workspace boundary like
-	// HasAgentInWorkspace.
-	if name, ok := s.ResolveAgentRef("ws-a", "", "reviewer"); ok {
-		t.Fatalf("ResolveAgentRef(ws-a, name=reviewer) = %q, true; want miss", name)
-	}
-
-	if name, ok := s.ResolveAgentRef("ws-a", "", ""); ok {
-		t.Fatalf("ResolveAgentRef(empty ref) = %q, true; want miss", name)
+	// Rejected from a tenant context, mirroring HasAgentInWorkspace.
+	if name, ok := s.ResolveAgentRef("ws-a", "system"); ok {
+		t.Fatalf("ResolveAgentRef(ws-a, system) = %q, true; want miss (builtin is system-only)", name)
 	}
 }
 
@@ -93,13 +93,18 @@ func TestGetAgentIdentity(t *testing.T) {
 		t.Fatalf("GetAgentIdentity(writer) = %q, %q, %v; want writer, writer, true", id, display, ok)
 	}
 
-	// Agents without an assigned ID report an empty id but still resolve.
-	id, display, ok = s.GetAgentIdentity("reviewer")
-	if !ok || id != "" || display != "reviewer" {
-		t.Fatalf("GetAgentIdentity(reviewer) = %q, %q, %v; want \"\", reviewer, true", id, display, ok)
-	}
-
 	if _, _, ok := s.GetAgentIdentity("ghost"); ok {
 		t.Fatal("GetAgentIdentity(ghost) = true; want false")
+	}
+}
+
+func TestGetAgentIdentityBuiltin(t *testing.T) {
+	s := NewServiceForTestAgents()
+	s.agents["system"] = agent.Agent(nil)
+
+	// A builtin reports its name as both id and display name.
+	id, display, ok := s.GetAgentIdentity("system")
+	if !ok || id != "system" || display != "system" {
+		t.Fatalf("GetAgentIdentity(system) = %q, %q, %v; want system, system, true", id, display, ok)
 	}
 }

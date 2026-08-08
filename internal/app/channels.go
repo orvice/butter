@@ -298,6 +298,11 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		logger.Info("automation scheduler stopped")
 	}()
 
+	// One-time Agent ID cutover reconciliation (issue #213): fill agent_id on
+	// channels, cron jobs, and automations still referencing agents by the
+	// legacy name, so every consumer resolves by agent_id after the upgrade.
+	backfillConsumerAgentIDs(ctx, agentRepo, channelRepo, cronJobRepo, automationDefRepo)
+
 	// Register built-in system agent before channel manager so it appears
 	// in the agent list exposed to Telegram/Discord.
 	registerSystemAgent(ctx, cfg, runnerSvc, agentRepo, cronScheduler, cronExecRepo)

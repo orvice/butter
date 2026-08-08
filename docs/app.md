@@ -12,12 +12,12 @@ Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入�
 - **API token 自带 workspace**：`CreateAPIToken` 时记录创建上下文的 workspace；用 API token 鉴权时直接绑定到 token 的 workspace，忽略 header。
 - **DaemonRuntime 自带 workspace**：daemon 执行面是配置仓库中的 `DaemonRuntime` 资源，runtime token 绑定 workspace + daemon_runtime_id；daemon-backed RemoteAgent 在 runtime 上选择 `opencode` / `codex` 这类 ACP runtime。
 - **默认 workspace 自举**：进程启动时若 `workspaces` 集合为空，会自动创建 slug 为 `default` 的 workspace，并把现有所有 user 加为 `owner`。
-- **运行时行为**：runner / channel manager / cron scheduler / automation scheduler 跨 workspace 拉平所有配置作为全局视图运行（agent 运行时名字目前需全局唯一，但引用统一以 `agent_id` 优先解析）；`ContextInfo.workspace_id` 把所属 workspace 沿调用链透传，写 invocation / cron execution / automation run 时回填 workspace 与 `agent_id`。
+- **运行时行为**：runner / channel manager / cron scheduler / automation scheduler 跨 workspace 拉平所有配置作为全局视图运行（agent 运行时名字目前需全局唯一，但引用统一以 `agent_id` 解析，agent_id-only）；`ContextInfo.workspace_id` 把所属 workspace 沿调用链透传，写 invocation / cron execution / automation run 时回填 workspace 与 `agent_id`。迁移前只按 legacy name 引用 agent 的 channel / cron / automation 旧记录，由启动时的一次性回填（`backfillConsumerAgentIDs`）补上 `agent_id`。
 - **System agent**：仍为全局注册，其 `list_agents` / `list_cron_jobs` 等读工具跨 workspace，写工具（`create/update/delete_cron_job` 等）要求显式传入 `workspace_id` 参数。
 
 ## 1. Agent 编排
 
-- **Agent ID 身份**：每个 Agent 由不可变、workspace 内唯一的 **Agent ID**（`agent_id`，slug 形如 `assistant`；规则 `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`）标识，是所有引用（interactive 调用、channel/cron/automation/forum 绑定、A2A、OpenAI 兼容 API）的首选键；`display_name` 是可变的 UI 显示名，不参与解析。旧的 `agent_name`（运行时名字）已降级为兼容字段，仅对尚未分配 Agent ID 的历史 agent 生效。`CreateAgent` 要求 `agent_id`，`AssignAgentID` 为 legacy agent 赋 ID，`GetMigrationReadiness` / `MigrateAgentsV2` 提供迁移路径。
+- **Agent ID 身份**：每个 Agent 由不可变、workspace 内唯一的 **Agent ID**（`agent_id`，slug 形如 `assistant`；规则 `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`）标识，是所有引用（interactive 调用、channel/cron/automation/forum 绑定、A2A、OpenAI 兼容 API）的**唯一键**（agent_id-only）：调用/绑定时 `agent_id` 必填，缺失 → `InvalidArgument`，未知 → `NotFound`，绝不回退 name。`display_name` 是可变的 UI 显示名，不参与解析。旧的 `agent_name`（运行时名字）不再作为输入，仅保留为服务端回写的显示名与历史记录字段。`CreateAgent` 要求 `agent_id`，`AssignAgentID` 为 legacy agent 赋 ID，`GetMigrationReadiness` / `MigrateAgentsV2` 提供迁移路径。
 - **多类型 Agent 构建**：通过 `agents.v1.Agent` 配置统一生成 ADK Agent，支持五种类型：
   - `AGENT_TYPE_LLM`：LLM Agent，支持 instruction、global instruction、input/output JSON schema、`output_key`、`context_guard`、`include_contents` 等参数。
   - `AGENT_TYPE_LOOP`：Loop workflow，支持 `max_iterations`。
@@ -100,9 +100,9 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 ### HTTP（Gin）
 
 - `GET /ping`：健康检查，免鉴权。
-- `GET /a2a/:agent_ref/.well-known/agent.json`：A2A agent card（仅 `enable_a2a: true` 的 Agent）；`:agent_ref` 为 agent_id，legacy name 对未分配 ID 的 agent 仍匹配，card 广告 agent_id URL。
+- `GET /a2a/:agent_ref/.well-known/agent.json`：A2A agent card（仅有 agent_id 且 `enable_a2a: true` 的 Agent）；`:agent_ref` **即** agent_id（legacy name 匹配已移除），card 广告 agent_id URL。
 - `POST /a2a/:agent_ref`：A2A JSON-RPC `tasks/send`。
-- `GET /api/v1/models` / `POST /api/v1/chat/completions`：OpenAI 兼容 API（仅 `enable_openai_api: true` 的 Agent）；`model` 字段即 agent_id（legacy name 兜底），`/v1/models` 列出 agent_id。
+- `GET /api/v1/models` / `POST /api/v1/chat/completions`：OpenAI 兼容 API（仅 `enable_openai_api: true` 的 Agent）；`model` 字段**即** agent_id（legacy name 查找已移除），`/v1/models` 只列出有 agent_id 的 agent。
 - `POST /api/uploads/*`：头像/静态资源 multipart 上传（REST，非 Connect）；见 `docs/storage.md`。
 
 ### RPC（`/api`，ConnectRPC，同时支持 Connect / gRPC-Web / gRPC）
@@ -111,7 +111,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 配置类：
 
-- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（dashboard chat server-stream）/ `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。interactive 调用以 `agent_id` 为首选引用（未知 `agent_id` 直接 NotFound，不回退 name），stream 事件与 invocation 记录携带 `agent_id`。
+- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（dashboard chat server-stream）/ `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name），stream 事件与 invocation 记录携带 `agent_id`。
 - `MCPServerService`：共享 MCP Server CRUD + `GetMCPServerStatus`（live 探活）+ `ListMCPTools`（聚合工具列表）+ `StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`（MCP OAuth2 授权流程）。
 - `RemoteAgentService`：远程 Agent CRUD + `GetRemoteAgentStatus`（A2A `/.well-known/agent.json` 探测 / Daemon 注册表查找）。
 - `ChannelService`：渠道配置 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
@@ -172,14 +172,14 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 ## 10. Cron 自动执行
 
-- **CronJob 配置**：name、schedule、`agent_id`（首选，create/update 也接受 legacy `agent_name`，服务层规范化并 backfill 两者；运行时 `agent_id` 优先解析、legacy name 兜底历史记录）、input、timezone、enabled、delivery、timeout、retry、concurrency_policy、notify_on、max_output_bytes、metadata。
+- **CronJob 配置**：name、schedule、`agent_id`（create/update **必填**；服务层校验后把解析出的运行时名字 stamp 进 `agent_name` 仅供显示，legacy `agent_name` 不再作为输入；运行时**仅按 `agent_id`** 解析）、input、timezone、enabled、delivery、timeout、retry、concurrency_policy、notify_on、max_output_bytes、metadata。
 - **结果投递（CronDelivery）**：
   - `CRON_DELIVERY_TYPE_LOG`：写日志。
   - `CRON_DELIVERY_TYPE_WEBHOOK`：HTTP webhook 推送。
   - `CRON_DELIVERY_TYPE_CHANNEL`：转发到指定 `AgentChannel` 的 `chat_id`。
   - `CRON_DELIVERY_TYPE_NOTIFY_GROUP`：按名称加载 `NotifyGroup`，向其中启用的 Telegram、Lark webhook、Discord webhook 目标发送通知。
 - **可靠性策略**：每次执行可设置超时、失败重试、重试 backoff、并发处理（默认 skip 保持旧行为）、投递通知时机和输出预览上限。手动 `RunCronJobNow` 与定时触发使用同一执行路径。
-- **Workflow 审批暂停（ADR 0003）**：当 cron 执行的 Workflow Agent 在 HUMAN_INPUT 节点暂停时，执行记录状态变为 `WAITING_INPUT`，question 通过 job 配置的 delivery 目标（channel / webhook / notify group）投递，并附带 session 坐标（`session_app_name` / `session_user_id` / `session_id`）与暂停 agent 的 `agent_id`（webhook 同时带 `agent_id` 与 legacy `agent_name`）。人类通过 `SessionService.ReplySession` 用该 `agent_id`（历史记录才回退 `agent_name`）加 session 坐标回答后执行变为终态。删除 session 则执行变为 `CANCELLED`。暂停中的 job 在 SKIP/QUEUE 并发策略下跳过新触发。每次执行使用独立 session（`cron:<job>:<exec-id>`），避免重跑覆盖待回答的 Interrupt。
+- **Workflow 审批暂停（ADR 0003）**：当 cron 执行的 Workflow Agent 在 HUMAN_INPUT 节点暂停时，执行记录状态变为 `WAITING_INPUT`，question 通过 job 配置的 delivery 目标（channel / webhook / notify group）投递，并附带 session 坐标（`session_app_name` / `session_user_id` / `session_id`）与暂停 agent 的 `agent_id`（渲染为 `agent_id=<id>`；webhook 同时带 `agent_id` 与显示用 `agent_name`）。人类通过 `SessionService.ReplySession` 用该 `agent_id` 加 session 坐标回答后执行变为终态。删除 session 则执行变为 `CANCELLED`。暂停中的 job 在 SKIP/QUEUE 并发策略下跳过新触发。每次执行使用独立 session（`cron:<job>:<exec-id>`），避免重跑覆盖待回答的 Interrupt。
 - **执行记录（CronExecution）**：每次开始或被并发策略跳过的执行写入 MongoDB，包含 input/output preview、status（success/error/skipped/cancelled/waiting_input）、error、attempt_count、trigger_type、skipped_reason、truncated、起止时间和 duration，支持分页查询。
 
 ## 11. 配置与热更新
@@ -294,7 +294,7 @@ cmd/butter-daemon (客户端)
 - A2A remote agent 需要 `url`；daemon remote agent 需要 `daemon_runtime_id`、`acp_runtime` 与在线 daemon runtime。
 - `BridgeDiagnostics.memory_limit_bytes` 当前总是 0（未读 cgroup）。
 - 当前普通 API token 在所属 workspace 内拥有 `api:*` 权限；daemon token 只有 `daemon:connect`，并可设置 `expires_at`。
-- Workspace 跨租户隔离尚未到运行时：runner、channel manager、cron scheduler 共享同一个进程视图，**agent 运行时名字需在全部 workspace 内全局唯一**；不同 workspace 用同名 agent 会冲突。`agent_id` 只保证 workspace 内唯一，运行时通过 `ResolveAgentRef` 在 workspace scope 内以 `agent_id` 优先解析（跨 workspace 隔离在 ConnectRPC 边界与 runner 强制）。
+- Workspace 跨租户隔离尚未到运行时：runner、channel manager、cron scheduler 共享同一个进程视图，**agent 运行时名字需在全部 workspace 内全局唯一**；不同 workspace 用同名 agent 会冲突。`agent_id` 只保证 workspace 内唯一，运行时通过 `ResolveAgentRef` 在 workspace scope 内**仅按 `agent_id`** 解析（无 legacy name 解析路径；跨 workspace 隔离在 ConnectRPC 边界与 runner 强制）。
 - Automation v1 是线性有序 step，不支持 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 字段已建模但尚未接入事件路由。
 - 内置 system agent 仍为全局注册；daemon connector 是 `/api` 下的长连接入口，但连接、registry、任务路由和配置均按 workspace 隔离。
 - `pkg/proto/agents/v1` 为生成代码，改动需在 `proto/agents/v1` 中完成后重新生成。

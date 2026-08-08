@@ -32,9 +32,7 @@ type AutomationServiceServer struct {
 }
 
 type automationAgentValidator interface {
-	HasAgentInWorkspace(workspaceID, name string) bool
-	ResolveAgentRef(workspaceID, agentID, legacyName string) (string, bool)
-	GetAgentIdentity(name string) (agentID, displayName string, ok bool)
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 }
 
 func NewAutomationServiceServer() *AutomationServiceServer {
@@ -310,30 +308,18 @@ func validateAutomation(a *agentsv1.Automation, agent automationAgentValidator) 
 		switch step.GetType() {
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT:
 			invoke := step.GetInvokeAgent()
-			if strings.TrimSpace(invoke.GetAgentId()) == "" && strings.TrimSpace(invoke.GetAgentName()) == "" {
+			agentID := strings.TrimSpace(invoke.GetAgentId())
+			if agentID == "" {
 				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_id", i))
 			}
 			if agent != nil {
-				// agent_id preferred; a set-but-unknown id never falls back to
-				// the legacy name. On success the stored step is normalized:
-				// agent_name carries the resolved runtime name and a missing
-				// agent_id is backfilled when the agent has one.
-				name, ok := agent.ResolveAgentRef(a.GetWorkspaceId(), strings.TrimSpace(invoke.GetAgentId()), strings.TrimSpace(invoke.GetAgentName()))
+				// agent_id is the sole reference; on success agent_name is set
+				// to the resolved runtime name for display.
+				name, ok := agent.ResolveAgentRef(a.GetWorkspaceId(), agentID)
 				if !ok {
-					ref := strings.TrimSpace(invoke.GetAgentId())
-					field := "agent_id"
-					if ref == "" {
-						ref = strings.TrimSpace(invoke.GetAgentName())
-						field = "agent_name"
-					}
-					return connectx.InvalidArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.%s", i, field), fmt.Sprintf("agent %q does not exist in workspace %q", ref, a.GetWorkspaceId()))
+					return connectx.InvalidArgument(fmt.Sprintf("automation.steps[%d].invoke_agent.agent_id", i), fmt.Sprintf("agent %q does not exist in workspace %q", agentID, a.GetWorkspaceId()))
 				}
 				invoke.AgentName = name
-				if strings.TrimSpace(invoke.GetAgentId()) == "" {
-					if id, _, ok := agent.GetAgentIdentity(name); ok {
-						invoke.AgentId = id
-					}
-				}
 			}
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CALL_WEBHOOK:
 			if strings.TrimSpace(step.GetCallWebhook().GetUrl()) == "" {

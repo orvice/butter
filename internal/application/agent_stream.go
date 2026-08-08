@@ -49,7 +49,7 @@ func (s *AgentServiceServer) StreamAgent(
 	}
 
 	workspaceID, hasWorkspace := wsctx.FromContext(ctx)
-	agentName, err := resolveAgentRunnerRef(s.runnerSvc, workspaceID, req.Msg.GetAgentId(), req.Msg.GetAgentName())
+	agentName, err := resolveAgentRunnerRef(s.runnerSvc, workspaceID, req.Msg.GetAgentId())
 	if err != nil {
 		return err
 	}

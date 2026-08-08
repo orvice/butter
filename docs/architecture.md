@@ -30,7 +30,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 启动时 `application.BootstrapDefaultWorkspace` 检查 `workspaces` 集合是否为空，若为空则自动创建 slug 为 `default` 的 workspace，并把现有所有用户加为 `owner`。
 
-运行时（runner / channel manager / cron scheduler / automation scheduler）通过新增的 `*AcrossWorkspaces` repo 接口拉平所有 workspace 的配置，构建一个全局视图。**在当前阶段 agent 运行时名字仍要求跨 workspace 全局唯一**，但所有 agent 消费方（interactive RPC、channel、cron、automation、forum、daemon、A2A、OpenAI 兼容 API）已迁移到不可变的、workspace 内唯一的 **Agent ID**（`agent_id`）作为首选引用，legacy `agent_name` 仅作向后兼容。channel、cron job 与 automation step 通过 `ContextInfo.workspace_id` 把所属 workspace 透传到执行链。
+运行时（runner / channel manager / cron scheduler / automation scheduler）通过新增的 `*AcrossWorkspaces` repo 接口拉平所有 workspace 的配置，构建一个全局视图。**在当前阶段 agent 运行时名字仍要求跨 workspace 全局唯一**，但所有 agent 消费方（interactive RPC、channel、cron、automation、forum、A2A、OpenAI 兼容 API）已迁移到不可变的、workspace 内唯一的 **Agent ID**（`agent_id`）作为**唯一引用**（agent_id-only）：调用/绑定 agent 时 `agent_id` 必填，legacy `agent_name` 不再作为输入，仅保留为服务端回写的显示名与历史记录字段。channel、cron job 与 automation step 通过 `ContextInfo.workspace_id` 把所属 workspace 透传到执行链。
 
 ## 进程入口
 
@@ -119,6 +119,8 @@ Persistence
 
 启动时先创建 HTTP/ConnectRPC handler，再初始化配置仓库。配置仓库 seed 完成后，`StartChannels` 用当前配置构建 runner、cron 和渠道管理器。最后 `Handlers.Wire` 把 runner、session、cron、config runtime 等运行时依赖注入到已创建的 RPC/HTTP handler。
 
+启动时还会执行一次性的 Agent ID 回填（`internal/app/backfill.go: backfillConsumerAgentIDs`）：迁移前只按 legacy `agent_name` 引用 agent 的 channel、cron job 与 automation invoke-agent step，在 agent_id-only 解析下将无法命中，因此这一步按（workspace, name）把它们解析到当前 agent 的 `agent_id` 并写回。它是幂等的——已带 `agent_id` 的记录跳过；name 已无法解析到已分配 `agent_id` 的记录仅记 warning 并跳过，不阻断启动。
+
 ## Agent 构建模型
 
 Agent 源配置来自 `agents.v1.Agent`：
@@ -160,15 +162,18 @@ Agent proto
 所有入口最终调用 `runner.Service.Run(...)`。入口在调用前先把请求携带的 agent 引用解析成运行时名字：
 
 ```text
-agent 引用解析（internal/runtime/runner/resolve.go: ResolveAgentRef）
-  agent_id 优先：按 workspace-scoped agent_id 索引查找已注册 agent
-    命中 -> 返回运行时名字
-    set-but-unknown -> 不回退到 name，直接 NotFound
-  agent_id 为空时才用 legacy agent_name（同样受 workspace 语义约束）
+agent 引用解析（internal/runtime/runner/resolve.go: ResolveAgentRef(workspaceID, agentID)）
+  仅按 agent_id 解析，没有 legacy name 解析路径：
+    空 agentID -> 直接 miss
+    按 workspace-scoped agent_id 索引查找已注册 agent
+      命中 -> 返回运行时名字
+      set-but-unknown -> 直接 NotFound（不会误命中同名 agent）
+  内置 agent（无 proto 配置，如 system agent）name 即 agent_id，
+    且无 workspace 绑定，仅在 system context（空 workspaceID）下解析
   空 workspaceID 为 admin/system 路径，匹配任意 workspace
 ```
 
-`resolveAgentRunnerRef`（application 层）把这一 seam 暴露给 interactive RPC（`InvokeAgent` / `StreamAgent` / `ReplySession`）；channel、cron scheduler（`internal/runtime/cron/scheduler.go`）与 automation engine（`internal/runtime/automation/engine.go`）在执行时同样先 `ResolveAgentRef`（agent_id 优先、legacy name 兜底历史记录），并在写回配置/执行记录时 backfill `agent_id` 与 `agent_display_name` 快照。跨 workspace 隔离仍在 ConnectRPC 边界与 runner 内共同强制。
+`resolveAgentRunnerRef`（application 层）把这一 seam 暴露给 interactive RPC（`InvokeAgent` / `StreamAgent` / `ReplySession`）：`agent_id` 缺失 -> `InvalidArgument`，未知 -> `NotFound`。channel、cron scheduler（`internal/runtime/cron/scheduler.go`）与 automation engine（`internal/runtime/automation/engine.go`）在执行时同样只按 `agent_id` 调用 `ResolveAgentRef`，并在写回配置/执行记录时把解析出的运行时名字 stamp 进 `agent_name`（仅显示用）、记录 `agent_display_name` 快照。跨 workspace 隔离仍在 ConnectRPC 边界与 runner 内共同强制。
 
 解析出运行时名字后：
 
@@ -268,7 +273,7 @@ Engine 使用 automation definition/run/step-run repositories 按 workspace 写�
 
 ### Human Input 暂停与恢复（issue #176，镜像 cron ADR-0003）
 
-当某个 `INVOKE_AGENT` step 调用的 Workflow Agent 暂停在 Human Input Node 时，`RunTurnSSE` 返回的 `TurnResult.Pending` 非空。Engine 不把该 run 记为成功，而是写入 `AUTOMATION_RUN_STATUS_WAITING_INPUT`，并记录 per-run session 坐标（`automation:<name>` / `automation:<workspace>` / `automation:<run-id>`）与暂停 agent 的 `agent_id`（legacy `agent_name` 兜底历史记录）。按 Option A，暂停即为该 pipeline 的终点——后续 steps 不再执行。
+当某个 `INVOKE_AGENT` step 调用的 Workflow Agent 暂停在 Human Input Node 时，`RunTurnSSE` 返回的 `TurnResult.Pending` 非空。Engine 不把该 run 记为成功，而是写入 `AUTOMATION_RUN_STATUS_WAITING_INPUT`，并记录 per-run session 坐标（`automation:<name>` / `automation:<workspace>` / `automation:<run-id>`）与暂停 agent 的 `agent_id`（回复时凭该 `agent_id` 定位）。按 Option A，暂停即为该 pipeline 的终点——后续 steps 不再执行。
 
 恢复走 runner 的 TurnListener（与 cron 相同的机制）：`automation.Engine.HandleTurn` 注册为 turn listener，人通过 `ReplySession`（或任意入口）向该 session 发消息，runner 的隐式 resume 完成 workflow；当某个 automation session 上的 turn 结束且无 pending Interrupt 时，Engine 通过 `RunRepo.ListWaitingBySession` 找到等待中的 run，将其 finalize 为 `SUCCEEDED`，把恢复后的输出写回暂停 step，并清理该 session。删除暂停 session（ADR-0002 的放弃语义）由 `HandleSessionDeleted` 监听，将 run 置为 `CANCELLED`。Automation 没有顶层 delivery/notify 配置，因此 node 的问题仅记录在暂停 step 的输出中。
 
@@ -296,9 +301,9 @@ HTTP handler 位于 `internal/handler/http`：
 
 - `GET /ping`：健康检查，不需要 Bearer token。
 - `GET /status`：运行时状态，返回当前配置存储 backend 和配置集合数量。
-- `GET /a2a/:agent_ref/.well-known/agent.json`：A2A agent card；`:agent_ref` 为 agent_id（legacy name 对未分配 ID 的 agent 仍匹配），agent card 广告 agent_id URL。
+- `GET /a2a/:agent_ref/.well-known/agent.json`：A2A agent card；`:agent_ref` **即** agent_id（legacy name 匹配已移除），仅对有 agent_id 且 `enable_a2a: true` 的 agent 开放，agent card 广告 agent_id URL。
 - `POST /a2a/:agent_ref`：A2A JSON-RPC task send。
-- `GET /api/v1/models` / `POST /api/v1/chat/completions`：OpenAI 兼容 API，`model` 字段即 agent_id（legacy name 兜底），仅对 `enable_openai_api: true` 的 agent 开放。
+- `GET /api/v1/models` / `POST /api/v1/chat/completions`：OpenAI 兼容 API，`model` 字段**即** agent_id（legacy name 查找已移除），仅对 `enable_openai_api: true` 的 agent 开放；`/v1/models` 只列出有 agent_id 的 agent。
 - `POST /api/uploads/*`：头像与静态资源 multipart 上传（见 `docs/storage.md`）；不走 ConnectRPC。
 - `ANY /api/workspaces/:workspace_id/mcp`：工作区范围的 MCP HTTP 端点，转发给工作区 MCP service。
 - `GET /api/mcp/oauth/callback`：MCP OAuth2 授权码回调，由 `MCPServerService.CompleteMCPServerOAuthCallback` 处理后重定向。
@@ -307,7 +312,7 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 
 配置 / 执行：
 
-- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（chat server-stream）/ `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，外加 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。interactive RPC 与 runtime-status/invocation 查询均以 `agent_id` 为首选引用，stream 事件与 `Invocation` 记录携带 `agent_id`（及 `agent_display_name` 快照）。
+- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（chat server-stream）/ `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，外加 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status/invocation 查询以 `agent_id` 为主，并对历史记录兼容 legacy name 过滤。stream 事件与 `Invocation` 记录携带 `agent_id`（及 `agent_display_name` 快照）。
 - `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools` + MCP OAuth2 流程（`StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`）。
 - `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
 - `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
@@ -439,6 +444,6 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 - `runner.Service.Run` 当前仍以同步返回最终文本为主，长时间 daemon 任务会占用调用链。
 - MCP toolset 当前支持 streamable HTTP 和 SSE transport。
 - A2A remote agent 需要 `url`；daemon remote agent 需要 `daemon_runtime_id`、`acp_runtime` 和在线 daemon runtime 连接。
-- 跨 workspace 共享同一个 runner / channel manager / cron scheduler / automation scheduler，**agent 运行时名字需在所有 workspace 内全局唯一**；引用 agent 的 channel、cron job 与 automation step 通过 `ResolveAgentRef` 以 `agent_id` 优先解析（legacy name 仅对未分配 ID 的历史记录兜底）。
+- 跨 workspace 共享同一个 runner / channel manager / cron scheduler / automation scheduler，**agent 运行时名字需在所有 workspace 内全局唯一**；引用 agent 的 channel、cron job 与 automation step 通过 `ResolveAgentRef` **仅按 `agent_id`** 解析（无 legacy name 解析路径；迁移前只按 name 引用的旧记录由启动时的一次性回填补上 `agent_id`）。
 - Automation v1 是线性有序 step，不包含 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 已在 proto 中预留，但当前运行时只执行 manual 和 schedule trigger。
 - 内置 system agent 仍为全局注册，其管理类工具读跨 workspace、写则要求显式传入 `workspace_id`。
