@@ -3,6 +3,8 @@ import { create } from "@bufbuild/protobuf";
 import {
   WorkspaceRepoBindingSchema,
   WorkspaceRepoBindingService,
+  type GetRepositoryFileResponse,
+  type ListRepositoryEntriesResponse,
   type RepoBindingOverlap,
   type RepoBindingWriteMode,
   type WorkspaceRepoBinding,
@@ -58,6 +60,20 @@ async function validateRepoBinding(): Promise<WorkspaceRepoBinding> {
   return res.binding;
 }
 
+async function syncRepository(): Promise<WorkspaceRepoBinding> {
+  const res = await client.syncWorkspaceRepository({});
+  if (!res.binding) throw new Error("sync returned no binding");
+  return res.binding;
+}
+
+async function listRepositoryEntries(path: string): Promise<ListRepositoryEntriesResponse> {
+  return client.listRepositoryEntries({ path });
+}
+
+async function getRepositoryFile(path: string): Promise<GetRepositoryFileResponse> {
+  return client.getRepositoryFile({ path });
+}
+
 export function useRepoBinding() {
   return useQuery({ queryKey: ["repo-binding"], queryFn: getRepoBinding });
 }
@@ -66,7 +82,11 @@ export function usePutRepoBinding() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: putRepoBinding,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["repo-binding"] }),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ["repo-entries"] });
+      qc.removeQueries({ queryKey: ["repo-file"] });
+      return qc.invalidateQueries({ queryKey: ["repo-binding"] });
+    },
   });
 }
 
@@ -74,7 +94,11 @@ export function useDeleteRepoBinding() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: deleteRepoBinding,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["repo-binding"] }),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ["repo-entries"] });
+      qc.removeQueries({ queryKey: ["repo-file"] });
+      return qc.invalidateQueries({ queryKey: ["repo-binding"] });
+    },
   });
 }
 
@@ -91,5 +115,34 @@ export function useValidateRepoBinding() {
   return useMutation({
     mutationFn: validateRepoBinding,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["repo-binding"] }),
+  });
+}
+
+export function useSyncRepository() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: syncRepository,
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["repo-binding"] }),
+        qc.invalidateQueries({ queryKey: ["repo-entries"] }),
+        qc.invalidateQueries({ queryKey: ["repo-file"] }),
+      ]);
+    },
+  });
+}
+
+export function useRepositoryEntries(path: string) {
+  return useQuery({
+    queryKey: ["repo-entries", path],
+    queryFn: () => listRepositoryEntries(path),
+  });
+}
+
+export function useRepositoryFile(path: string) {
+  return useQuery({
+    queryKey: ["repo-file", path],
+    queryFn: () => getRepositoryFile(path),
+    enabled: path.length > 0,
   });
 }

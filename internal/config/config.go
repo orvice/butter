@@ -147,6 +147,28 @@ type GitConfig struct {
 	// text, hex-encoded bytes, or base64-encoded bytes. When empty, binding
 	// credentials cannot be set or validated.
 	EncryptionKey string `yaml:"encryption_key"`
+
+	// MaxFileBytes caps one Markdown blob cached during repository sync.
+	// Zero uses the default 256 KiB.
+	MaxFileBytes int64 `yaml:"max_file_bytes"`
+
+	// MaxWorkspaceCacheBytes caps total Markdown content in one workspace
+	// snapshot. Zero uses the default 20 MiB.
+	MaxWorkspaceCacheBytes int64 `yaml:"max_workspace_cache_bytes"`
+}
+
+func (g GitConfig) EffectiveMaxFileBytes() int64 {
+	if g.MaxFileBytes <= 0 {
+		return 256 * 1024
+	}
+	return g.MaxFileBytes
+}
+
+func (g GitConfig) EffectiveMaxWorkspaceCacheBytes() int64 {
+	if g.MaxWorkspaceCacheBytes <= 0 {
+		return 20 * 1024 * 1024
+	}
+	return g.MaxWorkspaceCacheBytes
 }
 
 type HTTPConfig struct {

@@ -1,17 +1,12 @@
-// Package mongo implements repocache.Repository backed by MongoDB (issue
-// #215). Each workspace's cached tree snapshot is stored as a single
-// document keyed by workspace ID, holding the commit SHA, tree entries,
-// and Markdown blob content. The snapshot is replaced atomically on every
-// successful sync.
+// Package mongo implements repocache.Repository backed by MongoDB.
 package mongo
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
-	"strings"
 
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -20,74 +15,183 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-const collection = "workspace_repo_cache"
+const (
+	snapshotsCollection = "workspace_repo_cache"
+	entriesCollection   = "workspace_repo_cache_entries"
+	blobsCollection     = "workspace_repo_cache_blob_chunks"
+	blobChunkBytes      = 1024 * 1024
+)
+
+type snapshotDoc struct {
+	ID         string `bson:"_id"`
+	SnapshotID string `bson:"snapshot_id"`
+	BindingKey string `bson:"binding_key"`
+	CommitSHA  string `bson:"commit_sha"`
+}
 
 type entryDoc struct {
+	ID          string `bson:"_id"`
+	WorkspaceID string `bson:"workspace_id"`
+	SnapshotID  string `bson:"snapshot_id"`
+	ParentPath  string `bson:"parent_path"`
 	Path        string `bson:"path"`
 	Kind        int32  `bson:"kind"`
 	Size        int64  `bson:"size"`
 	ContentHash string `bson:"content_hash"`
-	Claimed     bool   `bson:"claimed,omitempty"`
+	Claimed     bool   `bson:"claimed"`
 }
 
-type blobDoc struct {
-	Path    string `bson:"path"`
-	Content []byte `bson:"content"`
+type blobChunkDoc struct {
+	ID          string `bson:"_id"`
+	WorkspaceID string `bson:"workspace_id"`
+	SnapshotID  string `bson:"snapshot_id"`
+	Path        string `bson:"path"`
+	ChunkIndex  int    `bson:"chunk_index"`
+	Content     []byte `bson:"content"`
 }
 
-type snapshotDoc struct {
-	ID        string     `bson:"_id"`
-	CommitSHA string     `bson:"commit_sha"`
-	Entries   []entryDoc `bson:"entries"`
-	Blobs     []blobDoc  `bson:"blobs"`
-}
-
-// Store implements repocache.Repository backed by MongoDB.
+// Store implements repocache.Repository backed by three collections. A
+// workspace metadata document points at an immutable snapshot ID; entries and
+// blob chunks are written first, then the pointer is replaced atomically.
 type Store struct {
-	coll *mongo.Collection
+	snapshots *mongo.Collection
+	entries   *mongo.Collection
+	blobs     *mongo.Collection
 }
 
 var _ repocache.Repository = (*Store)(nil)
 
 func New(db *mongo.Database) *Store {
-	return &Store{coll: db.Collection(collection)}
+	return &Store{
+		snapshots: db.Collection(snapshotsCollection),
+		entries:   db.Collection(entriesCollection),
+		blobs:     db.Collection(blobsCollection),
+	}
 }
 
-func (s *Store) PutSnapshot(ctx context.Context, workspaceID, commitSHA string, entries []*agentsv1.RepoCacheEntry, blobs []repocache.CachedBlob) error {
-	edocs := make([]entryDoc, len(entries))
-	for i, e := range entries {
-		edocs[i] = entryDoc{
-			Path:        e.GetPath(),
-			Kind:        int32(e.GetKind()),
-			Size:        e.GetSize(),
-			ContentHash: e.GetContentHash(),
-			Claimed:     e.GetClaimed(),
+func (s *Store) EnsureIndexes(ctx context.Context) error {
+	indexes := []struct {
+		collection *mongo.Collection
+		model      mongo.IndexModel
+	}{
+		{
+			collection: s.entries,
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "workspace_id", Value: 1}, {Key: "snapshot_id", Value: 1}, {Key: "parent_path", Value: 1}, {Key: "path", Value: 1}},
+				Options: options.Index().SetName("workspace_snapshot_parent_path"),
+			},
+		},
+		{
+			collection: s.entries,
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "workspace_id", Value: 1}, {Key: "snapshot_id", Value: 1}, {Key: "path", Value: 1}},
+				Options: options.Index().SetName("workspace_snapshot_path").SetUnique(true),
+			},
+		},
+		{
+			collection: s.blobs,
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "workspace_id", Value: 1}, {Key: "snapshot_id", Value: 1}, {Key: "path", Value: 1}, {Key: "chunk_index", Value: 1}},
+				Options: options.Index().SetName("workspace_snapshot_blob_chunks").SetUnique(true),
+			},
+		},
+	}
+	for _, index := range indexes {
+		if _, err := index.collection.Indexes().CreateOne(ctx, index.model); err != nil {
+			return fmt.Errorf("create %s index: %w", index.collection.Name(), err)
 		}
-	}
-	bdocs := make([]blobDoc, len(blobs))
-	for i, b := range blobs {
-		bdocs[i] = blobDoc{Path: b.Path, Content: b.Content}
-	}
-	doc := snapshotDoc{
-		ID:        workspaceID,
-		CommitSHA: commitSHA,
-		Entries:   edocs,
-		Blobs:     bdocs,
-	}
-	_, err := s.coll.UpdateOne(ctx,
-		bson.M{"_id": workspaceID},
-		bson.M{"$set": doc},
-		options.UpdateOne().SetUpsert(true),
-	)
-	if err != nil {
-		return fmt.Errorf("put repo cache (workspace %q): %w", workspaceID, err)
 	}
 	return nil
 }
 
-func (s *Store) findDoc(ctx context.Context, workspaceID string) (snapshotDoc, error) {
+func parentPath(entryPath string) string {
+	for i := len(entryPath) - 1; i >= 0; i-- {
+		if entryPath[i] == '/' {
+			return entryPath[:i]
+		}
+	}
+	return ""
+}
+
+func (s *Store) PutSnapshot(ctx context.Context, workspaceID string, metadata repocache.SnapshotMetadata, entries []*agentsv1.RepoCacheEntry, blobs []repocache.CachedBlob) error {
+	old, err := s.findSnapshot(ctx, workspaceID)
+	if err != nil && !errors.Is(err, repocache.ErrNotFound) {
+		return err
+	}
+
+	snapshotID := uuid.NewString()
+	entryDocs := make([]any, 0, len(entries))
+	for _, entry := range entries {
+		entryDocs = append(entryDocs, entryDoc{
+			ID:          uuid.NewString(),
+			WorkspaceID: workspaceID,
+			SnapshotID:  snapshotID,
+			ParentPath:  parentPath(entry.GetPath()),
+			Path:        entry.GetPath(),
+			Kind:        int32(entry.GetKind()),
+			Size:        entry.GetSize(),
+			ContentHash: entry.GetContentHash(),
+			Claimed:     entry.GetClaimed(),
+		})
+	}
+	if len(entryDocs) > 0 {
+		if _, err := s.entries.InsertMany(ctx, entryDocs); err != nil {
+			_ = s.deleteSnapshotContent(ctx, workspaceID, snapshotID)
+			return fmt.Errorf("put repo cache entries (workspace %q): %w", workspaceID, err)
+		}
+	}
+
+	chunkDocs := make([]any, 0, len(blobs))
+	for _, blob := range blobs {
+		if len(blob.Content) == 0 {
+			chunkDocs = append(chunkDocs, newBlobChunk(workspaceID, snapshotID, blob.Path, 0, nil))
+			continue
+		}
+		chunkIndex := 0
+		for offset := 0; offset < len(blob.Content); offset += blobChunkBytes {
+			end := min(offset+blobChunkBytes, len(blob.Content))
+			chunkDocs = append(chunkDocs, newBlobChunk(workspaceID, snapshotID, blob.Path, chunkIndex, blob.Content[offset:end]))
+			chunkIndex++
+		}
+	}
+	if len(chunkDocs) > 0 {
+		if _, err := s.blobs.InsertMany(ctx, chunkDocs); err != nil {
+			_ = s.deleteSnapshotContent(ctx, workspaceID, snapshotID)
+			return fmt.Errorf("put repo cache blobs (workspace %q): %w", workspaceID, err)
+		}
+	}
+
+	doc := snapshotDoc{
+		ID:         workspaceID,
+		SnapshotID: snapshotID,
+		BindingKey: metadata.BindingKey,
+		CommitSHA:  metadata.CommitSHA,
+	}
+	if _, err := s.snapshots.ReplaceOne(ctx, bson.M{"_id": workspaceID}, doc, options.Replace().SetUpsert(true)); err != nil {
+		_ = s.deleteSnapshotContent(ctx, workspaceID, snapshotID)
+		return fmt.Errorf("put repo cache snapshot (workspace %q): %w", workspaceID, err)
+	}
+
+	if old.SnapshotID != "" && old.SnapshotID != snapshotID {
+		_ = s.deleteSnapshotContent(ctx, workspaceID, old.SnapshotID)
+	}
+	return nil
+}
+
+func newBlobChunk(workspaceID, snapshotID, path string, chunkIndex int, content []byte) blobChunkDoc {
+	return blobChunkDoc{
+		ID:          uuid.NewString(),
+		WorkspaceID: workspaceID,
+		SnapshotID:  snapshotID,
+		Path:        path,
+		ChunkIndex:  chunkIndex,
+		Content:     content,
+	}
+}
+
+func (s *Store) findSnapshot(ctx context.Context, workspaceID string) (snapshotDoc, error) {
 	var doc snapshotDoc
-	err := s.coll.FindOne(ctx, bson.M{"_id": workspaceID}).Decode(&doc)
+	err := s.snapshots.FindOne(ctx, bson.M{"_id": workspaceID}).Decode(&doc)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return snapshotDoc{}, repocache.ErrNotFound
 	}
@@ -97,77 +201,108 @@ func (s *Store) findDoc(ctx context.Context, workspaceID string) (snapshotDoc, e
 	return doc, nil
 }
 
-func (s *Store) GetCommitSHA(ctx context.Context, workspaceID string) (string, error) {
-	doc, err := s.findDoc(ctx, workspaceID)
+func (s *Store) GetMetadata(ctx context.Context, workspaceID string) (repocache.SnapshotMetadata, error) {
+	doc, err := s.findSnapshot(ctx, workspaceID)
 	if err != nil {
-		return "", err
+		return repocache.SnapshotMetadata{}, err
 	}
-	return doc.CommitSHA, nil
+	return repocache.SnapshotMetadata{SnapshotID: doc.SnapshotID, BindingKey: doc.BindingKey, CommitSHA: doc.CommitSHA}, nil
 }
 
-func (s *Store) ListEntries(ctx context.Context, workspaceID, dirPath string) ([]*agentsv1.RepoCacheEntry, error) {
-	doc, err := s.findDoc(ctx, workspaceID)
+func (s *Store) ListEntries(ctx context.Context, workspaceID, snapshotID, dirPath string) ([]*agentsv1.RepoCacheEntry, error) {
+	cursor, err := s.entries.Find(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"snapshot_id":  snapshotID,
+		"parent_path":  dirPath,
+	}, options.Find().SetSort(bson.D{{Key: "path", Value: 1}}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list repo cache entries (workspace %q): %w", workspaceID, err)
 	}
-	dirPath = strings.TrimRight(dirPath, "/")
-	var out []*agentsv1.RepoCacheEntry
-	for _, e := range doc.Entries {
-		parent := path.Dir(e.Path)
-		if parent == "." {
-			parent = ""
-		}
-		if parent == dirPath {
-			out = append(out, &agentsv1.RepoCacheEntry{
-				Path:        e.Path,
-				Kind:        agentsv1.RepoCacheEntryKind(e.Kind),
-				Size:        e.Size,
-				ContentHash: e.ContentHash,
-				Claimed:     e.Claimed,
-			})
-		}
+	defer cursor.Close(ctx)
+	var docs []entryDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("decode repo cache entries (workspace %q): %w", workspaceID, err)
+	}
+	out := make([]*agentsv1.RepoCacheEntry, 0, len(docs))
+	for _, doc := range docs {
+		out = append(out, entryFromDoc(doc))
 	}
 	return out, nil
 }
 
-func (s *Store) GetEntry(ctx context.Context, workspaceID, entryPath string) (*agentsv1.RepoCacheEntry, error) {
-	doc, err := s.findDoc(ctx, workspaceID)
+func (s *Store) GetEntry(ctx context.Context, workspaceID, snapshotID, entryPath string) (*agentsv1.RepoCacheEntry, error) {
+	var doc entryDoc
+	err := s.entries.FindOne(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"snapshot_id":  snapshotID,
+		"path":         entryPath,
+	}).Decode(&doc)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, repocache.ErrNotFound
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get repo cache entry (workspace %q, path %q): %w", workspaceID, entryPath, err)
 	}
-	for _, e := range doc.Entries {
-		if e.Path == entryPath {
-			return &agentsv1.RepoCacheEntry{
-				Path:        e.Path,
-				Kind:        agentsv1.RepoCacheEntryKind(e.Kind),
-				Size:        e.Size,
-				ContentHash: e.ContentHash,
-				Claimed:     e.Claimed,
-			}, nil
-		}
-	}
-	return nil, repocache.ErrNotFound
+	return entryFromDoc(doc), nil
 }
 
-func (s *Store) GetBlob(ctx context.Context, workspaceID, filePath string) ([]byte, error) {
-	doc, err := s.findDoc(ctx, workspaceID)
+func entryFromDoc(doc entryDoc) *agentsv1.RepoCacheEntry {
+	return &agentsv1.RepoCacheEntry{
+		Path:        doc.Path,
+		Kind:        agentsv1.RepoCacheEntryKind(doc.Kind),
+		Size:        doc.Size,
+		ContentHash: doc.ContentHash,
+		Claimed:     doc.Claimed,
+	}
+}
+
+func (s *Store) GetBlob(ctx context.Context, workspaceID, snapshotID, filePath string) ([]byte, error) {
+	cursor, err := s.blobs.Find(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"snapshot_id":  snapshotID,
+		"path":         filePath,
+	}, options.Find().SetSort(bson.D{{Key: "chunk_index", Value: 1}}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get repo cache blob (workspace %q, path %q): %w", workspaceID, filePath, err)
 	}
-	for _, b := range doc.Blobs {
-		if b.Path == filePath {
-			cp := make([]byte, len(b.Content))
-			copy(cp, b.Content)
-			return cp, nil
+	defer cursor.Close(ctx)
+	var docs []blobChunkDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("decode repo cache blob (workspace %q, path %q): %w", workspaceID, filePath, err)
+	}
+	if len(docs) == 0 {
+		return nil, repocache.ErrNotFound
+	}
+	var content []byte
+	for index, doc := range docs {
+		if doc.ChunkIndex != index {
+			return nil, fmt.Errorf("repo cache blob has missing chunk (workspace %q, path %q)", workspaceID, filePath)
 		}
+		content = append(content, doc.Content...)
 	}
-	return nil, repocache.ErrNotFound
+	return content, nil
 }
 
 func (s *Store) Delete(ctx context.Context, workspaceID string) error {
-	_, err := s.coll.DeleteOne(ctx, bson.M{"_id": workspaceID})
-	if err != nil {
-		return fmt.Errorf("delete repo cache (workspace %q): %w", workspaceID, err)
+	if _, err := s.snapshots.DeleteOne(ctx, bson.M{"_id": workspaceID}); err != nil {
+		return fmt.Errorf("delete repo cache snapshot (workspace %q): %w", workspaceID, err)
+	}
+	if _, err := s.entries.DeleteMany(ctx, bson.M{"workspace_id": workspaceID}); err != nil {
+		return fmt.Errorf("delete repo cache entries (workspace %q): %w", workspaceID, err)
+	}
+	if _, err := s.blobs.DeleteMany(ctx, bson.M{"workspace_id": workspaceID}); err != nil {
+		return fmt.Errorf("delete repo cache blobs (workspace %q): %w", workspaceID, err)
+	}
+	return nil
+}
+
+func (s *Store) deleteSnapshotContent(ctx context.Context, workspaceID, snapshotID string) error {
+	filter := bson.M{"workspace_id": workspaceID, "snapshot_id": snapshotID}
+	if _, err := s.entries.DeleteMany(ctx, filter); err != nil {
+		return err
+	}
+	if _, err := s.blobs.DeleteMany(ctx, filter); err != nil {
+		return err
 	}
 	return nil
 }

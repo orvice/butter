@@ -126,6 +126,8 @@ mcp_oauth:
 # is a development placeholder.
 git:
   encryption_key: "0123456789abcdef0123456789abcdef"
+  max_file_bytes: 262144                 # 256 KiB; 0 = use default
+  max_workspace_cache_bytes: 20971520   # 20 MiB; 0 = use default
 
 # Langfuse observability (optional — disabled when keys are empty)
 langfuse:

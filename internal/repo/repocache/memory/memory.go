@@ -9,15 +9,16 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"go.orx.me/apps/butter/internal/repo/repocache"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 )
 
 type snapshot struct {
-	commitSHA string
-	entries   []*agentsv1.RepoCacheEntry
-	blobs     map[string][]byte
+	metadata repocache.SnapshotMetadata
+	entries  []*agentsv1.RepoCacheEntry
+	blobs    map[string][]byte
 }
 
 // Store is a thread-safe in-memory repocache.Repository.
@@ -31,7 +32,10 @@ func New() *Store {
 	return &Store{data: make(map[string]*snapshot)}
 }
 
-func (s *Store) PutSnapshot(_ context.Context, workspaceID, commitSHA string, entries []*agentsv1.RepoCacheEntry, blobs []repocache.CachedBlob) error {
+func (s *Store) EnsureIndexes(context.Context) error { return nil }
+
+func (s *Store) PutSnapshot(_ context.Context, workspaceID string, metadata repocache.SnapshotMetadata, entries []*agentsv1.RepoCacheEntry, blobs []repocache.CachedBlob) error {
+	metadata.SnapshotID = uuid.NewString()
 	cloned := make([]*agentsv1.RepoCacheEntry, len(entries))
 	for i, e := range entries {
 		cloned[i] = proto.Clone(e).(*agentsv1.RepoCacheEntry)
@@ -45,28 +49,28 @@ func (s *Store) PutSnapshot(_ context.Context, workspaceID, commitSHA string, en
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.data[workspaceID] = &snapshot{
-		commitSHA: commitSHA,
-		entries:   cloned,
-		blobs:     blobMap,
+		metadata: metadata,
+		entries:  cloned,
+		blobs:    blobMap,
 	}
 	return nil
 }
 
-func (s *Store) GetCommitSHA(_ context.Context, workspaceID string) (string, error) {
+func (s *Store) GetMetadata(_ context.Context, workspaceID string) (repocache.SnapshotMetadata, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	snap, ok := s.data[workspaceID]
 	if !ok {
-		return "", repocache.ErrNotFound
+		return repocache.SnapshotMetadata{}, repocache.ErrNotFound
 	}
-	return snap.commitSHA, nil
+	return snap.metadata, nil
 }
 
-func (s *Store) ListEntries(_ context.Context, workspaceID, dirPath string) ([]*agentsv1.RepoCacheEntry, error) {
+func (s *Store) ListEntries(_ context.Context, workspaceID, snapshotID, dirPath string) ([]*agentsv1.RepoCacheEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	snap, ok := s.data[workspaceID]
-	if !ok {
+	if !ok || snap.metadata.SnapshotID != snapshotID {
 		return nil, repocache.ErrNotFound
 	}
 	dirPath = strings.TrimRight(dirPath, "/")
@@ -83,11 +87,11 @@ func (s *Store) ListEntries(_ context.Context, workspaceID, dirPath string) ([]*
 	return out, nil
 }
 
-func (s *Store) GetEntry(_ context.Context, workspaceID, entryPath string) (*agentsv1.RepoCacheEntry, error) {
+func (s *Store) GetEntry(_ context.Context, workspaceID, snapshotID, entryPath string) (*agentsv1.RepoCacheEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	snap, ok := s.data[workspaceID]
-	if !ok {
+	if !ok || snap.metadata.SnapshotID != snapshotID {
 		return nil, repocache.ErrNotFound
 	}
 	for _, e := range snap.entries {
@@ -98,11 +102,11 @@ func (s *Store) GetEntry(_ context.Context, workspaceID, entryPath string) (*age
 	return nil, repocache.ErrNotFound
 }
 
-func (s *Store) GetBlob(_ context.Context, workspaceID, filePath string) ([]byte, error) {
+func (s *Store) GetBlob(_ context.Context, workspaceID, snapshotID, filePath string) ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	snap, ok := s.data[workspaceID]
-	if !ok {
+	if !ok || snap.metadata.SnapshotID != snapshotID {
 		return nil, repocache.ErrNotFound
 	}
 	content, ok := snap.blobs[filePath]

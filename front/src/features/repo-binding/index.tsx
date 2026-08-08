@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -6,6 +6,9 @@ import { toast } from 'sonner'
 import { timestampDate, type Timestamp } from '@bufbuild/protobuf/wkt'
 import {
   Check,
+  ChevronRight,
+  FileText,
+  Folder,
   GitBranch,
   Info,
   KeyRound,
@@ -18,18 +21,26 @@ import {
   useDeleteRepoBinding,
   usePutRepoBinding,
   useRepoBinding,
+  useRepositoryEntries,
+  useRepositoryFile,
   useSetRepoBindingCredential,
+  useSyncRepository,
   useValidateRepoBinding,
 } from '@/api/repo-binding'
+import { Code, ConnectError } from '@/api/transport'
 import { useGitHosts } from '@/api/git-hosts'
 import {
   RepoBindingConnectionState,
   RepoBindingWriteMode,
+  RepoCacheEntryKind,
+  type RepoCacheEntry,
   type RepoBindingCheck,
   type RepoBindingOverlap,
   type WorkspaceRepoBinding,
 } from '@/gen/agents/v1/repobinding_pb'
 import { DeleteDialog } from '@/components/delete-dialog'
+import { EmptyState } from '@/components/empty-state'
+import { MarkdownContent } from '@/components/markdown-content'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -59,6 +70,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -145,33 +157,342 @@ export function RepoBindingPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className='grid max-w-6xl gap-6 xl:grid-cols-[minmax(0,1fr)_420px]'>
-            <div className='space-y-6'>
-              {!binding && (
-                <Alert>
-                  <Info className='h-4 w-4' />
-                  <AlertTitle>No repository bound yet</AlertTitle>
-                  <AlertDescription>
-                    Configure a binding below, then set a personal access token
-                    and validate the connection.
-                  </AlertDescription>
-                </Alert>
-              )}
-              {overlaps.length > 0 && <OverlapsAlert overlaps={overlaps} />}
-              <BindingForm binding={binding} />
-            </div>
-            {binding && (
+          <div className='max-w-6xl space-y-6'>
+            <div className='grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]'>
               <div className='space-y-6'>
-                <ConnectionCard binding={binding} />
-                <CredentialCard binding={binding} />
-                <DangerZoneCard binding={binding} />
+                {!binding && (
+                  <Alert>
+                    <Info className='h-4 w-4' />
+                    <AlertTitle>No repository bound yet</AlertTitle>
+                    <AlertDescription>
+                      Configure a binding below, then set a personal access token
+                      and validate the connection.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {overlaps.length > 0 && <OverlapsAlert overlaps={overlaps} />}
+                <BindingForm binding={binding} />
               </div>
-            )}
+              {binding && (
+                <div className='space-y-6'>
+                  <ConnectionCard binding={binding} />
+                  <CredentialCard binding={binding} />
+                  <DangerZoneCard binding={binding} />
+                </div>
+              )}
+            </div>
+            {binding && <RepositoryBrowser binding={binding} />}
           </div>
         )}
       </PageScroll>
     </Page>
   )
+}
+
+function RepositoryBrowser({ binding }: { binding: WorkspaceRepoBinding }) {
+  const [directoryPath, setDirectoryPath] = useState('')
+  const [selectedFile, setSelectedFile] = useState('')
+  const entriesQuery = useRepositoryEntries(directoryPath)
+  const fileQuery = useRepositoryFile(selectedFile)
+  const syncMutation = useSyncRepository()
+  const entries = useMemo(
+    () =>
+      [...(entriesQuery.data?.entries ?? [])].sort((a, b) => {
+        if (a.kind !== b.kind) {
+          if (a.kind === RepoCacheEntryKind.DIRECTORY) return -1
+          if (b.kind === RepoCacheEntryKind.DIRECTORY) return 1
+        }
+        return a.path.localeCompare(b.path)
+      }),
+    [entriesQuery.data?.entries]
+  )
+  const cacheMissing =
+    entriesQuery.error instanceof ConnectError &&
+    entriesQuery.error.code === Code.NotFound
+
+  function handleSync() {
+    syncMutation.mutate(undefined, {
+      onSuccess: () => toast.success('Repository cache refreshed'),
+      onError: (error) => toast.error(error.message),
+    })
+  }
+
+  function openEntry(entry: RepoCacheEntry) {
+    if (entry.kind === RepoCacheEntryKind.DIRECTORY) {
+      setDirectoryPath(entry.path)
+      setSelectedFile('')
+      return
+    }
+    if (entry.kind === RepoCacheEntryKind.FILE) {
+      setSelectedFile(entry.path)
+    }
+  }
+
+  function navigateTo(path: string) {
+    setDirectoryPath(path)
+    setSelectedFile('')
+  }
+
+  const crumbs = directoryPath ? directoryPath.split('/') : []
+  const cachedSHA = entriesQuery.data?.commitSha ?? ''
+
+  return (
+    <Card>
+      <CardHeader className='gap-4 sm:grid-cols-[minmax(0,1fr)_auto]'>
+        <div className='min-w-0 space-y-1.5'>
+          <CardTitle className='flex items-center gap-2 text-base'>
+            <Folder className='h-4 w-4' />
+            Cached content
+          </CardTitle>
+          <div className='flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground'>
+            <RevisionLabel label='Cached' sha={cachedSHA} empty='Not synced' />
+            <RevisionLabel
+              label='Observed'
+              sha={binding.observedCommitSha}
+              empty='Not observed'
+            />
+            <RevisionLabel
+              label='Active'
+              sha={binding.activeCommitSha}
+              empty='Not published'
+            />
+            <span>Synced {formatTs(binding.lastSyncedAt)}</span>
+          </div>
+        </div>
+        <Button
+          type='button'
+          variant='outline'
+          onClick={handleSync}
+          disabled={syncMutation.isPending}
+        >
+          <RefreshCw
+            className={syncMutation.isPending ? 'animate-spin' : undefined}
+            aria-hidden='true'
+          />
+          {syncMutation.isPending ? 'Syncing…' : 'Refresh cache'}
+        </Button>
+        <p className='sr-only' role='status' aria-live='polite'>
+          {syncMutation.isPending ? 'Repository synchronization in progress' : ''}
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className='overflow-hidden rounded-md border lg:grid lg:min-h-[30rem] lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]'>
+          <section
+            className='min-w-0 border-b lg:border-e lg:border-b-0'
+            aria-labelledby='repository-directory-heading'
+          >
+            <div className='border-b px-4 py-3'>
+              <h3 id='repository-directory-heading' className='sr-only'>
+                Repository directory
+              </h3>
+              <nav aria-label='Repository path'>
+                <ol className='flex min-w-0 flex-wrap items-center gap-1 text-sm'>
+                  <li>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      className='h-7 px-2 font-mono text-xs'
+                      onClick={() => navigateTo('')}
+                    >
+                      Root
+                    </Button>
+                  </li>
+                  {crumbs.map((crumb, index) => {
+                    const path = crumbs.slice(0, index + 1).join('/')
+                    return (
+                      <li key={path} className='flex min-w-0 items-center gap-1'>
+                        <ChevronRight
+                          className='h-3.5 w-3.5 shrink-0 text-muted-foreground'
+                          aria-hidden='true'
+                        />
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          className='h-7 min-w-0 px-2 font-mono text-xs'
+                          onClick={() => navigateTo(path)}
+                          aria-current={index === crumbs.length - 1 ? 'page' : undefined}
+                        >
+                          <span className='truncate'>{crumb}</span>
+                        </Button>
+                      </li>
+                    )
+                  })}
+                </ol>
+              </nav>
+            </div>
+            <div className='max-h-[22rem] overflow-y-auto p-2 lg:max-h-[26rem]'>
+              {entriesQuery.isLoading ? (
+                <div className='space-y-2 p-2'>
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <Skeleton key={index} className='h-10 w-full' />
+                  ))}
+                </div>
+              ) : cacheMissing ? (
+                <EmptyState
+                  className='m-2 border-0 bg-transparent p-6 shadow-none'
+                  title='No cached content'
+                  icon={<Folder className='h-6 w-6' />}
+                  action={
+                    <Button
+                      type='button'
+                      size='sm'
+                      onClick={handleSync}
+                      disabled={syncMutation.isPending}
+                    >
+                      <RefreshCw
+                        className={syncMutation.isPending ? 'animate-spin' : undefined}
+                        aria-hidden='true'
+                      />
+                      Refresh cache
+                    </Button>
+                  }
+                />
+              ) : entriesQuery.error ? (
+                <p className='p-4 text-sm text-destructive' role='alert'>
+                  {entriesQuery.error.message}
+                </p>
+              ) : entries.length === 0 ? (
+                <p className='p-4 text-sm text-muted-foreground'>
+                  This directory is empty.
+                </p>
+              ) : (
+                <ul className='space-y-1'>
+                  {entries.map((entry) => (
+                    <RepositoryEntryRow
+                      key={entry.path}
+                      entry={entry}
+                      selected={entry.path === selectedFile}
+                      onOpen={() => openEntry(entry)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+          <section
+            className='min-w-0 p-4 sm:p-6'
+            aria-labelledby='repository-preview-heading'
+          >
+            <h3 id='repository-preview-heading' className='sr-only'>
+              Markdown preview
+            </h3>
+            {!selectedFile ? (
+              <EmptyState
+                className='min-h-[18rem] border-0 bg-transparent shadow-none lg:min-h-full'
+                title='No file selected'
+                icon={<FileText className='h-6 w-6' />}
+              />
+            ) : fileQuery.isLoading ? (
+              <div className='space-y-3'>
+                <Skeleton className='h-6 w-2/3' />
+                <Skeleton className='h-4 w-full' />
+                <Skeleton className='h-4 w-5/6' />
+                <Skeleton className='h-28 w-full' />
+              </div>
+            ) : fileQuery.error ? (
+              <div className='space-y-2' role='alert'>
+                <h4 className='break-all font-mono text-sm font-medium'>
+                  {selectedFile}
+                </h4>
+                <p className='text-sm text-destructive'>
+                  {fileQuery.error.message}
+                </p>
+              </div>
+            ) : (
+              <div className='min-w-0 space-y-5'>
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <h4 className='min-w-0 break-all font-mono text-sm font-medium'>
+                    {selectedFile}
+                  </h4>
+                  <span className='shrink-0 text-xs text-muted-foreground'>
+                    {formatBytes(fileQuery.data?.entry?.size)}
+                  </span>
+                </div>
+                <MarkdownContent content={fileQuery.data?.content ?? ''} />
+              </div>
+            )}
+          </section>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RepositoryEntryRow({
+  entry,
+  selected,
+  onOpen,
+}: {
+  entry: RepoCacheEntry
+  selected: boolean
+  onOpen: () => void
+}) {
+  const isDirectory = entry.kind === RepoCacheEntryKind.DIRECTORY
+  const parentPath = entry.path.split('/').slice(0, -1).join('/')
+  const showClaimState = isDirectory && parentPath === 'agents'
+  const pathParts = entry.path.split('/')
+  const name = pathParts[pathParts.length - 1] ?? entry.path
+
+  return (
+    <li>
+      <button
+        type='button'
+        className={`flex min-h-10 w-full items-center gap-3 rounded-md px-3 py-2 text-start text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+          selected ? 'bg-accent text-accent-foreground' : ''
+        }`}
+        onClick={onOpen}
+        aria-current={selected ? 'true' : undefined}
+      >
+        {isDirectory ? (
+          <Folder className='h-4 w-4 shrink-0 text-muted-foreground' aria-hidden='true' />
+        ) : (
+          <FileText className='h-4 w-4 shrink-0 text-muted-foreground' aria-hidden='true' />
+        )}
+        <span className='min-w-0 flex-1 truncate font-mono text-xs'>{name}</span>
+        {showClaimState ? (
+          <Badge variant={entry.claimed ? 'secondary' : 'outline'}>
+            {entry.claimed ? 'Claimed' : 'Unclaimed'}
+          </Badge>
+        ) : !isDirectory ? (
+          <span className='shrink-0 text-xs tabular-nums text-muted-foreground'>
+            {formatBytes(entry.size)}
+          </span>
+        ) : null}
+      </button>
+    </li>
+  )
+}
+
+function RevisionLabel({
+  label,
+  sha,
+  empty,
+}: {
+  label: string
+  sha: string
+  empty: string
+}) {
+  return (
+    <span>
+      {label}:{' '}
+      {sha ? (
+        <code className='font-mono text-foreground' title={sha}>
+          {sha.slice(0, 8)}
+        </code>
+      ) : (
+        empty
+      )}
+    </span>
+  )
+}
+
+function formatBytes(value: bigint | undefined): string {
+  const bytes = Number(value ?? 0n)
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 }
 
 function BindingForm({ binding }: { binding?: WorkspaceRepoBinding }) {
