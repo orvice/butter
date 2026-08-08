@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/repobinding.proto.
  */
 export const file_agents_v1_repobinding: GenFile = /*@__PURE__*/
-  fileDesc("ChthZ2VudHMvdjEvcmVwb2JpbmRpbmcucHJvdG8SCWFnZW50cy52MSKmBQoUV29ya3NwYWNlUmVwb0JpbmRpbmcSHAoLZ2l0X2hvc3RfaWQYASABKAlCB/pCBHICEAESGwoKcmVwb3NpdG9yeRgCIAEoCUIH+kIEcgIQARIXCgZicmFuY2gYAyABKAlCB/pCBHICEAESEQoJcm9vdF9wYXRoGAQgASgJEjMKCndyaXRlX21vZGUYBSABKA4yHy5hZ2VudHMudjEuUmVwb0JpbmRpbmdXcml0ZU1vZGUSHgoWY29udGVudF9zY2hlbWFfdmVyc2lvbhgGIAEoBRIWCg5jcmVkZW50aWFsX3NldBgHIAEoCBI5ChVjcmVkZW50aWFsX3VwZGF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiwKBnN0YXR1cxgJIAEoCzIcLmFnZW50cy52MS5SZXBvQmluZGluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbChNvYnNlcnZlZF9jb21taXRfc2hhGAwgASgJEhkKEWFjdGl2ZV9jb21taXRfc2hhGA0gASgJEjIKDmxhc3Rfc3luY2VkX2F0GA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIXCg9sYXN0X3N5bmNfZXJyb3IYDyABKAkSHgoWbGFzdF9wdWJsaWNhdGlvbl9lcnJvchgQIAEoCRIaChJwdWJsaWNhdGlvbl9lcnJvcnMYESADKAkSGgoSd2ViaG9va19zZWNyZXRfc2V0GBIgASgIEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSK8AQoRUmVwb0JpbmRpbmdTdGF0dXMSNAoFc3RhdGUYASABKA4yJS5hZ2VudHMudjEuUmVwb0JpbmRpbmdDb25uZWN0aW9uU3RhdGUSNQoRbGFzdF92YWxpZGF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWVycm9yGAMgASgJEisKBmNoZWNrcxgEIAMoCzIbLmFnZW50cy52MS5SZXBvQmluZGluZ0NoZWNrIk4KEFJlcG9CaW5kaW5nQ2hlY2sSDAoEbmFtZRgBIAEoCRIKCgJvaxgCIAEoCBIQCghyZXF1aXJlZBgDIAEoCBIOCgZkZXRhaWwYBCABKAkiQgoSUmVwb0JpbmRpbmdPdmVybGFwEhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIWCg53b3Jrc3BhY2VfbmFtZRgCIAEoCSIgCh5HZXRXb3Jrc3BhY2VSZXBvQmluZGluZ1JlcXVlc3QihAEKH0dldFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZxIvCghvdmVybGFwcxgCIAMoCzIdLmFnZW50cy52MS5SZXBvQmluZGluZ092ZXJsYXAiUgoeUHV0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0EjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmciUwofUHV0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nIiMKIURlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdCIkCiJEZWxldGVXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlIkAKKFNldFdvcmtzcGFjZVJlcG9CaW5kaW5nQ3JlZGVudGlhbFJlcXVlc3QSFAoDcGF0GAEgASgJQgf6QgRyAhABIl0KKVNldFdvcmtzcGFjZVJlcG9CaW5kaW5nQ3JlZGVudGlhbFJlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmciJQojVmFsaWRhdGVXb3Jrc3BhY2VSZXBvQmluZGluZ1JlcXVlc3QiWAokVmFsaWRhdGVXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmciIAoeU3luY1dvcmtzcGFjZVJlcG9zaXRvcnlSZXF1ZXN0IpoBCh9TeW5jV29ya3NwYWNlUmVwb3NpdG9yeVJlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmcSFgoOZW50cmllc19zeW5jZWQYAiABKAUSEQoJcHVibGlzaGVkGAMgASgIEhoKEnB1YmxpY2F0aW9uX2Vycm9ycxgEIAMoCSIgCh5HZXRSZXBvc2l0b3J5U3luY1N0YXR1c1JlcXVlc3QiUwofR2V0UmVwb3NpdG9yeVN5bmNTdGF0dXNSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nIiwKHExpc3RSZXBvc2l0b3J5RW50cmllc1JlcXVlc3QSDAoEcGF0aBgBIAEoCSKXAQodTGlzdFJlcG9zaXRvcnlFbnRyaWVzUmVzcG9uc2USEgoKY29tbWl0X3NoYRgBIAEoCRIqCgdlbnRyaWVzGAIgAygLMhkuYWdlbnRzLnYxLlJlcG9DYWNoZUVudHJ5EhsKE29ic2VydmVkX2NvbW1pdF9zaGEYAyABKAkSGQoRYWN0aXZlX2NvbW1pdF9zaGEYBCABKAkiKAoYR2V0UmVwb3NpdG9yeUZpbGVSZXF1ZXN0EgwKBHBhdGgYASABKAkiogEKGUdldFJlcG9zaXRvcnlGaWxlUmVzcG9uc2USEgoKY29tbWl0X3NoYRgBIAEoCRIoCgVlbnRyeRgCIAEoCzIZLmFnZW50cy52MS5SZXBvQ2FjaGVFbnRyeRIPCgdjb250ZW50GAMgASgJEhsKE29ic2VydmVkX2NvbW1pdF9zaGEYBCABKAkSGQoRYWN0aXZlX2NvbW1pdF9zaGEYBSABKAkiIwohUHVibGlzaFdvcmtzcGFjZVJlcG9zaXRvcnlSZXF1ZXN0InEKIlB1Ymxpc2hXb3Jrc3BhY2VSZXBvc2l0b3J5UmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZxIZChF2YWxpZGF0aW9uX2Vycm9ycxgCIAMoCSIfCh1Db25maWd1cmVXZWJob29rU2VjcmV0UmVxdWVzdCKAAQoeQ29uZmlndXJlV2ViaG9va1NlY3JldFJlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmcSFgoOd2ViaG9va19zZWNyZXQYAiABKAkSFAoMY2FsbGJhY2tfdXJsGAMgASgJIiEKH0FjY2VwdFJlcG9zaXRvcnlCYXNlbGluZVJlcXVlc3QiVAogQWNjZXB0UmVwb3NpdG9yeUJhc2VsaW5lUmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZyKAAQoOUmVwb0NhY2hlRW50cnkSDAoEcGF0aBgBIAEoCRIrCgRraW5kGAIgASgOMh0uYWdlbnRzLnYxLlJlcG9DYWNoZUVudHJ5S2luZBIMCgRzaXplGAMgASgDEhQKDGNvbnRlbnRfaGFzaBgEIAEoCRIPCgdjbGFpbWVkGAUgASgIKpYBChRSZXBvQmluZGluZ1dyaXRlTW9kZRInCiNSRVBPX0JJTkRJTkdfV1JJVEVfTU9ERV9VTlNQRUNJRklFRBAAEikKJVJFUE9fQklORElOR19XUklURV9NT0RFX0RJUkVDVF9DT01NSVQQARIqCiZSRVBPX0JJTkRJTkdfV1JJVEVfTU9ERV9DSEFOR0VfUkVRVUVTVBACKqICChpSZXBvQmluZGluZ0Nvbm5lY3Rpb25TdGF0ZRItCilSRVBPX0JJTkRJTkdfQ09OTkVDVElPTl9TVEFURV9VTlNQRUNJRklFRBAAEi0KKVJFUE9fQklORElOR19DT05ORUNUSU9OX1NUQVRFX1VOVkFMSURBVEVEEAESJAogUkVQT19CSU5ESU5HX0NPTk5FQ1RJT05fU1RBVEVfT0sQAhIoCiRSRVBPX0JJTkRJTkdfQ09OTkVDVElPTl9TVEFURV9GQUlMRUQQAxIqCiZSRVBPX0JJTkRJTkdfQ09OTkVDVElPTl9TVEFURV9ERUdSQURFRBAEEioKJlJFUE9fQklORElOR19DT05ORUNUSU9OX1NUQVRFX0RJVkVSR0VEEAUqyAEKElJlcG9DYWNoZUVudHJ5S2luZBIlCiFSRVBPX0NBQ0hFX0VOVFJZX0tJTkRfVU5TUEVDSUZJRUQQABIeChpSRVBPX0NBQ0hFX0VOVFJZX0tJTkRfRklMRRABEiMKH1JFUE9fQ0FDSEVfRU5UUllfS0lORF9ESVJFQ1RPUlkQAhIhCh1SRVBPX0NBQ0hFX0VOVFJZX0tJTkRfU1lNTElOSxADEiMKH1JFUE9fQ0FDSEVfRU5UUllfS0lORF9TVUJNT0RVTEUQBDKdCwobV29ya3NwYWNlUmVwb0JpbmRpbmdTZXJ2aWNlEnAKF0dldFdvcmtzcGFjZVJlcG9CaW5kaW5nEikuYWdlbnRzLnYxLkdldFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdBoqLmFnZW50cy52MS5HZXRXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEnAKF1B1dFdvcmtzcGFjZVJlcG9CaW5kaW5nEikuYWdlbnRzLnYxLlB1dFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdBoqLmFnZW50cy52MS5QdXRXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEnkKGkRlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nEiwuYWdlbnRzLnYxLkRlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdBotLmFnZW50cy52MS5EZWxldGVXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEo4BCiFTZXRXb3Jrc3BhY2VSZXBvQmluZGluZ0NyZWRlbnRpYWwSMy5hZ2VudHMudjEuU2V0V29ya3NwYWNlUmVwb0JpbmRpbmdDcmVkZW50aWFsUmVxdWVzdBo0LmFnZW50cy52MS5TZXRXb3Jrc3BhY2VSZXBvQmluZGluZ0NyZWRlbnRpYWxSZXNwb25zZRJ/ChxWYWxpZGF0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nEi4uYWdlbnRzLnYxLlZhbGlkYXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0Gi8uYWdlbnRzLnYxLlZhbGlkYXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXNwb25zZRJwChdTeW5jV29ya3NwYWNlUmVwb3NpdG9yeRIpLmFnZW50cy52MS5TeW5jV29ya3NwYWNlUmVwb3NpdG9yeVJlcXVlc3QaKi5hZ2VudHMudjEuU3luY1dvcmtzcGFjZVJlcG9zaXRvcnlSZXNwb25zZRJwChdHZXRSZXBvc2l0b3J5U3luY1N0YXR1cxIpLmFnZW50cy52MS5HZXRSZXBvc2l0b3J5U3luY1N0YXR1c1JlcXVlc3QaKi5hZ2VudHMudjEuR2V0UmVwb3NpdG9yeVN5bmNTdGF0dXNSZXNwb25zZRJqChVMaXN0UmVwb3NpdG9yeUVudHJpZXMSJy5hZ2VudHMudjEuTGlzdFJlcG9zaXRvcnlFbnRyaWVzUmVxdWVzdBooLmFnZW50cy52MS5MaXN0UmVwb3NpdG9yeUVudHJpZXNSZXNwb25zZRJeChFHZXRSZXBvc2l0b3J5RmlsZRIjLmFnZW50cy52MS5HZXRSZXBvc2l0b3J5RmlsZVJlcXVlc3QaJC5hZ2VudHMudjEuR2V0UmVwb3NpdG9yeUZpbGVSZXNwb25zZRJ5ChpQdWJsaXNoV29ya3NwYWNlUmVwb3NpdG9yeRIsLmFnZW50cy52MS5QdWJsaXNoV29ya3NwYWNlUmVwb3NpdG9yeVJlcXVlc3QaLS5hZ2VudHMudjEuUHVibGlzaFdvcmtzcGFjZVJlcG9zaXRvcnlSZXNwb25zZRJtChZDb25maWd1cmVXZWJob29rU2VjcmV0EiguYWdlbnRzLnYxLkNvbmZpZ3VyZVdlYmhvb2tTZWNyZXRSZXF1ZXN0GikuYWdlbnRzLnYxLkNvbmZpZ3VyZVdlYmhvb2tTZWNyZXRSZXNwb25zZRJzChhBY2NlcHRSZXBvc2l0b3J5QmFzZWxpbmUSKi5hZ2VudHMudjEuQWNjZXB0UmVwb3NpdG9yeUJhc2VsaW5lUmVxdWVzdBorLmFnZW50cy52MS5BY2NlcHRSZXBvc2l0b3J5QmFzZWxpbmVSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChthZ2VudHMvdjEvcmVwb2JpbmRpbmcucHJvdG8SCWFnZW50cy52MSKmBQoUV29ya3NwYWNlUmVwb0JpbmRpbmcSHAoLZ2l0X2hvc3RfaWQYASABKAlCB/pCBHICEAESGwoKcmVwb3NpdG9yeRgCIAEoCUIH+kIEcgIQARIXCgZicmFuY2gYAyABKAlCB/pCBHICEAESEQoJcm9vdF9wYXRoGAQgASgJEjMKCndyaXRlX21vZGUYBSABKA4yHy5hZ2VudHMudjEuUmVwb0JpbmRpbmdXcml0ZU1vZGUSHgoWY29udGVudF9zY2hlbWFfdmVyc2lvbhgGIAEoBRIWCg5jcmVkZW50aWFsX3NldBgHIAEoCBI5ChVjcmVkZW50aWFsX3VwZGF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiwKBnN0YXR1cxgJIAEoCzIcLmFnZW50cy52MS5SZXBvQmluZGluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbChNvYnNlcnZlZF9jb21taXRfc2hhGAwgASgJEhkKEWFjdGl2ZV9jb21taXRfc2hhGA0gASgJEjIKDmxhc3Rfc3luY2VkX2F0GA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIXCg9sYXN0X3N5bmNfZXJyb3IYDyABKAkSHgoWbGFzdF9wdWJsaWNhdGlvbl9lcnJvchgQIAEoCRIaChJwdWJsaWNhdGlvbl9lcnJvcnMYESADKAkSGgoSd2ViaG9va19zZWNyZXRfc2V0GBIgASgIEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSK8AQoRUmVwb0JpbmRpbmdTdGF0dXMSNAoFc3RhdGUYASABKA4yJS5hZ2VudHMudjEuUmVwb0JpbmRpbmdDb25uZWN0aW9uU3RhdGUSNQoRbGFzdF92YWxpZGF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWVycm9yGAMgASgJEisKBmNoZWNrcxgEIAMoCzIbLmFnZW50cy52MS5SZXBvQmluZGluZ0NoZWNrIk4KEFJlcG9CaW5kaW5nQ2hlY2sSDAoEbmFtZRgBIAEoCRIKCgJvaxgCIAEoCBIQCghyZXF1aXJlZBgDIAEoCBIOCgZkZXRhaWwYBCABKAkiQgoSUmVwb0JpbmRpbmdPdmVybGFwEhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIWCg53b3Jrc3BhY2VfbmFtZRgCIAEoCSIgCh5HZXRXb3Jrc3BhY2VSZXBvQmluZGluZ1JlcXVlc3QihAEKH0dldFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZxIvCghvdmVybGFwcxgCIAMoCzIdLmFnZW50cy52MS5SZXBvQmluZGluZ092ZXJsYXAiUgoeUHV0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0EjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmciUwofUHV0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nIiMKIURlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdCIkCiJEZWxldGVXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlIkAKKFNldFdvcmtzcGFjZVJlcG9CaW5kaW5nQ3JlZGVudGlhbFJlcXVlc3QSFAoDcGF0GAEgASgJQgf6QgRyAhABIl0KKVNldFdvcmtzcGFjZVJlcG9CaW5kaW5nQ3JlZGVudGlhbFJlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmciJQojVmFsaWRhdGVXb3Jrc3BhY2VSZXBvQmluZGluZ1JlcXVlc3QiWAokVmFsaWRhdGVXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmciIAoeU3luY1dvcmtzcGFjZVJlcG9zaXRvcnlSZXF1ZXN0IpoBCh9TeW5jV29ya3NwYWNlUmVwb3NpdG9yeVJlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmcSFgoOZW50cmllc19zeW5jZWQYAiABKAUSEQoJcHVibGlzaGVkGAMgASgIEhoKEnB1YmxpY2F0aW9uX2Vycm9ycxgEIAMoCSIgCh5HZXRSZXBvc2l0b3J5U3luY1N0YXR1c1JlcXVlc3QiUwofR2V0UmVwb3NpdG9yeVN5bmNTdGF0dXNSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nIiwKHExpc3RSZXBvc2l0b3J5RW50cmllc1JlcXVlc3QSDAoEcGF0aBgBIAEoCSKXAQodTGlzdFJlcG9zaXRvcnlFbnRyaWVzUmVzcG9uc2USEgoKY29tbWl0X3NoYRgBIAEoCRIqCgdlbnRyaWVzGAIgAygLMhkuYWdlbnRzLnYxLlJlcG9DYWNoZUVudHJ5EhsKE29ic2VydmVkX2NvbW1pdF9zaGEYAyABKAkSGQoRYWN0aXZlX2NvbW1pdF9zaGEYBCABKAkiKAoYR2V0UmVwb3NpdG9yeUZpbGVSZXF1ZXN0EgwKBHBhdGgYASABKAkiogEKGUdldFJlcG9zaXRvcnlGaWxlUmVzcG9uc2USEgoKY29tbWl0X3NoYRgBIAEoCRIoCgVlbnRyeRgCIAEoCzIZLmFnZW50cy52MS5SZXBvQ2FjaGVFbnRyeRIPCgdjb250ZW50GAMgASgJEhsKE29ic2VydmVkX2NvbW1pdF9zaGEYBCABKAkSGQoRYWN0aXZlX2NvbW1pdF9zaGEYBSABKAkiIwohUHVibGlzaFdvcmtzcGFjZVJlcG9zaXRvcnlSZXF1ZXN0InEKIlB1Ymxpc2hXb3Jrc3BhY2VSZXBvc2l0b3J5UmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZxIZChF2YWxpZGF0aW9uX2Vycm9ycxgCIAMoCSIfCh1Db25maWd1cmVXZWJob29rU2VjcmV0UmVxdWVzdCKAAQoeQ29uZmlndXJlV2ViaG9va1NlY3JldFJlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmcSFgoOd2ViaG9va19zZWNyZXQYAiABKAkSFAoMY2FsbGJhY2tfdXJsGAMgASgJIiEKH0FjY2VwdFJlcG9zaXRvcnlCYXNlbGluZVJlcXVlc3QiVAogQWNjZXB0UmVwb3NpdG9yeUJhc2VsaW5lUmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZyJvChFDb250ZW50RmlsZUFjdGlvbhIVCgRwYXRoGAEgASgJQgf6QgRyAhABEjIKCW9wZXJhdGlvbhgCIAEoDjIfLmFnZW50cy52MS5Db250ZW50RmlsZU9wZXJhdGlvbhIPCgdjb250ZW50GAMgASgJInwKGUNvbW1pdEFnZW50Q29udGVudFJlcXVlc3QSNwoHYWN0aW9ucxgBIAMoCzIcLmFnZW50cy52MS5Db250ZW50RmlsZUFjdGlvbkII+kIFkgECCAESDwoHbWVzc2FnZRgCIAEoCRIVCg1iYXNlX3JldmlzaW9uGAMgASgJIpkBChpDb21taXRBZ2VudENvbnRlbnRSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nEhIKCmNvbW1pdF9zaGEYAiABKAkSGQoRdmFsaWRhdGlvbl9lcnJvcnMYAyADKAkSGgoSY2hhbmdlX3JlcXVlc3RfdXJsGAQgASgJIkEKG1JvbGxiYWNrQWdlbnRDb250ZW50UmVxdWVzdBIiChF0YXJnZXRfY29tbWl0X3NoYRgBIAEoCUIH+kIEcgIQASKbAQocUm9sbGJhY2tBZ2VudENvbnRlbnRSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nEhIKCmNvbW1pdF9zaGEYAiABKAkSGQoRdmFsaWRhdGlvbl9lcnJvcnMYAyADKAkSGgoSY2hhbmdlX3JlcXVlc3RfdXJsGAQgASgJIoABCg5SZXBvQ2FjaGVFbnRyeRIMCgRwYXRoGAEgASgJEisKBGtpbmQYAiABKA4yHS5hZ2VudHMudjEuUmVwb0NhY2hlRW50cnlLaW5kEgwKBHNpemUYAyABKAMSFAoMY29udGVudF9oYXNoGAQgASgJEg8KB2NsYWltZWQYBSABKAgqlgEKFFJlcG9CaW5kaW5nV3JpdGVNb2RlEicKI1JFUE9fQklORElOR19XUklURV9NT0RFX1VOU1BFQ0lGSUVEEAASKQolUkVQT19CSU5ESU5HX1dSSVRFX01PREVfRElSRUNUX0NPTU1JVBABEioKJlJFUE9fQklORElOR19XUklURV9NT0RFX0NIQU5HRV9SRVFVRVNUEAIqogIKGlJlcG9CaW5kaW5nQ29ubmVjdGlvblN0YXRlEi0KKVJFUE9fQklORElOR19DT05ORUNUSU9OX1NUQVRFX1VOU1BFQ0lGSUVEEAASLQopUkVQT19CSU5ESU5HX0NPTk5FQ1RJT05fU1RBVEVfVU5WQUxJREFURUQQARIkCiBSRVBPX0JJTkRJTkdfQ09OTkVDVElPTl9TVEFURV9PSxACEigKJFJFUE9fQklORElOR19DT05ORUNUSU9OX1NUQVRFX0ZBSUxFRBADEioKJlJFUE9fQklORElOR19DT05ORUNUSU9OX1NUQVRFX0RFR1JBREVEEAQSKgomUkVQT19CSU5ESU5HX0NPTk5FQ1RJT05fU1RBVEVfRElWRVJHRUQQBSqBAQoUQ29udGVudEZpbGVPcGVyYXRpb24SJgoiQ09OVEVOVF9GSUxFX09QRVJBVElPTl9VTlNQRUNJRklFRBAAEh4KGkNPTlRFTlRfRklMRV9PUEVSQVRJT05fUFVUEAESIQodQ09OVEVOVF9GSUxFX09QRVJBVElPTl9ERUxFVEUQAirIAQoSUmVwb0NhY2hlRW50cnlLaW5kEiUKIVJFUE9fQ0FDSEVfRU5UUllfS0lORF9VTlNQRUNJRklFRBAAEh4KGlJFUE9fQ0FDSEVfRU5UUllfS0lORF9GSUxFEAESIwofUkVQT19DQUNIRV9FTlRSWV9LSU5EX0RJUkVDVE9SWRACEiEKHVJFUE9fQ0FDSEVfRU5UUllfS0lORF9TWU1MSU5LEAMSIwofUkVQT19DQUNIRV9FTlRSWV9LSU5EX1NVQk1PRFVMRRAEMukMChtXb3Jrc3BhY2VSZXBvQmluZGluZ1NlcnZpY2UScAoXR2V0V29ya3NwYWNlUmVwb0JpbmRpbmcSKS5hZ2VudHMudjEuR2V0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0GiouYWdlbnRzLnYxLkdldFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2UScAoXUHV0V29ya3NwYWNlUmVwb0JpbmRpbmcSKS5hZ2VudHMudjEuUHV0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0GiouYWdlbnRzLnYxLlB1dFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2USeQoaRGVsZXRlV29ya3NwYWNlUmVwb0JpbmRpbmcSLC5hZ2VudHMudjEuRGVsZXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0Gi0uYWdlbnRzLnYxLkRlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2USjgEKIVNldFdvcmtzcGFjZVJlcG9CaW5kaW5nQ3JlZGVudGlhbBIzLmFnZW50cy52MS5TZXRXb3Jrc3BhY2VSZXBvQmluZGluZ0NyZWRlbnRpYWxSZXF1ZXN0GjQuYWdlbnRzLnYxLlNldFdvcmtzcGFjZVJlcG9CaW5kaW5nQ3JlZGVudGlhbFJlc3BvbnNlEn8KHFZhbGlkYXRlV29ya3NwYWNlUmVwb0JpbmRpbmcSLi5hZ2VudHMudjEuVmFsaWRhdGVXb3Jrc3BhY2VSZXBvQmluZGluZ1JlcXVlc3QaLy5hZ2VudHMudjEuVmFsaWRhdGVXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEnAKF1N5bmNXb3Jrc3BhY2VSZXBvc2l0b3J5EikuYWdlbnRzLnYxLlN5bmNXb3Jrc3BhY2VSZXBvc2l0b3J5UmVxdWVzdBoqLmFnZW50cy52MS5TeW5jV29ya3NwYWNlUmVwb3NpdG9yeVJlc3BvbnNlEnAKF0dldFJlcG9zaXRvcnlTeW5jU3RhdHVzEikuYWdlbnRzLnYxLkdldFJlcG9zaXRvcnlTeW5jU3RhdHVzUmVxdWVzdBoqLmFnZW50cy52MS5HZXRSZXBvc2l0b3J5U3luY1N0YXR1c1Jlc3BvbnNlEmoKFUxpc3RSZXBvc2l0b3J5RW50cmllcxInLmFnZW50cy52MS5MaXN0UmVwb3NpdG9yeUVudHJpZXNSZXF1ZXN0GiguYWdlbnRzLnYxLkxpc3RSZXBvc2l0b3J5RW50cmllc1Jlc3BvbnNlEl4KEUdldFJlcG9zaXRvcnlGaWxlEiMuYWdlbnRzLnYxLkdldFJlcG9zaXRvcnlGaWxlUmVxdWVzdBokLmFnZW50cy52MS5HZXRSZXBvc2l0b3J5RmlsZVJlc3BvbnNlEnkKGlB1Ymxpc2hXb3Jrc3BhY2VSZXBvc2l0b3J5EiwuYWdlbnRzLnYxLlB1Ymxpc2hXb3Jrc3BhY2VSZXBvc2l0b3J5UmVxdWVzdBotLmFnZW50cy52MS5QdWJsaXNoV29ya3NwYWNlUmVwb3NpdG9yeVJlc3BvbnNlEm0KFkNvbmZpZ3VyZVdlYmhvb2tTZWNyZXQSKC5hZ2VudHMudjEuQ29uZmlndXJlV2ViaG9va1NlY3JldFJlcXVlc3QaKS5hZ2VudHMudjEuQ29uZmlndXJlV2ViaG9va1NlY3JldFJlc3BvbnNlEnMKGEFjY2VwdFJlcG9zaXRvcnlCYXNlbGluZRIqLmFnZW50cy52MS5BY2NlcHRSZXBvc2l0b3J5QmFzZWxpbmVSZXF1ZXN0GisuYWdlbnRzLnYxLkFjY2VwdFJlcG9zaXRvcnlCYXNlbGluZVJlc3BvbnNlEmEKEkNvbW1pdEFnZW50Q29udGVudBIkLmFnZW50cy52MS5Db21taXRBZ2VudENvbnRlbnRSZXF1ZXN0GiUuYWdlbnRzLnYxLkNvbW1pdEFnZW50Q29udGVudFJlc3BvbnNlEmcKFFJvbGxiYWNrQWdlbnRDb250ZW50EiYuYWdlbnRzLnYxLlJvbGxiYWNrQWdlbnRDb250ZW50UmVxdWVzdBonLmFnZW50cy52MS5Sb2xsYmFja0FnZW50Q29udGVudFJlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * @generated from message agents.v1.WorkspaceRepoBinding
@@ -800,6 +800,186 @@ export const AcceptRepositoryBaselineResponseSchema: GenMessage<AcceptRepository
   messageDesc(file_agents_v1_repobinding, 27);
 
 /**
+ * ContentFileAction describes one file change within a CommitAgentContent
+ * changeset.
+ *
+ * @generated from message agents.v1.ContentFileAction
+ */
+export type ContentFileAction = Message<"agents.v1.ContentFileAction"> & {
+  /**
+   * Repository-relative path within the managed agents subtree, e.g.
+   * "agents/my-agent/prompt.md".
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * Whether this action creates/updates or deletes the file.
+   *
+   * @generated from field: agents.v1.ContentFileOperation operation = 2;
+   */
+  operation: ContentFileOperation;
+
+  /**
+   * UTF-8 Markdown content. Required for PUT, ignored for DELETE.
+   *
+   * @generated from field: string content = 3;
+   */
+  content: string;
+};
+
+/**
+ * Describes the message agents.v1.ContentFileAction.
+ * Use `create(ContentFileActionSchema)` to create a new message.
+ */
+export const ContentFileActionSchema: GenMessage<ContentFileAction> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 28);
+
+/**
+ * CommitAgentContentRequest applies a multi-file changeset to managed Agent
+ * Content and produces a single Git commit.
+ *
+ * @generated from message agents.v1.CommitAgentContentRequest
+ */
+export type CommitAgentContentRequest = Message<"agents.v1.CommitAgentContentRequest"> & {
+  /**
+   * The ordered list of file changes. At least one action is required.
+   *
+   * @generated from field: repeated agents.v1.ContentFileAction actions = 1;
+   */
+  actions: ContentFileAction[];
+
+  /**
+   * Optional custom commit message. When empty, Butter generates one.
+   *
+   * @generated from field: string message = 2;
+   */
+  message: string;
+
+  /**
+   * The dashboard's cached base revision SHA. Informational: recorded in
+   * commit audit metadata but not used for conflict detection (last-write-
+   * wins applies to the latest branch HEAD).
+   *
+   * @generated from field: string base_revision = 3;
+   */
+  baseRevision: string;
+};
+
+/**
+ * Describes the message agents.v1.CommitAgentContentRequest.
+ * Use `create(CommitAgentContentRequestSchema)` to create a new message.
+ */
+export const CommitAgentContentRequestSchema: GenMessage<CommitAgentContentRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 29);
+
+/**
+ * CommitAgentContentResponse is returned after a successful content commit.
+ *
+ * @generated from message agents.v1.CommitAgentContentResponse
+ */
+export type CommitAgentContentResponse = Message<"agents.v1.CommitAgentContentResponse"> & {
+  /**
+   * @generated from field: agents.v1.WorkspaceRepoBinding binding = 1;
+   */
+  binding?: WorkspaceRepoBinding;
+
+  /**
+   * SHA of the created Git commit.
+   *
+   * @generated from field: string commit_sha = 2;
+   */
+  commitSha: string;
+
+  /**
+   * Per-agent validation errors that prevented the commit (empty on success).
+   *
+   * @generated from field: repeated string validation_errors = 3;
+   */
+  validationErrors: string[];
+
+  /**
+   * URL of the created Pull Request or Merge Request (only set when the
+   * binding write mode is CHANGE_REQUEST).
+   *
+   * @generated from field: string change_request_url = 4;
+   */
+  changeRequestUrl: string;
+};
+
+/**
+ * Describes the message agents.v1.CommitAgentContentResponse.
+ * Use `create(CommitAgentContentResponseSchema)` to create a new message.
+ */
+export const CommitAgentContentResponseSchema: GenMessage<CommitAgentContentResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 30);
+
+/**
+ * RollbackAgentContentRequest restores managed content from a previous
+ * published revision.
+ *
+ * @generated from message agents.v1.RollbackAgentContentRequest
+ */
+export type RollbackAgentContentRequest = Message<"agents.v1.RollbackAgentContentRequest"> & {
+  /**
+   * The commit SHA of the target revision to restore. Butter reads the
+   * managed content from this commit and creates a new commit with it.
+   *
+   * @generated from field: string target_commit_sha = 1;
+   */
+  targetCommitSha: string;
+};
+
+/**
+ * Describes the message agents.v1.RollbackAgentContentRequest.
+ * Use `create(RollbackAgentContentRequestSchema)` to create a new message.
+ */
+export const RollbackAgentContentRequestSchema: GenMessage<RollbackAgentContentRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 31);
+
+/**
+ * RollbackAgentContentResponse is returned after a successful rollback.
+ *
+ * @generated from message agents.v1.RollbackAgentContentResponse
+ */
+export type RollbackAgentContentResponse = Message<"agents.v1.RollbackAgentContentResponse"> & {
+  /**
+   * @generated from field: agents.v1.WorkspaceRepoBinding binding = 1;
+   */
+  binding?: WorkspaceRepoBinding;
+
+  /**
+   * SHA of the new rollback commit.
+   *
+   * @generated from field: string commit_sha = 2;
+   */
+  commitSha: string;
+
+  /**
+   * Per-agent validation errors that prevented the rollback (empty on success).
+   *
+   * @generated from field: repeated string validation_errors = 3;
+   */
+  validationErrors: string[];
+
+  /**
+   * URL of the created Pull Request or Merge Request (only set when the
+   * binding write mode is CHANGE_REQUEST).
+   *
+   * @generated from field: string change_request_url = 4;
+   */
+  changeRequestUrl: string;
+};
+
+/**
+ * Describes the message agents.v1.RollbackAgentContentResponse.
+ * Use `create(RollbackAgentContentResponseSchema)` to create a new message.
+ */
+export const RollbackAgentContentResponseSchema: GenMessage<RollbackAgentContentResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 32);
+
+/**
  * RepoCacheEntry is one node in the cached repository tree.
  *
  * @generated from message agents.v1.RepoCacheEntry
@@ -849,7 +1029,7 @@ export type RepoCacheEntry = Message<"agents.v1.RepoCacheEntry"> & {
  * Use `create(RepoCacheEntrySchema)` to create a new message.
  */
 export const RepoCacheEntrySchema: GenMessage<RepoCacheEntry> = /*@__PURE__*/
-  messageDesc(file_agents_v1_repobinding, 28);
+  messageDesc(file_agents_v1_repobinding, 33);
 
 /**
  * RepoBindingWriteMode selects how Butter lands changes on the repository.
@@ -938,6 +1118,39 @@ export const RepoBindingConnectionStateSchema: GenEnum<RepoBindingConnectionStat
   enumDesc(file_agents_v1_repobinding, 1);
 
 /**
+ * ContentFileOperation selects whether a changeset entry creates/updates or
+ * removes a managed file.
+ *
+ * @generated from enum agents.v1.ContentFileOperation
+ */
+export enum ContentFileOperation {
+  /**
+   * @generated from enum value: CONTENT_FILE_OPERATION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Create or replace the file at the given path.
+   *
+   * @generated from enum value: CONTENT_FILE_OPERATION_PUT = 1;
+   */
+  PUT = 1,
+
+  /**
+   * Remove the file at the given path.
+   *
+   * @generated from enum value: CONTENT_FILE_OPERATION_DELETE = 2;
+   */
+  DELETE = 2,
+}
+
+/**
+ * Describes the enum agents.v1.ContentFileOperation.
+ */
+export const ContentFileOperationSchema: GenEnum<ContentFileOperation> = /*@__PURE__*/
+  enumDesc(file_agents_v1_repobinding, 2);
+
+/**
  * RepoCacheEntryKind classifies a cached tree entry.
  *
  * @generated from enum agents.v1.RepoCacheEntryKind
@@ -973,7 +1186,7 @@ export enum RepoCacheEntryKind {
  * Describes the enum agents.v1.RepoCacheEntryKind.
  */
 export const RepoCacheEntryKindSchema: GenEnum<RepoCacheEntryKind> = /*@__PURE__*/
-  enumDesc(file_agents_v1_repobinding, 2);
+  enumDesc(file_agents_v1_repobinding, 3);
 
 /**
  * WorkspaceRepoBindingService manages the current workspace's repository
@@ -1122,6 +1335,33 @@ export const WorkspaceRepoBindingService: GenService<{
     methodKind: "unary";
     input: typeof AcceptRepositoryBaselineRequestSchema;
     output: typeof AcceptRepositoryBaselineResponseSchema;
+  },
+  /**
+   * CommitAgentContent applies a changeset of PUT and DELETE operations to
+   * managed Agent Content paths and produces a single Git commit. In
+   * DIRECT_COMMIT mode the commit lands on the bound branch; in
+   * CHANGE_REQUEST mode a PR/MR is opened instead. Content is validated
+   * before the commit is created. Requires owner/admin role.
+   *
+   * @generated from rpc agents.v1.WorkspaceRepoBindingService.CommitAgentContent
+   */
+  commitAgentContent: {
+    methodKind: "unary";
+    input: typeof CommitAgentContentRequestSchema;
+    output: typeof CommitAgentContentResponseSchema;
+  },
+  /**
+   * RollbackAgentContent restores managed Agent Content from a previously
+   * published revision in a new Git commit. The target revision's content
+   * is read from Git, validated, and committed to the bound branch (or a
+   * PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
+   *
+   * @generated from rpc agents.v1.WorkspaceRepoBindingService.RollbackAgentContent
+   */
+  rollbackAgentContent: {
+    methodKind: "unary";
+    input: typeof RollbackAgentContentRequestSchema;
+    output: typeof RollbackAgentContentResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_repobinding, 0);

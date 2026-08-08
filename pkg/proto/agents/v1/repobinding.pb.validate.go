@@ -3632,6 +3632,659 @@ var _ interface {
 	ErrorName() string
 } = AcceptRepositoryBaselineResponseValidationError{}
 
+// Validate checks the field values on ContentFileAction with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *ContentFileAction) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ContentFileAction with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ContentFileActionMultiError, or nil if none found.
+func (m *ContentFileAction) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ContentFileAction) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetPath()) < 1 {
+		err := ContentFileActionValidationError{
+			field:  "Path",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	// no validation rules for Operation
+
+	// no validation rules for Content
+
+	if len(errors) > 0 {
+		return ContentFileActionMultiError(errors)
+	}
+
+	return nil
+}
+
+// ContentFileActionMultiError is an error wrapping multiple validation errors
+// returned by ContentFileAction.ValidateAll() if the designated constraints
+// aren't met.
+type ContentFileActionMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ContentFileActionMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ContentFileActionMultiError) AllErrors() []error { return m }
+
+// ContentFileActionValidationError is the validation error returned by
+// ContentFileAction.Validate if the designated constraints aren't met.
+type ContentFileActionValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ContentFileActionValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ContentFileActionValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ContentFileActionValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ContentFileActionValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ContentFileActionValidationError) ErrorName() string {
+	return "ContentFileActionValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ContentFileActionValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sContentFileAction.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ContentFileActionValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ContentFileActionValidationError{}
+
+// Validate checks the field values on CommitAgentContentRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CommitAgentContentRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CommitAgentContentRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CommitAgentContentRequestMultiError, or nil if none found.
+func (m *CommitAgentContentRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CommitAgentContentRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(m.GetActions()) < 1 {
+		err := CommitAgentContentRequestValidationError{
+			field:  "Actions",
+			reason: "value must contain at least 1 item(s)",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	for idx, item := range m.GetActions() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, CommitAgentContentRequestValidationError{
+						field:  fmt.Sprintf("Actions[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, CommitAgentContentRequestValidationError{
+						field:  fmt.Sprintf("Actions[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return CommitAgentContentRequestValidationError{
+					field:  fmt.Sprintf("Actions[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Message
+
+	// no validation rules for BaseRevision
+
+	if len(errors) > 0 {
+		return CommitAgentContentRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// CommitAgentContentRequestMultiError is an error wrapping multiple validation
+// errors returned by CommitAgentContentRequest.ValidateAll() if the
+// designated constraints aren't met.
+type CommitAgentContentRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CommitAgentContentRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CommitAgentContentRequestMultiError) AllErrors() []error { return m }
+
+// CommitAgentContentRequestValidationError is the validation error returned by
+// CommitAgentContentRequest.Validate if the designated constraints aren't met.
+type CommitAgentContentRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CommitAgentContentRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CommitAgentContentRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CommitAgentContentRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CommitAgentContentRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CommitAgentContentRequestValidationError) ErrorName() string {
+	return "CommitAgentContentRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CommitAgentContentRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCommitAgentContentRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CommitAgentContentRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CommitAgentContentRequestValidationError{}
+
+// Validate checks the field values on CommitAgentContentResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CommitAgentContentResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CommitAgentContentResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CommitAgentContentResponseMultiError, or nil if none found.
+func (m *CommitAgentContentResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CommitAgentContentResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetBinding()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CommitAgentContentResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CommitAgentContentResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBinding()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CommitAgentContentResponseValidationError{
+				field:  "Binding",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for CommitSha
+
+	// no validation rules for ChangeRequestUrl
+
+	if len(errors) > 0 {
+		return CommitAgentContentResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// CommitAgentContentResponseMultiError is an error wrapping multiple
+// validation errors returned by CommitAgentContentResponse.ValidateAll() if
+// the designated constraints aren't met.
+type CommitAgentContentResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CommitAgentContentResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CommitAgentContentResponseMultiError) AllErrors() []error { return m }
+
+// CommitAgentContentResponseValidationError is the validation error returned
+// by CommitAgentContentResponse.Validate if the designated constraints aren't met.
+type CommitAgentContentResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CommitAgentContentResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CommitAgentContentResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CommitAgentContentResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CommitAgentContentResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CommitAgentContentResponseValidationError) ErrorName() string {
+	return "CommitAgentContentResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CommitAgentContentResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCommitAgentContentResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CommitAgentContentResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CommitAgentContentResponseValidationError{}
+
+// Validate checks the field values on RollbackAgentContentRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RollbackAgentContentRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RollbackAgentContentRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RollbackAgentContentRequestMultiError, or nil if none found.
+func (m *RollbackAgentContentRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RollbackAgentContentRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetTargetCommitSha()) < 1 {
+		err := RollbackAgentContentRequestValidationError{
+			field:  "TargetCommitSha",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return RollbackAgentContentRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// RollbackAgentContentRequestMultiError is an error wrapping multiple
+// validation errors returned by RollbackAgentContentRequest.ValidateAll() if
+// the designated constraints aren't met.
+type RollbackAgentContentRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RollbackAgentContentRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RollbackAgentContentRequestMultiError) AllErrors() []error { return m }
+
+// RollbackAgentContentRequestValidationError is the validation error returned
+// by RollbackAgentContentRequest.Validate if the designated constraints
+// aren't met.
+type RollbackAgentContentRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RollbackAgentContentRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RollbackAgentContentRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RollbackAgentContentRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RollbackAgentContentRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RollbackAgentContentRequestValidationError) ErrorName() string {
+	return "RollbackAgentContentRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RollbackAgentContentRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRollbackAgentContentRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RollbackAgentContentRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RollbackAgentContentRequestValidationError{}
+
+// Validate checks the field values on RollbackAgentContentResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RollbackAgentContentResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RollbackAgentContentResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RollbackAgentContentResponseMultiError, or nil if none found.
+func (m *RollbackAgentContentResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RollbackAgentContentResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetBinding()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RollbackAgentContentResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RollbackAgentContentResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBinding()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RollbackAgentContentResponseValidationError{
+				field:  "Binding",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for CommitSha
+
+	// no validation rules for ChangeRequestUrl
+
+	if len(errors) > 0 {
+		return RollbackAgentContentResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// RollbackAgentContentResponseMultiError is an error wrapping multiple
+// validation errors returned by RollbackAgentContentResponse.ValidateAll() if
+// the designated constraints aren't met.
+type RollbackAgentContentResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RollbackAgentContentResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RollbackAgentContentResponseMultiError) AllErrors() []error { return m }
+
+// RollbackAgentContentResponseValidationError is the validation error returned
+// by RollbackAgentContentResponse.Validate if the designated constraints
+// aren't met.
+type RollbackAgentContentResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RollbackAgentContentResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RollbackAgentContentResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RollbackAgentContentResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RollbackAgentContentResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RollbackAgentContentResponseValidationError) ErrorName() string {
+	return "RollbackAgentContentResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RollbackAgentContentResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRollbackAgentContentResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RollbackAgentContentResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RollbackAgentContentResponseValidationError{}
+
 // Validate checks the field values on RepoCacheEntry with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

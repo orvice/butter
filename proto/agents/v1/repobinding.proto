@@ -232,6 +232,19 @@ service WorkspaceRepoBindingService {
   // AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
   // new baseline, re-syncs and publishes. Requires owner/admin role.
   rpc AcceptRepositoryBaseline(AcceptRepositoryBaselineRequest) returns (AcceptRepositoryBaselineResponse);
+
+  // CommitAgentContent applies a changeset of PUT and DELETE operations to
+  // managed Agent Content paths and produces a single Git commit. In
+  // DIRECT_COMMIT mode the commit lands on the bound branch; in
+  // CHANGE_REQUEST mode a PR/MR is opened instead. Content is validated
+  // before the commit is created. Requires owner/admin role.
+  rpc CommitAgentContent(CommitAgentContentRequest) returns (CommitAgentContentResponse);
+
+  // RollbackAgentContent restores managed Agent Content from a previously
+  // published revision in a new Git commit. The target revision's content
+  // is read from Git, validated, and committed to the bound branch (or a
+  // PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
+  rpc RollbackAgentContent(RollbackAgentContentRequest) returns (RollbackAgentContentResponse);
 }
 
 message GetWorkspaceRepoBindingRequest {}
@@ -358,6 +371,77 @@ message AcceptRepositoryBaselineRequest {}
 
 message AcceptRepositoryBaselineResponse {
   WorkspaceRepoBinding binding = 1;
+}
+
+// ContentFileOperation selects whether a changeset entry creates/updates or
+// removes a managed file.
+enum ContentFileOperation {
+  CONTENT_FILE_OPERATION_UNSPECIFIED = 0;
+  // Create or replace the file at the given path.
+  CONTENT_FILE_OPERATION_PUT = 1;
+  // Remove the file at the given path.
+  CONTENT_FILE_OPERATION_DELETE = 2;
+}
+
+// ContentFileAction describes one file change within a CommitAgentContent
+// changeset.
+message ContentFileAction {
+  // Repository-relative path within the managed agents subtree, e.g.
+  // "agents/my-agent/prompt.md".
+  string path = 1 [(validate.rules).string.min_len = 1];
+
+  // Whether this action creates/updates or deletes the file.
+  ContentFileOperation operation = 2;
+
+  // UTF-8 Markdown content. Required for PUT, ignored for DELETE.
+  string content = 3;
+}
+
+// CommitAgentContentRequest applies a multi-file changeset to managed Agent
+// Content and produces a single Git commit.
+message CommitAgentContentRequest {
+  // The ordered list of file changes. At least one action is required.
+  repeated ContentFileAction actions = 1 [(validate.rules).repeated.min_items = 1];
+
+  // Optional custom commit message. When empty, Butter generates one.
+  string message = 2;
+
+  // The dashboard's cached base revision SHA. Informational: recorded in
+  // commit audit metadata but not used for conflict detection (last-write-
+  // wins applies to the latest branch HEAD).
+  string base_revision = 3;
+}
+
+// CommitAgentContentResponse is returned after a successful content commit.
+message CommitAgentContentResponse {
+  WorkspaceRepoBinding binding = 1;
+  // SHA of the created Git commit.
+  string commit_sha = 2;
+  // Per-agent validation errors that prevented the commit (empty on success).
+  repeated string validation_errors = 3;
+  // URL of the created Pull Request or Merge Request (only set when the
+  // binding write mode is CHANGE_REQUEST).
+  string change_request_url = 4;
+}
+
+// RollbackAgentContentRequest restores managed content from a previous
+// published revision.
+message RollbackAgentContentRequest {
+  // The commit SHA of the target revision to restore. Butter reads the
+  // managed content from this commit and creates a new commit with it.
+  string target_commit_sha = 1 [(validate.rules).string.min_len = 1];
+}
+
+// RollbackAgentContentResponse is returned after a successful rollback.
+message RollbackAgentContentResponse {
+  WorkspaceRepoBinding binding = 1;
+  // SHA of the new rollback commit.
+  string commit_sha = 2;
+  // Per-agent validation errors that prevented the rollback (empty on success).
+  repeated string validation_errors = 3;
+  // URL of the created Pull Request or Merge Request (only set when the
+  // binding write mode is CHANGE_REQUEST).
+  string change_request_url = 4;
 }
 
 // RepoCacheEntryKind classifies a cached tree entry.

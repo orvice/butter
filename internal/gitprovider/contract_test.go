@@ -255,6 +255,148 @@ func TestProviderContract(t *testing.T) {
 	}
 }
 
+// ── Write operation contract tests ──────────────────────────────────────
+
+type statefulHarness struct {
+	kind       Kind
+	newHandler func(t *testing.T, apiPrefix string, state *fakeState) http.Handler
+}
+
+func statefulHarnesses() []statefulHarness {
+	return []statefulHarness{
+		{kind: KindGitHub, newHandler: newGitHubFakeStateful},
+		{kind: KindGitLab, newHandler: newGitLabFakeStateful},
+	}
+}
+
+func TestProviderWriteContract(t *testing.T) {
+	for _, h := range statefulHarnesses() {
+		t.Run(string(h.kind), func(t *testing.T) {
+			t.Run("CreateCommit", func(t *testing.T) {
+				state := newFakeState()
+				srv := httptest.NewServer(h.newHandler(t, "", state))
+				t.Cleanup(srv.Close)
+				ctx := context.Background()
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+
+				result, err := c.CreateCommit(ctx, "main", "abc123", "test commit", []FileAction{
+					{Path: "agents/new/prompt.md", Content: []byte("Hello!")},
+				})
+				if err != nil {
+					t.Fatalf("CreateCommit: %v", err)
+				}
+				if result.SHA == "" {
+					t.Fatal("commit SHA is empty")
+				}
+
+				state.mu.Lock()
+				if state.lastCommitMessage != "test commit" {
+					t.Errorf("commit message = %q, want %q", state.lastCommitMessage, "test commit")
+				}
+				if state.branches["main"] != result.SHA {
+					t.Errorf("branch main = %q, want %q", state.branches["main"], result.SHA)
+				}
+				state.mu.Unlock()
+			})
+
+			t.Run("CreateCommitWithDelete", func(t *testing.T) {
+				state := newFakeState()
+				srv := httptest.NewServer(h.newHandler(t, "", state))
+				t.Cleanup(srv.Close)
+				ctx := context.Background()
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+
+				result, err := c.CreateCommit(ctx, "main", "abc123", "delete file", []FileAction{
+					{Path: "agents/old/prompt.md", Delete: true},
+				})
+				if err != nil {
+					t.Fatalf("CreateCommit with delete: %v", err)
+				}
+				if result.SHA == "" {
+					t.Fatal("commit SHA is empty")
+				}
+			})
+
+			t.Run("CreateBranch", func(t *testing.T) {
+				state := newFakeState()
+				srv := httptest.NewServer(h.newHandler(t, "", state))
+				t.Cleanup(srv.Close)
+				ctx := context.Background()
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+
+				err := c.CreateBranch(ctx, "butter/test-branch", "abc123")
+				if err != nil {
+					t.Fatalf("CreateBranch: %v", err)
+				}
+
+				state.mu.Lock()
+				sha, ok := state.branches["butter/test-branch"]
+				state.mu.Unlock()
+				if !ok || sha != "abc123" {
+					t.Fatalf("branch not created: ok=%v sha=%q", ok, sha)
+				}
+			})
+
+			t.Run("CreateChangeRequest", func(t *testing.T) {
+				state := newFakeState()
+				srv := httptest.NewServer(h.newHandler(t, "", state))
+				t.Cleanup(srv.Close)
+				ctx := context.Background()
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+
+				if err := c.CreateBranch(ctx, "butter/cr-test", "abc123"); err != nil {
+					t.Fatalf("CreateBranch: %v", err)
+				}
+
+				cr, err := c.CreateChangeRequest(ctx, "butter/cr-test", "main",
+					"Agent Content Update", "Automated content update from Butter")
+				if err != nil {
+					t.Fatalf("CreateChangeRequest: %v", err)
+				}
+				if cr.ID <= 0 {
+					t.Fatalf("change request ID = %d", cr.ID)
+				}
+				if cr.URL == "" {
+					t.Fatal("change request URL is empty")
+				}
+				if cr.Title != "Agent Content Update" {
+					t.Fatalf("title = %q", cr.Title)
+				}
+			})
+
+			t.Run("WriteRequiresWriteToken", func(t *testing.T) {
+				state := newFakeState()
+				srv := httptest.NewServer(h.newHandler(t, "", state))
+				t.Cleanup(srv.Close)
+				ctx := context.Background()
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", readOnlyToken)
+
+				_, err := c.CreateCommit(ctx, "main", "abc123", "test", []FileAction{
+					{Path: "test.md", Content: []byte("test")},
+				})
+				if err == nil {
+					t.Fatal("expected error for read-only token")
+				}
+			})
+
+			t.Run("ErrorsNeverContainToken", func(t *testing.T) {
+				state := newFakeState()
+				srv := httptest.NewServer(h.newHandler(t, "", state))
+				t.Cleanup(srv.Close)
+				ctx := context.Background()
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", readOnlyToken)
+
+				_, err := c.CreateCommit(ctx, "main", "abc123", "test", []FileAction{
+					{Path: "test.md", Content: []byte("test")},
+				})
+				if err != nil && strings.Contains(err.Error(), readOnlyToken) {
+					t.Fatalf("error leaks token: %v", err)
+				}
+			})
+		})
+	}
+}
+
 func TestNewRejectsInvalidConfig(t *testing.T) {
 	valid := Config{Kind: KindGitHub, APIBaseURL: "https://api.github.com", Repository: "a/b", Token: "t"}
 

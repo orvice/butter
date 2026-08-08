@@ -1353,6 +1353,480 @@ func (s *RepoBindingServiceServer) TriggerSyncAndPublish(ctx context.Context, ws
 	return err
 }
 
+// ── Agent Content editing (issue #217) ──────────────────────────────────
+
+const (
+	defaultMaxContentFileBytes = 256 * 1024 // 256 KiB per file
+)
+
+// CommitAgentContent applies a changeset of PUT and DELETE file operations
+// to managed Agent Content paths and produces a single Git commit. In
+// DIRECT_COMMIT mode the commit lands on the bound branch; in
+// CHANGE_REQUEST mode a PR/MR is opened instead.
+func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *connect.Request[agentsv1.CommitAgentContentRequest]) (*connect.Response[agentsv1.CommitAgentContentResponse], error) {
+	if err := s.requireRepos(); err != nil {
+		return nil, err
+	}
+	ws, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireBindingRole(ctx, ws); err != nil {
+		return nil, err
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+
+	actions := req.Msg.GetActions()
+	if len(actions) == 0 {
+		return nil, connectx.RequiredArgument("actions")
+	}
+
+	// Validate and normalize all actions.
+	maxFileBytes, _ := s.cacheLimits()
+	if maxFileBytes <= 0 {
+		maxFileBytes = defaultMaxContentFileBytes
+	}
+	if err := validateContentActions(actions, maxFileBytes); err != nil {
+		return nil, err
+	}
+
+	// Simulate the resulting content to validate before committing.
+	agents, err := s.agentRepo.ListAgents(ctx, ws)
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	validationErrors := s.simulateAndValidate(ctx, ws, actions, agents)
+	if len(validationErrors) > 0 {
+		return connect.NewResponse(&agentsv1.CommitAgentContentResponse{
+			Binding:          binding,
+			ValidationErrors: validationErrors,
+		}), nil
+	}
+
+	client, err := s.resolveProviderClient(ctx, ws, binding)
+	if err != nil {
+		return nil, err
+	}
+
+	// Last-write-wins: always commit against the latest HEAD.
+	headSHA, err := client.GetBranchHead(ctx, binding.GetBranch())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("cannot read branch HEAD: %s", providerErrDetail(err)))
+	}
+
+	// Build provider file actions with root_path-prefixed paths.
+	rootPrefix := binding.GetRootPath()
+	if rootPrefix != "" {
+		rootPrefix = strings.TrimRight(rootPrefix, "/") + "/"
+	}
+	providerActions := make([]gitprovider.FileAction, len(actions))
+	for i, a := range actions {
+		fullPath := rootPrefix + a.GetPath()
+		providerActions[i] = gitprovider.FileAction{
+			Path:    fullPath,
+			Delete:  a.GetOperation() == agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_DELETE,
+			Content: []byte(a.GetContent()),
+		}
+	}
+
+	// Build commit message with audit metadata.
+	commitMsg := req.Msg.GetMessage()
+	if commitMsg == "" {
+		commitMsg = "Update Agent Content from Butter"
+	}
+	actor := "unknown"
+	if user, ok := auth.UserFromContext(ctx); ok {
+		actor = user.GetId()
+	}
+	auditTrailer := fmt.Sprintf("\nButter-Actor: %s\nButter-Workspace: %s\nButter-Operation: commit\nButter-Base-SHA: %s\nButter-Parent-SHA: %s",
+		actor, ws, req.Msg.GetBaseRevision(), headSHA)
+	commitMsg += auditTrailer
+
+	logger := log.FromContext(ctx)
+
+	isChangeRequest := binding.GetWriteMode() == agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
+	var commitResult *gitprovider.CommitResult
+	var crURL string
+
+	if isChangeRequest {
+		branchName := fmt.Sprintf("butter/content-%s-%d", ws, time.Now().Unix())
+		if err := client.CreateBranch(ctx, branchName, headSHA); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create branch: %s", err))
+		}
+		commitResult, err = client.CreateCommit(ctx, branchName, headSHA, commitMsg, providerActions)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create commit: %s", err))
+		}
+		cr, crErr := client.CreateChangeRequest(ctx, branchName, binding.GetBranch(),
+			"Agent Content Update", commitMsg)
+		if crErr != nil {
+			logger.Error("created commit but failed to open change request",
+				"workspace_id", ws, "branch", branchName, "err", crErr)
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create change request: %s", crErr))
+		}
+		crURL = cr.URL
+	} else {
+		commitResult, err = client.CreateCommit(ctx, binding.GetBranch(), headSHA, commitMsg, providerActions)
+		if err != nil {
+			if errors.Is(err, gitprovider.ErrConflict) {
+				return nil, connect.NewError(connect.CodeAborted, errors.New("branch HEAD moved; retry the operation"))
+			}
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create commit: %s", err))
+		}
+	}
+
+	logger.Info("agent content committed", "workspace_id", ws, "commit_sha", commitResult.SHA,
+		"actions", len(actions), "change_request", isChangeRequest)
+
+	// Trigger sync + publish so the runner picks up the new content.
+	if !isChangeRequest {
+		if syncErr := s.TriggerSyncAndPublish(ctx, ws); syncErr != nil {
+			logger.Error("sync after content commit failed", "workspace_id", ws, "err", syncErr)
+		}
+	}
+
+	final, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		final = binding
+	}
+	return connect.NewResponse(&agentsv1.CommitAgentContentResponse{
+		Binding:          final,
+		CommitSha:        commitResult.SHA,
+		ChangeRequestUrl: crURL,
+	}), nil
+}
+
+// RollbackAgentContent restores managed Agent Content from a previously
+// published revision in a new Git commit.
+func (s *RepoBindingServiceServer) RollbackAgentContent(ctx context.Context, req *connect.Request[agentsv1.RollbackAgentContentRequest]) (*connect.Response[agentsv1.RollbackAgentContentResponse], error) {
+	if err := s.requireRepos(); err != nil {
+		return nil, err
+	}
+	ws, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireBindingRole(ctx, ws); err != nil {
+		return nil, err
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+
+	targetSHA := strings.TrimSpace(req.Msg.GetTargetCommitSha())
+	if targetSHA == "" {
+		return nil, connectx.RequiredArgument("target_commit_sha")
+	}
+
+	client, err := s.resolveProviderClient(ctx, ws, binding)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read managed content from the target revision.
+	treePath := binding.GetRootPath()
+	targetEntries, err := client.GetTree(ctx, targetSHA, treePath)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("cannot read tree at %s: %s", targetSHA[:minLen(targetSHA, 12)], providerErrDetail(err)))
+	}
+
+	rootPrefix := strings.TrimRight(treePath, "/")
+	if rootPrefix != "" {
+		rootPrefix += "/"
+	}
+
+	// Get latest HEAD for last-write-wins.
+	headSHA, err := client.GetBranchHead(ctx, binding.GetBranch())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("cannot read branch HEAD: %s", providerErrDetail(err)))
+	}
+
+	// Read current managed tree at HEAD for DELETE detection.
+	currentEntries, currentTreeErr := client.GetTree(ctx, headSHA, treePath)
+	if currentTreeErr != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("cannot read current tree at %s: %s", headSHA[:minLen(headSHA, 12)], providerErrDetail(currentTreeErr)))
+	}
+
+	// Build the set of managed file paths from the target revision (PUT)
+	// and from the current HEAD (DELETE files absent from target).
+	maxFileBytes, _ := s.cacheLimits()
+	if maxFileBytes <= 0 {
+		maxFileBytes = defaultMaxContentFileBytes
+	}
+
+	var providerActions []gitprovider.FileAction
+	targetPaths := make(map[string]bool)
+	for _, te := range targetEntries {
+		if te.Kind != gitprovider.TreeEntryFile {
+			continue
+		}
+		cachePath := te.Path
+		if rootPrefix != "" {
+			cachePath = strings.TrimPrefix(te.Path, rootPrefix)
+		}
+		if !strings.HasPrefix(cachePath, "agents/") || !strings.HasSuffix(strings.ToLower(cachePath), ".md") {
+			continue
+		}
+		data, blobErr := client.GetBlob(ctx, targetSHA, te.Path)
+		if blobErr != nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				fmt.Errorf("cannot read %s at %s: %s", cachePath, targetSHA[:minLen(targetSHA, 12)], providerErrDetail(blobErr)))
+		}
+		if int64(len(data)) > maxFileBytes {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				fmt.Errorf("file %s exceeds maximum size of %d bytes", cachePath, maxFileBytes))
+		}
+		targetPaths[te.Path] = true
+		providerActions = append(providerActions, gitprovider.FileAction{
+			Path:    te.Path,
+			Content: data,
+		})
+	}
+
+	// The target revision must contain at least one managed Agent Content
+	// file; a rollback to an empty revision is rejected.
+	if len(targetPaths) == 0 {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("target revision has no managed Agent Content"))
+	}
+
+	// Validate the target revision's content before committing (criterion 4).
+	agents, agentErr := s.agentRepo.ListAgents(ctx, ws)
+	if agentErr != nil {
+		return nil, connectx.InternalWith(agentErr)
+	}
+	rollbackContent := make(map[string]agentcontent.AgentContent)
+	for _, a := range providerActions {
+		if a.Delete {
+			continue
+		}
+		p := a.Path
+		if rootPrefix != "" {
+			p = strings.TrimPrefix(a.Path, rootPrefix)
+		}
+		parts := strings.Split(p, "/")
+		if len(parts) < 3 || parts[0] != "agents" {
+			continue
+		}
+		agentID := parts[1]
+		fileName := parts[len(parts)-1]
+		existing := rollbackContent[agentID]
+		existing.AgentID = agentID
+		switch fileName {
+		case "description.md":
+			existing.Description = strings.TrimSpace(string(a.Content))
+		case "prompt.md":
+			existing.Instruction = strings.TrimSpace(string(a.Content))
+		case "global-prompt.md":
+			existing.GlobalInstruction = strings.TrimSpace(string(a.Content))
+		}
+		rollbackContent[agentID] = existing
+	}
+	validationErrs := agentcontent.Validate(rollbackContent, agents)
+	if len(validationErrs) > 0 {
+		errStrs := make([]string, len(validationErrs))
+		for i, ve := range validationErrs {
+			errStrs[i] = ve.Error()
+		}
+		return connect.NewResponse(&agentsv1.RollbackAgentContentResponse{
+			Binding:          binding,
+			ValidationErrors: errStrs,
+		}), nil
+	}
+
+	// DELETE files present at HEAD but absent from the target revision.
+	for _, ce := range currentEntries {
+		if ce.Kind != gitprovider.TreeEntryFile {
+			continue
+		}
+		cachePath := ce.Path
+		if rootPrefix != "" {
+			cachePath = strings.TrimPrefix(ce.Path, rootPrefix)
+		}
+		if !strings.HasPrefix(cachePath, "agents/") || !strings.HasSuffix(strings.ToLower(cachePath), ".md") {
+			continue
+		}
+		if !targetPaths[ce.Path] {
+			providerActions = append(providerActions, gitprovider.FileAction{
+				Path:   ce.Path,
+				Delete: true,
+			})
+		}
+	}
+
+	// Build rollback commit message with audit metadata.
+	actor := "unknown"
+	if user, ok := auth.UserFromContext(ctx); ok {
+		actor = user.GetId()
+	}
+	commitMsg := fmt.Sprintf("Rollback Agent Content to %s\n\nButter-Actor: %s\nButter-Workspace: %s\nButter-Operation: rollback\nButter-Target-SHA: %s\nButter-Parent-SHA: %s",
+		targetSHA[:minLen(targetSHA, 12)], actor, ws, targetSHA, headSHA)
+
+	logger := log.FromContext(ctx)
+	isChangeRequest := binding.GetWriteMode() == agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
+	var commitResult *gitprovider.CommitResult
+	var crURL string
+
+	if isChangeRequest {
+		branchName := fmt.Sprintf("butter/rollback-%s-%d", ws, time.Now().Unix())
+		if err := client.CreateBranch(ctx, branchName, headSHA); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create branch: %s", err))
+		}
+		commitResult, err = client.CreateCommit(ctx, branchName, headSHA, commitMsg, providerActions)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create commit: %s", err))
+		}
+		cr, crErr := client.CreateChangeRequest(ctx, branchName, binding.GetBranch(),
+			"Rollback Agent Content to "+targetSHA[:minLen(targetSHA, 12)], commitMsg)
+		if crErr != nil {
+			logger.Error("rollback commit created but failed to open change request",
+				"workspace_id", ws, "err", crErr)
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create change request: %s", crErr))
+		}
+		crURL = cr.URL
+	} else {
+		commitResult, err = client.CreateCommit(ctx, binding.GetBranch(), headSHA, commitMsg, providerActions)
+		if err != nil {
+			if errors.Is(err, gitprovider.ErrConflict) {
+				return nil, connect.NewError(connect.CodeAborted, errors.New("branch HEAD moved; retry the operation"))
+			}
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create commit: %s", err))
+		}
+	}
+
+	logger.Info("agent content rolled back", "workspace_id", ws, "commit_sha", commitResult.SHA,
+		"target_sha", targetSHA, "change_request", isChangeRequest)
+
+	// Trigger sync + publish.
+	if !isChangeRequest {
+		if syncErr := s.TriggerSyncAndPublish(ctx, ws); syncErr != nil {
+			logger.Error("sync after rollback failed", "workspace_id", ws, "err", syncErr)
+		}
+	}
+
+	final, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		final = binding
+	}
+	return connect.NewResponse(&agentsv1.RollbackAgentContentResponse{
+		Binding:          final,
+		CommitSha:        commitResult.SHA,
+		ChangeRequestUrl: crURL,
+	}), nil
+}
+
+// validateContentActions validates all changeset actions: paths must be
+// within the managed agents subtree, content must be valid UTF-8 Markdown,
+// and file sizes must be within limits.
+func validateContentActions(actions []*agentsv1.ContentFileAction, maxFileBytes int64) error {
+	for _, a := range actions {
+		p := strings.TrimSpace(a.GetPath())
+		if p == "" {
+			return connectx.RequiredArgument("actions[].path")
+		}
+		if err := validateCachePath(p); err != nil {
+			return connectx.InvalidArgument("actions[].path", err.Error())
+		}
+		if !strings.HasPrefix(p, "agents/") {
+			return connectx.InvalidArgument("actions[].path", "must be within the agents/ subtree")
+		}
+		if !strings.HasSuffix(strings.ToLower(p), ".md") {
+			return connectx.InvalidArgument("actions[].path", "must be a Markdown (.md) file")
+		}
+		op := a.GetOperation()
+		if op == agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_UNSPECIFIED {
+			return connectx.RequiredArgument("actions[].operation")
+		}
+		if op == agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT {
+			content := a.GetContent()
+			if !utf8.ValidString(content) {
+				return connectx.InvalidArgument("actions[].content", "must be valid UTF-8")
+			}
+			if int64(len(content)) > maxFileBytes {
+				return connectx.InvalidArgument("actions[].content",
+					fmt.Sprintf("exceeds maximum file size of %d bytes", maxFileBytes))
+			}
+		}
+	}
+	return nil
+}
+
+// simulateAndValidate predicts the resulting agent content after applying
+// the changeset and validates it. Returns validation error strings (empty
+// means OK to commit).
+func (s *RepoBindingServiceServer) simulateAndValidate(ctx context.Context, ws string, actions []*agentsv1.ContentFileAction, agents []*agentsv1.Agent) []string {
+	// Start from the current active content snapshot if available.
+	simulated := make(map[string]agentcontent.AgentContent)
+	if s.contentRepo != nil {
+		if snap, err := s.contentRepo.GetSnapshot(ctx, ws); err == nil {
+			for k, v := range snap.Entries {
+				simulated[k] = v
+			}
+		}
+	}
+
+	// Apply actions.
+	for _, a := range actions {
+		p := a.GetPath()
+		parts := strings.Split(p, "/")
+		if len(parts) < 3 || parts[0] != "agents" {
+			continue
+		}
+		agentID := parts[1]
+		fileName := parts[len(parts)-1]
+
+		if a.GetOperation() == agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_DELETE {
+			if existing, ok := simulated[agentID]; ok {
+				switch fileName {
+				case "description.md":
+					existing.Description = ""
+				case "prompt.md":
+					existing.Instruction = ""
+				case "global-prompt.md":
+					existing.GlobalInstruction = ""
+				}
+				if existing.Description == "" && existing.Instruction == "" && existing.GlobalInstruction == "" {
+					delete(simulated, agentID)
+				} else {
+					simulated[agentID] = existing
+				}
+			}
+			continue
+		}
+
+		content := strings.TrimSpace(a.GetContent())
+		existing := simulated[agentID]
+		existing.AgentID = agentID
+		switch fileName {
+		case "description.md":
+			existing.Description = content
+		case "prompt.md":
+			existing.Instruction = content
+		case "global-prompt.md":
+			existing.GlobalInstruction = content
+		}
+		simulated[agentID] = existing
+	}
+
+	validationErrs := agentcontent.Validate(simulated, agents)
+	if len(validationErrs) == 0 {
+		return nil
+	}
+	errStrs := make([]string, len(validationErrs))
+	for i, ve := range validationErrs {
+		errStrs[i] = ve.Error()
+	}
+	return errStrs
+}
+
 // ── Baseline acceptance (issue #216) ────────────────────────────────────
 
 func (s *RepoBindingServiceServer) AcceptRepositoryBaseline(ctx context.Context, _ *connect.Request[agentsv1.AcceptRepositoryBaselineRequest]) (*connect.Response[agentsv1.AcceptRepositoryBaselineResponse], error) {

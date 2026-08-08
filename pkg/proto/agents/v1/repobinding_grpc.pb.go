@@ -31,6 +31,8 @@ const (
 	WorkspaceRepoBindingService_PublishWorkspaceRepository_FullMethodName        = "/agents.v1.WorkspaceRepoBindingService/PublishWorkspaceRepository"
 	WorkspaceRepoBindingService_ConfigureWebhookSecret_FullMethodName            = "/agents.v1.WorkspaceRepoBindingService/ConfigureWebhookSecret"
 	WorkspaceRepoBindingService_AcceptRepositoryBaseline_FullMethodName          = "/agents.v1.WorkspaceRepoBindingService/AcceptRepositoryBaseline"
+	WorkspaceRepoBindingService_CommitAgentContent_FullMethodName                = "/agents.v1.WorkspaceRepoBindingService/CommitAgentContent"
+	WorkspaceRepoBindingService_RollbackAgentContent_FullMethodName              = "/agents.v1.WorkspaceRepoBindingService/RollbackAgentContent"
 )
 
 // WorkspaceRepoBindingServiceClient is the client API for WorkspaceRepoBindingService service.
@@ -85,6 +87,17 @@ type WorkspaceRepoBindingServiceClient interface {
 	// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
 	// new baseline, re-syncs and publishes. Requires owner/admin role.
 	AcceptRepositoryBaseline(ctx context.Context, in *AcceptRepositoryBaselineRequest, opts ...grpc.CallOption) (*AcceptRepositoryBaselineResponse, error)
+	// CommitAgentContent applies a changeset of PUT and DELETE operations to
+	// managed Agent Content paths and produces a single Git commit. In
+	// DIRECT_COMMIT mode the commit lands on the bound branch; in
+	// CHANGE_REQUEST mode a PR/MR is opened instead. Content is validated
+	// before the commit is created. Requires owner/admin role.
+	CommitAgentContent(ctx context.Context, in *CommitAgentContentRequest, opts ...grpc.CallOption) (*CommitAgentContentResponse, error)
+	// RollbackAgentContent restores managed Agent Content from a previously
+	// published revision in a new Git commit. The target revision's content
+	// is read from Git, validated, and committed to the bound branch (or a
+	// PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
+	RollbackAgentContent(ctx context.Context, in *RollbackAgentContentRequest, opts ...grpc.CallOption) (*RollbackAgentContentResponse, error)
 }
 
 type workspaceRepoBindingServiceClient struct {
@@ -215,6 +228,26 @@ func (c *workspaceRepoBindingServiceClient) AcceptRepositoryBaseline(ctx context
 	return out, nil
 }
 
+func (c *workspaceRepoBindingServiceClient) CommitAgentContent(ctx context.Context, in *CommitAgentContentRequest, opts ...grpc.CallOption) (*CommitAgentContentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CommitAgentContentResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_CommitAgentContent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceRepoBindingServiceClient) RollbackAgentContent(ctx context.Context, in *RollbackAgentContentRequest, opts ...grpc.CallOption) (*RollbackAgentContentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RollbackAgentContentResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_RollbackAgentContent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkspaceRepoBindingServiceServer is the server API for WorkspaceRepoBindingService service.
 // All implementations must embed UnimplementedWorkspaceRepoBindingServiceServer
 // for forward compatibility.
@@ -267,6 +300,17 @@ type WorkspaceRepoBindingServiceServer interface {
 	// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
 	// new baseline, re-syncs and publishes. Requires owner/admin role.
 	AcceptRepositoryBaseline(context.Context, *AcceptRepositoryBaselineRequest) (*AcceptRepositoryBaselineResponse, error)
+	// CommitAgentContent applies a changeset of PUT and DELETE operations to
+	// managed Agent Content paths and produces a single Git commit. In
+	// DIRECT_COMMIT mode the commit lands on the bound branch; in
+	// CHANGE_REQUEST mode a PR/MR is opened instead. Content is validated
+	// before the commit is created. Requires owner/admin role.
+	CommitAgentContent(context.Context, *CommitAgentContentRequest) (*CommitAgentContentResponse, error)
+	// RollbackAgentContent restores managed Agent Content from a previously
+	// published revision in a new Git commit. The target revision's content
+	// is read from Git, validated, and committed to the bound branch (or a
+	// PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
+	RollbackAgentContent(context.Context, *RollbackAgentContentRequest) (*RollbackAgentContentResponse, error)
 	mustEmbedUnimplementedWorkspaceRepoBindingServiceServer()
 }
 
@@ -312,6 +356,12 @@ func (UnimplementedWorkspaceRepoBindingServiceServer) ConfigureWebhookSecret(con
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) AcceptRepositoryBaseline(context.Context, *AcceptRepositoryBaselineRequest) (*AcceptRepositoryBaselineResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AcceptRepositoryBaseline not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) CommitAgentContent(context.Context, *CommitAgentContentRequest) (*CommitAgentContentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CommitAgentContent not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) RollbackAgentContent(context.Context, *RollbackAgentContentRequest) (*RollbackAgentContentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RollbackAgentContent not implemented")
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) mustEmbedUnimplementedWorkspaceRepoBindingServiceServer() {
 }
@@ -551,6 +601,42 @@ func _WorkspaceRepoBindingService_AcceptRepositoryBaseline_Handler(srv interface
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkspaceRepoBindingService_CommitAgentContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitAgentContentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).CommitAgentContent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_CommitAgentContent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).CommitAgentContent(ctx, req.(*CommitAgentContentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceRepoBindingService_RollbackAgentContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RollbackAgentContentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).RollbackAgentContent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_RollbackAgentContent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).RollbackAgentContent(ctx, req.(*RollbackAgentContentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkspaceRepoBindingService_ServiceDesc is the grpc.ServiceDesc for WorkspaceRepoBindingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -605,6 +691,14 @@ var WorkspaceRepoBindingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AcceptRepositoryBaseline",
 			Handler:    _WorkspaceRepoBindingService_AcceptRepositoryBaseline_Handler,
+		},
+		{
+			MethodName: "CommitAgentContent",
+			Handler:    _WorkspaceRepoBindingService_CommitAgentContent_Handler,
+		},
+		{
+			MethodName: "RollbackAgentContent",
+			Handler:    _WorkspaceRepoBindingService_RollbackAgentContent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
