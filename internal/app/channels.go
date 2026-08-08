@@ -29,6 +29,9 @@ import (
 	"go.orx.me/apps/butter/internal/repo/forum"
 	forummemory "go.orx.me/apps/butter/internal/repo/forum/memory"
 	forummongo "go.orx.me/apps/butter/internal/repo/forum/mongo"
+	githostrepo "go.orx.me/apps/butter/internal/repo/githost"
+	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
+	githostmongo "go.orx.me/apps/butter/internal/repo/githost/mongo"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	invocationmongo "go.orx.me/apps/butter/internal/repo/invocation/mongo"
@@ -38,6 +41,9 @@ import (
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
+	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
+	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
+	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	skillmongo "go.orx.me/apps/butter/internal/repo/skill/mongo"
@@ -79,6 +85,8 @@ type BootstrapResult struct {
 	MCPAuthResolver       *mcpoauth.Resolver
 	AgentFileRepo         agentfile.Repository
 	AgentFileMaxBytes     int64
+	GitHostRepo           githostrepo.Repository
+	RepoBindingRepo       repobindingrepo.Repository
 	SkillRepo             skillrepo.Repository
 	SkillMDMaxBytes       int64
 	SkillResourceMaxCount int
@@ -126,6 +134,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		fileRepo       agentfile.Repository
 		skillRepo      skillrepo.Repository
 		oauthStateRepo oauthstate.Repository
+		gitHostRepo    githostrepo.Repository
+		bindingRepo    repobindingrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -150,6 +160,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		fileRepo = agentfilemongo.New(db, setupAgentFileContentStore(ctx, cfg))
 		skillRepo = skillmongo.New(db, setupSkillContentStore(ctx, cfg))
 		oauthStateRepo = oauthstatemongo.New(db)
+		gitHostRepo = githostmongo.New(db)
+		bindingRepo = repobindingmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -159,6 +171,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		fileRepo = agentfilememory.New()
 		skillRepo = skillmemory.New()
 		oauthStateRepo = oauthstatememory.New()
+		gitHostRepo = githostmemory.New()
+		bindingRepo = repobindingmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -190,6 +204,14 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := oauthStateRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create oauth state indexes", "err", err)
+		return nil, err
+	}
+	if err := gitHostRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create git host indexes", "err", err)
+		return nil, err
+	}
+	if err := bindingRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create repo binding indexes", "err", err)
 		return nil, err
 	}
 	oauthProviders := provider.BuildRegistry(cfg.Auth)
@@ -321,6 +343,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		MCPOAuthSvc:           oauthSvc,
 		MCPAuthResolver:       mcpAuthResolver,
 		AgentFileRepo:         fileRepo,
+		GitHostRepo:           gitHostRepo,
+		RepoBindingRepo:       bindingRepo,
 		SkillRepo:             skillRepo,
 		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
 		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),

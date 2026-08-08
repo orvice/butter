@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// GitHost is a platform-administrator-configured Git service endpoint that
+// workspaces may bind repositories from (issue #214). Covers github.com,
+// gitlab.com, GitHub Enterprise, and self-hosted GitLab. Hosts are platform
+// level (not workspace scoped) and only global admins may mutate them, so
+// workspace input can never introduce an arbitrary API base URL.
+// =============================================================================
+
+// GitHostKind selects the provider adapter used to talk to the host.
+enum GitHostKind {
+  GIT_HOST_KIND_UNSPECIFIED = 0;
+  // GitHub.com or GitHub Enterprise (REST v3 API).
+  GIT_HOST_KIND_GITHUB = 1;
+  // GitLab.com or self-hosted GitLab (REST v4 API).
+  GIT_HOST_KIND_GITLAB = 2;
+}
+
+message GitHost {
+  // Stable server-assigned identifier (UUID).
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+
+  // Human-readable name shown when selecting a host (e.g. "GitHub.com").
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 2 [(validate.rules).string.min_len = 1];
+
+  // Provider adapter used for this host.
+  // @gotags: json:"kind,omitempty" yaml:"kind,omitempty" bson:"kind,omitempty"
+  GitHostKind kind = 3;
+
+  // Full API root the adapter joins request paths onto, e.g.
+  // "https://api.github.com", "https://ghe.example.com/api/v3",
+  // "https://gitlab.com/api/v4", "https://gitlab.example.com/api/v4".
+  // @gotags: json:"api_base_url,omitempty" yaml:"api_base_url,omitempty" bson:"api_base_url,omitempty"
+  string api_base_url = 4 [(validate.rules).string.min_len = 1];
+
+  // Optional web UI base used for building repository links in dashboards,
+  // e.g. "https://github.com". Never used for API calls.
+  // @gotags: json:"web_base_url,omitempty" yaml:"web_base_url,omitempty" bson:"web_base_url,omitempty"
+  string web_base_url = 5;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 6;
+
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// GitHostService manages the platform-level allowlist of Git hosts.
+// List/Get are available to any authenticated user (workspace owners need
+// them to configure a binding); Create/Update/Delete require global admin.
+service GitHostService {
+  rpc ListGitHosts(ListGitHostsRequest) returns (ListGitHostsResponse);
+  rpc GetGitHost(GetGitHostRequest) returns (GetGitHostResponse);
+  rpc CreateGitHost(CreateGitHostRequest) returns (CreateGitHostResponse);
+  rpc UpdateGitHost(UpdateGitHostRequest) returns (UpdateGitHostResponse);
+  rpc DeleteGitHost(DeleteGitHostRequest) returns (DeleteGitHostResponse);
+}
+
+message ListGitHostsRequest {}
+
+message ListGitHostsResponse {
+  repeated GitHost hosts = 1;
+}
+
+message GetGitHostRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetGitHostResponse {
+  GitHost host = 1;
+}
+
+message CreateGitHostRequest {
+  GitHost host = 1;
+}
+
+message CreateGitHostResponse {
+  GitHost host = 1;
+}
+
+message UpdateGitHostRequest {
+  GitHost host = 1;
+}
+
+message UpdateGitHostResponse {
+  GitHost host = 1;
+}
+
+message DeleteGitHostRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteGitHostResponse {}

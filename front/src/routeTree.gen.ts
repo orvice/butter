@@ -25,9 +25,11 @@ import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authent
 import { Route as AuthenticatedManageRouteImport } from './routes/_authenticated/manage'
 import { Route as AuthenticatedOperationsRouteImport } from './routes/_authenticated/operations'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedRepoBindingRouteImport } from './routes/_authenticated/repo-binding'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as AuthenticatedAdminGitHostsRouteImport } from './routes/_authenticated/admin/git-hosts'
 import { Route as AuthenticatedAdminGlobalMcpServersRouteImport } from './routes/_authenticated/admin/global-mcp-servers'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAgentsIndexRouteImport } from './routes/_authenticated/agents/index'
@@ -145,6 +147,12 @@ const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedRepoBindingRoute =
+  AuthenticatedRepoBindingRouteImport.update({
+    id: '/repo-binding',
+    path: '/repo-binding',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSettingsRouteRoute =
   AuthenticatedSettingsRouteRouteImport.update({
     id: '/settings',
@@ -161,6 +169,12 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminGitHostsRoute =
+  AuthenticatedAdminGitHostsRouteImport.update({
+    id: '/admin/git-hosts',
+    path: '/admin/git-hosts',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminGlobalMcpServersRoute =
   AuthenticatedAdminGlobalMcpServersRouteImport.update({
     id: '/admin/global-mcp-servers',
@@ -390,8 +404,10 @@ export interface FileRoutesByFullPath {
   '/manage': typeof AuthenticatedManageRoute
   '/operations': typeof AuthenticatedOperationsRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/repo-binding': typeof AuthenticatedRepoBindingRoute
   '/users': typeof AuthenticatedUsersRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/create': typeof AuthenticatedAgentsCreateRoute
@@ -444,9 +460,11 @@ export interface FileRoutesByTo {
   '/manage': typeof AuthenticatedManageRoute
   '/operations': typeof AuthenticatedOperationsRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/repo-binding': typeof AuthenticatedRepoBindingRoute
   '/users': typeof AuthenticatedUsersRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/create': typeof AuthenticatedAgentsCreateRoute
@@ -502,9 +520,11 @@ export interface FileRoutesById {
   '/_authenticated/manage': typeof AuthenticatedManageRoute
   '/_authenticated/operations': typeof AuthenticatedOperationsRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/_authenticated/repo-binding': typeof AuthenticatedRepoBindingRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/_authenticated/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/create': typeof AuthenticatedAgentsCreateRoute
@@ -561,8 +581,10 @@ export interface FileRouteTypes {
     | '/manage'
     | '/operations'
     | '/profile'
+    | '/repo-binding'
     | '/users'
     | '/workspaces'
+    | '/admin/git-hosts'
     | '/admin/global-mcp-servers'
     | '/admin/users'
     | '/agents/create'
@@ -615,9 +637,11 @@ export interface FileRouteTypes {
     | '/manage'
     | '/operations'
     | '/profile'
+    | '/repo-binding'
     | '/users'
     | '/workspaces'
     | '/'
+    | '/admin/git-hosts'
     | '/admin/global-mcp-servers'
     | '/admin/users'
     | '/agents/create'
@@ -672,9 +696,11 @@ export interface FileRouteTypes {
     | '/_authenticated/manage'
     | '/_authenticated/operations'
     | '/_authenticated/profile'
+    | '/_authenticated/repo-binding'
     | '/_authenticated/users'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
+    | '/_authenticated/admin/git-hosts'
     | '/_authenticated/admin/global-mcp-servers'
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/create'
@@ -838,6 +864,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/repo-binding': {
+      id: '/_authenticated/repo-binding'
+      path: '/repo-binding'
+      fullPath: '/repo-binding'
+      preLoaderRoute: typeof AuthenticatedRepoBindingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -857,6 +890,13 @@ declare module '@tanstack/react-router' {
       path: '/workspaces'
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/git-hosts': {
+      id: '/_authenticated/admin/git-hosts'
+      path: '/admin/git-hosts'
+      fullPath: '/admin/git-hosts'
+      preLoaderRoute: typeof AuthenticatedAdminGitHostsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/global-mcp-servers': {
@@ -1142,9 +1182,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedManageRoute: typeof AuthenticatedManageRoute
   AuthenticatedOperationsRoute: typeof AuthenticatedOperationsRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedRepoBindingRoute: typeof AuthenticatedRepoBindingRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAdminGitHostsRoute: typeof AuthenticatedAdminGitHostsRoute
   AuthenticatedAdminGlobalMcpServersRoute: typeof AuthenticatedAdminGlobalMcpServersRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAgentsCreateRoute: typeof AuthenticatedAgentsCreateRoute
@@ -1189,9 +1231,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedManageRoute: AuthenticatedManageRoute,
   AuthenticatedOperationsRoute: AuthenticatedOperationsRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
+  AuthenticatedRepoBindingRoute: AuthenticatedRepoBindingRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAdminGitHostsRoute: AuthenticatedAdminGitHostsRoute,
   AuthenticatedAdminGlobalMcpServersRoute:
     AuthenticatedAdminGlobalMcpServersRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,

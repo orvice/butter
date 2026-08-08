@@ -59,6 +59,8 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `Not
 - `agentchannel.proto` — Platform bindings: `AgentChannel`, triggers, delivery, Telegram config.
 - `cron.proto` — CronJob, CronExecution (including `WAITING_INPUT` status for workflow pauses), CronJobService.
 - `skill.proto` — Skill (agentskills.io bundle metadata) and `SkillResource`; SkillService CRUD plus the resource RPCs (`ListSkillResources` / `GetSkillResource` / `PutSkillResource` / `DeleteSkillResource`).
+- `githost.proto` — GitHost: platform-admin-configured allowlist of Git endpoints (GitHub/GitLab kinds, API base URLs); GitHostService (reads open to authenticated users, mutations global-admin only).
+- `repobinding.proto` — WorkspaceRepoBinding: zero-or-one per-workspace repository binding (host, repository, branch, root path, write mode, validation status); WorkspaceRepoBindingService (member read, owner/admin manage). The PAT is deliberately not a proto field — it is encrypted (`internal/secretbox`, key from `git.encryption_key`) and stored through a separate credential seam on `internal/repo/repobinding` (ADR-0005). Git access goes through the provider-neutral `internal/gitprovider` contract (GitHub + GitLab REST adapters, no clone/CLI).
 
 Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plugins: protobuf-go, gRPC, gRPC-Gateway, ConnectRPC, validate, and bufbuild/es for the frontend. Twirp generation and runtime dependencies were removed in ConnectRPC Phase 3.
 
@@ -82,6 +84,7 @@ Docs directory layout:
 - `docs/adr/0002-interrupt-state-derived-from-session-events.md` — ADR: Pending interrupts derived from session events, FIFO implicit resume.
 - `docs/adr/0003-cron-workflow-pause-notify-and-wait.md` — ADR: Cron + Human Input → WAITING_INPUT, notify question, resume via ReplySession.
 - `docs/adr/0004-skill-metadata-in-mongo-content-in-s3.md` — ADR: Skill metadata in Mongo, content in S3; skills addressed by name, no versioning in v1.
+- `docs/adr/0005-repo-binding-pat-outside-public-model.md` — ADR: Repository binding PATs are not proto fields; encrypted per binding via a dedicated repository credential seam.
 
 ## Agent skills
 
