@@ -6,8 +6,17 @@ package gitprovider
 // writeToken has push/Developer access, readOnlyToken read-only, anything
 // else is unauthorized. Routing works on the escaped path so encoded "/" in
 // GitLab project IDs and branch names survives.
+//
+// Tree fixture (ref "main"):
+//   agents/
+//     my-agent/
+//       prompt.md          → "You are a helpful agent."
+//       description.md     → "My agent description."
+//     unclaimed-dir/
+//       notes.md           → "Some notes."
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -21,24 +30,47 @@ var fakeBranches = map[string]string{
 	"release/v1": "0ddba11",
 }
 
+var fakeFiles = map[string]string{
+	"agents/my-agent/prompt.md":      "You are a helpful agent.",
+	"agents/my-agent/description.md": "My agent description.",
+	"agents/unclaimed-dir/notes.md":  "Some notes.",
+}
+
+type fakeTreeEntry struct {
+	path     string
+	nodeType string // "blob", "tree", "commit"
+	mode     string
+	sha      string
+	size     int64
+}
+
+var fakeTreeEntries = []fakeTreeEntry{
+	{path: "agents", nodeType: "tree", mode: "040000", sha: "tree-agents"},
+	{path: "agents/my-agent", nodeType: "tree", mode: "040000", sha: "tree-my-agent"},
+	{path: "agents/my-agent/prompt.md", nodeType: "blob", mode: "100644", sha: "blob-prompt", size: 25},
+	{path: "agents/my-agent/description.md", nodeType: "blob", mode: "100644", sha: "blob-desc", size: 22},
+	{path: "agents/unclaimed-dir", nodeType: "tree", mode: "040000", sha: "tree-unclaimed"},
+	{path: "agents/unclaimed-dir/notes.md", nodeType: "blob", mode: "100644", sha: "blob-notes", size: 11},
+}
+
 func newGitHubFake(t *testing.T, apiPrefix string) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.EscapedPath(), apiPrefix)
-		auth := r.Header.Get("Authorization")
-		token := strings.TrimPrefix(strings.TrimPrefix(auth, "Bearer "), "token ")
+		urlPath := strings.TrimPrefix(r.URL.EscapedPath(), apiPrefix)
+		authHeader := r.Header.Get("Authorization")
+		token := strings.TrimPrefix(strings.TrimPrefix(authHeader, "Bearer "), "token ")
 		if token != writeToken && token != readOnlyToken {
 			w.WriteHeader(http.StatusUnauthorized)
 			fmt.Fprint(w, `{"message":"Bad credentials"}`)
 			return
 		}
 		switch {
-		case path == "/repos/acme/agents":
+		case urlPath == "/repos/acme/agents":
 			push := token == writeToken
 			fmt.Fprintf(w, `{"full_name":"acme/agents","private":true,"default_branch":"main",`+
 				`"permissions":{"admin":false,"maintain":false,"push":%v,"triage":false,"pull":true}}`, push)
-		case strings.HasPrefix(path, "/repos/acme/agents/branches/"):
-			raw := strings.TrimPrefix(path, "/repos/acme/agents/branches/")
+		case strings.HasPrefix(urlPath, "/repos/acme/agents/branches/"):
+			raw := strings.TrimPrefix(urlPath, "/repos/acme/agents/branches/")
 			branch, err := url.PathUnescape(raw)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
@@ -51,21 +83,98 @@ func newGitHubFake(t *testing.T, apiPrefix string) http.Handler {
 				return
 			}
 			fmt.Fprintf(w, `{"name":%q,"commit":{"sha":%q}}`, branch, sha)
-		case strings.HasPrefix(path, "/repos/"):
+
+		case strings.HasPrefix(urlPath, "/repos/acme/agents/git/ref/heads/"):
+			raw := strings.TrimPrefix(urlPath, "/repos/acme/agents/git/ref/heads/")
+			branch, _ := url.PathUnescape(raw)
+			sha, ok := fakeBranches[branch]
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			fmt.Fprintf(w, `{"ref":"refs/heads/%s","object":{"sha":%q,"type":"commit"}}`, branch, sha)
+
+		case strings.HasPrefix(urlPath, "/repos/acme/agents/git/commits/"):
+			fmt.Fprint(w, `{"tree":{"sha":"root-tree-sha"}}`)
+
+		case strings.HasPrefix(urlPath, "/repos/acme/agents/git/trees/"):
+			rawTree := strings.TrimPrefix(urlPath, "/repos/acme/agents/git/trees/")
+			treeSHA := strings.Split(rawTree, "?")[0]
+			recursive := strings.Contains(r.URL.RawQuery, "recursive=1")
+			serveGitHubTree(w, treeSHA, recursive)
+
+		case strings.HasPrefix(urlPath, "/repos/acme/agents/contents/"):
+			filePath := strings.TrimPrefix(urlPath, "/repos/acme/agents/contents/")
+			filePath, _ = url.PathUnescape(filePath)
+			content, ok := fakeFiles[filePath]
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, `{"message":"Not Found"}`)
+				return
+			}
+			accept := r.Header.Get("Accept")
+			if strings.Contains(accept, "application/vnd.github.raw") {
+				w.Header().Set("Content-Type", "application/octet-stream")
+				fmt.Fprint(w, content)
+			} else {
+				encoded := base64.StdEncoding.EncodeToString([]byte(content))
+				fmt.Fprintf(w, `{"content":%q,"encoding":"base64","size":%d}`, encoded, len(content))
+			}
+
+		case strings.HasPrefix(urlPath, "/repos/"):
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprint(w, `{"message":"Not Found"}`)
 		default:
-			t.Errorf("github fake: unexpected path %q", path)
+			t.Errorf("github fake: unexpected path %q", urlPath)
 			w.WriteHeader(http.StatusNotFound)
 		}
 	})
+}
+
+func serveGitHubTree(w http.ResponseWriter, treeSHA string, recursive bool) {
+	var entries []fakeTreeEntry
+	switch treeSHA {
+	case "root-tree-sha":
+		if recursive {
+			entries = fakeTreeEntries
+		} else {
+			entries = []fakeTreeEntry{fakeTreeEntries[0]}
+		}
+	case "tree-agents":
+		if recursive {
+			for _, e := range fakeTreeEntries[1:] {
+				rel := strings.TrimPrefix(e.path, "agents/")
+				entries = append(entries, fakeTreeEntry{
+					path: rel, nodeType: e.nodeType, mode: e.mode, sha: e.sha, size: e.size,
+				})
+			}
+		} else {
+			entries = []fakeTreeEntry{
+				{path: "my-agent", nodeType: "tree", mode: "040000", sha: "tree-my-agent"},
+				{path: "unclaimed-dir", nodeType: "tree", mode: "040000", sha: "tree-unclaimed"},
+			}
+		}
+	default:
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"sha":"`+treeSHA+`","tree":[`)
+	for i, e := range entries {
+		if i > 0 {
+			fmt.Fprint(w, ",")
+		}
+		fmt.Fprintf(w, `{"path":%q,"mode":%q,"type":%q,"sha":%q,"size":%d}`,
+			e.path, e.mode, e.nodeType, e.sha, e.size)
+	}
+	fmt.Fprint(w, `],"truncated":false}`)
 }
 
 func newGitLabFake(t *testing.T, apiPrefix string) http.Handler {
 	t.Helper()
 	project := url.PathEscape("acme/agents") // acme%2Fagents
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.EscapedPath(), apiPrefix)
+		urlPath := strings.TrimPrefix(r.URL.EscapedPath(), apiPrefix)
 		token := r.Header.Get("PRIVATE-TOKEN")
 		if token == "" {
 			token = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
@@ -80,11 +189,11 @@ func newGitLabFake(t *testing.T, apiPrefix string) http.Handler {
 			level = 30 // Developer
 		}
 		switch {
-		case path == "/projects/"+project:
+		case urlPath == "/projects/"+project:
 			fmt.Fprintf(w, `{"path_with_namespace":"acme/agents","visibility":"private","default_branch":"main",`+
 				`"permissions":{"project_access":{"access_level":%d},"group_access":null}}`, level)
-		case strings.HasPrefix(path, "/projects/"+project+"/repository/branches/"):
-			raw := strings.TrimPrefix(path, "/projects/"+project+"/repository/branches/")
+		case strings.HasPrefix(urlPath, "/projects/"+project+"/repository/branches/"):
+			raw := strings.TrimPrefix(urlPath, "/projects/"+project+"/repository/branches/")
 			branch, err := url.PathUnescape(raw)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
@@ -97,11 +206,43 @@ func newGitLabFake(t *testing.T, apiPrefix string) http.Handler {
 				return
 			}
 			fmt.Fprintf(w, `{"name":%q,"commit":{"id":%q}}`, branch, sha)
-		case strings.HasPrefix(path, "/projects/"):
+
+		case strings.HasPrefix(urlPath, "/projects/"+project+"/repository/tree"):
+			refPath := r.URL.Query().Get("path")
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, "[")
+			first := true
+			for _, e := range fakeTreeEntries {
+				if refPath != "" && !strings.HasPrefix(e.path, refPath+"/") && e.path != refPath {
+					continue
+				}
+				if !first {
+					fmt.Fprint(w, ",")
+				}
+				first = false
+				fmt.Fprintf(w, `{"id":%q,"name":%q,"type":%q,"path":%q,"mode":%q}`,
+					e.sha, e.path[strings.LastIndex(e.path, "/")+1:], e.nodeType, e.path, e.mode)
+			}
+			fmt.Fprint(w, "]")
+
+		case strings.HasPrefix(urlPath, "/projects/"+project+"/repository/files/"):
+			raw := strings.TrimPrefix(urlPath, "/projects/"+project+"/repository/files/")
+			filePath, _ := url.PathUnescape(raw)
+			content, ok := fakeFiles[filePath]
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, `{"message":"404 File Not Found"}`)
+				return
+			}
+			encoded := base64.StdEncoding.EncodeToString([]byte(content))
+			fmt.Fprintf(w, `{"file_name":%q,"file_path":%q,"size":%d,"encoding":"base64","content":%q}`,
+				filePath, filePath, len(content), encoded)
+
+		case strings.HasPrefix(urlPath, "/projects/"):
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprint(w, `{"message":"404 Project Not Found"}`)
 		default:
-			t.Errorf("gitlab fake: unexpected path %q", path)
+			t.Errorf("gitlab fake: unexpected path %q", urlPath)
 			w.WriteHeader(http.StatusNotFound)
 		}
 	})

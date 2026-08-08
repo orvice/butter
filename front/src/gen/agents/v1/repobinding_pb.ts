@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/repobinding.proto.
  */
 export const file_agents_v1_repobinding: GenFile = /*@__PURE__*/
-  fileDesc("ChthZ2VudHMvdjEvcmVwb2JpbmRpbmcucHJvdG8SCWFnZW50cy52MSLJAwoUV29ya3NwYWNlUmVwb0JpbmRpbmcSHAoLZ2l0X2hvc3RfaWQYASABKAlCB/pCBHICEAESGwoKcmVwb3NpdG9yeRgCIAEoCUIH+kIEcgIQARIXCgZicmFuY2gYAyABKAlCB/pCBHICEAESEQoJcm9vdF9wYXRoGAQgASgJEjMKCndyaXRlX21vZGUYBSABKA4yHy5hZ2VudHMudjEuUmVwb0JpbmRpbmdXcml0ZU1vZGUSHgoWY29udGVudF9zY2hlbWFfdmVyc2lvbhgGIAEoBRIWCg5jcmVkZW50aWFsX3NldBgHIAEoCBI5ChVjcmVkZW50aWFsX3VwZGF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiwKBnN0YXR1cxgJIAEoCzIcLmFnZW50cy52MS5SZXBvQmluZGluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgx3b3Jrc3BhY2VfaWQYZCABKAkivAEKEVJlcG9CaW5kaW5nU3RhdHVzEjQKBXN0YXRlGAEgASgOMiUuYWdlbnRzLnYxLlJlcG9CaW5kaW5nQ29ubmVjdGlvblN0YXRlEjUKEWxhc3RfdmFsaWRhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVlcnJvchgDIAEoCRIrCgZjaGVja3MYBCADKAsyGy5hZ2VudHMudjEuUmVwb0JpbmRpbmdDaGVjayJOChBSZXBvQmluZGluZ0NoZWNrEgwKBG5hbWUYASABKAkSCgoCb2sYAiABKAgSEAoIcmVxdWlyZWQYAyABKAgSDgoGZGV0YWlsGAQgASgJIkIKElJlcG9CaW5kaW5nT3ZlcmxhcBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSFgoOd29ya3NwYWNlX25hbWUYAiABKAkiIAoeR2V0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0IoQBCh9HZXRXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmcSLwoIb3ZlcmxhcHMYAiADKAsyHS5hZ2VudHMudjEuUmVwb0JpbmRpbmdPdmVybGFwIlIKHlB1dFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdBIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nIlMKH1B1dFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZyIjCiFEZWxldGVXb3Jrc3BhY2VSZXBvQmluZGluZ1JlcXVlc3QiJAoiRGVsZXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXNwb25zZSJACihTZXRXb3Jrc3BhY2VSZXBvQmluZGluZ0NyZWRlbnRpYWxSZXF1ZXN0EhQKA3BhdBgBIAEoCUIH+kIEcgIQASJdCilTZXRXb3Jrc3BhY2VSZXBvQmluZGluZ0NyZWRlbnRpYWxSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nIiUKI1ZhbGlkYXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0IlgKJFZhbGlkYXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nKpYBChRSZXBvQmluZGluZ1dyaXRlTW9kZRInCiNSRVBPX0JJTkRJTkdfV1JJVEVfTU9ERV9VTlNQRUNJRklFRBAAEikKJVJFUE9fQklORElOR19XUklURV9NT0RFX0RJUkVDVF9DT01NSVQQARIqCiZSRVBPX0JJTkRJTkdfV1JJVEVfTU9ERV9DSEFOR0VfUkVRVUVTVBACKsoBChpSZXBvQmluZGluZ0Nvbm5lY3Rpb25TdGF0ZRItCilSRVBPX0JJTkRJTkdfQ09OTkVDVElPTl9TVEFURV9VTlNQRUNJRklFRBAAEi0KKVJFUE9fQklORElOR19DT05ORUNUSU9OX1NUQVRFX1VOVkFMSURBVEVEEAESJAogUkVQT19CSU5ESU5HX0NPTk5FQ1RJT05fU1RBVEVfT0sQAhIoCiRSRVBPX0JJTkRJTkdfQ09OTkVDVElPTl9TVEFURV9GQUlMRUQQAzKOBQobV29ya3NwYWNlUmVwb0JpbmRpbmdTZXJ2aWNlEnAKF0dldFdvcmtzcGFjZVJlcG9CaW5kaW5nEikuYWdlbnRzLnYxLkdldFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdBoqLmFnZW50cy52MS5HZXRXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEnAKF1B1dFdvcmtzcGFjZVJlcG9CaW5kaW5nEikuYWdlbnRzLnYxLlB1dFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdBoqLmFnZW50cy52MS5QdXRXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEnkKGkRlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nEiwuYWdlbnRzLnYxLkRlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdBotLmFnZW50cy52MS5EZWxldGVXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEo4BCiFTZXRXb3Jrc3BhY2VSZXBvQmluZGluZ0NyZWRlbnRpYWwSMy5hZ2VudHMudjEuU2V0V29ya3NwYWNlUmVwb0JpbmRpbmdDcmVkZW50aWFsUmVxdWVzdBo0LmFnZW50cy52MS5TZXRXb3Jrc3BhY2VSZXBvQmluZGluZ0NyZWRlbnRpYWxSZXNwb25zZRJ/ChxWYWxpZGF0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nEi4uYWdlbnRzLnYxLlZhbGlkYXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0Gi8uYWdlbnRzLnYxLlZhbGlkYXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChthZ2VudHMvdjEvcmVwb2JpbmRpbmcucHJvdG8SCWFnZW50cy52MSLOBAoUV29ya3NwYWNlUmVwb0JpbmRpbmcSHAoLZ2l0X2hvc3RfaWQYASABKAlCB/pCBHICEAESGwoKcmVwb3NpdG9yeRgCIAEoCUIH+kIEcgIQARIXCgZicmFuY2gYAyABKAlCB/pCBHICEAESEQoJcm9vdF9wYXRoGAQgASgJEjMKCndyaXRlX21vZGUYBSABKA4yHy5hZ2VudHMudjEuUmVwb0JpbmRpbmdXcml0ZU1vZGUSHgoWY29udGVudF9zY2hlbWFfdmVyc2lvbhgGIAEoBRIWCg5jcmVkZW50aWFsX3NldBgHIAEoCBI5ChVjcmVkZW50aWFsX3VwZGF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiwKBnN0YXR1cxgJIAEoCzIcLmFnZW50cy52MS5SZXBvQmluZGluZ1N0YXR1cxIuCgpjcmVhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbChNvYnNlcnZlZF9jb21taXRfc2hhGAwgASgJEhkKEWFjdGl2ZV9jb21taXRfc2hhGA0gASgJEjIKDmxhc3Rfc3luY2VkX2F0GA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIXCg9sYXN0X3N5bmNfZXJyb3IYDyABKAkSFAoMd29ya3NwYWNlX2lkGGQgASgJIrwBChFSZXBvQmluZGluZ1N0YXR1cxI0CgVzdGF0ZRgBIAEoDjIlLmFnZW50cy52MS5SZXBvQmluZGluZ0Nvbm5lY3Rpb25TdGF0ZRI1ChFsYXN0X3ZhbGlkYXRlZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFZXJyb3IYAyABKAkSKwoGY2hlY2tzGAQgAygLMhsuYWdlbnRzLnYxLlJlcG9CaW5kaW5nQ2hlY2siTgoQUmVwb0JpbmRpbmdDaGVjaxIMCgRuYW1lGAEgASgJEgoKAm9rGAIgASgIEhAKCHJlcXVpcmVkGAMgASgIEg4KBmRldGFpbBgEIAEoCSJCChJSZXBvQmluZGluZ092ZXJsYXASFAoMd29ya3NwYWNlX2lkGAEgASgJEhYKDndvcmtzcGFjZV9uYW1lGAIgASgJIiAKHkdldFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdCKEAQofR2V0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nEi8KCG92ZXJsYXBzGAIgAygLMh0uYWdlbnRzLnYxLlJlcG9CaW5kaW5nT3ZlcmxhcCJSCh5QdXRXb3Jrc3BhY2VSZXBvQmluZGluZ1JlcXVlc3QSMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZyJTCh9QdXRXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmciIwohRGVsZXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0IiQKIkRlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2UiQAooU2V0V29ya3NwYWNlUmVwb0JpbmRpbmdDcmVkZW50aWFsUmVxdWVzdBIUCgNwYXQYASABKAlCB/pCBHICEAEiXQopU2V0V29ya3NwYWNlUmVwb0JpbmRpbmdDcmVkZW50aWFsUmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZyIlCiNWYWxpZGF0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVxdWVzdCJYCiRWYWxpZGF0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2USMAoHYmluZGluZxgBIAEoCzIfLmFnZW50cy52MS5Xb3Jrc3BhY2VSZXBvQmluZGluZyIgCh5TeW5jV29ya3NwYWNlUmVwb3NpdG9yeVJlcXVlc3QiawofU3luY1dvcmtzcGFjZVJlcG9zaXRvcnlSZXNwb25zZRIwCgdiaW5kaW5nGAEgASgLMh8uYWdlbnRzLnYxLldvcmtzcGFjZVJlcG9CaW5kaW5nEhYKDmVudHJpZXNfc3luY2VkGAIgASgFIiAKHkdldFJlcG9zaXRvcnlTeW5jU3RhdHVzUmVxdWVzdCJTCh9HZXRSZXBvc2l0b3J5U3luY1N0YXR1c1Jlc3BvbnNlEjAKB2JpbmRpbmcYASABKAsyHy5hZ2VudHMudjEuV29ya3NwYWNlUmVwb0JpbmRpbmciLAocTGlzdFJlcG9zaXRvcnlFbnRyaWVzUmVxdWVzdBIMCgRwYXRoGAEgASgJIl8KHUxpc3RSZXBvc2l0b3J5RW50cmllc1Jlc3BvbnNlEhIKCmNvbW1pdF9zaGEYASABKAkSKgoHZW50cmllcxgCIAMoCzIZLmFnZW50cy52MS5SZXBvQ2FjaGVFbnRyeSIoChhHZXRSZXBvc2l0b3J5RmlsZVJlcXVlc3QSDAoEcGF0aBgBIAEoCSJqChlHZXRSZXBvc2l0b3J5RmlsZVJlc3BvbnNlEhIKCmNvbW1pdF9zaGEYASABKAkSKAoFZW50cnkYAiABKAsyGS5hZ2VudHMudjEuUmVwb0NhY2hlRW50cnkSDwoHY29udGVudBgDIAEoCSKAAQoOUmVwb0NhY2hlRW50cnkSDAoEcGF0aBgBIAEoCRIrCgRraW5kGAIgASgOMh0uYWdlbnRzLnYxLlJlcG9DYWNoZUVudHJ5S2luZBIMCgRzaXplGAMgASgDEhQKDGNvbnRlbnRfaGFzaBgEIAEoCRIPCgdjbGFpbWVkGAUgASgIKpYBChRSZXBvQmluZGluZ1dyaXRlTW9kZRInCiNSRVBPX0JJTkRJTkdfV1JJVEVfTU9ERV9VTlNQRUNJRklFRBAAEikKJVJFUE9fQklORElOR19XUklURV9NT0RFX0RJUkVDVF9DT01NSVQQARIqCiZSRVBPX0JJTkRJTkdfV1JJVEVfTU9ERV9DSEFOR0VfUkVRVUVTVBACKsoBChpSZXBvQmluZGluZ0Nvbm5lY3Rpb25TdGF0ZRItCilSRVBPX0JJTkRJTkdfQ09OTkVDVElPTl9TVEFURV9VTlNQRUNJRklFRBAAEi0KKVJFUE9fQklORElOR19DT05ORUNUSU9OX1NUQVRFX1VOVkFMSURBVEVEEAESJAogUkVQT19CSU5ESU5HX0NPTk5FQ1RJT05fU1RBVEVfT0sQAhIoCiRSRVBPX0JJTkRJTkdfQ09OTkVDVElPTl9TVEFURV9GQUlMRUQQAyrIAQoSUmVwb0NhY2hlRW50cnlLaW5kEiUKIVJFUE9fQ0FDSEVfRU5UUllfS0lORF9VTlNQRUNJRklFRBAAEh4KGlJFUE9fQ0FDSEVfRU5UUllfS0lORF9GSUxFEAESIwofUkVQT19DQUNIRV9FTlRSWV9LSU5EX0RJUkVDVE9SWRACEiEKHVJFUE9fQ0FDSEVfRU5UUllfS0lORF9TWU1MSU5LEAMSIwofUkVQT19DQUNIRV9FTlRSWV9LSU5EX1NVQk1PRFVMRRAEMr4IChtXb3Jrc3BhY2VSZXBvQmluZGluZ1NlcnZpY2UScAoXR2V0V29ya3NwYWNlUmVwb0JpbmRpbmcSKS5hZ2VudHMudjEuR2V0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0GiouYWdlbnRzLnYxLkdldFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2UScAoXUHV0V29ya3NwYWNlUmVwb0JpbmRpbmcSKS5hZ2VudHMudjEuUHV0V29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0GiouYWdlbnRzLnYxLlB1dFdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2USeQoaRGVsZXRlV29ya3NwYWNlUmVwb0JpbmRpbmcSLC5hZ2VudHMudjEuRGVsZXRlV29ya3NwYWNlUmVwb0JpbmRpbmdSZXF1ZXN0Gi0uYWdlbnRzLnYxLkRlbGV0ZVdvcmtzcGFjZVJlcG9CaW5kaW5nUmVzcG9uc2USjgEKIVNldFdvcmtzcGFjZVJlcG9CaW5kaW5nQ3JlZGVudGlhbBIzLmFnZW50cy52MS5TZXRXb3Jrc3BhY2VSZXBvQmluZGluZ0NyZWRlbnRpYWxSZXF1ZXN0GjQuYWdlbnRzLnYxLlNldFdvcmtzcGFjZVJlcG9CaW5kaW5nQ3JlZGVudGlhbFJlc3BvbnNlEn8KHFZhbGlkYXRlV29ya3NwYWNlUmVwb0JpbmRpbmcSLi5hZ2VudHMudjEuVmFsaWRhdGVXb3Jrc3BhY2VSZXBvQmluZGluZ1JlcXVlc3QaLy5hZ2VudHMudjEuVmFsaWRhdGVXb3Jrc3BhY2VSZXBvQmluZGluZ1Jlc3BvbnNlEnAKF1N5bmNXb3Jrc3BhY2VSZXBvc2l0b3J5EikuYWdlbnRzLnYxLlN5bmNXb3Jrc3BhY2VSZXBvc2l0b3J5UmVxdWVzdBoqLmFnZW50cy52MS5TeW5jV29ya3NwYWNlUmVwb3NpdG9yeVJlc3BvbnNlEnAKF0dldFJlcG9zaXRvcnlTeW5jU3RhdHVzEikuYWdlbnRzLnYxLkdldFJlcG9zaXRvcnlTeW5jU3RhdHVzUmVxdWVzdBoqLmFnZW50cy52MS5HZXRSZXBvc2l0b3J5U3luY1N0YXR1c1Jlc3BvbnNlEmoKFUxpc3RSZXBvc2l0b3J5RW50cmllcxInLmFnZW50cy52MS5MaXN0UmVwb3NpdG9yeUVudHJpZXNSZXF1ZXN0GiguYWdlbnRzLnYxLkxpc3RSZXBvc2l0b3J5RW50cmllc1Jlc3BvbnNlEl4KEUdldFJlcG9zaXRvcnlGaWxlEiMuYWdlbnRzLnYxLkdldFJlcG9zaXRvcnlGaWxlUmVxdWVzdBokLmFnZW50cy52MS5HZXRSZXBvc2l0b3J5RmlsZVJlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * @generated from message agents.v1.WorkspaceRepoBinding
@@ -106,6 +106,38 @@ export type WorkspaceRepoBinding = Message<"agents.v1.WorkspaceRepoBinding"> & {
    * @generated from field: google.protobuf.Timestamp updated_at = 11;
    */
   updatedAt?: Timestamp;
+
+  /**
+   * SHA of the most recently observed remote HEAD (set during sync).
+   * @gotags: json:"observed_commit_sha,omitempty" yaml:"observed_commit_sha,omitempty" bson:"observed_commit_sha,omitempty"
+   *
+   * @generated from field: string observed_commit_sha = 12;
+   */
+  observedCommitSha: string;
+
+  /**
+   * SHA of the last revision that passed full validation and was activated.
+   * @gotags: json:"active_commit_sha,omitempty" yaml:"active_commit_sha,omitempty" bson:"active_commit_sha,omitempty"
+   *
+   * @generated from field: string active_commit_sha = 13;
+   */
+  activeCommitSha: string;
+
+  /**
+   * When the last successful sync completed.
+   * @gotags: json:"last_synced_at,omitempty" yaml:"last_synced_at,omitempty" bson:"last_synced_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp last_synced_at = 14;
+   */
+  lastSyncedAt?: Timestamp;
+
+  /**
+   * Sanitized error from the most recent sync attempt. Empty on success.
+   * @gotags: json:"last_sync_error,omitempty" yaml:"last_sync_error,omitempty" bson:"last_sync_error,omitempty"
+   *
+   * @generated from field: string last_sync_error = 15;
+   */
+  lastSyncError: string;
 
   /**
    * @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
@@ -407,6 +439,230 @@ export const ValidateWorkspaceRepoBindingResponseSchema: GenMessage<ValidateWork
   messageDesc(file_agents_v1_repobinding, 13);
 
 /**
+ * SyncWorkspaceRepository triggers a synchronization of the bound
+ * repository's managed tree into the workspace-scoped DB cache. Requires
+ * owner or admin role. Idempotent when the remote HEAD has not changed.
+ *
+ * @generated from message agents.v1.SyncWorkspaceRepositoryRequest
+ */
+export type SyncWorkspaceRepositoryRequest = Message<"agents.v1.SyncWorkspaceRepositoryRequest"> & {
+};
+
+/**
+ * Describes the message agents.v1.SyncWorkspaceRepositoryRequest.
+ * Use `create(SyncWorkspaceRepositoryRequestSchema)` to create a new message.
+ */
+export const SyncWorkspaceRepositoryRequestSchema: GenMessage<SyncWorkspaceRepositoryRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 14);
+
+/**
+ * @generated from message agents.v1.SyncWorkspaceRepositoryResponse
+ */
+export type SyncWorkspaceRepositoryResponse = Message<"agents.v1.SyncWorkspaceRepositoryResponse"> & {
+  /**
+   * @generated from field: agents.v1.WorkspaceRepoBinding binding = 1;
+   */
+  binding?: WorkspaceRepoBinding;
+
+  /**
+   * Number of entries written to the cache during this sync.
+   *
+   * @generated from field: int32 entries_synced = 2;
+   */
+  entriesSynced: number;
+};
+
+/**
+ * Describes the message agents.v1.SyncWorkspaceRepositoryResponse.
+ * Use `create(SyncWorkspaceRepositoryResponseSchema)` to create a new message.
+ */
+export const SyncWorkspaceRepositoryResponseSchema: GenMessage<SyncWorkspaceRepositoryResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 15);
+
+/**
+ * GetRepositorySyncStatus returns the current sync state without triggering
+ * a new synchronization. Available to every workspace member.
+ *
+ * @generated from message agents.v1.GetRepositorySyncStatusRequest
+ */
+export type GetRepositorySyncStatusRequest = Message<"agents.v1.GetRepositorySyncStatusRequest"> & {
+};
+
+/**
+ * Describes the message agents.v1.GetRepositorySyncStatusRequest.
+ * Use `create(GetRepositorySyncStatusRequestSchema)` to create a new message.
+ */
+export const GetRepositorySyncStatusRequestSchema: GenMessage<GetRepositorySyncStatusRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 16);
+
+/**
+ * @generated from message agents.v1.GetRepositorySyncStatusResponse
+ */
+export type GetRepositorySyncStatusResponse = Message<"agents.v1.GetRepositorySyncStatusResponse"> & {
+  /**
+   * @generated from field: agents.v1.WorkspaceRepoBinding binding = 1;
+   */
+  binding?: WorkspaceRepoBinding;
+};
+
+/**
+ * Describes the message agents.v1.GetRepositorySyncStatusResponse.
+ * Use `create(GetRepositorySyncStatusResponseSchema)` to create a new message.
+ */
+export const GetRepositorySyncStatusResponseSchema: GenMessage<GetRepositorySyncStatusResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 17);
+
+/**
+ * ListRepositoryEntries returns cached directory entries for a path within
+ * the managed tree. Reads only from the DB cache.
+ *
+ * @generated from message agents.v1.ListRepositoryEntriesRequest
+ */
+export type ListRepositoryEntriesRequest = Message<"agents.v1.ListRepositoryEntriesRequest"> & {
+  /**
+   * Repository-relative path to list. Empty lists the root.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message agents.v1.ListRepositoryEntriesRequest.
+ * Use `create(ListRepositoryEntriesRequestSchema)` to create a new message.
+ */
+export const ListRepositoryEntriesRequestSchema: GenMessage<ListRepositoryEntriesRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 18);
+
+/**
+ * @generated from message agents.v1.ListRepositoryEntriesResponse
+ */
+export type ListRepositoryEntriesResponse = Message<"agents.v1.ListRepositoryEntriesResponse"> & {
+  /**
+   * Commit SHA the cache was built from.
+   *
+   * @generated from field: string commit_sha = 1;
+   */
+  commitSha: string;
+
+  /**
+   * @generated from field: repeated agents.v1.RepoCacheEntry entries = 2;
+   */
+  entries: RepoCacheEntry[];
+};
+
+/**
+ * Describes the message agents.v1.ListRepositoryEntriesResponse.
+ * Use `create(ListRepositoryEntriesResponseSchema)` to create a new message.
+ */
+export const ListRepositoryEntriesResponseSchema: GenMessage<ListRepositoryEntriesResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 19);
+
+/**
+ * GetRepositoryFile returns the cached content of a single file.
+ *
+ * @generated from message agents.v1.GetRepositoryFileRequest
+ */
+export type GetRepositoryFileRequest = Message<"agents.v1.GetRepositoryFileRequest"> & {
+  /**
+   * Repository-relative file path.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message agents.v1.GetRepositoryFileRequest.
+ * Use `create(GetRepositoryFileRequestSchema)` to create a new message.
+ */
+export const GetRepositoryFileRequestSchema: GenMessage<GetRepositoryFileRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 20);
+
+/**
+ * @generated from message agents.v1.GetRepositoryFileResponse
+ */
+export type GetRepositoryFileResponse = Message<"agents.v1.GetRepositoryFileResponse"> & {
+  /**
+   * Commit SHA the cache was built from.
+   *
+   * @generated from field: string commit_sha = 1;
+   */
+  commitSha: string;
+
+  /**
+   * @generated from field: agents.v1.RepoCacheEntry entry = 2;
+   */
+  entry?: RepoCacheEntry;
+
+  /**
+   * UTF-8 file content.
+   *
+   * @generated from field: string content = 3;
+   */
+  content: string;
+};
+
+/**
+ * Describes the message agents.v1.GetRepositoryFileResponse.
+ * Use `create(GetRepositoryFileResponseSchema)` to create a new message.
+ */
+export const GetRepositoryFileResponseSchema: GenMessage<GetRepositoryFileResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 21);
+
+/**
+ * RepoCacheEntry is one node in the cached repository tree.
+ *
+ * @generated from message agents.v1.RepoCacheEntry
+ */
+export type RepoCacheEntry = Message<"agents.v1.RepoCacheEntry"> & {
+  /**
+   * @gotags: json:"path,omitempty" yaml:"path,omitempty" bson:"path,omitempty"
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @gotags: json:"kind,omitempty" yaml:"kind,omitempty" bson:"kind,omitempty"
+   *
+   * @generated from field: agents.v1.RepoCacheEntryKind kind = 2;
+   */
+  kind: RepoCacheEntryKind;
+
+  /**
+   * File size in bytes (zero for directories).
+   * @gotags: json:"size,omitempty" yaml:"size,omitempty" bson:"size,omitempty"
+   *
+   * @generated from field: int64 size = 3;
+   */
+  size: bigint;
+
+  /**
+   * Content hash (SHA from the provider) for deduplication and change detection.
+   * @gotags: json:"content_hash,omitempty" yaml:"content_hash,omitempty" bson:"content_hash,omitempty"
+   *
+   * @generated from field: string content_hash = 4;
+   */
+  contentHash: string;
+
+  /**
+   * Whether this entry maps to an Agent directory known to the workspace.
+   * @gotags: json:"claimed,omitempty" yaml:"claimed,omitempty" bson:"claimed,omitempty"
+   *
+   * @generated from field: bool claimed = 5;
+   */
+  claimed: boolean;
+};
+
+/**
+ * Describes the message agents.v1.RepoCacheEntry.
+ * Use `create(RepoCacheEntrySchema)` to create a new message.
+ */
+export const RepoCacheEntrySchema: GenMessage<RepoCacheEntry> = /*@__PURE__*/
+  messageDesc(file_agents_v1_repobinding, 22);
+
+/**
  * RepoBindingWriteMode selects how Butter lands changes on the repository.
  *
  * @generated from enum agents.v1.RepoBindingWriteMode
@@ -479,6 +735,44 @@ export const RepoBindingConnectionStateSchema: GenEnum<RepoBindingConnectionStat
   enumDesc(file_agents_v1_repobinding, 1);
 
 /**
+ * RepoCacheEntryKind classifies a cached tree entry.
+ *
+ * @generated from enum agents.v1.RepoCacheEntryKind
+ */
+export enum RepoCacheEntryKind {
+  /**
+   * @generated from enum value: REPO_CACHE_ENTRY_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: REPO_CACHE_ENTRY_KIND_FILE = 1;
+   */
+  FILE = 1,
+
+  /**
+   * @generated from enum value: REPO_CACHE_ENTRY_KIND_DIRECTORY = 2;
+   */
+  DIRECTORY = 2,
+
+  /**
+   * @generated from enum value: REPO_CACHE_ENTRY_KIND_SYMLINK = 3;
+   */
+  SYMLINK = 3,
+
+  /**
+   * @generated from enum value: REPO_CACHE_ENTRY_KIND_SUBMODULE = 4;
+   */
+  SUBMODULE = 4,
+}
+
+/**
+ * Describes the enum agents.v1.RepoCacheEntryKind.
+ */
+export const RepoCacheEntryKindSchema: GenEnum<RepoCacheEntryKind> = /*@__PURE__*/
+  enumDesc(file_agents_v1_repobinding, 2);
+
+/**
  * WorkspaceRepoBindingService manages the current workspace's repository
  * binding. All RPCs derive the workspace from the X-Workspace-ID header.
  * Get is available to every workspace member; the mutating RPCs require the
@@ -545,6 +839,51 @@ export const WorkspaceRepoBindingService: GenService<{
     methodKind: "unary";
     input: typeof ValidateWorkspaceRepoBindingRequestSchema;
     output: typeof ValidateWorkspaceRepoBindingResponseSchema;
+  },
+  /**
+   * SyncWorkspaceRepository reads the bound repository's managed tree and
+   * Markdown blobs into the workspace-scoped DB cache. Requires owner or
+   * admin role. The sync is idempotent when the remote HEAD has not changed.
+   *
+   * @generated from rpc agents.v1.WorkspaceRepoBindingService.SyncWorkspaceRepository
+   */
+  syncWorkspaceRepository: {
+    methodKind: "unary";
+    input: typeof SyncWorkspaceRepositoryRequestSchema;
+    output: typeof SyncWorkspaceRepositoryResponseSchema;
+  },
+  /**
+   * GetRepositorySyncStatus returns the binding with its current sync state
+   * without triggering a new synchronization.
+   *
+   * @generated from rpc agents.v1.WorkspaceRepoBindingService.GetRepositorySyncStatus
+   */
+  getRepositorySyncStatus: {
+    methodKind: "unary";
+    input: typeof GetRepositorySyncStatusRequestSchema;
+    output: typeof GetRepositorySyncStatusResponseSchema;
+  },
+  /**
+   * ListRepositoryEntries returns cached directory entries for a path within
+   * the managed tree. Reads only from the DB cache; never issues Git requests.
+   *
+   * @generated from rpc agents.v1.WorkspaceRepoBindingService.ListRepositoryEntries
+   */
+  listRepositoryEntries: {
+    methodKind: "unary";
+    input: typeof ListRepositoryEntriesRequestSchema;
+    output: typeof ListRepositoryEntriesResponseSchema;
+  },
+  /**
+   * GetRepositoryFile returns the cached content of a single Markdown file.
+   * Reads only from the DB cache; never issues Git requests.
+   *
+   * @generated from rpc agents.v1.WorkspaceRepoBindingService.GetRepositoryFile
+   */
+  getRepositoryFile: {
+    methodKind: "unary";
+    input: typeof GetRepositoryFileRequestSchema;
+    output: typeof GetRepositoryFileResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_repobinding, 0);

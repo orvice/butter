@@ -41,6 +41,8 @@ import (
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
+	"go.orx.me/apps/butter/internal/repo/repocache"
+	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
@@ -87,6 +89,7 @@ type BootstrapResult struct {
 	AgentFileMaxBytes     int64
 	GitHostRepo           githostrepo.Repository
 	RepoBindingRepo       repobindingrepo.Repository
+	RepoCacheRepo         repocache.Repository
 	SkillRepo             skillrepo.Repository
 	SkillMDMaxBytes       int64
 	SkillResourceMaxCount int
@@ -345,6 +348,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		AgentFileRepo:         fileRepo,
 		GitHostRepo:           gitHostRepo,
 		RepoBindingRepo:       bindingRepo,
+		RepoCacheRepo:         repocachememory.New(),
 		SkillRepo:             skillRepo,
 		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
 		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),

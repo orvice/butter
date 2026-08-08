@@ -253,6 +253,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if h.repoBindingSvcServer != nil && result.RepoBindingRepo != nil && result.GitHostRepo != nil {
 		h.repoBindingSvcServer.SetRepos(result.RepoBindingRepo, result.GitHostRepo)
 	}
+	if h.repoBindingSvcServer != nil && result.RepoCacheRepo != nil {
+		h.repoBindingSvcServer.SetCacheRepo(result.RepoCacheRepo)
+	}
 	if h.dashboardSvcServer != nil {
 		if result.MongoDB != nil {
 			h.dashboardSvcServer.SetMongo(result.MongoDB)

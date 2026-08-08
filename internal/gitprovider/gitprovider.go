@@ -58,12 +58,36 @@ type Repository struct {
 	CanOpenChangeRequests bool
 }
 
+// TreeEntry is one node in a repository tree listing.
+type TreeEntry struct {
+	Path string
+	Kind TreeEntryKind
+	Size int64
+	SHA  string
+}
+
+// TreeEntryKind classifies a tree entry.
+type TreeEntryKind int
+
+const (
+	TreeEntryFile      TreeEntryKind = iota
+	TreeEntryDirectory TreeEntryKind = iota
+	TreeEntrySymlink   TreeEntryKind = iota
+	TreeEntrySubmodule TreeEntryKind = iota
+)
+
 // Client is the per-binding handle onto one repository at one host.
 type Client interface {
 	// GetRepository fetches repository metadata and effective capabilities.
 	GetRepository(ctx context.Context) (*Repository, error)
 	// GetBranchHead returns the head commit SHA of the named branch.
 	GetBranchHead(ctx context.Context, branch string) (string, error)
+	// GetTree returns a recursive listing of the tree at the given ref and
+	// path. Entries are relative to the requested path. An empty path means
+	// the repository root.
+	GetTree(ctx context.Context, ref, path string) ([]TreeEntry, error)
+	// GetBlob returns the raw content of the file at the given ref and path.
+	GetBlob(ctx context.Context, ref, path string) ([]byte, error)
 }
 
 // Config assembles a Client. Token is held in memory only for the lifetime

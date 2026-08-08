@@ -24,6 +24,10 @@ const (
 	WorkspaceRepoBindingService_DeleteWorkspaceRepoBinding_FullMethodName        = "/agents.v1.WorkspaceRepoBindingService/DeleteWorkspaceRepoBinding"
 	WorkspaceRepoBindingService_SetWorkspaceRepoBindingCredential_FullMethodName = "/agents.v1.WorkspaceRepoBindingService/SetWorkspaceRepoBindingCredential"
 	WorkspaceRepoBindingService_ValidateWorkspaceRepoBinding_FullMethodName      = "/agents.v1.WorkspaceRepoBindingService/ValidateWorkspaceRepoBinding"
+	WorkspaceRepoBindingService_SyncWorkspaceRepository_FullMethodName           = "/agents.v1.WorkspaceRepoBindingService/SyncWorkspaceRepository"
+	WorkspaceRepoBindingService_GetRepositorySyncStatus_FullMethodName           = "/agents.v1.WorkspaceRepoBindingService/GetRepositorySyncStatus"
+	WorkspaceRepoBindingService_ListRepositoryEntries_FullMethodName             = "/agents.v1.WorkspaceRepoBindingService/ListRepositoryEntries"
+	WorkspaceRepoBindingService_GetRepositoryFile_FullMethodName                 = "/agents.v1.WorkspaceRepoBindingService/GetRepositoryFile"
 )
 
 // WorkspaceRepoBindingServiceClient is the client API for WorkspaceRepoBindingService service.
@@ -54,6 +58,19 @@ type WorkspaceRepoBindingServiceClient interface {
 	// capability as required by the write mode), persists the outcome on the
 	// binding, and returns it.
 	ValidateWorkspaceRepoBinding(ctx context.Context, in *ValidateWorkspaceRepoBindingRequest, opts ...grpc.CallOption) (*ValidateWorkspaceRepoBindingResponse, error)
+	// SyncWorkspaceRepository reads the bound repository's managed tree and
+	// Markdown blobs into the workspace-scoped DB cache. Requires owner or
+	// admin role. The sync is idempotent when the remote HEAD has not changed.
+	SyncWorkspaceRepository(ctx context.Context, in *SyncWorkspaceRepositoryRequest, opts ...grpc.CallOption) (*SyncWorkspaceRepositoryResponse, error)
+	// GetRepositorySyncStatus returns the binding with its current sync state
+	// without triggering a new synchronization.
+	GetRepositorySyncStatus(ctx context.Context, in *GetRepositorySyncStatusRequest, opts ...grpc.CallOption) (*GetRepositorySyncStatusResponse, error)
+	// ListRepositoryEntries returns cached directory entries for a path within
+	// the managed tree. Reads only from the DB cache; never issues Git requests.
+	ListRepositoryEntries(ctx context.Context, in *ListRepositoryEntriesRequest, opts ...grpc.CallOption) (*ListRepositoryEntriesResponse, error)
+	// GetRepositoryFile returns the cached content of a single Markdown file.
+	// Reads only from the DB cache; never issues Git requests.
+	GetRepositoryFile(ctx context.Context, in *GetRepositoryFileRequest, opts ...grpc.CallOption) (*GetRepositoryFileResponse, error)
 }
 
 type workspaceRepoBindingServiceClient struct {
@@ -114,6 +131,46 @@ func (c *workspaceRepoBindingServiceClient) ValidateWorkspaceRepoBinding(ctx con
 	return out, nil
 }
 
+func (c *workspaceRepoBindingServiceClient) SyncWorkspaceRepository(ctx context.Context, in *SyncWorkspaceRepositoryRequest, opts ...grpc.CallOption) (*SyncWorkspaceRepositoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncWorkspaceRepositoryResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_SyncWorkspaceRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceRepoBindingServiceClient) GetRepositorySyncStatus(ctx context.Context, in *GetRepositorySyncStatusRequest, opts ...grpc.CallOption) (*GetRepositorySyncStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRepositorySyncStatusResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_GetRepositorySyncStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceRepoBindingServiceClient) ListRepositoryEntries(ctx context.Context, in *ListRepositoryEntriesRequest, opts ...grpc.CallOption) (*ListRepositoryEntriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRepositoryEntriesResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_ListRepositoryEntries_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceRepoBindingServiceClient) GetRepositoryFile(ctx context.Context, in *GetRepositoryFileRequest, opts ...grpc.CallOption) (*GetRepositoryFileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRepositoryFileResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_GetRepositoryFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkspaceRepoBindingServiceServer is the server API for WorkspaceRepoBindingService service.
 // All implementations must embed UnimplementedWorkspaceRepoBindingServiceServer
 // for forward compatibility.
@@ -142,6 +199,19 @@ type WorkspaceRepoBindingServiceServer interface {
 	// capability as required by the write mode), persists the outcome on the
 	// binding, and returns it.
 	ValidateWorkspaceRepoBinding(context.Context, *ValidateWorkspaceRepoBindingRequest) (*ValidateWorkspaceRepoBindingResponse, error)
+	// SyncWorkspaceRepository reads the bound repository's managed tree and
+	// Markdown blobs into the workspace-scoped DB cache. Requires owner or
+	// admin role. The sync is idempotent when the remote HEAD has not changed.
+	SyncWorkspaceRepository(context.Context, *SyncWorkspaceRepositoryRequest) (*SyncWorkspaceRepositoryResponse, error)
+	// GetRepositorySyncStatus returns the binding with its current sync state
+	// without triggering a new synchronization.
+	GetRepositorySyncStatus(context.Context, *GetRepositorySyncStatusRequest) (*GetRepositorySyncStatusResponse, error)
+	// ListRepositoryEntries returns cached directory entries for a path within
+	// the managed tree. Reads only from the DB cache; never issues Git requests.
+	ListRepositoryEntries(context.Context, *ListRepositoryEntriesRequest) (*ListRepositoryEntriesResponse, error)
+	// GetRepositoryFile returns the cached content of a single Markdown file.
+	// Reads only from the DB cache; never issues Git requests.
+	GetRepositoryFile(context.Context, *GetRepositoryFileRequest) (*GetRepositoryFileResponse, error)
 	mustEmbedUnimplementedWorkspaceRepoBindingServiceServer()
 }
 
@@ -166,6 +236,18 @@ func (UnimplementedWorkspaceRepoBindingServiceServer) SetWorkspaceRepoBindingCre
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) ValidateWorkspaceRepoBinding(context.Context, *ValidateWorkspaceRepoBindingRequest) (*ValidateWorkspaceRepoBindingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ValidateWorkspaceRepoBinding not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) SyncWorkspaceRepository(context.Context, *SyncWorkspaceRepositoryRequest) (*SyncWorkspaceRepositoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncWorkspaceRepository not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) GetRepositorySyncStatus(context.Context, *GetRepositorySyncStatusRequest) (*GetRepositorySyncStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRepositorySyncStatus not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) ListRepositoryEntries(context.Context, *ListRepositoryEntriesRequest) (*ListRepositoryEntriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRepositoryEntries not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) GetRepositoryFile(context.Context, *GetRepositoryFileRequest) (*GetRepositoryFileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRepositoryFile not implemented")
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) mustEmbedUnimplementedWorkspaceRepoBindingServiceServer() {
 }
@@ -279,6 +361,78 @@ func _WorkspaceRepoBindingService_ValidateWorkspaceRepoBinding_Handler(srv inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkspaceRepoBindingService_SyncWorkspaceRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncWorkspaceRepositoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).SyncWorkspaceRepository(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_SyncWorkspaceRepository_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).SyncWorkspaceRepository(ctx, req.(*SyncWorkspaceRepositoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceRepoBindingService_GetRepositorySyncStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRepositorySyncStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).GetRepositorySyncStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_GetRepositorySyncStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).GetRepositorySyncStatus(ctx, req.(*GetRepositorySyncStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceRepoBindingService_ListRepositoryEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRepositoryEntriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).ListRepositoryEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_ListRepositoryEntries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).ListRepositoryEntries(ctx, req.(*ListRepositoryEntriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceRepoBindingService_GetRepositoryFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRepositoryFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).GetRepositoryFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_GetRepositoryFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).GetRepositoryFile(ctx, req.(*GetRepositoryFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkspaceRepoBindingService_ServiceDesc is the grpc.ServiceDesc for WorkspaceRepoBindingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -305,6 +459,22 @@ var WorkspaceRepoBindingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateWorkspaceRepoBinding",
 			Handler:    _WorkspaceRepoBindingService_ValidateWorkspaceRepoBinding_Handler,
+		},
+		{
+			MethodName: "SyncWorkspaceRepository",
+			Handler:    _WorkspaceRepoBindingService_SyncWorkspaceRepository_Handler,
+		},
+		{
+			MethodName: "GetRepositorySyncStatus",
+			Handler:    _WorkspaceRepoBindingService_GetRepositorySyncStatus_Handler,
+		},
+		{
+			MethodName: "ListRepositoryEntries",
+			Handler:    _WorkspaceRepoBindingService_ListRepositoryEntries_Handler,
+		},
+		{
+			MethodName: "GetRepositoryFile",
+			Handler:    _WorkspaceRepoBindingService_GetRepositoryFile_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
