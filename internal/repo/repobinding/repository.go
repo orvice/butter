@@ -41,7 +41,8 @@ type Repository interface {
 	Delete(ctx context.Context, workspaceID string) error
 
 	// SetCredential stores the encrypted PAT for an existing binding
-	// (ErrNotFound when the workspace has no binding).
+	// (ErrNotFound when the workspace has no binding). An empty ciphertext
+	// clears the stored credential and its timestamp.
 	SetCredential(ctx context.Context, workspaceID, ciphertext string) error
 	// GetCredential returns the stored ciphertext, ErrNotFound when the
 	// workspace has no binding, or ErrNoCredential when none was set.

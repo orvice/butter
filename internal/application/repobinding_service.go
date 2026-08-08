@@ -148,8 +148,10 @@ func mapRepoBindingErr(err error) *connect.Error {
 	return connectx.InternalWith(err)
 }
 
-// normalizeRootPath cleans and validates the repository-relative root
-// directory. Empty means the repository root.
+// normalizeRootPath validates the repository-relative root directory. Empty
+// means the repository root. Traversal is rejected outright rather than
+// cleaned (issue #210: repository paths reject absolute paths and
+// traversal), so "a/../b" is an error, not "b".
 func normalizeRootPath(raw string) (string, error) {
 	p := strings.TrimSpace(raw)
 	if p == "" {
@@ -158,12 +160,12 @@ func normalizeRootPath(raw string) (string, error) {
 	if strings.HasPrefix(p, "/") || strings.Contains(p, "\\") {
 		return "", connectx.InvalidArgument("root_path", "must be a repository-relative directory")
 	}
+	if slices.Contains(strings.Split(p, "/"), "..") {
+		return "", connectx.InvalidArgument("root_path", "must not contain traversal segments")
+	}
 	clean := path.Clean(p)
 	if clean == "." {
 		return "", nil
-	}
-	if clean == ".." || strings.HasPrefix(clean, "../") {
-		return "", connectx.InvalidArgument("root_path", "must not traverse outside the repository")
 	}
 	return clean, nil
 }
@@ -194,6 +196,9 @@ func (s *RepoBindingServiceServer) sanitizeBinding(ctx context.Context, in *agen
 	}
 	if !strings.Contains(repository, "/") {
 		return nil, connectx.InvalidArgument("binding.repository", "must include its namespace (owner/repo)")
+	}
+	if strings.Contains(repository, "\\") || slices.Contains(strings.Split(repository, "/"), "..") {
+		return nil, connectx.InvalidArgument("binding.repository", "must be a plain owner/repo path")
 	}
 	branch := strings.TrimSpace(in.GetBranch())
 	if branch == "" {
@@ -261,21 +266,36 @@ func (s *RepoBindingServiceServer) GetWorkspaceRepoBinding(ctx context.Context, 
 
 // findOverlaps lists bindings in other workspaces that resolve to the same
 // effective repository location. Overlap is allowed and intentional (shared
-// Agent Content); it is surfaced so it is never a surprise.
+// Agent Content); it is surfaced so it is never a surprise. Hosts are
+// compared by their API base URL (duplicate host records for the same
+// endpoint still overlap) and repositories case-insensitively (GitHub and
+// GitLab paths are case-insensitive); branches and root paths are
+// case-sensitive like git itself.
 func (s *RepoBindingServiceServer) findOverlaps(ctx context.Context, binding *agentsv1.WorkspaceRepoBinding) ([]*agentsv1.RepoBindingOverlap, error) {
 	all, err := s.repo.ListAcrossWorkspaces(ctx)
 	if err != nil {
 		return nil, err
 	}
+	hostKeys := map[string]string{}
+	if hosts, err := s.hostRepo.List(ctx); err == nil {
+		for _, h := range hosts {
+			hostKeys[h.GetId()] = strings.TrimRight(strings.ToLower(strings.TrimSpace(h.GetApiBaseUrl())), "/")
+		}
+	}
+	locationKey := func(b *agentsv1.WorkspaceRepoBinding) string {
+		hostKey, ok := hostKeys[b.GetGitHostId()]
+		if !ok || hostKey == "" {
+			hostKey = "id:" + b.GetGitHostId()
+		}
+		return strings.Join([]string{hostKey, strings.ToLower(b.GetRepository()), b.GetBranch(), b.GetRootPath()}, "\n")
+	}
+	key := locationKey(binding)
 	var out []*agentsv1.RepoBindingOverlap
 	for _, other := range all {
 		if other.GetWorkspaceId() == binding.GetWorkspaceId() {
 			continue
 		}
-		if other.GetGitHostId() != binding.GetGitHostId() ||
-			other.GetRepository() != binding.GetRepository() ||
-			other.GetBranch() != binding.GetBranch() ||
-			other.GetRootPath() != binding.GetRootPath() {
+		if locationKey(other) != key {
 			continue
 		}
 		overlap := &agentsv1.RepoBindingOverlap{WorkspaceId: other.GetWorkspaceId()}
@@ -305,6 +325,19 @@ func (s *RepoBindingServiceServer) PutWorkspaceRepoBinding(ctx context.Context, 
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
+	// A PAT is scoped to one host: when the binding moves to a different
+	// host, the stored credential must never be forwarded there. Clear it
+	// before the Put so a partial failure leaves the old binding without a
+	// misdirected credential rather than the new binding with one.
+	if prev, err := s.repo.Get(ctx, ws); err == nil && prev.GetGitHostId() != binding.GetGitHostId() {
+		if err := s.repo.SetCredential(ctx, ws, ""); err != nil {
+			logger.Error("clear repo binding credential failed", "workspace_id", ws, "err", err)
+			return nil, mapRepoBindingErr(err)
+		}
+		logger.Info("repo binding credential cleared (git host changed)", "workspace_id", ws)
+	} else if err != nil && !errors.Is(err, repobindingrepo.ErrNotFound) {
+		return nil, connectx.InternalWith(err)
+	}
 	stored, err := s.repo.Put(ctx, ws, binding)
 	if err != nil {
 		logger.Error("put repo binding failed", "workspace_id", ws, "err", err)
@@ -365,17 +398,23 @@ func (s *RepoBindingServiceServer) SetWorkspaceRepoBindingCredential(ctx context
 		return nil, connectx.Internal("failed to encrypt credential")
 	}
 	logger := log.FromContext(ctx)
+	// Reset validation status BEFORE storing the new credential (ADR-0005:
+	// replacement resets to UNVALIDATED). If the credential write then
+	// fails, the binding is left unvalidated with the old credential —
+	// never a new credential wearing a stale OK status.
+	binding.Status = &agentsv1.RepoBindingStatus{
+		State: agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_UNVALIDATED,
+	}
+	if _, err := s.repo.Put(ctx, ws, binding); err != nil {
+		logger.Error("reset repo binding status failed", "workspace_id", ws, "err", err)
+		return nil, mapRepoBindingErr(err)
+	}
 	if err := s.repo.SetCredential(ctx, ws, ciphertext); err != nil {
 		logger.Error("set repo binding credential failed", "workspace_id", ws, "err", err)
 		return nil, mapRepoBindingErr(err)
 	}
-	// A new credential invalidates any previous validation result.
-	binding.Status = &agentsv1.RepoBindingStatus{
-		State: agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_UNVALIDATED,
-	}
-	stored, err := s.repo.Put(ctx, ws, binding)
+	stored, err := s.repo.Get(ctx, ws)
 	if err != nil {
-		logger.Error("reset repo binding status failed", "workspace_id", ws, "err", err)
 		return nil, mapRepoBindingErr(err)
 	}
 	logger.Info("repo binding credential set", "workspace_id", ws)

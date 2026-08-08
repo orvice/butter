@@ -93,6 +93,11 @@ func (s *Store) SetCredential(_ context.Context, workspaceID, ciphertext string)
 	if !ok {
 		return fmt.Errorf("repo binding (workspace %q): %w", workspaceID, repobindingrepo.ErrNotFound)
 	}
+	if ciphertext == "" {
+		e.credential = ""
+		e.credentialUpdated = nil
+		return nil
+	}
 	e.credential = ciphertext
 	e.credentialUpdated = timestamppb.New(time.Now().UTC())
 	return nil

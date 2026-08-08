@@ -26,7 +26,10 @@ func (c *gitlabClient) get(ctx context.Context, path string, out any) error {
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
-	req.Header.Set("PRIVATE-TOKEN", c.token)
+	// Bearer auth (supported by GitLab for PATs) rather than PRIVATE-TOKEN:
+	// Go's http.Client strips Authorization on cross-origin redirects but
+	// forwards custom headers, so PRIVATE-TOKEN could leak the credential.
+	req.Header.Set("Authorization", "Bearer "+c.token)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("gitlab request: %w", err)

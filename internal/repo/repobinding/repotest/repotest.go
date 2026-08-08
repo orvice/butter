@@ -137,6 +137,20 @@ func Run(t *testing.T, factory Factory) {
 		if ct, _ := repo.GetCredential(ctx, "ws-a"); ct != "ct-2" {
 			t.Fatalf("replacement did not apply: %q", ct)
 		}
+		// Clear: empty ciphertext removes the credential and its timestamp.
+		if err := repo.SetCredential(ctx, "ws-a", ""); err != nil {
+			t.Fatalf("clear credential: %v", err)
+		}
+		if _, err := repo.GetCredential(ctx, "ws-a"); !errors.Is(err, repobindingrepo.ErrNoCredential) {
+			t.Fatalf("GetCredential after clear: err = %v, want ErrNoCredential", err)
+		}
+		cleared, err := repo.Get(ctx, "ws-a")
+		if err != nil {
+			t.Fatalf("Get after clear: %v", err)
+		}
+		if cleared.GetCredentialSet() || cleared.GetCredentialUpdatedAt() != nil {
+			t.Fatalf("credential fields survived clear: set=%v at=%v", cleared.GetCredentialSet(), cleared.GetCredentialUpdatedAt())
+		}
 	})
 
 	t.Run("PutPreservesStoredCredential", func(t *testing.T) {

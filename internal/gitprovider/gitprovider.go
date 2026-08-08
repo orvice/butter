@@ -95,7 +95,16 @@ func New(cfg Config) (Client, error) {
 	}
 	httpClient := cfg.HTTPClient
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 10 * time.Second}
+		httpClient = &http.Client{
+			Timeout: 10 * time.Second,
+			// API roots never redirect legitimately. Refusing to follow
+			// keeps the credential from ever being replayed to another
+			// origin (Go strips Authorization on cross-origin redirects,
+			// but a redirect out of a configured host is wrong regardless).
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
 	}
 	switch cfg.Kind {
 	case KindGitHub:

@@ -18,6 +18,7 @@ import (
 	"go.orx.me/apps/butter/internal/gitprovider"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
+	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	"go.orx.me/apps/butter/internal/workspace"
@@ -241,6 +242,8 @@ func TestRepoBindingPutValidation(t *testing.T) {
 		{"missing branch", func(b *agentsv1.WorkspaceRepoBinding) { b.Branch = "" }},
 		{"absolute root path", func(b *agentsv1.WorkspaceRepoBinding) { b.RootPath = "/etc" }},
 		{"traversal root path", func(b *agentsv1.WorkspaceRepoBinding) { b.RootPath = "../outside" }},
+		{"embedded traversal is rejected not cleaned", func(b *agentsv1.WorkspaceRepoBinding) { b.RootPath = "a/../b" }},
+		{"traversal repository", func(b *agentsv1.WorkspaceRepoBinding) { b.Repository = "acme/../etc" }},
 		{"unsupported schema version", func(b *agentsv1.WorkspaceRepoBinding) { b.ContentSchemaVersion = 2 }},
 	}
 	for _, tc := range cases {
@@ -420,6 +423,28 @@ func TestRepoBindingOverlaps(t *testing.T) {
 		t.Fatalf("unexpected overlaps: %v", overlaps)
 	}
 
+	// A duplicate host record for the same endpoint and a case variant of
+	// the repository still resolve to the same effective location.
+	if _, err := fx.hostRepo.Create(context.Background(), &agentsv1.GitHost{
+		Id: "gh-dup", Name: "GitHub duplicate", Kind: agentsv1.GitHostKind_GIT_HOST_KIND_GITHUB,
+		ApiBaseUrl: "https://API.github.com/",
+	}); err != nil {
+		t.Fatalf("seed duplicate host: %v", err)
+	}
+	alias := validBinding()
+	alias.GitHostId = "gh-dup"
+	alias.Repository = "ACME/Agents"
+	if _, err := fx.svc.PutWorkspaceRepoBinding(wsB, connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: alias})); err != nil {
+		t.Fatalf("Put ws-b alias: %v", err)
+	}
+	resp, err = fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(resp.Msg.GetOverlaps()) != 1 || resp.Msg.GetOverlaps()[0].GetWorkspaceId() != "ws-b" {
+		t.Fatalf("host/case alias not detected as overlap: %v", resp.Msg.GetOverlaps())
+	}
+
 	// A different root path is a different effective location.
 	diff := validBinding()
 	diff.RootPath = "other"
@@ -482,6 +507,95 @@ func TestRepoBindingResponsesNeverContainPAT(t *testing.T) {
 	raw, _ := protojson.Marshal(val.Msg)
 	if strings.Contains(string(raw), testPAT) {
 		t.Fatalf("validation status leaks provider error containing PAT: %s", raw)
+	}
+}
+
+// failingCredentialRepo makes SetCredential fail after the fixture is set
+// up, to exercise the partial-failure path of credential replacement.
+type failingCredentialRepo struct {
+	repobindingrepo.Repository
+	fail bool
+}
+
+func (f *failingCredentialRepo) SetCredential(ctx context.Context, ws, ct string) error {
+	if f.fail {
+		return errors.New("storage unavailable")
+	}
+	return f.Repository.SetCredential(ctx, ws, ct)
+}
+
+// TestRepoBindingCredentialReplacementFailsClosed proves ADR-0005's
+// replacement contract survives partial failure: when the credential write
+// fails, the binding is left UNVALIDATED with the old credential — never a
+// new credential wearing a stale OK status.
+func TestRepoBindingCredentialReplacementFailsClosed(t *testing.T) {
+	fx := newBindingFixture(t)
+	failing := &failingCredentialRepo{Repository: fx.bindingRepo}
+	fx.svc.SetRepos(failing, fx.hostRepo)
+
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+	if _, err := fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{})); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	failing.fail = true
+	_, err := fx.svc.SetWorkspaceRepoBindingCredential(ownerCtx(), connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{Pat: "new-pat"}))
+	if err == nil {
+		t.Fatal("expected error from failing credential write")
+	}
+	got, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	b := got.Msg.GetBinding()
+	if b.GetStatus().GetState() != agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_UNVALIDATED {
+		t.Fatalf("stale status survived failed replacement: %v", b.GetStatus().GetState())
+	}
+	if !b.GetCredentialSet() {
+		t.Fatal("old credential lost on failed replacement")
+	}
+	ct, err := fx.bindingRepo.GetCredential(context.Background(), "ws-a")
+	if err != nil || ct == "" {
+		t.Fatalf("old ciphertext gone: %q, %v", ct, err)
+	}
+}
+
+// TestRepoBindingHostChangeClearsCredential proves a stored PAT is never
+// forwarded to a different host: rebinding to another GitHost clears the
+// credential and validation demands a fresh one.
+func TestRepoBindingHostChangeClearsCredential(t *testing.T) {
+	fx := newBindingFixture(t)
+	if _, err := fx.hostRepo.Create(context.Background(), &agentsv1.GitHost{
+		Id: "gl-1", Name: "GitLab", Kind: agentsv1.GitHostKind_GIT_HOST_KIND_GITLAB,
+		ApiBaseUrl: "https://gitlab.example.com/api/v4",
+	}); err != nil {
+		t.Fatalf("seed second host: %v", err)
+	}
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+
+	moved := validBinding()
+	moved.GitHostId = "gl-1"
+	resp, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: moved}))
+	if err != nil {
+		t.Fatalf("Put with new host: %v", err)
+	}
+	if resp.Msg.GetBinding().GetCredentialSet() {
+		t.Fatal("credential survived a host change")
+	}
+	_, err = fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{}))
+	wantCode(t, err, connect.CodeFailedPrecondition)
+
+	// Same-host re-put keeps the credential (regression guard).
+	putBinding(t, fx, ownerCtx()) // back to gh-1, no credential now
+	setCredential(t, fx, ownerCtx())
+	again, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()}))
+	if err != nil {
+		t.Fatalf("same-host Put: %v", err)
+	}
+	if !again.Msg.GetBinding().GetCredentialSet() {
+		t.Fatal("credential lost on same-host Put")
 	}
 }
 

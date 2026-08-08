@@ -148,6 +148,27 @@ func TestProviderContract(t *testing.T) {
 				}
 			})
 
+			t.Run("RedirectsAreNotFollowed", func(t *testing.T) {
+				// A compromised or misconfigured host must not be able to
+				// bounce the credential to another origin.
+				var evilHits int
+				evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					evilHits++
+				}))
+				t.Cleanup(evil.Close)
+				redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.Redirect(w, r, evil.URL+r.URL.Path, http.StatusFound)
+				}))
+				t.Cleanup(redirector.Close)
+				c := newClientForTest(t, h.kind, redirector.URL, "acme/agents", writeToken)
+				if _, err := c.GetRepository(ctx); err == nil {
+					t.Fatal("expected error for redirecting host")
+				}
+				if evilHits != 0 {
+					t.Fatalf("redirect was followed %d times", evilHits)
+				}
+			})
+
 			t.Run("ErrorsNeverContainToken", func(t *testing.T) {
 				c := newClientForTest(t, h.kind, srv.URL, "acme/nope", writeToken)
 				_, err := c.GetRepository(ctx)

@@ -134,10 +134,11 @@ func (s *Store) Delete(ctx context.Context, workspaceID string) error {
 }
 
 func (s *Store) SetCredential(ctx context.Context, workspaceID, ciphertext string) error {
-	res, err := s.bindings.UpdateOne(ctx,
-		bson.M{"_id": workspaceID},
-		bson.M{"$set": bson.M{"credential": ciphertext, "credential_updated_at": time.Now().UTC()}},
-	)
+	update := bson.M{"$set": bson.M{"credential": ciphertext, "credential_updated_at": time.Now().UTC()}}
+	if ciphertext == "" {
+		update = bson.M{"$unset": bson.M{"credential": "", "credential_updated_at": ""}}
+	}
+	res, err := s.bindings.UpdateOne(ctx, bson.M{"_id": workspaceID}, update)
 	if err != nil {
 		return fmt.Errorf("set repo binding credential (workspace %q): %w", workspaceID, err)
 	}
