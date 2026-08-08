@@ -38,6 +38,10 @@ type MCPHTTPClientFactory interface {
 // ToolsetFactory creates built-in, per-agent toolsets such as agent_files.
 type ToolsetFactory func(ctx context.Context, pb *agentsv1.Agent) ([]tool.Toolset, error)
 
+// AgentPool maps agent_id → proto for ID-based child resolution.
+// Nil or empty means only legacy embedded sub_agents are used.
+type AgentPool map[string]*agentsv1.Agent
+
 // NewFromProto creates an ADK agent from an agentsv1.Agent proto config.
 // providers is the list of model provider mappings used to resolve LLM backends.
 // mcpRegistry is the shared MCP server config pool; agents reference entries by ID.
@@ -53,30 +57,50 @@ func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agen
 }
 
 // NewFromProtoWithToolsetFactory creates an ADK agent with custom MCP HTTP and
-// built-in toolset factories.
-func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
+// built-in toolset factories. When pool is non-nil and the agent declares
+// child_agent_ids, children are resolved from the pool instead of embedded
+// sub_agents. Legacy agents with only sub_agents continue to work as before.
+func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, pool ...AgentPool) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
 	}
 
-	// Resolve shared MCP servers and merge with inline ones. The merged list
-	// is passed alongside the proto so the shared config is never mutated.
+	var agentPool AgentPool
+	if len(pool) > 0 {
+		agentPool = pool[0]
+	}
+
 	mcpServers, err := resolveMCPServers(pb, mcpRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
 	}
 
-	// Recursively build sub-agents.
-	subAgents := make([]agent.Agent, 0, len(pb.GetSubAgents()))
-	for _, sub := range pb.GetSubAgents() {
-		sa, err := NewFromProtoWithToolsetFactory(ctx, sub, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory)
-		if err != nil {
-			return nil, fmt.Errorf("building sub-agent %q: %w", sub.GetName(), err)
+	var subAgents []agent.Agent
+
+	if len(pb.GetChildAgentIds()) > 0 && agentPool != nil {
+		subAgents = make([]agent.Agent, 0, len(pb.GetChildAgentIds()))
+		for _, childID := range pb.GetChildAgentIds() {
+			childPb, ok := agentPool[childID]
+			if !ok {
+				return nil, fmt.Errorf("agent %q: child_agent_id %q not found in agent pool", pb.GetName(), childID)
+			}
+			sa, err := NewFromProtoWithToolsetFactory(ctx, childPb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, agentPool)
+			if err != nil {
+				return nil, fmt.Errorf("building child agent %q (id=%s): %w", childPb.GetName(), childID, err)
+			}
+			subAgents = append(subAgents, sa)
 		}
-		subAgents = append(subAgents, sa)
+	} else {
+		subAgents = make([]agent.Agent, 0, len(pb.GetSubAgents()))
+		for _, sub := range pb.GetSubAgents() {
+			sa, err := NewFromProtoWithToolsetFactory(ctx, sub, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, agentPool)
+			if err != nil {
+				return nil, fmt.Errorf("building sub-agent %q: %w", sub.GetName(), err)
+			}
+			subAgents = append(subAgents, sa)
+		}
 	}
 
-	// Resolve remote agents and add as sub-agents.
 	remoteSubAgents, err := resolveRemoteAgents(pb, remoteAgentRegistry, daemonRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
@@ -93,7 +117,7 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 	case agentsv1.AgentType_AGENT_TYPE_PARALLEL:
 		return newParallelAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_WORKFLOW:
-		return newWorkflowAgent(pb, subAgents)
+		return newWorkflowAgent(pb, subAgents, agentPool)
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %v", pb.GetType())
 	}

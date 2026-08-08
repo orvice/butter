@@ -53,6 +53,25 @@ message Agent {
   // @gotags: json:"agent_id,omitempty" yaml:"agent_id,omitempty" bson:"agent_id,omitempty"
   string agent_id = 23;
 
+  // Mutable human-readable label for UI display. Does not participate in
+  // identity resolution or runtime lookup.
+  // @gotags: json:"display_name,omitempty" yaml:"display_name,omitempty" bson:"display_name,omitempty"
+  string display_name = 24;
+
+  // Ordered references to child Agent IDs for LLM, Loop, Sequential, and
+  // Parallel agents. Replaces embedded sub_agents for V2 agents.
+  // @gotags: json:"child_agent_ids,omitempty" yaml:"child_agent_ids,omitempty" bson:"child_agent_ids,omitempty"
+  repeated string child_agent_ids = 25;
+
+  // Lifecycle status tracks whether the agent is runnable or blocked.
+  // @gotags: json:"lifecycle_status,omitempty" yaml:"lifecycle_status,omitempty" bson:"lifecycle_status,omitempty"
+  AgentLifecycleStatus lifecycle_status = 26;
+
+  // Original agent name preserved during the V2 migration observation period
+  // so the cutover can be rolled back without data loss.
+  // @gotags: json:"legacy_name,omitempty" yaml:"legacy_name,omitempty" bson:"legacy_name,omitempty"
+  string legacy_name = 27;
+
   // ID of the workspace this agent belongs to. Server-enforced from request
   // context on writes; included in responses so clients know the scope.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
@@ -180,12 +199,18 @@ message WorkflowNode {
   WorkflowNodeKind kind = 2;
 
   // AGENT nodes: name of one of the workflow agent's sub-agents to run.
+  // Deprecated in V2; use agent_id instead. Retained for migration compat.
   // @gotags: json:"agent,omitempty" yaml:"agent,omitempty"
   string agent = 3;
 
   // HUMAN_INPUT nodes: the question presented to the human.
   // @gotags: json:"question,omitempty" yaml:"question,omitempty"
   string question = 4;
+
+  // AGENT nodes (V2): references an independent Agent by its workspace-scoped
+  // agent_id. Preferred over the legacy name-based `agent` field.
+  // @gotags: json:"agent_id,omitempty" yaml:"agent_id,omitempty"
+  string agent_id = 5;
 
   // Runs the node once per item of a list-typed input, concurrently, then
   // aggregates outputs.
@@ -349,6 +374,16 @@ enum StreamingMode {
   STREAMING_MODE_UNSPECIFIED = 0;
   STREAMING_MODE_NONE = 1;
   STREAMING_MODE_SSE = 2;
+}
+
+// AgentLifecycleStatus tracks whether an agent is runnable or blocked.
+enum AgentLifecycleStatus {
+  AGENT_LIFECYCLE_STATUS_UNSPECIFIED = 0;
+  // The agent is fully configured and runnable.
+  AGENT_LIFECYCLE_STATUS_ACTIVE = 1;
+  // The agent (or a transitive dependency) lacks a complete Agent ID and
+  // cannot be used until the V2 migration is applied.
+  AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED = 2;
 }
 
 // AgentType selects which concrete ADK agent type to instantiate.

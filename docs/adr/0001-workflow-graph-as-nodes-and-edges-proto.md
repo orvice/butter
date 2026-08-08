@@ -17,3 +17,22 @@ produce route tags), and JOIN. ADK's
 FunctionNode and DynamicNode are deliberately excluded: they require arbitrary Go code and cannot be
 expressed from configuration. ToolNode (referencing an MCP server tool) is deferred to
 phase 2.
+
+## Amendment: Agent V2 — ID-based AGENT node references
+
+As of the Agent V2 migration (issue #212), AGENT nodes in workflow graphs may
+reference an independent agent by its immutable `agent_id` via the new
+`WorkflowNode.agent_id` field. This replaces the legacy `WorkflowNode.agent`
+name-based reference for V2 agents.
+
+During the migration observation period both fields are supported:
+
+- **V2 agents** set `agent_id` on AGENT nodes. The runtime resolves the
+  referenced agent from the workspace-wide agent pool.
+- **Legacy agents** continue to use the `agent` (name) field referencing
+  embedded sub-agents.
+
+The `MigrateAgentsV2` RPC (APPLY mode) automatically converts name-based
+references to `agent_id` references when expanding embedded sub-agents into
+independent records. After the migration period, the name-based `agent` field
+will be deprecated and removed in a future cleanup.

@@ -69,11 +69,15 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 
 		switch n.GetKind() {
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT:
-			if n.GetAgent() == "" {
-				return fmt.Errorf("workflow node %q: an AGENT node requires an agent reference", name)
+			hasAgentRef := n.GetAgent() != ""
+			hasAgentIDRef := n.GetAgentId() != ""
+			if !hasAgentRef && !hasAgentIDRef {
+				return fmt.Errorf("workflow node %q: an AGENT node requires an agent or agent_id reference", name)
 			}
-			if _, ok := subAgentNames[n.GetAgent()]; !ok {
-				return fmt.Errorf("workflow node %q references sub-agent %q, which is not declared in sub_agents", name, n.GetAgent())
+			if hasAgentRef {
+				if _, ok := subAgentNames[n.GetAgent()]; !ok && !hasAgentIDRef {
+					return fmt.Errorf("workflow node %q references sub-agent %q, which is not declared in sub_agents", name, n.GetAgent())
+				}
 			}
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT:
 			if strings.TrimSpace(n.GetQuestion()) == "" {
@@ -142,8 +146,8 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 
 // newWorkflowAgent builds an ADK workflow agent from a WORKFLOW-type proto
 // config. subAgents are the already-built sub-agents of pb (including
-// resolved remote agents); AGENT nodes reference them by name.
-func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent, error) {
+// resolved remote agents); AGENT nodes reference them by name or agent_id.
+func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent, pool AgentPool) (agent.Agent, error) {
 	if err := validateWorkflowGraph(pb); err != nil {
 		return nil, err
 	}
@@ -154,8 +158,6 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 		built[sa.Name()] = sa
 	}
 
-	// Routers match against the route labels of their outgoing edges, so
-	// collect labels per source node before building nodes.
 	outgoingLabels := make(map[string][]string)
 	for _, e := range wf.GetEdges() {
 		if e.GetRoute() != "" {
@@ -167,9 +169,13 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 	for _, n := range wf.GetNodes() {
 		switch n.GetKind() {
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT:
-			sa, ok := built[n.GetAgent()]
-			if !ok {
-				return nil, fmt.Errorf("workflow node %q: sub-agent %q not found", n.GetName(), n.GetAgent())
+			sa := resolveWorkflowAgentNode(n, built, pool)
+			if sa == nil {
+				ref := n.GetAgent()
+				if ref == "" {
+					ref = n.GetAgentId()
+				}
+				return nil, fmt.Errorf("workflow node %q: agent %q not found", n.GetName(), ref)
 			}
 			if n.GetParallelWorker() {
 				// The engine's parallel-worker mechanism is a wrapper node;
@@ -230,6 +236,25 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent) (agent.Agent,
 		SubAgents:   subAgents,
 		Edges:       edges,
 	})
+}
+
+// resolveWorkflowAgentNode looks up the built ADK agent for a workflow AGENT
+// node. V2 agents prefer agent_id (resolved from the built map by finding
+// the pool entry's name); legacy agents fall back to the name-based lookup.
+func resolveWorkflowAgentNode(n *agentsv1.WorkflowNode, built map[string]agent.Agent, pool AgentPool) agent.Agent {
+	if aid := n.GetAgentId(); aid != "" && pool != nil {
+		if pb, ok := pool[aid]; ok {
+			if sa, ok := built[pb.GetName()]; ok {
+				return sa
+			}
+		}
+	}
+	if name := n.GetAgent(); name != "" {
+		if sa, ok := built[name]; ok {
+			return sa
+		}
+	}
+	return nil
 }
 
 // parallelWorkerNode wraps the engine's ParallelWorker to coerce text input:

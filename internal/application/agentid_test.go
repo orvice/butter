@@ -106,6 +106,13 @@ func seedAgentWithID(t *testing.T, store *memory.Store, wsID, name, agentID stri
 	}
 }
 
+func seedAgentFull(t *testing.T, store *memory.Store, wsID string, a *agentsv1.Agent) {
+	t.Helper()
+	if _, err := store.CreateAgent(context.Background(), wsID, a); err != nil {
+		t.Fatalf("seed agent %s/%s: %v", wsID, a.GetName(), err)
+	}
+}
+
 // --- tests ---
 
 func testAdminCtx() context.Context {
@@ -416,19 +423,19 @@ func TestLegacyCRUD_UnchangedWithoutAgentID(t *testing.T) {
 	}
 }
 
-func TestCreateAgent_StripsAgentID(t *testing.T) {
+func TestCreateAgent_PreservesAgentID(t *testing.T) {
 	store := memory.New()
 	svc := NewAgentServiceServer(store)
 	ctx := testCtx()
 
 	resp, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "sneaky", AgentId: "bypassed"},
+		Agent: &agentsv1.Agent{Name: "v2-leaf", AgentId: "v2-leaf"},
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Msg.GetAgent().GetAgentId() != "" {
-		t.Fatalf("expected agent_id stripped on create, got %q", resp.Msg.GetAgent().GetAgentId())
+	if resp.Msg.GetAgent().GetAgentId() != "v2-leaf" {
+		t.Fatalf("expected agent_id preserved on V2 create, got %q", resp.Msg.GetAgent().GetAgentId())
 	}
 }
 
