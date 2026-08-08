@@ -266,9 +266,13 @@ message ListRepositoryEntriesRequest {
 }
 
 message ListRepositoryEntriesResponse {
-  // Commit SHA the cache was built from.
+  // Commit SHA the cache was built from (deprecated; use observed/active).
   string commit_sha = 1;
   repeated RepoCacheEntry entries = 2;
+  // The commit SHA last observed from the remote branch.
+  string observed_commit_sha = 3;
+  // The commit SHA whose content is currently in the cache.
+  string active_commit_sha = 4;
 }
 
 // GetRepositoryFile returns the cached content of a single file.
@@ -278,11 +282,15 @@ message GetRepositoryFileRequest {
 }
 
 message GetRepositoryFileResponse {
-  // Commit SHA the cache was built from.
+  // Commit SHA the cache was built from (deprecated; use observed/active).
   string commit_sha = 1;
   RepoCacheEntry entry = 2;
   // UTF-8 file content.
   string content = 3;
+  // The commit SHA last observed from the remote branch.
+  string observed_commit_sha = 4;
+  // The commit SHA whose content is currently in the cache.
+  string active_commit_sha = 5;
 }
 
 // RepoCacheEntryKind classifies a cached tree entry.

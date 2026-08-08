@@ -360,6 +360,13 @@ func (s *RepoBindingServiceServer) PutWorkspaceRepoBinding(ctx context.Context, 
 		logger.Error("put repo binding failed", "workspace_id", ws, "err", err)
 		return nil, mapRepoBindingErr(err)
 	}
+	// Invalidate the repo cache whenever the binding changes; the old
+	// cache may belong to a different repository/branch/root.
+	if s.cacheRepo != nil {
+		if delErr := s.cacheRepo.Delete(ctx, ws); delErr != nil {
+			logger.Warn("failed to invalidate repo cache on binding update", "workspace_id", ws, "err", delErr)
+		}
+	}
 	logger.Info("repo binding saved", "workspace_id", ws,
 		"git_host_id", stored.GetGitHostId(), "repository", stored.GetRepository(),
 		"branch", stored.GetBranch(), "root_path", stored.GetRootPath(),
@@ -382,6 +389,13 @@ func (s *RepoBindingServiceServer) DeleteWorkspaceRepoBinding(ctx context.Contex
 	if err := s.repo.Delete(ctx, ws); err != nil {
 		logger.Error("delete repo binding failed", "workspace_id", ws, "err", err)
 		return nil, mapRepoBindingErr(err)
+	}
+	// Purge cached content so stale data from the deleted binding is not
+	// accessible.
+	if s.cacheRepo != nil {
+		if delErr := s.cacheRepo.Delete(ctx, ws); delErr != nil {
+			logger.Warn("failed to invalidate repo cache on binding delete", "workspace_id", ws, "err", delErr)
+		}
 	}
 	logger.Info("repo binding deleted", "workspace_id", ws)
 	return connect.NewResponse(&agentsv1.DeleteWorkspaceRepoBindingResponse{}), nil
@@ -669,7 +683,9 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 	}
 
 	treePath := binding.GetRootPath()
-	treeEntries, err := client.GetTree(ctx, binding.GetBranch(), treePath)
+	// Use the pinned commit SHA for tree and blob reads so the cache
+	// cannot contain mixed revisions if the branch advances mid-sync.
+	treeEntries, err := client.GetTree(ctx, headSHA, treePath)
 	if err != nil {
 		syncErr := "sync failed: cannot read tree: " + providerErrDetail(err)
 		binding.LastSyncError = syncErr
@@ -680,21 +696,39 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New(syncErr))
 	}
 
+	// Strip root_path prefix so cached entries are relative to the
+	// binding's root, making browser listings work regardless of root_path.
+	rootPrefix := strings.TrimRight(treePath, "/")
+	if rootPrefix != "" {
+		rootPrefix += "/"
+	}
+
 	var cacheEntries []*agentsv1.RepoCacheEntry
 	var blobs []repocache.CachedBlob
 	var totalBytes int64
 
 	for _, te := range treeEntries {
-		entryPath := te.Path
+		// Full repo-relative path (used for blob fetching).
+		fullPath := te.Path
+		// Cache-relative path (root_path stripped).
+		cachePath := te.Path
+		if rootPrefix != "" {
+			cachePath = strings.TrimPrefix(te.Path, rootPrefix)
+			if cachePath == te.Path {
+				// Entry is the root_path directory itself; skip it.
+				continue
+			}
+		}
+
 		kind := treeEntryKindToProto(te.Kind)
 
-		if err := validateCachePath(entryPath); err != nil {
-			logger.Warn("skipping invalid path", "path", entryPath, "reason", err.Error())
+		if err := validateCachePath(cachePath); err != nil {
+			logger.Warn("skipping invalid path", "path", cachePath, "reason", err.Error())
 			continue
 		}
 
 		entry := &agentsv1.RepoCacheEntry{
-			Path:        entryPath,
+			Path:        cachePath,
 			Kind:        kind,
 			Size:        te.Size,
 			ContentHash: te.SHA,
@@ -704,35 +738,43 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		if kind != agentsv1.RepoCacheEntryKind_REPO_CACHE_ENTRY_KIND_FILE {
 			continue
 		}
-		if !strings.HasSuffix(strings.ToLower(entryPath), ".md") {
+		if !strings.HasSuffix(strings.ToLower(cachePath), ".md") {
 			continue
 		}
-		if te.Size > s.maxFileBytes {
-			logger.Warn("skipping oversized file", "path", entryPath, "size", te.Size, "max", s.maxFileBytes)
+		// Pre-check with reported size when available (GitHub provides it;
+		// GitLab may not). Actual size is re-checked after download.
+		if te.Size > 0 && te.Size > s.maxFileBytes {
+			logger.Warn("skipping oversized file", "path", cachePath, "size", te.Size, "max", s.maxFileBytes)
 			continue
 		}
-		if totalBytes+te.Size > s.maxCacheBytes {
+
+		data, err := client.GetBlob(ctx, headSHA, fullPath)
+		if err != nil {
+			logger.Warn("skipping unreadable blob", "path", cachePath, "err", err)
+			continue
+		}
+		if !utf8.Valid(data) {
+			logger.Warn("skipping non-UTF-8 file", "path", cachePath)
+			continue
+		}
+
+		actualSize := int64(len(data))
+		if actualSize > s.maxFileBytes {
+			logger.Warn("skipping oversized file (post-download)", "path", cachePath, "size", actualSize, "max", s.maxFileBytes)
+			continue
+		}
+		if totalBytes+actualSize > s.maxCacheBytes {
 			logger.Warn("workspace cache limit reached", "workspace_id", ws, "total", totalBytes, "max", s.maxCacheBytes)
 			break
 		}
 
-		data, err := client.GetBlob(ctx, binding.GetBranch(), entryPath)
-		if err != nil {
-			logger.Warn("skipping unreadable blob", "path", entryPath, "err", err)
-			continue
-		}
-		if !utf8.Valid(data) {
-			logger.Warn("skipping non-UTF-8 file", "path", entryPath)
-			continue
-		}
-
 		h := sha256.Sum256(data)
 		entry.ContentHash = hex.EncodeToString(h[:])
-		entry.Size = int64(len(data))
-		totalBytes += int64(len(data))
+		entry.Size = actualSize
+		totalBytes += actualSize
 
 		blobs = append(blobs, repocache.CachedBlob{
-			Path:    entryPath,
+			Path:    cachePath,
 			Content: data,
 		})
 	}
@@ -785,6 +827,12 @@ func (s *RepoBindingServiceServer) ListRepositoryEntries(ctx context.Context, re
 	if err != nil {
 		return nil, err
 	}
+	// Require an active binding so stale caches from deleted bindings are
+	// inaccessible.
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
 	dirPath := strings.TrimRight(req.Msg.GetPath(), "/")
 	if err := validateCachePath(dirPath); dirPath != "" && err != nil {
 		return nil, connectx.InvalidArgument("path", err.Error())
@@ -804,8 +852,10 @@ func (s *RepoBindingServiceServer) ListRepositoryEntries(ctx context.Context, re
 		return nil, connectx.InternalWith(err)
 	}
 	return connect.NewResponse(&agentsv1.ListRepositoryEntriesResponse{
-		CommitSha: commitSHA,
-		Entries:   entries,
+		CommitSha:         commitSHA,
+		Entries:           entries,
+		ObservedCommitSha: binding.GetObservedCommitSha(),
+		ActiveCommitSha:   commitSHA,
 	}), nil
 }
 
@@ -819,6 +869,10 @@ func (s *RepoBindingServiceServer) GetRepositoryFile(ctx context.Context, req *c
 	ws, err := requireWorkspace(ctx)
 	if err != nil {
 		return nil, err
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
 	}
 	filePath := req.Msg.GetPath()
 	if filePath == "" {
@@ -849,9 +903,11 @@ func (s *RepoBindingServiceServer) GetRepositoryFile(ctx context.Context, req *c
 		return nil, connectx.InternalWith(err)
 	}
 	return connect.NewResponse(&agentsv1.GetRepositoryFileResponse{
-		CommitSha: commitSHA,
-		Entry:     entry,
-		Content:   string(content),
+		CommitSha:         commitSHA,
+		Entry:             entry,
+		Content:           string(content),
+		ObservedCommitSha: binding.GetObservedCommitSha(),
+		ActiveCommitSha:   commitSHA,
 	}), nil
 }
 

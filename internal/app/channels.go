@@ -43,6 +43,7 @@ import (
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
 	"go.orx.me/apps/butter/internal/repo/repocache"
 	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
+	repocachemongo "go.orx.me/apps/butter/internal/repo/repocache/mongo"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
@@ -139,6 +140,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		oauthStateRepo oauthstate.Repository
 		gitHostRepo    githostrepo.Repository
 		bindingRepo    repobindingrepo.Repository
+		cacheRepo      repocache.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -165,6 +167,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		oauthStateRepo = oauthstatemongo.New(db)
 		gitHostRepo = githostmongo.New(db)
 		bindingRepo = repobindingmongo.New(db)
+		cacheRepo = repocachemongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -176,6 +179,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		oauthStateRepo = oauthstatememory.New()
 		gitHostRepo = githostmemory.New()
 		bindingRepo = repobindingmemory.New()
+		cacheRepo = repocachememory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -348,7 +352,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		AgentFileRepo:         fileRepo,
 		GitHostRepo:           gitHostRepo,
 		RepoBindingRepo:       bindingRepo,
-		RepoCacheRepo:         repocachememory.New(),
+		RepoCacheRepo:         cacheRepo,
 		SkillRepo:             skillRepo,
 		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
 		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),

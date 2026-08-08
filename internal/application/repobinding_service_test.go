@@ -655,25 +655,42 @@ func TestRepoBindingRequiresWorkspaceHeader(t *testing.T) {
 // ── Sync and cache tests (issue #215) ───────────────────────────────────
 
 func newSyncFixture(t *testing.T) *bindingFixture {
+	return newSyncFixtureWithRoot(t, "")
+}
+
+func newSyncFixtureWithRoot(t *testing.T, rootPath string) *bindingFixture {
 	t.Helper()
 	fx := newBindingFixture(t)
+	const sha = "abc123"
+
+	prefix := rootPath
+	if prefix != "" {
+		prefix = strings.TrimRight(prefix, "/") + "/"
+	}
+
 	fx.fake.trees = map[string][]gitprovider.TreeEntry{
-		"main:": {
-			{Path: "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
-			{Path: "agents/my-agent", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-my-agent"},
-			{Path: "agents/my-agent/prompt.md", Kind: gitprovider.TreeEntryFile, Size: 25, SHA: "blob-prompt"},
-			{Path: "agents/my-agent/description.md", Kind: gitprovider.TreeEntryFile, Size: 22, SHA: "blob-desc"},
-			{Path: "agents/unclaimed-dir", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-unclaimed"},
-			{Path: "agents/unclaimed-dir/notes.md", Kind: gitprovider.TreeEntryFile, Size: 11, SHA: "blob-notes"},
+		sha + ":" + strings.TrimRight(rootPath, "/"): {
+			{Path: prefix + "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+			{Path: prefix + "agents/my-agent", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-my-agent"},
+			{Path: prefix + "agents/my-agent/prompt.md", Kind: gitprovider.TreeEntryFile, Size: 25, SHA: "blob-prompt"},
+			{Path: prefix + "agents/my-agent/description.md", Kind: gitprovider.TreeEntryFile, Size: 22, SHA: "blob-desc"},
+			{Path: prefix + "agents/unclaimed-dir", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-unclaimed"},
+			{Path: prefix + "agents/unclaimed-dir/notes.md", Kind: gitprovider.TreeEntryFile, Size: 11, SHA: "blob-notes"},
 		},
 	}
 	fx.fake.blobs = map[string][]byte{
-		"main:agents/my-agent/prompt.md":      []byte("You are a helpful agent."),
-		"main:agents/my-agent/description.md": []byte("My agent description."),
-		"main:agents/unclaimed-dir/notes.md":  []byte("Some notes."),
+		sha + ":" + prefix + "agents/my-agent/prompt.md":      []byte("You are a helpful agent."),
+		sha + ":" + prefix + "agents/my-agent/description.md": []byte("My agent description."),
+		sha + ":" + prefix + "agents/unclaimed-dir/notes.md":  []byte("Some notes."),
 	}
 	fx.svc.SetCacheRepo(repocachememory.New())
-	putBinding(t, fx, ownerCtx())
+	b := validBinding()
+	b.RootPath = rootPath
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{
+		Binding: b,
+	})); err != nil {
+		t.Fatalf("PutWorkspaceRepoBinding: %v", err)
+	}
 	setCredential(t, fx, ownerCtx())
 	return fx
 }
@@ -891,4 +908,203 @@ func TestGetRepositoryFileRequiresPath(t *testing.T) {
 	}
 	_, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{}))
 	wantCode(t, err, connect.CodeInvalidArgument)
+}
+
+func TestSyncWithRootPath(t *testing.T) {
+	fx := newSyncFixtureWithRoot(t, "content")
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if resp.Msg.GetEntriesSynced() == 0 {
+		t.Fatal("expected entries synced > 0")
+	}
+
+	// Entries should be relative to root_path (no "content/" prefix).
+	listResp, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListEntries root: %v", err)
+	}
+	if len(listResp.Msg.GetEntries()) == 0 {
+		t.Fatal("expected entries in root listing")
+	}
+	for _, e := range listResp.Msg.GetEntries() {
+		if strings.HasPrefix(e.GetPath(), "content/") {
+			t.Fatalf("entry path still contains root_path prefix: %q", e.GetPath())
+		}
+	}
+
+	// File access uses root-relative paths.
+	fileResp, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	if fileResp.Msg.GetContent() != "You are a helpful agent." {
+		t.Fatalf("content = %q", fileResp.Msg.GetContent())
+	}
+}
+
+func TestSyncBranchMovement(t *testing.T) {
+	fx := newSyncFixture(t)
+
+	// First sync at abc123.
+	resp1, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 1: %v", err)
+	}
+	if resp1.Msg.GetEntriesSynced() == 0 {
+		t.Fatal("first sync should populate cache")
+	}
+
+	// Move branch to a new commit.
+	newSHA := "def456"
+	fx.fake.branches["main"] = newSHA
+	fx.fake.trees[newSHA+":"] = []gitprovider.TreeEntry{
+		{Path: "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+		{Path: "agents/new-file.md", Kind: gitprovider.TreeEntryFile, Size: 8, SHA: "blob-new"},
+	}
+	fx.fake.blobs[newSHA+":agents/new-file.md"] = []byte("Updated!")
+
+	resp2, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync 2: %v", err)
+	}
+	if resp2.Msg.GetEntriesSynced() == 0 {
+		t.Fatal("second sync with new SHA should populate cache")
+	}
+	if resp2.Msg.GetBinding().GetObservedCommitSha() != newSHA {
+		t.Fatalf("observed_commit_sha = %q, want %q", resp2.Msg.GetBinding().GetObservedCommitSha(), newSHA)
+	}
+
+	// Old file should be gone, new file should be present.
+	_, err = fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	wantCode(t, err, connect.CodeNotFound)
+
+	fileResp, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/new-file.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetFile new: %v", err)
+	}
+	if fileResp.Msg.GetContent() != "Updated!" {
+		t.Fatalf("content = %q", fileResp.Msg.GetContent())
+	}
+}
+
+func TestSyncGitLabSizeEnforcement(t *testing.T) {
+	fx := newBindingFixture(t)
+	const sha = "abc123"
+
+	// Simulate GitLab: tree entries have Size=0, actual blob is large.
+	fx.fake.trees = map[string][]gitprovider.TreeEntry{
+		sha + ":": {
+			{Path: "big-file.md", Kind: gitprovider.TreeEntryFile, Size: 0, SHA: "blob-big"},
+		},
+	}
+	bigContent := make([]byte, 2*1024*1024) // 2 MiB
+	for i := range bigContent {
+		bigContent[i] = 'A'
+	}
+	fx.fake.blobs = map[string][]byte{
+		sha + ":big-file.md": bigContent,
+	}
+	fx.svc.SetCacheRepo(repocachememory.New())
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+
+	resp, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	// The oversized file should be skipped but the sync should succeed.
+	if resp.Msg.GetBinding().GetLastSyncError() != "" {
+		t.Fatalf("unexpected sync error: %q", resp.Msg.GetBinding().GetLastSyncError())
+	}
+
+	// The large file's blob should NOT be cached.
+	_, err = fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "big-file.md",
+	}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestBindingInvalidationOnUpdate(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	// Confirm cache is populated.
+	_, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListEntries before update: %v", err)
+	}
+
+	// Update binding (changes repo config).
+	b := validBinding()
+	b.RootPath = "new-root"
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: b})); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	// Cache should be invalidated.
+	_, err = fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestBindingInvalidationOnDelete(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if _, err := fx.svc.DeleteWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{})); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	// List requires a binding, so it should fail with NotFound (no binding).
+	_, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestListRepositoryEntriesResponseSHAs(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.ListRepositoryEntries(memberCtx(), connect.NewRequest(&agentsv1.ListRepositoryEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListEntries: %v", err)
+	}
+	if resp.Msg.GetObservedCommitSha() != "abc123" {
+		t.Fatalf("observed_commit_sha = %q, want abc123", resp.Msg.GetObservedCommitSha())
+	}
+	if resp.Msg.GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active_commit_sha = %q, want abc123", resp.Msg.GetActiveCommitSha())
+	}
+}
+
+func TestGetRepositoryFileResponseSHAs(t *testing.T) {
+	fx := newSyncFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.GetRepositoryFile(memberCtx(), connect.NewRequest(&agentsv1.GetRepositoryFileRequest{
+		Path: "agents/my-agent/prompt.md",
+	}))
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	if resp.Msg.GetObservedCommitSha() != "abc123" {
+		t.Fatalf("observed_commit_sha = %q, want abc123", resp.Msg.GetObservedCommitSha())
+	}
+	if resp.Msg.GetActiveCommitSha() != "abc123" {
+		t.Fatalf("active_commit_sha = %q, want abc123", resp.Msg.GetActiveCommitSha())
+	}
 }

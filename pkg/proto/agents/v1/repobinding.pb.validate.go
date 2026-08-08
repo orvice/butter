@@ -2583,6 +2583,10 @@ func (m *ListRepositoryEntriesResponse) validate(all bool) error {
 
 	}
 
+	// no validation rules for ObservedCommitSha
+
+	// no validation rules for ActiveCommitSha
+
 	if len(errors) > 0 {
 		return ListRepositoryEntriesResponseMultiError(errors)
 	}
@@ -2822,6 +2826,10 @@ func (m *GetRepositoryFileResponse) validate(all bool) error {
 	}
 
 	// no validation rules for Content
+
+	// no validation rules for ObservedCommitSha
+
+	// no validation rules for ActiveCommitSha
 
 	if len(errors) > 0 {
 		return GetRepositoryFileResponseMultiError(errors)
