@@ -47,6 +47,8 @@ type Handlers struct {
 	apiTokenSvcServer      *application.APITokenServiceServer
 	authSvcServer          *application.AuthServiceServer
 	workspaceSvcServer     *application.WorkspaceServiceServer
+	gitHostSvcServer       *application.GitHostServiceServer
+	repoBindingSvcServer   *application.RepoBindingServiceServer
 	workspaceMCPSvc        *workspacemcp.Service
 	authRepo               atomic.Value // auth.Repository
 	apiTokenRepo           atomic.Value // apitoken.Repository
@@ -241,6 +243,15 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.authSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 		}
 		h.agentSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		if h.repoBindingSvcServer != nil {
+			h.repoBindingSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
+	}
+	if h.gitHostSvcServer != nil && result.GitHostRepo != nil {
+		h.gitHostSvcServer.SetRepo(result.GitHostRepo)
+	}
+	if h.repoBindingSvcServer != nil && result.RepoBindingRepo != nil && result.GitHostRepo != nil {
+		h.repoBindingSvcServer.SetRepos(result.RepoBindingRepo, result.GitHostRepo)
 	}
 	if h.dashboardSvcServer != nil {
 		if result.MongoDB != nil {
@@ -356,6 +367,12 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	authConnectPath, authConnectHandler := agentsv1connect.NewAuthServiceHandler(authSvcServer, connectOpts...)
 	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
 	workspaceConnectPath, workspaceConnectHandler := agentsv1connect.NewWorkspaceServiceHandler(workspaceSvcServer, connectOpts...)
+	gitHostSvcServer := application.NewGitHostServiceServer(nil)
+	gitHostConnectPath, gitHostConnectHandler := agentsv1connect.NewGitHostServiceHandler(gitHostSvcServer, connectOpts...)
+	repoBindingSvcServer := application.NewRepoBindingServiceServer(nil, nil)
+	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg.
+	repoBindingSvcServer.SetEncryptionKeyProvider(func() string { return cfg.Git.EncryptionKey })
+	repoBindingConnectPath, repoBindingConnectHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(repoBindingSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -379,6 +396,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		apiTokenSvcServer:      apiTokenSvcServer,
 		authSvcServer:          authSvcServer,
 		workspaceSvcServer:     workspaceSvcServer,
+		gitHostSvcServer:       gitHostSvcServer,
+		repoBindingSvcServer:   repoBindingSvcServer,
 		workspaceMCPSvc:        workspaceMCPSvc,
 		configStore:            configStore,
 		configRuntime:          configRuntime,
@@ -442,6 +461,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+daemonConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", daemonConnectHandler)))
 		r.Any("/api"+daemonConnectorConnectPath+"*path", gin.WrapH(enableFullDuplex(http.StripPrefix("/api", daemonConnectorConnectHandler))))
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
+		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
+		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
 	}
 
 	return router, handlers

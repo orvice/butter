@@ -1,0 +1,624 @@
+package application
+
+// Service-level tests for WorkspaceRepoBindingService (issue #214): role
+// authorization (member read-only vs owner/admin manage), binding
+// validation via a fake provider, and secret handling (plaintext PATs never
+// escape through responses or persisted models).
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+
+	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+
+	"go.orx.me/apps/butter/internal/gitprovider"
+	"go.orx.me/apps/butter/internal/repo/auth"
+	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
+	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
+	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
+	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
+	"go.orx.me/apps/butter/internal/workspace"
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+)
+
+const (
+	testEncryptionKey = "0123456789abcdef0123456789abcdef"
+	testPAT           = "ghp_plaintext_pat_do_not_leak"
+)
+
+// fakeProviderClient implements gitprovider.Client deterministically.
+type fakeProviderClient struct {
+	repo     *gitprovider.Repository
+	repoErr  error
+	branches map[string]string
+}
+
+func (f *fakeProviderClient) GetRepository(context.Context) (*gitprovider.Repository, error) {
+	if f.repoErr != nil {
+		return nil, f.repoErr
+	}
+	return f.repo, nil
+}
+
+func (f *fakeProviderClient) GetBranchHead(_ context.Context, branch string) (string, error) {
+	sha, ok := f.branches[branch]
+	if !ok {
+		return "", gitprovider.ErrNotFound
+	}
+	return sha, nil
+}
+
+type bindingFixture struct {
+	svc         *RepoBindingServiceServer
+	bindingRepo *repobindingmemory.Store
+	hostRepo    *githostmemory.Store
+	wsRepo      *workspacememory.Store
+	fake        *fakeProviderClient
+	// lastProviderCfg captures what the service handed the provider factory.
+	lastProviderCfg *gitprovider.Config
+}
+
+func newBindingFixture(t *testing.T) *bindingFixture {
+	t.Helper()
+	fx := &bindingFixture{
+		bindingRepo: repobindingmemory.New(),
+		hostRepo:    githostmemory.New(),
+		wsRepo:      workspacememory.New(),
+		fake: &fakeProviderClient{
+			repo: &gitprovider.Repository{
+				FullName: "acme/agents", Private: true, DefaultBranch: "main",
+				CanRead: true, CanWrite: true, CanOpenChangeRequests: true,
+			},
+			branches: map[string]string{"main": "abc123"},
+		},
+	}
+	ctx := context.Background()
+	if _, err := fx.hostRepo.Create(ctx, &agentsv1.GitHost{
+		Id: "gh-1", Name: "GitHub.com",
+		Kind:       agentsv1.GitHostKind_GIT_HOST_KIND_GITHUB,
+		ApiBaseUrl: "https://api.github.com",
+	}); err != nil {
+		t.Fatalf("seed git host: %v", err)
+	}
+	for _, ws := range []struct{ id, name string }{{"ws-a", "Alpha"}, {"ws-b", "Beta"}} {
+		if _, err := fx.wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: ws.id, Name: ws.name, Slug: ws.id}); err != nil {
+			t.Fatalf("seed workspace: %v", err)
+		}
+	}
+	for _, m := range []struct{ user, role string }{
+		{"owner-user", "owner"}, {"admin-user", "admin"}, {"member-user", "member"},
+	} {
+		if _, err := fx.wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{
+			WorkspaceId: "ws-a", UserId: m.user, Role: m.role,
+		}); err != nil {
+			t.Fatalf("seed member: %v", err)
+		}
+	}
+
+	svc := NewRepoBindingServiceServer(fx.bindingRepo, fx.hostRepo)
+	svc.SetWorkspaceRepo(fx.wsRepo)
+	svc.SetEncryptionKeyProvider(func() string { return testEncryptionKey })
+	svc.SetProviderClientFactory(func(cfg gitprovider.Config) (gitprovider.Client, error) {
+		fx.lastProviderCfg = &cfg
+		return fx.fake, nil
+	})
+	fx.svc = svc
+	return fx
+}
+
+func ctxAs(userID, role, workspaceID string) context.Context {
+	ctx := workspace.WithID(context.Background(), workspaceID)
+	return auth.WithAuthenticated(ctx, &agentsv1.User{Id: userID, Role: role}, nil)
+}
+
+func ownerCtx() context.Context   { return ctxAs("owner-user", "user", "ws-a") }
+func wsAdminCtx() context.Context { return ctxAs("admin-user", "user", "ws-a") }
+func memberCtx() context.Context  { return ctxAs("member-user", "user", "ws-a") }
+
+func validBinding() *agentsv1.WorkspaceRepoBinding {
+	return &agentsv1.WorkspaceRepoBinding{
+		GitHostId:  "gh-1",
+		Repository: "acme/agents",
+		Branch:     "main",
+	}
+}
+
+func putBinding(t *testing.T, fx *bindingFixture, ctx context.Context) *agentsv1.WorkspaceRepoBinding {
+	t.Helper()
+	resp, err := fx.svc.PutWorkspaceRepoBinding(ctx, connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{
+		Binding: validBinding(),
+	}))
+	if err != nil {
+		t.Fatalf("PutWorkspaceRepoBinding: %v", err)
+	}
+	return resp.Msg.GetBinding()
+}
+
+func setCredential(t *testing.T, fx *bindingFixture, ctx context.Context) {
+	t.Helper()
+	if _, err := fx.svc.SetWorkspaceRepoBindingCredential(ctx, connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{
+		Pat: testPAT,
+	})); err != nil {
+		t.Fatalf("SetWorkspaceRepoBindingCredential: %v", err)
+	}
+}
+
+func wantCode(t *testing.T, err error, code connect.Code) {
+	t.Helper()
+	if connect.CodeOf(err) != code {
+		t.Fatalf("err = %v (code %v), want code %v", err, connect.CodeOf(err), code)
+	}
+}
+
+func TestRepoBindingPutAndGet(t *testing.T) {
+	fx := newBindingFixture(t)
+	in := validBinding()
+	in.RootPath = " butter/./content "
+	// Server-owned fields on input must be ignored.
+	in.CredentialSet = true
+	in.Status = &agentsv1.RepoBindingStatus{State: agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_OK}
+	resp, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: in}))
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	b := resp.Msg.GetBinding()
+	if b.GetWorkspaceId() != "ws-a" || b.GetRootPath() != "butter/content" {
+		t.Fatalf("unexpected binding: %v", b)
+	}
+	if b.GetWriteMode() != agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_DIRECT_COMMIT {
+		t.Fatalf("write mode not defaulted: %v", b.GetWriteMode())
+	}
+	if b.GetContentSchemaVersion() != 1 {
+		t.Fatalf("schema version not defaulted: %v", b.GetContentSchemaVersion())
+	}
+	if b.GetCredentialSet() {
+		t.Fatal("credential_set forged through Put")
+	}
+	if b.GetStatus().GetState() != agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_UNVALIDATED {
+		t.Fatalf("status not reset to UNVALIDATED: %v", b.GetStatus())
+	}
+
+	got, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Msg.GetBinding().GetRepository() != "acme/agents" {
+		t.Fatalf("member read failed: %v", got.Msg.GetBinding())
+	}
+}
+
+func TestRepoBindingGetWithoutBindingIsEmpty(t *testing.T) {
+	fx := newBindingFixture(t)
+	resp, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if resp.Msg.GetBinding() != nil {
+		t.Fatalf("expected unset binding, got %v", resp.Msg.GetBinding())
+	}
+}
+
+func TestRepoBindingAuthorization(t *testing.T) {
+	fx := newBindingFixture(t)
+	putBinding(t, fx, ownerCtx())
+
+	// Members hold read-only access.
+	_, err := fx.svc.PutWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()}))
+	wantCode(t, err, connect.CodePermissionDenied)
+	_, err = fx.svc.DeleteWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{}))
+	wantCode(t, err, connect.CodePermissionDenied)
+	_, err = fx.svc.SetWorkspaceRepoBindingCredential(memberCtx(), connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{Pat: testPAT}))
+	wantCode(t, err, connect.CodePermissionDenied)
+	_, err = fx.svc.ValidateWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{}))
+	wantCode(t, err, connect.CodePermissionDenied)
+
+	// Workspace admins manage like owners.
+	if _, err := fx.svc.PutWorkspaceRepoBinding(wsAdminCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()})); err != nil {
+		t.Fatalf("admin Put: %v", err)
+	}
+	// Global admins bypass workspace roles.
+	globalAdmin := auth.WithAdmin(workspace.WithID(context.Background(), "ws-a"))
+	if _, err := fx.svc.PutWorkspaceRepoBinding(globalAdmin, connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()})); err != nil {
+		t.Fatalf("global admin Put: %v", err)
+	}
+	// Non-members are indistinguishable from missing workspaces.
+	_, err = fx.svc.PutWorkspaceRepoBinding(ctxAs("stranger", "user", "ws-a"), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestRepoBindingPutValidation(t *testing.T) {
+	fx := newBindingFixture(t)
+	cases := []struct {
+		name   string
+		mutate func(*agentsv1.WorkspaceRepoBinding)
+	}{
+		{"unknown host", func(b *agentsv1.WorkspaceRepoBinding) { b.GitHostId = "gh-missing" }},
+		{"missing repository", func(b *agentsv1.WorkspaceRepoBinding) { b.Repository = "" }},
+		{"repository without namespace", func(b *agentsv1.WorkspaceRepoBinding) { b.Repository = "solo" }},
+		{"missing branch", func(b *agentsv1.WorkspaceRepoBinding) { b.Branch = "" }},
+		{"absolute root path", func(b *agentsv1.WorkspaceRepoBinding) { b.RootPath = "/etc" }},
+		{"traversal root path", func(b *agentsv1.WorkspaceRepoBinding) { b.RootPath = "../outside" }},
+		{"embedded traversal is rejected not cleaned", func(b *agentsv1.WorkspaceRepoBinding) { b.RootPath = "a/../b" }},
+		{"traversal repository", func(b *agentsv1.WorkspaceRepoBinding) { b.Repository = "acme/../etc" }},
+		{"unsupported schema version", func(b *agentsv1.WorkspaceRepoBinding) { b.ContentSchemaVersion = 2 }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := validBinding()
+			tc.mutate(b)
+			_, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: b}))
+			wantCode(t, err, connect.CodeInvalidArgument)
+		})
+	}
+}
+
+func TestRepoBindingCredentialLifecycle(t *testing.T) {
+	fx := newBindingFixture(t)
+
+	// No binding yet: nothing to attach a credential to.
+	_, err := fx.svc.SetWorkspaceRepoBindingCredential(ownerCtx(), connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{Pat: testPAT}))
+	wantCode(t, err, connect.CodeNotFound)
+
+	putBinding(t, fx, ownerCtx())
+	resp, err := fx.svc.SetWorkspaceRepoBindingCredential(ownerCtx(), connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{Pat: testPAT}))
+	if err != nil {
+		t.Fatalf("SetCredential: %v", err)
+	}
+	b := resp.Msg.GetBinding()
+	if !b.GetCredentialSet() || b.GetCredentialUpdatedAt() == nil {
+		t.Fatalf("credential fields not reported: %v", b)
+	}
+	// Stored ciphertext must not be the plaintext.
+	ct, err := fx.bindingRepo.GetCredential(context.Background(), "ws-a")
+	if err != nil {
+		t.Fatalf("GetCredential: %v", err)
+	}
+	if strings.Contains(ct, testPAT) {
+		t.Fatal("credential stored unencrypted")
+	}
+}
+
+func TestRepoBindingCredentialRequiresEncryptionKey(t *testing.T) {
+	fx := newBindingFixture(t)
+	putBinding(t, fx, ownerCtx())
+	fx.svc.SetEncryptionKeyProvider(func() string { return "" })
+	_, err := fx.svc.SetWorkspaceRepoBindingCredential(ownerCtx(), connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{Pat: testPAT}))
+	wantCode(t, err, connect.CodeFailedPrecondition)
+}
+
+func TestRepoBindingValidateHappyPath(t *testing.T) {
+	fx := newBindingFixture(t)
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+
+	resp, err := fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	status := resp.Msg.GetBinding().GetStatus()
+	if status.GetState() != agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_OK {
+		t.Fatalf("state = %v, error = %q", status.GetState(), status.GetError())
+	}
+	if status.GetLastValidatedAt() == nil {
+		t.Fatal("last_validated_at not set")
+	}
+	if len(status.GetChecks()) != 4 {
+		t.Fatalf("expected 4 checks, got %v", status.GetChecks())
+	}
+	// change_request_capability is reported but not required in direct mode.
+	for _, c := range status.GetChecks() {
+		if c.GetName() == checkChangeRequest && c.GetRequired() {
+			t.Fatal("change request check must not gate direct-commit mode")
+		}
+	}
+	// The provider factory received the decrypted PAT and the host's API root.
+	if fx.lastProviderCfg == nil || fx.lastProviderCfg.Token != testPAT {
+		t.Fatalf("provider did not receive the decrypted PAT: %+v", fx.lastProviderCfg)
+	}
+	if fx.lastProviderCfg.APIBaseURL != "https://api.github.com" || fx.lastProviderCfg.Kind != gitprovider.KindGitHub {
+		t.Fatalf("provider config mismatch: %+v", fx.lastProviderCfg)
+	}
+	// The outcome is persisted, visible to members via Get.
+	got, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Msg.GetBinding().GetStatus().GetState() != agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_OK {
+		t.Fatalf("validation outcome not persisted: %v", got.Msg.GetBinding().GetStatus())
+	}
+}
+
+func TestRepoBindingValidateFailures(t *testing.T) {
+	newValidated := func(t *testing.T, mutate func(*bindingFixture), bind func(*agentsv1.WorkspaceRepoBinding)) *agentsv1.RepoBindingStatus {
+		t.Helper()
+		fx := newBindingFixture(t)
+		b := validBinding()
+		if bind != nil {
+			bind(b)
+		}
+		if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: b})); err != nil {
+			t.Fatalf("Put: %v", err)
+		}
+		setCredential(t, fx, ownerCtx())
+		if mutate != nil {
+			mutate(fx)
+		}
+		resp, err := fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{}))
+		if err != nil {
+			t.Fatalf("Validate: %v", err)
+		}
+		return resp.Msg.GetBinding().GetStatus()
+	}
+
+	failed := agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_FAILED
+
+	t.Run("unauthorized credential", func(t *testing.T) {
+		status := newValidated(t, func(fx *bindingFixture) { fx.fake.repoErr = gitprovider.ErrUnauthorized }, nil)
+		if status.GetState() != failed {
+			t.Fatalf("state = %v", status.GetState())
+		}
+		if !strings.Contains(status.GetError(), checkRepositoryRead) {
+			t.Fatalf("error = %q", status.GetError())
+		}
+		if strings.Contains(status.GetError(), testPAT) {
+			t.Fatal("error leaks PAT")
+		}
+	})
+
+	t.Run("missing branch", func(t *testing.T) {
+		status := newValidated(t, nil, func(b *agentsv1.WorkspaceRepoBinding) { b.Branch = "gone" })
+		if status.GetState() != failed || !strings.Contains(status.GetError(), checkBranchExists) {
+			t.Fatalf("state = %v, error = %q", status.GetState(), status.GetError())
+		}
+	})
+
+	t.Run("read-only credential fails direct commit", func(t *testing.T) {
+		status := newValidated(t, func(fx *bindingFixture) {
+			fx.fake.repo.CanWrite = false
+			fx.fake.repo.CanOpenChangeRequests = false
+		}, nil)
+		if status.GetState() != failed || !strings.Contains(status.GetError(), checkWriteCapability) {
+			t.Fatalf("state = %v, error = %q", status.GetState(), status.GetError())
+		}
+	})
+
+	t.Run("change request mode requires cr capability", func(t *testing.T) {
+		status := newValidated(t, func(fx *bindingFixture) {
+			fx.fake.repo.CanOpenChangeRequests = false
+		}, func(b *agentsv1.WorkspaceRepoBinding) {
+			b.WriteMode = agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
+		})
+		if status.GetState() != failed || !strings.Contains(status.GetError(), checkChangeRequest) {
+			t.Fatalf("state = %v, error = %q", status.GetState(), status.GetError())
+		}
+	})
+
+	t.Run("validate without credential", func(t *testing.T) {
+		fx := newBindingFixture(t)
+		putBinding(t, fx, ownerCtx())
+		_, err := fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{}))
+		wantCode(t, err, connect.CodeFailedPrecondition)
+	})
+}
+
+func TestRepoBindingOverlaps(t *testing.T) {
+	fx := newBindingFixture(t)
+	putBinding(t, fx, ownerCtx())
+	// ws-b binds the same location (global admin acts across workspaces).
+	wsB := auth.WithAdmin(workspace.WithID(context.Background(), "ws-b"))
+	if _, err := fx.svc.PutWorkspaceRepoBinding(wsB, connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()})); err != nil {
+		t.Fatalf("Put ws-b: %v", err)
+	}
+
+	resp, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	overlaps := resp.Msg.GetOverlaps()
+	if len(overlaps) != 1 || overlaps[0].GetWorkspaceId() != "ws-b" || overlaps[0].GetWorkspaceName() != "Beta" {
+		t.Fatalf("unexpected overlaps: %v", overlaps)
+	}
+
+	// A duplicate host record for the same endpoint and a case variant of
+	// the repository still resolve to the same effective location.
+	if _, err := fx.hostRepo.Create(context.Background(), &agentsv1.GitHost{
+		Id: "gh-dup", Name: "GitHub duplicate", Kind: agentsv1.GitHostKind_GIT_HOST_KIND_GITHUB,
+		ApiBaseUrl: "https://API.github.com/",
+	}); err != nil {
+		t.Fatalf("seed duplicate host: %v", err)
+	}
+	alias := validBinding()
+	alias.GitHostId = "gh-dup"
+	alias.Repository = "ACME/Agents"
+	if _, err := fx.svc.PutWorkspaceRepoBinding(wsB, connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: alias})); err != nil {
+		t.Fatalf("Put ws-b alias: %v", err)
+	}
+	resp, err = fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(resp.Msg.GetOverlaps()) != 1 || resp.Msg.GetOverlaps()[0].GetWorkspaceId() != "ws-b" {
+		t.Fatalf("host/case alias not detected as overlap: %v", resp.Msg.GetOverlaps())
+	}
+
+	// A different root path is a different effective location.
+	diff := validBinding()
+	diff.RootPath = "other"
+	if _, err := fx.svc.PutWorkspaceRepoBinding(wsB, connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: diff})); err != nil {
+		t.Fatalf("Put ws-b: %v", err)
+	}
+	resp, err = fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(resp.Msg.GetOverlaps()) != 0 {
+		t.Fatalf("expected no overlaps, got %v", resp.Msg.GetOverlaps())
+	}
+}
+
+// TestRepoBindingResponsesNeverContainPAT serializes every RPC response
+// produced during a full binding lifecycle and asserts the plaintext PAT
+// never appears (issue #214 secret handling).
+func TestRepoBindingResponsesNeverContainPAT(t *testing.T) {
+	fx := newBindingFixture(t)
+
+	var payloads []proto.Message
+	put, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()}))
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	payloads = append(payloads, put.Msg)
+	cred, err := fx.svc.SetWorkspaceRepoBindingCredential(ownerCtx(), connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{Pat: testPAT}))
+	if err != nil {
+		t.Fatalf("SetCredential: %v", err)
+	}
+	payloads = append(payloads, cred.Msg)
+	val, err := fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	payloads = append(payloads, val.Msg)
+	get, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	payloads = append(payloads, get.Msg)
+
+	for _, msg := range payloads {
+		raw, err := protojson.Marshal(msg)
+		if err != nil {
+			t.Fatalf("marshal response: %v", err)
+		}
+		if strings.Contains(string(raw), testPAT) {
+			t.Fatalf("response leaks PAT: %s", raw)
+		}
+	}
+
+	// Failure paths must not leak either.
+	fx.fake.repoErr = errors.New("boom with " + testPAT + " inside")
+	val, err = fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	raw, _ := protojson.Marshal(val.Msg)
+	if strings.Contains(string(raw), testPAT) {
+		t.Fatalf("validation status leaks provider error containing PAT: %s", raw)
+	}
+}
+
+// failingCredentialRepo makes SetCredential fail after the fixture is set
+// up, to exercise the partial-failure path of credential replacement.
+type failingCredentialRepo struct {
+	repobindingrepo.Repository
+	fail bool
+}
+
+func (f *failingCredentialRepo) SetCredential(ctx context.Context, ws, ct string) error {
+	if f.fail {
+		return errors.New("storage unavailable")
+	}
+	return f.Repository.SetCredential(ctx, ws, ct)
+}
+
+// TestRepoBindingCredentialReplacementFailsClosed proves ADR-0005's
+// replacement contract survives partial failure: when the credential write
+// fails, the binding is left UNVALIDATED with the old credential — never a
+// new credential wearing a stale OK status.
+func TestRepoBindingCredentialReplacementFailsClosed(t *testing.T) {
+	fx := newBindingFixture(t)
+	failing := &failingCredentialRepo{Repository: fx.bindingRepo}
+	fx.svc.SetRepos(failing, fx.hostRepo)
+
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+	if _, err := fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{})); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	failing.fail = true
+	_, err := fx.svc.SetWorkspaceRepoBindingCredential(ownerCtx(), connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{Pat: "new-pat"}))
+	if err == nil {
+		t.Fatal("expected error from failing credential write")
+	}
+	got, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	b := got.Msg.GetBinding()
+	if b.GetStatus().GetState() != agentsv1.RepoBindingConnectionState_REPO_BINDING_CONNECTION_STATE_UNVALIDATED {
+		t.Fatalf("stale status survived failed replacement: %v", b.GetStatus().GetState())
+	}
+	if !b.GetCredentialSet() {
+		t.Fatal("old credential lost on failed replacement")
+	}
+	ct, err := fx.bindingRepo.GetCredential(context.Background(), "ws-a")
+	if err != nil || ct == "" {
+		t.Fatalf("old ciphertext gone: %q, %v", ct, err)
+	}
+}
+
+// TestRepoBindingHostChangeClearsCredential proves a stored PAT is never
+// forwarded to a different host: rebinding to another GitHost clears the
+// credential and validation demands a fresh one.
+func TestRepoBindingHostChangeClearsCredential(t *testing.T) {
+	fx := newBindingFixture(t)
+	if _, err := fx.hostRepo.Create(context.Background(), &agentsv1.GitHost{
+		Id: "gl-1", Name: "GitLab", Kind: agentsv1.GitHostKind_GIT_HOST_KIND_GITLAB,
+		ApiBaseUrl: "https://gitlab.example.com/api/v4",
+	}); err != nil {
+		t.Fatalf("seed second host: %v", err)
+	}
+	putBinding(t, fx, ownerCtx())
+	setCredential(t, fx, ownerCtx())
+
+	moved := validBinding()
+	moved.GitHostId = "gl-1"
+	resp, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: moved}))
+	if err != nil {
+		t.Fatalf("Put with new host: %v", err)
+	}
+	if resp.Msg.GetBinding().GetCredentialSet() {
+		t.Fatal("credential survived a host change")
+	}
+	_, err = fx.svc.ValidateWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.ValidateWorkspaceRepoBindingRequest{}))
+	wantCode(t, err, connect.CodeFailedPrecondition)
+
+	// Same-host re-put keeps the credential (regression guard).
+	putBinding(t, fx, ownerCtx()) // back to gh-1, no credential now
+	setCredential(t, fx, ownerCtx())
+	again, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()}))
+	if err != nil {
+		t.Fatalf("same-host Put: %v", err)
+	}
+	if !again.Msg.GetBinding().GetCredentialSet() {
+		t.Fatal("credential lost on same-host Put")
+	}
+}
+
+func TestRepoBindingDelete(t *testing.T) {
+	fx := newBindingFixture(t)
+	putBinding(t, fx, ownerCtx())
+	if _, err := fx.svc.DeleteWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{})); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	resp, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if resp.Msg.GetBinding() != nil {
+		t.Fatal("binding survived delete")
+	}
+	_, err = fx.svc.DeleteWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{}))
+	wantCode(t, err, connect.CodeNotFound)
+}
+
+func TestRepoBindingRequiresWorkspaceHeader(t *testing.T) {
+	fx := newBindingFixture(t)
+	ctx := auth.WithAuthenticated(context.Background(), &agentsv1.User{Id: "owner-user"}, nil)
+	_, err := fx.svc.GetWorkspaceRepoBinding(ctx, connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
+	wantCode(t, err, connect.CodeFailedPrecondition)
+}

@@ -31,6 +31,7 @@ type AppConfig struct {
 	AgentFiles     AgentFilesConfig `yaml:"agent_files"`
 	Skills         SkillsConfig     `yaml:"skills"`
 	MCPOAuth       MCPOAuthConfig   `yaml:"mcp_oauth"`
+	Git            GitConfig        `yaml:"git"`
 	StorageBackend string           `yaml:"storage_backend"` // "mongo" (default) or "memory"
 }
 
@@ -138,6 +139,14 @@ type MCPOAuthConfig struct {
 	// AllowInsecureHTTP permits non-localhost HTTP OAuth endpoints. It is
 	// intended for development only; HTTPS is required otherwise.
 	AllowInsecureHTTP bool `yaml:"allow_insecure_http"`
+}
+
+// GitConfig configures workspace repository bindings (issue #214).
+type GitConfig struct {
+	// EncryptionKey protects stored repository PATs. It may be raw 32-byte
+	// text, hex-encoded bytes, or base64-encoded bytes. When empty, binding
+	// credentials cannot be set or validated.
+	EncryptionKey string `yaml:"encryption_key"`
 }
 
 type HTTPConfig struct {

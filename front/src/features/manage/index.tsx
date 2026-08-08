@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Cpu,
   FileBox,
+  GitBranch,
   KeyRound,
   Laptop,
   ListTree,
@@ -165,6 +166,12 @@ const WORKSPACE_SECTION: ManageSection = {
       icon: Building2,
     },
     {
+      title: 'Repository binding',
+      description: 'Bind this workspace to a Git repository for agent content.',
+      to: '/repo-binding',
+      icon: GitBranch,
+    },
+    {
       title: 'Profile',
       description: 'Update your display name and profile image.',
       to: '/profile',
@@ -185,6 +192,12 @@ const ADMIN_ITEMS: ManageItem[] = [
     description: 'Manage MCP servers shared across every workspace.',
     to: '/admin/global-mcp-servers',
     icon: ShieldCheck,
+  },
+  {
+    title: 'Git hosts',
+    description: 'Manage the platform allowlist of Git hosts for repository bindings.',
+    to: '/admin/git-hosts',
+    icon: GitBranch,
   },
 ]
 

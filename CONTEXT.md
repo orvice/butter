@@ -24,8 +24,12 @@ _Avoid_: agent config
 **Effective Agent**:
 The runnable Agent produced by combining its operational configuration with the currently active Agent Content revision.
 
+**Git Host**:
+A platform-admin-configured Git service endpoint (GitHub, GitHub Enterprise, GitLab, or self-hosted GitLab) with a fixed API base URL. Workspaces bind repositories only on configured hosts; workspace input can never introduce an arbitrary URL.
+_Avoid_: git provider config, git server
+
 **Workspace Repository Binding**:
-The association between a Workspace and one repository location, consisting of a Git host, repository, branch, and root path. The binding determines where that workspace reads and writes Agent Content.
+The association between a Workspace and one repository location, consisting of a Git host, repository, branch, and root path. The binding determines where that workspace reads and writes Agent Content. Each binding owns an independently encrypted PAT that is write-only through the API (ADR-0005).
 
 **Observed Revision**:
 The most recent repository revision known to Butter, whether or not its Agent Content passed validation.

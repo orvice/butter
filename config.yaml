@@ -120,6 +120,13 @@ mcp_oauth:
   encryption_key: "0123456789abcdef0123456789abcdef"
   allow_insecure_http: true
 
+# Workspace repository bindings (issue #214). The key encrypts each
+# binding's Git PAT at rest; without it credentials cannot be set or
+# validated. Generate a unique 32-byte key for production; the value below
+# is a development placeholder.
+git:
+  encryption_key: "0123456789abcdef0123456789abcdef"
+
 # Langfuse observability (optional — disabled when keys are empty)
 langfuse:
   publicKey: ""       # LANGFUSE_PUBLIC_KEY

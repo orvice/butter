@@ -1,0 +1,207 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// WorkspaceRepoBinding associates a workspace with exactly zero or one
+// repository location on an administrator-configured GitHost (issue #214).
+// The binding stores where Agent Content will live (repository, branch, root
+// path), how Butter writes to it, and the last observed validation status.
+//
+// The PAT that authenticates the binding is intentionally NOT a field of this
+// message: it is encrypted at rest and handled through a separate repository
+// seam so plaintext credentials can never appear in API responses, logs, or
+// persisted public models. `credential_set` only reports whether one exists.
+//
+// Overlap between workspaces is allowed: two bindings resolving to the same
+// effective location intentionally share Agent Content. Overlaps are
+// surfaced, not prevented.
+// =============================================================================
+
+// RepoBindingWriteMode selects how Butter lands changes on the repository.
+enum RepoBindingWriteMode {
+  REPO_BINDING_WRITE_MODE_UNSPECIFIED = 0;
+  // Commit directly to the bound branch (default).
+  REPO_BINDING_WRITE_MODE_DIRECT_COMMIT = 1;
+  // Open a Pull Request (GitHub) or Merge Request (GitLab) instead.
+  REPO_BINDING_WRITE_MODE_CHANGE_REQUEST = 2;
+}
+
+// RepoBindingConnectionState summarizes the last validation run.
+enum RepoBindingConnectionState {
+  REPO_BINDING_CONNECTION_STATE_UNSPECIFIED = 0;
+  // The current configuration has not been validated yet (new binding, or
+  // the binding/credential changed since the last validation).
+  REPO_BINDING_CONNECTION_STATE_UNVALIDATED = 1;
+  // All checks required by the selected write mode passed.
+  REPO_BINDING_CONNECTION_STATE_OK = 2;
+  // At least one required check failed.
+  REPO_BINDING_CONNECTION_STATE_FAILED = 3;
+}
+
+message WorkspaceRepoBinding {
+  // References the platform-configured GitHost the repository lives on.
+  // @gotags: json:"git_host_id,omitempty" yaml:"git_host_id,omitempty" bson:"git_host_id,omitempty"
+  string git_host_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Host-relative repository path: "owner/repo" on GitHub,
+  // "group[/subgroup]/project" on GitLab.
+  // @gotags: json:"repository,omitempty" yaml:"repository,omitempty" bson:"repository,omitempty"
+  string repository = 2 [(validate.rules).string.min_len = 1];
+
+  // Branch Agent Content is read from and written to.
+  // @gotags: json:"branch,omitempty" yaml:"branch,omitempty" bson:"branch,omitempty"
+  string branch = 3 [(validate.rules).string.min_len = 1];
+
+  // Repository-relative directory that contains the managed `agents/`
+  // subtree. Empty means the repository root. Never absolute, no traversal.
+  // @gotags: json:"root_path,omitempty" yaml:"root_path,omitempty" bson:"root_path,omitempty"
+  string root_path = 4;
+
+  // How Butter lands writes; defaults to DIRECT_COMMIT when unspecified.
+  // @gotags: json:"write_mode,omitempty" yaml:"write_mode,omitempty" bson:"write_mode,omitempty"
+  RepoBindingWriteMode write_mode = 5;
+
+  // Repository layout version for Agent Content. 1 is the only version today.
+  // @gotags: json:"content_schema_version,omitempty" yaml:"content_schema_version,omitempty" bson:"content_schema_version,omitempty"
+  int32 content_schema_version = 6;
+
+  // Whether an encrypted PAT is stored for this binding. Server-owned.
+  // @gotags: json:"credential_set,omitempty" yaml:"credential_set,omitempty" bson:"credential_set,omitempty"
+  bool credential_set = 7;
+
+  // When the PAT was last set or replaced. Server-owned.
+  // @gotags: json:"credential_updated_at,omitempty" yaml:"credential_updated_at,omitempty" bson:"credential_updated_at,omitempty"
+  google.protobuf.Timestamp credential_updated_at = 8;
+
+  // Result of the last validation run. Server-owned.
+  // @gotags: json:"status,omitempty" yaml:"status,omitempty" bson:"status,omitempty"
+  RepoBindingStatus status = 9;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 10;
+
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 11;
+
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// RepoBindingStatus is the persisted, credential-free result of the most
+// recent validation run.
+message RepoBindingStatus {
+  // @gotags: json:"state,omitempty" yaml:"state,omitempty" bson:"state,omitempty"
+  RepoBindingConnectionState state = 1;
+
+  // @gotags: json:"last_validated_at,omitempty" yaml:"last_validated_at,omitempty" bson:"last_validated_at,omitempty"
+  google.protobuf.Timestamp last_validated_at = 2;
+
+  // Sanitized failure summary. Never contains credential material.
+  // @gotags: json:"error,omitempty" yaml:"error,omitempty" bson:"error,omitempty"
+  string error = 3;
+
+  // Individual capability checks from the last run.
+  // @gotags: json:"checks,omitempty" yaml:"checks,omitempty" bson:"checks,omitempty"
+  repeated RepoBindingCheck checks = 4;
+}
+
+// RepoBindingCheck is one capability probe from a validation run. Check
+// names: "repository_read", "branch_exists", "write_capability",
+// "change_request_capability".
+message RepoBindingCheck {
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 1;
+
+  // @gotags: json:"ok,omitempty" yaml:"ok,omitempty" bson:"ok,omitempty"
+  bool ok = 2;
+
+  // Whether this check gates the OK state for the selected write mode.
+  // @gotags: json:"required,omitempty" yaml:"required,omitempty" bson:"required,omitempty"
+  bool required = 3;
+
+  // Human-readable, credential-free explanation.
+  // @gotags: json:"detail,omitempty" yaml:"detail,omitempty" bson:"detail,omitempty"
+  string detail = 4;
+}
+
+// RepoBindingOverlap identifies another workspace bound to the same effective
+// repository location (same host, repository, branch, and root path).
+message RepoBindingOverlap {
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 1;
+
+  // @gotags: json:"workspace_name,omitempty" yaml:"workspace_name,omitempty" bson:"workspace_name,omitempty"
+  string workspace_name = 2;
+}
+
+// WorkspaceRepoBindingService manages the current workspace's repository
+// binding. All RPCs derive the workspace from the X-Workspace-ID header.
+// Get is available to every workspace member; the mutating RPCs require the
+// caller to be a workspace owner or admin (global admins bypass).
+service WorkspaceRepoBindingService {
+  // GetWorkspaceRepoBinding returns the binding (unset when none exists)
+  // plus any overlapping bindings in other workspaces. Never returns
+  // credential material.
+  rpc GetWorkspaceRepoBinding(GetWorkspaceRepoBindingRequest) returns (GetWorkspaceRepoBindingResponse);
+
+  // PutWorkspaceRepoBinding creates or replaces the workspace's binding
+  // configuration. Server-owned fields (credential, status, timestamps) are
+  // ignored on input. Every Put resets status to UNVALIDATED: each binding
+  // field (including write mode) changes what validation must prove.
+  rpc PutWorkspaceRepoBinding(PutWorkspaceRepoBindingRequest) returns (PutWorkspaceRepoBindingResponse);
+
+  // DeleteWorkspaceRepoBinding removes the binding and its stored credential.
+  rpc DeleteWorkspaceRepoBinding(DeleteWorkspaceRepoBindingRequest) returns (DeleteWorkspaceRepoBindingResponse);
+
+  // SetWorkspaceRepoBindingCredential sets or replaces the binding's PAT.
+  // The PAT is write-only: it is encrypted before storage and never returned.
+  rpc SetWorkspaceRepoBindingCredential(SetWorkspaceRepoBindingCredentialRequest) returns (SetWorkspaceRepoBindingCredentialResponse);
+
+  // ValidateWorkspaceRepoBinding probes the repository with the stored
+  // credential (visibility/read, branch existence, write capability, PR/MR
+  // capability as required by the write mode), persists the outcome on the
+  // binding, and returns it.
+  rpc ValidateWorkspaceRepoBinding(ValidateWorkspaceRepoBindingRequest) returns (ValidateWorkspaceRepoBindingResponse);
+}
+
+message GetWorkspaceRepoBindingRequest {}
+
+message GetWorkspaceRepoBindingResponse {
+  // Unset when the workspace has no binding.
+  WorkspaceRepoBinding binding = 1;
+  repeated RepoBindingOverlap overlaps = 2;
+}
+
+message PutWorkspaceRepoBindingRequest {
+  WorkspaceRepoBinding binding = 1;
+}
+
+message PutWorkspaceRepoBindingResponse {
+  WorkspaceRepoBinding binding = 1;
+}
+
+message DeleteWorkspaceRepoBindingRequest {}
+
+message DeleteWorkspaceRepoBindingResponse {}
+
+message SetWorkspaceRepoBindingCredentialRequest {
+  // Personal access token, write-only. Encrypted at rest; never returned by
+  // any RPC and never written to logs or error details.
+  string pat = 1 [(validate.rules).string.min_len = 1];
+}
+
+message SetWorkspaceRepoBindingCredentialResponse {
+  WorkspaceRepoBinding binding = 1;
+}
+
+message ValidateWorkspaceRepoBindingRequest {}
+
+message ValidateWorkspaceRepoBindingResponse {
+  WorkspaceRepoBinding binding = 1;
+}

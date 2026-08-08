@@ -3243,6 +3243,62 @@ POST /api/agents.v1.APITokenService/RevokeAPIToken
 
 ---
 
+### GitHostService
+
+Platform-level allowlist of Git hosts that workspaces may bind repositories from (GitHub.com, GitHub Enterprise, GitLab.com, self-hosted GitLab). No `X-Workspace-ID` required. Reads are open to any authenticated user; mutations require the global `admin` role — workspace input can never introduce an arbitrary API base URL.
+
+| RPC | Path | Notes |
+|-----|------|-------|
+| `ListGitHosts` | `POST /api/agents.v1.GitHostService/ListGitHosts` | `{ "hosts": GitHost[] }`, sorted by name |
+| `GetGitHost` | `POST /api/agents.v1.GitHostService/GetGitHost` | `{ "id": "..." }` |
+| `CreateGitHost` | `POST /api/agents.v1.GitHostService/CreateGitHost` | Admin only; `id` is server-assigned |
+| `UpdateGitHost` | `POST /api/agents.v1.GitHostService/UpdateGitHost` | Admin only |
+| `DeleteGitHost` | `POST /api/agents.v1.GitHostService/DeleteGitHost` | Admin only |
+
+`GitHost` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Server-assigned UUID |
+| `name` | string | Display name, e.g. `"GitHub.com"` |
+| `kind` | enum | `GIT_HOST_KIND_GITHUB` or `GIT_HOST_KIND_GITLAB` |
+| `api_base_url` | string | Full API root, e.g. `https://api.github.com`, `https://ghe.example.com/api/v3`, `https://gitlab.com/api/v4` |
+| `web_base_url` | string | Optional web UI base for dashboard links |
+
+---
+
+### WorkspaceRepoBindingService
+
+Manages the current workspace's repository binding (zero or one per workspace). Requires `X-Workspace-ID`. `GetWorkspaceRepoBinding` is available to every workspace member; the mutating RPCs require the workspace `owner` or `admin` role (global admins bypass, audited). The PAT is write-only: it is encrypted at rest (`git.encryption_key` server config) and never returned by any RPC.
+
+| RPC | Path | Notes |
+|-----|------|-------|
+| `GetWorkspaceRepoBinding` | `POST /api/agents.v1.WorkspaceRepoBindingService/GetWorkspaceRepoBinding` | `{ "binding": WorkspaceRepoBinding?, "overlaps": RepoBindingOverlap[] }`; `binding` is unset when none exists |
+| `PutWorkspaceRepoBinding` | `POST /api/agents.v1.WorkspaceRepoBindingService/PutWorkspaceRepoBinding` | Creates or replaces the binding; server-owned fields on input are ignored and the status resets to `UNVALIDATED` |
+| `DeleteWorkspaceRepoBinding` | `POST /api/agents.v1.WorkspaceRepoBindingService/DeleteWorkspaceRepoBinding` | Removes the binding and its stored credential |
+| `SetWorkspaceRepoBindingCredential` | `POST /api/agents.v1.WorkspaceRepoBindingService/SetWorkspaceRepoBindingCredential` | `{ "pat": "..." }` — write-only; resets status to `UNVALIDATED` |
+| `ValidateWorkspaceRepoBinding` | `POST /api/agents.v1.WorkspaceRepoBindingService/ValidateWorkspaceRepoBinding` | Probes the repository with the stored credential and persists the outcome |
+
+`WorkspaceRepoBinding` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `git_host_id` | string | References a configured GitHost |
+| `repository` | string | `owner/repo` (GitHub) or `group[/subgroup]/project` (GitLab) |
+| `branch` | string | Bound branch |
+| `root_path` | string | Repository-relative directory holding the managed `agents/` subtree; empty = repo root |
+| `write_mode` | enum | `REPO_BINDING_WRITE_MODE_DIRECT_COMMIT` (default) or `REPO_BINDING_WRITE_MODE_CHANGE_REQUEST` (PR/MR) |
+| `content_schema_version` | int | Repository layout version; `1` |
+| `credential_set` | bool | Whether an encrypted PAT is stored (server-owned) |
+| `credential_updated_at` | timestamp | When the PAT was last set/replaced (server-owned) |
+| `status` | RepoBindingStatus | Last validation outcome (server-owned) |
+
+`RepoBindingStatus.state` is `UNVALIDATED` / `OK` / `FAILED`; `checks[]` reports the individual probes (`repository_read`, `branch_exists`, `write_capability`, `change_request_capability`) with `ok`, `required`, and a credential-free `detail`. Validation requirements follow the write mode: read, branch, and write capability always gate; change-request capability gates only in `CHANGE_REQUEST` mode.
+
+`overlaps[]` lists other workspaces bound to the same effective location (same host, repository, branch, and root path). Overlap is allowed and means those workspaces intentionally share Agent Content.
+
+---
+
 ## Error Handling
 
 RPC endpoints return errors in the standard Connect envelope:
