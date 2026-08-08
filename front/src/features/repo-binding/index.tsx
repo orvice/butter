@@ -126,6 +126,14 @@ const STATE_PALETTE: Record<
     cls: 'bg-danger-muted text-danger-foreground',
     label: 'Failed',
   },
+  [RepoBindingConnectionState.DEGRADED]: {
+    cls: 'bg-warning-muted text-warning-foreground',
+    label: 'Degraded',
+  },
+  [RepoBindingConnectionState.DIVERGED]: {
+    cls: 'bg-warning-muted text-warning-foreground',
+    label: 'Diverged',
+  },
 }
 
 function ConnectionStateBadge({ state }: { state: RepoBindingConnectionState }) {
