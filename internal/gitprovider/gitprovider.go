@@ -82,6 +82,29 @@ type CommitComparison struct {
 	Status string
 }
 
+// FileAction describes a single file change within a multi-file commit.
+type FileAction struct {
+	Path    string
+	Content []byte // file content for puts; nil for deletes
+	Delete  bool
+}
+
+// CommitResult is returned after a successful multi-file commit.
+type CommitResult struct {
+	SHA string
+}
+
+// ChangeRequestResult describes a newly opened Pull Request or Merge Request.
+type ChangeRequestResult struct {
+	ID    int
+	URL   string
+	Title string
+}
+
+// ErrConflict means the branch HEAD moved past the expected parent SHA
+// between the caller's read and the attempted write.
+var ErrConflict = errors.New("git provider: conflict")
+
 // Client is the per-binding handle onto one repository at one host.
 type Client interface {
 	// GetRepository fetches repository metadata and effective capabilities.
@@ -98,6 +121,21 @@ type Client interface {
 	// returned status is "ahead" (head descends from base), "behind",
 	// "diverged", or "identical".
 	CompareCommits(ctx context.Context, base, head string) (*CommitComparison, error)
+
+	// CreateCommit atomically applies file actions and commits to the named
+	// branch. parentSHA is the expected current HEAD; the provider rejects
+	// the update if the branch has moved (ErrConflict). Paths are
+	// repo-relative (the caller prepends root_path).
+	CreateCommit(ctx context.Context, branch, parentSHA, message string, actions []FileAction) (*CommitResult, error)
+	// CreateBranch creates a new branch pointing at the given commit SHA.
+	CreateBranch(ctx context.Context, branch, sha string) error
+	// DeleteBranch removes a branch. It is used to clean up a work branch
+	// when opening a change request fails after the branch was created;
+	// deleting an already-absent branch is not treated as an error.
+	DeleteBranch(ctx context.Context, branch string) error
+	// CreateChangeRequest opens a Pull Request (GitHub) or Merge Request
+	// (GitLab) from source to target branch and returns its metadata.
+	CreateChangeRequest(ctx context.Context, source, target, title, description string) (*ChangeRequestResult, error)
 }
 
 // Config assembles a Client. Token is held in memory only for the lifetime

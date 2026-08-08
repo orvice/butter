@@ -1,6 +1,7 @@
 package gitprovider
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -169,6 +170,139 @@ func (c *gitlabClient) CompareCommits(ctx context.Context, base, head string) (*
 		return &CommitComparison{Status: "ahead"}, nil
 	}
 	return &CommitComparison{Status: "diverged"}, nil
+}
+
+func (c *gitlabClient) post(ctx context.Context, path string, body any, out any) (int, error) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return 0, fmt.Errorf("marshal request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(payload))
+	if err != nil {
+		return 0, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("gitlab request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return resp.StatusCode, statusError(resp.StatusCode)
+	}
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return resp.StatusCode, fmt.Errorf("decode gitlab response: %w", err)
+		}
+	}
+	return resp.StatusCode, nil
+}
+
+// CreateCommit commits actions onto branch. Unlike the GitHub adapter — which
+// performs a true compare-and-swap on the ref and returns ErrConflict when the
+// branch moved — GitLab's Commits API commits onto the branch tip and only
+// honours start_sha when creating a new branch, so for an existing branch it
+// has last-write-wins semantics with no server-side conflict check. parentSHA
+// is still used to probe create-vs-update per file; ErrConflict is surfaced
+// only if GitLab reports a 409.
+func (c *gitlabClient) CreateCommit(ctx context.Context, branch, parentSHA, message string, actions []FileAction) (*CommitResult, error) {
+	type commitAction struct {
+		Action   string `json:"action"`
+		FilePath string `json:"file_path"`
+		Content  string `json:"content,omitempty"`
+		Encoding string `json:"encoding,omitempty"`
+	}
+	var commitActions []commitAction
+	for _, a := range actions {
+		if a.Delete {
+			commitActions = append(commitActions, commitAction{
+				Action:   "delete",
+				FilePath: a.Path,
+			})
+			continue
+		}
+		// GitLab requires different action types for new vs existing files.
+		// Probe the file at parentSHA to decide.
+		action := "create"
+		if _, err := c.GetBlob(ctx, parentSHA, a.Path); err == nil {
+			action = "update"
+		}
+		commitActions = append(commitActions, commitAction{
+			Action:   action,
+			FilePath: a.Path,
+			Content:  base64.StdEncoding.EncodeToString(a.Content),
+			Encoding: "base64",
+		})
+	}
+
+	var result struct {
+		ID string `json:"id"`
+	}
+	body := map[string]interface{}{
+		"branch":         branch,
+		"commit_message": message,
+		"start_sha":      parentSHA,
+		"actions":        commitActions,
+	}
+	status, err := c.post(ctx, c.projectPath()+"/repository/commits", body, &result)
+	if err != nil {
+		if status == http.StatusConflict {
+			return nil, ErrConflict
+		}
+		return nil, fmt.Errorf("create commit: %w", err)
+	}
+	return &CommitResult{SHA: result.ID}, nil
+}
+
+func (c *gitlabClient) CreateBranch(ctx context.Context, branch, sha string) error {
+	_, err := c.post(ctx, c.projectPath()+"/repository/branches", map[string]string{
+		"branch": branch,
+		"ref":    sha,
+	}, nil)
+	if err != nil {
+		return fmt.Errorf("create branch: %w", err)
+	}
+	return nil
+}
+
+func (c *gitlabClient) DeleteBranch(ctx context.Context, branch string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		c.base+c.projectPath()+"/repository/branches/"+url.PathEscape(branch), nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("gitlab request: %w", err)
+	}
+	defer resp.Body.Close()
+	// A missing branch (already gone) is a success for cleanup purposes.
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return statusError(resp.StatusCode)
+	}
+	return nil
+}
+
+func (c *gitlabClient) CreateChangeRequest(ctx context.Context, source, target, title, description string) (*ChangeRequestResult, error) {
+	var mr struct {
+		IID    int    `json:"iid"`
+		WebURL string `json:"web_url"`
+		Title  string `json:"title"`
+	}
+	if _, err := c.post(ctx, c.projectPath()+"/merge_requests", map[string]string{
+		"source_branch": source,
+		"target_branch": target,
+		"title":         title,
+		"description":   description,
+	}, &mr); err != nil {
+		return nil, fmt.Errorf("create merge request: %w", err)
+	}
+	return &ChangeRequestResult{ID: mr.IID, URL: mr.WebURL, Title: mr.Title}, nil
 }
 
 func (c *gitlabClient) GetBlob(ctx context.Context, ref, path string) ([]byte, error) {

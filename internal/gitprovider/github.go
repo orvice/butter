@@ -1,6 +1,7 @@
 package gitprovider
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -202,6 +203,188 @@ func (c *githubClient) CompareCommits(ctx context.Context, base, head string) (*
 		return nil, err
 	}
 	return &CommitComparison{Status: body.Status}, nil
+}
+
+func (c *githubClient) post(ctx context.Context, path string, body any, out any) (int, error) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return 0, fmt.Errorf("marshal request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(payload))
+	if err != nil {
+		return 0, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("github request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return resp.StatusCode, statusError(resp.StatusCode)
+	}
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return resp.StatusCode, fmt.Errorf("decode github response: %w", err)
+		}
+	}
+	return resp.StatusCode, nil
+}
+
+func (c *githubClient) patch(ctx context.Context, path string, body any) (int, error) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return 0, fmt.Errorf("marshal request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.base+path, bytes.NewReader(payload))
+	if err != nil {
+		return 0, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("github request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return resp.StatusCode, statusError(resp.StatusCode)
+	}
+	return resp.StatusCode, nil
+}
+
+func (c *githubClient) CreateCommit(ctx context.Context, branch, parentSHA, message string, actions []FileAction) (*CommitResult, error) {
+	// Build tree entries. For PUTs, create blobs first; for DELETEs, set sha to nil.
+	type treeEntry struct {
+		Path string      `json:"path"`
+		Mode string      `json:"mode"`
+		Type string      `json:"type"`
+		SHA  interface{} `json:"sha"` // string for blobs, nil for deletes
+	}
+	var entries []treeEntry
+	for _, a := range actions {
+		if a.Delete {
+			entries = append(entries, treeEntry{
+				Path: a.Path, Mode: "100644", Type: "blob", SHA: nil,
+			})
+			continue
+		}
+		var blob struct {
+			SHA string `json:"sha"`
+		}
+		if _, err := c.post(ctx, "/repos/"+c.repo+"/git/blobs", map[string]string{
+			"content":  base64.StdEncoding.EncodeToString(a.Content),
+			"encoding": "base64",
+		}, &blob); err != nil {
+			return nil, fmt.Errorf("create blob for %s: %w", a.Path, err)
+		}
+		entries = append(entries, treeEntry{
+			Path: a.Path, Mode: "100644", Type: "blob", SHA: blob.SHA,
+		})
+	}
+
+	// Get the tree SHA of the parent commit.
+	var parentCommit struct {
+		Tree struct {
+			SHA string `json:"sha"`
+		} `json:"tree"`
+	}
+	if err := c.get(ctx, "/repos/"+c.repo+"/git/commits/"+parentSHA, &parentCommit); err != nil {
+		return nil, fmt.Errorf("get parent commit: %w", err)
+	}
+
+	// Create the new tree with base_tree for incremental update.
+	var newTree struct {
+		SHA string `json:"sha"`
+	}
+	if _, err := c.post(ctx, "/repos/"+c.repo+"/git/trees", map[string]interface{}{
+		"base_tree": parentCommit.Tree.SHA,
+		"tree":      entries,
+	}, &newTree); err != nil {
+		return nil, fmt.Errorf("create tree: %w", err)
+	}
+
+	// Create the commit.
+	var commitObj struct {
+		SHA string `json:"sha"`
+	}
+	if _, err := c.post(ctx, "/repos/"+c.repo+"/git/commits", map[string]interface{}{
+		"message": message,
+		"tree":    newTree.SHA,
+		"parents": []string{parentSHA},
+	}, &commitObj); err != nil {
+		return nil, fmt.Errorf("create commit: %w", err)
+	}
+
+	// Update the branch ref. GitHub returns 422 if the update is not fast-forward.
+	status, err := c.patch(ctx, "/repos/"+c.repo+"/git/refs/heads/"+url.PathEscape(branch), map[string]interface{}{
+		"sha":   commitObj.SHA,
+		"force": false,
+	})
+	if err != nil {
+		if status == http.StatusUnprocessableEntity {
+			return nil, ErrConflict
+		}
+		return nil, fmt.Errorf("update ref: %w", err)
+	}
+	return &CommitResult{SHA: commitObj.SHA}, nil
+}
+
+func (c *githubClient) CreateBranch(ctx context.Context, branch, sha string) error {
+	_, err := c.post(ctx, "/repos/"+c.repo+"/git/refs", map[string]string{
+		"ref": "refs/heads/" + branch,
+		"sha": sha,
+	}, nil)
+	if err != nil {
+		return fmt.Errorf("create branch: %w", err)
+	}
+	return nil
+}
+
+func (c *githubClient) DeleteBranch(ctx context.Context, branch string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		c.base+"/repos/"+c.repo+"/git/refs/heads/"+url.PathEscape(branch), nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("github request: %w", err)
+	}
+	defer resp.Body.Close()
+	// A missing ref (already gone) is a success for cleanup purposes.
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return statusError(resp.StatusCode)
+	}
+	return nil
+}
+
+func (c *githubClient) CreateChangeRequest(ctx context.Context, source, target, title, description string) (*ChangeRequestResult, error) {
+	var pr struct {
+		Number  int    `json:"number"`
+		HTMLURL string `json:"html_url"`
+		Title   string `json:"title"`
+	}
+	if _, err := c.post(ctx, "/repos/"+c.repo+"/pulls", map[string]string{
+		"title": title,
+		"body":  description,
+		"head":  source,
+		"base":  target,
+	}, &pr); err != nil {
+		return nil, fmt.Errorf("create pull request: %w", err)
+	}
+	return &ChangeRequestResult{ID: pr.Number, URL: pr.HTMLURL, Title: pr.Title}, nil
 }
 
 func (c *githubClient) GetBlob(ctx context.Context, ref, path string) ([]byte, error) {

@@ -11,7 +11,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -48,6 +50,31 @@ type fakeProviderClient struct {
 	treeErr     error
 	blobErr     error
 	comparisons map[string]string // keyed by "base...head" → status
+
+	// Write operation state
+	mu                sync.Mutex
+	commits           []fakeCommit
+	createdBranches   map[string]string // branch → sha
+	deletedBranches   []string
+	createdCRs        []fakeChangeRequest
+	commitErr         error
+	createBranchErr   error
+	deleteBranchErr   error
+	createCRErr       error
+}
+
+type fakeCommit struct {
+	branch    string
+	parentSHA string
+	message   string
+	actions   []gitprovider.FileAction
+	sha       string
+}
+
+type fakeChangeRequest struct {
+	source string
+	target string
+	title  string
 }
 
 func (f *fakeProviderClient) GetRepository(context.Context) (*gitprovider.Repository, error) {
@@ -102,6 +129,66 @@ func (f *fakeProviderClient) CompareCommits(_ context.Context, base, head string
 		}
 	}
 	return &gitprovider.CommitComparison{Status: "ahead"}, nil
+}
+
+func (f *fakeProviderClient) CreateCommit(_ context.Context, branch, parentSHA, message string, actions []gitprovider.FileAction) (*gitprovider.CommitResult, error) {
+	if f.commitErr != nil {
+		return nil, f.commitErr
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	sha := fmt.Sprintf("commit-%d", len(f.commits)+1)
+	fc := fakeCommit{
+		branch:    branch,
+		parentSHA: parentSHA,
+		message:   message,
+		actions:   actions,
+		sha:       sha,
+	}
+	f.commits = append(f.commits, fc)
+	f.branches[branch] = sha
+	return &gitprovider.CommitResult{SHA: sha}, nil
+}
+
+func (f *fakeProviderClient) CreateBranch(_ context.Context, branch, sha string) error {
+	if f.createBranchErr != nil {
+		return f.createBranchErr
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.createdBranches == nil {
+		f.createdBranches = make(map[string]string)
+	}
+	f.createdBranches[branch] = sha
+	f.branches[branch] = sha
+	return nil
+}
+
+func (f *fakeProviderClient) DeleteBranch(_ context.Context, branch string) error {
+	if f.deleteBranchErr != nil {
+		return f.deleteBranchErr
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deletedBranches = append(f.deletedBranches, branch)
+	delete(f.createdBranches, branch)
+	delete(f.branches, branch)
+	return nil
+}
+
+func (f *fakeProviderClient) CreateChangeRequest(_ context.Context, source, target, title, description string) (*gitprovider.ChangeRequestResult, error) {
+	if f.createCRErr != nil {
+		return nil, f.createCRErr
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.createdCRs = append(f.createdCRs, fakeChangeRequest{source: source, target: target, title: title})
+	id := len(f.createdCRs)
+	return &gitprovider.ChangeRequestResult{
+		ID:    id,
+		URL:   fmt.Sprintf("https://github.com/acme/agents/pull/%d", id),
+		Title: title,
+	}, nil
 }
 
 type bindingFixture struct {
@@ -1532,4 +1619,543 @@ func TestTriggerSyncAndPublish(t *testing.T) {
 	if binding.GetActiveCommitSha() != "abc123" {
 		t.Fatalf("active_commit_sha = %q, want abc123", binding.GetActiveCommitSha())
 	}
+}
+
+// ── Agent Content editing tests (issue #217) ────────────────────────────
+
+func newContentEditFixture(t *testing.T) (*bindingFixture, *fakeConfigRuntime) {
+	t.Helper()
+	fx, rt := newPublicationFixture(t)
+	// Sync first so there's active content.
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("initial sync: %v", err)
+	}
+	return fx, rt
+}
+
+func TestCommitAgentContentDirectCommit(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "Updated instruction.",
+			},
+		},
+		Message:      "update my-agent prompt",
+		BaseRevision: "abc123",
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+	if resp.Msg.GetCommitSha() == "" {
+		t.Fatal("expected non-empty commit SHA")
+	}
+	if resp.Msg.GetChangeRequestUrl() != "" {
+		t.Fatalf("unexpected change request URL for direct commit: %q", resp.Msg.GetChangeRequestUrl())
+	}
+	if len(resp.Msg.GetValidationErrors()) > 0 {
+		t.Fatalf("unexpected validation errors: %v", resp.Msg.GetValidationErrors())
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	if len(fx.fake.commits) == 0 {
+		t.Fatal("no commit recorded")
+	}
+	lastCommit := fx.fake.commits[len(fx.fake.commits)-1]
+	if !strings.Contains(lastCommit.message, "update my-agent prompt") {
+		t.Errorf("commit message = %q", lastCommit.message)
+	}
+}
+
+func TestCommitAgentContentAuditMetadata(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/description.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "New description.",
+			},
+		},
+		BaseRevision: "old-sha-123",
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	lastCommit := fx.fake.commits[len(fx.fake.commits)-1]
+	if !strings.Contains(lastCommit.message, "Butter-Actor: owner-user") {
+		t.Errorf("commit message missing actor: %q", lastCommit.message)
+	}
+	if !strings.Contains(lastCommit.message, "Butter-Workspace: ws-a") {
+		t.Errorf("commit message missing workspace: %q", lastCommit.message)
+	}
+	if !strings.Contains(lastCommit.message, "Butter-Operation: commit") {
+		t.Errorf("commit message missing operation: %q", lastCommit.message)
+	}
+	if !strings.Contains(lastCommit.message, "Butter-Base-SHA: old-sha-123") {
+		t.Errorf("commit message missing base SHA: %q", lastCommit.message)
+	}
+	_ = resp
+}
+
+func TestCommitAgentContentDeleteAction(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/description.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_DELETE,
+			},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+	if resp.Msg.GetCommitSha() == "" {
+		t.Fatal("expected non-empty commit SHA")
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	lastCommit := fx.fake.commits[len(fx.fake.commits)-1]
+	foundDelete := false
+	for _, a := range lastCommit.actions {
+		if a.Delete && strings.HasSuffix(a.Path, "agents/my-agent/description.md") {
+			foundDelete = true
+		}
+	}
+	if !foundDelete {
+		t.Fatal("expected a delete action for description.md")
+	}
+}
+
+func TestCommitAgentContentMultipleActions(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "New prompt.",
+			},
+			{
+				Path:      "agents/my-agent/description.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "New description.",
+			},
+			{
+				Path:      "agents/my-agent/global-prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_DELETE,
+			},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+	if resp.Msg.GetCommitSha() == "" {
+		t.Fatal("expected commit SHA")
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	lastCommit := fx.fake.commits[len(fx.fake.commits)-1]
+	if len(lastCommit.actions) != 3 {
+		t.Fatalf("expected 3 actions, got %d", len(lastCommit.actions))
+	}
+}
+
+func TestCommitAgentContentPermissions(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+	actions := []*agentsv1.ContentFileAction{
+		{
+			Path:      "agents/my-agent/prompt.md",
+			Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+			Content:   "test.",
+		},
+	}
+
+	// Members cannot commit.
+	_, err := fx.svc.CommitAgentContent(memberCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: actions,
+	}))
+	wantCode(t, err, connect.CodePermissionDenied)
+
+	// Admins can commit.
+	_, err = fx.svc.CommitAgentContent(wsAdminCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: actions,
+	}))
+	if err != nil {
+		t.Fatalf("admin commit: %v", err)
+	}
+}
+
+func TestCommitAgentContentPathValidation(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"outside agents subtree", "config/settings.md"},
+		{"not markdown", "agents/my-agent/config.yaml"},
+		{"path traversal", "agents/../etc/passwd.md"},
+		{"absolute path", "/agents/my-agent/prompt.md"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+				Actions: []*agentsv1.ContentFileAction{
+					{
+						Path:      tc.path,
+						Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+						Content:   "test",
+					},
+				},
+			}))
+			wantCode(t, err, connect.CodeInvalidArgument)
+		})
+	}
+}
+
+func TestCommitAgentContentValidationErrors(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	// Deleting prompt.md from an LLM agent should cause validation failure.
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_DELETE,
+			},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+	if len(resp.Msg.GetValidationErrors()) == 0 {
+		t.Fatal("expected validation errors for deleting LLM agent prompt")
+	}
+	if resp.Msg.GetCommitSha() != "" {
+		t.Fatal("commit SHA should be empty when validation fails")
+	}
+}
+
+func TestCommitAgentContentChangeRequestMode(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	// Switch binding to CHANGE_REQUEST mode.
+	b := validBinding()
+	b.WriteMode = agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{
+		Binding: b,
+	})); err != nil {
+		t.Fatalf("Put binding: %v", err)
+	}
+	setCredential(t, fx, ownerCtx())
+	// Re-sync to populate the cache.
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "Updated prompt.",
+			},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+	if resp.Msg.GetChangeRequestUrl() == "" {
+		t.Fatal("expected change request URL for CHANGE_REQUEST mode")
+	}
+	if resp.Msg.GetCommitSha() == "" {
+		t.Fatal("expected commit SHA")
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	if len(fx.fake.createdCRs) == 0 {
+		t.Fatal("no change request was created")
+	}
+	cr := fx.fake.createdCRs[0]
+	if !strings.HasPrefix(cr.source, "butter/content-") {
+		t.Errorf("branch name = %q, expected butter/content- prefix", cr.source)
+	}
+	if cr.target != "main" {
+		t.Errorf("target branch = %q, expected main", cr.target)
+	}
+}
+
+// When the change request fails to open after the work branch and commit were
+// created, the work branch must be cleaned up so retries do not accumulate
+// orphaned branches.
+func TestCommitAgentContentChangeRequestCleanupOnFailure(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	b := validBinding()
+	b.WriteMode = agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{
+		Binding: b,
+	})); err != nil {
+		t.Fatalf("Put binding: %v", err)
+	}
+	setCredential(t, fx, ownerCtx())
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	fx.fake.createCRErr = errors.New("boom: change request rejected")
+
+	_, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "Updated prompt.",
+			},
+		},
+	}))
+	if err == nil {
+		t.Fatal("expected error when change request fails to open")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	// The commit was created on a work branch; that branch must have been
+	// deleted, and no branch should remain behind.
+	if len(fx.fake.deletedBranches) != 1 {
+		t.Fatalf("deleted branches = %v, want exactly one cleanup", fx.fake.deletedBranches)
+	}
+	deleted := fx.fake.deletedBranches[0]
+	if !strings.HasPrefix(deleted, "butter/content-") {
+		t.Errorf("deleted branch = %q, expected butter/content- prefix", deleted)
+	}
+	if _, stillThere := fx.fake.createdBranches[deleted]; stillThere {
+		t.Errorf("work branch %q was not removed from created set", deleted)
+	}
+}
+
+func TestCommitAgentContentWithRootPath(t *testing.T) {
+	fx := newSyncFixtureWithRoot(t, "content")
+	fx.svc.SetContentRepo(agentcontentmemory.New())
+	fx.svc.SetConfigRuntime(&fakeConfigRuntime{})
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "Updated prompt.",
+			},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+	if resp.Msg.GetCommitSha() == "" {
+		t.Fatal("expected commit SHA")
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	lastCommit := fx.fake.commits[len(fx.fake.commits)-1]
+	for _, a := range lastCommit.actions {
+		if !strings.HasPrefix(a.Path, "content/") {
+			t.Errorf("action path %q should be prefixed with root_path", a.Path)
+		}
+	}
+}
+
+func TestCommitAgentContentLastWriteWins(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	// Move branch head to simulate concurrent change.
+	fx.fake.branches["main"] = "concurrent-sha-999"
+
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "Updated prompt.",
+			},
+		},
+		BaseRevision: "abc123",
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+
+	// The commit should have been made against the latest HEAD, not the
+	// stale base revision.
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	lastCommit := fx.fake.commits[len(fx.fake.commits)-1]
+	if lastCommit.parentSHA != "concurrent-sha-999" {
+		t.Fatalf("parent SHA = %q, want concurrent-sha-999 (last-write-wins)", lastCommit.parentSHA)
+	}
+	_ = resp
+}
+
+func TestCommitAgentContentFileSizeLimit(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+	fx.svc.SetCacheLimitsProvider(func() (int64, int64) { return 100, 1024 * 1024 })
+
+	bigContent := strings.Repeat("A", 200)
+	_, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   bigContent,
+			},
+		},
+	}))
+	wantCode(t, err, connect.CodeInvalidArgument)
+}
+
+func TestCommitAgentContentEmptyActions(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	_, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{}))
+	wantCode(t, err, connect.CodeInvalidArgument)
+}
+
+// ── Rollback tests (issue #217) ─────────────────────────────────────────
+
+func TestRollbackAgentContent(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	// Set up a target revision with content.
+	targetSHA := "rollback-target-sha"
+	fx.fake.trees[targetSHA+":"] = []gitprovider.TreeEntry{
+		{Path: "agents", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agents"},
+		{Path: "agents/my-agent", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-my-agent"},
+		{Path: "agents/my-agent/prompt.md", Kind: gitprovider.TreeEntryFile, Size: 20, SHA: "blob-old-prompt"},
+		{Path: "agents/my-agent/description.md", Kind: gitprovider.TreeEntryFile, Size: 15, SHA: "blob-old-desc"},
+	}
+	fx.fake.blobs[targetSHA+":agents/my-agent/prompt.md"] = []byte("Old prompt content.")
+	fx.fake.blobs[targetSHA+":agents/my-agent/description.md"] = []byte("Old description.")
+
+	resp, err := fx.svc.RollbackAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.RollbackAgentContentRequest{
+		TargetCommitSha: targetSHA,
+	}))
+	if err != nil {
+		t.Fatalf("RollbackAgentContent: %v", err)
+	}
+	if resp.Msg.GetCommitSha() == "" {
+		t.Fatal("expected non-empty commit SHA")
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	if len(fx.fake.commits) == 0 {
+		t.Fatal("no commit recorded")
+	}
+	lastCommit := fx.fake.commits[len(fx.fake.commits)-1]
+	if !strings.Contains(lastCommit.message, "Rollback") {
+		t.Errorf("commit message = %q", lastCommit.message)
+	}
+	if !strings.Contains(lastCommit.message, "Butter-Operation: rollback") {
+		t.Errorf("commit message missing rollback operation: %q", lastCommit.message)
+	}
+	if !strings.Contains(lastCommit.message, targetSHA[:12]) {
+		t.Errorf("commit message missing target SHA: %q", lastCommit.message)
+	}
+}
+
+func TestRollbackAgentContentPermissions(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	_, err := fx.svc.RollbackAgentContent(memberCtx(), connect.NewRequest(&agentsv1.RollbackAgentContentRequest{
+		TargetCommitSha: "any-sha",
+	}))
+	wantCode(t, err, connect.CodePermissionDenied)
+}
+
+func TestRollbackAgentContentMissingTarget(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	_, err := fx.svc.RollbackAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.RollbackAgentContentRequest{}))
+	wantCode(t, err, connect.CodeInvalidArgument)
+}
+
+func TestRollbackAgentContentChangeRequestMode(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	// Switch to CHANGE_REQUEST mode.
+	b := validBinding()
+	b.WriteMode = agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{
+		Binding: b,
+	})); err != nil {
+		t.Fatalf("Put binding: %v", err)
+	}
+	setCredential(t, fx, ownerCtx())
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	targetSHA := "rollback-target"
+	fx.fake.trees[targetSHA+":"] = []gitprovider.TreeEntry{
+		{Path: "agents/my-agent", Kind: gitprovider.TreeEntryDirectory, SHA: "tree-agent"},
+		{Path: "agents/my-agent/prompt.md", Kind: gitprovider.TreeEntryFile, Size: 10, SHA: "blob-p"},
+	}
+	fx.fake.blobs[targetSHA+":agents/my-agent/prompt.md"] = []byte("Old prompt.")
+
+	resp, err := fx.svc.RollbackAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.RollbackAgentContentRequest{
+		TargetCommitSha: targetSHA,
+	}))
+	if err != nil {
+		t.Fatalf("RollbackAgentContent: %v", err)
+	}
+	if resp.Msg.GetChangeRequestUrl() == "" {
+		t.Fatal("expected change request URL for rollback in CR mode")
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	if len(fx.fake.createdCRs) == 0 {
+		t.Fatal("no change request was created")
+	}
+	cr := fx.fake.createdCRs[0]
+	if !strings.HasPrefix(cr.source, "butter/rollback-") {
+		t.Errorf("branch name = %q, expected butter/rollback- prefix", cr.source)
+	}
+}
+
+func TestRollbackNoContent(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	targetSHA := "empty-target"
+	fx.fake.trees[targetSHA+":"] = []gitprovider.TreeEntry{
+		{Path: "readme.md", Kind: gitprovider.TreeEntryFile, Size: 10, SHA: "blob-readme"},
+	}
+	fx.fake.blobs[targetSHA+":readme.md"] = []byte("# README")
+
+	_, err := fx.svc.RollbackAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.RollbackAgentContentRequest{
+		TargetCommitSha: targetSHA,
+	}))
+	wantCode(t, err, connect.CodeFailedPrecondition)
 }

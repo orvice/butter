@@ -70,6 +70,12 @@ const (
 	// WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure is the fully-qualified name of the
 	// WorkspaceRepoBindingService's AcceptRepositoryBaseline RPC.
 	WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure = "/agents.v1.WorkspaceRepoBindingService/AcceptRepositoryBaseline"
+	// WorkspaceRepoBindingServiceCommitAgentContentProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's CommitAgentContent RPC.
+	WorkspaceRepoBindingServiceCommitAgentContentProcedure = "/agents.v1.WorkspaceRepoBindingService/CommitAgentContent"
+	// WorkspaceRepoBindingServiceRollbackAgentContentProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's RollbackAgentContent RPC.
+	WorkspaceRepoBindingServiceRollbackAgentContentProcedure = "/agents.v1.WorkspaceRepoBindingService/RollbackAgentContent"
 )
 
 // WorkspaceRepoBindingServiceClient is a client for the agents.v1.WorkspaceRepoBindingService
@@ -118,6 +124,17 @@ type WorkspaceRepoBindingServiceClient interface {
 	// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
 	// new baseline, re-syncs and publishes. Requires owner/admin role.
 	AcceptRepositoryBaseline(context.Context, *connect.Request[v1.AcceptRepositoryBaselineRequest]) (*connect.Response[v1.AcceptRepositoryBaselineResponse], error)
+	// CommitAgentContent applies a changeset of PUT and DELETE operations to
+	// managed Agent Content paths and produces a single Git commit. In
+	// DIRECT_COMMIT mode the commit lands on the bound branch; in
+	// CHANGE_REQUEST mode a PR/MR is opened instead. Content is validated
+	// before the commit is created. Requires owner/admin role.
+	CommitAgentContent(context.Context, *connect.Request[v1.CommitAgentContentRequest]) (*connect.Response[v1.CommitAgentContentResponse], error)
+	// RollbackAgentContent restores managed Agent Content from a previously
+	// published revision in a new Git commit. The target revision's content
+	// is read from Git, validated, and committed to the bound branch (or a
+	// PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
+	RollbackAgentContent(context.Context, *connect.Request[v1.RollbackAgentContentRequest]) (*connect.Response[v1.RollbackAgentContentResponse], error)
 }
 
 // NewWorkspaceRepoBindingServiceClient constructs a client for the
@@ -203,6 +220,18 @@ func NewWorkspaceRepoBindingServiceClient(httpClient connect.HTTPClient, baseURL
 			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("AcceptRepositoryBaseline")),
 			connect.WithClientOptions(opts...),
 		),
+		commitAgentContent: connect.NewClient[v1.CommitAgentContentRequest, v1.CommitAgentContentResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceCommitAgentContentProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("CommitAgentContent")),
+			connect.WithClientOptions(opts...),
+		),
+		rollbackAgentContent: connect.NewClient[v1.RollbackAgentContentRequest, v1.RollbackAgentContentResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceRollbackAgentContentProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("RollbackAgentContent")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -220,6 +249,8 @@ type workspaceRepoBindingServiceClient struct {
 	publishWorkspaceRepository        *connect.Client[v1.PublishWorkspaceRepositoryRequest, v1.PublishWorkspaceRepositoryResponse]
 	configureWebhookSecret            *connect.Client[v1.ConfigureWebhookSecretRequest, v1.ConfigureWebhookSecretResponse]
 	acceptRepositoryBaseline          *connect.Client[v1.AcceptRepositoryBaselineRequest, v1.AcceptRepositoryBaselineResponse]
+	commitAgentContent                *connect.Client[v1.CommitAgentContentRequest, v1.CommitAgentContentResponse]
+	rollbackAgentContent              *connect.Client[v1.RollbackAgentContentRequest, v1.RollbackAgentContentResponse]
 }
 
 // GetWorkspaceRepoBinding calls agents.v1.WorkspaceRepoBindingService.GetWorkspaceRepoBinding.
@@ -286,6 +317,16 @@ func (c *workspaceRepoBindingServiceClient) AcceptRepositoryBaseline(ctx context
 	return c.acceptRepositoryBaseline.CallUnary(ctx, req)
 }
 
+// CommitAgentContent calls agents.v1.WorkspaceRepoBindingService.CommitAgentContent.
+func (c *workspaceRepoBindingServiceClient) CommitAgentContent(ctx context.Context, req *connect.Request[v1.CommitAgentContentRequest]) (*connect.Response[v1.CommitAgentContentResponse], error) {
+	return c.commitAgentContent.CallUnary(ctx, req)
+}
+
+// RollbackAgentContent calls agents.v1.WorkspaceRepoBindingService.RollbackAgentContent.
+func (c *workspaceRepoBindingServiceClient) RollbackAgentContent(ctx context.Context, req *connect.Request[v1.RollbackAgentContentRequest]) (*connect.Response[v1.RollbackAgentContentResponse], error) {
+	return c.rollbackAgentContent.CallUnary(ctx, req)
+}
+
 // WorkspaceRepoBindingServiceHandler is an implementation of the
 // agents.v1.WorkspaceRepoBindingService service.
 type WorkspaceRepoBindingServiceHandler interface {
@@ -332,6 +373,17 @@ type WorkspaceRepoBindingServiceHandler interface {
 	// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
 	// new baseline, re-syncs and publishes. Requires owner/admin role.
 	AcceptRepositoryBaseline(context.Context, *connect.Request[v1.AcceptRepositoryBaselineRequest]) (*connect.Response[v1.AcceptRepositoryBaselineResponse], error)
+	// CommitAgentContent applies a changeset of PUT and DELETE operations to
+	// managed Agent Content paths and produces a single Git commit. In
+	// DIRECT_COMMIT mode the commit lands on the bound branch; in
+	// CHANGE_REQUEST mode a PR/MR is opened instead. Content is validated
+	// before the commit is created. Requires owner/admin role.
+	CommitAgentContent(context.Context, *connect.Request[v1.CommitAgentContentRequest]) (*connect.Response[v1.CommitAgentContentResponse], error)
+	// RollbackAgentContent restores managed Agent Content from a previously
+	// published revision in a new Git commit. The target revision's content
+	// is read from Git, validated, and committed to the bound branch (or a
+	// PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
+	RollbackAgentContent(context.Context, *connect.Request[v1.RollbackAgentContentRequest]) (*connect.Response[v1.RollbackAgentContentResponse], error)
 }
 
 // NewWorkspaceRepoBindingServiceHandler builds an HTTP handler from the service implementation. It
@@ -413,6 +465,18 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("AcceptRepositoryBaseline")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workspaceRepoBindingServiceCommitAgentContentHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceCommitAgentContentProcedure,
+		svc.CommitAgentContent,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("CommitAgentContent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceRepoBindingServiceRollbackAgentContentHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceRollbackAgentContentProcedure,
+		svc.RollbackAgentContent,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("RollbackAgentContent")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.WorkspaceRepoBindingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkspaceRepoBindingServiceGetWorkspaceRepoBindingProcedure:
@@ -439,6 +503,10 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 			workspaceRepoBindingServiceConfigureWebhookSecretHandler.ServeHTTP(w, r)
 		case WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure:
 			workspaceRepoBindingServiceAcceptRepositoryBaselineHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceCommitAgentContentProcedure:
+			workspaceRepoBindingServiceCommitAgentContentHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceRollbackAgentContentProcedure:
+			workspaceRepoBindingServiceRollbackAgentContentHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -494,4 +562,12 @@ func (UnimplementedWorkspaceRepoBindingServiceHandler) ConfigureWebhookSecret(co
 
 func (UnimplementedWorkspaceRepoBindingServiceHandler) AcceptRepositoryBaseline(context.Context, *connect.Request[v1.AcceptRepositoryBaselineRequest]) (*connect.Response[v1.AcceptRepositoryBaselineResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.AcceptRepositoryBaseline is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) CommitAgentContent(context.Context, *connect.Request[v1.CommitAgentContentRequest]) (*connect.Response[v1.CommitAgentContentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.CommitAgentContent is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) RollbackAgentContent(context.Context, *connect.Request[v1.RollbackAgentContentRequest]) (*connect.Response[v1.RollbackAgentContentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.RollbackAgentContent is not implemented"))
 }
