@@ -55,9 +55,11 @@ type fakeProviderClient struct {
 	mu                sync.Mutex
 	commits           []fakeCommit
 	createdBranches   map[string]string // branch → sha
+	deletedBranches   []string
 	createdCRs        []fakeChangeRequest
 	commitErr         error
 	createBranchErr   error
+	deleteBranchErr   error
 	createCRErr       error
 }
 
@@ -159,6 +161,18 @@ func (f *fakeProviderClient) CreateBranch(_ context.Context, branch, sha string)
 	}
 	f.createdBranches[branch] = sha
 	f.branches[branch] = sha
+	return nil
+}
+
+func (f *fakeProviderClient) DeleteBranch(_ context.Context, branch string) error {
+	if f.deleteBranchErr != nil {
+		return f.deleteBranchErr
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deletedBranches = append(f.deletedBranches, branch)
+	delete(f.createdBranches, branch)
+	delete(f.branches, branch)
 	return nil
 }
 
@@ -1884,6 +1898,58 @@ func TestCommitAgentContentChangeRequestMode(t *testing.T) {
 	}
 	if cr.target != "main" {
 		t.Errorf("target branch = %q, expected main", cr.target)
+	}
+}
+
+// When the change request fails to open after the work branch and commit were
+// created, the work branch must be cleaned up so retries do not accumulate
+// orphaned branches.
+func TestCommitAgentContentChangeRequestCleanupOnFailure(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+
+	b := validBinding()
+	b.WriteMode = agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
+	if _, err := fx.svc.PutWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{
+		Binding: b,
+	})); err != nil {
+		t.Fatalf("Put binding: %v", err)
+	}
+	setCredential(t, fx, ownerCtx())
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	fx.fake.createCRErr = errors.New("boom: change request rejected")
+
+	_, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{
+			{
+				Path:      "agents/my-agent/prompt.md",
+				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+				Content:   "Updated prompt.",
+			},
+		},
+	}))
+	if err == nil {
+		t.Fatal("expected error when change request fails to open")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+
+	fx.fake.mu.Lock()
+	defer fx.fake.mu.Unlock()
+	// The commit was created on a work branch; that branch must have been
+	// deleted, and no branch should remain behind.
+	if len(fx.fake.deletedBranches) != 1 {
+		t.Fatalf("deleted branches = %v, want exactly one cleanup", fx.fake.deletedBranches)
+	}
+	deleted := fx.fake.deletedBranches[0]
+	if !strings.HasPrefix(deleted, "butter/content-") {
+		t.Errorf("deleted branch = %q, expected butter/content- prefix", deleted)
+	}
+	if _, stillThere := fx.fake.createdBranches[deleted]; stillThere {
+		t.Errorf("work branch %q was not removed from created set", deleted)
 	}
 }
 

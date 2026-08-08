@@ -326,6 +326,27 @@ func newGitHubFakeStateful(t *testing.T, apiPrefix string, state *fakeState) htt
 			}
 		}
 
+		// Delete branch ref.
+		if r.Method == http.MethodDelete && strings.Contains(urlPath, "/git/refs/heads/") {
+			if token != writeToken {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			branch := strings.TrimPrefix(urlPath, "/repos/acme/agents/git/refs/heads/")
+			branch, _ = url.PathUnescape(branch)
+			state.mu.Lock()
+			_, ok := state.branches[branch]
+			delete(state.branches, branch)
+			state.mu.Unlock()
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, `{"message":"Reference does not exist"}`)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		// Read operations — delegate to the stateful branch map.
 		switch {
 		case urlPath == "/repos/acme/agents":
@@ -567,6 +588,27 @@ func newGitLabFakeStateful(t *testing.T, apiPrefix string, state *fakeState) htt
 					num, num, body.Title)
 				return
 			}
+		}
+
+		// Delete branch.
+		if r.Method == http.MethodDelete && strings.HasPrefix(urlPath, "/projects/"+project+"/repository/branches/") {
+			if token != writeToken {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			raw := strings.TrimPrefix(urlPath, "/projects/"+project+"/repository/branches/")
+			branch, _ := url.PathUnescape(raw)
+			state.mu.Lock()
+			_, ok := state.branches[branch]
+			delete(state.branches, branch)
+			state.mu.Unlock()
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, `{"message":"404 Branch Not Found"}`)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
 		}
 
 		// Read operations with stateful branches.

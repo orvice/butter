@@ -346,6 +346,30 @@ func (c *githubClient) CreateBranch(ctx context.Context, branch, sha string) err
 	return nil
 }
 
+func (c *githubClient) DeleteBranch(ctx context.Context, branch string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		c.base+"/repos/"+c.repo+"/git/refs/heads/"+url.PathEscape(branch), nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("github request: %w", err)
+	}
+	defer resp.Body.Close()
+	// A missing ref (already gone) is a success for cleanup purposes.
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return statusError(resp.StatusCode)
+	}
+	return nil
+}
+
 func (c *githubClient) CreateChangeRequest(ctx context.Context, source, target, title, description string) (*ChangeRequestResult, error) {
 	var pr struct {
 		Number  int    `json:"number"`

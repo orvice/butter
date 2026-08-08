@@ -364,6 +364,32 @@ func TestProviderWriteContract(t *testing.T) {
 				}
 			})
 
+			t.Run("DeleteBranch", func(t *testing.T) {
+				state := newFakeState()
+				srv := httptest.NewServer(h.newHandler(t, "", state))
+				t.Cleanup(srv.Close)
+				ctx := context.Background()
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+
+				if err := c.CreateBranch(ctx, "butter/cleanup-me", "abc123"); err != nil {
+					t.Fatalf("CreateBranch: %v", err)
+				}
+				if err := c.DeleteBranch(ctx, "butter/cleanup-me"); err != nil {
+					t.Fatalf("DeleteBranch: %v", err)
+				}
+				state.mu.Lock()
+				_, stillThere := state.branches["butter/cleanup-me"]
+				state.mu.Unlock()
+				if stillThere {
+					t.Fatal("branch was not deleted")
+				}
+
+				// Deleting an already-absent branch is a no-op, not an error.
+				if err := c.DeleteBranch(ctx, "butter/never-existed"); err != nil {
+					t.Fatalf("DeleteBranch on missing branch should succeed: %v", err)
+				}
+			})
+
 			t.Run("WriteRequiresWriteToken", func(t *testing.T) {
 				state := newFakeState()
 				srv := httptest.NewServer(h.newHandler(t, "", state))

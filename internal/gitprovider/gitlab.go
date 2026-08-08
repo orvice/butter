@@ -199,6 +199,13 @@ func (c *gitlabClient) post(ctx context.Context, path string, body any, out any)
 	return resp.StatusCode, nil
 }
 
+// CreateCommit commits actions onto branch. Unlike the GitHub adapter — which
+// performs a true compare-and-swap on the ref and returns ErrConflict when the
+// branch moved — GitLab's Commits API commits onto the branch tip and only
+// honours start_sha when creating a new branch, so for an existing branch it
+// has last-write-wins semantics with no server-side conflict check. parentSHA
+// is still used to probe create-vs-update per file; ErrConflict is surfaced
+// only if GitLab reports a 409.
 func (c *gitlabClient) CreateCommit(ctx context.Context, branch, parentSHA, message string, actions []FileAction) (*CommitResult, error) {
 	type commitAction struct {
 		Action   string `json:"action"`
@@ -255,6 +262,28 @@ func (c *gitlabClient) CreateBranch(ctx context.Context, branch, sha string) err
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("create branch: %w", err)
+	}
+	return nil
+}
+
+func (c *gitlabClient) DeleteBranch(ctx context.Context, branch string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		c.base+c.projectPath()+"/repository/branches/"+url.PathEscape(branch), nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("gitlab request: %w", err)
+	}
+	defer resp.Body.Close()
+	// A missing branch (already gone) is a success for cleanup purposes.
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return statusError(resp.StatusCode)
 	}
 	return nil
 }

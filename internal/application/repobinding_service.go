@@ -1359,6 +1359,39 @@ const (
 	defaultMaxContentFileBytes = 256 * 1024 // 256 KiB per file
 )
 
+// sanitizeBranchComponent maps an arbitrary string (e.g. a workspace ID) into
+// a single git ref path component, replacing every character outside
+// [A-Za-z0-9._-] with '-'. This keeps the generated work-branch name valid
+// even if the workspace ID contains characters git rejects in ref names.
+func sanitizeBranchComponent(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+			r == '-', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	out := b.String()
+	if out == "" {
+		return "ws"
+	}
+	return out
+}
+
+// cleanupBranch best-effort deletes a work branch created for a change request
+// when a later step (commit or change-request open) failed. This keeps a
+// retry from accumulating orphaned branches. Failures are logged, never
+// surfaced to the caller.
+func (s *RepoBindingServiceServer) cleanupBranch(ctx context.Context, client gitprovider.Client, ws, branch string) {
+	if err := client.DeleteBranch(ctx, branch); err != nil {
+		log.FromContext(ctx).Warn("failed to clean up change-request work branch",
+			"workspace_id", ws, "branch", branch, "err", err)
+	}
+}
+
 // CommitAgentContent applies a changeset of PUT and DELETE file operations
 // to managed Agent Content paths and produces a single Git commit. In
 // DIRECT_COMMIT mode the commit lands on the bound branch; in
@@ -1394,6 +1427,9 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 	}
 
 	// Simulate the resulting content to validate before committing.
+	if s.agentRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent repository not configured"))
+	}
 	agents, err := s.agentRepo.ListAgents(ctx, ws)
 	if err != nil {
 		return nil, connectx.InternalWith(err)
@@ -1453,12 +1489,13 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 	var crURL string
 
 	if isChangeRequest {
-		branchName := fmt.Sprintf("butter/content-%s-%d", ws, time.Now().Unix())
+		branchName := fmt.Sprintf("butter/content-%s-%d", sanitizeBranchComponent(ws), time.Now().Unix())
 		if err := client.CreateBranch(ctx, branchName, headSHA); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create branch: %s", err))
 		}
 		commitResult, err = client.CreateCommit(ctx, branchName, headSHA, commitMsg, providerActions)
 		if err != nil {
+			s.cleanupBranch(ctx, client, ws, branchName)
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create commit: %s", err))
 		}
 		cr, crErr := client.CreateChangeRequest(ctx, branchName, binding.GetBranch(),
@@ -1466,6 +1503,7 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 		if crErr != nil {
 			logger.Error("created commit but failed to open change request",
 				"workspace_id", ws, "branch", branchName, "err", crErr)
+			s.cleanupBranch(ctx, client, ws, branchName)
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create change request: %s", crErr))
 		}
 		crURL = cr.URL
@@ -1599,6 +1637,9 @@ func (s *RepoBindingServiceServer) RollbackAgentContent(ctx context.Context, req
 	}
 
 	// Validate the target revision's content before committing (criterion 4).
+	if s.agentRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent repository not configured"))
+	}
 	agents, agentErr := s.agentRepo.ListAgents(ctx, ws)
 	if agentErr != nil {
 		return nil, connectx.InternalWith(agentErr)
@@ -1676,12 +1717,13 @@ func (s *RepoBindingServiceServer) RollbackAgentContent(ctx context.Context, req
 	var crURL string
 
 	if isChangeRequest {
-		branchName := fmt.Sprintf("butter/rollback-%s-%d", ws, time.Now().Unix())
+		branchName := fmt.Sprintf("butter/rollback-%s-%d", sanitizeBranchComponent(ws), time.Now().Unix())
 		if err := client.CreateBranch(ctx, branchName, headSHA); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create branch: %s", err))
 		}
 		commitResult, err = client.CreateCommit(ctx, branchName, headSHA, commitMsg, providerActions)
 		if err != nil {
+			s.cleanupBranch(ctx, client, ws, branchName)
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create commit: %s", err))
 		}
 		cr, crErr := client.CreateChangeRequest(ctx, branchName, binding.GetBranch(),
@@ -1689,6 +1731,7 @@ func (s *RepoBindingServiceServer) RollbackAgentContent(ctx context.Context, req
 		if crErr != nil {
 			logger.Error("rollback commit created but failed to open change request",
 				"workspace_id", ws, "err", crErr)
+			s.cleanupBranch(ctx, client, ws, branchName)
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create change request: %s", crErr))
 		}
 		crURL = cr.URL

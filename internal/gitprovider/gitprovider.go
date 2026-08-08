@@ -129,6 +129,10 @@ type Client interface {
 	CreateCommit(ctx context.Context, branch, parentSHA, message string, actions []FileAction) (*CommitResult, error)
 	// CreateBranch creates a new branch pointing at the given commit SHA.
 	CreateBranch(ctx context.Context, branch, sha string) error
+	// DeleteBranch removes a branch. It is used to clean up a work branch
+	// when opening a change request fails after the branch was created;
+	// deleting an already-absent branch is not treated as an error.
+	DeleteBranch(ctx context.Context, branch string) error
 	// CreateChangeRequest opens a Pull Request (GitHub) or Merge Request
 	// (GitLab) from source to target branch and returns its metadata.
 	CreateChangeRequest(ctx context.Context, source, target, title, description string) (*ChangeRequestResult, error)
