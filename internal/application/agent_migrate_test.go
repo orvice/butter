@@ -238,3 +238,141 @@ func TestMigrateV2_InvalidMode(t *testing.T) {
 		t.Fatalf("expected InvalidArgument, got: %v", err)
 	}
 }
+
+func TestMigrateV2_ApplyExpandsNestedTree(t *testing.T) {
+	store := memory.New()
+	svc := NewAgentServiceServer(store)
+	ctx := testAdminCtx()
+
+	seedAgentFull(t, store, wsTest, &agentsv1.Agent{
+		Name:    "root",
+		AgentId: "root",
+		SubAgents: []*agentsv1.Agent{
+			{
+				Name:    "child",
+				AgentId: "child",
+				SubAgents: []*agentsv1.Agent{
+					{Name: "grandchild", AgentId: "grandchild", Description: "leaf"},
+				},
+			},
+		},
+	})
+
+	resp, err := svc.MigrateAgentsV2(ctx, connect.NewRequest(&agentsv1.MigrateAgentsV2Request{
+		Mode: agentsv1.MigrateMode_MIGRATE_MODE_APPLY,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Msg.GetMigrated() == 0 {
+		t.Fatal("expected root to be migrated")
+	}
+	if resp.Msg.GetErrors() != 0 {
+		t.Fatalf("expected no errors, got %d", resp.Msg.GetErrors())
+	}
+
+	gcResp, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "grandchild"}))
+	if err != nil {
+		t.Fatal("grandchild should exist as independent agent:", err)
+	}
+	gc := gcResp.Msg.GetAgent()
+	if gc.GetAgentId() != "grandchild" {
+		t.Fatalf("expected grandchild agent_id, got %q", gc.GetAgentId())
+	}
+	if len(gc.GetSubAgents()) != 0 {
+		t.Fatalf("expected grandchild sub_agents cleared, got %d", len(gc.GetSubAgents()))
+	}
+
+	childResp, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "child"}))
+	if err != nil {
+		t.Fatal("child should exist as independent agent:", err)
+	}
+	child := childResp.Msg.GetAgent()
+	if len(child.GetChildAgentIds()) != 1 || child.GetChildAgentIds()[0] != "grandchild" {
+		t.Fatalf("expected child to have child_agent_ids=[grandchild], got %v", child.GetChildAgentIds())
+	}
+	if len(child.GetSubAgents()) != 0 {
+		t.Fatalf("expected child sub_agents cleared, got %d", len(child.GetSubAgents()))
+	}
+
+	rootResp, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "root"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := rootResp.Msg.GetAgent()
+	if len(root.GetChildAgentIds()) != 1 || root.GetChildAgentIds()[0] != "child" {
+		t.Fatalf("expected root child_agent_ids=[child], got %v", root.GetChildAgentIds())
+	}
+}
+
+func TestMigrateV2_DryRunReportsNestedMissingID(t *testing.T) {
+	store := memory.New()
+	svc := NewAgentServiceServer(store)
+	ctx := testAdminCtx()
+
+	seedAgentFull(t, store, wsTest, &agentsv1.Agent{
+		Name:    "root",
+		AgentId: "root",
+		SubAgents: []*agentsv1.Agent{
+			{
+				Name:    "child",
+				AgentId: "child",
+				SubAgents: []*agentsv1.Agent{
+					{Name: "grandchild-no-id"},
+				},
+			},
+		},
+	})
+
+	resp, err := svc.MigrateAgentsV2(ctx, connect.NewRequest(&agentsv1.MigrateAgentsV2Request{
+		Mode: agentsv1.MigrateMode_MIGRATE_MODE_DRY_RUN,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Msg.GetErrors() == 0 {
+		t.Fatal("expected errors for nested missing ID")
+	}
+	hasMissing := false
+	for _, r := range resp.Msg.GetResults() {
+		if r.GetName() == "grandchild-no-id" && r.GetAction() == "missing_id" {
+			hasMissing = true
+		}
+	}
+	if !hasMissing {
+		t.Fatal("expected missing_id for grandchild-no-id")
+	}
+}
+
+func TestMigrateV2_ApplyChildMissingIDBlocksParent(t *testing.T) {
+	store := memory.New()
+	svc := NewAgentServiceServer(store)
+	ctx := testAdminCtx()
+
+	seedAgentFull(t, store, wsTest, &agentsv1.Agent{
+		Name:    "root",
+		AgentId: "root",
+		SubAgents: []*agentsv1.Agent{
+			{Name: "no-id-child"},
+		},
+	})
+
+	resp, err := svc.MigrateAgentsV2(ctx, connect.NewRequest(&agentsv1.MigrateAgentsV2Request{
+		Mode: agentsv1.MigrateMode_MIGRATE_MODE_APPLY,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Msg.GetErrors() == 0 {
+		t.Fatal("expected errors for missing child ID")
+	}
+
+	rootResp, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "root"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := rootResp.Msg.GetAgent()
+	if len(root.GetSubAgents()) == 0 {
+		t.Fatal("root sub_agents should be preserved when migration is blocked")
+	}
+}

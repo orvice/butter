@@ -280,6 +280,9 @@ message StreamAgentFinal {
 
 message GetAgentRequest {
   string name = 1;
+  // Optional: look up by immutable agent_id instead of name.
+  // When set, name is ignored.
+  string agent_id = 2;
 }
 
 message GetAgentResponse {
@@ -304,6 +307,9 @@ message UpdateAgentResponse {
 
 message DeleteAgentRequest {
   string name = 1;
+  // Optional: identify by immutable agent_id instead of name.
+  // When set, name is ignored.
+  string agent_id = 2;
 }
 
 message DeleteAgentResponse {}

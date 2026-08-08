@@ -145,7 +145,12 @@ func (s *AgentServiceServer) GetAgent(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	a, err := s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
+	var a *agentsv1.Agent
+	if aid := req.Msg.GetAgentId(); aid != "" {
+		a, err = s.repo.GetAgentByID(ctx, wsID, aid)
+	} else {
+		a, err = s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
+	}
 	if err != nil {
 		return nil, toConnectError(err)
 	}
@@ -254,6 +259,12 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 			return nil, toConnectError(err)
 		}
 		update.WorkspaceId = wsID
+		for i, a := range pool {
+			if a.GetName() == update.GetName() {
+				pool[i] = update
+				break
+			}
+		}
 		if err := internalagent.ValidateAgentRelationships(update, pool); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
@@ -289,10 +300,17 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
-	prev, err := s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
+
+	var prev *agentsv1.Agent
+	if aid := req.Msg.GetAgentId(); aid != "" {
+		prev, err = s.repo.GetAgentByID(ctx, wsID, aid)
+	} else {
+		prev, err = s.repo.GetAgent(ctx, wsID, req.Msg.GetName())
+	}
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	agentName := prev.GetName()
 
 	if agentID := prev.GetAgentId(); agentID != "" {
 		pool, err := s.repo.ListAgents(ctx, wsID)
@@ -304,11 +322,11 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		}
 	}
 
-	logger.Info("deleting agent", "workspace_id", wsID, "agent", req.Msg.GetName())
+	logger.Info("deleting agent", "workspace_id", wsID, "agent", agentName)
 
 	err = deleteWithRuntime(
 		func() error {
-			return s.repo.DeleteAgent(ctx, wsID, req.Msg.GetName())
+			return s.repo.DeleteAgent(ctx, wsID, agentName)
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -321,10 +339,10 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		},
 	)
 	if err != nil {
-		logger.Error("delete agent failed", "workspace_id", wsID, "agent", req.Msg.GetName(), "err", err)
+		logger.Error("delete agent failed", "workspace_id", wsID, "agent", agentName, "err", err)
 		return nil, toConnectError(err)
 	}
-	logger.Info("agent deleted", "workspace_id", wsID, "agent", req.Msg.GetName())
+	logger.Info("agent deleted", "workspace_id", wsID, "agent", agentName)
 	return connect.NewResponse(&agentsv1.DeleteAgentResponse{}), nil
 }
 

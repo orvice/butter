@@ -201,3 +201,78 @@ func TestV2_UpdateValidatesRelationships(t *testing.T) {
 		t.Fatal("expected error for invalid child reference on update")
 	}
 }
+
+func TestV2_UpdateDetectsMutualCycle(t *testing.T) {
+	store := memory.New()
+	svc := NewAgentServiceServer(store)
+	ctx := testCtx()
+
+	seedAgentFull(t, store, wsTest, &agentsv1.Agent{
+		Name:          "alpha",
+		AgentId:       "alpha",
+		ChildAgentIds: []string{"beta"},
+		WorkspaceId:   wsTest,
+	})
+	seedAgentFull(t, store, wsTest, &agentsv1.Agent{
+		Name:        "beta",
+		AgentId:     "beta",
+		WorkspaceId: wsTest,
+	})
+
+	_, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
+		Agent: &agentsv1.Agent{
+			Name:          "beta",
+			ChildAgentIds: []string{"alpha"},
+		},
+	}))
+	if err == nil {
+		t.Fatal("expected cycle error when beta -> alpha and alpha -> beta")
+	}
+	if !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("expected cycle error, got: %v", err)
+	}
+}
+
+func TestV2_GetAgentByID(t *testing.T) {
+	store := memory.New()
+	svc := NewAgentServiceServer(store)
+	ctx := testCtx()
+
+	seedAgentFull(t, store, wsTest, &agentsv1.Agent{
+		Name:    "my-agent",
+		AgentId: "my-agent-id",
+	})
+
+	resp, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{
+		AgentId: "my-agent-id",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Msg.GetAgent().GetName() != "my-agent" {
+		t.Fatalf("expected agent name my-agent, got %q", resp.Msg.GetAgent().GetName())
+	}
+}
+
+func TestV2_DeleteAgentByID(t *testing.T) {
+	store := memory.New()
+	svc := NewAgentServiceServer(store)
+	ctx := testCtx()
+
+	seedAgentFull(t, store, wsTest, &agentsv1.Agent{
+		Name:    "removable",
+		AgentId: "removable-id",
+	})
+
+	_, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{
+		AgentId: "removable-id",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "removable"}))
+	if err == nil {
+		t.Fatal("expected agent to be deleted")
+	}
+}

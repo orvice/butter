@@ -45,13 +45,22 @@ func migrateDryRun(ctx context.Context, s *AgentServiceServer, wsID string) (*co
 	for _, a := range agents {
 		subs := a.GetSubAgents()
 		if len(subs) == 0 {
-			results = append(results, &agentsv1.MigrateAgentResult{
-				Name:    a.GetName(),
-				AgentId: a.GetAgentId(),
-				Action:  "already_independent",
-				Detail:  "no embedded sub_agents",
-			})
-			skipped++
+			if a.GetAgentId() == "" {
+				results = append(results, &agentsv1.MigrateAgentResult{
+					Name:   a.GetName(),
+					Action: "missing_id",
+					Detail: "leaf agent has no agent_id; assign one via AssignAgentID first",
+				})
+				errCount++
+			} else {
+				results = append(results, &agentsv1.MigrateAgentResult{
+					Name:    a.GetName(),
+					AgentId: a.GetAgentId(),
+					Action:  "already_independent",
+					Detail:  "no embedded sub_agents",
+				})
+				skipped++
+			}
 			continue
 		}
 
@@ -65,8 +74,9 @@ func migrateDryRun(ctx context.Context, s *AgentServiceServer, wsID string) (*co
 			continue
 		}
 
+		allSubs := flattenSubAgents(subs)
 		allChildrenReady := true
-		for _, sub := range subs {
+		for _, sub := range allSubs {
 			if sub.GetAgentId() == "" {
 				results = append(results, &agentsv1.MigrateAgentResult{
 					Name:   sub.GetName(),
@@ -82,7 +92,7 @@ func migrateDryRun(ctx context.Context, s *AgentServiceServer, wsID string) (*co
 				Name:    a.GetName(),
 				AgentId: a.GetAgentId(),
 				Action:  "expandable",
-				Detail:  fmt.Sprintf("%d sub-agents will be expanded to independent agents", len(subs)),
+				Detail:  fmt.Sprintf("%d sub-agents (including nested) will be expanded to independent agents", len(allSubs)),
 			})
 			migrated++
 		}
@@ -135,10 +145,12 @@ func migrateApply(ctx context.Context, s *AgentServiceServer, wsID string) (*con
 			continue
 		}
 
+		allSubs := flattenSubAgents(subs)
+
 		childIDs := make([]string, 0, len(subs))
 		allReady := true
 
-		for _, sub := range subs {
+		for _, sub := range allSubs {
 			if sub.GetAgentId() == "" {
 				results = append(results, &agentsv1.MigrateAgentResult{
 					Name:   sub.GetName(),
@@ -149,8 +161,6 @@ func migrateApply(ctx context.Context, s *AgentServiceServer, wsID string) (*con
 				allReady = false
 				continue
 			}
-
-			childIDs = append(childIDs, sub.GetAgentId())
 
 			if _, exists := existingByName[sub.GetName()]; exists {
 				results = append(results, &agentsv1.MigrateAgentResult{
@@ -163,11 +173,24 @@ func migrateApply(ctx context.Context, s *AgentServiceServer, wsID string) (*con
 			}
 
 			independent := proto.Clone(sub).(*agentsv1.Agent)
+			if len(independent.GetSubAgents()) > 0 {
+				grandchildIDs := make([]string, 0, len(independent.GetSubAgents()))
+				for _, gc := range independent.GetSubAgents() {
+					if gc.GetAgentId() != "" {
+						grandchildIDs = append(grandchildIDs, gc.GetAgentId())
+					}
+				}
+				independent.ChildAgentIds = grandchildIDs
+			}
 			independent.SubAgents = nil
 			independent.DisplayName = sub.GetName()
 			independent.LegacyName = sub.GetName()
 			independent.WorkspaceId = wsID
 			independent.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE
+
+			if wf := independent.GetConfig().GetWorkflow(); wf != nil {
+				convertWorkflowNodeRefs(wf, sub.GetSubAgents())
+			}
 
 			if _, err := s.repo.CreateAgent(ctx, wsID, independent); err != nil {
 				results = append(results, &agentsv1.MigrateAgentResult{
@@ -177,6 +200,7 @@ func migrateApply(ctx context.Context, s *AgentServiceServer, wsID string) (*con
 					Detail:  fmt.Sprintf("failed to create independent agent: %v", err),
 				})
 				errCount++
+				allReady = false
 				continue
 			}
 			existingByName[sub.GetName()] = independent
@@ -187,6 +211,12 @@ func migrateApply(ctx context.Context, s *AgentServiceServer, wsID string) (*con
 				Detail:  fmt.Sprintf("expanded from parent %q", a.GetName()),
 			})
 			logger.Info("expanded sub-agent to independent", "parent", a.GetName(), "child", sub.GetName(), "child_agent_id", sub.GetAgentId())
+		}
+
+		for _, sub := range subs {
+			if sub.GetAgentId() != "" {
+				childIDs = append(childIDs, sub.GetAgentId())
+			}
 		}
 
 		if !allReady {
@@ -239,6 +269,21 @@ func migrateApply(ctx context.Context, s *AgentServiceServer, wsID string) (*con
 		Skipped:  skipped,
 		Errors:   errCount,
 	}), nil
+}
+
+// flattenSubAgents returns all sub-agents in the tree in leaf-first order so
+// that grandchildren are created as independent agents before their parents.
+func flattenSubAgents(subs []*agentsv1.Agent) []*agentsv1.Agent {
+	var result []*agentsv1.Agent
+	var walk func(agents []*agentsv1.Agent)
+	walk = func(agents []*agentsv1.Agent) {
+		for _, a := range agents {
+			walk(a.GetSubAgents())
+			result = append(result, a)
+		}
+	}
+	walk(subs)
+	return result
 }
 
 // convertWorkflowNodeRefs converts workflow AGENT nodes from name-based

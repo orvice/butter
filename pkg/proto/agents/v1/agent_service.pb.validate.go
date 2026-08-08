@@ -2260,6 +2260,8 @@ func (m *GetAgentRequest) validate(all bool) error {
 
 	// no validation rules for Name
 
+	// no validation rules for AgentId
+
 	if len(errors) > 0 {
 		return GetAgentRequestMultiError(errors)
 	}
@@ -3014,6 +3016,8 @@ func (m *DeleteAgentRequest) validate(all bool) error {
 	var errors []error
 
 	// no validation rules for Name
+
+	// no validation rules for AgentId
 
 	if len(errors) > 0 {
 		return DeleteAgentRequestMultiError(errors)

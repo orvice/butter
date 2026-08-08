@@ -108,7 +108,7 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 	for _, agent := range agents {
 		if agent.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED {
 			if id := agent.GetAgentId(); id != "" {
-				migrationRequired[id] = true
+				migrationRequired[scopedKey(agent.GetWorkspaceId(), id)] = true
 			}
 		}
 	}
@@ -163,14 +163,23 @@ func (s *ConfigStore) loadIntoConfig(ctx context.Context, cfg *config.AppConfig)
 	return nil
 }
 
+func scopedKey(workspaceID, agentID string) string {
+	return workspaceID + "/" + agentID
+}
+
 // hasTransitiveMigrationRequired checks whether any child (via child_agent_ids)
-// transitively depends on a MIGRATION_REQUIRED agent.
+// transitively depends on a MIGRATION_REQUIRED agent. Keys are scoped by
+// workspace so duplicate agent_ids across workspaces don't interfere.
 func hasTransitiveMigrationRequired(agent *agentsv1.Agent, blocked map[string]bool, allAgents []*agentsv1.Agent) bool {
 	if len(agent.GetChildAgentIds()) == 0 {
 		return false
 	}
+	wsID := agent.GetWorkspaceId()
 	byID := make(map[string]*agentsv1.Agent, len(allAgents))
 	for _, a := range allAgents {
+		if a.GetWorkspaceId() != wsID {
+			continue
+		}
 		if id := a.GetAgentId(); id != "" {
 			byID[id] = a
 		}
@@ -182,7 +191,7 @@ func hasTransitiveMigrationRequired(agent *agentsv1.Agent, blocked map[string]bo
 			return false
 		}
 		visited[id] = true
-		if blocked[id] {
+		if blocked[scopedKey(wsID, id)] {
 			return true
 		}
 		if child, ok := byID[id]; ok {
