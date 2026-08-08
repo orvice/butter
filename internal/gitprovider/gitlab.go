@@ -146,6 +146,31 @@ func (c *gitlabClient) GetTree(ctx context.Context, ref, path string) ([]TreeEnt
 	return all, nil
 }
 
+func (c *gitlabClient) CompareCommits(ctx context.Context, base, head string) (*CommitComparison, error) {
+	q := url.Values{}
+	q.Set("from", base)
+	q.Set("to", head)
+	q.Set("straight", "true")
+	var body struct {
+		Commits []struct {
+			ID string `json:"id"`
+		} `json:"commits"`
+		CompareTimeout  bool `json:"compare_timeout"`
+		CompareSameRef  bool `json:"compare_same_ref"`
+		WebURL          string `json:"web_url"`
+	}
+	if err := c.get(ctx, c.projectPath()+"/repository/compare?"+q.Encode(), &body); err != nil {
+		return nil, err
+	}
+	if body.CompareSameRef || base == head {
+		return &CommitComparison{Status: "identical"}, nil
+	}
+	if len(body.Commits) > 0 {
+		return &CommitComparison{Status: "ahead"}, nil
+	}
+	return &CommitComparison{Status: "diverged"}, nil
+}
+
 func (c *gitlabClient) GetBlob(ctx context.Context, ref, path string) ([]byte, error) {
 	encodedPath := url.PathEscape(path)
 	q := url.Values{}

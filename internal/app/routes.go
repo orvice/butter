@@ -62,6 +62,8 @@ type Handlers struct {
 	notifyGroupRepo        configrepo.NotifyGroupRepository
 	remoteAgentRepo        configrepo.RemoteAgentRepository
 	channelRepo            configrepo.ChannelRepository
+	cfg                    *config.AppConfig
+	reconciler             *Reconciler
 }
 
 // apiTokenRepoFromHolder returns the currently wired apitoken repository, if any.
@@ -256,6 +258,18 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if h.repoBindingSvcServer != nil && result.RepoCacheRepo != nil {
 		h.repoBindingSvcServer.SetCacheRepo(result.RepoCacheRepo)
 	}
+	if h.repoBindingSvcServer != nil && result.AgentContentRepo != nil {
+		h.repoBindingSvcServer.SetContentRepo(result.AgentContentRepo)
+		h.repoBindingSvcServer.SetConfigRuntime(h.configRuntime)
+	}
+	if h.configRuntime != nil && result.RepoBindingRepo != nil && result.AgentContentRepo != nil {
+		h.configRuntime.SetAgentContentRepos(result.RepoBindingRepo, result.AgentContentRepo)
+	}
+	if h.repoBindingSvcServer != nil && result.RepoBindingRepo != nil {
+		reconciler := NewReconciler(result.RepoBindingRepo, h.repoBindingSvcServer, h.cfg.Git.EffectiveReconcileInterval())
+		h.reconciler = reconciler
+		reconciler.Start(context.Background())
+	}
 	if h.dashboardSvcServer != nil {
 		if result.MongoDB != nil {
 			h.dashboardSvcServer.SetMongo(result.MongoDB)
@@ -276,6 +290,13 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			runner := result.RunnerSvc
 			h.dashboardSvcServer.SetRunnerReady(func() bool { return runner != nil })
 		}
+	}
+}
+
+// StopReconciler stops the background reconciler if running.
+func (h *Handlers) StopReconciler() {
+	if h.reconciler != nil {
+		h.reconciler.Stop()
 	}
 }
 
@@ -380,6 +401,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	repoBindingSvcServer.SetCacheLimitsProvider(func() (int64, int64) {
 		return cfg.Git.EffectiveMaxFileBytes(), cfg.Git.EffectiveMaxWorkspaceCacheBytes()
 	})
+	repoBindingSvcServer.SetWebhookBaseURL(func() string { return cfg.Git.WebhookBaseURL })
 	repoBindingConnectPath, repoBindingConnectHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(repoBindingSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
@@ -415,6 +437,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		notifyGroupRepo:        configStore,
 		remoteAgentRepo:        configStore,
 		channelRepo:            configStore,
+		cfg:                    cfg,
 	}
 
 	router := func(r *gin.Engine) {
@@ -471,6 +494,9 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
 		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
+
+		webhookHandler := httpHandler.NewWebhookHandler(repoBindingSvcServer)
+		r.POST("/api/webhooks/repository/:workspace_id", webhookHandler.Handle)
 	}
 
 	return router, handlers

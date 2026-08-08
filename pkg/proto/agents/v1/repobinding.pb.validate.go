@@ -249,6 +249,10 @@ func (m *WorkspaceRepoBinding) validate(all bool) error {
 
 	// no validation rules for LastSyncError
 
+	// no validation rules for LastPublicationError
+
+	// no validation rules for WebhookSecretSet
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
@@ -2104,6 +2108,8 @@ func (m *SyncWorkspaceRepositoryResponse) validate(all bool) error {
 
 	// no validation rules for EntriesSynced
 
+	// no validation rules for Published
+
 	if len(errors) > 0 {
 		return SyncWorkspaceRepositoryResponseMultiError(errors)
 	}
@@ -2910,6 +2916,721 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = GetRepositoryFileResponseValidationError{}
+
+// Validate checks the field values on PublishWorkspaceRepositoryRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *PublishWorkspaceRepositoryRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PublishWorkspaceRepositoryRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// PublishWorkspaceRepositoryRequestMultiError, or nil if none found.
+func (m *PublishWorkspaceRepositoryRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PublishWorkspaceRepositoryRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return PublishWorkspaceRepositoryRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// PublishWorkspaceRepositoryRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// PublishWorkspaceRepositoryRequest.ValidateAll() if the designated
+// constraints aren't met.
+type PublishWorkspaceRepositoryRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PublishWorkspaceRepositoryRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PublishWorkspaceRepositoryRequestMultiError) AllErrors() []error { return m }
+
+// PublishWorkspaceRepositoryRequestValidationError is the validation error
+// returned by PublishWorkspaceRepositoryRequest.Validate if the designated
+// constraints aren't met.
+type PublishWorkspaceRepositoryRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PublishWorkspaceRepositoryRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PublishWorkspaceRepositoryRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PublishWorkspaceRepositoryRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PublishWorkspaceRepositoryRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PublishWorkspaceRepositoryRequestValidationError) ErrorName() string {
+	return "PublishWorkspaceRepositoryRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e PublishWorkspaceRepositoryRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPublishWorkspaceRepositoryRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PublishWorkspaceRepositoryRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PublishWorkspaceRepositoryRequestValidationError{}
+
+// Validate checks the field values on PublishWorkspaceRepositoryResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *PublishWorkspaceRepositoryResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PublishWorkspaceRepositoryResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// PublishWorkspaceRepositoryResponseMultiError, or nil if none found.
+func (m *PublishWorkspaceRepositoryResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PublishWorkspaceRepositoryResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetBinding()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PublishWorkspaceRepositoryResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PublishWorkspaceRepositoryResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBinding()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PublishWorkspaceRepositoryResponseValidationError{
+				field:  "Binding",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return PublishWorkspaceRepositoryResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// PublishWorkspaceRepositoryResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// PublishWorkspaceRepositoryResponse.ValidateAll() if the designated
+// constraints aren't met.
+type PublishWorkspaceRepositoryResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PublishWorkspaceRepositoryResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PublishWorkspaceRepositoryResponseMultiError) AllErrors() []error { return m }
+
+// PublishWorkspaceRepositoryResponseValidationError is the validation error
+// returned by PublishWorkspaceRepositoryResponse.Validate if the designated
+// constraints aren't met.
+type PublishWorkspaceRepositoryResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PublishWorkspaceRepositoryResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PublishWorkspaceRepositoryResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PublishWorkspaceRepositoryResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PublishWorkspaceRepositoryResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PublishWorkspaceRepositoryResponseValidationError) ErrorName() string {
+	return "PublishWorkspaceRepositoryResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e PublishWorkspaceRepositoryResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPublishWorkspaceRepositoryResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PublishWorkspaceRepositoryResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PublishWorkspaceRepositoryResponseValidationError{}
+
+// Validate checks the field values on ConfigureWebhookSecretRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ConfigureWebhookSecretRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ConfigureWebhookSecretRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// ConfigureWebhookSecretRequestMultiError, or nil if none found.
+func (m *ConfigureWebhookSecretRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ConfigureWebhookSecretRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return ConfigureWebhookSecretRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ConfigureWebhookSecretRequestMultiError is an error wrapping multiple
+// validation errors returned by ConfigureWebhookSecretRequest.ValidateAll()
+// if the designated constraints aren't met.
+type ConfigureWebhookSecretRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ConfigureWebhookSecretRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ConfigureWebhookSecretRequestMultiError) AllErrors() []error { return m }
+
+// ConfigureWebhookSecretRequestValidationError is the validation error
+// returned by ConfigureWebhookSecretRequest.Validate if the designated
+// constraints aren't met.
+type ConfigureWebhookSecretRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ConfigureWebhookSecretRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ConfigureWebhookSecretRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ConfigureWebhookSecretRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ConfigureWebhookSecretRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ConfigureWebhookSecretRequestValidationError) ErrorName() string {
+	return "ConfigureWebhookSecretRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ConfigureWebhookSecretRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sConfigureWebhookSecretRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ConfigureWebhookSecretRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ConfigureWebhookSecretRequestValidationError{}
+
+// Validate checks the field values on ConfigureWebhookSecretResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ConfigureWebhookSecretResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ConfigureWebhookSecretResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// ConfigureWebhookSecretResponseMultiError, or nil if none found.
+func (m *ConfigureWebhookSecretResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ConfigureWebhookSecretResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetBinding()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ConfigureWebhookSecretResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ConfigureWebhookSecretResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBinding()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ConfigureWebhookSecretResponseValidationError{
+				field:  "Binding",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for WebhookSecret
+
+	// no validation rules for CallbackUrl
+
+	if len(errors) > 0 {
+		return ConfigureWebhookSecretResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ConfigureWebhookSecretResponseMultiError is an error wrapping multiple
+// validation errors returned by ConfigureWebhookSecretResponse.ValidateAll()
+// if the designated constraints aren't met.
+type ConfigureWebhookSecretResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ConfigureWebhookSecretResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ConfigureWebhookSecretResponseMultiError) AllErrors() []error { return m }
+
+// ConfigureWebhookSecretResponseValidationError is the validation error
+// returned by ConfigureWebhookSecretResponse.Validate if the designated
+// constraints aren't met.
+type ConfigureWebhookSecretResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ConfigureWebhookSecretResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ConfigureWebhookSecretResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ConfigureWebhookSecretResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ConfigureWebhookSecretResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ConfigureWebhookSecretResponseValidationError) ErrorName() string {
+	return "ConfigureWebhookSecretResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ConfigureWebhookSecretResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sConfigureWebhookSecretResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ConfigureWebhookSecretResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ConfigureWebhookSecretResponseValidationError{}
+
+// Validate checks the field values on AcceptRepositoryBaselineRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *AcceptRepositoryBaselineRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AcceptRepositoryBaselineRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// AcceptRepositoryBaselineRequestMultiError, or nil if none found.
+func (m *AcceptRepositoryBaselineRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AcceptRepositoryBaselineRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return AcceptRepositoryBaselineRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// AcceptRepositoryBaselineRequestMultiError is an error wrapping multiple
+// validation errors returned by AcceptRepositoryBaselineRequest.ValidateAll()
+// if the designated constraints aren't met.
+type AcceptRepositoryBaselineRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AcceptRepositoryBaselineRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AcceptRepositoryBaselineRequestMultiError) AllErrors() []error { return m }
+
+// AcceptRepositoryBaselineRequestValidationError is the validation error
+// returned by AcceptRepositoryBaselineRequest.Validate if the designated
+// constraints aren't met.
+type AcceptRepositoryBaselineRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AcceptRepositoryBaselineRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AcceptRepositoryBaselineRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AcceptRepositoryBaselineRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AcceptRepositoryBaselineRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AcceptRepositoryBaselineRequestValidationError) ErrorName() string {
+	return "AcceptRepositoryBaselineRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e AcceptRepositoryBaselineRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAcceptRepositoryBaselineRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AcceptRepositoryBaselineRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AcceptRepositoryBaselineRequestValidationError{}
+
+// Validate checks the field values on AcceptRepositoryBaselineResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *AcceptRepositoryBaselineResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AcceptRepositoryBaselineResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// AcceptRepositoryBaselineResponseMultiError, or nil if none found.
+func (m *AcceptRepositoryBaselineResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AcceptRepositoryBaselineResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetBinding()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AcceptRepositoryBaselineResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AcceptRepositoryBaselineResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBinding()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AcceptRepositoryBaselineResponseValidationError{
+				field:  "Binding",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return AcceptRepositoryBaselineResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// AcceptRepositoryBaselineResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// AcceptRepositoryBaselineResponse.ValidateAll() if the designated
+// constraints aren't met.
+type AcceptRepositoryBaselineResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AcceptRepositoryBaselineResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AcceptRepositoryBaselineResponseMultiError) AllErrors() []error { return m }
+
+// AcceptRepositoryBaselineResponseValidationError is the validation error
+// returned by AcceptRepositoryBaselineResponse.Validate if the designated
+// constraints aren't met.
+type AcceptRepositoryBaselineResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AcceptRepositoryBaselineResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AcceptRepositoryBaselineResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AcceptRepositoryBaselineResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AcceptRepositoryBaselineResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AcceptRepositoryBaselineResponseValidationError) ErrorName() string {
+	return "AcceptRepositoryBaselineResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e AcceptRepositoryBaselineResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAcceptRepositoryBaselineResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AcceptRepositoryBaselineResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AcceptRepositoryBaselineResponseValidationError{}
 
 // Validate checks the field values on RepoCacheEntry with the rules defined in
 // the proto definition for this message. If any rules are violated, the first

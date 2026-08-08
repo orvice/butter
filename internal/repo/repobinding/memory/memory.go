@@ -20,6 +20,7 @@ type entry struct {
 	binding           *agentsv1.WorkspaceRepoBinding
 	credential        string
 	credentialUpdated *timestamppb.Timestamp
+	webhookSecret    string
 }
 
 // Store implements repobinding.Repository.
@@ -42,6 +43,7 @@ func (e *entry) view() *agentsv1.WorkspaceRepoBinding {
 	b := proto.Clone(e.binding).(*agentsv1.WorkspaceRepoBinding)
 	b.CredentialSet = e.credential != ""
 	b.CredentialUpdatedAt = e.credentialUpdated
+	b.WebhookSecretSet = e.webhookSecret != ""
 	return b
 }
 
@@ -114,6 +116,30 @@ func (s *Store) GetCredential(_ context.Context, workspaceID string) (string, er
 		return "", fmt.Errorf("repo binding (workspace %q): %w", workspaceID, repobindingrepo.ErrNoCredential)
 	}
 	return e.credential, nil
+}
+
+func (s *Store) SetWebhookSecret(_ context.Context, workspaceID, ciphertext string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.bindings[workspaceID]
+	if !ok {
+		return fmt.Errorf("repo binding (workspace %q): %w", workspaceID, repobindingrepo.ErrNotFound)
+	}
+	e.webhookSecret = ciphertext
+	return nil
+}
+
+func (s *Store) GetWebhookSecret(_ context.Context, workspaceID string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	e, ok := s.bindings[workspaceID]
+	if !ok {
+		return "", fmt.Errorf("repo binding (workspace %q): %w", workspaceID, repobindingrepo.ErrNotFound)
+	}
+	if e.webhookSecret == "" {
+		return "", fmt.Errorf("repo binding (workspace %q): %w", workspaceID, repobindingrepo.ErrNoCredential)
+	}
+	return e.webhookSecret, nil
 }
 
 func (s *Store) ListAcrossWorkspaces(context.Context) ([]*agentsv1.WorkspaceRepoBinding, error) {

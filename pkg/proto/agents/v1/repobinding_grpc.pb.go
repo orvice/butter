@@ -28,6 +28,9 @@ const (
 	WorkspaceRepoBindingService_GetRepositorySyncStatus_FullMethodName           = "/agents.v1.WorkspaceRepoBindingService/GetRepositorySyncStatus"
 	WorkspaceRepoBindingService_ListRepositoryEntries_FullMethodName             = "/agents.v1.WorkspaceRepoBindingService/ListRepositoryEntries"
 	WorkspaceRepoBindingService_GetRepositoryFile_FullMethodName                 = "/agents.v1.WorkspaceRepoBindingService/GetRepositoryFile"
+	WorkspaceRepoBindingService_PublishWorkspaceRepository_FullMethodName        = "/agents.v1.WorkspaceRepoBindingService/PublishWorkspaceRepository"
+	WorkspaceRepoBindingService_ConfigureWebhookSecret_FullMethodName            = "/agents.v1.WorkspaceRepoBindingService/ConfigureWebhookSecret"
+	WorkspaceRepoBindingService_AcceptRepositoryBaseline_FullMethodName          = "/agents.v1.WorkspaceRepoBindingService/AcceptRepositoryBaseline"
 )
 
 // WorkspaceRepoBindingServiceClient is the client API for WorkspaceRepoBindingService service.
@@ -71,6 +74,17 @@ type WorkspaceRepoBindingServiceClient interface {
 	// GetRepositoryFile returns the cached content of a single Markdown file.
 	// Reads only from the DB cache; never issues Git requests.
 	GetRepositoryFile(ctx context.Context, in *GetRepositoryFileRequest, opts ...grpc.CallOption) (*GetRepositoryFileResponse, error)
+	// PublishWorkspaceRepository validates the current observed revision's
+	// agent content and, on success, atomically advances the Active Revision
+	// and reloads the runner. Fails gracefully when validation errors are
+	// present; the binding reports per-agent errors.
+	PublishWorkspaceRepository(ctx context.Context, in *PublishWorkspaceRepositoryRequest, opts ...grpc.CallOption) (*PublishWorkspaceRepositoryResponse, error)
+	// ConfigureWebhookSecret generates (or replaces) a webhook secret for the
+	// binding and returns the callback URL and the secret (shown only once).
+	ConfigureWebhookSecret(ctx context.Context, in *ConfigureWebhookSecretRequest, opts ...grpc.CallOption) (*ConfigureWebhookSecretResponse, error)
+	// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
+	// new baseline, re-syncs and publishes. Requires owner/admin role.
+	AcceptRepositoryBaseline(ctx context.Context, in *AcceptRepositoryBaselineRequest, opts ...grpc.CallOption) (*AcceptRepositoryBaselineResponse, error)
 }
 
 type workspaceRepoBindingServiceClient struct {
@@ -171,6 +185,36 @@ func (c *workspaceRepoBindingServiceClient) GetRepositoryFile(ctx context.Contex
 	return out, nil
 }
 
+func (c *workspaceRepoBindingServiceClient) PublishWorkspaceRepository(ctx context.Context, in *PublishWorkspaceRepositoryRequest, opts ...grpc.CallOption) (*PublishWorkspaceRepositoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PublishWorkspaceRepositoryResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_PublishWorkspaceRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceRepoBindingServiceClient) ConfigureWebhookSecret(ctx context.Context, in *ConfigureWebhookSecretRequest, opts ...grpc.CallOption) (*ConfigureWebhookSecretResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfigureWebhookSecretResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_ConfigureWebhookSecret_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceRepoBindingServiceClient) AcceptRepositoryBaseline(ctx context.Context, in *AcceptRepositoryBaselineRequest, opts ...grpc.CallOption) (*AcceptRepositoryBaselineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AcceptRepositoryBaselineResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_AcceptRepositoryBaseline_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkspaceRepoBindingServiceServer is the server API for WorkspaceRepoBindingService service.
 // All implementations must embed UnimplementedWorkspaceRepoBindingServiceServer
 // for forward compatibility.
@@ -212,6 +256,17 @@ type WorkspaceRepoBindingServiceServer interface {
 	// GetRepositoryFile returns the cached content of a single Markdown file.
 	// Reads only from the DB cache; never issues Git requests.
 	GetRepositoryFile(context.Context, *GetRepositoryFileRequest) (*GetRepositoryFileResponse, error)
+	// PublishWorkspaceRepository validates the current observed revision's
+	// agent content and, on success, atomically advances the Active Revision
+	// and reloads the runner. Fails gracefully when validation errors are
+	// present; the binding reports per-agent errors.
+	PublishWorkspaceRepository(context.Context, *PublishWorkspaceRepositoryRequest) (*PublishWorkspaceRepositoryResponse, error)
+	// ConfigureWebhookSecret generates (or replaces) a webhook secret for the
+	// binding and returns the callback URL and the secret (shown only once).
+	ConfigureWebhookSecret(context.Context, *ConfigureWebhookSecretRequest) (*ConfigureWebhookSecretResponse, error)
+	// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
+	// new baseline, re-syncs and publishes. Requires owner/admin role.
+	AcceptRepositoryBaseline(context.Context, *AcceptRepositoryBaselineRequest) (*AcceptRepositoryBaselineResponse, error)
 	mustEmbedUnimplementedWorkspaceRepoBindingServiceServer()
 }
 
@@ -248,6 +303,15 @@ func (UnimplementedWorkspaceRepoBindingServiceServer) ListRepositoryEntries(cont
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) GetRepositoryFile(context.Context, *GetRepositoryFileRequest) (*GetRepositoryFileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRepositoryFile not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) PublishWorkspaceRepository(context.Context, *PublishWorkspaceRepositoryRequest) (*PublishWorkspaceRepositoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PublishWorkspaceRepository not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) ConfigureWebhookSecret(context.Context, *ConfigureWebhookSecretRequest) (*ConfigureWebhookSecretResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfigureWebhookSecret not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) AcceptRepositoryBaseline(context.Context, *AcceptRepositoryBaselineRequest) (*AcceptRepositoryBaselineResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AcceptRepositoryBaseline not implemented")
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) mustEmbedUnimplementedWorkspaceRepoBindingServiceServer() {
 }
@@ -433,6 +497,60 @@ func _WorkspaceRepoBindingService_GetRepositoryFile_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkspaceRepoBindingService_PublishWorkspaceRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishWorkspaceRepositoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).PublishWorkspaceRepository(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_PublishWorkspaceRepository_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).PublishWorkspaceRepository(ctx, req.(*PublishWorkspaceRepositoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceRepoBindingService_ConfigureWebhookSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfigureWebhookSecretRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).ConfigureWebhookSecret(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_ConfigureWebhookSecret_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).ConfigureWebhookSecret(ctx, req.(*ConfigureWebhookSecretRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceRepoBindingService_AcceptRepositoryBaseline_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcceptRepositoryBaselineRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).AcceptRepositoryBaseline(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_AcceptRepositoryBaseline_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).AcceptRepositoryBaseline(ctx, req.(*AcceptRepositoryBaselineRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkspaceRepoBindingService_ServiceDesc is the grpc.ServiceDesc for WorkspaceRepoBindingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -475,6 +593,18 @@ var WorkspaceRepoBindingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRepositoryFile",
 			Handler:    _WorkspaceRepoBindingService_GetRepositoryFile_Handler,
+		},
+		{
+			MethodName: "PublishWorkspaceRepository",
+			Handler:    _WorkspaceRepoBindingService_PublishWorkspaceRepository_Handler,
+		},
+		{
+			MethodName: "ConfigureWebhookSecret",
+			Handler:    _WorkspaceRepoBindingService_ConfigureWebhookSecret_Handler,
+		},
+		{
+			MethodName: "AcceptRepositoryBaseline",
+			Handler:    _WorkspaceRepoBindingService_AcceptRepositoryBaseline_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

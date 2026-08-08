@@ -16,3 +16,7 @@ func requireWorkspace(ctx context.Context) (string, error) {
 	}
 	return id, nil
 }
+
+func withWorkspace(ctx context.Context, id string) context.Context {
+	return workspace.WithID(ctx, id)
+}

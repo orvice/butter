@@ -215,6 +215,28 @@ func TestProviderContract(t *testing.T) {
 				}
 			})
 
+			t.Run("CompareCommits/Ahead", func(t *testing.T) {
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+				cmp, err := c.CompareCommits(ctx, "abc123", "feedc0de")
+				if err != nil {
+					t.Fatalf("CompareCommits err = %v", err)
+				}
+				if cmp.Status != "ahead" {
+					t.Errorf("status = %q, want ahead", cmp.Status)
+				}
+			})
+
+			t.Run("CompareCommits/Identical", func(t *testing.T) {
+				c := newClientForTest(t, h.kind, srv.URL, "acme/agents", writeToken)
+				cmp, err := c.CompareCommits(ctx, "abc123", "abc123")
+				if err != nil {
+					t.Fatalf("CompareCommits err = %v", err)
+				}
+				if cmp.Status != "identical" {
+					t.Errorf("status = %q, want identical", cmp.Status)
+				}
+			})
+
 			t.Run("ErrorsNeverContainToken", func(t *testing.T) {
 				c := newClientForTest(t, h.kind, srv.URL, "acme/nope", writeToken)
 				_, err := c.GetRepository(ctx)
