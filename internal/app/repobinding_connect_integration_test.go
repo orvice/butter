@@ -208,8 +208,12 @@ func TestRepoBindingServices_ConnectIntegration(t *testing.T) {
 		t.Fatalf("binding visible across workspaces: %v", otherResp.Msg.GetBinding())
 	}
 
-	// 7. Delete removes binding and credential.
-	if _, err := bindingClient.DeleteWorkspaceRepoBinding(ctx, connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{})); err != nil {
+	// 7. Delete removes binding and credential. No Active Revision was ever
+	// published here, so safe detachment requires an explicit recovery path
+	// (KEEP_DATABASE) rather than materializing a non-existent snapshot.
+	if _, err := bindingClient.DeleteWorkspaceRepoBinding(ctx, connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{
+		Recovery: agentsv1.RepoBindingDetachRecovery_REPO_BINDING_DETACH_RECOVERY_KEEP_DATABASE,
+	})); err != nil {
 		t.Fatalf("DeleteWorkspaceRepoBinding: %v", err)
 	}
 	getResp, err = bindingClient.GetWorkspaceRepoBinding(ctx, connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))

@@ -438,6 +438,17 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 - 前端镜像：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行 + SPA fallback + `/healthz`）。
 - CI workflows：`.github/workflows/docker-publish.yml`（后端，cron + push + PR）与 `front-publish.yml`（前端，`paths: front/**` 过滤），均带 cosign keyless 签名。
 
+## 仓库绑定与 Agent Content 生命周期（issue #210 系列）
+
+每个 workspace 可绑定零或一个 Git 仓库（`WorkspaceRepoBindingService`），把 Agent Content（`agents/{agent-id}/description.md`、`prompt.md`、可选 `global-prompt.md`）交给 Git 托管，而运行态仍由 DB 拥有的运营配置驱动。PAT 经 `internal/secretbox` 加密、走独立凭据 seam，绝不进入 proto/响应/日志（ADR-0005）。同步（`SyncWorkspaceRepository`）把仓库树读入 workspace 级 DB 缓存；发布（`publishActiveRevision`）在校验通过后原子推进 Active Revision 并 reload runner，把 Content 叠加到 DB agent proto（`ConfigRuntime.applyActiveContent` → `agentcontent.ApplyToProto`）构建 Effective Agent。
+
+**上线/下线（issue #219，ADR-0007）：**
+
+- **上线** `OnboardWorkspaceRepository(mode)`：`EXPORT_CURRENT` 把 DB 现有 Content 作为单次校验提交写入 Git 再发布；`IMPORT_REPOSITORY` 同步+发布并只采纳匹配 Agent ID 的目录（未知目录保持 unclaimed，不做双向合并）。两种模式都在提交/导入、回读、内容校验（`agentcontent.Validate`）通过后才推进 `active_commit_sha` 切换为 Git 拥有；随后的 `ReloadRunner`（Effective Agent 构建）按 #216 约定为 best-effort，reload 失败时保留 last-known-good runner 而非回退 Active Revision。EXPORT 恒为 direct commit（即使绑定为 CHANGE_REQUEST），否则内容会挂在未合并的 PR/MR 上无法发布。
+- **下线** `DeleteWorkspaceRepoBinding`：先把 Active Revision 快照物化回 DB 字段（`ApplyToProto` 的逆操作）并 reload runtime，再移除绑定/PAT/缓存/快照；**绝不改动远端 Git**。无有效快照时默认拒绝（`FailedPrecondition`），除非显式选择 `RepoBindingDetachRecovery`（`KEEP_DATABASE` 保留当前 DB 内容）。
+
+绑定按 workspace 独立推进，互不牵连。分阶段上线顺序、迁移校验清单与跨 provider 验收见 `docs/repo-binding-migration.md`。
+
 ## 关键约束
 
 - `pkg/proto/agents/v1` 是生成代码，手动改动应在 `proto/agents/v1` 中完成后重新生成。
