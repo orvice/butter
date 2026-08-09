@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { timestampDate, type Timestamp } from '@bufbuild/protobuf/wkt'
 import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Check,
+  CircleCheck,
   ChevronRight,
   FileText,
   Folder,
@@ -19,6 +22,7 @@ import {
 } from 'lucide-react'
 import {
   useDeleteRepoBinding,
+  useOnboardWorkspaceRepository,
   usePutRepoBinding,
   useRepoBinding,
   useRepositoryEntries,
@@ -31,8 +35,10 @@ import { Code, ConnectError } from '@/api/transport'
 import { useGitHosts } from '@/api/git-hosts'
 import {
   RepoBindingConnectionState,
+  RepoBindingOnboardingMode,
   RepoBindingWriteMode,
   RepoCacheEntryKind,
+  type OnboardWorkspaceRepositoryResponse,
   type RepoCacheEntry,
   type RepoBindingCheck,
   type RepoBindingOverlap,
@@ -70,6 +76,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
@@ -189,11 +196,345 @@ export function RepoBindingPage() {
                 </div>
               )}
             </div>
-            {binding && <RepositoryBrowser binding={binding} />}
+            {binding && <OnboardingCard binding={binding} />}
+            {binding?.activeCommitSha && <RepositoryBrowser binding={binding} />}
           </div>
         )}
       </PageScroll>
     </Page>
+  )
+}
+
+type OnboardingMode =
+  | RepoBindingOnboardingMode.EXPORT_CURRENT
+  | RepoBindingOnboardingMode.IMPORT_REPOSITORY
+
+type OnboardingModeConfig = {
+  icon: ReactNode
+  optionTitle: string
+  optionDescription: string
+  optionDetail: string
+  successToast: string
+  dialogTitle: string
+  dialogDescription: string
+  actionLabel: string
+  resultVerb: string
+  resultCount: (result: OnboardWorkspaceRepositoryResponse) => number
+}
+
+const ONBOARDING_MODE_ORDER: OnboardingMode[] = [
+  RepoBindingOnboardingMode.EXPORT_CURRENT,
+  RepoBindingOnboardingMode.IMPORT_REPOSITORY,
+]
+
+const ONBOARDING_MODE_CONFIG: Record<OnboardingMode, OnboardingModeConfig> = {
+  [RepoBindingOnboardingMode.EXPORT_CURRENT]: {
+    icon: <ArrowUpFromLine className='h-4 w-4' />,
+    optionTitle: 'Export current content',
+    optionDescription:
+      'Write the current database-managed Agent Content to Git, then validate and activate it.',
+    optionDetail:
+      'Creates one direct commit even when the binding uses Pull / Merge request mode.',
+    successToast: 'Current Agent Content exported and activated',
+    dialogTitle: 'Export current Agent Content?',
+    dialogDescription:
+      "Butter will write the workspace's current Agent Content to the managed agents/ subtree as one direct commit, read it back, validate it, and publish the resulting Active Revision.",
+    actionLabel: 'Export and activate',
+    resultVerb: 'exported',
+    resultCount: (result) => result.agentsExported,
+  },
+  [RepoBindingOnboardingMode.IMPORT_REPOSITORY]: {
+    icon: <ArrowDownToLine className='h-4 w-4' />,
+    optionTitle: 'Import repository content',
+    optionDescription:
+      'Adopt content for repository directories that match existing Agent IDs.',
+    optionDetail:
+      'Unknown Agent directories remain unclaimed; no bidirectional merge is performed.',
+    successToast: 'Repository Agent Content imported and activated',
+    dialogTitle: 'Import repository Agent Content?',
+    dialogDescription:
+      'Butter will read the repository and publish content only for directories matching Agent IDs in this workspace. Existing database content remains authoritative unless validation and publication succeed.',
+    actionLabel: 'Import and activate',
+    resultVerb: 'imported',
+    resultCount: (result) => result.agentsImported,
+  },
+}
+
+function OnboardingCard({ binding }: { binding: WorkspaceRepoBinding }) {
+  const onboardMutation = useOnboardWorkspaceRepository()
+  const [mode, setMode] = useState<OnboardingMode>(
+    RepoBindingOnboardingMode.EXPORT_CURRENT
+  )
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [result, setResult] = useState<{
+    response: OnboardWorkspaceRepositoryResponse
+    mode: OnboardingMode
+  } | null>(null)
+  const connectionState = binding.status?.state ?? RepoBindingConnectionState.UNVALIDATED
+  const connected = connectionState === RepoBindingConnectionState.OK
+  const alreadyActive = binding.activeCommitSha.length > 0
+  const canOnboard = binding.credentialSet && connected && !alreadyActive
+  const modeConfig = ONBOARDING_MODE_CONFIG[mode]
+
+  function handleConfirm() {
+    const submittedMode = mode
+    const submittedModeConfig = ONBOARDING_MODE_CONFIG[submittedMode]
+    onboardMutation.mutate(submittedMode, {
+      onSuccess: (response) => {
+        setResult({ response, mode: submittedMode })
+        setConfirmOpen(false)
+        if (response.validationErrors.length > 0) {
+          toast.error('Repository onboarding failed validation')
+        } else if (response.published) {
+          toast.success(submittedModeConfig.successToast)
+        } else {
+          toast.warning('Onboarding completed without publishing an Active Revision')
+        }
+      },
+      onError: (error) => {
+        setConfirmOpen(false)
+        toast.error(error.message)
+      },
+    })
+  }
+
+  if (alreadyActive) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className='flex items-center gap-2 text-base'>
+            <CircleCheck className='h-4 w-4 text-success-foreground' />
+            Repository-backed Agent Content active
+          </CardTitle>
+          <CardDescription>
+            This workspace is using the published repository revision for Agent Content.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert className='border-success-foreground/25 bg-success-muted'>
+            <CircleCheck className='text-success-foreground' />
+            <AlertTitle>Onboarding complete</AlertTitle>
+            <AlertDescription>
+              <p>
+                Active revision:{' '}
+                <code className='break-all font-mono text-foreground'>
+                  {binding.activeCommitSha}
+                </code>
+              </p>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className='flex items-center gap-2 text-base'>
+          <GitBranch className='h-4 w-4' />
+          Activate Agent Content from Git
+        </CardTitle>
+        <CardDescription>
+          Choose the one-time source for Agent Content before this workspace starts using Git at runtime.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-5'>
+        <div className='flex flex-wrap gap-2 text-xs'>
+          <PrerequisiteBadge ok={binding.credentialSet} label='Credential set' />
+          <PrerequisiteBadge ok={connected} label='Connection validated' />
+        </div>
+
+        <RadioGroup
+          value={String(mode)}
+          onValueChange={(value) => {
+            setMode(Number(value) as OnboardingMode)
+            setResult(null)
+          }}
+          className='grid gap-3 md:grid-cols-2'
+        >
+          {ONBOARDING_MODE_ORDER.map((optionMode) => (
+            <OnboardingOption
+              key={optionMode}
+              value={optionMode}
+              selected={optionMode === mode}
+              config={ONBOARDING_MODE_CONFIG[optionMode]}
+            />
+          ))}
+        </RadioGroup>
+
+        {!canOnboard && (
+          <Alert>
+            <Info />
+            <AlertTitle>Complete the connection first</AlertTitle>
+            <AlertDescription>
+              Set a repository credential and validate the connection before activating Agent Content from Git.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {result && (
+          <OnboardingResult
+            result={result.response}
+            config={ONBOARDING_MODE_CONFIG[result.mode]}
+          />
+        )}
+
+        <Button
+          type='button'
+          onClick={() => setConfirmOpen(true)}
+          disabled={!canOnboard || onboardMutation.isPending}
+        >
+          <GitBranch aria-hidden='true' />
+          Activate Agent Content from Git
+        </Button>
+      </CardContent>
+
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          if (!onboardMutation.isPending) setConfirmOpen(open)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {modeConfig.dialogTitle}
+            </DialogTitle>
+            <DialogDescription>
+              {modeConfig.dialogDescription}
+            </DialogDescription>
+          </DialogHeader>
+          <Alert>
+            <Info />
+            <AlertTitle>This changes the Agent Content source of truth</AlertTitle>
+            <AlertDescription>
+              After a successful publication, future Agent Content changes are owned by Git until the repository binding is safely removed.
+            </AlertDescription>
+          </Alert>
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setConfirmOpen(false)}
+              disabled={onboardMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type='button' onClick={handleConfirm} disabled={onboardMutation.isPending}>
+              {onboardMutation.isPending && (
+                <RefreshCw className='animate-spin' aria-hidden='true' />
+              )}
+              {onboardMutation.isPending
+                ? 'Activating…'
+                : modeConfig.actionLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  )
+}
+
+function PrerequisiteBadge({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <Badge
+      variant='outline'
+      className={
+        ok
+          ? 'border-success-foreground/30 bg-success-muted text-success-foreground'
+          : 'border-warning-foreground/30 bg-warning-muted text-warning-foreground'
+      }
+    >
+      {ok ? <Check aria-hidden='true' /> : <X aria-hidden='true' />}
+      {label}
+    </Badge>
+  )
+}
+
+function OnboardingOption({
+  value,
+  selected,
+  config,
+}: {
+  value: OnboardingMode
+  selected: boolean
+  config: OnboardingModeConfig
+}) {
+  return (
+    <Label
+      htmlFor={`onboarding-mode-${value}`}
+      className={`flex cursor-pointer items-start gap-3 rounded-md border p-4 transition-colors ${
+        selected
+          ? 'border-primary bg-primary/5'
+          : 'hover:border-foreground/25 hover:bg-muted/30'
+      }`}
+    >
+      <RadioGroupItem
+        id={`onboarding-mode-${value}`}
+        value={String(value)}
+        className='mt-0.5'
+      />
+      <span className='min-w-0 space-y-2'>
+        <span className='flex items-center gap-2 text-sm font-medium text-foreground'>
+          {config.icon}
+          {config.optionTitle}
+        </span>
+        <span className='block text-sm leading-relaxed text-muted-foreground'>
+          {config.optionDescription}
+        </span>
+        <span className='block text-xs leading-relaxed text-muted-foreground'>
+          {config.optionDetail}
+        </span>
+      </span>
+    </Label>
+  )
+}
+
+function OnboardingResult({
+  result,
+  config,
+}: {
+  result: OnboardWorkspaceRepositoryResponse
+  config: OnboardingModeConfig
+}) {
+  if (result.validationErrors.length > 0) {
+    return (
+      <Alert variant='destructive'>
+        <X />
+        <AlertTitle>Agent Content validation failed</AlertTitle>
+        <AlertDescription>
+          <ul className='list-disc space-y-1 ps-4'>
+            {result.validationErrors.map((error) => (
+              <li key={error}>{error}</li>
+            ))}
+          </ul>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  const count = config.resultCount(result)
+
+  return (
+    <Alert className={result.published ? 'border-success-foreground/25 bg-success-muted' : ''}>
+      {result.published ? <CircleCheck className='text-success-foreground' /> : <Info />}
+      <AlertTitle>
+        {result.published ? 'Active Revision published' : 'No Active Revision published'}
+      </AlertTitle>
+      <AlertDescription>
+        <p>
+          {count} Agent{count === 1 ? '' : 's'}{' '}
+          {config.resultVerb}.
+        </p>
+        {result.commitSha && (
+          <p>
+            Commit:{' '}
+            <code className='break-all font-mono text-foreground'>{result.commitSha}</code>
+          </p>
+        )}
+      </AlertDescription>
+    </Alert>
   )
 }
 
