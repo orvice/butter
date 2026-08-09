@@ -231,6 +231,52 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateAgentID(agent.GetAgentId()); err != nil {
 		return nil, connectx.InvalidArgument("agent_id", err.Error())
 	}
+	agent.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE
+	agent.WorkspaceId = wsID
+	if len(agent.GetChildAgentIds()) > 0 {
+		pool, err := s.repo.ListAgents(ctx, wsID)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		if err := internalagent.ValidateAgentRelationships(agent, pool); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+	}
+
+	logger := log.FromContext(ctx)
+	coord := s.coordinator()
+	bound := false
+	if coord != nil {
+		bound, err = s.content.HasBinding(ctx, wsID)
+		if err != nil {
+			return nil, connectx.InternalWith(err)
+		}
+		if bound {
+			if err := s.requireOwnerOrAdmin(ctx, wsID); err != nil {
+				return nil, err
+			}
+			initial := req.Msg.GetInitialContent()
+			if agentTypeRequiresPrompt(agent.GetType()) && strings.TrimSpace(initial.GetPrompt()) == "" {
+				return nil, connectx.RequiredArgument("initial_content.prompt")
+			}
+			reqJSON, err := createOperationRequestJSON(agent, initial)
+			if err != nil {
+				return nil, connectx.InternalWith(err)
+			}
+			created, op, vErrs, found, err := coord.resumeExisting(ctx, wsID, req.Msg.GetOperationId(),
+				agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_CREATE, agent.GetAgentId(), reqJSON, 0, "")
+			if found {
+				if err != nil {
+					return nil, operationError(err, op)
+				}
+				if len(vErrs) > 0 {
+					return nil, operationError(contentValidationError(vErrs), op)
+				}
+				return connect.NewResponse(&agentsv1.CreateAgentResponse{Agent: created, Operation: op}), nil
+			}
+		}
+	}
+
 	taken, err := s.repo.AgentIDExists(ctx, wsID, agent.GetAgentId())
 	if err != nil {
 		return nil, toConnectError(err)
@@ -246,42 +292,19 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeAlreadyExists,
 			fmt.Errorf("agent_id %q is already in use in this workspace", agent.GetAgentId()))
 	}
-	agent.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE
-	agent.WorkspaceId = wsID
-	if len(agent.GetChildAgentIds()) > 0 {
-		pool, err := s.repo.ListAgents(ctx, wsID)
-		if err != nil {
-			return nil, toConnectError(err)
-		}
-		if err := internalagent.ValidateAgentRelationships(agent, pool); err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, err)
-		}
-	}
-
-	logger := log.FromContext(ctx)
 
 	// Git-bound workspace with a Saga coordinator: create through the durable
 	// lifecycle Saga (PROVISIONING → commit content → publish → ACTIVE).
-	if coord := s.coordinator(); coord != nil {
-		bound, err := s.content.HasBinding(ctx, wsID)
-		if err != nil {
-			return nil, connectx.InternalWith(err)
-		}
+	if coord != nil {
 		if bound {
-			if err := s.requireOwnerOrAdmin(ctx, wsID); err != nil {
-				return nil, err
-			}
 			initial := req.Msg.GetInitialContent()
-			if agentTypeRequiresPrompt(agent.GetType()) && strings.TrimSpace(initial.GetPrompt()) == "" {
-				return nil, connectx.RequiredArgument("initial_content.prompt")
-			}
 			logger.Info("creating bound agent via saga", "workspace_id", wsID, "agent", agent.GetName())
 			created, op, vErrs, err := coord.RunCreate(ctx, wsID, agent, initial, req.Msg.GetOperationId())
 			if err != nil {
-				return nil, toConnectError(err)
+				return nil, operationError(err, op)
 			}
 			if len(vErrs) > 0 {
-				return nil, contentValidationError(vErrs)
+				return nil, operationError(contentValidationError(vErrs), op)
 			}
 			return connect.NewResponse(&agentsv1.CreateAgentResponse{Agent: created, Operation: op}), nil
 		}
@@ -332,11 +355,24 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	update.AgentId = prev.GetAgentId()
 	update.LifecycleStatus = prev.GetLifecycleStatus()
 	update.LegacyName = prev.GetLegacyName()
-	// Bump version so a concurrent composite-save (UpdateAgentConfiguration)
-	// detects the interleaving write via UpdateAgentCAS.
-	update.Version = prev.GetVersion() + 1
 	update.CreatedAt = prev.GetCreatedAt()
 	update.DeletedAt = prev.GetDeletedAt()
+	if s.content != nil {
+		bound, bindErr := s.content.HasBinding(ctx, wsID)
+		if bindErr != nil {
+			return nil, connectx.InternalWith(bindErr)
+		}
+		if bound {
+			update.Description = prev.GetDescription()
+			if update.Config == nil && prev.GetConfig() != nil {
+				update.Config = &agentsv1.AgentConfig{}
+			}
+			if update.Config != nil {
+				update.Config.Instruction = prev.GetConfig().GetInstruction()
+				update.Config.GlobalInstruction = prev.GetConfig().GetGlobalInstruction()
+			}
+		}
+	}
 
 	// V2 contract: embedded sub_agents are read-only legacy state. A legacy
 	// agent can still be edited (its stored tree round-trips unchanged), but
@@ -365,15 +401,22 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 
 	logger.Info("updating agent", "workspace_id", wsID, "agent", update.GetName())
 
+	var applied *agentsv1.Agent
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.UpdateAgent(ctx, wsID, update)
+			var applyErr error
+			applied, applyErr = s.repo.UpdateAgentCAS(ctx, wsID, update, prev.GetVersion())
+			return applied, applyErr
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.UpdateAgent(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
+			expected := prev.GetVersion() + 1
+			if applied != nil {
+				expected = applied.GetVersion()
+			}
+			if _, err := s.repo.UpdateAgentCAS(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent), expected); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -381,6 +424,10 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	)
 	if err != nil {
 		logger.Error("update agent failed", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "err", err)
+		if errors.Is(err, configrepo.ErrVersionConflict) {
+			return nil, connect.NewError(connect.CodeAborted,
+				errors.New("agent version changed since it was read; re-read and retry"))
+		}
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent updated", "workspace_id", wsID, "agent", a.GetName())
@@ -404,6 +451,21 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		return nil, toConnectError(err)
 	}
 	agentName := prev.GetName()
+	coord := s.coordinator()
+	if coord != nil && req.Msg.GetOperationId() != "" {
+		reqJSON, jsonErr := deleteOperationRequestJSON(prev)
+		if jsonErr != nil {
+			return nil, connectx.InternalWith(jsonErr)
+		}
+		_, op, _, found, resumeErr := coord.resumeExisting(ctx, wsID, req.Msg.GetOperationId(),
+			agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_DELETE, prev.GetAgentId(), reqJSON, 0, "")
+		if found {
+			if resumeErr != nil {
+				return nil, operationError(resumeErr, op)
+			}
+			return connect.NewResponse(&agentsv1.DeleteAgentResponse{Operation: op}), nil
+		}
+	}
 
 	if agentID := prev.GetAgentId(); agentID != "" {
 		pool, err := s.repo.ListAgents(ctx, wsID)
@@ -425,13 +487,14 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 	// Soft delete: with a Saga coordinator the delete is a durable TOMBSTONE
 	// operation that flips lifecycle to DELETED while retaining the Agent ID
 	// and any Git content (issue #218). Restore reactivates the same entity.
-	if coord := s.coordinator(); coord != nil {
-		if _, err := coord.RunDelete(ctx, wsID, prev, ""); err != nil {
+	if coord != nil {
+		op, err := coord.RunDelete(ctx, wsID, prev, req.Msg.GetOperationId())
+		if err != nil {
 			logger.Error("tombstone agent failed", "workspace_id", wsID, "agent", agentName, "err", err)
-			return nil, toConnectError(err)
+			return nil, operationError(err, op)
 		}
 		logger.Info("agent tombstoned", "workspace_id", wsID, "agent", agentName)
-		return connect.NewResponse(&agentsv1.DeleteAgentResponse{}), nil
+		return connect.NewResponse(&agentsv1.DeleteAgentResponse{Operation: op}), nil
 	}
 
 	// No coordinator (unbound / legacy wiring): tombstone directly via the
@@ -439,15 +502,22 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 	tombstone := proto.Clone(prev).(*agentsv1.Agent)
 	tombstone.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED
 	tombstone.DeletedAt = timestamppb.New(time.Now())
+	var applied *agentsv1.Agent
 	_, err = mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.UpdateAgent(ctx, wsID, tombstone)
+			var applyErr error
+			applied, applyErr = s.repo.UpdateAgentCAS(ctx, wsID, tombstone, prev.GetVersion())
+			return applied, applyErr
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.UpdateAgent(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
+			expected := prev.GetVersion() + 1
+			if applied != nil {
+				expected = applied.GetVersion()
+			}
+			if _, err := s.repo.UpdateAgentCAS(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent), expected); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -455,6 +525,10 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 	)
 	if err != nil {
 		logger.Error("delete agent failed", "workspace_id", wsID, "agent", agentName, "err", err)
+		if errors.Is(err, configrepo.ErrVersionConflict) {
+			return nil, connect.NewError(connect.CodeAborted,
+				errors.New("agent version changed since it was read; re-read and retry"))
+		}
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent tombstoned", "workspace_id", wsID, "agent", agentName)
@@ -883,6 +957,18 @@ func contentValidationError(vErrs []string) error {
 		fmt.Errorf("agent content invalid: %s", strings.Join(vErrs, "; ")))
 }
 
+func operationError(err error, op *agentsv1.AgentOperation) *connect.Error {
+	cerr := toConnectError(err)
+	if op == nil {
+		return cerr
+	}
+	detail, detailErr := connect.NewErrorDetail(op)
+	if detailErr == nil {
+		cerr.AddDetail(detail)
+	}
+	return cerr
+}
+
 func (s *AgentServiceServer) requireCoordinator() (*agentOperationCoordinator, error) {
 	coord := s.coordinator()
 	if coord == nil {
@@ -914,9 +1000,24 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 	if err != nil {
 		return nil, err
 	}
+	reqJSON, err := updateOperationRequestJSON(patch, req.Msg.GetContentChanges(), req.Msg.GetExpectedAgentVersion(), req.Msg.GetBaseCommitSha())
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	agent, op, vErrs, found, err := coord.resumeExisting(ctx, wsID, req.Msg.GetOperationId(),
+		agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_UPDATE_CONFIGURATION, patch.GetAgentId(), reqJSON,
+		req.Msg.GetExpectedAgentVersion(), req.Msg.GetBaseCommitSha())
+	if found {
+		if err != nil {
+			return nil, operationError(err, op)
+		}
+		return connect.NewResponse(&agentsv1.UpdateAgentConfigurationResponse{
+			Agent: agent, Operation: op, ValidationErrors: vErrs,
+		}), nil
+	}
 	prev, err := s.repo.GetAgentByID(ctx, wsID, patch.GetAgentId())
 	if err != nil {
-		return nil, toConnectError(err)
+		return nil, operationError(err, op)
 	}
 	if prev.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
@@ -942,10 +1043,10 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 		}
 	}
 
-	agent, op, vErrs, err := coord.RunUpdateConfiguration(ctx, wsID, prev, patch,
+	agent, op, vErrs, err = coord.RunUpdateConfiguration(ctx, wsID, prev, patch,
 		req.Msg.GetContentChanges(), req.Msg.GetExpectedAgentVersion(), req.Msg.GetBaseCommitSha(), req.Msg.GetOperationId())
 	if err != nil {
-		return nil, toConnectError(err)
+		return nil, operationError(err, op)
 	}
 	return connect.NewResponse(&agentsv1.UpdateAgentConfigurationResponse{
 		Agent: agent, Operation: op, ValidationErrors: vErrs,
@@ -969,17 +1070,31 @@ func (s *AgentServiceServer) RestoreAgent(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, err
 	}
+	reqJSON, err := restoreOperationRequestJSON(req.Msg.GetAgentId())
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	agent, op, vErrs, found, err := coord.resumeExisting(ctx, wsID, req.Msg.GetOperationId(),
+		agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_RESTORE, req.Msg.GetAgentId(), reqJSON, 0, "")
+	if found {
+		if err != nil {
+			return nil, operationError(err, op)
+		}
+		return connect.NewResponse(&agentsv1.RestoreAgentResponse{
+			Agent: agent, Operation: op, ValidationErrors: vErrs,
+		}), nil
+	}
 	prev, err := s.repo.GetAgentByID(ctx, wsID, req.Msg.GetAgentId())
 	if err != nil {
-		return nil, toConnectError(err)
+		return nil, operationError(err, op)
 	}
 	if prev.GetLifecycleStatus() != agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("agent is not deleted; nothing to restore"))
 	}
-	agent, op, vErrs, err := coord.RunRestore(ctx, wsID, prev, req.Msg.GetOperationId())
+	agent, op, vErrs, err = coord.RunRestore(ctx, wsID, prev, req.Msg.GetOperationId())
 	if err != nil {
-		return nil, toConnectError(err)
+		return nil, operationError(err, op)
 	}
 	return connect.NewResponse(&agentsv1.RestoreAgentResponse{
 		Agent: agent, Operation: op, ValidationErrors: vErrs,
@@ -1036,7 +1151,7 @@ func (s *AgentServiceServer) RetryAgentOperation(ctx context.Context, req *conne
 	}
 	agent, op, vErrs, err := coord.Retry(ctx, wsID, req.Msg.GetOperationId())
 	if err != nil {
-		return nil, toConnectError(err)
+		return nil, operationError(err, op)
 	}
 	return connect.NewResponse(&agentsv1.RetryAgentOperationResponse{
 		Agent: agent, Operation: op, ValidationErrors: vErrs,

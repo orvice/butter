@@ -447,9 +447,16 @@ message DeleteAgentRequest {
   // Optional: identify by immutable agent_id instead of name.
   // When set, name is ignored.
   string agent_id = 2;
+
+  // Optional caller-supplied operation ID for idempotent retries.
+  string operation_id = 3;
 }
 
-message DeleteAgentResponse {}
+message DeleteAgentResponse {
+  // The durable tombstone operation. Nil only when lifecycle Saga support is
+  // unavailable and the legacy single-step path is used.
+  AgentOperation operation = 1;
+}
 
 // --- AssignAgentID messages ---
 

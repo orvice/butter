@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"path"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -754,6 +756,7 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		}
 		if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
 			logger.Error("persist sync error failed", "workspace_id", ws, "err", putErr)
+			return nil, connectx.InternalWith(fmt.Errorf("%s; persist sync error: %w", syncErr, putErr))
 		}
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New(syncErr))
 	}
@@ -777,6 +780,7 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 			binding.LastSyncError = binding.Status.GetError()
 			if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
 				logger.Error("persist diverged status failed", "workspace_id", ws, "err", putErr)
+				return nil, connectx.InternalWith(fmt.Errorf("persist diverged status: %w", putErr))
 			}
 			return connect.NewResponse(&agentsv1.SyncWorkspaceRepositoryResponse{
 				Binding: binding,
@@ -789,9 +793,19 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		metadata, cacheErr := s.cacheRepo.GetMetadata(ctx, ws)
 		if cacheErr == nil && metadata.BindingKey == bindingKey && metadata.CommitSHA == headSHA {
 			logger.Info("sync skipped (idempotent)", "workspace_id", ws, "sha", headSHA)
+			published, pubErrors, pubErr := s.publishActiveRevision(ctx, ws)
+			if pubErr != nil {
+				return nil, connectx.InternalWith(pubErr)
+			}
+			final, getErr := s.repo.Get(ctx, ws)
+			if getErr != nil {
+				final = binding
+			}
 			return connect.NewResponse(&agentsv1.SyncWorkspaceRepositoryResponse{
-				Binding:       binding,
-				EntriesSynced: 0,
+				Binding:           final,
+				EntriesSynced:     0,
+				Published:         published,
+				PublicationErrors: pubErrors,
 			}), nil
 		}
 	}
@@ -806,6 +820,7 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 		binding.ObservedCommitSha = headSHA
 		if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
 			logger.Error("persist sync error failed", "workspace_id", ws, "err", putErr)
+			return nil, connectx.InternalWith(fmt.Errorf("%s; persist sync error: %w", syncErr, putErr))
 		}
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New(syncErr))
 	}
@@ -896,6 +911,7 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 			binding.LastSyncError = syncErr
 			if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
 				logger.Error("persist sync limit error failed", "workspace_id", ws, "err", putErr)
+				return nil, connectx.InternalWith(fmt.Errorf("%s; persist sync limit error: %w", syncErr, putErr))
 			}
 			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New(syncErr))
 		}
@@ -935,6 +951,7 @@ func (s *RepoBindingServiceServer) SyncWorkspaceRepository(ctx context.Context, 
 	published, pubErrors, pubErr := s.publishActiveRevision(ctx, ws)
 	if pubErr != nil {
 		logger.Error("publication after sync failed", "workspace_id", ws, "err", pubErr)
+		return nil, connectx.InternalWith(pubErr)
 	}
 
 	// Re-read binding for final state.
@@ -1139,6 +1156,11 @@ func (s *RepoBindingServiceServer) publishActiveRevision(ctx context.Context, ws
 
 	// Idempotent: already published this revision.
 	if binding.GetActiveCommitSha() == observedSHA {
+		if s.configRuntime != nil {
+			if err := s.configRuntime.ReloadRunner(ctx); err != nil {
+				return false, nil, fmt.Errorf("reload runner for active revision: %w", err)
+			}
+		}
 		return true, nil, nil
 	}
 
@@ -1174,7 +1196,9 @@ func (s *RepoBindingServiceServer) publishActiveRevision(ctx context.Context, ws
 		logger.Info("publication skipped: no agent content in cache", "workspace_id", ws)
 		binding.LastPublicationError = ""
 		binding.PublicationErrors = nil
-		_, _ = s.repo.Put(ctx, ws, binding)
+		if _, err := s.repo.Put(ctx, ws, binding); err != nil {
+			return false, nil, fmt.Errorf("clear publication errors: %w", err)
+		}
 		return true, nil, nil
 	}
 
@@ -1189,6 +1213,7 @@ func (s *RepoBindingServiceServer) publishActiveRevision(ctx context.Context, ws
 		binding.PublicationErrors = errStrs
 		if _, putErr := s.repo.Put(ctx, ws, binding); putErr != nil {
 			logger.Error("persist publication errors failed", "workspace_id", ws, "err", putErr)
+			return false, errStrs, fmt.Errorf("persist publication errors: %w", putErr)
 		}
 		return false, errStrs, nil
 	}
@@ -1211,7 +1236,7 @@ func (s *RepoBindingServiceServer) publishActiveRevision(ctx context.Context, ws
 	if s.configRuntime != nil {
 		if err := s.configRuntime.ReloadRunner(ctx); err != nil {
 			logger.Error("runner reload after publication failed", "workspace_id", ws, "err", err)
-			return true, nil, nil
+			return false, nil, fmt.Errorf("reload runner after publication: %w", err)
 		}
 	}
 
@@ -1390,15 +1415,40 @@ func (s *RepoBindingServiceServer) CommitContent(ctx context.Context, ws string,
 // Unlike TriggerSyncAndPublish (which is best-effort), this propagates
 // publication failures so the Saga can mark the step as failed.
 func (s *RepoBindingServiceServer) SyncAndPublish(ctx context.Context, ws string) error {
-	ctx = auth.WithAdmin(withWorkspace(ctx, ws))
-	resp, err := s.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	binding, err := s.repo.Get(ctx, ws)
 	if err != nil {
 		return err
 	}
-	if !resp.Msg.GetPublished() && len(resp.Msg.GetPublicationErrors()) > 0 {
-		return fmt.Errorf("publication failed: %s", strings.Join(resp.Msg.GetPublicationErrors(), "; "))
+	workspaces, err := s.sharedWorkspaceIDs(ctx, ws, binding)
+	if err != nil {
+		return err
+	}
+	for _, workspaceID := range workspaces {
+		adminCtx := auth.WithAdmin(withWorkspace(ctx, workspaceID))
+		resp, syncErr := s.SyncWorkspaceRepository(adminCtx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+		if syncErr != nil {
+			return fmt.Errorf("sync and publish workspace %s: %w", workspaceID, syncErr)
+		}
+		if !resp.Msg.GetPublished() {
+			return syncPublicationFailure(workspaceID, resp.Msg)
+		}
 	}
 	return nil
+}
+
+func syncPublicationFailure(workspaceID string, resp *agentsv1.SyncWorkspaceRepositoryResponse) error {
+	if len(resp.GetPublicationErrors()) > 0 {
+		return fmt.Errorf("publication failed for workspace %s: %s", workspaceID, strings.Join(resp.GetPublicationErrors(), "; "))
+	}
+	if binding := resp.GetBinding(); binding != nil {
+		if detail := binding.GetStatus().GetError(); detail != "" {
+			return fmt.Errorf("publication failed for workspace %s: %s", workspaceID, detail)
+		}
+		if detail := binding.GetLastPublicationError(); detail != "" {
+			return fmt.Errorf("publication failed for workspace %s: %s", workspaceID, detail)
+		}
+	}
+	return fmt.Errorf("publication failed for workspace %s: active revision was not published", workspaceID)
 }
 
 // ── Agent Content editing (issue #217) ──────────────────────────────────
@@ -1514,7 +1564,7 @@ func (s *RepoBindingServiceServer) commitContent(ctx context.Context, ws string,
 	if s.agentRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent repository not configured"))
 	}
-	agents, err := s.agentRepo.ListAgents(ctx, ws)
+	agents, err := s.agentsForSharedLocation(ctx, ws, binding)
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
@@ -1548,6 +1598,21 @@ func (s *RepoBindingServiceServer) commitContent(ctx context.Context, ws string,
 			Delete:  a.GetOperation() == agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_DELETE,
 			Content: []byte(a.GetContent()),
 		}
+	}
+	alreadyApplied, err := providerActionsAlreadyApplied(ctx, client, headSHA, providerActions)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("cannot verify current Agent Content: %s", providerErrDetail(err)))
+	}
+	if alreadyApplied {
+		logger := log.FromContext(ctx)
+		logger.Info("agent content commit skipped: actions already applied",
+			"workspace_id", ws, "commit_sha", headSHA, "actions", len(actions), "operation", operation)
+		final, getErr := s.repo.Get(ctx, ws)
+		if getErr != nil {
+			final = binding
+		}
+		return &commitContentResult{binding: final, commitSHA: headSHA}, nil
 	}
 
 	// Build commit message with audit metadata.
@@ -1621,6 +1686,31 @@ func (s *RepoBindingServiceServer) commitContent(ctx context.Context, ws string,
 		commitSHA:        commitResult.SHA,
 		changeRequestURL: crURL,
 	}, nil
+}
+
+func providerActionsAlreadyApplied(ctx context.Context, client gitprovider.Client, headSHA string, actions []gitprovider.FileAction) (bool, error) {
+	for _, action := range actions {
+		current, err := client.GetBlob(ctx, headSHA, action.Path)
+		if action.Delete {
+			if errors.Is(err, gitprovider.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return false, err
+			}
+			return false, nil
+		}
+		if errors.Is(err, gitprovider.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if !bytes.Equal(current, action.Content) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // RollbackAgentContent restores managed Agent Content from a previously
@@ -1900,6 +1990,23 @@ func (s *RepoBindingServiceServer) simulateAndValidate(ctx context.Context, ws s
 			}
 		}
 	}
+	if s.cacheRepo != nil {
+		if metadata, err := s.cacheRepo.GetMetadata(ctx, ws); err == nil {
+			agentIDs := make([]string, 0, len(agents))
+			for _, agent := range agents {
+				if id := agent.GetAgentId(); id != "" {
+					agentIDs = append(agentIDs, id)
+				}
+			}
+			parsed := agentcontent.Parse(func(p string) ([]byte, bool) {
+				data, err := s.cacheRepo.GetBlob(ctx, ws, metadata.SnapshotID, p)
+				return data, err == nil
+			}, agentIDs)
+			for k, v := range parsed.Content {
+				simulated[k] = v
+			}
+		}
+	}
 
 	// Apply actions.
 	for _, a := range actions {
@@ -1997,6 +2104,21 @@ func (s *RepoBindingServiceServer) PurgeAgentContent(ctx context.Context, req *c
 				agentID, strings.Join(claimants, ", ")))
 	}
 
+	// Refresh from the provider before deriving DELETE actions. The cache is a
+	// read model and may be absent or stale; purge decisions use the live branch
+	// snapshot pinned by SyncWorkspaceRepository.
+	syncCtx := auth.WithAdmin(withWorkspace(ctx, ws))
+	syncResp, err := s.SyncWorkspaceRepository(syncCtx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		return nil, err
+	}
+	if !syncResp.Msg.GetPublished() {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, syncPublicationFailure(ws, syncResp.Msg))
+	}
+	if syncResp.Msg.GetBinding() != nil {
+		binding = syncResp.Msg.GetBinding()
+	}
+
 	// Delete only the managed files that actually exist in the cache, so the
 	// provider is not asked to delete absent paths.
 	actions, err := s.existingManagedDeletes(ctx, ws, agentID)
@@ -2024,13 +2146,9 @@ func (s *RepoBindingServiceServer) PurgeAgentContent(ctx context.Context, req *c
 // claimingWorkspaces returns the IDs of the caller workspace and every
 // overlapping workspace that still has a non-deleted agent with agentID.
 func (s *RepoBindingServiceServer) claimingWorkspaces(ctx context.Context, ws string, binding *agentsv1.WorkspaceRepoBinding, agentID string) ([]string, error) {
-	candidates := []string{ws}
-	overlaps, err := s.findOverlaps(ctx, binding)
+	candidates, err := s.sharedWorkspaceIDs(ctx, ws, binding)
 	if err != nil {
 		return nil, err
-	}
-	for _, o := range overlaps {
-		candidates = append(candidates, o.GetWorkspaceId())
 	}
 
 	var claimants []string
@@ -2051,6 +2169,40 @@ func (s *RepoBindingServiceServer) claimingWorkspaces(ctx context.Context, ws st
 		}
 	}
 	return claimants, nil
+}
+
+func (s *RepoBindingServiceServer) sharedWorkspaceIDs(ctx context.Context, ws string, binding *agentsv1.WorkspaceRepoBinding) ([]string, error) {
+	workspaces := []string{ws}
+	overlaps, err := s.findOverlaps(ctx, binding)
+	if err != nil {
+		return nil, err
+	}
+	for _, overlap := range overlaps {
+		workspaces = append(workspaces, overlap.GetWorkspaceId())
+	}
+	sort.Strings(workspaces)
+	return workspaces, nil
+}
+
+func (s *RepoBindingServiceServer) agentsForSharedLocation(ctx context.Context, ws string, binding *agentsv1.WorkspaceRepoBinding) ([]*agentsv1.Agent, error) {
+	workspaces, err := s.sharedWorkspaceIDs(ctx, ws, binding)
+	if err != nil {
+		return nil, err
+	}
+	var agents []*agentsv1.Agent
+	for _, workspaceID := range workspaces {
+		workspaceAgents, err := s.agentRepo.ListAgents(ctx, workspaceID)
+		if err != nil {
+			return nil, err
+		}
+		for _, agent := range workspaceAgents {
+			if agent.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+				continue
+			}
+			agents = append(agents, agent)
+		}
+	}
+	return agents, nil
 }
 
 // existingManagedDeletes returns a DELETE changeset for the managed files that

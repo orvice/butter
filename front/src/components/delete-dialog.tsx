@@ -16,9 +16,20 @@ interface DeleteDialogProps {
   description: string;
   onConfirm: () => void;
   loading?: boolean;
+  confirmLabel?: string;
+  loadingLabel?: string;
 }
 
-export function DeleteDialog({ open, onOpenChange, title, description, onConfirm, loading }: DeleteDialogProps) {
+export function DeleteDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  onConfirm,
+  loading,
+  confirmLabel = "Delete",
+  loadingLabel = "Deleting...",
+}: DeleteDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -29,7 +40,7 @@ export function DeleteDialog({ open, onOpenChange, title, description, onConfirm
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={loading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-            {loading ? "Deleting..." : "Delete"}
+            {loading ? loadingLabel : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

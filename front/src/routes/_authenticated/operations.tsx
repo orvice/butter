@@ -1,7 +1,6 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { OperationsPage } from '@/features/operations/list'
 
 export const Route = createFileRoute('/_authenticated/operations')({
-  beforeLoad: () => {
-    throw redirect({ to: '/sessions', replace: true })
-  },
+  component: OperationsPage,
 })

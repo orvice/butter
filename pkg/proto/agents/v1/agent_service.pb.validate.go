@@ -4549,6 +4549,8 @@ func (m *DeleteAgentRequest) validate(all bool) error {
 
 	// no validation rules for AgentId
 
+	// no validation rules for OperationId
+
 	if len(errors) > 0 {
 		return DeleteAgentRequestMultiError(errors)
 	}
@@ -4650,6 +4652,35 @@ func (m *DeleteAgentResponse) validate(all bool) error {
 	}
 
 	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetOperation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DeleteAgentResponseValidationError{
+					field:  "Operation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DeleteAgentResponseValidationError{
+					field:  "Operation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOperation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DeleteAgentResponseValidationError{
+				field:  "Operation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return DeleteAgentResponseMultiError(errors)

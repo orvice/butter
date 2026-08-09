@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	agentopmemory "go.orx.me/apps/butter/internal/repo/agentop/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -63,6 +64,35 @@ func TestLifecycleCreateBoundAgentActivates(t *testing.T) {
 	}
 }
 
+func TestLifecycleCreateReplayReturnsStoredOperation(t *testing.T) {
+	svc, fx, _ := newLifecycleAgentService(t)
+	ctx := ownerCtx()
+	req := &agentsv1.CreateAgentRequest{
+		Agent: &agentsv1.Agent{
+			Name: "replay-create", AgentId: "replay-create",
+			Type: agentsv1.AgentType_AGENT_TYPE_LLM,
+		},
+		InitialContent: &agentsv1.AgentContentInput{Prompt: "hi"},
+		OperationId:    "create-op",
+	}
+
+	first, err := svc.CreateAgent(ctx, connect.NewRequest(req))
+	if err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	commits := len(fx.fake.commits)
+	second, err := svc.CreateAgent(ctx, connect.NewRequest(proto.Clone(req).(*agentsv1.CreateAgentRequest)))
+	if err != nil {
+		t.Fatalf("replayed create: %v", err)
+	}
+	if second.Msg.GetOperation().GetId() != first.Msg.GetOperation().GetId() {
+		t.Fatalf("operation changed on replay: %q != %q", second.Msg.GetOperation().GetId(), first.Msg.GetOperation().GetId())
+	}
+	if len(fx.fake.commits) != commits {
+		t.Fatalf("replayed create made another commit: %d -> %d", commits, len(fx.fake.commits))
+	}
+}
+
 func TestLifecycleCreateBoundRequiresOwnerOrAdmin(t *testing.T) {
 	svc, _, _ := newLifecycleAgentService(t)
 
@@ -103,8 +133,14 @@ func TestLifecycleTombstoneThenRestore(t *testing.T) {
 	}
 
 	// Delete → tombstone.
-	if _, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "rt-agent"})); err != nil {
+	deleted, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{
+		AgentId: "rt-agent", OperationId: "delete-op",
+	}))
+	if err != nil {
 		t.Fatalf("delete: %v", err)
+	}
+	if deleted.Msg.GetOperation().GetId() != "delete-op" {
+		t.Fatalf("delete operation = %q, want delete-op", deleted.Msg.GetOperation().GetId())
 	}
 	got, _ := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "rt-agent"}))
 	if got.Msg.GetAgent().GetLifecycleStatus() != agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
@@ -112,7 +148,7 @@ func TestLifecycleTombstoneThenRestore(t *testing.T) {
 	}
 
 	// Re-create with the same ID is steered to restore.
-	_, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
+	_, err = svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
 		Agent: &agentsv1.Agent{
 			Name: "rt-agent", AgentId: "rt-agent",
 			Type: agentsv1.AgentType_AGENT_TYPE_LLM,
@@ -173,6 +209,51 @@ func TestLifecycleUpdateConfigurationVersionConflict(t *testing.T) {
 	wantCode(t, err, connect.CodeAborted)
 }
 
+func TestLifecycleUpdateAndRestoreReplayReturnStoredOperation(t *testing.T) {
+	svc, _, _ := newLifecycleAgentService(t)
+	ctx := ownerCtx()
+	created, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
+		Agent:          &agentsv1.Agent{Name: "replay-agent", AgentId: "replay-agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM},
+		InitialContent: &agentsv1.AgentContentInput{Prompt: "hi"},
+	}))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	updateReq := &agentsv1.UpdateAgentConfigurationRequest{
+		AgentPatch:           &agentsv1.Agent{Name: "replay-agent", AgentId: "replay-agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM, DisplayName: "updated"},
+		ExpectedAgentVersion: created.Msg.GetAgent().GetVersion(),
+		OperationId:          "update-op",
+	}
+	firstUpdate, err := svc.UpdateAgentConfiguration(ctx, connect.NewRequest(updateReq))
+	if err != nil {
+		t.Fatalf("first update: %v", err)
+	}
+	secondUpdate, err := svc.UpdateAgentConfiguration(ctx, connect.NewRequest(proto.Clone(updateReq).(*agentsv1.UpdateAgentConfigurationRequest)))
+	if err != nil {
+		t.Fatalf("replayed update: %v", err)
+	}
+	if secondUpdate.Msg.GetOperation().GetId() != firstUpdate.Msg.GetOperation().GetId() {
+		t.Fatal("update replay did not return the stored operation")
+	}
+
+	if _, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "replay-agent"})); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	restoreReq := &agentsv1.RestoreAgentRequest{AgentId: "replay-agent", OperationId: "restore-op"}
+	firstRestore, err := svc.RestoreAgent(ctx, connect.NewRequest(restoreReq))
+	if err != nil {
+		t.Fatalf("first restore: %v", err)
+	}
+	secondRestore, err := svc.RestoreAgent(ctx, connect.NewRequest(proto.Clone(restoreReq).(*agentsv1.RestoreAgentRequest)))
+	if err != nil {
+		t.Fatalf("replayed restore: %v", err)
+	}
+	if secondRestore.Msg.GetOperation().GetId() != firstRestore.Msg.GetOperation().GetId() {
+		t.Fatal("restore replay did not return the stored operation")
+	}
+}
+
 func TestLifecycleCreateFailsThenRetryViaRPC(t *testing.T) {
 	svc, fx, _ := newLifecycleAgentService(t)
 	ctx := ownerCtx()
@@ -226,4 +307,37 @@ func TestLifecycleCreateFailsThenRetryViaRPC(t *testing.T) {
 	if retry.Msg.GetOperation().GetStatus() != agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED {
 		t.Fatalf("want operation SUCCEEDED after retry, got %v", retry.Msg.GetOperation().GetStatus())
 	}
+}
+
+func TestLifecycleFailureIncludesGeneratedOperationDetail(t *testing.T) {
+	svc, fx, _ := newLifecycleAgentService(t)
+	fx.fake.treeErr = errors.New("tree unavailable")
+
+	_, err := svc.CreateAgent(ownerCtx(), connect.NewRequest(&agentsv1.CreateAgentRequest{
+		Agent: &agentsv1.Agent{
+			Name: "detail-agent", AgentId: "detail-agent",
+			Type: agentsv1.AgentType_AGENT_TYPE_LLM,
+		},
+		InitialContent: &agentsv1.AgentContentInput{Prompt: "hi"},
+	}))
+	if err == nil {
+		t.Fatal("expected create failure")
+	}
+	var connectErr *connect.Error
+	if !errors.As(err, &connectErr) {
+		t.Fatalf("want Connect error, got %T", err)
+	}
+	for _, detail := range connectErr.Details() {
+		value, detailErr := detail.Value()
+		if detailErr != nil {
+			continue
+		}
+		if op, ok := value.(*agentsv1.AgentOperation); ok {
+			if op.GetId() == "" || op.GetStatus() != agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED {
+				t.Fatalf("unexpected operation detail: %v", op)
+			}
+			return
+		}
+	}
+	t.Fatal("create failure did not include AgentOperation detail")
 }

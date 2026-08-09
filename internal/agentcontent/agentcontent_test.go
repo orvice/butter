@@ -141,6 +141,21 @@ func TestValidate_NonLLMIgnoresEmptyPrompt(t *testing.T) {
 	}
 }
 
+func TestValidate_DuplicateAgentIDUsesStrictestRequirement(t *testing.T) {
+	content := map[string]AgentContent{
+		"shared": {AgentID: "shared", Instruction: ""},
+	}
+	agents := []*agentsv1.Agent{
+		{AgentId: "shared", Type: agentsv1.AgentType_AGENT_TYPE_LLM},
+		{AgentId: "shared", Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL},
+	}
+
+	errs := Validate(content, agents)
+	if len(errs) != 1 {
+		t.Fatalf("expected shared LLM requirement to be retained, got %d errors", len(errs))
+	}
+}
+
 func TestValidate_LLMWithPromptPasses(t *testing.T) {
 	content := map[string]AgentContent{
 		"good": {AgentID: "good", Instruction: "You are helpful."},

@@ -42,20 +42,26 @@ type agentContentCoordinator interface {
 // and operations resume idempotently. It coordinates DB config and Git content
 // but never claims a distributed transaction.
 type agentOperationCoordinator struct {
-	agents  configrepo.AgentRepository
-	ops     agentoprepo.Repository
-	content agentContentCoordinator
-	reload  func(ctx context.Context) error
-	now     func() time.Time
+	agents                 configrepo.AgentRepository
+	ops                    agentoprepo.Repository
+	content                agentContentCoordinator
+	reload                 func(ctx context.Context) error
+	now                    func() time.Time
+	leaseDuration          time.Duration
+	leaseHeartbeatInterval time.Duration
 }
+
+const agentOperationLeaseDuration = 15 * time.Minute
 
 func newAgentOperationCoordinator(agents configrepo.AgentRepository, ops agentoprepo.Repository, content agentContentCoordinator, reload func(context.Context) error) *agentOperationCoordinator {
 	return &agentOperationCoordinator{
-		agents:  agents,
-		ops:     ops,
-		content: content,
-		reload:  reload,
-		now:     time.Now,
+		agents:                 agents,
+		ops:                    ops,
+		content:                content,
+		reload:                 reload,
+		now:                    time.Now,
+		leaseDuration:          agentOperationLeaseDuration,
+		leaseHeartbeatInterval: agentOperationLeaseDuration / 3,
 	}
 }
 
@@ -83,16 +89,43 @@ func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.Ag
 	pctx := context.WithoutCancel(ctx)
 	logger := log.FromContext(ctx)
 	ws := op.GetWorkspaceId()
-
-	op.AttemptCount++
-	op.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING
-	op.Error = ""
-	op.UpdatedAt = c.nowTS()
-	if err := c.ops.Save(pctx, ws, op); err != nil {
-		return nil, connectx.InternalWith(fmt.Errorf("persist operation: %w", err))
+	claimedAt := c.now()
+	leaseToken := uuid.NewString()
+	claimed, err := c.ops.Claim(pctx, ws, op.GetId(), leaseToken, claimedAt, claimedAt.Add(c.leaseDuration))
+	if errors.Is(err, agentoprepo.ErrInProgress) || errors.Is(err, agentoprepo.ErrCompleted) {
+		if claimed == nil {
+			claimed, err = c.ops.Get(pctx, ws, op.GetId())
+			if err != nil {
+				return nil, connectx.InternalWith(err)
+			}
+		}
+		replaceOperation(op, claimed)
+		return nil, nil
+	}
+	if err != nil {
+		return nil, connectx.InternalWith(fmt.Errorf("claim operation: %w", err))
+	}
+	replaceOperation(op, claimed)
+	stepCtx, stopHeartbeat, heartbeatErr := c.startLeaseHeartbeat(ctx, pctx, ws, op.GetId(), leaseToken)
+	defer stopHeartbeat()
+	save := func() error {
+		if err := c.ops.SaveClaimed(pctx, ws, leaseToken, op); err != nil {
+			if errors.Is(err, agentoprepo.ErrLeaseLost) {
+				if latest, getErr := c.ops.Get(pctx, ws, op.GetId()); getErr == nil {
+					replaceOperation(op, latest)
+				}
+				return connect.NewError(connect.CodeAborted,
+					fmt.Errorf("%w: reload the operation", agentoprepo.ErrLeaseLost))
+			}
+			return err
+		}
+		return nil
 	}
 
 	for _, st := range steps {
+		if err := heartbeatErr(); err != nil {
+			return nil, err
+		}
 		rec := findOrAddStep(op, st.kind)
 		if rec.GetStatus() == agentsv1.AgentOperationStepStatus_AGENT_OPERATION_STEP_STATUS_SUCCEEDED {
 			continue
@@ -102,11 +135,14 @@ func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.Ag
 		rec.StartedAt = c.nowTS()
 		rec.Error = ""
 		op.UpdatedAt = c.nowTS()
-		if err := c.ops.Save(pctx, ws, op); err != nil {
+		if err := save(); err != nil {
 			return nil, connectx.InternalWith(fmt.Errorf("persist step start: %w", err))
 		}
 
-		vErrs, err := st.fn(ctx, op)
+		vErrs, err := st.fn(stepCtx, op)
+		if leaseErr := heartbeatErr(); leaseErr != nil {
+			return nil, leaseErr
+		}
 		rec.FinishedAt = c.nowTS()
 		switch {
 		case len(vErrs) > 0:
@@ -115,8 +151,9 @@ func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.Ag
 			op.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED
 			op.Error = fmt.Sprintf("%s: content validation failed", st.kind.String())
 			op.UpdatedAt = c.nowTS()
-			if sErr := c.ops.Save(pctx, ws, op); sErr != nil {
+			if sErr := save(); sErr != nil {
 				logger.Error("failed to persist step failure", "operation_id", op.GetId(), "step", st.kind.String(), "err", sErr)
+				return vErrs, connectx.InternalWith(fmt.Errorf("persist failed step %s: %w", st.kind.String(), sErr))
 			}
 			logger.Warn("agent lifecycle step validation failed", "operation_id", op.GetId(), "step", st.kind.String(), "errors", vErrs)
 			return vErrs, nil
@@ -126,15 +163,16 @@ func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.Ag
 			op.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED
 			op.Error = fmt.Sprintf("%s: %s", st.kind.String(), err.Error())
 			op.UpdatedAt = c.nowTS()
-			if sErr := c.ops.Save(pctx, ws, op); sErr != nil {
+			if sErr := save(); sErr != nil {
 				logger.Error("failed to persist step failure", "operation_id", op.GetId(), "step", st.kind.String(), "err", sErr)
+				return nil, connectx.InternalWith(fmt.Errorf("step %s failed: %v; persist failure: %w", st.kind.String(), err, sErr))
 			}
 			logger.Error("agent lifecycle step failed", "operation_id", op.GetId(), "step", st.kind.String(), "err", err)
 			return nil, err
 		default:
 			rec.Status = agentsv1.AgentOperationStepStatus_AGENT_OPERATION_STEP_STATUS_SUCCEEDED
 			op.UpdatedAt = c.nowTS()
-			if sErr := c.ops.Save(pctx, ws, op); sErr != nil {
+			if sErr := save(); sErr != nil {
 				logger.Error("failed to persist step success", "operation_id", op.GetId(), "step", st.kind.String(), "err", sErr)
 				return nil, connectx.InternalWith(fmt.Errorf("persist step success: %w", sErr))
 			}
@@ -144,10 +182,58 @@ func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.Ag
 	op.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED
 	op.Error = ""
 	op.UpdatedAt = c.nowTS()
-	if err := c.ops.Save(pctx, ws, op); err != nil {
+	if err := save(); err != nil {
 		return nil, connectx.InternalWith(fmt.Errorf("persist operation: %w", err))
 	}
 	return nil, nil
+}
+
+func (c *agentOperationCoordinator) startLeaseHeartbeat(ctx, persistCtx context.Context, workspaceID, operationID, leaseToken string) (context.Context, context.CancelFunc, func() error) {
+	stepCtx, cancelStep := context.WithCancel(ctx)
+	heartbeatCtx, cancelHeartbeat := context.WithCancel(persistCtx)
+	errCh := make(chan error, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(c.leaseHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatCtx.Done():
+				return
+			case <-ticker.C:
+				expiresAt := c.now().Add(c.leaseDuration)
+				if err := c.ops.RenewLease(heartbeatCtx, workspaceID, operationID, leaseToken, expiresAt); err != nil {
+					err = connect.NewError(connect.CodeAborted, fmt.Errorf("renew operation lease: %w", err))
+					errCh <- err
+					cancelStep()
+					return
+				}
+			}
+		}
+	}()
+	var leaseErr error
+	readErr := func() error {
+		if leaseErr != nil {
+			return leaseErr
+		}
+		select {
+		case leaseErr = <-errCh:
+		default:
+		}
+		return leaseErr
+	}
+	stop := func() {
+		cancelHeartbeat()
+		cancelStep()
+		<-done
+	}
+	return stepCtx, stop, readErr
+}
+
+func replaceOperation(dst, src *agentsv1.AgentOperation) {
+	proto.Reset(dst)
+	proto.Merge(dst, src)
 }
 
 func findOrAddStep(op *agentsv1.AgentOperation, kind agentsv1.AgentOperationStepKind) *agentsv1.AgentOperationStep {
@@ -167,9 +253,8 @@ func (c *agentOperationCoordinator) getOrCreate(ctx context.Context, ws, opID st
 	if opID != "" {
 		existing, err := c.ops.Get(ctx, ws, opID)
 		if err == nil {
-			if existing.GetType() != typ || existing.GetAgentId() != agent.GetAgentId() {
-				return nil, connect.NewError(connect.CodeInvalidArgument,
-					fmt.Errorf("operation %q exists but targets a different type or agent", opID))
+			if err := validateOperationIdentity(existing, typ, agent.GetAgentId(), requestJSON, expectedVersion, baseCommitSHA); err != nil {
+				return nil, err
 			}
 			return existing, nil
 		}
@@ -192,42 +277,94 @@ func (c *agentOperationCoordinator) getOrCreate(ctx context.Context, ws, opID st
 		CreatedAt:            c.nowTS(),
 		UpdatedAt:            c.nowTS(),
 	}
-	if err := c.ops.Save(context.WithoutCancel(ctx), ws, op); err != nil {
-		return nil, connectx.InternalWith(err)
+	if err := c.ops.Create(context.WithoutCancel(ctx), ws, op); err != nil {
+		if !errors.Is(err, agentoprepo.ErrAlreadyExists) {
+			return nil, connectx.InternalWith(err)
+		}
+		existing, getErr := c.ops.Get(ctx, ws, opID)
+		if getErr != nil {
+			return nil, connectx.InternalWith(getErr)
+		}
+		if identityErr := validateOperationIdentity(existing, typ, agent.GetAgentId(), requestJSON, expectedVersion, baseCommitSHA); identityErr != nil {
+			return nil, identityErr
+		}
+		return existing, nil
 	}
 	return op, nil
+}
+
+func validateOperationIdentity(op *agentsv1.AgentOperation, typ agentsv1.AgentOperationType, agentID, requestJSON string, expectedVersion int64, baseCommitSHA string) error {
+	if op.GetType() != typ || op.GetAgentId() != agentID || op.GetRequestJson() != requestJSON ||
+		op.GetExpectedAgentVersion() != expectedVersion || op.GetBaseCommitSha() != baseCommitSHA {
+		return connect.NewError(connect.CodeInvalidArgument,
+			fmt.Errorf("operation %q is already bound to a different request", op.GetId()))
+	}
+	return nil
+}
+
+func (c *agentOperationCoordinator) resumeExisting(ctx context.Context, ws, opID string, typ agentsv1.AgentOperationType, agentID, requestJSON string, expectedVersion int64, baseCommitSHA string) (*agentsv1.Agent, *agentsv1.AgentOperation, []string, bool, error) {
+	if opID == "" {
+		return nil, nil, nil, false, nil
+	}
+	op, err := c.ops.Get(ctx, ws, opID)
+	if errors.Is(err, agentoprepo.ErrNotFound) {
+		return nil, nil, nil, false, nil
+	}
+	if err != nil {
+		return nil, nil, nil, false, connectx.InternalWith(err)
+	}
+	if err := validateOperationIdentity(op, typ, agentID, requestJSON, expectedVersion, baseCommitSHA); err != nil {
+		return nil, op, nil, true, err
+	}
+	if op.GetStatus() == agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING ||
+		op.GetStatus() == agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED {
+		agent, _ := c.agents.GetAgentByID(ctx, ws, op.GetAgentId())
+		return agent, op, nil, true, nil
+	}
+	agent, op, vErrs, err := c.Retry(ctx, ws, opID)
+	return agent, op, vErrs, true, err
 }
 
 // setLifecycle flips an agent's lifecycle_status via the mutateWithRuntime seam
 // (#183): write then reload, rolling the write back if the reload fails. It is
 // idempotent (a no-op when the agent is already at target).
 func (c *agentOperationCoordinator) setLifecycle(ctx context.Context, ws, name string, target agentsv1.AgentLifecycleStatus) error {
-	prev, err := c.agents.GetAgent(ctx, ws, name)
-	if err != nil {
-		return err
-	}
-	if prev.GetLifecycleStatus() == target {
+	for attempt := 0; attempt < 5; attempt++ {
+		prev, err := c.agents.GetAgent(ctx, ws, name)
+		if err != nil {
+			return err
+		}
+		if prev.GetLifecycleStatus() == target {
+			return nil
+		}
+		updated := proto.Clone(prev).(*agentsv1.Agent)
+		updated.LifecycleStatus = target
+		updated.UpdatedAt = c.nowTS()
+		if target == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+			updated.DeletedAt = c.nowTS()
+		} else {
+			updated.DeletedAt = nil
+		}
+		stored, err := c.agents.UpdateAgentCAS(ctx, ws, updated, prev.GetVersion())
+		if errors.Is(err, configrepo.ErrVersionConflict) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if err := c.reload(ctx); err != nil {
+			if _, rollbackErr := c.agents.UpdateAgentCAS(ctx, ws, prev, stored.GetVersion()); rollbackErr != nil {
+				return connectx.InternalWith(fmt.Errorf("reload runtime: %w; lifecycle rollback failed: %v", err, rollbackErr))
+			}
+			if rollbackReloadErr := c.reload(ctx); rollbackReloadErr != nil {
+				return connectx.InternalWith(fmt.Errorf("reload runtime: %w; rollback reload failed: %v", err, rollbackReloadErr))
+			}
+			return err
+		}
 		return nil
 	}
-	updated := proto.Clone(prev).(*agentsv1.Agent)
-	updated.LifecycleStatus = target
-	updated.UpdatedAt = c.nowTS()
-	if target == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
-		updated.DeletedAt = c.nowTS()
-	} else {
-		updated.DeletedAt = nil
-	}
-	_, err = mutateWithRuntime(
-		func() (*agentsv1.Agent, error) { return c.agents.UpdateAgent(ctx, ws, updated) },
-		func() error { return c.reload(ctx) },
-		func() error {
-			if _, e := c.agents.UpdateAgent(ctx, ws, prev); e != nil {
-				return e
-			}
-			return c.reload(ctx)
-		},
-	)
-	return err
+	return connect.NewError(connect.CodeAborted,
+		errors.New("agent version kept changing while updating lifecycle; retry the operation"))
 }
 
 // ── content action builders ─────────────────────────────────────────────────
@@ -261,7 +398,7 @@ func contentActionsFromInput(agentID string, in *agentsv1.AgentContentInput) []*
 // publish initial content → activate. The agent must already be validated by
 // the caller.
 func (c *agentOperationCoordinator) RunCreate(ctx context.Context, ws string, agent *agentsv1.Agent, initial *agentsv1.AgentContentInput, opID string) (*agentsv1.Agent, *agentsv1.AgentOperation, []string, error) {
-	reqJSON, err := marshalJSON(&agentsv1.CreateAgentRequest{Agent: agent, InitialContent: initial})
+	reqJSON, err := createOperationRequestJSON(agent, initial)
 	if err != nil {
 		return nil, nil, nil, connectx.InternalWith(err)
 	}
@@ -272,7 +409,15 @@ func (c *agentOperationCoordinator) RunCreate(ctx context.Context, ws string, ag
 	actions := contentActionsFromInput(agent.GetAgentId(), initial)
 	vErrs, err := c.execute(ctx, op, c.createSteps(ws, agent, actions))
 	if err != nil || len(vErrs) > 0 {
-		c.markProvisioningErrored(ctx, ws, agent.GetName())
+		if errors.Is(err, agentoprepo.ErrLeaseLost) {
+			return nil, op, vErrs, err
+		}
+		if markErr := c.markProvisioningErrored(ctx, ws, agent.GetName()); markErr != nil {
+			if err != nil {
+				return nil, op, vErrs, connectx.InternalWith(fmt.Errorf("create failed: %v; mark agent ERROR: %w", err, markErr))
+			}
+			return nil, op, vErrs, connectx.InternalWith(fmt.Errorf("mark agent ERROR after validation failure: %w", markErr))
+		}
 		return nil, op, vErrs, err
 	}
 	final, _ := c.agents.GetAgentByID(ctx, ws, agent.GetAgentId())
@@ -281,19 +426,20 @@ func (c *agentOperationCoordinator) RunCreate(ctx context.Context, ws string, ag
 
 // markProvisioningErrored transitions a still-PROVISIONING agent to ERROR after
 // a create Saga fails, so the agent reflects the documented "Saga left it in a
-// partial state, not runnable" contract (PRD §11.1). Best-effort: a failure
-// here is logged, not surfaced. A later RetryAgentOperation moves it to ACTIVE.
-func (c *agentOperationCoordinator) markProvisioningErrored(ctx context.Context, ws, name string) {
+// partial state, not runnable" contract (PRD §11.1). A later
+// RetryAgentOperation moves it to ACTIVE.
+func (c *agentOperationCoordinator) markProvisioningErrored(ctx context.Context, ws, name string) error {
 	agent, err := c.agents.GetAgent(ctx, ws, name)
 	if err != nil {
-		return // create rolled the row back, or it never existed
+		if errors.Is(err, configrepo.ErrNotFound) {
+			return nil // create rolled the row back, or it never existed
+		}
+		return err
 	}
 	if agent.GetLifecycleStatus() != agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_PROVISIONING {
-		return
+		return nil
 	}
-	if err := c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ERROR); err != nil {
-		log.FromContext(ctx).Warn("failed to mark agent ERROR after create failure", "workspace_id", ws, "agent", name, "err", err)
-	}
+	return c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ERROR)
 }
 
 func (c *agentOperationCoordinator) createSteps(ws string, agent *agentsv1.Agent, actions []*agentsv1.ContentFileAction) []sagaStep {
@@ -361,10 +507,7 @@ func (c *agentOperationCoordinator) createSteps(ws string, agent *agentsv1.Agent
 // changes: commit and publish content, then apply the patch with optimistic
 // concurrency. The two sides retain separate ownership.
 func (c *agentOperationCoordinator) RunUpdateConfiguration(ctx context.Context, ws string, prev, patch *agentsv1.Agent, contentChanges []*agentsv1.ContentFileAction, expectedVersion int64, baseCommitSHA, opID string) (*agentsv1.Agent, *agentsv1.AgentOperation, []string, error) {
-	reqJSON, err := marshalJSON(&agentsv1.UpdateAgentConfigurationRequest{
-		AgentPatch: patch, ContentChanges: contentChanges,
-		ExpectedAgentVersion: expectedVersion, BaseCommitSha: baseCommitSHA,
-	})
+	reqJSON, err := updateOperationRequestJSON(patch, contentChanges, expectedVersion, baseCommitSHA)
 	if err != nil {
 		return nil, nil, nil, connectx.InternalWith(err)
 	}
@@ -412,18 +555,22 @@ func (c *agentOperationCoordinator) updateSteps(ws string, prev, patch *agentsv1
 		{
 			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_DB_PATCH,
 			fn: func(ctx context.Context, op *agentsv1.AgentOperation) ([]string, error) {
-				patched := applyConfigPatch(prev, patch)
-				_, err := mutateWithRuntime(
-					func() (*agentsv1.Agent, error) {
-						return c.agents.UpdateAgentCAS(ctx, ws, patched, expectedVersion)
-					},
+				current, err := c.agents.GetAgentByID(ctx, ws, prev.GetAgentId())
+				if err != nil {
+					return nil, err
+				}
+				if current.GetVersion() != expectedVersion {
+					if configPatchAlreadyApplied(current, patch) {
+						return nil, c.reload(ctx)
+					}
+					return nil, connect.NewError(connect.CodeAborted,
+						errors.New("agent version changed since it was read; re-read and retry"))
+				}
+				patched := applyConfigPatch(current, patch)
+				_, err = mutateWithRuntime(
+					func() (*agentsv1.Agent, error) { return c.agents.UpdateAgentCAS(ctx, ws, patched, expectedVersion) },
 					func() error { return c.reload(ctx) },
-					func() error {
-						if _, e := c.agents.UpdateAgent(ctx, ws, prev); e != nil {
-							return e
-						}
-						return c.reload(ctx)
-					},
+					nil,
 				)
 				if errors.Is(err, configrepo.ErrVersionConflict) {
 					return nil, connect.NewError(connect.CodeAborted,
@@ -433,6 +580,13 @@ func (c *agentOperationCoordinator) updateSteps(ws string, prev, patch *agentsv1
 			},
 		},
 	}
+}
+
+func configPatchAlreadyApplied(current, patch *agentsv1.Agent) bool {
+	desired := applyConfigPatch(current, patch)
+	desired.Version = current.GetVersion()
+	desired.UpdatedAt = current.GetUpdatedAt()
+	return proto.Equal(current, desired)
 }
 
 // applyConfigPatch produces the agent to store: operational fields come from the
@@ -466,7 +620,11 @@ func applyConfigPatch(prev, patch *agentsv1.Agent) *agentsv1.Agent {
 // RunDelete tombstones an agent: a single step flips lifecycle to DELETED and
 // reloads the runner. No Git content is touched; the Agent ID stays reserved.
 func (c *agentOperationCoordinator) RunDelete(ctx context.Context, ws string, agent *agentsv1.Agent, opID string) (*agentsv1.AgentOperation, error) {
-	op, err := c.getOrCreate(ctx, ws, opID, agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_DELETE, agent, "", 0, "")
+	reqJSON, err := deleteOperationRequestJSON(agent)
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	op, err := c.getOrCreate(ctx, ws, opID, agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_DELETE, agent, reqJSON, 0, "")
 	if err != nil {
 		return nil, err
 	}
@@ -490,10 +648,14 @@ func (c *agentOperationCoordinator) deleteSteps(ws, name string) []sagaStep {
 
 // ── Restore ────────────────────────────────────────────────────────────────────
 
-// RunRestore reactivates a tombstoned agent: flip lifecycle DELETED→ACTIVE,
-// then re-publish the retained Git content.
+// RunRestore reactivates a tombstoned agent: publish the retained Git content,
+// then flip lifecycle DELETED→ACTIVE.
 func (c *agentOperationCoordinator) RunRestore(ctx context.Context, ws string, agent *agentsv1.Agent, opID string) (*agentsv1.Agent, *agentsv1.AgentOperation, []string, error) {
-	op, err := c.getOrCreate(ctx, ws, opID, agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_RESTORE, agent, "", 0, "")
+	reqJSON, err := restoreOperationRequestJSON(agent.GetAgentId())
+	if err != nil {
+		return nil, nil, nil, connectx.InternalWith(err)
+	}
+	op, err := c.getOrCreate(ctx, ws, opID, agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_RESTORE, agent, reqJSON, 0, "")
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -589,4 +751,23 @@ func marshalJSON(m proto.Message) (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
+func createOperationRequestJSON(agent *agentsv1.Agent, initial *agentsv1.AgentContentInput) (string, error) {
+	return marshalJSON(&agentsv1.CreateAgentRequest{Agent: agent, InitialContent: initial})
+}
+
+func updateOperationRequestJSON(patch *agentsv1.Agent, contentChanges []*agentsv1.ContentFileAction, expectedVersion int64, baseCommitSHA string) (string, error) {
+	return marshalJSON(&agentsv1.UpdateAgentConfigurationRequest{
+		AgentPatch: patch, ContentChanges: contentChanges,
+		ExpectedAgentVersion: expectedVersion, BaseCommitSha: baseCommitSHA,
+	})
+}
+
+func deleteOperationRequestJSON(agent *agentsv1.Agent) (string, error) {
+	return marshalJSON(&agentsv1.DeleteAgentRequest{Name: agent.GetName(), AgentId: agent.GetAgentId()})
+}
+
+func restoreOperationRequestJSON(agentID string) (string, error) {
+	return marshalJSON(&agentsv1.RestoreAgentRequest{AgentId: agentID})
 }

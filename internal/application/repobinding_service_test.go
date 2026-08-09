@@ -20,7 +20,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	"go.orx.me/apps/butter/internal/agentcontent"
 	"go.orx.me/apps/butter/internal/gitprovider"
+	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
 	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
@@ -1383,6 +1385,15 @@ type fakeConfigRuntime struct {
 	reloadErr   error
 }
 
+type failingAgentContentRepo struct {
+	agentcontentrepo.Repository
+	err error
+}
+
+func (r *failingAgentContentRepo) PutSnapshot(context.Context, string, agentcontent.Snapshot) error {
+	return r.err
+}
+
 func (f *fakeConfigRuntime) ReloadRunner(_ context.Context) error {
 	f.reloadCount++
 	return f.reloadErr
@@ -1417,6 +1428,59 @@ func TestPublishSyncPublishesActiveRevision(t *testing.T) {
 	}
 	if rt.reloadCount != 1 {
 		t.Fatalf("reload count = %d, want 1", rt.reloadCount)
+	}
+}
+
+func TestPublishSyncSurfacesSnapshotPersistenceFailure(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+	fx.svc.SetContentRepo(&failingAgentContentRepo{
+		Repository: agentcontentmemory.New(),
+		err:        errors.New("snapshot store unavailable"),
+	})
+
+	_, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err == nil || !strings.Contains(err.Error(), "snapshot store unavailable") {
+		t.Fatalf("want snapshot persistence failure, got %v", err)
+	}
+}
+
+func TestPublishSyncSurfacesRunnerReloadFailure(t *testing.T) {
+	fx, rt := newPublicationFixture(t)
+	rt.reloadErr = errors.New("runner reload unavailable")
+
+	_, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err == nil || !strings.Contains(err.Error(), "runner reload unavailable") {
+		t.Fatalf("want runner reload failure, got %v", err)
+	}
+}
+
+func TestSyncAndPublishRefreshesOverlappingWorkspaces(t *testing.T) {
+	fx, rt := newPublicationFixture(t)
+	wsB := auth.WithAdmin(workspace.WithID(context.Background(), "ws-b"))
+	if _, err := fx.svc.PutWorkspaceRepoBinding(wsB, connect.NewRequest(&agentsv1.PutWorkspaceRepoBindingRequest{Binding: validBinding()})); err != nil {
+		t.Fatalf("put ws-b binding: %v", err)
+	}
+	if _, err := fx.svc.SetWorkspaceRepoBindingCredential(wsB, connect.NewRequest(&agentsv1.SetWorkspaceRepoBindingCredentialRequest{Pat: testPAT})); err != nil {
+		t.Fatalf("set ws-b credential: %v", err)
+	}
+	if _, err := fx.agentRepo.CreateAgent(context.Background(), "ws-b", &agentsv1.Agent{
+		Name: "My Agent B", AgentId: "my-agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM,
+	}); err != nil {
+		t.Fatalf("seed ws-b agent: %v", err)
+	}
+
+	if err := fx.svc.SyncAndPublish(context.Background(), "ws-a"); err != nil {
+		t.Fatalf("SyncAndPublish: %v", err)
+	}
+	bindingB, err := fx.bindingRepo.Get(context.Background(), "ws-b")
+	if err != nil {
+		t.Fatalf("get ws-b binding: %v", err)
+	}
+	if bindingB.GetActiveCommitSha() != "abc123" {
+		t.Fatalf("ws-b active revision = %q, want abc123", bindingB.GetActiveCommitSha())
+	}
+	if rt.reloadCount != 2 {
+		t.Fatalf("reload count = %d, want one publication per overlapping workspace", rt.reloadCount)
 	}
 }
 
@@ -1628,6 +1692,23 @@ func TestSyncDivergedOnNonFastForward(t *testing.T) {
 	}
 }
 
+func TestSyncAndPublishRejectsDivergedRepository(t *testing.T) {
+	fx, _ := newPublicationFixture(t)
+	if _, err := fx.svc.SyncWorkspaceRepository(ownerCtx(), connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("initial sync: %v", err)
+	}
+
+	fx.fake.branches["main"] = "force-pushed-sha"
+	fx.fake.comparisons = map[string]string{
+		"abc123...force-pushed-sha": "diverged",
+	}
+
+	err := fx.svc.SyncAndPublish(context.Background(), "ws-a")
+	if err == nil || !strings.Contains(err.Error(), "non-fast-forward") {
+		t.Fatalf("want divergence publication failure, got %v", err)
+	}
+}
+
 func TestAcceptRepositoryBaseline(t *testing.T) {
 	fx, _ := newPublicationFixture(t)
 
@@ -1741,6 +1822,32 @@ func TestCommitAgentContentDirectCommit(t *testing.T) {
 	lastCommit := fx.fake.commits[len(fx.fake.commits)-1]
 	if !strings.Contains(lastCommit.message, "update my-agent prompt") {
 		t.Errorf("commit message = %q", lastCommit.message)
+	}
+}
+
+func TestCommitAgentContentReplaySkipsAlreadyAppliedActions(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+	fx.fake.materialize = true
+	actions := []*agentsv1.ContentFileAction{{
+		Path:      "agents/my-agent/prompt.md",
+		Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+		Content:   "Idempotent instruction.",
+	}}
+
+	first, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{Actions: actions}))
+	if err != nil {
+		t.Fatalf("first commit: %v", err)
+	}
+	commitsAfterFirst := len(fx.fake.commits)
+	second, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{Actions: actions}))
+	if err != nil {
+		t.Fatalf("replayed commit: %v", err)
+	}
+	if len(fx.fake.commits) != commitsAfterFirst {
+		t.Fatalf("replayed action created another commit: %d -> %d", commitsAfterFirst, len(fx.fake.commits))
+	}
+	if second.Msg.GetCommitSha() != first.Msg.GetCommitSha() {
+		t.Fatalf("replayed commit SHA = %q, want %q", second.Msg.GetCommitSha(), first.Msg.GetCommitSha())
 	}
 }
 
@@ -1929,6 +2036,23 @@ func TestPurgeAgentContentAllowedWhenTombstoned(t *testing.T) {
 	}
 }
 
+func TestPurgeAgentContentRefreshesMissingCache(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+	tombstone(t, fx, "ws-a", "my-agent")
+	if err := fx.svc.cacheRepo.Delete(context.Background(), "ws-a"); err != nil {
+		t.Fatalf("delete cache: %v", err)
+	}
+	commitsBefore := len(fx.fake.commits)
+
+	resp, err := fx.svc.PurgeAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.PurgeAgentContentRequest{AgentId: "my-agent"}))
+	if err != nil {
+		t.Fatalf("PurgeAgentContent: %v", err)
+	}
+	if resp.Msg.GetCommitSha() == "" || len(fx.fake.commits) != commitsBefore+1 {
+		t.Fatalf("missing-cache purge did not delete remote content: commit=%q commits=%d", resp.Msg.GetCommitSha(), len(fx.fake.commits))
+	}
+}
+
 func TestPurgeAgentContentRefusedByOverlappingWorkspace(t *testing.T) {
 	fx, _ := newContentEditFixture(t)
 	tombstone(t, fx, "ws-a", "my-agent")
@@ -2009,6 +2133,35 @@ func TestCommitAgentContentValidationErrors(t *testing.T) {
 	}
 	if resp.Msg.GetCommitSha() != "" {
 		t.Fatal("commit SHA should be empty when validation fails")
+	}
+}
+
+func TestCommitAgentContentValidatesOverlappingWorkspaceAgents(t *testing.T) {
+	fx, _ := newContentEditFixture(t)
+	if _, err := fx.bindingRepo.Put(context.Background(), "ws-b", validBinding()); err != nil {
+		t.Fatalf("seed ws-b binding: %v", err)
+	}
+	if _, err := fx.agentRepo.CreateAgent(context.Background(), "ws-b", &agentsv1.Agent{
+		Name: "Shared Agent", AgentId: "shared-agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM,
+	}); err != nil {
+		t.Fatalf("seed ws-b agent: %v", err)
+	}
+	commitsBefore := len(fx.fake.commits)
+
+	resp, err := fx.svc.CommitAgentContent(ownerCtx(), connect.NewRequest(&agentsv1.CommitAgentContentRequest{
+		Actions: []*agentsv1.ContentFileAction{{
+			Path: "agents/shared-agent/prompt.md", Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+			Content: "",
+		}},
+	}))
+	if err != nil {
+		t.Fatalf("CommitAgentContent: %v", err)
+	}
+	if len(resp.Msg.GetValidationErrors()) == 0 {
+		t.Fatal("expected validation error for overlapping workspace agent")
+	}
+	if len(fx.fake.commits) != commitsBefore {
+		t.Fatalf("invalid shared change was committed: %d -> %d", commitsBefore, len(fx.fake.commits))
 	}
 }
 

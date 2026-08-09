@@ -2,6 +2,7 @@ import {
   Bot,
   CalendarClock,
   LayoutDashboard,
+  ListTodo,
   MessageSquare,
   MessagesSquare,
   Sparkles,
@@ -39,6 +40,11 @@ export const sidebarData: SidebarData = {
           title: 'Agents',
           url: '/agents',
           icon: Bot,
+        },
+        {
+          title: 'Operations',
+          url: '/operations',
+          icon: ListTodo,
         },
         {
           title: 'Automations',

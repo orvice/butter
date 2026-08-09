@@ -28,8 +28,8 @@ func TestMemoryRepo_SaveGet(t *testing.T) {
 	r := New()
 	ctx := t.Context()
 	want := op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING, 100)
-	if err := r.Save(ctx, "ws-a", want); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := r.Create(ctx, "ws-a", want); err != nil {
+		t.Fatalf("Create: %v", err)
 	}
 
 	got, err := r.Get(ctx, "ws-a", "1")
@@ -49,12 +49,33 @@ func TestMemoryRepo_SaveGet(t *testing.T) {
 	}
 }
 
+func TestMemoryRepo_AllowsSameIDAcrossWorkspaces(t *testing.T) {
+	r := New()
+	ctx := t.Context()
+
+	for _, ws := range []string{"ws-a", "ws-b"} {
+		if err := r.Create(ctx, ws, op("shared-id", ws, agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_PENDING, 100)); err != nil {
+			t.Fatalf("Create(%s): %v", ws, err)
+		}
+	}
+
+	for _, ws := range []string{"ws-a", "ws-b"} {
+		got, err := r.Get(ctx, ws, "shared-id")
+		if err != nil {
+			t.Fatalf("Get(%s): %v", ws, err)
+		}
+		if got.GetWorkspaceId() != ws {
+			t.Fatalf("Get(%s) returned workspace %q", ws, got.GetWorkspaceId())
+		}
+	}
+}
+
 func TestMemoryRepo_SaveIsSnapshot(t *testing.T) {
 	r := New()
 	ctx := t.Context()
 	in := op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_PENDING, 100)
-	if err := r.Save(ctx, "ws-a", in); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := r.Create(ctx, "ws-a", in); err != nil {
+		t.Fatalf("Create: %v", err)
 	}
 	// Mutating the input after Save must not affect stored state.
 	in.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED
@@ -67,10 +88,10 @@ func TestMemoryRepo_SaveIsSnapshot(t *testing.T) {
 func TestMemoryRepo_ListFilterAndOrder(t *testing.T) {
 	r := New()
 	ctx := t.Context()
-	_ = r.Save(ctx, "ws-a", op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 100))
-	_ = r.Save(ctx, "ws-a", op("2", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED, 200))
-	_ = r.Save(ctx, "ws-a", op("3", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 300))
-	_ = r.Save(ctx, "ws-b", op("4", "ws-b", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 400))
+	_ = r.Create(ctx, "ws-a", op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 100))
+	_ = r.Create(ctx, "ws-a", op("2", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED, 200))
+	_ = r.Create(ctx, "ws-a", op("3", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 300))
+	_ = r.Create(ctx, "ws-b", op("4", "ws-b", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 400))
 
 	// All in ws-a, newest first.
 	all, next, err := r.List(ctx, "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_UNSPECIFIED, 20, "")
@@ -95,7 +116,7 @@ func TestMemoryRepo_ListPagination(t *testing.T) {
 	r := New()
 	ctx := t.Context()
 	for i := int64(1); i <= 5; i++ {
-		_ = r.Save(ctx, "ws-a", op(itoa(i), "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, i))
+		_ = r.Create(ctx, "ws-a", op(itoa(i), "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, i))
 	}
 	page1, next, _ := r.List(ctx, "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_UNSPECIFIED, 2, "")
 	if len(page1) != 2 || next == "" {
@@ -111,19 +132,40 @@ func TestMemoryRepo_ListPagination(t *testing.T) {
 	}
 }
 
-func TestMemoryRepo_ListResumable(t *testing.T) {
+func TestMemoryRepo_ClaimPreventsConcurrentExecutor(t *testing.T) {
 	r := New()
 	ctx := t.Context()
-	_ = r.Save(ctx, "ws-a", op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING, 100))
-	_ = r.Save(ctx, "ws-b", op("2", "ws-b", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED, 200))
-	_ = r.Save(ctx, "ws-a", op("3", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 300))
-
-	got, err := r.ListResumableAcrossWorkspaces(ctx)
-	if err != nil {
-		t.Fatalf("ListResumableAcrossWorkspaces: %v", err)
+	pending := op("claim", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_PENDING, 100)
+	pending.UpdatedAt = timestamppb.New(time.Unix(100, 0))
+	if err := r.Create(ctx, "ws-a", pending); err != nil {
+		t.Fatalf("Create: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("want 2 resumable across workspaces, got %v", ids(got))
+
+	claimedAt := time.Unix(200, 0)
+	claimed, err := r.Claim(ctx, "ws-a", "claim", "lease-a", claimedAt, claimedAt.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("Claim: %v", err)
+	}
+	if claimed.GetStatus() != agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING || claimed.GetAttemptCount() != 1 {
+		t.Fatalf("unexpected claimed operation: %v", claimed)
+	}
+	if err := r.RenewLease(ctx, "ws-a", "claim", "lease-a", claimedAt.Add(2*time.Minute)); err != nil {
+		t.Fatalf("RenewLease: %v", err)
+	}
+	if _, err := r.Claim(ctx, "ws-a", "claim", "lease-b", claimedAt.Add(90*time.Second), claimedAt.Add(150*time.Second)); err != agentoprepo.ErrInProgress {
+		t.Fatalf("concurrent Claim: want ErrInProgress, got %v", err)
+	}
+	claimed, err = r.Claim(ctx, "ws-a", "claim", "lease-b", claimedAt.Add(121*time.Second), claimedAt.Add(181*time.Second))
+	if err != nil {
+		t.Fatalf("Claim after lease expiry: %v", err)
+	}
+
+	claimed.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED
+	if err := r.SaveClaimed(ctx, "ws-a", "lease-a", claimed); err != agentoprepo.ErrLeaseLost {
+		t.Fatalf("stale SaveClaimed: want ErrLeaseLost, got %v", err)
+	}
+	if err := r.SaveClaimed(ctx, "ws-a", "lease-b", claimed); err != nil {
+		t.Fatalf("SaveClaimed: %v", err)
 	}
 }
 

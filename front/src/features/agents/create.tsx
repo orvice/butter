@@ -69,6 +69,7 @@ export function AgentCreate() {
   const createMutation = useCreateAgent()
   const { data: mcpData, isLoading: isLoadingMCPServers } = useMCPServers()
   const { data: remoteData, isLoading: isLoadingRemoteAgents } = useRemoteAgents()
+  const [operation, setOperation] = useState<{ request: string; id: string } | null>(null)
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentSchema),
@@ -99,22 +100,39 @@ export function AgentCreate() {
   }, [agentIdTouched, agentName, form])
 
   function onSubmit(values: AgentFormValues) {
+    const agent = {
+      name: values.name,
+      agent_id: values.agent_id,
+      description: values.description,
+      type: values.type as AgentType,
+      enable_a2a: values.enable_a2a,
+      enable_openai_api: values.enable_openai_api,
+      metadata: values.icon_url ? { icon_url: values.icon_url } : undefined,
+      config: {
+        model: values.model,
+        instruction: values.instruction,
+        mcp_server_ids: values.mcp_server_ids ?? [],
+        remote_agent_ids: values.remote_agent_ids ?? [],
+        file_mounts: values.file_mounts ?? [],
+      },
+    }
+    const initialContent = {
+      description: values.description ?? '',
+      prompt: values.instruction ?? '',
+      global_prompt: '',
+    }
+    const request = JSON.stringify({ agent, initialContent })
+    let requestOperation = operation
+    if (!requestOperation || requestOperation.request !== request) {
+      requestOperation = { request, id: crypto.randomUUID() }
+      setOperation(requestOperation)
+    }
+
     createMutation.mutate(
       {
-        name: values.name,
-        agent_id: values.agent_id,
-        description: values.description,
-        type: values.type as AgentType,
-        enable_a2a: values.enable_a2a,
-        enable_openai_api: values.enable_openai_api,
-        metadata: values.icon_url ? { icon_url: values.icon_url } : undefined,
-        config: {
-          model: values.model,
-          instruction: values.instruction,
-          mcp_server_ids: values.mcp_server_ids ?? [],
-          remote_agent_ids: values.remote_agent_ids ?? [],
-          file_mounts: values.file_mounts ?? [],
-        },
+        agent,
+        initial_content: initialContent,
+        operation_id: requestOperation.id,
       },
       {
         onSuccess: () => { toast.success('Agent created'); navigate({ to: '/agents' }) },
