@@ -1,10 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { create } from "@bufbuild/protobuf";
 import {
   WorkspaceRepoBindingSchema,
   WorkspaceRepoBindingService,
   type GetRepositoryFileResponse,
   type ListRepositoryEntriesResponse,
+  type OnboardWorkspaceRepositoryResponse,
+  type RepoBindingOnboardingMode,
   type RepoBindingOverlap,
   type RepoBindingWriteMode,
   type WorkspaceRepoBinding,
@@ -66,12 +73,26 @@ async function syncRepository(): Promise<WorkspaceRepoBinding> {
   return res.binding;
 }
 
+async function onboardWorkspaceRepository(
+  mode: RepoBindingOnboardingMode,
+): Promise<OnboardWorkspaceRepositoryResponse> {
+  return client.onboardWorkspaceRepository({ mode });
+}
+
 async function listRepositoryEntries(path: string): Promise<ListRepositoryEntriesResponse> {
   return client.listRepositoryEntries({ path });
 }
 
 async function getRepositoryFile(path: string): Promise<GetRepositoryFileResponse> {
   return client.getRepositoryFile({ path });
+}
+
+function invalidateRepositoryQueries(qc: QueryClient) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ["repo-binding"] }),
+    qc.invalidateQueries({ queryKey: ["repo-entries"] }),
+    qc.invalidateQueries({ queryKey: ["repo-file"] }),
+  ]);
 }
 
 export function useRepoBinding() {
@@ -122,11 +143,18 @@ export function useSyncRepository() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: syncRepository,
-    onSuccess: async () => {
+    onSuccess: () => invalidateRepositoryQueries(qc),
+  });
+}
+
+export function useOnboardWorkspaceRepository() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: onboardWorkspaceRepository,
+    onSettled: async () => {
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ["repo-binding"] }),
-        qc.invalidateQueries({ queryKey: ["repo-entries"] }),
-        qc.invalidateQueries({ queryKey: ["repo-file"] }),
+        invalidateRepositoryQueries(qc),
+        qc.invalidateQueries({ queryKey: ["agents"] }),
       ]);
     },
   });
