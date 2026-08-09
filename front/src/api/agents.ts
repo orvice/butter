@@ -13,6 +13,7 @@ import {
   AgentRuntimeStatusSchema,
   AgentService,
   InvocationSchema,
+  MigrateMode,
 } from "@/gen/agents/v1/agent_service_pb";
 import type { Agent, AgentMigrationStatus, AgentRuntimeStatus, Invocation } from "@/types/api";
 import { tsToISO } from "./_proto-bridge";
@@ -248,6 +249,42 @@ async function assignAgentID(params: AssignAgentIDParams): Promise<{ agent: Agen
   return { agent: agentFromProto(res.agent) };
 }
 
+export { MigrateMode };
+
+export interface MigrateResultRow {
+  name: string;
+  agent_id: string;
+  /** "expanded" | "skipped" | "already_independent" | "missing_id" | "error" | "ok" | "migration_required" */
+  action: string;
+  detail: string;
+}
+
+export interface MigrateSummary {
+  mode: MigrateMode;
+  results: MigrateResultRow[];
+  total: number;
+  migrated: number;
+  skipped: number;
+  errors: number;
+}
+
+async function migrateAgentsV2(mode: MigrateMode): Promise<MigrateSummary> {
+  const res = await client.migrateAgentsV2({ mode });
+  return {
+    mode: res.mode,
+    results: res.results.map((r) => ({
+      name: r.name,
+      agent_id: r.agentId,
+      action: r.action,
+      detail: r.detail,
+    })),
+    total: res.total,
+    migrated: res.migrated,
+    skipped: res.skipped,
+    errors: res.errors,
+  };
+}
+
 async function getMigrationReadiness(): Promise<{ statuses: AgentMigrationStatus[] }> {
   const res = await client.getMigrationReadiness({});
   return {
@@ -464,6 +501,23 @@ export function useMigrationReadiness(enabled = true) {
     queryKey: ["agent-migration-readiness"],
     queryFn: getMigrationReadiness,
     enabled,
+  });
+}
+
+// useMigrateAgentsV2 runs the V2 identity migration. DRY_RUN and VERIFY are
+// read-only; only APPLY mutates data, so the cache is invalidated for that mode
+// alone (a dry run must not make the list look migrated).
+export function useMigrateAgentsV2() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: migrateAgentsV2,
+    onSuccess: (data) => {
+      if (data.mode === MigrateMode.APPLY) {
+        qc.invalidateQueries({ queryKey: ["agents"] });
+        qc.invalidateQueries({ queryKey: ["agent-migration-readiness"] });
+        qc.invalidateQueries({ queryKey: ["agent-operations"] });
+      }
+    },
   });
 }
 
