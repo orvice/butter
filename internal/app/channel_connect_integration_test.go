@@ -290,7 +290,7 @@ func TestConfigServices_ConnectIntegration(t *testing.T) {
 	}
 
 	_, err = agentClient.GetAgent(fx.ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "workflow-agent"}))
-	if cerr, ok := err.(*connect.Error); !ok || cerr.Code() != connect.CodeNotFound {
-		t.Fatalf("expected NotFound after agent delete, got %v", err)
+	if err != nil {
+		t.Fatalf("expected tombstoned agent to remain readable, got %v", err)
 	}
 }
