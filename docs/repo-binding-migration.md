@@ -45,7 +45,11 @@ the Effective Agents, and publishes the Active Revision.
 - Field mapping: `description` → `agents/{id}/description.md`,
   `config.instruction` → `agents/{id}/prompt.md`, `config.global_instruction` →
   `agents/{id}/global-prompt.md`.
-- Empty fields are omitted (no empty files are written).
+- Full snapshot, not a merge: non-empty fields are written (PUT); an empty field
+  whose managed file already exists remotely is deleted (DELETE) so Git ends up
+  reflecting the database exactly. When there is nothing to export and nothing
+  stale to clear, the repository is **not** silently adopted (that is IMPORT);
+  the workspace stays database-owned.
 - Always a **direct commit**, even for CHANGE_REQUEST bindings, so onboarding
   can publish immediately.
 - On a validation failure (e.g. an LLM agent with a description but no prompt),

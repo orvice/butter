@@ -17,17 +17,20 @@ existing publication and materialization seams** rather than new subsystems.
 A single owner/admin RPC with a mode selector reconciles a freshly bound
 workspace's existing Agent Content with the repository:
 
-- **`EXPORT_CURRENT`** reads every non-deleted agent's database-managed content
-  (`description` → `description.md`, `config.instruction` → `prompt.md`,
-  `config.global_instruction` → `global-prompt.md`), builds a single changeset,
-  and reuses the shared `commitContent` path (commit → sync → validate →
-  publish). Empty fields are omitted rather than written as empty files; the
-  publication pipeline treats a missing optional file as a cleared value, so the
-  round trip is lossless. Export **always commits directly** (DIRECT_COMMIT)
-  even when the binding's write mode is CHANGE_REQUEST: onboarding must publish
-  an Active Revision to switch the workspace to Git-owned content, and a PR/MR
-  would leave content unpublished behind an open review. This mirrors the
-  lifecycle Saga, which forces DIRECT_COMMIT for the same reason ([[0006]]).
+- **`EXPORT_CURRENT`** writes a **full database snapshot**, not a merge, so the
+  repository ends up reflecting the database exactly rather than retaining stale
+  remote values. For every non-deleted agent's managed fields (`description` →
+  `description.md`, `config.instruction` → `prompt.md`, `config.global_instruction`
+  → `global-prompt.md`) it emits a PUT when the DB value is non-empty and a
+  DELETE when the value is empty but a stale managed file exists remotely (found
+  by reading the branch HEAD tree first). It then reuses the shared
+  `commitContent` path (commit → sync → validate → publish). When there is
+  nothing to export **and** nothing stale to clear, it does **not** silently
+  adopt the repository (that would be an import); the workspace stays
+  database-owned. Export **always commits directly** (DIRECT_COMMIT) even when
+  the binding's write mode is CHANGE_REQUEST: onboarding must publish an Active
+  Revision to switch to Git-owned content, and a PR/MR would leave content
+  unpublished behind an open review — mirroring the lifecycle Saga ([[0006]]).
 
 - **`IMPORT_REPOSITORY`** runs the existing sync + publish. The publication
   pipeline parses content only for directories whose name matches an existing
@@ -64,6 +67,16 @@ Agent's live content. The caller may override with an explicit
 
 - `KEEP_DATABASE` — keep the current database content as-is and remove the
   binding without materializing from Git.
+
+**Ownership is gated on a published Active Revision, not on the binding.** A
+workspace is Git-owned only once `active_commit_sha` is set. `IsContentGitOwned`
+(binding exists AND active revision published) is what the Agent API consults
+before making content fields read-only, so a bound-but-not-yet-onboarded
+workspace keeps its content editable through the normal API — which is also what
+lets an operator fix content and re-run a failed `EXPORT_CURRENT`. The
+`published` flag returned by onboarding reflects whether the Active Revision
+actually advanced (and, for export, whether the post-commit publish/reload
+succeeded), never merely that a binding or commit exists.
 
 Git binding rollout stays **independent per workspace**: onboarding and
 detachment are per-workspace RPCs keyed off the `X-Workspace-ID` header and

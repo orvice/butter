@@ -17,6 +17,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"go.orx.me/apps/butter/internal/agentcontent"
+	"go.orx.me/apps/butter/internal/gitprovider"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -26,10 +27,9 @@ import (
 // bound workspace's Agent Content with the repository. EXPORT_CURRENT commits
 // existing database-managed content; IMPORT_REPOSITORY adopts repository content
 // for matching Agent IDs. In both modes the workspace only switches to
-// Git-owned content once the commit/import, read-back, validation, Effective
-// Agent construction, and Active Revision publication all succeed — the shared
-// publication pipeline advances active_commit_sha only on success, so a failed
-// validation leaves the workspace on its previous (database-owned) state.
+// Git-owned content — `active_commit_sha` advances — once the commit/import,
+// read-back, content validation, and Active Revision publication all succeed; a
+// failure leaves the workspace on its previous database-owned state.
 func (s *RepoBindingServiceServer) OnboardWorkspaceRepository(ctx context.Context, req *connect.Request[agentsv1.OnboardWorkspaceRepositoryRequest]) (*connect.Response[agentsv1.OnboardWorkspaceRepositoryResponse], error) {
 	if err := s.requireRepos(); err != nil {
 		return nil, err
@@ -56,12 +56,16 @@ func (s *RepoBindingServiceServer) OnboardWorkspaceRepository(ctx context.Contex
 	}
 }
 
-// onboardExport writes the workspace's existing database-managed Agent Content
-// to the repository as a single validated commit, then reads it back and
-// publishes the Active Revision. It always commits directly (DIRECT_COMMIT) so
-// onboarding is synchronous and can publish immediately; a CHANGE_REQUEST mode
-// binding would otherwise leave content unpublished behind an open PR/MR and the
-// workspace never switching to Git-owned content.
+// onboardExport writes the workspace's database-managed Agent Content to the
+// repository as a single validated commit, then reads it back, validates, and
+// publishes the Active Revision. The changeset is a full snapshot of the DB, not
+// a merge: for each managed field it emits a PUT when the DB value is non-empty
+// and a DELETE when the value is empty but a stale managed file exists remotely,
+// so after the export the repository reflects the database exactly. It always
+// commits directly (DIRECT_COMMIT) even for CHANGE_REQUEST bindings — onboarding
+// must publish an Active Revision to switch to Git-owned content, and a PR/MR
+// would leave content unpublished behind an open review (mirrors the lifecycle
+// Saga, which forces DIRECT_COMMIT for the same reason, ADR-0006).
 func (s *RepoBindingServiceServer) onboardExport(ctx context.Context, ws string, binding *agentsv1.WorkspaceRepoBinding) (*connect.Response[agentsv1.OnboardWorkspaceRepositoryResponse], error) {
 	if s.agentRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent repository not configured"))
@@ -70,22 +74,21 @@ func (s *RepoBindingServiceServer) onboardExport(ctx context.Context, ws string,
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
-	actions, exported := exportContentActions(agents)
+	existing, err := s.existingManagedContentFiles(ctx, ws, binding, agents)
+	if err != nil {
+		return nil, err
+	}
+	actions, exported := exportContentActions(agents, existing)
 
 	logger := log.FromContext(ctx)
 	if len(actions) == 0 {
-		// No database-managed content to export. Adopt the (possibly empty)
-		// repository state so the workspace still switches to Git-owned content.
-		if err := s.TriggerSyncAndPublish(ctx, ws); err != nil {
-			logger.Error("onboard export sync/publish failed", "workspace_id", ws, "err", err)
-		}
-		final, getErr := s.repo.Get(ctx, ws)
-		if getErr != nil {
-			final = binding
-		}
+		// Nothing in the database to export and nothing stale to clear. Do not
+		// silently adopt repository state — the caller chose EXPORT, not IMPORT
+		// — so leave the workspace database-owned.
+		logger.Info("workspace repository export: nothing to export", "workspace_id", ws)
 		return connect.NewResponse(&agentsv1.OnboardWorkspaceRepositoryResponse{
-			Binding:   final,
-			Published: final.GetActiveCommitSha() != "",
+			Binding:   binding,
+			Published: binding.GetActiveCommitSha() != "",
 		}), nil
 	}
 
@@ -97,11 +100,18 @@ func (s *RepoBindingServiceServer) onboardExport(ctx context.Context, ws string,
 	}
 	if len(res.validationErrors) > 0 {
 		// Content invalid: no commit was created and the Active Revision is
-		// unchanged, so the workspace stays on database-owned content.
+		// unchanged, so the workspace stays database-owned.
 		return connect.NewResponse(&agentsv1.OnboardWorkspaceRepositoryResponse{
 			Binding:          res.binding,
 			ValidationErrors: res.validationErrors,
 		}), nil
+	}
+	if res.publishErr != nil {
+		// The commit landed but read-back/validation/publication or the runner
+		// reload failed. The workspace has NOT switched to Git-owned content;
+		// surface the failure so the operator retries rather than believing
+		// onboarding succeeded.
+		return nil, connectx.InternalWith(res.publishErr)
 	}
 
 	published := res.commitSHA != "" && res.binding.GetActiveCommitSha() == res.commitSHA
@@ -118,39 +128,42 @@ func (s *RepoBindingServiceServer) onboardExport(ctx context.Context, ws string,
 // onboardImport syncs the repository and publishes the Active Revision. The
 // publication pipeline parses content only for known Agent IDs, so directories
 // that do not match an existing workspace Agent stay unclaimed and no
-// bidirectional merge is performed.
+// bidirectional merge is performed. `published` is derived from whether the
+// Active Revision actually advanced to the observed revision — a repository with
+// no matching content advances nothing and is reported as not published.
 func (s *RepoBindingServiceServer) onboardImport(ctx context.Context, ws string, binding *agentsv1.WorkspaceRepoBinding) (*connect.Response[agentsv1.OnboardWorkspaceRepositoryResponse], error) {
 	syncResp, err := s.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
 	if err != nil {
 		return nil, err
 	}
+	final := syncResp.Msg.GetBinding()
+	if final == nil {
+		final = binding
+	}
+	published := final.GetActiveCommitSha() != "" && final.GetActiveCommitSha() == final.GetObservedCommitSha()
 	imported := 0
-	if syncResp.Msg.GetPublished() && s.contentRepo != nil {
+	if published && s.contentRepo != nil {
 		if snap, snapErr := s.contentRepo.GetSnapshot(ctx, ws); snapErr == nil {
 			imported = len(snap.Entries)
 		}
 	}
-	out := syncResp.Msg.GetBinding()
-	if out == nil {
-		out = binding
-	}
 	log.FromContext(ctx).Info("workspace repository onboarded via import", "workspace_id", ws,
-		"published", syncResp.Msg.GetPublished(), "agents_imported", imported)
+		"published", published, "agents_imported", imported)
 	return connect.NewResponse(&agentsv1.OnboardWorkspaceRepositoryResponse{
-		Binding:          out,
-		Published:        syncResp.Msg.GetPublished(),
+		Binding:          final,
+		Published:        published,
 		ValidationErrors: syncResp.Msg.GetPublicationErrors(),
 		AgentsImported:   int32(imported),
 	}), nil
 }
 
-// exportContentActions builds a PUT changeset from the database-managed content
-// of every non-deleted agent with an assigned Agent ID. Empty fields are
-// omitted rather than written as empty files; on read-back the publication
-// pipeline treats a missing optional file as an empty (cleared) value, so the
-// round trip is lossless. Returns the actions and the number of agents that
-// contributed at least one file.
-func exportContentActions(agents []*agentsv1.Agent) ([]*agentsv1.ContentFileAction, int) {
+// exportContentActions builds a full-snapshot changeset from the database-managed
+// content of every non-deleted agent with an assigned Agent ID. For each managed
+// file it emits a PUT when the DB value is non-empty, or a DELETE when the value
+// is empty and a stale managed file exists remotely (from `existing`), so the
+// repository ends up reflecting the database rather than merging with it.
+// Returns the actions and the number of agents that exported at least one value.
+func exportContentActions(agents []*agentsv1.Agent, existing map[string]bool) ([]*agentsv1.ContentFileAction, int) {
 	var actions []*agentsv1.ContentFileAction
 	exported := 0
 	for _, a := range agents {
@@ -161,27 +174,86 @@ func exportContentActions(agents []*agentsv1.Agent) ([]*agentsv1.ContentFileActi
 		if a.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
 			continue
 		}
-		contributed := false
+		wrote := false
 		put := func(path, content string) {
 			content = strings.TrimSpace(content)
-			if content == "" {
-				return
+			switch {
+			case content != "":
+				actions = append(actions, &agentsv1.ContentFileAction{
+					Path:      path,
+					Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
+					Content:   content,
+				})
+				wrote = true
+			case existing[path]:
+				// Empty DB value but a stale managed file exists remotely: clear
+				// it so Git reflects the (now empty) database field.
+				actions = append(actions, &agentsv1.ContentFileAction{
+					Path:      path,
+					Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_DELETE,
+				})
 			}
-			actions = append(actions, &agentsv1.ContentFileAction{
-				Path:      path,
-				Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_PUT,
-				Content:   content,
-			})
-			contributed = true
 		}
 		put(agentcontent.DescriptionPath(id), a.GetDescription())
 		put(agentcontent.PromptPath(id), a.GetConfig().GetInstruction())
 		put(agentcontent.GlobalPromptPath(id), a.GetConfig().GetGlobalInstruction())
-		if contributed {
+		if wrote {
 			exported++
 		}
 	}
 	return actions, exported
+}
+
+// existingManagedContentFiles returns the set of managed content file paths
+// (root_path-relative, e.g. "agents/{id}/prompt.md") that currently exist at the
+// branch HEAD for agents known to this workspace. It is used so an export can
+// delete stale managed files whose database field is now empty. A missing or
+// unreadable managed tree (e.g. a fresh repository) yields an empty set rather
+// than an error, so a first export is not blocked by an empty repository.
+func (s *RepoBindingServiceServer) existingManagedContentFiles(ctx context.Context, ws string, binding *agentsv1.WorkspaceRepoBinding, agents []*agentsv1.Agent) (map[string]bool, error) {
+	managed := make(map[string]struct{})
+	for _, a := range agents {
+		id := a.GetAgentId()
+		if id == "" || a.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+			continue
+		}
+		for _, p := range agentcontent.ManagedPaths(id) {
+			managed[p] = struct{}{}
+		}
+	}
+	out := make(map[string]bool)
+	if len(managed) == 0 {
+		return out, nil
+	}
+	client, err := s.resolveProviderClient(ctx, ws, binding)
+	if err != nil {
+		return nil, err
+	}
+	headSHA, err := client.GetBranchHead(ctx, binding.GetBranch())
+	if err != nil {
+		return out, nil
+	}
+	entries, err := client.GetTree(ctx, headSHA, binding.GetRootPath())
+	if err != nil {
+		return out, nil
+	}
+	rootPrefix := strings.TrimRight(binding.GetRootPath(), "/")
+	if rootPrefix != "" {
+		rootPrefix += "/"
+	}
+	for _, te := range entries {
+		if te.Kind != gitprovider.TreeEntryFile {
+			continue
+		}
+		p := te.Path
+		if rootPrefix != "" {
+			p = strings.TrimPrefix(p, rootPrefix)
+		}
+		if _, ok := managed[p]; ok {
+			out[p] = true
+		}
+	}
+	return out, nil
 }
 
 // materializeActiveContent writes each entry of the active content snapshot back

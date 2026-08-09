@@ -28,6 +28,11 @@ import (
 type agentContentCoordinator interface {
 	// HasBinding reports whether the workspace has a repository binding.
 	HasBinding(ctx context.Context, ws string) (bool, error)
+	// IsContentGitOwned reports whether Agent Content is Git-owned — i.e. the
+	// workspace is bound AND an Active Revision has been published. A bound but
+	// not-yet-onboarded workspace is still database-owned, so its content stays
+	// editable through the normal Agent API until onboarding succeeds (#219).
+	IsContentGitOwned(ctx context.Context, ws string) (bool, error)
 	// CommitContent applies a changeset as a single direct Git commit and
 	// publishes it. Returns the commit SHA and any content validation errors
 	// (non-empty means no commit was created).

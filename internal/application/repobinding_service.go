@@ -1458,6 +1458,25 @@ func (s *RepoBindingServiceServer) HasBinding(ctx context.Context, ws string) (b
 	return true, nil
 }
 
+// IsContentGitOwned reports whether Agent Content is Git-owned for the
+// workspace: a binding exists AND an Active Revision has been published
+// (active_commit_sha set). A bound-but-not-yet-onboarded workspace is still
+// database-owned, so callers must keep its content editable through the normal
+// Agent API until onboarding publishes (#219).
+func (s *RepoBindingServiceServer) IsContentGitOwned(ctx context.Context, ws string) (bool, error) {
+	if s.repo == nil {
+		return false, nil
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		if errors.Is(err, repobindingrepo.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return binding.GetActiveCommitSha() != "", nil
+}
+
 // CommitContent applies a changeset as a single Git commit and publishes it.
 // Lifecycle Saga steps always commit directly (DIRECT_COMMIT) so agent
 // provisioning is not gated on a review PR. Returns the commit SHA and any
@@ -1590,6 +1609,11 @@ type commitContentResult struct {
 	commitSHA        string
 	changeRequestURL string
 	validationErrors []string
+	// publishErr carries a post-commit sync/publish failure (including a runner
+	// reload failure). The commit itself succeeded, so callers that only need
+	// the commit ignore it; callers that must report whether the Active Revision
+	// actually advanced (e.g. onboarding export) inspect it.
+	publishErr error
 }
 
 // commitContent applies a validated changeset of PUT/DELETE actions to managed
@@ -1731,10 +1755,15 @@ func (s *RepoBindingServiceServer) commitContent(ctx context.Context, ws string,
 	logger.Info("agent content committed", "workspace_id", ws, "commit_sha", commitResult.SHA,
 		"actions", len(actions), "change_request", isChangeRequest, "operation", operation)
 
-	// Trigger sync + publish so the runner picks up the new content.
+	// Trigger sync + publish so the runner picks up the new content. This is
+	// best-effort for the commit's sake (the commit already landed), but the
+	// error is retained so callers that must confirm the Active Revision
+	// actually advanced can inspect it.
+	var publishErr error
 	if !isChangeRequest {
 		if syncErr := s.TriggerSyncAndPublish(ctx, ws); syncErr != nil {
 			logger.Error("sync after content commit failed", "workspace_id", ws, "err", syncErr)
+			publishErr = syncErr
 		}
 	}
 
@@ -1746,6 +1775,7 @@ func (s *RepoBindingServiceServer) commitContent(ctx context.Context, ws string,
 		binding:          final,
 		commitSHA:        commitResult.SHA,
 		changeRequestURL: crURL,
+		publishErr:       publishErr,
 	}, nil
 }
 

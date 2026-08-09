@@ -84,6 +84,63 @@ func TestOnboardExportCurrent(t *testing.T) {
 	}
 }
 
+// TestOnboardExportGatesContentEditingViaAPI proves the ownership switch through
+// the real Agent API: a bound-but-not-yet-onboarded workspace still accepts
+// content edits (DB-owned), and after EXPORT_CURRENT publishes an Active
+// Revision the same edit is ignored (Git-owned, content preserved). This also
+// exercises the failed-export recovery path — content stays editable via the API
+// until onboarding actually succeeds.
+func TestOnboardExportGatesContentEditingViaAPI(t *testing.T) {
+	fx, rt := newPublicationFixture(t)
+	fx.fake.materialize = true
+	ctx := ownerCtx()
+
+	agentSvc := NewAgentServiceServer(fx.agentRepo)
+	agentSvc.SetWorkspaceRepo(fx.wsRepo)
+	agentSvc.SetRuntime(rt)
+	agentSvc.SetContentCoordinator(fx.svc)
+
+	// Before onboarding: bound but not published → DB-owned, edits accepted.
+	if owned, _ := fx.svc.IsContentGitOwned(ctx, "ws-a"); owned {
+		t.Fatal("workspace must not be Git-owned before onboarding")
+	}
+	if _, err := agentSvc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
+		Agent: &agentsv1.Agent{Name: "My Agent", Config: &agentsv1.AgentConfig{Instruction: "V1 prompt."}},
+	})); err != nil {
+		t.Fatalf("pre-onboard UpdateAgent: %v", err)
+	}
+	got, _ := fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	if got.GetConfig().GetInstruction() != "V1 prompt." {
+		t.Fatalf("pre-onboard edit not applied: %q", got.GetConfig().GetInstruction())
+	}
+
+	// Export → workspace becomes Git-owned.
+	resp, err := fx.svc.OnboardWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.OnboardWorkspaceRepositoryRequest{
+		Mode: agentsv1.RepoBindingOnboardingMode_REPO_BINDING_ONBOARDING_MODE_EXPORT_CURRENT,
+	}))
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if !resp.Msg.GetPublished() {
+		t.Fatal("export should publish")
+	}
+	if owned, _ := fx.svc.IsContentGitOwned(ctx, "ws-a"); !owned {
+		t.Fatal("workspace must be Git-owned after export")
+	}
+
+	// After onboarding: content edits through the Agent API are ignored; the DB
+	// field is preserved because content is now Git-owned.
+	if _, err := agentSvc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
+		Agent: &agentsv1.Agent{Name: "My Agent", Config: &agentsv1.AgentConfig{Instruction: "V2 via API"}},
+	})); err != nil {
+		t.Fatalf("post-onboard UpdateAgent: %v", err)
+	}
+	got, _ = fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	if got.GetConfig().GetInstruction() != "V1 prompt." {
+		t.Fatalf("Git-owned content must be preserved, got %q", got.GetConfig().GetInstruction())
+	}
+}
+
 func TestOnboardExportRequiresOwnerOrAdmin(t *testing.T) {
 	fx, _ := newPublicationFixture(t)
 	_, err := fx.svc.OnboardWorkspaceRepository(memberCtx(), connect.NewRequest(&agentsv1.OnboardWorkspaceRepositoryRequest{
