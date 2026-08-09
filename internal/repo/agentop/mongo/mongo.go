@@ -53,12 +53,15 @@ func (r *Store) EnsureIndexes(ctx context.Context) error {
 	return nil
 }
 
-func (r *Store) Save(ctx context.Context, op *agentsv1.AgentOperation) error {
+func (r *Store) Save(ctx context.Context, workspaceID string, op *agentsv1.AgentOperation) error {
+	if op.GetWorkspaceId() != workspaceID {
+		return fmt.Errorf("workspace mismatch: operation belongs to %q, save requested for %q", op.GetWorkspaceId(), workspaceID)
+	}
 	d, err := opDocFromProto(op)
 	if err != nil {
 		return err
 	}
-	_, err = r.coll.ReplaceOne(ctx, bson.M{"_id": op.GetId()}, d, options.Replace().SetUpsert(true))
+	_, err = r.coll.ReplaceOne(ctx, bson.M{"_id": op.GetId(), "workspace_id": workspaceID}, d, options.Replace().SetUpsert(true))
 	if err != nil {
 		return fmt.Errorf("save agent operation: %w", err)
 	}
@@ -119,7 +122,7 @@ func (r *Store) List(ctx context.Context, workspaceID string, status agentsv1.Ag
 	return out, next, nil
 }
 
-func (r *Store) ListResumable(ctx context.Context) ([]*agentsv1.AgentOperation, error) {
+func (r *Store) ListResumableAcrossWorkspaces(ctx context.Context) ([]*agentsv1.AgentOperation, error) {
 	cursor, err := r.coll.Find(ctx, bson.M{"status": bson.M{"$in": bson.A{
 		agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING.String(),
 		agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED.String(),

@@ -28,7 +28,7 @@ func TestMemoryRepo_SaveGet(t *testing.T) {
 	r := New()
 	ctx := t.Context()
 	want := op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING, 100)
-	if err := r.Save(ctx, want); err != nil {
+	if err := r.Save(ctx, "ws-a", want); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
@@ -53,7 +53,7 @@ func TestMemoryRepo_SaveIsSnapshot(t *testing.T) {
 	r := New()
 	ctx := t.Context()
 	in := op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_PENDING, 100)
-	if err := r.Save(ctx, in); err != nil {
+	if err := r.Save(ctx, "ws-a", in); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	// Mutating the input after Save must not affect stored state.
@@ -67,10 +67,10 @@ func TestMemoryRepo_SaveIsSnapshot(t *testing.T) {
 func TestMemoryRepo_ListFilterAndOrder(t *testing.T) {
 	r := New()
 	ctx := t.Context()
-	_ = r.Save(ctx, op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 100))
-	_ = r.Save(ctx, op("2", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED, 200))
-	_ = r.Save(ctx, op("3", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 300))
-	_ = r.Save(ctx, op("4", "ws-b", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 400))
+	_ = r.Save(ctx, "ws-a", op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 100))
+	_ = r.Save(ctx, "ws-a", op("2", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED, 200))
+	_ = r.Save(ctx, "ws-a", op("3", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 300))
+	_ = r.Save(ctx, "ws-b", op("4", "ws-b", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 400))
 
 	// All in ws-a, newest first.
 	all, next, err := r.List(ctx, "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_UNSPECIFIED, 20, "")
@@ -95,7 +95,7 @@ func TestMemoryRepo_ListPagination(t *testing.T) {
 	r := New()
 	ctx := t.Context()
 	for i := int64(1); i <= 5; i++ {
-		_ = r.Save(ctx, op(itoa(i), "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, i))
+		_ = r.Save(ctx, "ws-a", op(itoa(i), "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, i))
 	}
 	page1, next, _ := r.List(ctx, "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_UNSPECIFIED, 2, "")
 	if len(page1) != 2 || next == "" {
@@ -114,13 +114,13 @@ func TestMemoryRepo_ListPagination(t *testing.T) {
 func TestMemoryRepo_ListResumable(t *testing.T) {
 	r := New()
 	ctx := t.Context()
-	_ = r.Save(ctx, op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING, 100))
-	_ = r.Save(ctx, op("2", "ws-b", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED, 200))
-	_ = r.Save(ctx, op("3", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 300))
+	_ = r.Save(ctx, "ws-a", op("1", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING, 100))
+	_ = r.Save(ctx, "ws-b", op("2", "ws-b", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED, 200))
+	_ = r.Save(ctx, "ws-a", op("3", "ws-a", agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED, 300))
 
-	got, err := r.ListResumable(ctx)
+	got, err := r.ListResumableAcrossWorkspaces(ctx)
 	if err != nil {
-		t.Fatalf("ListResumable: %v", err)
+		t.Fatalf("ListResumableAcrossWorkspaces: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("want 2 resumable across workspaces, got %v", ids(got))

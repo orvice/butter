@@ -55,8 +55,10 @@ func ClampPageSize(pageSize int32) int32 {
 type Repository interface {
 	EnsureIndexes(ctx context.Context) error
 
-	// Save upserts the operation by its ID.
-	Save(ctx context.Context, op *agentsv1.AgentOperation) error
+	// Save upserts the operation by its ID within the given workspace.
+	// The workspaceID must match op.WorkspaceId; implementations enforce
+	// this so one workspace cannot overwrite another's records.
+	Save(ctx context.Context, workspaceID string, op *agentsv1.AgentOperation) error
 
 	// Get returns the operation with the given ID in the workspace, or
 	// ErrNotFound.
@@ -67,8 +69,9 @@ type Repository interface {
 	// pagination.
 	List(ctx context.Context, workspaceID string, status agentsv1.AgentOperationStatus, pageSize int32, pageToken string) ([]*agentsv1.AgentOperation, string, error)
 
-	// ListResumable returns every operation still in RUNNING or FAILED across
-	// all workspaces, so a background driver can heal stuck operations. Unused
-	// by the synchronous path; provided for a future reconciler.
-	ListResumable(ctx context.Context) ([]*agentsv1.AgentOperation, error)
+	// ListResumableAcrossWorkspaces returns every operation still in RUNNING or
+	// FAILED across all workspaces, so a background driver can heal stuck
+	// operations. Unused by the synchronous path; provided for a future
+	// reconciler.
+	ListResumableAcrossWorkspaces(ctx context.Context) ([]*agentsv1.AgentOperation, error)
 }

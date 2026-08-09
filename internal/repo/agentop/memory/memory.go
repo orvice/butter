@@ -4,6 +4,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 
@@ -26,9 +27,15 @@ func New() *Store {
 
 func (r *Store) EnsureIndexes(context.Context) error { return nil }
 
-func (r *Store) Save(_ context.Context, op *agentsv1.AgentOperation) error {
+func (r *Store) Save(_ context.Context, workspaceID string, op *agentsv1.AgentOperation) error {
+	if op.GetWorkspaceId() != workspaceID {
+		return fmt.Errorf("workspace mismatch: operation belongs to %q, save requested for %q", op.GetWorkspaceId(), workspaceID)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if existing, ok := r.byID[op.GetId()]; ok && existing.GetWorkspaceId() != workspaceID {
+		return agentoprepo.ErrNotFound
+	}
 	r.byID[op.GetId()] = proto.Clone(op).(*agentsv1.AgentOperation)
 	return nil
 }
@@ -68,7 +75,7 @@ func (r *Store) List(_ context.Context, workspaceID string, status agentsv1.Agen
 	return page, next, nil
 }
 
-func (r *Store) ListResumable(_ context.Context) ([]*agentsv1.AgentOperation, error) {
+func (r *Store) ListResumableAcrossWorkspaces(_ context.Context) ([]*agentsv1.AgentOperation, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]*agentsv1.AgentOperation, 0)

@@ -332,10 +332,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	update.AgentId = prev.GetAgentId()
 	update.LifecycleStatus = prev.GetLifecycleStatus()
 	update.LegacyName = prev.GetLegacyName()
-	// Preserve lifecycle bookkeeping the simple update path does not manage, so
-	// it never clobbers the optimistic-concurrency counter or timestamps the
-	// composite-save Saga (issue #218) relies on.
-	update.Version = prev.GetVersion()
+	// Bump version so a concurrent composite-save (UpdateAgentConfiguration)
+	// detects the interleaving write via UpdateAgentCAS.
+	update.Version = prev.GetVersion() + 1
 	update.CreatedAt = prev.GetCreatedAt()
 	update.DeletedAt = prev.GetDeletedAt()
 

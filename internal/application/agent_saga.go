@@ -82,12 +82,13 @@ type sagaStep struct {
 func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.AgentOperation, steps []sagaStep) ([]string, error) {
 	pctx := context.WithoutCancel(ctx)
 	logger := log.FromContext(ctx)
+	ws := op.GetWorkspaceId()
 
 	op.AttemptCount++
 	op.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING
 	op.Error = ""
 	op.UpdatedAt = c.nowTS()
-	if err := c.ops.Save(pctx, op); err != nil {
+	if err := c.ops.Save(pctx, ws, op); err != nil {
 		return nil, connectx.InternalWith(fmt.Errorf("persist operation: %w", err))
 	}
 
@@ -101,7 +102,9 @@ func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.Ag
 		rec.StartedAt = c.nowTS()
 		rec.Error = ""
 		op.UpdatedAt = c.nowTS()
-		_ = c.ops.Save(pctx, op)
+		if err := c.ops.Save(pctx, ws, op); err != nil {
+			return nil, connectx.InternalWith(fmt.Errorf("persist step start: %w", err))
+		}
 
 		vErrs, err := st.fn(ctx, op)
 		rec.FinishedAt = c.nowTS()
@@ -112,7 +115,9 @@ func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.Ag
 			op.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED
 			op.Error = fmt.Sprintf("%s: content validation failed", st.kind.String())
 			op.UpdatedAt = c.nowTS()
-			_ = c.ops.Save(pctx, op)
+			if sErr := c.ops.Save(pctx, ws, op); sErr != nil {
+				logger.Error("failed to persist step failure", "operation_id", op.GetId(), "step", st.kind.String(), "err", sErr)
+			}
 			logger.Warn("agent lifecycle step validation failed", "operation_id", op.GetId(), "step", st.kind.String(), "errors", vErrs)
 			return vErrs, nil
 		case err != nil:
@@ -121,20 +126,25 @@ func (c *agentOperationCoordinator) execute(ctx context.Context, op *agentsv1.Ag
 			op.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_FAILED
 			op.Error = fmt.Sprintf("%s: %s", st.kind.String(), err.Error())
 			op.UpdatedAt = c.nowTS()
-			_ = c.ops.Save(pctx, op)
+			if sErr := c.ops.Save(pctx, ws, op); sErr != nil {
+				logger.Error("failed to persist step failure", "operation_id", op.GetId(), "step", st.kind.String(), "err", sErr)
+			}
 			logger.Error("agent lifecycle step failed", "operation_id", op.GetId(), "step", st.kind.String(), "err", err)
 			return nil, err
 		default:
 			rec.Status = agentsv1.AgentOperationStepStatus_AGENT_OPERATION_STEP_STATUS_SUCCEEDED
 			op.UpdatedAt = c.nowTS()
-			_ = c.ops.Save(pctx, op)
+			if sErr := c.ops.Save(pctx, ws, op); sErr != nil {
+				logger.Error("failed to persist step success", "operation_id", op.GetId(), "step", st.kind.String(), "err", sErr)
+				return nil, connectx.InternalWith(fmt.Errorf("persist step success: %w", sErr))
+			}
 		}
 	}
 
 	op.Status = agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED
 	op.Error = ""
 	op.UpdatedAt = c.nowTS()
-	if err := c.ops.Save(pctx, op); err != nil {
+	if err := c.ops.Save(pctx, ws, op); err != nil {
 		return nil, connectx.InternalWith(fmt.Errorf("persist operation: %w", err))
 	}
 	return nil, nil
@@ -157,6 +167,10 @@ func (c *agentOperationCoordinator) getOrCreate(ctx context.Context, ws, opID st
 	if opID != "" {
 		existing, err := c.ops.Get(ctx, ws, opID)
 		if err == nil {
+			if existing.GetType() != typ || existing.GetAgentId() != agent.GetAgentId() {
+				return nil, connect.NewError(connect.CodeInvalidArgument,
+					fmt.Errorf("operation %q exists but targets a different type or agent", opID))
+			}
 			return existing, nil
 		}
 		if !errors.Is(err, agentoprepo.ErrNotFound) {
@@ -178,7 +192,7 @@ func (c *agentOperationCoordinator) getOrCreate(ctx context.Context, ws, opID st
 		CreatedAt:            c.nowTS(),
 		UpdatedAt:            c.nowTS(),
 	}
-	if err := c.ops.Save(context.WithoutCancel(ctx), op); err != nil {
+	if err := c.ops.Save(context.WithoutCancel(ctx), ws, op); err != nil {
 		return nil, connectx.InternalWith(err)
 	}
 	return op, nil
@@ -422,8 +436,8 @@ func (c *agentOperationCoordinator) updateSteps(ws string, prev, patch *agentsv1
 }
 
 // applyConfigPatch produces the agent to store: operational fields come from the
-// patch; identity and lifecycle fields are preserved from prev. Version is
-// handled by the CAS write.
+// patch; identity, lifecycle, and Git-owned content fields are preserved from
+// prev. Version is handled by the CAS write.
 func applyConfigPatch(prev, patch *agentsv1.Agent) *agentsv1.Agent {
 	out := proto.Clone(patch).(*agentsv1.Agent)
 	out.Name = prev.GetName()
@@ -434,6 +448,16 @@ func applyConfigPatch(prev, patch *agentsv1.Agent) *agentsv1.Agent {
 	out.CreatedAt = prev.GetCreatedAt()
 	out.DeletedAt = prev.GetDeletedAt()
 	out.SubAgents = nil
+	// Git-owned content fields: these are the sole source of truth for bound
+	// workspaces and must never be written to the DB config store.
+	out.Description = prev.GetDescription()
+	if out.Config == nil && prev.GetConfig() != nil {
+		out.Config = &agentsv1.AgentConfig{}
+	}
+	if out.Config != nil {
+		out.Config.Instruction = prev.GetConfig().GetInstruction()
+		out.Config.GlobalInstruction = prev.GetConfig().GetGlobalInstruction()
+	}
 	return out
 }
 
@@ -451,12 +475,17 @@ func (c *agentOperationCoordinator) RunDelete(ctx context.Context, ws string, ag
 }
 
 func (c *agentOperationCoordinator) deleteSteps(ws, name string) []sagaStep {
-	return []sagaStep{{
-		kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_TOMBSTONE,
-		fn: func(ctx context.Context, _ *agentsv1.AgentOperation) ([]string, error) {
-			return nil, c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED)
+	return []sagaStep{
+		{
+			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_TOMBSTONE,
+			fn: func(ctx context.Context, _ *agentsv1.AgentOperation) ([]string, error) {
+				if err := c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETING); err != nil {
+					return nil, err
+				}
+				return nil, c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED)
+			},
 		},
-	}}
+	}
 }
 
 // ── Restore ────────────────────────────────────────────────────────────────────
@@ -479,12 +508,6 @@ func (c *agentOperationCoordinator) RunRestore(ctx context.Context, ws string, a
 func (c *agentOperationCoordinator) restoreSteps(ws, name string) []sagaStep {
 	return []sagaStep{
 		{
-			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_RESTORE_DB,
-			fn: func(ctx context.Context, _ *agentsv1.AgentOperation) ([]string, error) {
-				return nil, c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE)
-			},
-		},
-		{
 			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_SYNC_PUBLISH,
 			fn: func(ctx context.Context, _ *agentsv1.AgentOperation) ([]string, error) {
 				hasBinding, err := c.content.HasBinding(ctx, ws)
@@ -492,6 +515,12 @@ func (c *agentOperationCoordinator) restoreSteps(ws, name string) []sagaStep {
 					return nil, err
 				}
 				return nil, c.content.SyncAndPublish(ctx, ws)
+			},
+		},
+		{
+			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_RESTORE_DB,
+			fn: func(ctx context.Context, _ *agentsv1.AgentOperation) ([]string, error) {
+				return nil, c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE)
 			},
 		},
 	}

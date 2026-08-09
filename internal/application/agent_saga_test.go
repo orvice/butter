@@ -223,7 +223,7 @@ func TestSagaUpdateConfiguration_VersionMatchAndMismatch(t *testing.T) {
 
 	prev := mustGet(t, fx, "a")
 	patch := proto.Clone(prev).(*agentsv1.Agent)
-	patch.Description = "patched"
+	patch.DisplayName = "patched-display"
 
 	// Correct expected version succeeds.
 	agent, op, vErrs, err := fx.coord.RunUpdateConfiguration(ctx, wsA, prev, patch, nil, prev.GetVersion(), "", "")
@@ -233,8 +233,8 @@ func TestSagaUpdateConfiguration_VersionMatchAndMismatch(t *testing.T) {
 	if op.GetStatus() != agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED {
 		t.Fatalf("want SUCCEEDED, got %v", op.GetStatus())
 	}
-	if agent.GetDescription() != "patched" {
-		t.Fatalf("patch not applied: %q", agent.GetDescription())
+	if agent.GetDisplayName() != "patched-display" {
+		t.Fatalf("patch not applied: %q", agent.GetDisplayName())
 	}
 	if agent.GetVersion() != prev.GetVersion()+1 {
 		t.Fatalf("version not bumped: %d", agent.GetVersion())
@@ -242,7 +242,7 @@ func TestSagaUpdateConfiguration_VersionMatchAndMismatch(t *testing.T) {
 
 	// Stale expected version aborts.
 	stale := mustGet(t, fx, "a")
-	stale.Description = "again"
+	stale.DisplayName = "again"
 	_, op2, _, err := fx.coord.RunUpdateConfiguration(ctx, wsA, stale, stale, nil, 0, "", "")
 	if connect.CodeOf(err) != connect.CodeAborted {
 		t.Fatalf("want Aborted on stale version, got %v", err)

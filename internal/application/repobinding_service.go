@@ -1387,8 +1387,18 @@ func (s *RepoBindingServiceServer) CommitContent(ctx context.Context, ws string,
 }
 
 // SyncAndPublish re-syncs the repository and publishes the Active Revision.
+// Unlike TriggerSyncAndPublish (which is best-effort), this propagates
+// publication failures so the Saga can mark the step as failed.
 func (s *RepoBindingServiceServer) SyncAndPublish(ctx context.Context, ws string) error {
-	return s.TriggerSyncAndPublish(ctx, ws)
+	ctx = auth.WithAdmin(withWorkspace(ctx, ws))
+	resp, err := s.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		return err
+	}
+	if !resp.Msg.GetPublished() && len(resp.Msg.GetPublicationErrors()) > 0 {
+		return fmt.Errorf("publication failed: %s", strings.Join(resp.Msg.GetPublicationErrors(), "; "))
+	}
+	return nil
 }
 
 // ── Agent Content editing (issue #217) ──────────────────────────────────
