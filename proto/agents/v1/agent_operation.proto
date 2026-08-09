@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// AgentOperation is the durable record of a cross-system Agent lifecycle Saga
+// (create, composite save, tombstone, restore, or content purge). It exposes a
+// stable operation ID, an explicit status, and per-step progress so partial
+// failures are visible and operations can be retried idempotently. It does not
+// claim a distributed transaction across MongoDB and Git: each step records its
+// own outcome and the compensation policy is best-effort.
+message AgentOperation {
+  // Stable operation ID (UUID). Doubles as the idempotency key: re-invoking a
+  // lifecycle RPC with the same operation resumes from the first unfinished
+  // step rather than re-running completed side effects.
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+
+  // The immutable Agent ID this operation acts on.
+  // @gotags: json:"agent_id,omitempty" yaml:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 2;
+
+  // The agent's storage name (fallback identity for agents without an ID).
+  // @gotags: json:"agent_name,omitempty" yaml:"agent_name,omitempty" bson:"agent_name,omitempty"
+  string agent_name = 3;
+
+  // Which lifecycle Saga this record drives.
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty" bson:"type,omitempty"
+  AgentOperationType type = 4;
+
+  // Overall operation status.
+  // @gotags: json:"status,omitempty" yaml:"status,omitempty" bson:"status,omitempty"
+  AgentOperationStatus status = 5;
+
+  // Number of times the operation has been (re)attempted.
+  // @gotags: json:"attempt_count,omitempty" yaml:"attempt_count,omitempty" bson:"attempt_count,omitempty"
+  int32 attempt_count = 6;
+
+  // Ordered per-step progress records.
+  // @gotags: json:"steps,omitempty" yaml:"steps,omitempty" bson:"steps,omitempty"
+  repeated AgentOperationStep steps = 7;
+
+  // Human-readable error from the most recent failure, empty when not failed.
+  // @gotags: json:"error,omitempty" yaml:"error,omitempty" bson:"error,omitempty"
+  string error = 8;
+
+  // protojson of the originating request, so a retry can resume deterministically.
+  // @gotags: json:"request_json,omitempty" yaml:"request_json,omitempty" bson:"request_json,omitempty"
+  string request_json = 9;
+
+  // The base commit SHA carried into content steps (informational; the content
+  // layer applies last-write-wins against the live branch HEAD).
+  // @gotags: json:"base_commit_sha,omitempty" yaml:"base_commit_sha,omitempty" bson:"base_commit_sha,omitempty"
+  string base_commit_sha = 10;
+
+  // The agent version the caller expected (optimistic concurrency for saves).
+  // @gotags: json:"expected_agent_version,omitempty" yaml:"expected_agent_version,omitempty" bson:"expected_agent_version,omitempty"
+  int64 expected_agent_version = 11;
+
+  // The SHA produced by the content-commit step once it succeeds. Guards a
+  // retry from re-committing identical content.
+  // @gotags: json:"committed_sha,omitempty" yaml:"committed_sha,omitempty" bson:"committed_sha,omitempty"
+  string committed_sha = 12;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 30;
+
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 31;
+
+  // ID of the workspace this operation belongs to.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// AgentOperationStep records the outcome of one step within a lifecycle Saga.
+message AgentOperationStep {
+  // @gotags: json:"kind,omitempty" yaml:"kind,omitempty" bson:"kind,omitempty"
+  AgentOperationStepKind kind = 1;
+
+  // @gotags: json:"status,omitempty" yaml:"status,omitempty" bson:"status,omitempty"
+  AgentOperationStepStatus status = 2;
+
+  // @gotags: json:"attempt_count,omitempty" yaml:"attempt_count,omitempty" bson:"attempt_count,omitempty"
+  int32 attempt_count = 3;
+
+  // @gotags: json:"error,omitempty" yaml:"error,omitempty" bson:"error,omitempty"
+  string error = 4;
+
+  // @gotags: json:"started_at,omitempty" yaml:"started_at,omitempty" bson:"started_at,omitempty"
+  google.protobuf.Timestamp started_at = 5;
+
+  // @gotags: json:"finished_at,omitempty" yaml:"finished_at,omitempty" bson:"finished_at,omitempty"
+  google.protobuf.Timestamp finished_at = 6;
+}
+
+// AgentOperationType selects which lifecycle Saga a record drives.
+enum AgentOperationType {
+  AGENT_OPERATION_TYPE_UNSPECIFIED = 0;
+  AGENT_OPERATION_TYPE_CREATE = 1;
+  AGENT_OPERATION_TYPE_UPDATE_CONFIGURATION = 2;
+  AGENT_OPERATION_TYPE_DELETE = 3;
+  AGENT_OPERATION_TYPE_RESTORE = 4;
+}
+
+// AgentOperationStatus is the overall state of a lifecycle Saga.
+enum AgentOperationStatus {
+  AGENT_OPERATION_STATUS_UNSPECIFIED = 0;
+  // Persisted but not yet started.
+  AGENT_OPERATION_STATUS_PENDING = 1;
+  // At least one step is in progress.
+  AGENT_OPERATION_STATUS_RUNNING = 2;
+  // Every step completed successfully.
+  AGENT_OPERATION_STATUS_SUCCEEDED = 3;
+  // A step failed; the operation is recoverable via RetryAgentOperation.
+  AGENT_OPERATION_STATUS_FAILED = 4;
+}
+
+// AgentOperationStepKind identifies a Saga step.
+enum AgentOperationStepKind {
+  AGENT_OPERATION_STEP_KIND_UNSPECIFIED = 0;
+  // Create the DB row in PROVISIONING.
+  AGENT_OPERATION_STEP_KIND_DB_PROVISION = 1;
+  // Write Agent Content as a single Git commit.
+  AGENT_OPERATION_STEP_KIND_CONTENT_COMMIT = 2;
+  // Sync the repository and publish the Active Revision.
+  AGENT_OPERATION_STEP_KIND_SYNC_PUBLISH = 3;
+  // Flip lifecycle to ACTIVE and reload the runner.
+  AGENT_OPERATION_STEP_KIND_ACTIVATE = 4;
+  // Flip lifecycle to DELETED (tombstone) and reload the runner.
+  AGENT_OPERATION_STEP_KIND_TOMBSTONE = 5;
+  // Flip lifecycle from DELETED back to ACTIVE and reload the runner.
+  AGENT_OPERATION_STEP_KIND_RESTORE_DB = 6;
+  // Apply an operational config patch to the DB (composite save) with
+  // optimistic concurrency, then reload the runner.
+  AGENT_OPERATION_STEP_KIND_DB_PATCH = 7;
+}
+
+// AgentOperationStepStatus is the outcome of a single Saga step.
+enum AgentOperationStepStatus {
+  AGENT_OPERATION_STEP_STATUS_UNSPECIFIED = 0;
+  AGENT_OPERATION_STEP_STATUS_PENDING = 1;
+  AGENT_OPERATION_STEP_STATUS_SUCCEEDED = 2;
+  AGENT_OPERATION_STEP_STATUS_FAILED = 3;
+  AGENT_OPERATION_STEP_STATUS_SKIPPED = 4;
+}

@@ -271,8 +271,13 @@ func TestV2_DeleteAgentByID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "removable"}))
-	if err == nil {
-		t.Fatal("expected agent to be deleted")
+	// Soft delete (issue #218): the agent is tombstoned (DELETED), not removed,
+	// and remains resolvable by its retained Agent ID.
+	got, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "removable-id"}))
+	if err != nil {
+		t.Fatalf("tombstoned agent should still be readable by ID: %v", err)
+	}
+	if got.Msg.GetAgent().GetLifecycleStatus() != agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+		t.Fatalf("expected DELETED, got %v", got.Msg.GetAgent().GetLifecycleStatus())
 	}
 }

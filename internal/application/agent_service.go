@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -15,6 +16,7 @@ import (
 	"google.golang.org/genai"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
+	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
@@ -64,10 +66,34 @@ type AgentServiceServer struct {
 	runnerSvc agentRunner
 	invRepo   invocation.Repository
 	wsRepo    workspacerepo.Repository
+	opRepo    agentoprepo.Repository
+	content   agentContentCoordinator
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
 	return &AgentServiceServer{repo: repo}
+}
+
+// SetOperationRepo wires the durable Agent lifecycle operation store used by
+// the create/save/delete/restore Sagas (issue #218).
+func (s *AgentServiceServer) SetOperationRepo(repo agentoprepo.Repository) {
+	s.opRepo = repo
+}
+
+// SetContentCoordinator wires the Agent Content write/publish seam (satisfied
+// by *RepoBindingServiceServer) used by the lifecycle Sagas.
+func (s *AgentServiceServer) SetContentCoordinator(c agentContentCoordinator) {
+	s.content = c
+}
+
+// coordinator builds the Saga coordinator from the wired dependencies, or
+// returns nil when lifecycle Sagas are unavailable (ops repo / content seam
+// not wired) so callers fall back to the single-step path.
+func (s *AgentServiceServer) coordinator() *agentOperationCoordinator {
+	if s.opRepo == nil || s.content == nil {
+		return nil
+	}
+	return newAgentOperationCoordinator(s.repo, s.opRepo, s.content, s.reloadRuntime)
 }
 
 func (s *AgentServiceServer) SetRuntime(runtime ConfigRuntime) {
@@ -205,27 +231,85 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateAgentID(agent.GetAgentId()); err != nil {
 		return nil, connectx.InvalidArgument("agent_id", err.Error())
 	}
-	taken, err := s.repo.AgentIDExists(ctx, wsID, agent.GetAgentId())
-	if err != nil {
-		return nil, toConnectError(err)
-	}
-	if taken {
-		return nil, connect.NewError(connect.CodeAlreadyExists,
-			fmt.Errorf("agent_id %q is already in use in this workspace", agent.GetAgentId()))
-	}
 	agent.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE
+	agent.WorkspaceId = wsID
 	if len(agent.GetChildAgentIds()) > 0 {
 		pool, err := s.repo.ListAgents(ctx, wsID)
 		if err != nil {
 			return nil, toConnectError(err)
 		}
-		agent.WorkspaceId = wsID
 		if err := internalagent.ValidateAgentRelationships(agent, pool); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 	}
 
 	logger := log.FromContext(ctx)
+	coord := s.coordinator()
+	bound := false
+	if coord != nil {
+		bound, err = s.content.HasBinding(ctx, wsID)
+		if err != nil {
+			return nil, connectx.InternalWith(err)
+		}
+		if bound {
+			if err := s.requireOwnerOrAdmin(ctx, wsID); err != nil {
+				return nil, err
+			}
+			initial := req.Msg.GetInitialContent()
+			if agentTypeRequiresPrompt(agent.GetType()) && strings.TrimSpace(initial.GetPrompt()) == "" {
+				return nil, connectx.RequiredArgument("initial_content.prompt")
+			}
+			reqJSON, err := createOperationRequestJSON(agent, initial)
+			if err != nil {
+				return nil, connectx.InternalWith(err)
+			}
+			created, op, vErrs, found, err := coord.resumeExisting(ctx, wsID, req.Msg.GetOperationId(),
+				agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_CREATE, agent.GetAgentId(), reqJSON, 0, "")
+			if found {
+				if err != nil {
+					return nil, operationError(err, op)
+				}
+				if len(vErrs) > 0 {
+					return nil, operationError(contentValidationError(vErrs), op)
+				}
+				return connect.NewResponse(&agentsv1.CreateAgentResponse{Agent: created, Operation: op}), nil
+			}
+		}
+	}
+
+	taken, err := s.repo.AgentIDExists(ctx, wsID, agent.GetAgentId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if taken {
+		// A DELETED tombstone keeps its ID reserved; steer the caller to
+		// RestoreAgent rather than reporting a bare conflict (issue #218).
+		if existing, gErr := s.repo.GetAgentByID(ctx, wsID, agent.GetAgentId()); gErr == nil &&
+			existing.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				fmt.Errorf("agent_id %q belongs to a deleted agent; use RestoreAgent to reactivate it", agent.GetAgentId()))
+		}
+		return nil, connect.NewError(connect.CodeAlreadyExists,
+			fmt.Errorf("agent_id %q is already in use in this workspace", agent.GetAgentId()))
+	}
+
+	// Git-bound workspace with a Saga coordinator: create through the durable
+	// lifecycle Saga (PROVISIONING → commit content → publish → ACTIVE).
+	if coord != nil {
+		if bound {
+			initial := req.Msg.GetInitialContent()
+			logger.Info("creating bound agent via saga", "workspace_id", wsID, "agent", agent.GetName())
+			created, op, vErrs, err := coord.RunCreate(ctx, wsID, agent, initial, req.Msg.GetOperationId())
+			if err != nil {
+				return nil, operationError(err, op)
+			}
+			if len(vErrs) > 0 {
+				return nil, operationError(contentValidationError(vErrs), op)
+			}
+			return connect.NewResponse(&agentsv1.CreateAgentResponse{Agent: created, Operation: op}), nil
+		}
+	}
+
 	logger.Info("creating agent", "workspace_id", wsID, "agent", agent.GetName(), "type", agent.GetType().String())
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
@@ -271,6 +355,24 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	update.AgentId = prev.GetAgentId()
 	update.LifecycleStatus = prev.GetLifecycleStatus()
 	update.LegacyName = prev.GetLegacyName()
+	update.CreatedAt = prev.GetCreatedAt()
+	update.DeletedAt = prev.GetDeletedAt()
+	if s.content != nil {
+		bound, bindErr := s.content.HasBinding(ctx, wsID)
+		if bindErr != nil {
+			return nil, connectx.InternalWith(bindErr)
+		}
+		if bound {
+			update.Description = prev.GetDescription()
+			if update.Config == nil && prev.GetConfig() != nil {
+				update.Config = &agentsv1.AgentConfig{}
+			}
+			if update.Config != nil {
+				update.Config.Instruction = prev.GetConfig().GetInstruction()
+				update.Config.GlobalInstruction = prev.GetConfig().GetGlobalInstruction()
+			}
+		}
+	}
 
 	// V2 contract: embedded sub_agents are read-only legacy state. A legacy
 	// agent can still be edited (its stored tree round-trips unchanged), but
@@ -299,15 +401,22 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 
 	logger.Info("updating agent", "workspace_id", wsID, "agent", update.GetName())
 
+	var applied *agentsv1.Agent
 	a, err := mutateWithRuntime(
 		func() (*agentsv1.Agent, error) {
-			return s.repo.UpdateAgent(ctx, wsID, update)
+			var applyErr error
+			applied, applyErr = s.repo.UpdateAgentCAS(ctx, wsID, update, prev.GetVersion())
+			return applied, applyErr
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.UpdateAgent(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
+			expected := prev.GetVersion() + 1
+			if applied != nil {
+				expected = applied.GetVersion()
+			}
+			if _, err := s.repo.UpdateAgentCAS(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent), expected); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -315,6 +424,10 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	)
 	if err != nil {
 		logger.Error("update agent failed", "workspace_id", wsID, "agent", req.Msg.GetAgent().GetName(), "err", err)
+		if errors.Is(err, configrepo.ErrVersionConflict) {
+			return nil, connect.NewError(connect.CodeAborted,
+				errors.New("agent version changed since it was read; re-read and retry"))
+		}
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent updated", "workspace_id", wsID, "agent", a.GetName())
@@ -338,6 +451,21 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		return nil, toConnectError(err)
 	}
 	agentName := prev.GetName()
+	coord := s.coordinator()
+	if coord != nil && req.Msg.GetOperationId() != "" {
+		reqJSON, jsonErr := deleteOperationRequestJSON(prev)
+		if jsonErr != nil {
+			return nil, connectx.InternalWith(jsonErr)
+		}
+		_, op, _, found, resumeErr := coord.resumeExisting(ctx, wsID, req.Msg.GetOperationId(),
+			agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_DELETE, prev.GetAgentId(), reqJSON, 0, "")
+		if found {
+			if resumeErr != nil {
+				return nil, operationError(resumeErr, op)
+			}
+			return connect.NewResponse(&agentsv1.DeleteAgentResponse{Operation: op}), nil
+		}
+	}
 
 	if agentID := prev.GetAgentId(); agentID != "" {
 		pool, err := s.repo.ListAgents(ctx, wsID)
@@ -349,17 +477,47 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		}
 	}
 
-	logger.Info("deleting agent", "workspace_id", wsID, "agent", agentName)
+	// Already a tombstone: deleting again is a no-op (idempotent).
+	if prev.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+		return connect.NewResponse(&agentsv1.DeleteAgentResponse{}), nil
+	}
 
-	err = deleteWithRuntime(
-		func() error {
-			return s.repo.DeleteAgent(ctx, wsID, agentName)
+	logger.Info("deleting (tombstoning) agent", "workspace_id", wsID, "agent", agentName)
+
+	// Soft delete: with a Saga coordinator the delete is a durable TOMBSTONE
+	// operation that flips lifecycle to DELETED while retaining the Agent ID
+	// and any Git content (issue #218). Restore reactivates the same entity.
+	if coord != nil {
+		op, err := coord.RunDelete(ctx, wsID, prev, req.Msg.GetOperationId())
+		if err != nil {
+			logger.Error("tombstone agent failed", "workspace_id", wsID, "agent", agentName, "err", err)
+			return nil, operationError(err, op)
+		}
+		logger.Info("agent tombstoned", "workspace_id", wsID, "agent", agentName)
+		return connect.NewResponse(&agentsv1.DeleteAgentResponse{Operation: op}), nil
+	}
+
+	// No coordinator (unbound / legacy wiring): tombstone directly via the
+	// single-step mutation seam.
+	tombstone := proto.Clone(prev).(*agentsv1.Agent)
+	tombstone.LifecycleStatus = agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED
+	tombstone.DeletedAt = timestamppb.New(time.Now())
+	var applied *agentsv1.Agent
+	_, err = mutateWithRuntime(
+		func() (*agentsv1.Agent, error) {
+			var applyErr error
+			applied, applyErr = s.repo.UpdateAgentCAS(ctx, wsID, tombstone, prev.GetVersion())
+			return applied, applyErr
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
 		},
 		func() error {
-			if _, err := s.repo.CreateAgent(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent)); err != nil {
+			expected := prev.GetVersion() + 1
+			if applied != nil {
+				expected = applied.GetVersion()
+			}
+			if _, err := s.repo.UpdateAgentCAS(ctx, wsID, proto.Clone(prev).(*agentsv1.Agent), expected); err != nil {
 				return err
 			}
 			return s.reloadRuntime(ctx)
@@ -367,9 +525,13 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 	)
 	if err != nil {
 		logger.Error("delete agent failed", "workspace_id", wsID, "agent", agentName, "err", err)
+		if errors.Is(err, configrepo.ErrVersionConflict) {
+			return nil, connect.NewError(connect.CodeAborted,
+				errors.New("agent version changed since it was read; re-read and retry"))
+		}
 		return nil, toConnectError(err)
 	}
-	logger.Info("agent deleted", "workspace_id", wsID, "agent", agentName)
+	logger.Info("agent tombstoned", "workspace_id", wsID, "agent", agentName)
 	return connect.NewResponse(&agentsv1.DeleteAgentResponse{}), nil
 }
 
@@ -778,6 +940,222 @@ func checkSubAgentDeps(a *agentsv1.Agent, byName map[string]*agentsv1.Agent) str
 		}
 	}
 	return ""
+}
+
+// ── Agent lifecycle Saga RPCs (issue #218) ───────────────────────────────────
+
+// agentTypeRequiresPrompt reports whether an agent type requires a non-empty
+// prompt (LLM agents; UNSPECIFIED defaults to LLM).
+func agentTypeRequiresPrompt(t agentsv1.AgentType) bool {
+	return t == agentsv1.AgentType_AGENT_TYPE_LLM || t == agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED
+}
+
+// contentValidationError wraps content validation messages as a
+// FailedPrecondition Connect error.
+func contentValidationError(vErrs []string) error {
+	return connect.NewError(connect.CodeFailedPrecondition,
+		fmt.Errorf("agent content invalid: %s", strings.Join(vErrs, "; ")))
+}
+
+func operationError(err error, op *agentsv1.AgentOperation) *connect.Error {
+	cerr := toConnectError(err)
+	if op == nil {
+		return cerr
+	}
+	detail, detailErr := connect.NewErrorDetail(op)
+	if detailErr == nil {
+		cerr.AddDetail(detail)
+	}
+	return cerr
+}
+
+func (s *AgentServiceServer) requireCoordinator() (*agentOperationCoordinator, error) {
+	coord := s.coordinator()
+	if coord == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("agent lifecycle operations are not available (no repository binding configured)"))
+	}
+	return coord, nil
+}
+
+// UpdateAgentConfiguration is the composite-save command: it coordinates an
+// operational config patch (DB) with Agent Content changes (Git) under one
+// durable operation, with optimistic concurrency on the agent version.
+func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *connect.Request[agentsv1.UpdateAgentConfigurationRequest]) (*connect.Response[agentsv1.UpdateAgentConfigurationResponse], error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnerOrAdmin(ctx, wsID); err != nil {
+		return nil, err
+	}
+	patch := req.Msg.GetAgentPatch()
+	if patch.GetAgentId() == "" {
+		return nil, connectx.RequiredArgument("agent_patch.agent_id")
+	}
+	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	coord, err := s.requireCoordinator()
+	if err != nil {
+		return nil, err
+	}
+	reqJSON, err := updateOperationRequestJSON(patch, req.Msg.GetContentChanges(), req.Msg.GetExpectedAgentVersion(), req.Msg.GetBaseCommitSha())
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	agent, op, vErrs, found, err := coord.resumeExisting(ctx, wsID, req.Msg.GetOperationId(),
+		agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_UPDATE_CONFIGURATION, patch.GetAgentId(), reqJSON,
+		req.Msg.GetExpectedAgentVersion(), req.Msg.GetBaseCommitSha())
+	if found {
+		if err != nil {
+			return nil, operationError(err, op)
+		}
+		return connect.NewResponse(&agentsv1.UpdateAgentConfigurationResponse{
+			Agent: agent, Operation: op, ValidationErrors: vErrs,
+		}), nil
+	}
+	prev, err := s.repo.GetAgentByID(ctx, wsID, patch.GetAgentId())
+	if err != nil {
+		return nil, operationError(err, op)
+	}
+	if prev.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("agent is deleted; restore it before updating its configuration"))
+	}
+	// Fast-fail on a stale version before doing any Git work; the DB patch step
+	// re-checks atomically via UpdateAgentCAS.
+	if prev.GetVersion() != req.Msg.GetExpectedAgentVersion() {
+		return nil, connect.NewError(connect.CodeAborted,
+			fmt.Errorf("agent version changed since it was read (have %d, expected %d); re-read and retry",
+				prev.GetVersion(), req.Msg.GetExpectedAgentVersion()))
+	}
+	if len(patch.GetChildAgentIds()) > 0 {
+		pool, err := s.repo.ListAgents(ctx, wsID)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		check := proto.Clone(patch).(*agentsv1.Agent)
+		check.Name = prev.GetName()
+		check.WorkspaceId = wsID
+		if err := internalagent.ValidateAgentRelationships(check, pool); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+	}
+
+	agent, op, vErrs, err = coord.RunUpdateConfiguration(ctx, wsID, prev, patch,
+		req.Msg.GetContentChanges(), req.Msg.GetExpectedAgentVersion(), req.Msg.GetBaseCommitSha(), req.Msg.GetOperationId())
+	if err != nil {
+		return nil, operationError(err, op)
+	}
+	return connect.NewResponse(&agentsv1.UpdateAgentConfigurationResponse{
+		Agent: agent, Operation: op, ValidationErrors: vErrs,
+	}), nil
+}
+
+// RestoreAgent reactivates a tombstoned agent from its retained configuration
+// and Agent Content.
+func (s *AgentServiceServer) RestoreAgent(ctx context.Context, req *connect.Request[agentsv1.RestoreAgentRequest]) (*connect.Response[agentsv1.RestoreAgentResponse], error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnerOrAdmin(ctx, wsID); err != nil {
+		return nil, err
+	}
+	if req.Msg.GetAgentId() == "" {
+		return nil, connectx.RequiredArgument("agent_id")
+	}
+	coord, err := s.requireCoordinator()
+	if err != nil {
+		return nil, err
+	}
+	reqJSON, err := restoreOperationRequestJSON(req.Msg.GetAgentId())
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	agent, op, vErrs, found, err := coord.resumeExisting(ctx, wsID, req.Msg.GetOperationId(),
+		agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_RESTORE, req.Msg.GetAgentId(), reqJSON, 0, "")
+	if found {
+		if err != nil {
+			return nil, operationError(err, op)
+		}
+		return connect.NewResponse(&agentsv1.RestoreAgentResponse{
+			Agent: agent, Operation: op, ValidationErrors: vErrs,
+		}), nil
+	}
+	prev, err := s.repo.GetAgentByID(ctx, wsID, req.Msg.GetAgentId())
+	if err != nil {
+		return nil, operationError(err, op)
+	}
+	if prev.GetLifecycleStatus() != agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("agent is not deleted; nothing to restore"))
+	}
+	agent, op, vErrs, err = coord.RunRestore(ctx, wsID, prev, req.Msg.GetOperationId())
+	if err != nil {
+		return nil, operationError(err, op)
+	}
+	return connect.NewResponse(&agentsv1.RestoreAgentResponse{
+		Agent: agent, Operation: op, ValidationErrors: vErrs,
+	}), nil
+}
+
+// GetAgentOperation returns a durable lifecycle operation record.
+func (s *AgentServiceServer) GetAgentOperation(ctx context.Context, req *connect.Request[agentsv1.GetAgentOperationRequest]) (*connect.Response[agentsv1.GetAgentOperationResponse], error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s.opRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent operations are not available"))
+	}
+	op, err := s.opRepo.Get(ctx, wsID, req.Msg.GetOperationId())
+	if err != nil {
+		if errors.Is(err, agentoprepo.ErrNotFound) {
+			return nil, connectx.NotFound("operation not found")
+		}
+		return nil, connectx.InternalWith(err)
+	}
+	return connect.NewResponse(&agentsv1.GetAgentOperationResponse{Operation: op}), nil
+}
+
+// ListAgentOperations lists lifecycle operations in the workspace.
+func (s *AgentServiceServer) ListAgentOperations(ctx context.Context, req *connect.Request[agentsv1.ListAgentOperationsRequest]) (*connect.Response[agentsv1.ListAgentOperationsResponse], error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s.opRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent operations are not available"))
+	}
+	ops, next, err := s.opRepo.List(ctx, wsID, req.Msg.GetStatus(), req.Msg.GetPageSize(), req.Msg.GetPageToken())
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	return connect.NewResponse(&agentsv1.ListAgentOperationsResponse{Operations: ops, NextPageToken: next}), nil
+}
+
+// RetryAgentOperation resumes a FAILED lifecycle operation.
+func (s *AgentServiceServer) RetryAgentOperation(ctx context.Context, req *connect.Request[agentsv1.RetryAgentOperationRequest]) (*connect.Response[agentsv1.RetryAgentOperationResponse], error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnerOrAdmin(ctx, wsID); err != nil {
+		return nil, err
+	}
+	coord, err := s.requireCoordinator()
+	if err != nil {
+		return nil, err
+	}
+	agent, op, vErrs, err := coord.Retry(ctx, wsID, req.Msg.GetOperationId())
+	if err != nil {
+		return nil, operationError(err, op)
+	}
+	return connect.NewResponse(&agentsv1.RetryAgentOperationResponse{
+		Agent: agent, Operation: op, ValidationErrors: vErrs,
+	}), nil
 }
 
 // requireOwnerOrAdmin checks that the caller is a global admin or holds

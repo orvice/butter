@@ -33,6 +33,22 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+// isRunnableAgent reports whether an agent with the given lifecycle status may
+// enter the runner registry. Only ACTIVE agents (and legacy UNSPECIFIED rows
+// created before the lifecycle field existed, treated as active) are runnable;
+// PROVISIONING, ERROR, DELETING, DELETED, and MIGRATION_REQUIRED agents are
+// excluded so tombstoned or half-provisioned agents can never be invoked or
+// used as dependencies (issue #218).
+func isRunnableAgent(status agentsv1.AgentLifecycleStatus) bool {
+	switch status {
+	case agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE,
+		agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_UNSPECIFIED:
+		return true
+	default:
+		return false
+	}
+}
+
 // InvocationRecorder receives a per-Run record at start (status=RUNNING) and
 // again at completion (status=SUCCEEDED/FAILED). Save must be idempotent /
 // upsert by Invocation.Id.
@@ -190,8 +206,9 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 
 	for i := range agents {
 		name := agents[i].GetName()
-		if agents[i].GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED {
-			logger.Warn("skipping MIGRATION_REQUIRED agent", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
+		if !isRunnableAgent(agents[i].GetLifecycleStatus()) {
+			logger.Warn("skipping non-runnable agent", "agent", name,
+				"workspace_id", agents[i].GetWorkspaceId(), "lifecycle_status", agents[i].GetLifecycleStatus().String())
 			continue
 		}
 
@@ -417,8 +434,9 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 
 	for i := range agents {
 		name := agents[i].GetName()
-		if agents[i].GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED {
-			logger.Warn("skipping MIGRATION_REQUIRED agent on reload", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
+		if !isRunnableAgent(agents[i].GetLifecycleStatus()) {
+			logger.Warn("skipping non-runnable agent on reload", "agent", name,
+				"workspace_id", agents[i].GetWorkspaceId(), "lifecycle_status", agents[i].GetLifecycleStatus().String())
 			continue
 		}
 		if prev, ok := protoRegistry[name]; ok {

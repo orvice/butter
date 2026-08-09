@@ -168,6 +168,15 @@ export interface AgentConfig {
   max_iterations?: number;
 }
 
+export type AgentLifecycleStatus =
+  | "AGENT_LIFECYCLE_STATUS_UNSPECIFIED"
+  | "AGENT_LIFECYCLE_STATUS_ACTIVE"
+  | "AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED"
+  | "AGENT_LIFECYCLE_STATUS_PROVISIONING"
+  | "AGENT_LIFECYCLE_STATUS_ERROR"
+  | "AGENT_LIFECYCLE_STATUS_DELETING"
+  | "AGENT_LIFECYCLE_STATUS_DELETED";
+
 export interface Agent {
   name: string;
   agent_id?: string;
@@ -179,6 +188,8 @@ export interface Agent {
   type?: AgentType;
   enable_a2a?: boolean;
   enable_openai_api?: boolean;
+  lifecycle_status?: AgentLifecycleStatus;
+  version?: number | string;
 }
 
 export type MigrationReadiness =

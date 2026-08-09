@@ -18,11 +18,30 @@ import (
 )
 
 const (
-	agentsDir         = "agents"
-	descriptionFile   = "description.md"
-	promptFile        = "prompt.md"
-	globalPromptFile  = "global-prompt.md"
+	agentsDir        = "agents"
+	descriptionFile  = "description.md"
+	promptFile       = "prompt.md"
+	globalPromptFile = "global-prompt.md"
 )
+
+// DescriptionPath returns the repo-relative (root_path-stripped) path of an
+// agent's description.md file.
+func DescriptionPath(agentID string) string { return path.Join(agentsDir, agentID, descriptionFile) }
+
+// PromptPath returns the repo-relative path of an agent's prompt.md file.
+func PromptPath(agentID string) string { return path.Join(agentsDir, agentID, promptFile) }
+
+// GlobalPromptPath returns the repo-relative path of an agent's
+// global-prompt.md file.
+func GlobalPromptPath(agentID string) string {
+	return path.Join(agentsDir, agentID, globalPromptFile)
+}
+
+// ManagedPaths returns every reserved managed file path for an agent, in a
+// stable order (description, prompt, global-prompt).
+func ManagedPaths(agentID string) []string {
+	return []string{DescriptionPath(agentID), PromptPath(agentID), GlobalPromptPath(agentID)}
+}
 
 // AgentContent holds the parsed content for a single agent.
 type AgentContent struct {
@@ -97,23 +116,22 @@ func Parse(blobs CacheBlobReader, knownAgentIDs []string) *ParseResult {
 // Returns validation errors for invalid content. An empty error slice means
 // the revision is publishable.
 func Validate(parsed map[string]AgentContent, agents []*agentsv1.Agent) []ValidationError {
-	agentsByID := make(map[string]*agentsv1.Agent, len(agents))
+	requiresPrompt := make(map[string]bool, len(agents))
 	for _, a := range agents {
 		if id := a.GetAgentId(); id != "" {
-			agentsByID[id] = a
+			isLLM := a.GetType() == agentsv1.AgentType_AGENT_TYPE_LLM ||
+				a.GetType() == agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED
+			requiresPrompt[id] = requiresPrompt[id] || isLLM
 		}
 	}
 
 	var errs []ValidationError
 
 	for agentID, content := range parsed {
-		agent, ok := agentsByID[agentID]
+		isLLM, ok := requiresPrompt[agentID]
 		if !ok {
 			continue
 		}
-
-		isLLM := agent.GetType() == agentsv1.AgentType_AGENT_TYPE_LLM ||
-			agent.GetType() == agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED
 
 		if isLLM && content.Instruction == "" {
 			errs = append(errs, ValidationError{

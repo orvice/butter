@@ -3,6 +3,7 @@ syntax = "proto3";
 package agents.v1;
 
 import "agents/v1/agent_file.proto";
+import "google/protobuf/timestamp.proto";
 import "validate/validate.proto";
 
 option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
@@ -71,6 +72,26 @@ message Agent {
   // so the cutover can be rolled back without data loss.
   // @gotags: json:"legacy_name,omitempty" yaml:"legacy_name,omitempty" bson:"legacy_name,omitempty"
   string legacy_name = 27;
+
+  // Monotonic optimistic-concurrency counter, bumped on every operational
+  // config write. Composite saves (UpdateAgentConfiguration) pass the version
+  // they observed as expected_agent_version; a mismatch aborts the write.
+  // Legacy rows created before this field carry version 0.
+  // @gotags: json:"version,omitempty" yaml:"version,omitempty" bson:"version,omitempty"
+  int64 version = 28;
+
+  // When the agent entity was first created.
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 29;
+
+  // When the agent entity was last written.
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 30;
+
+  // When the agent was soft-deleted (tombstoned). Set when lifecycle_status
+  // becomes DELETED; cleared on restore.
+  // @gotags: json:"deleted_at,omitempty" yaml:"deleted_at,omitempty" bson:"deleted_at,omitempty"
+  google.protobuf.Timestamp deleted_at = 31;
 
   // ID of the workspace this agent belongs to. Server-enforced from request
   // context on writes; included in responses so clients know the scope.
@@ -384,6 +405,19 @@ enum AgentLifecycleStatus {
   // The agent (or a transitive dependency) lacks a complete Agent ID and
   // cannot be used until the V2 migration is applied.
   AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED = 2;
+  // The DB row exists but the agent's initial Agent Content has not yet been
+  // committed, validated, and published. A create Saga holds the agent here
+  // until it activates. Not runnable.
+  AGENT_LIFECYCLE_STATUS_PROVISIONING = 3;
+  // A lifecycle Saga left the agent in a partial state (e.g. content committed
+  // but publication failed). Recoverable via RetryAgentOperation. Not runnable.
+  AGENT_LIFECYCLE_STATUS_ERROR = 4;
+  // A soft-delete (tombstone) is in progress. Not runnable.
+  AGENT_LIFECYCLE_STATUS_DELETING = 5;
+  // The agent is soft-deleted (tombstone). Its Agent ID stays reserved and its
+  // Git Agent Content is retained; RestoreAgent reactivates the same entity.
+  // Not runnable.
+  AGENT_LIFECYCLE_STATUS_DELETED = 6;
 }
 
 // AgentType selects which concrete ADK agent type to instantiate.

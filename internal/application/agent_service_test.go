@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -22,6 +23,25 @@ func testCtx() context.Context {
 type reloadTracker struct {
 	calls int
 	err   error
+}
+
+type staleReadAgentRepo struct {
+	configrepo.AgentRepository
+	readStarted chan struct{}
+	releaseRead chan struct{}
+	once        sync.Once
+}
+
+func (r *staleReadAgentRepo) GetAgent(ctx context.Context, workspaceID, name string) (*agentsv1.Agent, error) {
+	agent, err := r.AgentRepository.GetAgent(ctx, workspaceID, name)
+	if err != nil {
+		return nil, err
+	}
+	r.once.Do(func() {
+		close(r.readStarted)
+		<-r.releaseRead
+	})
+	return agent, nil
 }
 
 func (r *reloadTracker) ReloadRunner(context.Context) error {
@@ -105,14 +125,27 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 		t.Fatalf("expected updated, got %s", updateResp.Msg.GetAgent().GetDescription())
 	}
 
-	// Delete
+	// Delete (soft delete / tombstone, issue #218): the agent transitions to
+	// DELETED but the record — and its Agent ID — are retained.
 	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
+	tombstoned, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "a1"}))
+	if err != nil {
+		t.Fatalf("tombstoned agent should still be readable: %v", err)
+	}
+	if tombstoned.Msg.GetAgent().GetLifecycleStatus() != agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+		t.Fatalf("expected DELETED, got %v", tombstoned.Msg.GetAgent().GetLifecycleStatus())
+	}
 
-	// Delete not found
-	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
+	// Deleting again is an idempotent no-op (already a tombstone).
+	if _, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"})); err != nil {
+		t.Fatalf("re-delete should be a no-op, got %v", err)
+	}
+
+	// Deleting a never-existing agent is NotFound.
+	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "never"}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
@@ -492,6 +525,52 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 			t.Fatalf("expected rollback to restore deleted agent, got %q", agent.GetDescription())
 		}
 	})
+}
+
+func TestAgentServiceUpdateAgent_RejectsConcurrentWrite(t *testing.T) {
+	ctx := testCtx()
+	base := memory.New()
+	if _, err := base.CreateAgent(ctx, wsTest, &agentsv1.Agent{
+		Name: "a1", AgentId: "a1", Version: 1, DisplayName: "before",
+	}); err != nil {
+		t.Fatalf("seed agent: %v", err)
+	}
+	repo := &staleReadAgentRepo{
+		AgentRepository: base,
+		readStarted:     make(chan struct{}),
+		releaseRead:     make(chan struct{}),
+	}
+	svc := NewAgentServiceServer(repo)
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
+			Agent: &agentsv1.Agent{Name: "a1", DisplayName: "legacy-update"},
+		}))
+		errCh <- err
+	}()
+
+	<-repo.readStarted
+	current, err := base.GetAgent(ctx, wsTest, "a1")
+	if err != nil {
+		t.Fatalf("get concurrent base: %v", err)
+	}
+	current.DisplayName = "composite-update"
+	if _, err := base.UpdateAgentCAS(ctx, wsTest, current, current.GetVersion()); err != nil {
+		t.Fatalf("concurrent write: %v", err)
+	}
+	close(repo.releaseRead)
+
+	if err := <-errCh; connect.CodeOf(err) != connect.CodeAborted {
+		t.Fatalf("want Aborted for stale legacy update, got %v", err)
+	}
+	stored, err := base.GetAgent(ctx, wsTest, "a1")
+	if err != nil {
+		t.Fatalf("get stored: %v", err)
+	}
+	if stored.GetDisplayName() != "composite-update" {
+		t.Fatalf("concurrent write was lost: %q", stored.GetDisplayName())
+	}
 }
 
 func TestMCPServerServiceServer_ReloadsRuntime(t *testing.T) {

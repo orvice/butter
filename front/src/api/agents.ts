@@ -1,7 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { AgentSchema } from "@/gen/agents/v1/agent_pb";
+import { AgentOperationStatus, type AgentOperation } from "@/gen/agents/v1/agent_operation_pb";
+import {
+  ContentFileActionSchema,
+  ContentFileOperation,
+  type ContentFileAction,
+} from "@/gen/agents/v1/repobinding_pb";
 import {
   AgentMigrationStatusSchema,
   AgentRuntimeStatusSchema,
@@ -69,6 +75,7 @@ async function listAgents(params: ListAgentsParams = {}): Promise<ListAgentsResp
 interface AgentRef {
   name?: string;
   agent_id?: string;
+  operation_id?: string;
 }
 
 // agentRefKey is the stable cache-key segment for an agent: the immutable
@@ -95,24 +102,139 @@ async function getAgentByRef(ref: string): Promise<{ agent: Agent }> {
   }
 }
 
-async function createAgent(agent: Agent): Promise<{ agent: Agent }> {
-  const res = await client.createAgent({ agent: agentToProto(agent) });
+export interface CreateAgentParams {
+  agent: Agent;
+  initial_content: {
+    description?: string;
+    prompt?: string;
+    global_prompt?: string;
+  };
+  operation_id: string;
+}
+
+async function createAgent(params: CreateAgentParams): Promise<{ agent: Agent }> {
+  const res = await client.createAgent({
+    agent: agentToProto(params.agent),
+    initialContent: {
+      description: params.initial_content.description ?? "",
+      prompt: params.initial_content.prompt ?? "",
+      globalPrompt: params.initial_content.global_prompt ?? "",
+    },
+    operationId: params.operation_id,
+  });
   if (!res.agent) throw new Error("create returned nothing");
   return { agent: agentFromProto(res.agent) };
 }
 
-async function updateAgent(agent: Agent): Promise<{ agent: Agent }> {
-  const res = await client.updateAgent({ agent: agentToProto(agent) });
+export interface UpdateAgentParams {
+  agent: Agent;
+  previous_agent: Agent;
+  repository_bound: boolean;
+  base_commit_sha?: string;
+  operation_id: string;
+}
+
+function contentAction(path: string, content: string): ContentFileAction {
+  return create(ContentFileActionSchema, {
+    path,
+    operation: content === "" ? ContentFileOperation.DELETE : ContentFileOperation.PUT,
+    content,
+  });
+}
+
+function agentContentChanges(previous: Agent, next: Agent): ContentFileAction[] {
+  const agentID = next.agent_id ?? previous.agent_id;
+  if (!agentID) return [];
+
+  const fields = [
+    [`agents/${agentID}/description.md`, previous.description ?? "", next.description ?? ""],
+    [`agents/${agentID}/prompt.md`, previous.config?.instruction ?? "", next.config?.instruction ?? ""],
+    [
+      `agents/${agentID}/global-prompt.md`,
+      previous.config?.global_instruction ?? "",
+      next.config?.global_instruction ?? "",
+    ],
+  ] as const;
+  return fields.filter(([, before, after]) => before !== after).map(([path, , content]) => contentAction(path, content));
+}
+
+async function updateAgent(params: UpdateAgentParams): Promise<{ agent: Agent }> {
+  if (!params.repository_bound) {
+    const res = await client.updateAgent({ agent: agentToProto(params.agent) });
+    if (!res.agent) throw new Error("update returned nothing");
+    return { agent: agentFromProto(res.agent) };
+  }
+
+  const res = await client.updateAgentConfiguration({
+    agentPatch: agentToProto(params.agent),
+    contentChanges: agentContentChanges(params.previous_agent, params.agent),
+    expectedAgentVersion: BigInt(params.previous_agent.version ?? 0),
+    baseCommitSha: params.base_commit_sha ?? "",
+    operationId: params.operation_id,
+  });
+  if (res.validationErrors.length > 0) {
+    throw new Error(res.validationErrors.join("; "));
+  }
   if (!res.agent) throw new Error("update returned nothing");
   return { agent: agentFromProto(res.agent) };
 }
 
 async function deleteAgent(ref: AgentRef): Promise<void> {
   if (ref.agent_id) {
-    await client.deleteAgent({ name: "", agentId: ref.agent_id });
+    await client.deleteAgent({
+      name: "",
+      agentId: ref.agent_id,
+      operationId: ref.operation_id ?? "",
+    });
     return;
   }
-  await client.deleteAgent({ name: ref.name ?? "" });
+  await client.deleteAgent({
+    name: ref.name ?? "",
+    operationId: ref.operation_id ?? "",
+  });
+}
+
+async function restoreAgent(agentId: string): Promise<{ agent: Agent }> {
+  const res = await client.restoreAgent({
+    agentId,
+    operationId: crypto.randomUUID(),
+  });
+  if (!res.agent) throw new Error("restore returned nothing");
+  return { agent: agentFromProto(res.agent) };
+}
+
+export interface ListAgentOperationsParams {
+  status?: AgentOperationStatus;
+  page_size?: number;
+  page_token?: string;
+}
+
+export interface ListAgentOperationsResponse {
+  operations: AgentOperation[];
+  next_page_token?: string;
+}
+
+async function listAgentOperations(
+  params: ListAgentOperationsParams = {},
+): Promise<ListAgentOperationsResponse> {
+  const res = await client.listAgentOperations({
+    status: params.status ?? AgentOperationStatus.UNSPECIFIED,
+    pageSize: params.page_size ?? 0,
+    pageToken: params.page_token ?? "",
+  });
+  return { operations: res.operations, next_page_token: res.nextPageToken };
+}
+
+async function getAgentOperation(operationId: string): Promise<AgentOperation> {
+  const res = await client.getAgentOperation({ operationId });
+  if (!res.operation) throw new Error("operation not found");
+  return res.operation;
+}
+
+async function retryAgentOperation(operationId: string): Promise<AgentOperation> {
+  const res = await client.retryAgentOperation({ operationId });
+  if (!res.operation) throw new Error("retry returned no operation");
+  return res.operation;
 }
 
 interface AssignAgentIDParams {
@@ -260,9 +382,10 @@ export function useUpdateAgent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: updateAgent,
-    onSuccess: (_data, agent) => {
+    onSuccess: (_data, params) => {
       qc.invalidateQueries({ queryKey: ["agents"] });
-      qc.invalidateQueries({ queryKey: ["agents", agentRefKey(agent)] });
+      qc.invalidateQueries({ queryKey: ["agents", agentRefKey(params.agent)] });
+      qc.invalidateQueries({ queryKey: ["agent-operations"] });
     },
   });
 }
@@ -271,7 +394,56 @@ export function useDeleteAgent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: deleteAgent,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["agents"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["agent-operations"] });
+    },
+  });
+}
+
+export function useRestoreAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: restoreAgent,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["agent-operations"] });
+    },
+  });
+}
+
+export function useAgentOperations(params: ListAgentOperationsParams = {}) {
+  return useQuery({
+    queryKey: ["agent-operations", params],
+    queryFn: () => listAgentOperations(params),
+    refetchInterval: (query) => {
+      const operations = query.state.data?.operations ?? [];
+      return operations.some(
+        (op) => op.status === AgentOperationStatus.PENDING || op.status === AgentOperationStatus.RUNNING,
+      )
+        ? 5_000
+        : 30_000;
+    },
+  });
+}
+
+export function useAgentOperation(operationId: string) {
+  return useQuery({
+    queryKey: ["agent-operations", operationId],
+    queryFn: () => getAgentOperation(operationId),
+    enabled: !!operationId,
+  });
+}
+
+export function useRetryAgentOperation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: retryAgentOperation,
+    onSuccess: (operation) => {
+      qc.setQueryData(["agent-operations", operation.id], operation);
+      qc.invalidateQueries({ queryKey: ["agent-operations"] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+    },
   });
 }
 

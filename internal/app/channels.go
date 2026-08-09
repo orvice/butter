@@ -16,9 +16,14 @@ import (
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/mcpoauth"
+	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
+	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
 	"go.orx.me/apps/butter/internal/repo/agentfile"
 	agentfilememory "go.orx.me/apps/butter/internal/repo/agentfile/memory"
 	agentfilemongo "go.orx.me/apps/butter/internal/repo/agentfile/mongo"
+	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
+	agentopmemory "go.orx.me/apps/butter/internal/repo/agentop/memory"
+	agentopmongo "go.orx.me/apps/butter/internal/repo/agentop/mongo"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	apitokenmemory "go.orx.me/apps/butter/internal/repo/apitoken/memory"
 	apitokenmongo "go.orx.me/apps/butter/internal/repo/apitoken/mongo"
@@ -41,8 +46,6 @@ import (
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
-	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
-	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
@@ -94,6 +97,7 @@ type BootstrapResult struct {
 	RepoBindingRepo       repobindingrepo.Repository
 	RepoCacheRepo         repocache.Repository
 	AgentContentRepo      agentcontentrepo.Repository
+	AgentOperationRepo    agentoprepo.Repository
 	SkillRepo             skillrepo.Repository
 	SkillMDMaxBytes       int64
 	SkillResourceMaxCount int
@@ -145,6 +149,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		bindingRepo    repobindingrepo.Repository
 		cacheRepo      repocache.Repository
 		contentRepo    agentcontentrepo.Repository
+		agentOpRepo    agentoprepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -173,6 +178,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		bindingRepo = repobindingmongo.New(db)
 		cacheRepo = repocachemongo.New(db)
 		contentRepo = agentcontentmemory.New()
+		agentOpMongo := agentopmongo.New(db)
+		if err := agentOpMongo.EnsureIndexes(ctx); err != nil {
+			logger.Error("failed to create agent operation indexes", "err", err)
+			return nil, err
+		}
+		agentOpRepo = agentOpMongo
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -186,6 +197,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		bindingRepo = repobindingmemory.New()
 		cacheRepo = repocachememory.New()
 		contentRepo = agentcontentmemory.New()
+		agentOpRepo = agentopmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -372,6 +384,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		RepoBindingRepo:       bindingRepo,
 		RepoCacheRepo:         cacheRepo,
 		AgentContentRepo:      contentRepo,
+		AgentOperationRepo:    agentOpRepo,
 		SkillRepo:             skillRepo,
 		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
 		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),

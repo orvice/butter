@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import Editor from '@monaco-editor/react'
 import { useAgent, useUpdateAgent } from '@/api/agents'
+import { useRepoBinding } from '@/api/repo-binding'
 import { useMCPServers } from '@/api/mcp-servers'
 import { useRemoteAgents } from '@/api/remote-agents'
 import { Button } from '@/components/ui/button'
@@ -94,7 +95,9 @@ export function AgentEdit() {
   const { data, isLoading } = useAgent(agentRef ?? '')
   const { data: mcpData } = useMCPServers()
   const { data: remoteData, isLoading: isLoadingRemoteAgents } = useRemoteAgents()
+  const { data: repoBindingData, isLoading: isLoadingRepoBinding, isError: isRepoBindingError } = useRepoBinding()
   const updateMutation = useUpdateAgent()
+  const [operation, setOperation] = useState<{ request: string; id: string } | null>(null)
   const initialJsonValue = useMemo(() => (data?.agent ? JSON.stringify(data.agent, null, 2) : ''), [data])
   const [jsonValue, setJsonValue] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('form')
@@ -168,10 +171,30 @@ export function AgentEdit() {
   }
 
   function submitUpdate(agent: Agent) {
-    updateMutation.mutate(agent, {
-      onSuccess: () => { toast.success('Agent updated'); navigate({ to: '/agents' }) },
-      onError: (err) => toast.error(err.message),
-    })
+    if (!data?.agent) return
+    if (isRepoBindingError) {
+      toast.error('Unable to determine repository binding status')
+      return
+    }
+    const params = {
+      agent,
+      previous_agent: data.agent,
+      repository_bound: !!repoBindingData?.binding,
+      base_commit_sha: repoBindingData?.binding?.activeCommitSha ?? '',
+    }
+    const request = JSON.stringify(params)
+    let requestOperation = operation
+    if (!requestOperation || requestOperation.request !== request) {
+      requestOperation = { request, id: crypto.randomUUID() }
+      setOperation(requestOperation)
+    }
+    updateMutation.mutate(
+      { ...params, operation_id: requestOperation.id },
+      {
+        onSuccess: () => { toast.success('Agent updated'); navigate({ to: '/agents' }) },
+        onError: (err) => toast.error(err.message),
+      },
+    )
   }
 
   function handleTabChange(tab: string) {
@@ -216,7 +239,7 @@ export function AgentEdit() {
     setActiveTab(tab)
   }
 
-  if (isLoading) {
+  if (isLoading || isLoadingRepoBinding) {
     return (
       <div className='p-6'>
         <Skeleton className='h-96 w-full' />

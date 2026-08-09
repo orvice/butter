@@ -262,6 +262,15 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.repoBindingSvcServer.SetContentRepo(result.AgentContentRepo)
 		h.repoBindingSvcServer.SetConfigRuntime(h.configRuntime)
 	}
+	// Wire the Agent lifecycle Saga (issue #218): the durable operation store
+	// and the Git content seam (satisfied by the repo-binding service). Only
+	// when both are present does CreateAgent/DeleteAgent take the Saga path.
+	if result.AgentOperationRepo != nil {
+		h.agentSvcServer.SetOperationRepo(result.AgentOperationRepo)
+	}
+	if h.repoBindingSvcServer != nil {
+		h.agentSvcServer.SetContentCoordinator(h.repoBindingSvcServer)
+	}
 	if h.configRuntime != nil && result.RepoBindingRepo != nil && result.AgentContentRepo != nil {
 		h.configRuntime.SetAgentContentRepos(result.RepoBindingRepo, result.AgentContentRepo)
 	}

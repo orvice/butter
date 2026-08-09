@@ -33,6 +33,7 @@ const (
 	WorkspaceRepoBindingService_AcceptRepositoryBaseline_FullMethodName          = "/agents.v1.WorkspaceRepoBindingService/AcceptRepositoryBaseline"
 	WorkspaceRepoBindingService_CommitAgentContent_FullMethodName                = "/agents.v1.WorkspaceRepoBindingService/CommitAgentContent"
 	WorkspaceRepoBindingService_RollbackAgentContent_FullMethodName              = "/agents.v1.WorkspaceRepoBindingService/RollbackAgentContent"
+	WorkspaceRepoBindingService_PurgeAgentContent_FullMethodName                 = "/agents.v1.WorkspaceRepoBindingService/PurgeAgentContent"
 )
 
 // WorkspaceRepoBindingServiceClient is the client API for WorkspaceRepoBindingService service.
@@ -98,6 +99,13 @@ type WorkspaceRepoBindingServiceClient interface {
 	// is read from Git, validated, and committed to the bound branch (or a
 	// PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
 	RollbackAgentContent(ctx context.Context, in *RollbackAgentContentRequest, opts ...grpc.CallOption) (*RollbackAgentContentResponse, error)
+	// PurgeAgentContent permanently deletes an Agent's managed Content files from
+	// the repository in a new Git commit. It is a separate owner/admin action
+	// from DeleteAgent (which only tombstones the DB entity and retains content).
+	// It refuses when the effective path is still claimed by any non-deleted
+	// Agent in this workspace or in any workspace that shares the path via an
+	// overlapping binding. Requires owner/admin role.
+	PurgeAgentContent(ctx context.Context, in *PurgeAgentContentRequest, opts ...grpc.CallOption) (*PurgeAgentContentResponse, error)
 }
 
 type workspaceRepoBindingServiceClient struct {
@@ -248,6 +256,16 @@ func (c *workspaceRepoBindingServiceClient) RollbackAgentContent(ctx context.Con
 	return out, nil
 }
 
+func (c *workspaceRepoBindingServiceClient) PurgeAgentContent(ctx context.Context, in *PurgeAgentContentRequest, opts ...grpc.CallOption) (*PurgeAgentContentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PurgeAgentContentResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_PurgeAgentContent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkspaceRepoBindingServiceServer is the server API for WorkspaceRepoBindingService service.
 // All implementations must embed UnimplementedWorkspaceRepoBindingServiceServer
 // for forward compatibility.
@@ -311,6 +329,13 @@ type WorkspaceRepoBindingServiceServer interface {
 	// is read from Git, validated, and committed to the bound branch (or a
 	// PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
 	RollbackAgentContent(context.Context, *RollbackAgentContentRequest) (*RollbackAgentContentResponse, error)
+	// PurgeAgentContent permanently deletes an Agent's managed Content files from
+	// the repository in a new Git commit. It is a separate owner/admin action
+	// from DeleteAgent (which only tombstones the DB entity and retains content).
+	// It refuses when the effective path is still claimed by any non-deleted
+	// Agent in this workspace or in any workspace that shares the path via an
+	// overlapping binding. Requires owner/admin role.
+	PurgeAgentContent(context.Context, *PurgeAgentContentRequest) (*PurgeAgentContentResponse, error)
 	mustEmbedUnimplementedWorkspaceRepoBindingServiceServer()
 }
 
@@ -362,6 +387,9 @@ func (UnimplementedWorkspaceRepoBindingServiceServer) CommitAgentContent(context
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) RollbackAgentContent(context.Context, *RollbackAgentContentRequest) (*RollbackAgentContentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RollbackAgentContent not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) PurgeAgentContent(context.Context, *PurgeAgentContentRequest) (*PurgeAgentContentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PurgeAgentContent not implemented")
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) mustEmbedUnimplementedWorkspaceRepoBindingServiceServer() {
 }
@@ -637,6 +665,24 @@ func _WorkspaceRepoBindingService_RollbackAgentContent_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkspaceRepoBindingService_PurgeAgentContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PurgeAgentContentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).PurgeAgentContent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_PurgeAgentContent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).PurgeAgentContent(ctx, req.(*PurgeAgentContentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkspaceRepoBindingService_ServiceDesc is the grpc.ServiceDesc for WorkspaceRepoBindingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -699,6 +745,10 @@ var WorkspaceRepoBindingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RollbackAgentContent",
 			Handler:    _WorkspaceRepoBindingService_RollbackAgentContent_Handler,
+		},
+		{
+			MethodName: "PurgeAgentContent",
+			Handler:    _WorkspaceRepoBindingService_PurgeAgentContent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
