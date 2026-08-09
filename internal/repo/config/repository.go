@@ -10,6 +10,9 @@ import (
 var (
 	ErrNotFound      = errors.New("not found")
 	ErrAlreadyExists = errors.New("already exists")
+	// ErrVersionConflict is returned by UpdateAgentCAS when the stored agent's
+	// version no longer matches the caller's expected version.
+	ErrVersionConflict = errors.New("agent version conflict")
 )
 
 // AgentRepository defines CRUD operations for Agent configurations.
@@ -20,6 +23,12 @@ type AgentRepository interface {
 	CreateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error)
 	UpdateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error)
 	DeleteAgent(ctx context.Context, workspaceID, name string) error
+
+	// UpdateAgentCAS replaces the agent only when the stored version equals
+	// expectedVersion, then bumps the stored version by one. It returns
+	// ErrVersionConflict on a mismatch and ErrNotFound when the agent is
+	// absent. The returned agent carries the bumped version.
+	UpdateAgentCAS(ctx context.Context, workspaceID string, agent *agentsv1.Agent, expectedVersion int64) (*agentsv1.Agent, error)
 
 	// GetAgentByID returns the agent with the given workspace-scoped agent_id.
 	GetAgentByID(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error)

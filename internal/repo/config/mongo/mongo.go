@@ -37,6 +37,10 @@ type configDoc struct {
 	// AgentID is a top-level queryable copy of the Agent's slug ID.
 	// Populated only for agent documents; empty for other entity types.
 	AgentID string `bson:"agent_id,omitempty"`
+	// Version is a top-level queryable copy of the Agent's optimistic-
+	// concurrency counter, enabling atomic compare-and-swap in UpdateAgentCAS.
+	// Populated only for agent documents.
+	Version int64 `bson:"version"`
 }
 
 // Store implements all config repository interfaces backed by MongoDB.
@@ -208,7 +212,7 @@ func (s *Store) CreateAgent(ctx context.Context, workspaceID string, agent *agen
 	if err != nil {
 		return nil, err
 	}
-	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId()}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId(), Version: clone.GetVersion()}
 	if _, err := s.agents.InsertOne(ctx, doc); err != nil {
 		return nil, mapError("agent", workspaceID, clone.GetName(), err)
 	}
@@ -222,13 +226,56 @@ func (s *Store) UpdateAgent(ctx context.Context, workspaceID string, agent *agen
 	if err != nil {
 		return nil, err
 	}
-	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId()}
+	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId(), Version: clone.GetVersion()}
 	res, err := s.agents.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
 	if err != nil {
 		return nil, mapError("agent", workspaceID, clone.GetName(), err)
 	}
 	if res.MatchedCount == 0 {
 		return nil, mapError("agent", workspaceID, clone.GetName(), mongo.ErrNoDocuments)
+	}
+	return clone, nil
+}
+
+// UpdateAgentCAS replaces the agent only when the stored version equals
+// expectedVersion, then bumps the version by one. The CAS is atomic: the
+// filter matches the composite ID and the expected version (treating a missing
+// version field as 0 for legacy rows). A miss is disambiguated into
+// ErrVersionConflict vs ErrNotFound by a follow-up existence check.
+func (s *Store) UpdateAgentCAS(ctx context.Context, workspaceID string, agent *agentsv1.Agent, expectedVersion int64) (*agentsv1.Agent, error) {
+	clone := proto.Clone(agent).(*agentsv1.Agent)
+	clone.WorkspaceId = workspaceID
+	clone.Version = expectedVersion + 1
+	spec, err := marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+	id := compositeID(workspaceID, clone.GetName())
+	doc := configDoc{ID: id, WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId(), Version: clone.GetVersion()}
+
+	versionMatch := bson.M{"version": expectedVersion}
+	filter := bson.M{"_id": id}
+	if expectedVersion == 0 {
+		// Legacy rows created before the promoted version field carry no
+		// "version" key; treat absent as 0.
+		filter["$or"] = bson.A{versionMatch, bson.M{"version": bson.M{"$exists": false}}}
+	} else {
+		filter["version"] = expectedVersion
+	}
+
+	res, err := s.agents.ReplaceOne(ctx, filter, doc)
+	if err != nil {
+		return nil, mapError("agent", workspaceID, clone.GetName(), err)
+	}
+	if res.MatchedCount == 0 {
+		n, cErr := s.agents.CountDocuments(ctx, bson.M{"_id": id})
+		if cErr != nil {
+			return nil, mapError("agent", workspaceID, clone.GetName(), cErr)
+		}
+		if n == 0 {
+			return nil, configrepo.ErrNotFound
+		}
+		return nil, configrepo.ErrVersionConflict
 	}
 	return clone, nil
 }

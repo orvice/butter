@@ -85,6 +85,7 @@ Docs directory layout:
 - `docs/adr/0003-cron-workflow-pause-notify-and-wait.md` — ADR: Cron + Human Input → WAITING_INPUT, notify question, resume via ReplySession.
 - `docs/adr/0004-skill-metadata-in-mongo-content-in-s3.md` — ADR: Skill metadata in Mongo, content in S3; skills addressed by name, no versioning in v1.
 - `docs/adr/0005-repo-binding-pat-outside-public-model.md` — ADR: Repository binding PATs are not proto fields; encrypted per binding via a dedicated repository credential seam.
+- `docs/adr/0006-agent-lifecycle-saga.md` — ADR: Agent lifecycle (create/save/delete-tombstone/restore/purge) as a durable, idempotent Saga (`internal/repo/agentop` + `internal/application/agent_saga.go`) composing the #183 mutation seam and the #217 content-commit seam; soft-delete tombstones + runner exclusion of non-ACTIVE agents.
 
 ## Agent skills
 

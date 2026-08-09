@@ -245,6 +245,14 @@ service WorkspaceRepoBindingService {
   // is read from Git, validated, and committed to the bound branch (or a
   // PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
   rpc RollbackAgentContent(RollbackAgentContentRequest) returns (RollbackAgentContentResponse);
+
+  // PurgeAgentContent permanently deletes an Agent's managed Content files from
+  // the repository in a new Git commit. It is a separate owner/admin action
+  // from DeleteAgent (which only tombstones the DB entity and retains content).
+  // It refuses when the effective path is still claimed by any non-deleted
+  // Agent in this workspace or in any workspace that shares the path via an
+  // overlapping binding. Requires owner/admin role.
+  rpc PurgeAgentContent(PurgeAgentContentRequest) returns (PurgeAgentContentResponse);
 }
 
 message GetWorkspaceRepoBindingRequest {}
@@ -438,6 +446,24 @@ message RollbackAgentContentResponse {
   // SHA of the new rollback commit.
   string commit_sha = 2;
   // Per-agent validation errors that prevented the rollback (empty on success).
+  repeated string validation_errors = 3;
+  // URL of the created Pull Request or Merge Request (only set when the
+  // binding write mode is CHANGE_REQUEST).
+  string change_request_url = 4;
+}
+
+// PurgeAgentContentRequest removes the managed Content files for one Agent ID.
+message PurgeAgentContentRequest {
+  // The immutable Agent ID whose managed Content should be purged.
+  string agent_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+// PurgeAgentContentResponse is returned after a successful purge.
+message PurgeAgentContentResponse {
+  WorkspaceRepoBinding binding = 1;
+  // SHA of the purge commit. Empty when the agent had no managed content.
+  string commit_sha = 2;
+  // Per-agent validation errors that prevented the purge (empty on success).
   repeated string validation_errors = 3;
   // URL of the created Pull Request or Merge Request (only set when the
   // binding write mode is CHANGE_REQUEST).

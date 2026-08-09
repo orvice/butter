@@ -95,6 +95,53 @@ func TestAgentCRUD(t *testing.T) {
 	}
 }
 
+func TestUpdateAgentCAS(t *testing.T) {
+	s := New()
+	ctx := context.Background()
+
+	// Legacy agent created without a version behaves as version 0.
+	if _, err := s.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a", Description: "v0"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wrong expected version conflicts.
+	_, err := s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a", Description: "x"}, 5)
+	if !errors.Is(err, configrepo.ErrVersionConflict) {
+		t.Fatalf("expected ErrVersionConflict, got %v", err)
+	}
+
+	// Correct expected version (0) succeeds and bumps to 1.
+	got, err := s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a", Description: "v1"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.GetVersion() != 1 {
+		t.Fatalf("expected version 1, got %d", got.GetVersion())
+	}
+	if got.GetDescription() != "v1" {
+		t.Fatalf("expected desc v1, got %s", got.GetDescription())
+	}
+
+	// Reusing the now-stale expected version 0 conflicts.
+	if _, err := s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a"}, 0); !errors.Is(err, configrepo.ErrVersionConflict) {
+		t.Fatalf("expected ErrVersionConflict on stale version, got %v", err)
+	}
+
+	// Next write with the fresh version 1 succeeds → version 2.
+	got, err = s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a", Description: "v2"}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.GetVersion() != 2 {
+		t.Fatalf("expected version 2, got %d", got.GetVersion())
+	}
+
+	// Missing agent → ErrNotFound.
+	if _, err := s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "missing"}, 0); !errors.Is(err, configrepo.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
 func TestMCPServerCRUD(t *testing.T) {
 	s := New()
 	ctx := context.Background()

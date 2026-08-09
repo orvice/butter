@@ -90,6 +90,21 @@ const (
 	// AgentServiceMigrateAgentsV2Procedure is the fully-qualified name of the AgentService's
 	// MigrateAgentsV2 RPC.
 	AgentServiceMigrateAgentsV2Procedure = "/agents.v1.AgentService/MigrateAgentsV2"
+	// AgentServiceUpdateAgentConfigurationProcedure is the fully-qualified name of the AgentService's
+	// UpdateAgentConfiguration RPC.
+	AgentServiceUpdateAgentConfigurationProcedure = "/agents.v1.AgentService/UpdateAgentConfiguration"
+	// AgentServiceRestoreAgentProcedure is the fully-qualified name of the AgentService's RestoreAgent
+	// RPC.
+	AgentServiceRestoreAgentProcedure = "/agents.v1.AgentService/RestoreAgent"
+	// AgentServiceGetAgentOperationProcedure is the fully-qualified name of the AgentService's
+	// GetAgentOperation RPC.
+	AgentServiceGetAgentOperationProcedure = "/agents.v1.AgentService/GetAgentOperation"
+	// AgentServiceListAgentOperationsProcedure is the fully-qualified name of the AgentService's
+	// ListAgentOperations RPC.
+	AgentServiceListAgentOperationsProcedure = "/agents.v1.AgentService/ListAgentOperations"
+	// AgentServiceRetryAgentOperationProcedure is the fully-qualified name of the AgentService's
+	// RetryAgentOperation RPC.
+	AgentServiceRetryAgentOperationProcedure = "/agents.v1.AgentService/RetryAgentOperation"
 	// MCPServerServiceListMCPServersProcedure is the fully-qualified name of the MCPServerService's
 	// ListMCPServers RPC.
 	MCPServerServiceListMCPServersProcedure = "/agents.v1.MCPServerService/ListMCPServers"
@@ -286,6 +301,24 @@ type AgentServiceClient interface {
 	// Agent records with ID-based composition. Supports dry-run, apply, and
 	// verify modes.
 	MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error)
+	// UpdateAgentConfiguration is the composite-save command: it coordinates an
+	// Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
+	// under a single durable operation while keeping ownership separate. The
+	// patch is applied with optimistic concurrency (expected_agent_version); a
+	// mismatch aborts. Returns the operation record for status/retry.
+	UpdateAgentConfiguration(context.Context, *connect.Request[v1.UpdateAgentConfigurationRequest]) (*connect.Response[v1.UpdateAgentConfigurationResponse], error)
+	// RestoreAgent reactivates a soft-deleted (tombstoned) Agent from its
+	// retained configuration and Agent Content, flipping it from DELETED back to
+	// ACTIVE and re-publishing the retained content.
+	RestoreAgent(context.Context, *connect.Request[v1.RestoreAgentRequest]) (*connect.Response[v1.RestoreAgentResponse], error)
+	// GetAgentOperation returns a durable lifecycle operation record by ID.
+	GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error)
+	// ListAgentOperations lists lifecycle operations in the workspace, optionally
+	// filtered by status, with opaque-token pagination.
+	ListAgentOperations(context.Context, *connect.Request[v1.ListAgentOperationsRequest]) (*connect.Response[v1.ListAgentOperationsResponse], error)
+	// RetryAgentOperation resumes a FAILED lifecycle operation from its first
+	// unfinished step. Steps that already succeeded are skipped (idempotent).
+	RetryAgentOperation(context.Context, *connect.Request[v1.RetryAgentOperationRequest]) (*connect.Response[v1.RetryAgentOperationResponse], error)
 }
 
 // NewAgentServiceClient constructs a client for the agents.v1.AgentService service. By default, it
@@ -389,6 +422,36 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("MigrateAgentsV2")),
 			connect.WithClientOptions(opts...),
 		),
+		updateAgentConfiguration: connect.NewClient[v1.UpdateAgentConfigurationRequest, v1.UpdateAgentConfigurationResponse](
+			httpClient,
+			baseURL+AgentServiceUpdateAgentConfigurationProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("UpdateAgentConfiguration")),
+			connect.WithClientOptions(opts...),
+		),
+		restoreAgent: connect.NewClient[v1.RestoreAgentRequest, v1.RestoreAgentResponse](
+			httpClient,
+			baseURL+AgentServiceRestoreAgentProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("RestoreAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		getAgentOperation: connect.NewClient[v1.GetAgentOperationRequest, v1.GetAgentOperationResponse](
+			httpClient,
+			baseURL+AgentServiceGetAgentOperationProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("GetAgentOperation")),
+			connect.WithClientOptions(opts...),
+		),
+		listAgentOperations: connect.NewClient[v1.ListAgentOperationsRequest, v1.ListAgentOperationsResponse](
+			httpClient,
+			baseURL+AgentServiceListAgentOperationsProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("ListAgentOperations")),
+			connect.WithClientOptions(opts...),
+		),
+		retryAgentOperation: connect.NewClient[v1.RetryAgentOperationRequest, v1.RetryAgentOperationResponse](
+			httpClient,
+			baseURL+AgentServiceRetryAgentOperationProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("RetryAgentOperation")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -409,6 +472,11 @@ type agentServiceClient struct {
 	assignAgentID            *connect.Client[v1.AssignAgentIDRequest, v1.AssignAgentIDResponse]
 	getMigrationReadiness    *connect.Client[v1.GetMigrationReadinessRequest, v1.GetMigrationReadinessResponse]
 	migrateAgentsV2          *connect.Client[v1.MigrateAgentsV2Request, v1.MigrateAgentsV2Response]
+	updateAgentConfiguration *connect.Client[v1.UpdateAgentConfigurationRequest, v1.UpdateAgentConfigurationResponse]
+	restoreAgent             *connect.Client[v1.RestoreAgentRequest, v1.RestoreAgentResponse]
+	getAgentOperation        *connect.Client[v1.GetAgentOperationRequest, v1.GetAgentOperationResponse]
+	listAgentOperations      *connect.Client[v1.ListAgentOperationsRequest, v1.ListAgentOperationsResponse]
+	retryAgentOperation      *connect.Client[v1.RetryAgentOperationRequest, v1.RetryAgentOperationResponse]
 }
 
 // ListAgents calls agents.v1.AgentService.ListAgents.
@@ -486,6 +554,31 @@ func (c *agentServiceClient) MigrateAgentsV2(ctx context.Context, req *connect.R
 	return c.migrateAgentsV2.CallUnary(ctx, req)
 }
 
+// UpdateAgentConfiguration calls agents.v1.AgentService.UpdateAgentConfiguration.
+func (c *agentServiceClient) UpdateAgentConfiguration(ctx context.Context, req *connect.Request[v1.UpdateAgentConfigurationRequest]) (*connect.Response[v1.UpdateAgentConfigurationResponse], error) {
+	return c.updateAgentConfiguration.CallUnary(ctx, req)
+}
+
+// RestoreAgent calls agents.v1.AgentService.RestoreAgent.
+func (c *agentServiceClient) RestoreAgent(ctx context.Context, req *connect.Request[v1.RestoreAgentRequest]) (*connect.Response[v1.RestoreAgentResponse], error) {
+	return c.restoreAgent.CallUnary(ctx, req)
+}
+
+// GetAgentOperation calls agents.v1.AgentService.GetAgentOperation.
+func (c *agentServiceClient) GetAgentOperation(ctx context.Context, req *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error) {
+	return c.getAgentOperation.CallUnary(ctx, req)
+}
+
+// ListAgentOperations calls agents.v1.AgentService.ListAgentOperations.
+func (c *agentServiceClient) ListAgentOperations(ctx context.Context, req *connect.Request[v1.ListAgentOperationsRequest]) (*connect.Response[v1.ListAgentOperationsResponse], error) {
+	return c.listAgentOperations.CallUnary(ctx, req)
+}
+
+// RetryAgentOperation calls agents.v1.AgentService.RetryAgentOperation.
+func (c *agentServiceClient) RetryAgentOperation(ctx context.Context, req *connect.Request[v1.RetryAgentOperationRequest]) (*connect.Response[v1.RetryAgentOperationResponse], error) {
+	return c.retryAgentOperation.CallUnary(ctx, req)
+}
+
 // AgentServiceHandler is an implementation of the agents.v1.AgentService service.
 type AgentServiceHandler interface {
 	ListAgents(context.Context, *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error)
@@ -536,6 +629,24 @@ type AgentServiceHandler interface {
 	// Agent records with ID-based composition. Supports dry-run, apply, and
 	// verify modes.
 	MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error)
+	// UpdateAgentConfiguration is the composite-save command: it coordinates an
+	// Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
+	// under a single durable operation while keeping ownership separate. The
+	// patch is applied with optimistic concurrency (expected_agent_version); a
+	// mismatch aborts. Returns the operation record for status/retry.
+	UpdateAgentConfiguration(context.Context, *connect.Request[v1.UpdateAgentConfigurationRequest]) (*connect.Response[v1.UpdateAgentConfigurationResponse], error)
+	// RestoreAgent reactivates a soft-deleted (tombstoned) Agent from its
+	// retained configuration and Agent Content, flipping it from DELETED back to
+	// ACTIVE and re-publishing the retained content.
+	RestoreAgent(context.Context, *connect.Request[v1.RestoreAgentRequest]) (*connect.Response[v1.RestoreAgentResponse], error)
+	// GetAgentOperation returns a durable lifecycle operation record by ID.
+	GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error)
+	// ListAgentOperations lists lifecycle operations in the workspace, optionally
+	// filtered by status, with opaque-token pagination.
+	ListAgentOperations(context.Context, *connect.Request[v1.ListAgentOperationsRequest]) (*connect.Response[v1.ListAgentOperationsResponse], error)
+	// RetryAgentOperation resumes a FAILED lifecycle operation from its first
+	// unfinished step. Steps that already succeeded are skipped (idempotent).
+	RetryAgentOperation(context.Context, *connect.Request[v1.RetryAgentOperationRequest]) (*connect.Response[v1.RetryAgentOperationResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -635,6 +746,36 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("MigrateAgentsV2")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceUpdateAgentConfigurationHandler := connect.NewUnaryHandler(
+		AgentServiceUpdateAgentConfigurationProcedure,
+		svc.UpdateAgentConfiguration,
+		connect.WithSchema(agentServiceMethods.ByName("UpdateAgentConfiguration")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceRestoreAgentHandler := connect.NewUnaryHandler(
+		AgentServiceRestoreAgentProcedure,
+		svc.RestoreAgent,
+		connect.WithSchema(agentServiceMethods.ByName("RestoreAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceGetAgentOperationHandler := connect.NewUnaryHandler(
+		AgentServiceGetAgentOperationProcedure,
+		svc.GetAgentOperation,
+		connect.WithSchema(agentServiceMethods.ByName("GetAgentOperation")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceListAgentOperationsHandler := connect.NewUnaryHandler(
+		AgentServiceListAgentOperationsProcedure,
+		svc.ListAgentOperations,
+		connect.WithSchema(agentServiceMethods.ByName("ListAgentOperations")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceRetryAgentOperationHandler := connect.NewUnaryHandler(
+		AgentServiceRetryAgentOperationProcedure,
+		svc.RetryAgentOperation,
+		connect.WithSchema(agentServiceMethods.ByName("RetryAgentOperation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceListAgentsProcedure:
@@ -667,6 +808,16 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceGetMigrationReadinessHandler.ServeHTTP(w, r)
 		case AgentServiceMigrateAgentsV2Procedure:
 			agentServiceMigrateAgentsV2Handler.ServeHTTP(w, r)
+		case AgentServiceUpdateAgentConfigurationProcedure:
+			agentServiceUpdateAgentConfigurationHandler.ServeHTTP(w, r)
+		case AgentServiceRestoreAgentProcedure:
+			agentServiceRestoreAgentHandler.ServeHTTP(w, r)
+		case AgentServiceGetAgentOperationProcedure:
+			agentServiceGetAgentOperationHandler.ServeHTTP(w, r)
+		case AgentServiceListAgentOperationsProcedure:
+			agentServiceListAgentOperationsHandler.ServeHTTP(w, r)
+		case AgentServiceRetryAgentOperationProcedure:
+			agentServiceRetryAgentOperationHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -734,6 +885,26 @@ func (UnimplementedAgentServiceHandler) GetMigrationReadiness(context.Context, *
 
 func (UnimplementedAgentServiceHandler) MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.MigrateAgentsV2 is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) UpdateAgentConfiguration(context.Context, *connect.Request[v1.UpdateAgentConfigurationRequest]) (*connect.Response[v1.UpdateAgentConfigurationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.UpdateAgentConfiguration is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) RestoreAgent(context.Context, *connect.Request[v1.RestoreAgentRequest]) (*connect.Response[v1.RestoreAgentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.RestoreAgent is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.GetAgentOperation is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) ListAgentOperations(context.Context, *connect.Request[v1.ListAgentOperationsRequest]) (*connect.Response[v1.ListAgentOperationsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.ListAgentOperations is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) RetryAgentOperation(context.Context, *connect.Request[v1.RetryAgentOperationRequest]) (*connect.Response[v1.RetryAgentOperationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.RetryAgentOperation is not implemented"))
 }
 
 // MCPServerServiceClient is a client for the agents.v1.MCPServerService service.

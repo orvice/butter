@@ -137,6 +137,27 @@ func (s *Store) UpdateAgent(_ context.Context, workspaceID string, agent *agents
 	return cloneAgent(stored), nil
 }
 
+func (s *Store) UpdateAgentCAS(_ context.Context, workspaceID string, agent *agentsv1.Agent, expectedVersion int64) (*agentsv1.Agent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	bucket, ok := s.agents[workspaceID]
+	if !ok {
+		return nil, configrepo.ErrNotFound
+	}
+	current, ok := bucket[agent.GetName()]
+	if !ok {
+		return nil, configrepo.ErrNotFound
+	}
+	if current.GetVersion() != expectedVersion {
+		return nil, configrepo.ErrVersionConflict
+	}
+	stored := cloneAgent(agent)
+	stored.WorkspaceId = workspaceID
+	stored.Version = expectedVersion + 1
+	bucket[agent.GetName()] = stored
+	return cloneAgent(stored), nil
+}
+
 func (s *Store) GetAgentByID(_ context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

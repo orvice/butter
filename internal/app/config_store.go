@@ -243,6 +243,10 @@ func (s *ConfigStore) UpdateAgent(ctx context.Context, workspaceID string, agent
 	return s.current().UpdateAgent(ctx, workspaceID, agent)
 }
 
+func (s *ConfigStore) UpdateAgentCAS(ctx context.Context, workspaceID string, agent *agentsv1.Agent, expectedVersion int64) (*agentsv1.Agent, error) {
+	return s.current().UpdateAgentCAS(ctx, workspaceID, agent, expectedVersion)
+}
+
 func (s *ConfigStore) DeleteAgent(ctx context.Context, workspaceID, name string) error {
 	return s.current().DeleteAgent(ctx, workspaceID, name)
 }

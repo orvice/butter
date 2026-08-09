@@ -76,6 +76,9 @@ const (
 	// WorkspaceRepoBindingServiceRollbackAgentContentProcedure is the fully-qualified name of the
 	// WorkspaceRepoBindingService's RollbackAgentContent RPC.
 	WorkspaceRepoBindingServiceRollbackAgentContentProcedure = "/agents.v1.WorkspaceRepoBindingService/RollbackAgentContent"
+	// WorkspaceRepoBindingServicePurgeAgentContentProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's PurgeAgentContent RPC.
+	WorkspaceRepoBindingServicePurgeAgentContentProcedure = "/agents.v1.WorkspaceRepoBindingService/PurgeAgentContent"
 )
 
 // WorkspaceRepoBindingServiceClient is a client for the agents.v1.WorkspaceRepoBindingService
@@ -135,6 +138,13 @@ type WorkspaceRepoBindingServiceClient interface {
 	// is read from Git, validated, and committed to the bound branch (or a
 	// PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
 	RollbackAgentContent(context.Context, *connect.Request[v1.RollbackAgentContentRequest]) (*connect.Response[v1.RollbackAgentContentResponse], error)
+	// PurgeAgentContent permanently deletes an Agent's managed Content files from
+	// the repository in a new Git commit. It is a separate owner/admin action
+	// from DeleteAgent (which only tombstones the DB entity and retains content).
+	// It refuses when the effective path is still claimed by any non-deleted
+	// Agent in this workspace or in any workspace that shares the path via an
+	// overlapping binding. Requires owner/admin role.
+	PurgeAgentContent(context.Context, *connect.Request[v1.PurgeAgentContentRequest]) (*connect.Response[v1.PurgeAgentContentResponse], error)
 }
 
 // NewWorkspaceRepoBindingServiceClient constructs a client for the
@@ -232,6 +242,12 @@ func NewWorkspaceRepoBindingServiceClient(httpClient connect.HTTPClient, baseURL
 			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("RollbackAgentContent")),
 			connect.WithClientOptions(opts...),
 		),
+		purgeAgentContent: connect.NewClient[v1.PurgeAgentContentRequest, v1.PurgeAgentContentResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServicePurgeAgentContentProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("PurgeAgentContent")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -251,6 +267,7 @@ type workspaceRepoBindingServiceClient struct {
 	acceptRepositoryBaseline          *connect.Client[v1.AcceptRepositoryBaselineRequest, v1.AcceptRepositoryBaselineResponse]
 	commitAgentContent                *connect.Client[v1.CommitAgentContentRequest, v1.CommitAgentContentResponse]
 	rollbackAgentContent              *connect.Client[v1.RollbackAgentContentRequest, v1.RollbackAgentContentResponse]
+	purgeAgentContent                 *connect.Client[v1.PurgeAgentContentRequest, v1.PurgeAgentContentResponse]
 }
 
 // GetWorkspaceRepoBinding calls agents.v1.WorkspaceRepoBindingService.GetWorkspaceRepoBinding.
@@ -327,6 +344,11 @@ func (c *workspaceRepoBindingServiceClient) RollbackAgentContent(ctx context.Con
 	return c.rollbackAgentContent.CallUnary(ctx, req)
 }
 
+// PurgeAgentContent calls agents.v1.WorkspaceRepoBindingService.PurgeAgentContent.
+func (c *workspaceRepoBindingServiceClient) PurgeAgentContent(ctx context.Context, req *connect.Request[v1.PurgeAgentContentRequest]) (*connect.Response[v1.PurgeAgentContentResponse], error) {
+	return c.purgeAgentContent.CallUnary(ctx, req)
+}
+
 // WorkspaceRepoBindingServiceHandler is an implementation of the
 // agents.v1.WorkspaceRepoBindingService service.
 type WorkspaceRepoBindingServiceHandler interface {
@@ -384,6 +406,13 @@ type WorkspaceRepoBindingServiceHandler interface {
 	// is read from Git, validated, and committed to the bound branch (or a
 	// PR/MR in CHANGE_REQUEST mode). Requires owner/admin role.
 	RollbackAgentContent(context.Context, *connect.Request[v1.RollbackAgentContentRequest]) (*connect.Response[v1.RollbackAgentContentResponse], error)
+	// PurgeAgentContent permanently deletes an Agent's managed Content files from
+	// the repository in a new Git commit. It is a separate owner/admin action
+	// from DeleteAgent (which only tombstones the DB entity and retains content).
+	// It refuses when the effective path is still claimed by any non-deleted
+	// Agent in this workspace or in any workspace that shares the path via an
+	// overlapping binding. Requires owner/admin role.
+	PurgeAgentContent(context.Context, *connect.Request[v1.PurgeAgentContentRequest]) (*connect.Response[v1.PurgeAgentContentResponse], error)
 }
 
 // NewWorkspaceRepoBindingServiceHandler builds an HTTP handler from the service implementation. It
@@ -477,6 +506,12 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("RollbackAgentContent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workspaceRepoBindingServicePurgeAgentContentHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServicePurgeAgentContentProcedure,
+		svc.PurgeAgentContent,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("PurgeAgentContent")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.WorkspaceRepoBindingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkspaceRepoBindingServiceGetWorkspaceRepoBindingProcedure:
@@ -507,6 +542,8 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 			workspaceRepoBindingServiceCommitAgentContentHandler.ServeHTTP(w, r)
 		case WorkspaceRepoBindingServiceRollbackAgentContentProcedure:
 			workspaceRepoBindingServiceRollbackAgentContentHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServicePurgeAgentContentProcedure:
+			workspaceRepoBindingServicePurgeAgentContentHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -570,4 +607,8 @@ func (UnimplementedWorkspaceRepoBindingServiceHandler) CommitAgentContent(contex
 
 func (UnimplementedWorkspaceRepoBindingServiceHandler) RollbackAgentContent(context.Context, *connect.Request[v1.RollbackAgentContentRequest]) (*connect.Response[v1.RollbackAgentContentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.RollbackAgentContent is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) PurgeAgentContent(context.Context, *connect.Request[v1.PurgeAgentContentRequest]) (*connect.Response[v1.PurgeAgentContentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.PurgeAgentContent is not implemented"))
 }

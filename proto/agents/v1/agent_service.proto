@@ -3,9 +3,11 @@ syntax = "proto3";
 package agents.v1;
 
 import "agents/v1/agent.proto";
+import "agents/v1/agent_operation.proto";
 import "agents/v1/agentchannel.proto";
 import "agents/v1/content.proto";
 import "agents/v1/dashboard.proto";
+import "agents/v1/repobinding.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
@@ -62,6 +64,29 @@ service AgentService {
   // Agent records with ID-based composition. Supports dry-run, apply, and
   // verify modes.
   rpc MigrateAgentsV2(MigrateAgentsV2Request) returns (MigrateAgentsV2Response);
+
+  // UpdateAgentConfiguration is the composite-save command: it coordinates an
+  // Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
+  // under a single durable operation while keeping ownership separate. The
+  // patch is applied with optimistic concurrency (expected_agent_version); a
+  // mismatch aborts. Returns the operation record for status/retry.
+  rpc UpdateAgentConfiguration(UpdateAgentConfigurationRequest) returns (UpdateAgentConfigurationResponse);
+
+  // RestoreAgent reactivates a soft-deleted (tombstoned) Agent from its
+  // retained configuration and Agent Content, flipping it from DELETED back to
+  // ACTIVE and re-publishing the retained content.
+  rpc RestoreAgent(RestoreAgentRequest) returns (RestoreAgentResponse);
+
+  // GetAgentOperation returns a durable lifecycle operation record by ID.
+  rpc GetAgentOperation(GetAgentOperationRequest) returns (GetAgentOperationResponse);
+
+  // ListAgentOperations lists lifecycle operations in the workspace, optionally
+  // filtered by status, with opaque-token pagination.
+  rpc ListAgentOperations(ListAgentOperationsRequest) returns (ListAgentOperationsResponse);
+
+  // RetryAgentOperation resumes a FAILED lifecycle operation from its first
+  // unfinished step. Steps that already succeeded are skipped (idempotent).
+  rpc RetryAgentOperation(RetryAgentOperationRequest) returns (RetryAgentOperationResponse);
 }
 
 // MCPServerService manages MCP Server configurations.
@@ -309,10 +334,104 @@ message GetAgentResponse {
 
 message CreateAgentRequest {
   Agent agent = 1;
+
+  // Initial Agent Content for a Git-bound workspace. When the workspace has a
+  // repository binding and this is set, the agent is created through the create
+  // Saga: the DB row starts in PROVISIONING, the content is committed and
+  // published, and the agent activates only after publication succeeds. For an
+  // LLM agent, prompt must be non-empty. Ignored for unbound workspaces (which
+  // keep content in the DB and activate immediately).
+  AgentContentInput initial_content = 2;
+
+  // Optional caller-supplied operation ID for idempotent retries of the create
+  // Saga. When empty the server generates one.
+  string operation_id = 3;
 }
 
 message CreateAgentResponse {
   Agent agent = 1;
+
+  // The lifecycle operation record, set when the create ran as a Saga (bound
+  // workspace). Nil for the immediate single-step path (unbound workspace).
+  AgentOperation operation = 2;
+}
+
+// AgentContentInput carries the reserved Markdown files for an agent, mapped to
+// agents/{agent-id}/{description.md, prompt.md, global-prompt.md}.
+message AgentContentInput {
+  string description = 1;
+  string prompt = 2;
+  string global_prompt = 3;
+}
+
+// UpdateAgentConfigurationRequest is the composite-save command. The agent
+// patch and the content changes retain separate ownership (DB vs Git); the
+// operation coordinates them but does not claim a distributed transaction.
+message UpdateAgentConfigurationRequest {
+  // The full operational config to write (DB-owned). Identity fields
+  // (agent_id, lifecycle_status, legacy_name) are server-enforced.
+  Agent agent_patch = 1;
+
+  // Git content changes to apply as a single commit before the DB patch.
+  repeated ContentFileAction content_changes = 2;
+
+  // The agent version the caller observed. A mismatch aborts with Aborted.
+  int64 expected_agent_version = 3;
+
+  // The cached base revision SHA (informational; last-write-wins applies).
+  string base_commit_sha = 4;
+
+  // Optional caller-supplied operation ID for idempotent retries.
+  string operation_id = 5;
+}
+
+message UpdateAgentConfigurationResponse {
+  Agent agent = 1;
+  AgentOperation operation = 2;
+  // Per-agent content validation errors that blocked the commit (empty on success).
+  repeated string validation_errors = 3;
+}
+
+message RestoreAgentRequest {
+  string agent_id = 1;
+  // Optional caller-supplied operation ID for idempotent retries.
+  string operation_id = 2;
+}
+
+message RestoreAgentResponse {
+  Agent agent = 1;
+  AgentOperation operation = 2;
+  repeated string validation_errors = 3;
+}
+
+message GetAgentOperationRequest {
+  string operation_id = 1;
+}
+
+message GetAgentOperationResponse {
+  AgentOperation operation = 1;
+}
+
+message ListAgentOperationsRequest {
+  // Optional status filter; UNSPECIFIED returns all.
+  AgentOperationStatus status = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListAgentOperationsResponse {
+  repeated AgentOperation operations = 1;
+  string next_page_token = 2;
+}
+
+message RetryAgentOperationRequest {
+  string operation_id = 1;
+}
+
+message RetryAgentOperationResponse {
+  Agent agent = 1;
+  AgentOperation operation = 2;
+  repeated string validation_errors = 3;
 }
 
 message UpdateAgentRequest {

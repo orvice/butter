@@ -21,8 +21,8 @@ import (
 	"butterfly.orx.me/core/log"
 	"go.orx.me/apps/butter/internal/agentcontent"
 	"go.orx.me/apps/butter/internal/gitprovider"
-	"go.orx.me/apps/butter/internal/repo/auth"
 	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
+	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	githostrepo "go.orx.me/apps/butter/internal/repo/githost"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
@@ -1353,6 +1353,44 @@ func (s *RepoBindingServiceServer) TriggerSyncAndPublish(ctx context.Context, ws
 	return err
 }
 
+// ── agentContentCoordinator (issue #218) ────────────────────────────────────
+// These methods let the Agent lifecycle Saga (agent_saga.go, same package)
+// coordinate Git-owned Agent Content without importing the transport layer.
+
+// HasBinding reports whether the workspace has a repository binding at all.
+// Absence of a binding means content is DB-owned and no content Saga steps run.
+func (s *RepoBindingServiceServer) HasBinding(ctx context.Context, ws string) (bool, error) {
+	if s.repo == nil {
+		return false, nil
+	}
+	if _, err := s.repo.Get(ctx, ws); err != nil {
+		if errors.Is(err, repobindingrepo.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// CommitContent applies a changeset as a single Git commit and publishes it.
+// Lifecycle Saga steps always commit directly (DIRECT_COMMIT) so agent
+// provisioning is not gated on a review PR. Returns the commit SHA and any
+// content validation errors (which mean no commit was created).
+func (s *RepoBindingServiceServer) CommitContent(ctx context.Context, ws string, actions []*agentsv1.ContentFileAction, operation, message string) (string, []string, error) {
+	res, err := s.commitContent(ctx, ws, actions,
+		agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_DIRECT_COMMIT,
+		operation, message, "")
+	if err != nil {
+		return "", nil, err
+	}
+	return res.commitSHA, res.validationErrors, nil
+}
+
+// SyncAndPublish re-syncs the repository and publishes the Active Revision.
+func (s *RepoBindingServiceServer) SyncAndPublish(ctx context.Context, ws string) error {
+	return s.TriggerSyncAndPublish(ctx, ws)
+}
+
 // ── Agent Content editing (issue #217) ──────────────────────────────────
 
 const (
@@ -1407,14 +1445,50 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 	if err := s.requireBindingRole(ctx, ws); err != nil {
 		return nil, err
 	}
+	if len(req.Msg.GetActions()) == 0 {
+		return nil, connectx.RequiredArgument("actions")
+	}
+	res, err := s.commitContent(ctx, ws, req.Msg.GetActions(),
+		agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_UNSPECIFIED,
+		"commit", req.Msg.GetMessage(), req.Msg.GetBaseRevision())
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&agentsv1.CommitAgentContentResponse{
+		Binding:          res.binding,
+		CommitSha:        res.commitSHA,
+		ChangeRequestUrl: res.changeRequestURL,
+		ValidationErrors: res.validationErrors,
+	}), nil
+}
+
+// commitContentResult carries the outcome of commitContent. When
+// validationErrors is non-empty, no commit was created and commitSHA is empty.
+type commitContentResult struct {
+	binding          *agentsv1.WorkspaceRepoBinding
+	commitSHA        string
+	changeRequestURL string
+	validationErrors []string
+}
+
+// commitContent applies a validated changeset of PUT/DELETE actions to managed
+// Agent Content as a single Git commit, then (in DIRECT_COMMIT mode) triggers
+// sync + publish so the runner picks up the change. It takes plain arguments —
+// no connect.Request, no auth, no requireWorkspace — so the Agent lifecycle Saga
+// (issue #218) can reuse it in-process alongside the CommitAgentContent RPC
+// handler. Callers are responsible for workspace scoping and authorization.
+// operation labels the commit audit trailer (e.g. "commit", "purge").
+// writeModeOverride forces DIRECT_COMMIT or CHANGE_REQUEST regardless of the
+// binding's configured mode; UNSPECIFIED uses the binding's mode. Lifecycle
+// Saga steps force DIRECT_COMMIT so agent provisioning is not gated on a
+// review PR.
+func (s *RepoBindingServiceServer) commitContent(ctx context.Context, ws string, actions []*agentsv1.ContentFileAction, writeModeOverride agentsv1.RepoBindingWriteMode, operation, message, baseRevision string) (*commitContentResult, error) {
+	if err := s.requireRepos(); err != nil {
+		return nil, err
+	}
 	binding, err := s.repo.Get(ctx, ws)
 	if err != nil {
 		return nil, mapRepoBindingErr(err)
-	}
-
-	actions := req.Msg.GetActions()
-	if len(actions) == 0 {
-		return nil, connectx.RequiredArgument("actions")
 	}
 
 	// Validate and normalize all actions.
@@ -1436,10 +1510,7 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 	}
 	validationErrors := s.simulateAndValidate(ctx, ws, actions, agents)
 	if len(validationErrors) > 0 {
-		return connect.NewResponse(&agentsv1.CommitAgentContentResponse{
-			Binding:          binding,
-			ValidationErrors: validationErrors,
-		}), nil
+		return &commitContentResult{binding: binding, validationErrors: validationErrors}, nil
 	}
 
 	client, err := s.resolveProviderClient(ctx, ws, binding)
@@ -1470,7 +1541,7 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 	}
 
 	// Build commit message with audit metadata.
-	commitMsg := req.Msg.GetMessage()
+	commitMsg := message
 	if commitMsg == "" {
 		commitMsg = "Update Agent Content from Butter"
 	}
@@ -1478,13 +1549,17 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 	if user, ok := auth.UserFromContext(ctx); ok {
 		actor = user.GetId()
 	}
-	auditTrailer := fmt.Sprintf("\nButter-Actor: %s\nButter-Workspace: %s\nButter-Operation: commit\nButter-Base-SHA: %s\nButter-Parent-SHA: %s",
-		actor, ws, req.Msg.GetBaseRevision(), headSHA)
+	auditTrailer := fmt.Sprintf("\nButter-Actor: %s\nButter-Workspace: %s\nButter-Operation: %s\nButter-Base-SHA: %s\nButter-Parent-SHA: %s",
+		actor, ws, operation, baseRevision, headSHA)
 	commitMsg += auditTrailer
 
 	logger := log.FromContext(ctx)
 
-	isChangeRequest := binding.GetWriteMode() == agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
+	writeMode := writeModeOverride
+	if writeMode == agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_UNSPECIFIED {
+		writeMode = binding.GetWriteMode()
+	}
+	isChangeRequest := writeMode == agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_CHANGE_REQUEST
 	var commitResult *gitprovider.CommitResult
 	var crURL string
 
@@ -1518,7 +1593,7 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 	}
 
 	logger.Info("agent content committed", "workspace_id", ws, "commit_sha", commitResult.SHA,
-		"actions", len(actions), "change_request", isChangeRequest)
+		"actions", len(actions), "change_request", isChangeRequest, "operation", operation)
 
 	// Trigger sync + publish so the runner picks up the new content.
 	if !isChangeRequest {
@@ -1531,11 +1606,11 @@ func (s *RepoBindingServiceServer) CommitAgentContent(ctx context.Context, req *
 	if err != nil {
 		final = binding
 	}
-	return connect.NewResponse(&agentsv1.CommitAgentContentResponse{
-		Binding:          final,
-		CommitSha:        commitResult.SHA,
-		ChangeRequestUrl: crURL,
-	}), nil
+	return &commitContentResult{
+		binding:          final,
+		commitSHA:        commitResult.SHA,
+		changeRequestURL: crURL,
+	}, nil
 }
 
 // RollbackAgentContent restores managed Agent Content from a previously
@@ -1868,6 +1943,133 @@ func (s *RepoBindingServiceServer) simulateAndValidate(ctx context.Context, ws s
 		errStrs[i] = ve.Error()
 	}
 	return errStrs
+}
+
+// ── Purge Agent Content (issue #218) ─────────────────────────────────────
+
+// PurgeAgentContent permanently deletes an agent's managed Content files from
+// the repository. It is a separate owner/admin action from DeleteAgent (which
+// only tombstones the DB entity). It refuses when the effective path is still
+// claimed by any non-deleted agent in this workspace or in any workspace that
+// shares the same repository location via an overlapping binding.
+func (s *RepoBindingServiceServer) PurgeAgentContent(ctx context.Context, req *connect.Request[agentsv1.PurgeAgentContentRequest]) (*connect.Response[agentsv1.PurgeAgentContentResponse], error) {
+	if err := s.requireRepos(); err != nil {
+		return nil, err
+	}
+	ws, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireBindingRole(ctx, ws); err != nil {
+		return nil, err
+	}
+	agentID := req.Msg.GetAgentId()
+	if agentID == "" {
+		return nil, connectx.RequiredArgument("agent_id")
+	}
+	if s.agentRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent repository not configured"))
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+
+	// Shared-path guard: any non-deleted agent claiming this effective path —
+	// here or in an overlapping workspace — blocks the purge.
+	claimants, err := s.claimingWorkspaces(ctx, ws, binding, agentID)
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	if len(claimants) > 0 {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("agent content %q is still claimed by an active agent in workspace(s): %s; delete those agents first",
+				agentID, strings.Join(claimants, ", ")))
+	}
+
+	// Delete only the managed files that actually exist in the cache, so the
+	// provider is not asked to delete absent paths.
+	actions, err := s.existingManagedDeletes(ctx, ws, agentID)
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+	if len(actions) == 0 {
+		return connect.NewResponse(&agentsv1.PurgeAgentContentResponse{Binding: binding}), nil
+	}
+
+	res, err := s.commitContent(ctx, ws, actions,
+		agentsv1.RepoBindingWriteMode_REPO_BINDING_WRITE_MODE_UNSPECIFIED,
+		"purge", "Purge Agent Content for "+agentID, "")
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&agentsv1.PurgeAgentContentResponse{
+		Binding:          res.binding,
+		CommitSha:        res.commitSHA,
+		ChangeRequestUrl: res.changeRequestURL,
+		ValidationErrors: res.validationErrors,
+	}), nil
+}
+
+// claimingWorkspaces returns the IDs of the caller workspace and every
+// overlapping workspace that still has a non-deleted agent with agentID.
+func (s *RepoBindingServiceServer) claimingWorkspaces(ctx context.Context, ws string, binding *agentsv1.WorkspaceRepoBinding, agentID string) ([]string, error) {
+	candidates := []string{ws}
+	overlaps, err := s.findOverlaps(ctx, binding)
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range overlaps {
+		candidates = append(candidates, o.GetWorkspaceId())
+	}
+
+	var claimants []string
+	for _, cand := range candidates {
+		agents, err := s.agentRepo.ListAgents(ctx, cand)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range agents {
+			if a.GetAgentId() != agentID {
+				continue
+			}
+			if a.GetLifecycleStatus() == agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+				continue
+			}
+			claimants = append(claimants, cand)
+			break
+		}
+	}
+	return claimants, nil
+}
+
+// existingManagedDeletes returns a DELETE changeset for the managed files that
+// exist in the cache for the given agent.
+func (s *RepoBindingServiceServer) existingManagedDeletes(ctx context.Context, ws, agentID string) ([]*agentsv1.ContentFileAction, error) {
+	if s.cacheRepo == nil {
+		return nil, nil
+	}
+	meta, err := s.cacheRepo.GetMetadata(ctx, ws)
+	if err != nil {
+		if errors.Is(err, repocache.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var actions []*agentsv1.ContentFileAction
+	for _, p := range agentcontent.ManagedPaths(agentID) {
+		if _, err := s.cacheRepo.GetEntry(ctx, ws, meta.SnapshotID, p); err != nil {
+			if errors.Is(err, repocache.ErrNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		actions = append(actions, &agentsv1.ContentFileAction{
+			Path:      p,
+			Operation: agentsv1.ContentFileOperation_CONTENT_FILE_OPERATION_DELETE,
+		})
+	}
+	return actions, nil
 }
 
 // ── Baseline acceptance (issue #216) ────────────────────────────────────

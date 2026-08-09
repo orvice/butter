@@ -34,6 +34,11 @@ const (
 	AgentService_AssignAgentID_FullMethodName            = "/agents.v1.AgentService/AssignAgentID"
 	AgentService_GetMigrationReadiness_FullMethodName    = "/agents.v1.AgentService/GetMigrationReadiness"
 	AgentService_MigrateAgentsV2_FullMethodName          = "/agents.v1.AgentService/MigrateAgentsV2"
+	AgentService_UpdateAgentConfiguration_FullMethodName = "/agents.v1.AgentService/UpdateAgentConfiguration"
+	AgentService_RestoreAgent_FullMethodName             = "/agents.v1.AgentService/RestoreAgent"
+	AgentService_GetAgentOperation_FullMethodName        = "/agents.v1.AgentService/GetAgentOperation"
+	AgentService_ListAgentOperations_FullMethodName      = "/agents.v1.AgentService/ListAgentOperations"
+	AgentService_RetryAgentOperation_FullMethodName      = "/agents.v1.AgentService/RetryAgentOperation"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -90,6 +95,24 @@ type AgentServiceClient interface {
 	// Agent records with ID-based composition. Supports dry-run, apply, and
 	// verify modes.
 	MigrateAgentsV2(ctx context.Context, in *MigrateAgentsV2Request, opts ...grpc.CallOption) (*MigrateAgentsV2Response, error)
+	// UpdateAgentConfiguration is the composite-save command: it coordinates an
+	// Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
+	// under a single durable operation while keeping ownership separate. The
+	// patch is applied with optimistic concurrency (expected_agent_version); a
+	// mismatch aborts. Returns the operation record for status/retry.
+	UpdateAgentConfiguration(ctx context.Context, in *UpdateAgentConfigurationRequest, opts ...grpc.CallOption) (*UpdateAgentConfigurationResponse, error)
+	// RestoreAgent reactivates a soft-deleted (tombstoned) Agent from its
+	// retained configuration and Agent Content, flipping it from DELETED back to
+	// ACTIVE and re-publishing the retained content.
+	RestoreAgent(ctx context.Context, in *RestoreAgentRequest, opts ...grpc.CallOption) (*RestoreAgentResponse, error)
+	// GetAgentOperation returns a durable lifecycle operation record by ID.
+	GetAgentOperation(ctx context.Context, in *GetAgentOperationRequest, opts ...grpc.CallOption) (*GetAgentOperationResponse, error)
+	// ListAgentOperations lists lifecycle operations in the workspace, optionally
+	// filtered by status, with opaque-token pagination.
+	ListAgentOperations(ctx context.Context, in *ListAgentOperationsRequest, opts ...grpc.CallOption) (*ListAgentOperationsResponse, error)
+	// RetryAgentOperation resumes a FAILED lifecycle operation from its first
+	// unfinished step. Steps that already succeeded are skipped (idempotent).
+	RetryAgentOperation(ctx context.Context, in *RetryAgentOperationRequest, opts ...grpc.CallOption) (*RetryAgentOperationResponse, error)
 }
 
 type agentServiceClient struct {
@@ -259,6 +282,56 @@ func (c *agentServiceClient) MigrateAgentsV2(ctx context.Context, in *MigrateAge
 	return out, nil
 }
 
+func (c *agentServiceClient) UpdateAgentConfiguration(ctx context.Context, in *UpdateAgentConfigurationRequest, opts ...grpc.CallOption) (*UpdateAgentConfigurationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateAgentConfigurationResponse)
+	err := c.cc.Invoke(ctx, AgentService_UpdateAgentConfiguration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) RestoreAgent(ctx context.Context, in *RestoreAgentRequest, opts ...grpc.CallOption) (*RestoreAgentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RestoreAgentResponse)
+	err := c.cc.Invoke(ctx, AgentService_RestoreAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetAgentOperation(ctx context.Context, in *GetAgentOperationRequest, opts ...grpc.CallOption) (*GetAgentOperationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAgentOperationResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetAgentOperation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListAgentOperations(ctx context.Context, in *ListAgentOperationsRequest, opts ...grpc.CallOption) (*ListAgentOperationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAgentOperationsResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListAgentOperations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) RetryAgentOperation(ctx context.Context, in *RetryAgentOperationRequest, opts ...grpc.CallOption) (*RetryAgentOperationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetryAgentOperationResponse)
+	err := c.cc.Invoke(ctx, AgentService_RetryAgentOperation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -313,6 +386,24 @@ type AgentServiceServer interface {
 	// Agent records with ID-based composition. Supports dry-run, apply, and
 	// verify modes.
 	MigrateAgentsV2(context.Context, *MigrateAgentsV2Request) (*MigrateAgentsV2Response, error)
+	// UpdateAgentConfiguration is the composite-save command: it coordinates an
+	// Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
+	// under a single durable operation while keeping ownership separate. The
+	// patch is applied with optimistic concurrency (expected_agent_version); a
+	// mismatch aborts. Returns the operation record for status/retry.
+	UpdateAgentConfiguration(context.Context, *UpdateAgentConfigurationRequest) (*UpdateAgentConfigurationResponse, error)
+	// RestoreAgent reactivates a soft-deleted (tombstoned) Agent from its
+	// retained configuration and Agent Content, flipping it from DELETED back to
+	// ACTIVE and re-publishing the retained content.
+	RestoreAgent(context.Context, *RestoreAgentRequest) (*RestoreAgentResponse, error)
+	// GetAgentOperation returns a durable lifecycle operation record by ID.
+	GetAgentOperation(context.Context, *GetAgentOperationRequest) (*GetAgentOperationResponse, error)
+	// ListAgentOperations lists lifecycle operations in the workspace, optionally
+	// filtered by status, with opaque-token pagination.
+	ListAgentOperations(context.Context, *ListAgentOperationsRequest) (*ListAgentOperationsResponse, error)
+	// RetryAgentOperation resumes a FAILED lifecycle operation from its first
+	// unfinished step. Steps that already succeeded are skipped (idempotent).
+	RetryAgentOperation(context.Context, *RetryAgentOperationRequest) (*RetryAgentOperationResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -367,6 +458,21 @@ func (UnimplementedAgentServiceServer) GetMigrationReadiness(context.Context, *G
 }
 func (UnimplementedAgentServiceServer) MigrateAgentsV2(context.Context, *MigrateAgentsV2Request) (*MigrateAgentsV2Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method MigrateAgentsV2 not implemented")
+}
+func (UnimplementedAgentServiceServer) UpdateAgentConfiguration(context.Context, *UpdateAgentConfigurationRequest) (*UpdateAgentConfigurationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateAgentConfiguration not implemented")
+}
+func (UnimplementedAgentServiceServer) RestoreAgent(context.Context, *RestoreAgentRequest) (*RestoreAgentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestoreAgent not implemented")
+}
+func (UnimplementedAgentServiceServer) GetAgentOperation(context.Context, *GetAgentOperationRequest) (*GetAgentOperationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAgentOperation not implemented")
+}
+func (UnimplementedAgentServiceServer) ListAgentOperations(context.Context, *ListAgentOperationsRequest) (*ListAgentOperationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAgentOperations not implemented")
+}
+func (UnimplementedAgentServiceServer) RetryAgentOperation(context.Context, *RetryAgentOperationRequest) (*RetryAgentOperationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RetryAgentOperation not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -652,6 +758,96 @@ func _AgentService_MigrateAgentsV2_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_UpdateAgentConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAgentConfigurationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UpdateAgentConfiguration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UpdateAgentConfiguration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UpdateAgentConfiguration(ctx, req.(*UpdateAgentConfigurationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_RestoreAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestoreAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).RestoreAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_RestoreAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).RestoreAgent(ctx, req.(*RestoreAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetAgentOperation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAgentOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetAgentOperation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetAgentOperation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetAgentOperation(ctx, req.(*GetAgentOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListAgentOperations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAgentOperationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListAgentOperations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListAgentOperations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListAgentOperations(ctx, req.(*ListAgentOperationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_RetryAgentOperation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetryAgentOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).RetryAgentOperation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_RetryAgentOperation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).RetryAgentOperation(ctx, req.(*RetryAgentOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -714,6 +910,26 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MigrateAgentsV2",
 			Handler:    _AgentService_MigrateAgentsV2_Handler,
+		},
+		{
+			MethodName: "UpdateAgentConfiguration",
+			Handler:    _AgentService_UpdateAgentConfiguration_Handler,
+		},
+		{
+			MethodName: "RestoreAgent",
+			Handler:    _AgentService_RestoreAgent_Handler,
+		},
+		{
+			MethodName: "GetAgentOperation",
+			Handler:    _AgentService_GetAgentOperation_Handler,
+		},
+		{
+			MethodName: "ListAgentOperations",
+			Handler:    _AgentService_ListAgentOperations_Handler,
+		},
+		{
+			MethodName: "RetryAgentOperation",
+			Handler:    _AgentService_RetryAgentOperation_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

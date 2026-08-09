@@ -168,6 +168,58 @@ func TestReloadProtoAgentsSkipsReservedBuilderNames(t *testing.T) {
 	}
 }
 
+func TestReloadProtoAgentsSkipsNonRunnableLifecycle(t *testing.T) {
+	providers := []agentsv1.ModelProvider{{
+		Name:   "p",
+		Type:   "openai",
+		Models: []*agentsv1.ModelConfig{{Name: "m1"}},
+	}}
+	svc, err := NewService(context.Background(), nil, providers, nil, nil, nil, nil, nil, nil, adkrunner.PluginConfig{})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	llm := func(name string, status agentsv1.AgentLifecycleStatus) agentsv1.Agent {
+		return agentsv1.Agent{
+			Name:            name,
+			AgentId:         name,
+			WorkspaceId:     "ws-a",
+			Type:            agentsv1.AgentType_AGENT_TYPE_LLM,
+			LifecycleStatus: status,
+			Config:          &agentsv1.AgentConfig{Model: "m1", Instruction: "do things"},
+		}
+	}
+	reload := []agentsv1.Agent{
+		llm("active", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE),
+		llm("legacy", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_UNSPECIFIED),
+		llm("provisioning", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_PROVISIONING),
+		llm("errored", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ERROR),
+		llm("deleting", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETING),
+		llm("deleted", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED),
+		llm("migrating", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_MIGRATION_REQUIRED),
+	}
+	if err := svc.ReloadProtoAgents(context.Background(), reload, providers, nil, nil); err != nil {
+		t.Fatalf("ReloadProtoAgents: %v", err)
+	}
+
+	registered := func(name string) bool {
+		svc.mu.Lock()
+		defer svc.mu.Unlock()
+		_, ok := svc.agents[name]
+		return ok
+	}
+	for _, name := range []string{"active", "legacy"} {
+		if !registered(name) {
+			t.Fatalf("expected runnable agent %q to be registered", name)
+		}
+	}
+	for _, name := range []string{"provisioning", "errored", "deleting", "deleted", "migrating"} {
+		if registered(name) {
+			t.Fatalf("non-runnable agent %q must not be registered", name)
+		}
+	}
+}
+
 func TestSummarizeEvent(t *testing.T) {
 	evt := session.NewEvent(t.Context(), "inv-1")
 	evt.Content = &genai.Content{Parts: []*genai.Part{

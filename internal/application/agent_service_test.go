@@ -105,14 +105,27 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 		t.Fatalf("expected updated, got %s", updateResp.Msg.GetAgent().GetDescription())
 	}
 
-	// Delete
+	// Delete (soft delete / tombstone, issue #218): the agent transitions to
+	// DELETED but the record — and its Agent ID — are retained.
 	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
+	tombstoned, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "a1"}))
+	if err != nil {
+		t.Fatalf("tombstoned agent should still be readable: %v", err)
+	}
+	if tombstoned.Msg.GetAgent().GetLifecycleStatus() != agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED {
+		t.Fatalf("expected DELETED, got %v", tombstoned.Msg.GetAgent().GetLifecycleStatus())
+	}
 
-	// Delete not found
-	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
+	// Deleting again is an idempotent no-op (already a tombstone).
+	if _, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"})); err != nil {
+		t.Fatalf("re-delete should be a no-op, got %v", err)
+	}
+
+	// Deleting a never-existing agent is NotFound.
+	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "never"}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}

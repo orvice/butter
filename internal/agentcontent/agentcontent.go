@@ -18,11 +18,30 @@ import (
 )
 
 const (
-	agentsDir         = "agents"
-	descriptionFile   = "description.md"
-	promptFile        = "prompt.md"
-	globalPromptFile  = "global-prompt.md"
+	agentsDir        = "agents"
+	descriptionFile  = "description.md"
+	promptFile       = "prompt.md"
+	globalPromptFile = "global-prompt.md"
 )
+
+// DescriptionPath returns the repo-relative (root_path-stripped) path of an
+// agent's description.md file.
+func DescriptionPath(agentID string) string { return path.Join(agentsDir, agentID, descriptionFile) }
+
+// PromptPath returns the repo-relative path of an agent's prompt.md file.
+func PromptPath(agentID string) string { return path.Join(agentsDir, agentID, promptFile) }
+
+// GlobalPromptPath returns the repo-relative path of an agent's
+// global-prompt.md file.
+func GlobalPromptPath(agentID string) string {
+	return path.Join(agentsDir, agentID, globalPromptFile)
+}
+
+// ManagedPaths returns every reserved managed file path for an agent, in a
+// stable order (description, prompt, global-prompt).
+func ManagedPaths(agentID string) []string {
+	return []string{DescriptionPath(agentID), PromptPath(agentID), GlobalPromptPath(agentID)}
+}
 
 // AgentContent holds the parsed content for a single agent.
 type AgentContent struct {
