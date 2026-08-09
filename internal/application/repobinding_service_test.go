@@ -824,7 +824,11 @@ func TestRepoBindingHostChangeClearsCredential(t *testing.T) {
 func TestRepoBindingDelete(t *testing.T) {
 	fx := newBindingFixture(t)
 	putBinding(t, fx, ownerCtx())
-	if _, err := fx.svc.DeleteWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{})); err != nil {
+	// No Active Revision was published, so safe detachment requires the explicit
+	// KEEP_DATABASE recovery path (issue #219).
+	if _, err := fx.svc.DeleteWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{
+		Recovery: agentsv1.RepoBindingDetachRecovery_REPO_BINDING_DETACH_RECOVERY_KEEP_DATABASE,
+	})); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	resp, err := fx.svc.GetWorkspaceRepoBinding(memberCtx(), connect.NewRequest(&agentsv1.GetWorkspaceRepoBindingRequest{}))
@@ -1330,7 +1334,9 @@ func TestBindingInvalidationOnDelete(t *testing.T) {
 		t.Fatalf("Sync: %v", err)
 	}
 
-	if _, err := fx.svc.DeleteWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{})); err != nil {
+	if _, err := fx.svc.DeleteWorkspaceRepoBinding(ownerCtx(), connect.NewRequest(&agentsv1.DeleteWorkspaceRepoBindingRequest{
+		Recovery: agentsv1.RepoBindingDetachRecovery_REPO_BINDING_DETACH_RECOVERY_KEEP_DATABASE,
+	})); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 

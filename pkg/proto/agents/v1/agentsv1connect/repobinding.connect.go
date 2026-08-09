@@ -43,6 +43,9 @@ const (
 	// WorkspaceRepoBindingServiceDeleteWorkspaceRepoBindingProcedure is the fully-qualified name of the
 	// WorkspaceRepoBindingService's DeleteWorkspaceRepoBinding RPC.
 	WorkspaceRepoBindingServiceDeleteWorkspaceRepoBindingProcedure = "/agents.v1.WorkspaceRepoBindingService/DeleteWorkspaceRepoBinding"
+	// WorkspaceRepoBindingServiceOnboardWorkspaceRepositoryProcedure is the fully-qualified name of the
+	// WorkspaceRepoBindingService's OnboardWorkspaceRepository RPC.
+	WorkspaceRepoBindingServiceOnboardWorkspaceRepositoryProcedure = "/agents.v1.WorkspaceRepoBindingService/OnboardWorkspaceRepository"
 	// WorkspaceRepoBindingServiceSetWorkspaceRepoBindingCredentialProcedure is the fully-qualified name
 	// of the WorkspaceRepoBindingService's SetWorkspaceRepoBindingCredential RPC.
 	WorkspaceRepoBindingServiceSetWorkspaceRepoBindingCredentialProcedure = "/agents.v1.WorkspaceRepoBindingService/SetWorkspaceRepoBindingCredential"
@@ -93,8 +96,21 @@ type WorkspaceRepoBindingServiceClient interface {
 	// ignored on input. Every Put resets status to UNVALIDATED: each binding
 	// field (including write mode) changes what validation must prove.
 	PutWorkspaceRepoBinding(context.Context, *connect.Request[v1.PutWorkspaceRepoBindingRequest]) (*connect.Response[v1.PutWorkspaceRepoBindingResponse], error)
-	// DeleteWorkspaceRepoBinding removes the binding and its stored credential.
+	// DeleteWorkspaceRepoBinding safely detaches the workspace from Git-owned
+	// Agent Content. It first materializes the Active Revision snapshot back into
+	// database-managed Agent fields and reloads the runtime, then removes the
+	// binding and its encrypted PAT. It never modifies remote Git content, and
+	// refuses to proceed when there is no valid active snapshot unless the caller
+	// selects a supported recovery path. Requires owner/admin role.
 	DeleteWorkspaceRepoBinding(context.Context, *connect.Request[v1.DeleteWorkspaceRepoBindingRequest]) (*connect.Response[v1.DeleteWorkspaceRepoBindingResponse], error)
+	// OnboardWorkspaceRepository performs the one-time reconciliation of a freshly
+	// bound workspace's Agent Content with the repository (issue #219).
+	// EXPORT_CURRENT commits existing database-managed content to Git;
+	// IMPORT_REPOSITORY adopts repository content for matching Agent IDs. In both
+	// modes the workspace only switches to Git-owned content after the
+	// commit/import, read-back, validation, Effective Agent construction, and
+	// Active Revision publication all succeed. Requires owner/admin role.
+	OnboardWorkspaceRepository(context.Context, *connect.Request[v1.OnboardWorkspaceRepositoryRequest]) (*connect.Response[v1.OnboardWorkspaceRepositoryResponse], error)
 	// SetWorkspaceRepoBindingCredential sets or replaces the binding's PAT.
 	// The PAT is write-only: it is encrypted before storage and never returned.
 	SetWorkspaceRepoBindingCredential(context.Context, *connect.Request[v1.SetWorkspaceRepoBindingCredentialRequest]) (*connect.Response[v1.SetWorkspaceRepoBindingCredentialResponse], error)
@@ -174,6 +190,12 @@ func NewWorkspaceRepoBindingServiceClient(httpClient connect.HTTPClient, baseURL
 			httpClient,
 			baseURL+WorkspaceRepoBindingServiceDeleteWorkspaceRepoBindingProcedure,
 			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("DeleteWorkspaceRepoBinding")),
+			connect.WithClientOptions(opts...),
+		),
+		onboardWorkspaceRepository: connect.NewClient[v1.OnboardWorkspaceRepositoryRequest, v1.OnboardWorkspaceRepositoryResponse](
+			httpClient,
+			baseURL+WorkspaceRepoBindingServiceOnboardWorkspaceRepositoryProcedure,
+			connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("OnboardWorkspaceRepository")),
 			connect.WithClientOptions(opts...),
 		),
 		setWorkspaceRepoBindingCredential: connect.NewClient[v1.SetWorkspaceRepoBindingCredentialRequest, v1.SetWorkspaceRepoBindingCredentialResponse](
@@ -256,6 +278,7 @@ type workspaceRepoBindingServiceClient struct {
 	getWorkspaceRepoBinding           *connect.Client[v1.GetWorkspaceRepoBindingRequest, v1.GetWorkspaceRepoBindingResponse]
 	putWorkspaceRepoBinding           *connect.Client[v1.PutWorkspaceRepoBindingRequest, v1.PutWorkspaceRepoBindingResponse]
 	deleteWorkspaceRepoBinding        *connect.Client[v1.DeleteWorkspaceRepoBindingRequest, v1.DeleteWorkspaceRepoBindingResponse]
+	onboardWorkspaceRepository        *connect.Client[v1.OnboardWorkspaceRepositoryRequest, v1.OnboardWorkspaceRepositoryResponse]
 	setWorkspaceRepoBindingCredential *connect.Client[v1.SetWorkspaceRepoBindingCredentialRequest, v1.SetWorkspaceRepoBindingCredentialResponse]
 	validateWorkspaceRepoBinding      *connect.Client[v1.ValidateWorkspaceRepoBindingRequest, v1.ValidateWorkspaceRepoBindingResponse]
 	syncWorkspaceRepository           *connect.Client[v1.SyncWorkspaceRepositoryRequest, v1.SyncWorkspaceRepositoryResponse]
@@ -284,6 +307,12 @@ func (c *workspaceRepoBindingServiceClient) PutWorkspaceRepoBinding(ctx context.
 // agents.v1.WorkspaceRepoBindingService.DeleteWorkspaceRepoBinding.
 func (c *workspaceRepoBindingServiceClient) DeleteWorkspaceRepoBinding(ctx context.Context, req *connect.Request[v1.DeleteWorkspaceRepoBindingRequest]) (*connect.Response[v1.DeleteWorkspaceRepoBindingResponse], error) {
 	return c.deleteWorkspaceRepoBinding.CallUnary(ctx, req)
+}
+
+// OnboardWorkspaceRepository calls
+// agents.v1.WorkspaceRepoBindingService.OnboardWorkspaceRepository.
+func (c *workspaceRepoBindingServiceClient) OnboardWorkspaceRepository(ctx context.Context, req *connect.Request[v1.OnboardWorkspaceRepositoryRequest]) (*connect.Response[v1.OnboardWorkspaceRepositoryResponse], error) {
+	return c.onboardWorkspaceRepository.CallUnary(ctx, req)
 }
 
 // SetWorkspaceRepoBindingCredential calls
@@ -361,8 +390,21 @@ type WorkspaceRepoBindingServiceHandler interface {
 	// ignored on input. Every Put resets status to UNVALIDATED: each binding
 	// field (including write mode) changes what validation must prove.
 	PutWorkspaceRepoBinding(context.Context, *connect.Request[v1.PutWorkspaceRepoBindingRequest]) (*connect.Response[v1.PutWorkspaceRepoBindingResponse], error)
-	// DeleteWorkspaceRepoBinding removes the binding and its stored credential.
+	// DeleteWorkspaceRepoBinding safely detaches the workspace from Git-owned
+	// Agent Content. It first materializes the Active Revision snapshot back into
+	// database-managed Agent fields and reloads the runtime, then removes the
+	// binding and its encrypted PAT. It never modifies remote Git content, and
+	// refuses to proceed when there is no valid active snapshot unless the caller
+	// selects a supported recovery path. Requires owner/admin role.
 	DeleteWorkspaceRepoBinding(context.Context, *connect.Request[v1.DeleteWorkspaceRepoBindingRequest]) (*connect.Response[v1.DeleteWorkspaceRepoBindingResponse], error)
+	// OnboardWorkspaceRepository performs the one-time reconciliation of a freshly
+	// bound workspace's Agent Content with the repository (issue #219).
+	// EXPORT_CURRENT commits existing database-managed content to Git;
+	// IMPORT_REPOSITORY adopts repository content for matching Agent IDs. In both
+	// modes the workspace only switches to Git-owned content after the
+	// commit/import, read-back, validation, Effective Agent construction, and
+	// Active Revision publication all succeed. Requires owner/admin role.
+	OnboardWorkspaceRepository(context.Context, *connect.Request[v1.OnboardWorkspaceRepositoryRequest]) (*connect.Response[v1.OnboardWorkspaceRepositoryResponse], error)
 	// SetWorkspaceRepoBindingCredential sets or replaces the binding's PAT.
 	// The PAT is write-only: it is encrypted before storage and never returned.
 	SetWorkspaceRepoBindingCredential(context.Context, *connect.Request[v1.SetWorkspaceRepoBindingCredentialRequest]) (*connect.Response[v1.SetWorkspaceRepoBindingCredentialResponse], error)
@@ -438,6 +480,12 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 		WorkspaceRepoBindingServiceDeleteWorkspaceRepoBindingProcedure,
 		svc.DeleteWorkspaceRepoBinding,
 		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("DeleteWorkspaceRepoBinding")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceRepoBindingServiceOnboardWorkspaceRepositoryHandler := connect.NewUnaryHandler(
+		WorkspaceRepoBindingServiceOnboardWorkspaceRepositoryProcedure,
+		svc.OnboardWorkspaceRepository,
+		connect.WithSchema(workspaceRepoBindingServiceMethods.ByName("OnboardWorkspaceRepository")),
 		connect.WithHandlerOptions(opts...),
 	)
 	workspaceRepoBindingServiceSetWorkspaceRepoBindingCredentialHandler := connect.NewUnaryHandler(
@@ -520,6 +568,8 @@ func NewWorkspaceRepoBindingServiceHandler(svc WorkspaceRepoBindingServiceHandle
 			workspaceRepoBindingServicePutWorkspaceRepoBindingHandler.ServeHTTP(w, r)
 		case WorkspaceRepoBindingServiceDeleteWorkspaceRepoBindingProcedure:
 			workspaceRepoBindingServiceDeleteWorkspaceRepoBindingHandler.ServeHTTP(w, r)
+		case WorkspaceRepoBindingServiceOnboardWorkspaceRepositoryProcedure:
+			workspaceRepoBindingServiceOnboardWorkspaceRepositoryHandler.ServeHTTP(w, r)
 		case WorkspaceRepoBindingServiceSetWorkspaceRepoBindingCredentialProcedure:
 			workspaceRepoBindingServiceSetWorkspaceRepoBindingCredentialHandler.ServeHTTP(w, r)
 		case WorkspaceRepoBindingServiceValidateWorkspaceRepoBindingProcedure:
@@ -563,6 +613,10 @@ func (UnimplementedWorkspaceRepoBindingServiceHandler) PutWorkspaceRepoBinding(c
 
 func (UnimplementedWorkspaceRepoBindingServiceHandler) DeleteWorkspaceRepoBinding(context.Context, *connect.Request[v1.DeleteWorkspaceRepoBindingRequest]) (*connect.Response[v1.DeleteWorkspaceRepoBindingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.DeleteWorkspaceRepoBinding is not implemented"))
+}
+
+func (UnimplementedWorkspaceRepoBindingServiceHandler) OnboardWorkspaceRepository(context.Context, *connect.Request[v1.OnboardWorkspaceRepositoryRequest]) (*connect.Response[v1.OnboardWorkspaceRepositoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceRepoBindingService.OnboardWorkspaceRepository is not implemented"))
 }
 
 func (UnimplementedWorkspaceRepoBindingServiceHandler) SetWorkspaceRepoBindingCredential(context.Context, *connect.Request[v1.SetWorkspaceRepoBindingCredentialRequest]) (*connect.Response[v1.SetWorkspaceRepoBindingCredentialResponse], error) {

@@ -1274,6 +1274,8 @@ func (m *DeleteWorkspaceRepoBindingRequest) validate(all bool) error {
 
 	var errors []error
 
+	// no validation rules for Recovery
+
 	if len(errors) > 0 {
 		return DeleteWorkspaceRepoBindingRequestMultiError(errors)
 	}
@@ -1379,6 +1381,8 @@ func (m *DeleteWorkspaceRepoBindingResponse) validate(all bool) error {
 
 	var errors []error
 
+	// no validation rules for AgentsMaterialized
+
 	if len(errors) > 0 {
 		return DeleteWorkspaceRepoBindingResponseMultiError(errors)
 	}
@@ -1460,6 +1464,255 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DeleteWorkspaceRepoBindingResponseValidationError{}
+
+// Validate checks the field values on OnboardWorkspaceRepositoryRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *OnboardWorkspaceRepositoryRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on OnboardWorkspaceRepositoryRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// OnboardWorkspaceRepositoryRequestMultiError, or nil if none found.
+func (m *OnboardWorkspaceRepositoryRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *OnboardWorkspaceRepositoryRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Mode
+
+	if len(errors) > 0 {
+		return OnboardWorkspaceRepositoryRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// OnboardWorkspaceRepositoryRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// OnboardWorkspaceRepositoryRequest.ValidateAll() if the designated
+// constraints aren't met.
+type OnboardWorkspaceRepositoryRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m OnboardWorkspaceRepositoryRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m OnboardWorkspaceRepositoryRequestMultiError) AllErrors() []error { return m }
+
+// OnboardWorkspaceRepositoryRequestValidationError is the validation error
+// returned by OnboardWorkspaceRepositoryRequest.Validate if the designated
+// constraints aren't met.
+type OnboardWorkspaceRepositoryRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e OnboardWorkspaceRepositoryRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e OnboardWorkspaceRepositoryRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e OnboardWorkspaceRepositoryRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e OnboardWorkspaceRepositoryRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e OnboardWorkspaceRepositoryRequestValidationError) ErrorName() string {
+	return "OnboardWorkspaceRepositoryRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e OnboardWorkspaceRepositoryRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sOnboardWorkspaceRepositoryRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = OnboardWorkspaceRepositoryRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = OnboardWorkspaceRepositoryRequestValidationError{}
+
+// Validate checks the field values on OnboardWorkspaceRepositoryResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *OnboardWorkspaceRepositoryResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on OnboardWorkspaceRepositoryResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// OnboardWorkspaceRepositoryResponseMultiError, or nil if none found.
+func (m *OnboardWorkspaceRepositoryResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *OnboardWorkspaceRepositoryResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetBinding()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, OnboardWorkspaceRepositoryResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, OnboardWorkspaceRepositoryResponseValidationError{
+					field:  "Binding",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBinding()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return OnboardWorkspaceRepositoryResponseValidationError{
+				field:  "Binding",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for CommitSha
+
+	// no validation rules for Published
+
+	// no validation rules for AgentsExported
+
+	// no validation rules for AgentsImported
+
+	if len(errors) > 0 {
+		return OnboardWorkspaceRepositoryResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// OnboardWorkspaceRepositoryResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// OnboardWorkspaceRepositoryResponse.ValidateAll() if the designated
+// constraints aren't met.
+type OnboardWorkspaceRepositoryResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m OnboardWorkspaceRepositoryResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m OnboardWorkspaceRepositoryResponseMultiError) AllErrors() []error { return m }
+
+// OnboardWorkspaceRepositoryResponseValidationError is the validation error
+// returned by OnboardWorkspaceRepositoryResponse.Validate if the designated
+// constraints aren't met.
+type OnboardWorkspaceRepositoryResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e OnboardWorkspaceRepositoryResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e OnboardWorkspaceRepositoryResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e OnboardWorkspaceRepositoryResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e OnboardWorkspaceRepositoryResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e OnboardWorkspaceRepositoryResponseValidationError) ErrorName() string {
+	return "OnboardWorkspaceRepositoryResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e OnboardWorkspaceRepositoryResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sOnboardWorkspaceRepositoryResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = OnboardWorkspaceRepositoryResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = OnboardWorkspaceRepositoryResponseValidationError{}
 
 // Validate checks the field values on SetWorkspaceRepoBindingCredentialRequest
 // with the rules defined in the proto definition for this message. If any

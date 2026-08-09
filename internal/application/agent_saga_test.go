@@ -34,6 +34,10 @@ type fakeContent struct {
 
 func (f *fakeContent) HasBinding(context.Context, string) (bool, error) { return f.hasBinding, nil }
 
+func (f *fakeContent) IsContentGitOwned(context.Context, string) (bool, error) {
+	return f.hasBinding, nil
+}
+
 func (f *fakeContent) CommitContent(_ context.Context, _ string, _ []*agentsv1.ContentFileAction, _, _ string) (string, []string, error) {
 	f.commitCalls++
 	if f.commitStart != nil {

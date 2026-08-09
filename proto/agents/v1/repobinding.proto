@@ -32,6 +32,35 @@ enum RepoBindingWriteMode {
   REPO_BINDING_WRITE_MODE_CHANGE_REQUEST = 2;
 }
 
+// RepoBindingOnboardingMode selects how a freshly bound workspace reconciles
+// its existing database-managed Agent Content with the bound repository during
+// the one-time OnboardWorkspaceRepository call (issue #219).
+enum RepoBindingOnboardingMode {
+  REPO_BINDING_ONBOARDING_MODE_UNSPECIFIED = 0;
+  // EXPORT_CURRENT: write the workspace's existing database-managed Agent
+  // Content to the repository as a single validated commit, then read it back,
+  // validate, and publish the Active Revision.
+  REPO_BINDING_ONBOARDING_MODE_EXPORT_CURRENT = 1;
+  // IMPORT_REPOSITORY: adopt the repository's existing Agent Content, but only
+  // for directories that match an existing workspace Agent ID. Unknown
+  // directories remain unclaimed; no bidirectional merge is performed.
+  REPO_BINDING_ONBOARDING_MODE_IMPORT_REPOSITORY = 2;
+}
+
+// RepoBindingDetachRecovery selects how DeleteWorkspaceRepoBinding proceeds
+// when there is no valid Active Agent Content snapshot to materialize back into
+// database-managed fields (issue #219). The default refuses the unbind so a
+// missing snapshot can never silently drop an Agent's live content.
+enum RepoBindingDetachRecovery {
+  // Refuse to unbind unless a valid Active Revision snapshot exists to
+  // materialize. This is the safe default.
+  REPO_BINDING_DETACH_RECOVERY_UNSPECIFIED = 0;
+  // Keep the current database-managed Agent Content as-is and remove the
+  // binding without materializing from Git. Chosen when the DB fields are
+  // trusted despite the snapshot being absent or invalid.
+  REPO_BINDING_DETACH_RECOVERY_KEEP_DATABASE = 1;
+}
+
 // RepoBindingConnectionState summarizes the last validation run.
 enum RepoBindingConnectionState {
   REPO_BINDING_CONNECTION_STATE_UNSPECIFIED = 0;
@@ -189,8 +218,22 @@ service WorkspaceRepoBindingService {
   // field (including write mode) changes what validation must prove.
   rpc PutWorkspaceRepoBinding(PutWorkspaceRepoBindingRequest) returns (PutWorkspaceRepoBindingResponse);
 
-  // DeleteWorkspaceRepoBinding removes the binding and its stored credential.
+  // DeleteWorkspaceRepoBinding safely detaches the workspace from Git-owned
+  // Agent Content. It first materializes the Active Revision snapshot back into
+  // database-managed Agent fields and reloads the runtime, then removes the
+  // binding and its encrypted PAT. It never modifies remote Git content, and
+  // refuses to proceed when there is no valid active snapshot unless the caller
+  // selects a supported recovery path. Requires owner/admin role.
   rpc DeleteWorkspaceRepoBinding(DeleteWorkspaceRepoBindingRequest) returns (DeleteWorkspaceRepoBindingResponse);
+
+  // OnboardWorkspaceRepository performs the one-time reconciliation of a freshly
+  // bound workspace's Agent Content with the repository (issue #219).
+  // EXPORT_CURRENT commits existing database-managed content to Git;
+  // IMPORT_REPOSITORY adopts repository content for matching Agent IDs. In both
+  // modes the workspace only switches to Git-owned content after the
+  // commit/import, read-back, validation, Effective Agent construction, and
+  // Active Revision publication all succeed. Requires owner/admin role.
+  rpc OnboardWorkspaceRepository(OnboardWorkspaceRepositoryRequest) returns (OnboardWorkspaceRepositoryResponse);
 
   // SetWorkspaceRepoBindingCredential sets or replaces the binding's PAT.
   // The PAT is write-only: it is encrypted before storage and never returned.
@@ -271,9 +314,37 @@ message PutWorkspaceRepoBindingResponse {
   WorkspaceRepoBinding binding = 1;
 }
 
-message DeleteWorkspaceRepoBindingRequest {}
+message DeleteWorkspaceRepoBindingRequest {
+  // Recovery path selected when no valid Active Revision snapshot exists to
+  // materialize. Default (UNSPECIFIED) refuses the unbind in that case.
+  RepoBindingDetachRecovery recovery = 1;
+}
 
-message DeleteWorkspaceRepoBindingResponse {}
+message DeleteWorkspaceRepoBindingResponse {
+  // Number of agents whose Git-owned content was materialized back into
+  // database-managed fields before the binding was removed.
+  int32 agents_materialized = 1;
+}
+
+message OnboardWorkspaceRepositoryRequest {
+  RepoBindingOnboardingMode mode = 1;
+}
+
+message OnboardWorkspaceRepositoryResponse {
+  WorkspaceRepoBinding binding = 1;
+  // SHA of the export commit (EXPORT_CURRENT). Empty for IMPORT_REPOSITORY.
+  string commit_sha = 2;
+  // Whether the Active Revision was published as a result of onboarding.
+  bool published = 3;
+  // Per-agent validation errors that prevented onboarding (empty on success).
+  repeated string validation_errors = 4;
+  // Number of agents whose content was exported to the repository
+  // (EXPORT_CURRENT).
+  int32 agents_exported = 5;
+  // Number of agents whose content was imported and activated from the
+  // repository (IMPORT_REPOSITORY).
+  int32 agents_imported = 6;
+}
 
 message SetWorkspaceRepoBindingCredentialRequest {
   // Personal access token, write-only. Encrypted at rest; never returned by

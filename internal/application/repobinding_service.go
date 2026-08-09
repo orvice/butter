@@ -449,7 +449,16 @@ func (s *RepoBindingServiceServer) PutWorkspaceRepoBinding(ctx context.Context, 
 	return connect.NewResponse(&agentsv1.PutWorkspaceRepoBindingResponse{Binding: stored}), nil
 }
 
-func (s *RepoBindingServiceServer) DeleteWorkspaceRepoBinding(ctx context.Context, _ *connect.Request[agentsv1.DeleteWorkspaceRepoBindingRequest]) (*connect.Response[agentsv1.DeleteWorkspaceRepoBindingResponse], error) {
+// DeleteWorkspaceRepoBinding safely detaches the workspace from Git-owned Agent
+// Content (issue #219). Before removing anything it materializes the Active
+// Revision snapshot back into database-managed Agent fields and reloads the
+// runtime, so live behavior is preserved once Git is no longer the source of
+// truth. It never modifies remote Git content. When there is no valid active
+// snapshot to materialize it refuses (FailedPrecondition) unless the caller
+// selects a supported recovery path (KEEP_DATABASE keeps the current DB
+// content as-is). Only after materialization + reload succeed are the binding,
+// its encrypted PAT, the cache, and the content snapshot removed.
+func (s *RepoBindingServiceServer) DeleteWorkspaceRepoBinding(ctx context.Context, req *connect.Request[agentsv1.DeleteWorkspaceRepoBindingRequest]) (*connect.Response[agentsv1.DeleteWorkspaceRepoBindingResponse], error) {
 	if err := s.requireRepos(); err != nil {
 		return nil, err
 	}
@@ -461,6 +470,50 @@ func (s *RepoBindingServiceServer) DeleteWorkspaceRepoBinding(ctx context.Contex
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
+
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		return nil, mapRepoBindingErr(err)
+	}
+
+	// Determine whether a valid Active Revision snapshot exists to materialize.
+	// "Valid" means the binding has an active revision and the stored snapshot
+	// was published from exactly that revision.
+	var snapshot agentcontent.Snapshot
+	hasValidSnapshot := false
+	if s.contentRepo != nil && binding.GetActiveCommitSha() != "" {
+		if snap, snapErr := s.contentRepo.GetSnapshot(ctx, ws); snapErr == nil && snap.CommitSHA == binding.GetActiveCommitSha() {
+			snapshot = snap
+			hasValidSnapshot = true
+		}
+	}
+
+	materialized := 0
+	if hasValidSnapshot {
+		materialized, err = s.materializeActiveContent(ctx, ws, snapshot)
+		if err != nil {
+			logger.Error("materialize active content on detach failed", "workspace_id", ws, "err", err)
+			return nil, connectx.InternalWith(err)
+		}
+	} else if req.Msg.GetRecovery() != agentsv1.RepoBindingDetachRecovery_REPO_BINDING_DETACH_RECOVERY_KEEP_DATABASE {
+		// Refuse rather than risk dropping live content that only exists in Git.
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("no valid active Agent Content snapshot to materialize; publish an Active Revision first, or retry with recovery=KEEP_DATABASE to detach keeping the current database content"))
+	}
+
+	// Reload the runtime before the binding is removed (safe-detach ordering).
+	// Materialization has just written the active snapshot into the DB fields,
+	// so the overlay this reload re-applies is identical to the now-authoritative
+	// DB content; once the binding is gone, later reloads use the DB fields
+	// directly with no overlay.
+	if s.configRuntime != nil {
+		if reloadErr := s.configRuntime.ReloadRunner(ctx); reloadErr != nil {
+			logger.Error("runner reload before detach failed", "workspace_id", ws, "err", reloadErr)
+			return nil, connectx.InternalWith(reloadErr)
+		}
+	}
+
+	// Remove the binding and its stored credential.
 	if err := s.repo.Delete(ctx, ws); err != nil {
 		logger.Error("delete repo binding failed", "workspace_id", ws, "err", err)
 		return nil, mapRepoBindingErr(err)
@@ -472,8 +525,16 @@ func (s *RepoBindingServiceServer) DeleteWorkspaceRepoBinding(ctx context.Contex
 			logger.Warn("failed to invalidate repo cache on binding delete", "workspace_id", ws, "err", delErr)
 		}
 	}
-	logger.Info("repo binding deleted", "workspace_id", ws)
-	return connect.NewResponse(&agentsv1.DeleteWorkspaceRepoBindingResponse{}), nil
+	// Drop the active content snapshot; DB fields are now the source of truth.
+	if s.contentRepo != nil {
+		if delErr := s.contentRepo.Delete(ctx, ws); delErr != nil {
+			logger.Warn("failed to delete content snapshot on binding delete", "workspace_id", ws, "err", delErr)
+		}
+	}
+	logger.Info("repo binding detached", "workspace_id", ws, "agents_materialized", materialized)
+	return connect.NewResponse(&agentsv1.DeleteWorkspaceRepoBindingResponse{
+		AgentsMaterialized: int32(materialized),
+	}), nil
 }
 
 func (s *RepoBindingServiceServer) SetWorkspaceRepoBindingCredential(ctx context.Context, req *connect.Request[agentsv1.SetWorkspaceRepoBindingCredentialRequest]) (*connect.Response[agentsv1.SetWorkspaceRepoBindingCredentialResponse], error) {
@@ -1397,6 +1458,25 @@ func (s *RepoBindingServiceServer) HasBinding(ctx context.Context, ws string) (b
 	return true, nil
 }
 
+// IsContentGitOwned reports whether Agent Content is Git-owned for the
+// workspace: a binding exists AND an Active Revision has been published
+// (active_commit_sha set). A bound-but-not-yet-onboarded workspace is still
+// database-owned, so callers must keep its content editable through the normal
+// Agent API until onboarding publishes (#219).
+func (s *RepoBindingServiceServer) IsContentGitOwned(ctx context.Context, ws string) (bool, error) {
+	if s.repo == nil {
+		return false, nil
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		if errors.Is(err, repobindingrepo.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return binding.GetActiveCommitSha() != "", nil
+}
+
 // CommitContent applies a changeset as a single Git commit and publishes it.
 // Lifecycle Saga steps always commit directly (DIRECT_COMMIT) so agent
 // provisioning is not gated on a review PR. Returns the commit SHA and any
@@ -1529,6 +1609,11 @@ type commitContentResult struct {
 	commitSHA        string
 	changeRequestURL string
 	validationErrors []string
+	// publishErr carries a post-commit sync/publish failure (including a runner
+	// reload failure). The commit itself succeeded, so callers that only need
+	// the commit ignore it; callers that must report whether the Active Revision
+	// actually advanced (e.g. onboarding export) inspect it.
+	publishErr error
 }
 
 // commitContent applies a validated changeset of PUT/DELETE actions to managed
@@ -1670,10 +1755,15 @@ func (s *RepoBindingServiceServer) commitContent(ctx context.Context, ws string,
 	logger.Info("agent content committed", "workspace_id", ws, "commit_sha", commitResult.SHA,
 		"actions", len(actions), "change_request", isChangeRequest, "operation", operation)
 
-	// Trigger sync + publish so the runner picks up the new content.
+	// Trigger sync + publish so the runner picks up the new content. This is
+	// best-effort for the commit's sake (the commit already landed), but the
+	// error is retained so callers that must confirm the Active Revision
+	// actually advanced can inspect it.
+	var publishErr error
 	if !isChangeRequest {
 		if syncErr := s.TriggerSyncAndPublish(ctx, ws); syncErr != nil {
 			logger.Error("sync after content commit failed", "workspace_id", ws, "err", syncErr)
+			publishErr = syncErr
 		}
 	}
 
@@ -1685,6 +1775,7 @@ func (s *RepoBindingServiceServer) commitContent(ctx context.Context, ws string,
 		binding:          final,
 		commitSHA:        commitResult.SHA,
 		changeRequestURL: crURL,
+		publishErr:       publishErr,
 	}, nil
 }
 

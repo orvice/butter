@@ -22,6 +22,7 @@ const (
 	WorkspaceRepoBindingService_GetWorkspaceRepoBinding_FullMethodName           = "/agents.v1.WorkspaceRepoBindingService/GetWorkspaceRepoBinding"
 	WorkspaceRepoBindingService_PutWorkspaceRepoBinding_FullMethodName           = "/agents.v1.WorkspaceRepoBindingService/PutWorkspaceRepoBinding"
 	WorkspaceRepoBindingService_DeleteWorkspaceRepoBinding_FullMethodName        = "/agents.v1.WorkspaceRepoBindingService/DeleteWorkspaceRepoBinding"
+	WorkspaceRepoBindingService_OnboardWorkspaceRepository_FullMethodName        = "/agents.v1.WorkspaceRepoBindingService/OnboardWorkspaceRepository"
 	WorkspaceRepoBindingService_SetWorkspaceRepoBindingCredential_FullMethodName = "/agents.v1.WorkspaceRepoBindingService/SetWorkspaceRepoBindingCredential"
 	WorkspaceRepoBindingService_ValidateWorkspaceRepoBinding_FullMethodName      = "/agents.v1.WorkspaceRepoBindingService/ValidateWorkspaceRepoBinding"
 	WorkspaceRepoBindingService_SyncWorkspaceRepository_FullMethodName           = "/agents.v1.WorkspaceRepoBindingService/SyncWorkspaceRepository"
@@ -54,8 +55,21 @@ type WorkspaceRepoBindingServiceClient interface {
 	// ignored on input. Every Put resets status to UNVALIDATED: each binding
 	// field (including write mode) changes what validation must prove.
 	PutWorkspaceRepoBinding(ctx context.Context, in *PutWorkspaceRepoBindingRequest, opts ...grpc.CallOption) (*PutWorkspaceRepoBindingResponse, error)
-	// DeleteWorkspaceRepoBinding removes the binding and its stored credential.
+	// DeleteWorkspaceRepoBinding safely detaches the workspace from Git-owned
+	// Agent Content. It first materializes the Active Revision snapshot back into
+	// database-managed Agent fields and reloads the runtime, then removes the
+	// binding and its encrypted PAT. It never modifies remote Git content, and
+	// refuses to proceed when there is no valid active snapshot unless the caller
+	// selects a supported recovery path. Requires owner/admin role.
 	DeleteWorkspaceRepoBinding(ctx context.Context, in *DeleteWorkspaceRepoBindingRequest, opts ...grpc.CallOption) (*DeleteWorkspaceRepoBindingResponse, error)
+	// OnboardWorkspaceRepository performs the one-time reconciliation of a freshly
+	// bound workspace's Agent Content with the repository (issue #219).
+	// EXPORT_CURRENT commits existing database-managed content to Git;
+	// IMPORT_REPOSITORY adopts repository content for matching Agent IDs. In both
+	// modes the workspace only switches to Git-owned content after the
+	// commit/import, read-back, validation, Effective Agent construction, and
+	// Active Revision publication all succeed. Requires owner/admin role.
+	OnboardWorkspaceRepository(ctx context.Context, in *OnboardWorkspaceRepositoryRequest, opts ...grpc.CallOption) (*OnboardWorkspaceRepositoryResponse, error)
 	// SetWorkspaceRepoBindingCredential sets or replaces the binding's PAT.
 	// The PAT is write-only: it is encrypted before storage and never returned.
 	SetWorkspaceRepoBindingCredential(ctx context.Context, in *SetWorkspaceRepoBindingCredentialRequest, opts ...grpc.CallOption) (*SetWorkspaceRepoBindingCredentialResponse, error)
@@ -140,6 +154,16 @@ func (c *workspaceRepoBindingServiceClient) DeleteWorkspaceRepoBinding(ctx conte
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteWorkspaceRepoBindingResponse)
 	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_DeleteWorkspaceRepoBinding_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceRepoBindingServiceClient) OnboardWorkspaceRepository(ctx context.Context, in *OnboardWorkspaceRepositoryRequest, opts ...grpc.CallOption) (*OnboardWorkspaceRepositoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OnboardWorkspaceRepositoryResponse)
+	err := c.cc.Invoke(ctx, WorkspaceRepoBindingService_OnboardWorkspaceRepository_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -284,8 +308,21 @@ type WorkspaceRepoBindingServiceServer interface {
 	// ignored on input. Every Put resets status to UNVALIDATED: each binding
 	// field (including write mode) changes what validation must prove.
 	PutWorkspaceRepoBinding(context.Context, *PutWorkspaceRepoBindingRequest) (*PutWorkspaceRepoBindingResponse, error)
-	// DeleteWorkspaceRepoBinding removes the binding and its stored credential.
+	// DeleteWorkspaceRepoBinding safely detaches the workspace from Git-owned
+	// Agent Content. It first materializes the Active Revision snapshot back into
+	// database-managed Agent fields and reloads the runtime, then removes the
+	// binding and its encrypted PAT. It never modifies remote Git content, and
+	// refuses to proceed when there is no valid active snapshot unless the caller
+	// selects a supported recovery path. Requires owner/admin role.
 	DeleteWorkspaceRepoBinding(context.Context, *DeleteWorkspaceRepoBindingRequest) (*DeleteWorkspaceRepoBindingResponse, error)
+	// OnboardWorkspaceRepository performs the one-time reconciliation of a freshly
+	// bound workspace's Agent Content with the repository (issue #219).
+	// EXPORT_CURRENT commits existing database-managed content to Git;
+	// IMPORT_REPOSITORY adopts repository content for matching Agent IDs. In both
+	// modes the workspace only switches to Git-owned content after the
+	// commit/import, read-back, validation, Effective Agent construction, and
+	// Active Revision publication all succeed. Requires owner/admin role.
+	OnboardWorkspaceRepository(context.Context, *OnboardWorkspaceRepositoryRequest) (*OnboardWorkspaceRepositoryResponse, error)
 	// SetWorkspaceRepoBindingCredential sets or replaces the binding's PAT.
 	// The PAT is write-only: it is encrypted before storage and never returned.
 	SetWorkspaceRepoBindingCredential(context.Context, *SetWorkspaceRepoBindingCredentialRequest) (*SetWorkspaceRepoBindingCredentialResponse, error)
@@ -354,6 +391,9 @@ func (UnimplementedWorkspaceRepoBindingServiceServer) PutWorkspaceRepoBinding(co
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) DeleteWorkspaceRepoBinding(context.Context, *DeleteWorkspaceRepoBindingRequest) (*DeleteWorkspaceRepoBindingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteWorkspaceRepoBinding not implemented")
+}
+func (UnimplementedWorkspaceRepoBindingServiceServer) OnboardWorkspaceRepository(context.Context, *OnboardWorkspaceRepositoryRequest) (*OnboardWorkspaceRepositoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method OnboardWorkspaceRepository not implemented")
 }
 func (UnimplementedWorkspaceRepoBindingServiceServer) SetWorkspaceRepoBindingCredential(context.Context, *SetWorkspaceRepoBindingCredentialRequest) (*SetWorkspaceRepoBindingCredentialResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetWorkspaceRepoBindingCredential not implemented")
@@ -463,6 +503,24 @@ func _WorkspaceRepoBindingService_DeleteWorkspaceRepoBinding_Handler(srv interfa
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkspaceRepoBindingServiceServer).DeleteWorkspaceRepoBinding(ctx, req.(*DeleteWorkspaceRepoBindingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceRepoBindingService_OnboardWorkspaceRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OnboardWorkspaceRepositoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceRepoBindingServiceServer).OnboardWorkspaceRepository(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceRepoBindingService_OnboardWorkspaceRepository_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceRepoBindingServiceServer).OnboardWorkspaceRepository(ctx, req.(*OnboardWorkspaceRepositoryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -701,6 +759,10 @@ var WorkspaceRepoBindingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteWorkspaceRepoBinding",
 			Handler:    _WorkspaceRepoBindingService_DeleteWorkspaceRepoBinding_Handler,
+		},
+		{
+			MethodName: "OnboardWorkspaceRepository",
+			Handler:    _WorkspaceRepoBindingService_OnboardWorkspaceRepository_Handler,
 		},
 		{
 			MethodName: "SetWorkspaceRepoBindingCredential",

@@ -358,11 +358,16 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	update.CreatedAt = prev.GetCreatedAt()
 	update.DeletedAt = prev.GetDeletedAt()
 	if s.content != nil {
-		bound, bindErr := s.content.HasBinding(ctx, wsID)
+		// Content is only read-only through this API once it is Git-owned (bound
+		// AND an Active Revision published). A bound-but-not-yet-onboarded
+		// workspace stays database-owned, so its content remains editable here —
+		// which is also what lets an operator fix content and re-run a failed
+		// EXPORT_CURRENT onboarding through the normal API (#219).
+		gitOwned, bindErr := s.content.IsContentGitOwned(ctx, wsID)
 		if bindErr != nil {
 			return nil, connectx.InternalWith(bindErr)
 		}
-		if bound {
+		if gitOwned {
 			update.Description = prev.GetDescription()
 			if update.Config == nil && prev.GetConfig() != nil {
 				update.Config = &agentsv1.AgentConfig{}
