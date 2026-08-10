@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { z } from 'zod'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -63,23 +63,7 @@ export function MCPServerForm({
   const isEdit = mode === 'edit'
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      id: '',
-      name: '',
-      transport: 'MCP_SERVER_TRANSPORT_STREAMABLE_HTTP',
-      url: '',
-      timeout_seconds: '',
-      auth_type: 'MCP_SERVER_AUTH_TYPE_NONE',
-      oauth_registration_mode: 'preconfigured',
-      oauth_client_id: '',
-      oauth_client_secret: '',
-      oauth_scopes: '',
-      oauth_authorization_url: '',
-      oauth_token_url: '',
-      oauth_resource_metadata_url: '',
-      oauth_authorization_server_url: '',
-      oauth_resource: '',
-    },
+    defaultValues: formValuesFromServer(initialValue),
   })
 
   const authType = useWatch({ control: form.control, name: 'auth_type' }) ?? 'MCP_SERVER_AUTH_TYPE_NONE'
@@ -87,27 +71,6 @@ export function MCPServerForm({
   const initialHeaders = useMemo(() => recordToEntries(initialValue?.headers), [initialValue])
   const [headersDraft, setHeadersDraft] = useState<HeaderEntry[] | null>(null)
   const headers = headersDraft ?? initialHeaders
-
-  useEffect(() => {
-    if (!initialValue) return
-    form.reset({
-      id: initialValue.id ?? '',
-      name: initialValue.name,
-      transport: initialValue.transport ?? 'MCP_SERVER_TRANSPORT_STREAMABLE_HTTP',
-      url: initialValue.url ?? '',
-      timeout_seconds: initialValue.timeout_seconds ? String(initialValue.timeout_seconds) : '',
-      auth_type: authTypeFromServer(initialValue),
-      oauth_registration_mode: initialValue.auth?.oauth2?.client_id ? 'preconfigured' : 'dynamic',
-      oauth_client_id: initialValue.auth?.oauth2?.client_id ?? '',
-      oauth_client_secret: initialValue.auth?.oauth2?.client_secret ?? '',
-      oauth_scopes: initialValue.auth?.oauth2?.scopes?.join(' ') ?? '',
-      oauth_authorization_url: initialValue.auth?.oauth2?.authorization_url ?? '',
-      oauth_token_url: initialValue.auth?.oauth2?.token_url ?? '',
-      oauth_resource_metadata_url: initialValue.auth?.oauth2?.resource_metadata_url ?? '',
-      oauth_authorization_server_url: initialValue.auth?.oauth2?.authorization_server_url ?? '',
-      oauth_resource: initialValue.auth?.oauth2?.resource ?? '',
-    })
-  }, [form, initialValue])
 
   function handleSubmit(values: FormValues) {
     const remote = isRemoteTransport(values.transport)
@@ -254,6 +217,30 @@ export function MCPServerForm({
       </form>
     </Form>
   )
+}
+
+function formValuesFromServer(server?: MCPServer): FormValues {
+  return {
+    id: server?.id ?? '',
+    name: server?.name ?? '',
+    transport: server?.transport ?? 'MCP_SERVER_TRANSPORT_STREAMABLE_HTTP',
+    url: server?.url ?? '',
+    timeout_seconds: server?.timeout_seconds ? String(server.timeout_seconds) : '',
+    auth_type: server ? authTypeFromServer(server) : 'MCP_SERVER_AUTH_TYPE_NONE',
+    oauth_registration_mode: server
+      ? server.auth?.oauth2?.client_id
+        ? 'preconfigured'
+        : 'dynamic'
+      : 'preconfigured',
+    oauth_client_id: server?.auth?.oauth2?.client_id ?? '',
+    oauth_client_secret: server?.auth?.oauth2?.client_secret ?? '',
+    oauth_scopes: server?.auth?.oauth2?.scopes?.join(' ') ?? '',
+    oauth_authorization_url: server?.auth?.oauth2?.authorization_url ?? '',
+    oauth_token_url: server?.auth?.oauth2?.token_url ?? '',
+    oauth_resource_metadata_url: server?.auth?.oauth2?.resource_metadata_url ?? '',
+    oauth_authorization_server_url: server?.auth?.oauth2?.authorization_server_url ?? '',
+    oauth_resource: server?.auth?.oauth2?.resource ?? '',
+  }
 }
 
 function authTypeFromServer(server: MCPServer): MCPServerAuthType {
