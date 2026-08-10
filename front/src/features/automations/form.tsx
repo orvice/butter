@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -61,58 +60,17 @@ export function AutomationForm({
 
   // Normalizes a stored ref (agent_id or legacy agent_name) to the matching
   // agent's stable ref so the select finds its option once agents load.
-  function resolveAgentRef(ref: string): string {
+  function resolveAgentRef(ref: string): string | undefined {
     const match = agents.find((a) => a.agent_id === ref || a.name === ref)
-    return match ? match.agent_id || match.name : ref
+    return match ? match.agent_id || match.name : undefined
   }
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      name: '',
-      schedule: '',
-      agent_ref: '',
-      input: '',
-      timezone: 'UTC',
-      enabled: true,
-      delivery_type: 'CRON_DELIVERY_TYPE_LOG',
-      webhook_url: '',
-      channel_name: '',
-      chat_id: '',
-      notify_group_name: '',
-      timeout_seconds: 0,
-      retry_attempts: 0,
-      retry_backoff_seconds: 0,
-      concurrency_policy: 'CRON_CONCURRENCY_POLICY_SKIP',
-      notify_on: 'CRON_NOTIFY_ON_ALWAYS',
-      max_output_bytes: 4096,
-    },
+    defaultValues: formValuesFromJob(initialValue),
   })
   const deliveryType = useWatch({ control: form.control, name: 'delivery_type' })
   const isEdit = mode === 'edit'
-
-  useEffect(() => {
-    if (!initialValue) return
-    form.reset({
-      name: initialValue.name,
-      schedule: initialValue.schedule,
-      agent_ref: initialValue.agent_id || initialValue.agent_name,
-      input: initialValue.input ?? '',
-      timezone: initialValue.timezone ?? 'UTC',
-      enabled: initialValue.enabled ?? true,
-      delivery_type: initialValue.delivery?.type ?? 'CRON_DELIVERY_TYPE_LOG',
-      webhook_url: initialValue.delivery?.webhook_url ?? '',
-      channel_name: initialValue.delivery?.channel_name ?? '',
-      chat_id: initialValue.delivery?.chat_id ?? '',
-      notify_group_name: initialValue.delivery?.notify_group_name ?? '',
-      timeout_seconds: initialValue.timeout_seconds ?? 0,
-      retry_attempts: initialValue.retry?.max_attempts ?? 0,
-      retry_backoff_seconds: initialValue.retry?.backoff_seconds ?? 0,
-      concurrency_policy: initialValue.concurrency_policy ?? 'CRON_CONCURRENCY_POLICY_SKIP',
-      notify_on: initialValue.notify_on ?? 'CRON_NOTIFY_ON_ALWAYS',
-      max_output_bytes: initialValue.max_output_bytes ?? 4096,
-    })
-  }, [form, initialValue])
 
   function handleSubmit(values: FormValues) {
     const selectedAgent = agents.find(
@@ -170,7 +128,12 @@ export function AutomationForm({
             <FormField control={form.control} name='agent_ref' render={({ field }) => (
               <FormItem>
                 <FormLabel>Agent</FormLabel>
-                <Select onValueChange={field.onChange} value={resolveAgentRef(field.value)}>
+                <Select
+                  onValueChange={(value) => {
+                    if (value) field.onChange(value)
+                  }}
+                  value={resolveAgentRef(field.value)}
+                >
                   <FormControl><SelectTrigger><SelectValue placeholder='Select agent' /></SelectTrigger></FormControl>
                   <SelectContent>
                     {agents.map((a) => (
@@ -304,4 +267,46 @@ export function AutomationForm({
       </form>
     </Form>
   )
+}
+
+function formValuesFromJob(job?: CronJob): FormValues {
+  return {
+    name: job?.name ?? '',
+    schedule: job?.schedule ?? '',
+    agent_ref: job?.agent_id || job?.agent_name || '',
+    input: job?.input ?? '',
+    timezone: job?.timezone ?? 'UTC',
+    enabled: job?.enabled ?? true,
+    delivery_type: normalizeDeliveryType(job?.delivery?.type),
+    webhook_url: job?.delivery?.webhook_url ?? '',
+    channel_name: job?.delivery?.channel_name ?? '',
+    chat_id: job?.delivery?.chat_id ?? '',
+    notify_group_name: job?.delivery?.notify_group_name ?? '',
+    timeout_seconds: job?.timeout_seconds ?? 0,
+    retry_attempts: job?.retry?.max_attempts ?? 0,
+    retry_backoff_seconds: job?.retry?.backoff_seconds ?? 0,
+    concurrency_policy: normalizeConcurrencyPolicy(job?.concurrency_policy),
+    notify_on: normalizeNotifyOn(job?.notify_on),
+    max_output_bytes: job?.max_output_bytes ?? 4096,
+  }
+}
+
+function normalizeDeliveryType(type?: CronDeliveryType): CronDeliveryType {
+  return type && type !== 'CRON_DELIVERY_TYPE_UNSPECIFIED'
+    ? type
+    : 'CRON_DELIVERY_TYPE_LOG'
+}
+
+function normalizeConcurrencyPolicy(
+  policy?: CronConcurrencyPolicy
+): CronConcurrencyPolicy {
+  return policy && policy !== 'CRON_CONCURRENCY_POLICY_UNSPECIFIED'
+    ? policy
+    : 'CRON_CONCURRENCY_POLICY_SKIP'
+}
+
+function normalizeNotifyOn(notifyOn?: CronNotifyOn): CronNotifyOn {
+  return notifyOn && notifyOn !== 'CRON_NOTIFY_ON_UNSPECIFIED'
+    ? notifyOn
+    : 'CRON_NOTIFY_ON_ALWAYS'
 }
