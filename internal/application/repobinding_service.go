@@ -1477,6 +1477,33 @@ func (s *RepoBindingServiceServer) IsContentGitOwned(ctx context.Context, ws str
 	return binding.GetActiveCommitSha() != "", nil
 }
 
+// GetActiveSnapshot returns the published Agent Content snapshot for the
+// workspace, or nil when no Active Revision exists (unbound workspace or
+// bound-but-not-yet-onboarded).
+func (s *RepoBindingServiceServer) GetActiveSnapshot(ctx context.Context, ws string) (*agentcontent.Snapshot, error) {
+	if s.repo == nil || s.contentRepo == nil {
+		return nil, nil
+	}
+	binding, err := s.repo.Get(ctx, ws)
+	if err != nil {
+		if errors.Is(err, repobindingrepo.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if binding.GetActiveCommitSha() == "" {
+		return nil, nil
+	}
+	snap, err := s.contentRepo.GetSnapshot(ctx, ws)
+	if err != nil {
+		if errors.Is(err, agentcontentrepo.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &snap, nil
+}
+
 // CommitContent applies a changeset as a single Git commit and publishes it.
 // Lifecycle Saga steps always commit directly (DIRECT_COMMIT) so agent
 // provisioning is not gated on a review PR. Returns the commit SHA and any

@@ -33,6 +33,11 @@ type agentContentCoordinator interface {
 	// not-yet-onboarded workspace is still database-owned, so its content stays
 	// editable through the normal Agent API until onboarding succeeds (#219).
 	IsContentGitOwned(ctx context.Context, ws string) (bool, error)
+	// GetActiveSnapshot returns the published Agent Content snapshot for the
+	// workspace, or nil when no Active Revision exists. API read paths use
+	// this to overlay Git-owned content onto DB-loaded agents so callers see
+	// the Effective Agent.
+	GetActiveSnapshot(ctx context.Context, ws string) (*agentcontent.Snapshot, error)
 	// CommitContent applies a changeset as a single direct Git commit and
 	// publishes it. Returns the commit SHA and any content validation errors
 	// (non-empty means no commit was created).

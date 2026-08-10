@@ -12,6 +12,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	"go.orx.me/apps/butter/internal/agentcontent"
 	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
 	agentopmemory "go.orx.me/apps/butter/internal/repo/agentop/memory"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
@@ -36,6 +37,10 @@ func (f *fakeContent) HasBinding(context.Context, string) (bool, error) { return
 
 func (f *fakeContent) IsContentGitOwned(context.Context, string) (bool, error) {
 	return f.hasBinding, nil
+}
+
+func (f *fakeContent) GetActiveSnapshot(context.Context, string) (*agentcontent.Snapshot, error) {
+	return nil, nil
 }
 
 func (f *fakeContent) CommitContent(_ context.Context, _ string, _ []*agentsv1.ContentFileAction, _, _ string) (string, []string, error) {
