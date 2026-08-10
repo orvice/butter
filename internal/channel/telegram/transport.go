@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"butterfly.orx.me/core/log"
 	"github.com/go-telegram/bot"
@@ -60,6 +61,85 @@ func (p *Poller) SendReply(ctx context.Context, msg pipeline.IncomingMessage, te
 	logger.Debug("telegram message sent",
 		"channel", p.channelName, "chat_id", chatID,
 		"reply_mode", replyMode.String(), "text_len", len(text))
+}
+
+// SendProcessing sends a "processing" placeholder message and returns its
+// message ID so it can be edited later with the final response.
+func (p *Poller) SendProcessing(ctx context.Context, msg pipeline.IncomingMessage, agentName string) string {
+	sendCtx := context.WithoutCancel(ctx)
+	logger := log.FromContext(ctx)
+	chatID := parseChatID(msg.ChatID)
+
+	now := time.Now().Format("15:04:05")
+	text := fmt.Sprintf("🤖 *%s*\n⏳ Processing\\.\\.\\.\n\n🕐 `%s`\n💬 `%s`", agentName, now, msg.SessionID)
+	params := &bot.SendMessageParams{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: models.ParseModeMarkdown,
+	}
+	if p.channelCfg.GetDelivery().GetReplyMode() == agentsv1.AgentReplyMode_AGENT_REPLY_MODE_REPLY {
+		if mid, err := strconv.Atoi(msg.MessageID); err == nil {
+			params.ReplyParameters = &models.ReplyParameters{MessageID: mid}
+		}
+	}
+
+	sent, err := p.bot.SendMessage(sendCtx, params)
+	if err != nil {
+		logger.Warn("failed to send processing message, falling back to plain text",
+			"channel", p.channelName, "chat_id", chatID, "err", err)
+		params.Text = fmt.Sprintf("🤖 %s\n⏳ Processing...\n\n🕐 %s\n💬 %s", agentName, now, msg.SessionID)
+		params.ParseMode = ""
+		sent, err = p.bot.SendMessage(sendCtx, params)
+		if err != nil {
+			logger.Error("failed to send processing message",
+				"channel", p.channelName, "chat_id", chatID, "err", err)
+			return ""
+		}
+	}
+
+	logger.Debug("processing message sent",
+		"channel", p.channelName, "chat_id", chatID, "message_id", sent.ID)
+	return strconv.Itoa(sent.ID)
+}
+
+// EditReply edits a previously sent message with the final agent response,
+// including agent name, timestamp, and session info.
+func (p *Poller) EditReply(ctx context.Context, msg pipeline.IncomingMessage, messageID string, agentName string, text string) {
+	sendCtx := context.WithoutCancel(ctx)
+	logger := log.FromContext(ctx)
+	chatID := parseChatID(msg.ChatID)
+
+	mid, err := strconv.Atoi(messageID)
+	if err != nil {
+		logger.Error("invalid message ID for edit, falling back to send",
+			"channel", p.channelName, "message_id", messageID, "err", err)
+		p.SendReply(ctx, msg, fmt.Sprintf("🤖 *%s*\n\n%s", agentName, text))
+		return
+	}
+
+	now := time.Now().Format("15:04:05")
+	fullText := fmt.Sprintf("🤖 *%s*\n\n%s\n\n─────────\n🕐 `%s` · 💬 `%s`", agentName, text, now, msg.SessionID)
+	editParams := &bot.EditMessageTextParams{
+		ChatID:    chatID,
+		MessageID: mid,
+		Text:      markdownToTelegramMarkdownV2(fullText),
+		ParseMode: models.ParseModeMarkdown,
+	}
+
+	if _, err := p.bot.EditMessageText(sendCtx, editParams); err != nil {
+		logger.Warn("MarkdownV2 edit failed, falling back to plain text",
+			"channel", p.channelName, "chat_id", chatID, "message_id", mid, "err", err)
+		editParams.Text = fmt.Sprintf("🤖 %s\n\n%s\n\n─────────\n🕐 %s · 💬 %s", agentName, text, now, msg.SessionID)
+		editParams.ParseMode = ""
+		if _, err2 := p.bot.EditMessageText(sendCtx, editParams); err2 != nil {
+			logger.Error("failed to edit telegram message",
+				"channel", p.channelName, "chat_id", chatID, "message_id", mid, "err", err2)
+		}
+	}
+
+	logger.Debug("telegram message edited",
+		"channel", p.channelName, "chat_id", chatID,
+		"message_id", mid, "text_len", len(text))
 }
 
 // SendTyping sends a typing chat action.

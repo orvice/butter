@@ -84,6 +84,8 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 		return
 	}
 
+	processingMsgID := h.transport.SendProcessing(ctx, msg, agentName)
+
 	modelOverride := h.ActiveModel(ctx, msg.SessionID)
 	response, err := h.runner.Run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
 	if err != nil {
@@ -93,7 +95,12 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 			"session_id", msg.SessionID,
 			"err", err,
 		)
-		h.transport.SendReply(ctx, msg, "⚠️ Sorry, something went wrong processing your message.")
+		errText := "⚠️ Sorry, something went wrong processing your message."
+		if processingMsgID != "" {
+			h.transport.EditReply(ctx, msg, processingMsgID, agentName, errText)
+		} else {
+			h.transport.SendReply(ctx, msg, errText)
+		}
 		return
 	}
 
@@ -107,7 +114,11 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 		"session_id", msg.SessionID,
 		"response_len", len(response),
 	)
-	h.transport.SendReply(ctx, msg, response)
+	if processingMsgID != "" {
+		h.transport.EditReply(ctx, msg, processingMsgID, agentName, response)
+	} else {
+		h.transport.SendReply(ctx, msg, response)
+	}
 }
 
 // debugCallbacks returns runner callbacks that stream events/compaction to the

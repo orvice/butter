@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"google.golang.org/adk/v2/session"
@@ -97,18 +98,34 @@ func (d *fakeDebug) Toggle(ctx context.Context, channelName, sessionID string, c
 }
 
 type fakeTransport struct {
-	replies     []string
-	typingCount int
-	debugEvents int
-	compactions []string
-	debugStatus []bool
-	agentLists  [][]AgentChoice
-	modelLists  [][]ModelChoice
-	statusViews []StatusView
+	replies        []string
+	typingCount    int
+	debugEvents    int
+	compactions    []string
+	debugStatus    []bool
+	agentLists     [][]AgentChoice
+	modelLists     [][]ModelChoice
+	statusViews    []StatusView
+	processingMsgs []string
+	editedMsgs     []editedMsg
+}
+
+type editedMsg struct {
+	messageID string
+	agentName string
+	text      string
 }
 
 func (t *fakeTransport) SendReply(ctx context.Context, msg IncomingMessage, text string) {
 	t.replies = append(t.replies, text)
+}
+func (t *fakeTransport) SendProcessing(ctx context.Context, msg IncomingMessage, agentName string) string {
+	id := fmt.Sprintf("proc-%d", len(t.processingMsgs)+1)
+	t.processingMsgs = append(t.processingMsgs, agentName)
+	return id
+}
+func (t *fakeTransport) EditReply(ctx context.Context, msg IncomingMessage, messageID string, agentName string, text string) {
+	t.editedMsgs = append(t.editedMsgs, editedMsg{messageID: messageID, agentName: agentName, text: text})
 }
 func (t *fakeTransport) SendTyping(ctx context.Context, msg IncomingMessage) { t.typingCount++ }
 func (t *fakeTransport) SendDebugEvent(ctx context.Context, msg IncomingMessage, evt *session.Event) {
@@ -196,8 +213,17 @@ func TestHandle_PlainMessage_RunsAgentAndReplies(t *testing.T) {
 	if call.ctxInfo.GetMetadata()["username"] != "orx" {
 		t.Errorf("ctxInfo metadata missing username: %+v", call.ctxInfo.GetMetadata())
 	}
-	if len(tr.replies) != 1 || tr.replies[0] != "hi there" {
-		t.Errorf("replies = %v, want [hi there]", tr.replies)
+	if len(tr.processingMsgs) != 1 || tr.processingMsgs[0] != "assistant" {
+		t.Errorf("processingMsgs = %v, want [assistant]", tr.processingMsgs)
+	}
+	if len(tr.editedMsgs) != 1 {
+		t.Fatalf("expected 1 edited msg, got %d", len(tr.editedMsgs))
+	}
+	if tr.editedMsgs[0].text != "hi there" {
+		t.Errorf("edited text = %q, want %q", tr.editedMsgs[0].text, "hi there")
+	}
+	if tr.editedMsgs[0].agentName != "assistant" {
+		t.Errorf("edited agentName = %q, want %q", tr.editedMsgs[0].agentName, "assistant")
 	}
 }
 
@@ -207,11 +233,11 @@ func TestHandle_PlainMessage_RunnerErrorReplies(t *testing.T) {
 
 	h.Handle(context.Background(), baseMsg())
 
-	if len(tr.replies) != 1 {
-		t.Fatalf("expected 1 error reply, got %v", tr.replies)
+	if len(tr.editedMsgs) != 1 {
+		t.Fatalf("expected 1 edited error msg, got %d", len(tr.editedMsgs))
 	}
-	if tr.replies[0] == "" {
-		t.Errorf("expected non-empty error reply")
+	if tr.editedMsgs[0].text == "" {
+		t.Errorf("expected non-empty error text in edited msg")
 	}
 }
 
@@ -221,8 +247,8 @@ func TestHandle_PlainMessage_EmptyResponseFallback(t *testing.T) {
 
 	h.Handle(context.Background(), baseMsg())
 
-	if len(tr.replies) != 1 || tr.replies[0] != "(no response)" {
-		t.Errorf("replies = %v, want [(no response)]", tr.replies)
+	if len(tr.editedMsgs) != 1 || tr.editedMsgs[0].text != "(no response)" {
+		t.Errorf("editedMsgs = %v, want text=(no response)", tr.editedMsgs)
 	}
 }
 

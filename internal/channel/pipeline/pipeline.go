@@ -99,6 +99,12 @@ type Transport interface {
 	// SendReply delivers a plain text reply (agent responses and command
 	// acknowledgements). Reply-mode/threading is the adapter's concern.
 	SendReply(ctx context.Context, msg IncomingMessage, text string)
+	// SendProcessing sends an initial "processing" placeholder message and
+	// returns the platform message ID so it can be edited later.
+	SendProcessing(ctx context.Context, msg IncomingMessage, agentName string) string
+	// EditReply edits a previously sent message (identified by messageID) with
+	// the final agent response. The agent name is included in the message.
+	EditReply(ctx context.Context, msg IncomingMessage, messageID string, agentName string, text string)
 	// SendTyping signals that the agent is working, if the platform supports it.
 	SendTyping(ctx context.Context, msg IncomingMessage)
 	// SendDebugEvent streams a runner event while debug mode is active.
