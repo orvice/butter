@@ -24,7 +24,12 @@ func parseChatID(s string) int64 {
 
 // SendReply delivers a text reply, rendering Markdown and honoring reply mode,
 // with a plain-text fallback if Markdown parsing fails.
+//
+// The send uses a cancel-detached context so that delivery succeeds even when
+// the upstream context (e.g. the Telegram update handler) is already canceled
+// by the time the agent finishes processing.
 func (p *Poller) SendReply(ctx context.Context, msg pipeline.IncomingMessage, text string) {
+	sendCtx := context.WithoutCancel(ctx)
 	logger := log.FromContext(ctx)
 	chatID := parseChatID(msg.ChatID)
 	replyMode := p.channelCfg.GetDelivery().GetReplyMode()
@@ -40,12 +45,12 @@ func (p *Poller) SendReply(ctx context.Context, msg pipeline.IncomingMessage, te
 		}
 	}
 
-	if _, err := p.bot.SendMessage(ctx, params); err != nil {
+	if _, err := p.bot.SendMessage(sendCtx, params); err != nil {
 		logger.Warn("MarkdownV2 send failed, falling back to plain text",
 			"channel", p.channelName, "chat_id", chatID, "err", err)
 		params.Text = text
 		params.ParseMode = ""
-		if _, err2 := p.bot.SendMessage(ctx, params); err2 != nil {
+		if _, err2 := p.bot.SendMessage(sendCtx, params); err2 != nil {
 			logger.Error("failed to send telegram message",
 				"channel", p.channelName, "chat_id", chatID, "err", err2)
 			return
@@ -59,7 +64,7 @@ func (p *Poller) SendReply(ctx context.Context, msg pipeline.IncomingMessage, te
 
 // SendTyping sends a typing chat action.
 func (p *Poller) SendTyping(ctx context.Context, msg pipeline.IncomingMessage) {
-	if _, err := p.bot.SendChatAction(ctx, &bot.SendChatActionParams{
+	if _, err := p.bot.SendChatAction(context.WithoutCancel(ctx), &bot.SendChatActionParams{
 		ChatID: parseChatID(msg.ChatID),
 		Action: models.ChatActionTyping,
 	}); err != nil {
@@ -99,7 +104,7 @@ func (p *Poller) SendAgentList(ctx context.Context, msg pipeline.IncomingMessage
 			params.ReplyParameters = &models.ReplyParameters{MessageID: mid}
 		}
 	}
-	if _, err := p.bot.SendMessage(ctx, params); err != nil {
+	if _, err := p.bot.SendMessage(context.WithoutCancel(ctx), params); err != nil {
 		log.FromContext(ctx).Error("failed to send agent list", "channel", p.channelName, "err", err)
 	}
 }
@@ -116,7 +121,7 @@ func (p *Poller) SendModelList(ctx context.Context, msg pipeline.IncomingMessage
 			params.ReplyParameters = &models.ReplyParameters{MessageID: mid}
 		}
 	}
-	if _, err := p.bot.SendMessage(ctx, params); err != nil {
+	if _, err := p.bot.SendMessage(context.WithoutCancel(ctx), params); err != nil {
 		log.FromContext(ctx).Error("failed to send model list", "channel", p.channelName, "err", err)
 	}
 }
@@ -148,15 +153,17 @@ func formatStatusView(view pipeline.StatusView) string {
 }
 
 // sendDebugMessage sends a debug event message with MarkdownV2 formatting,
-// falling back to plain text on parse failure.
+// falling back to plain text on parse failure. Uses a cancel-detached context
+// like SendReply.
 func (p *Poller) sendDebugMessage(ctx context.Context, chatID int64, text string) {
+	sendCtx := context.WithoutCancel(ctx)
 	logger := log.FromContext(ctx)
-	if _, err := p.bot.SendMessage(ctx, &bot.SendMessageParams{
+	if _, err := p.bot.SendMessage(sendCtx, &bot.SendMessageParams{
 		ChatID:    chatID,
 		Text:      markdownToTelegramMarkdownV2(text),
 		ParseMode: models.ParseModeMarkdown,
 	}); err != nil {
-		if _, err2 := p.bot.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: text}); err2 != nil {
+		if _, err2 := p.bot.SendMessage(sendCtx, &bot.SendMessageParams{ChatID: chatID, Text: text}); err2 != nil {
 			logger.Warn("failed to send debug message", "channel", p.channelName, "chat_id", chatID, "err", err2)
 		}
 	}
@@ -174,8 +181,9 @@ func (p *Poller) sendDebugStatus(ctx context.Context, chatID any, editMsgID int,
 			{{Text: label, CallbackData: callbackDebugToggle}},
 		},
 	}
+	sendCtx := context.WithoutCancel(ctx)
 	if editMsgID != 0 {
-		if _, err := p.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
+		if _, err := p.bot.EditMessageText(sendCtx, &bot.EditMessageTextParams{
 			ChatID:      chatID,
 			MessageID:   editMsgID,
 			Text:        "🐛 Debug mode",
@@ -185,7 +193,7 @@ func (p *Poller) sendDebugStatus(ctx context.Context, chatID any, editMsgID int,
 		}
 		return
 	}
-	if _, err := p.bot.SendMessage(ctx, &bot.SendMessageParams{
+	if _, err := p.bot.SendMessage(sendCtx, &bot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        "Debug mode",
 		ReplyMarkup: kb,
