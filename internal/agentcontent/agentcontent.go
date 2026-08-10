@@ -144,11 +144,14 @@ func Validate(parsed map[string]AgentContent, agents []*agentsv1.Agent) []Valida
 	return errs
 }
 
-// ApplyToProto overlays agent content onto a slice of agent protos in place.
-// Only agents with entries in the content map are modified. This produces
-// the Effective Agent configuration used by the runner.
-func ApplyToProto(agents []agentsv1.Agent, content map[string]AgentContent) {
+// ApplyToProto overlays one workspace's agent content onto a slice of agent
+// protos in place. Only agents in that workspace with matching Agent IDs are
+// modified. This produces the Effective Agent configuration used by the runner.
+func ApplyToProto(agents []agentsv1.Agent, workspaceID string, content map[string]AgentContent) {
 	for i := range agents {
+		if agents[i].GetWorkspaceId() != workspaceID {
+			continue
+		}
 		agentID := agents[i].GetAgentId()
 		if agentID == "" {
 			continue

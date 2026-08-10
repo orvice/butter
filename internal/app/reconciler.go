@@ -36,7 +36,8 @@ func NewReconciler(repo repobindingrepo.Repository, trigger syncTrigger, interva
 	}
 }
 
-// Start begins the reconciliation loop in a background goroutine.
+// Start runs one reconciliation immediately, then continues periodically in a
+// background goroutine.
 func (r *Reconciler) Start(ctx context.Context) {
 	ctx, r.cancel = context.WithCancel(ctx)
 	go r.loop(ctx)
@@ -52,6 +53,7 @@ func (r *Reconciler) Stop() {
 func (r *Reconciler) loop(ctx context.Context) {
 	logger := log.FromContext(ctx)
 	logger.Info("repository reconciler started", "interval", r.interval)
+	r.reconcileAll(ctx)
 
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()

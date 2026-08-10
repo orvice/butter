@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"butterfly.orx.me/core/log"
 	"go.orx.me/apps/butter/internal/agentcontent"
@@ -68,7 +70,9 @@ func (r *ConfigRuntime) ReloadRunner(ctx context.Context) error {
 	if err := r.Sync(ctx); err != nil {
 		return err
 	}
-	r.applyActiveContent(ctx)
+	if err := r.applyActiveContent(ctx); err != nil {
+		return err
+	}
 	if r.runnerSvc == nil {
 		return nil
 	}
@@ -84,40 +88,54 @@ func (r *ConfigRuntime) ReloadRunner(ctx context.Context) error {
 // applyActiveContent overlays Git-managed Agent Content onto the DB-loaded
 // agent protos. For each workspace with an active binding + content snapshot,
 // the description/instruction/global_instruction fields are replaced.
-func (r *ConfigRuntime) applyActiveContent(ctx context.Context) {
+func (r *ConfigRuntime) applyActiveContent(ctx context.Context) error {
 	if r.bindingRepo == nil || r.contentRepo == nil || r.cfg == nil {
-		return
+		return nil
+	}
+	return applyActiveContent(ctx, r.cfg.Agents, r.bindingRepo, r.contentRepo)
+}
+
+func applyActiveContent(ctx context.Context, agents []agentsv1.Agent, bindingRepo repobindingrepo.Repository, contentRepo agentcontentrepo.Repository) error {
+	if bindingRepo == nil || contentRepo == nil {
+		return nil
 	}
 	logger := log.FromContext(ctx)
 
 	workspaces := make(map[string]struct{})
-	for i := range r.cfg.Agents {
-		if ws := r.cfg.Agents[i].GetWorkspaceId(); ws != "" {
+	for i := range agents {
+		if ws := agents[i].GetWorkspaceId(); ws != "" {
 			workspaces[ws] = struct{}{}
 		}
 	}
 
+	var overlayErrs []error
 	for ws := range workspaces {
-		binding, err := r.bindingRepo.Get(ctx, ws)
+		binding, err := bindingRepo.Get(ctx, ws)
 		if err != nil {
+			if errors.Is(err, repobindingrepo.ErrNotFound) {
+				continue
+			}
+			overlayErrs = append(overlayErrs, fmt.Errorf("get repository binding for workspace %q: %w", ws, err))
 			continue
 		}
 		if binding.GetActiveCommitSha() == "" {
 			continue
 		}
-		snapshot, err := r.contentRepo.GetSnapshot(ctx, ws)
+		snapshot, err := contentRepo.GetSnapshot(ctx, ws, binding.GetActiveCommitSha())
 		if err != nil {
+			overlayErrs = append(overlayErrs, fmt.Errorf("get active Agent Content snapshot for workspace %q at %q: %w", ws, binding.GetActiveCommitSha(), err))
 			continue
 		}
 		if len(snapshot.Entries) == 0 {
 			continue
 		}
-		agentcontent.ApplyToProto(r.cfg.Agents, snapshot.Entries)
+		agentcontent.ApplyToProto(agents, ws, snapshot.Entries)
 		logger.Info("applied active agent content overlay",
 			"workspace_id", ws,
 			"commit_sha", snapshot.CommitSHA,
 			"agents_overlaid", len(snapshot.Entries))
 	}
+	return errors.Join(overlayErrs...)
 }
 
 func (r *ConfigRuntime) ReloadChannels(ctx context.Context) error {

@@ -183,12 +183,14 @@ func TestValidate_UnknownAgentIDIgnored(t *testing.T) {
 func TestApplyToProto(t *testing.T) {
 	agents := []agentsv1.Agent{
 		{
-			AgentId: "a1",
-			Config:  &agentsv1.AgentConfig{Instruction: "old"},
+			AgentId:     "a1",
+			WorkspaceId: "ws-a",
+			Config:      &agentsv1.AgentConfig{Instruction: "old"},
 		},
 		{
-			AgentId: "a2",
-			Config:  &agentsv1.AgentConfig{Instruction: "keep"},
+			AgentId:     "a2",
+			WorkspaceId: "ws-a",
+			Config:      &agentsv1.AgentConfig{Instruction: "keep"},
 		},
 		{
 			Name: "no-id-agent",
@@ -198,7 +200,7 @@ func TestApplyToProto(t *testing.T) {
 		"a1": {Description: "new desc", Instruction: "new prompt", GlobalInstruction: "new global"},
 	}
 
-	ApplyToProto(agents, content)
+	ApplyToProto(agents, "ws-a", content)
 
 	if agents[0].Description != "new desc" {
 		t.Errorf("a1 description = %q", agents[0].Description)
@@ -215,19 +217,35 @@ func TestApplyToProto(t *testing.T) {
 }
 
 func TestApplyToProto_NilConfig(t *testing.T) {
-	agents := []agentsv1.Agent{
-		{AgentId: "x"},
-	}
+	agents := []agentsv1.Agent{{AgentId: "x", WorkspaceId: "ws-a"}}
 	content := map[string]AgentContent{
 		"x": {Instruction: "hello"},
 	}
 
-	ApplyToProto(agents, content)
+	ApplyToProto(agents, "ws-a", content)
 
 	if agents[0].Config == nil {
 		t.Fatal("Config should have been created")
 	}
 	if agents[0].Config.GetInstruction() != "hello" {
 		t.Errorf("instruction = %q", agents[0].Config.GetInstruction())
+	}
+}
+
+func TestApplyToProto_IsolatesWorkspaces(t *testing.T) {
+	agents := []agentsv1.Agent{
+		{AgentId: "shared", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Instruction: "old-a"}},
+		{AgentId: "shared", WorkspaceId: "ws-b", Config: &agentsv1.AgentConfig{Instruction: "old-b"}},
+	}
+
+	ApplyToProto(agents, "ws-a", map[string]AgentContent{
+		"shared": {Instruction: "new-a"},
+	})
+
+	if got := agents[0].GetConfig().GetInstruction(); got != "new-a" {
+		t.Fatalf("workspace ws-a instruction = %q, want new-a", got)
+	}
+	if got := agents[1].GetConfig().GetInstruction(); got != "old-b" {
+		t.Fatalf("workspace ws-b instruction = %q, want old-b", got)
 	}
 }

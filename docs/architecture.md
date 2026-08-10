@@ -440,7 +440,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 
 ## 仓库绑定与 Agent Content 生命周期（issue #210 系列）
 
-每个 workspace 可绑定零或一个 Git 仓库（`WorkspaceRepoBindingService`），把 Agent Content（`agents/{agent-id}/description.md`、`prompt.md`、可选 `global-prompt.md`）交给 Git 托管，而运行态仍由 DB 拥有的运营配置驱动。PAT 经 `internal/secretbox` 加密、走独立凭据 seam，绝不进入 proto/响应/日志（ADR-0005）。同步（`SyncWorkspaceRepository`）把仓库树读入 workspace 级 DB 缓存；发布（`publishActiveRevision`）在校验通过后原子推进 Active Revision 并 reload runner，把 Content 叠加到 DB agent proto（`ConfigRuntime.applyActiveContent` → `agentcontent.ApplyToProto`）构建 Effective Agent。
+每个 workspace 可绑定零或一个 Git 仓库（`WorkspaceRepoBindingService`），把 Agent Content（`agents/{agent-id}/description.md`、`prompt.md`、可选 `global-prompt.md`）交给 Git 托管，而运行态仍由 DB 拥有的运营配置驱动。PAT 经 `internal/secretbox` 加密、走独立凭据 seam，绝不进入 proto/响应/日志（ADR-0005）。同步（`SyncWorkspaceRepository`）把仓库树读入 workspace 级 DB 缓存；发布（`publishActiveRevision`）先把校验通过的 Agent Content 按 `workspace_id + commit_sha` 持久化到 Mongo，再推进 binding 的 Active Revision 并 reload runner。读取和 runtime reload 始终用 `active_commit_sha` 精确选择快照，把 Content 叠加到 DB agent proto（`ConfigRuntime.applyActiveContent` → `agentcontent.ApplyToProto`）构建 Effective Agent；进程重启和多副本不会丢失或分叉 Effective Content。
 
 **上线/下线（issue #219，ADR-0007）：**
 

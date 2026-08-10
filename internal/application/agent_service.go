@@ -124,14 +124,18 @@ func (s *AgentServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
 
 // overlayActiveContent replaces description/instruction/global_instruction on
 // agents whose content is Git-owned. When the workspace has no binding or no
-// published Active Revision the agents pass through unchanged.
-func (s *AgentServiceServer) overlayActiveContent(ctx context.Context, wsID string, agents ...*agentsv1.Agent) {
+// published Active Revision the agents pass through unchanged. A published
+// revision whose exact snapshot is unavailable is an error, never a DB fallback.
+func (s *AgentServiceServer) overlayActiveContent(ctx context.Context, wsID string, agents ...*agentsv1.Agent) error {
 	if s.content == nil {
-		return
+		return nil
 	}
 	snap, err := s.content.GetActiveSnapshot(ctx, wsID)
-	if err != nil || snap == nil || len(snap.Entries) == 0 {
-		return
+	if err != nil {
+		return err
+	}
+	if snap == nil || len(snap.Entries) == 0 {
+		return nil
 	}
 	for _, a := range agents {
 		agentID := a.GetAgentId()
@@ -149,6 +153,7 @@ func (s *AgentServiceServer) overlayActiveContent(ctx context.Context, wsID stri
 		a.Config.Instruction = c.Instruction
 		a.Config.GlobalInstruction = c.GlobalInstruction
 	}
+	return nil
 }
 
 func (s *AgentServiceServer) ListAgents(ctx context.Context, req *connect.Request[agentsv1.ListAgentsRequest]) (*connect.Response[agentsv1.ListAgentsResponse], error) {
@@ -161,7 +166,9 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *connect.Reques
 		return nil, toConnectError(err)
 	}
 
-	s.overlayActiveContent(ctx, wsID, agents...)
+	if err := s.overlayActiveContent(ctx, wsID, agents...); err != nil {
+		return nil, connectx.InternalWith(err)
+	}
 
 	sort.SliceStable(agents, func(i, j int) bool {
 		return agents[i].GetName() < agents[j].GetName()
@@ -229,7 +236,9 @@ func (s *AgentServiceServer) GetAgent(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	s.overlayActiveContent(ctx, wsID, a)
+	if err := s.overlayActiveContent(ctx, wsID, a); err != nil {
+		return nil, connectx.InternalWith(err)
+	}
 	return connect.NewResponse(&agentsv1.GetAgentResponse{Agent: a}), nil
 }
 
@@ -400,6 +409,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 			return nil, connectx.InternalWith(bindErr)
 		}
 		if gitOwned {
+			if _, snapshotErr := s.content.GetActiveSnapshot(ctx, wsID); snapshotErr != nil {
+				return nil, connectx.InternalWith(snapshotErr)
+			}
 			update.Description = prev.GetDescription()
 			if update.Config == nil && prev.GetConfig() != nil {
 				update.Config = &agentsv1.AgentConfig{}
@@ -468,7 +480,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent updated", "workspace_id", wsID, "agent", a.GetName())
-	s.overlayActiveContent(ctx, wsID, a)
+	if err := s.overlayActiveContent(ctx, wsID, a); err != nil {
+		return nil, connectx.InternalWith(err)
+	}
 	return connect.NewResponse(&agentsv1.UpdateAgentResponse{Agent: a}), nil
 }
 

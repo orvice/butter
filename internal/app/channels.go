@@ -18,6 +18,7 @@ import (
 	"go.orx.me/apps/butter/internal/mcpoauth"
 	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
 	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
+	agentcontentmongo "go.orx.me/apps/butter/internal/repo/agentcontent/mongo"
 	"go.orx.me/apps/butter/internal/repo/agentfile"
 	agentfilememory "go.orx.me/apps/butter/internal/repo/agentfile/memory"
 	agentfilemongo "go.orx.me/apps/butter/internal/repo/agentfile/mongo"
@@ -177,7 +178,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		gitHostRepo = githostmongo.New(db)
 		bindingRepo = repobindingmongo.New(db)
 		cacheRepo = repocachemongo.New(db)
-		contentRepo = agentcontentmemory.New()
+		contentRepo = agentcontentmongo.New(db)
 		agentOpMongo := agentopmongo.New(db)
 		if err := agentOpMongo.EnsureIndexes(ctx); err != nil {
 			logger.Error("failed to create agent operation indexes", "err", err)
@@ -242,6 +243,13 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	if err := cacheRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create repo cache indexes", "err", err)
 		return nil, err
+	}
+	if err := contentRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create Agent Content snapshot indexes", "err", err)
+		return nil, err
+	}
+	if err := applyActiveContent(ctx, cfg.Agents, bindingRepo, contentRepo); err != nil {
+		logger.Warn("initial Active Agent Content overlay incomplete; reconciliation will retry", "err", err)
 	}
 	oauthProviders := provider.BuildRegistry(cfg.Auth)
 	if oauthProviders != nil {

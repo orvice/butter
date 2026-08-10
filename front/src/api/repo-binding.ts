@@ -143,7 +143,11 @@ export function useSyncRepository() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: syncRepository,
-    onSuccess: () => invalidateRepositoryQueries(qc),
+    onSuccess: () =>
+      Promise.all([
+        invalidateRepositoryQueries(qc),
+        qc.invalidateQueries({ queryKey: ["agents"] }),
+      ]),
   });
 }
 
