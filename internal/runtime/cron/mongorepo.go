@@ -26,6 +26,7 @@ type executionDoc struct {
 	WorkspaceID   string `bson:"workspace_id"`
 	JobName       string `bson:"job_name"`
 	AgentName     string `bson:"agent_name"`
+	AgentID       string `bson:"agent_id,omitempty"`
 	Status        int32  `bson:"status"`
 	Input         string `bson:"input"`
 	Output        string `bson:"output"`
@@ -49,6 +50,7 @@ func docFromProto(e *agentsv1.CronExecution) *executionDoc {
 		WorkspaceID:    e.GetWorkspaceId(),
 		JobName:        e.GetJobName(),
 		AgentName:      e.GetAgentName(),
+		AgentID:        e.GetAgentId(),
 		Status:         int32(e.GetStatus()),
 		Input:          e.GetInput(),
 		Output:         e.GetOutput(),
@@ -72,6 +74,7 @@ func docToProto(d *executionDoc) *agentsv1.CronExecution {
 		WorkspaceId:    d.WorkspaceID,
 		JobName:        d.JobName,
 		AgentName:      d.AgentName,
+		AgentId:        d.AgentID,
 		Status:         agentsv1.CronExecutionStatus(d.Status),
 		Input:          d.Input,
 		Output:         d.Output,
@@ -243,6 +246,7 @@ type cronJobDoc struct {
 	Name              string            `bson:"name"`
 	Schedule          string            `bson:"schedule"`
 	AgentName         string            `bson:"agent_name"`
+	AgentID           string            `bson:"agent_id,omitempty"`
 	Input             string            `bson:"input"`
 	Timezone          string            `bson:"timezone"`
 	Enabled           bool              `bson:"enabled"`
@@ -269,6 +273,7 @@ func jobDocFromProto(j *agentsv1.CronJob) *cronJobDoc {
 		Name:              j.GetName(),
 		Schedule:          j.GetSchedule(),
 		AgentName:         j.GetAgentName(),
+		AgentID:           j.GetAgentId(),
 		Input:             j.GetInput(),
 		Timezone:          j.GetTimezone(),
 		Enabled:           j.GetEnabled(),
@@ -301,6 +306,7 @@ func jobDocToProto(d *cronJobDoc) *agentsv1.CronJob {
 		Name:              d.Name,
 		Schedule:          d.Schedule,
 		AgentName:         d.AgentName,
+		AgentId:           d.AgentID,
 		Input:             d.Input,
 		Timezone:          d.Timezone,
 		Enabled:           d.Enabled,
