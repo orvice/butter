@@ -141,6 +141,68 @@ func TestOnboardExportGatesContentEditingViaAPI(t *testing.T) {
 	}
 }
 
+// TestGetAgentOverlaysGitContent proves that GetAgent and ListAgents return
+// the Effective Agent with Git-owned content (prompt, description) overlaid
+// onto the DB agent after sync publishes an Active Revision.
+func TestGetAgentOverlaysGitContent(t *testing.T) {
+	fx, rt := newPublicationFixture(t)
+	ctx := ownerCtx()
+
+	agentSvc := NewAgentServiceServer(fx.agentRepo)
+	agentSvc.SetWorkspaceRepo(fx.wsRepo)
+	agentSvc.SetRuntime(rt)
+	agentSvc.SetContentCoordinator(fx.svc)
+
+	// Before sync: GetAgent returns DB content (empty).
+	resp, err := agentSvc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "my-agent"}))
+	if err != nil {
+		t.Fatalf("GetAgent before sync: %v", err)
+	}
+	if resp.Msg.GetAgent().GetConfig().GetInstruction() != "" {
+		t.Fatalf("expected empty DB prompt before sync, got %q", resp.Msg.GetAgent().GetConfig().GetInstruction())
+	}
+
+	// Sync → publishes Active Revision from Git content.
+	syncResp, err := fx.svc.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{}))
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if !syncResp.Msg.GetPublished() {
+		t.Fatal("sync should publish")
+	}
+
+	// After sync: GetAgent must return the Git-cached prompt.
+	resp, err = agentSvc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "my-agent"}))
+	if err != nil {
+		t.Fatalf("GetAgent after sync: %v", err)
+	}
+	got := resp.Msg.GetAgent()
+	if got.GetConfig().GetInstruction() != "You are a helpful agent." {
+		t.Fatalf("GetAgent prompt = %q, want Git-cached value", got.GetConfig().GetInstruction())
+	}
+	if got.GetDescription() != "My agent description." {
+		t.Fatalf("GetAgent description = %q, want Git-cached value", got.GetDescription())
+	}
+
+	// ListAgents must also overlay.
+	listResp, err := agentSvc.ListAgents(ctx, connect.NewRequest(&agentsv1.ListAgentsRequest{}))
+	if err != nil {
+		t.Fatalf("ListAgents: %v", err)
+	}
+	found := false
+	for _, a := range listResp.Msg.GetAgents() {
+		if a.GetAgentId() == "my-agent" {
+			found = true
+			if a.GetConfig().GetInstruction() != "You are a helpful agent." {
+				t.Fatalf("ListAgents prompt = %q, want Git-cached value", a.GetConfig().GetInstruction())
+			}
+		}
+	}
+	if !found {
+		t.Fatal("agent my-agent not found in ListAgents")
+	}
+}
+
 func TestOnboardExportRequiresOwnerOrAdmin(t *testing.T) {
 	fx, _ := newPublicationFixture(t)
 	_, err := fx.svc.OnboardWorkspaceRepository(memberCtx(), connect.NewRequest(&agentsv1.OnboardWorkspaceRepositoryRequest{

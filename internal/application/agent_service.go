@@ -122,6 +122,35 @@ func (s *AgentServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
 	s.wsRepo = repo
 }
 
+// overlayActiveContent replaces description/instruction/global_instruction on
+// agents whose content is Git-owned. When the workspace has no binding or no
+// published Active Revision the agents pass through unchanged.
+func (s *AgentServiceServer) overlayActiveContent(ctx context.Context, wsID string, agents ...*agentsv1.Agent) {
+	if s.content == nil {
+		return
+	}
+	snap, err := s.content.GetActiveSnapshot(ctx, wsID)
+	if err != nil || snap == nil || len(snap.Entries) == 0 {
+		return
+	}
+	for _, a := range agents {
+		agentID := a.GetAgentId()
+		if agentID == "" {
+			continue
+		}
+		c, ok := snap.Entries[agentID]
+		if !ok {
+			continue
+		}
+		a.Description = c.Description
+		if a.Config == nil {
+			a.Config = &agentsv1.AgentConfig{}
+		}
+		a.Config.Instruction = c.Instruction
+		a.Config.GlobalInstruction = c.GlobalInstruction
+	}
+}
+
 func (s *AgentServiceServer) ListAgents(ctx context.Context, req *connect.Request[agentsv1.ListAgentsRequest]) (*connect.Response[agentsv1.ListAgentsResponse], error) {
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
@@ -131,6 +160,8 @@ func (s *AgentServiceServer) ListAgents(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+
+	s.overlayActiveContent(ctx, wsID, agents...)
 
 	sort.SliceStable(agents, func(i, j int) bool {
 		return agents[i].GetName() < agents[j].GetName()
@@ -198,6 +229,7 @@ func (s *AgentServiceServer) GetAgent(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	s.overlayActiveContent(ctx, wsID, a)
 	return connect.NewResponse(&agentsv1.GetAgentResponse{Agent: a}), nil
 }
 
@@ -436,6 +468,7 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, toConnectError(err)
 	}
 	logger.Info("agent updated", "workspace_id", wsID, "agent", a.GetName())
+	s.overlayActiveContent(ctx, wsID, a)
 	return connect.NewResponse(&agentsv1.UpdateAgentResponse{Agent: a}), nil
 }
 
