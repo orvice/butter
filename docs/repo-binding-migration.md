@@ -132,6 +132,12 @@ After **detach**:
   intact and the operation is safe to retry.
 - **No snapshot to materialize.** Publish an Active Revision first, or detach
   with `recovery = KEEP_DATABASE`.
+- **Upgrade from a release that kept Active Agent Content in process memory.**
+  The startup reconciler immediately checks existing bindings. When the raw
+  repository cache still matches `active_commit_sha`, publication rebuilds the
+  missing Mongo snapshot from that cache even when the Git HEAD SHA is
+  unchanged. `GetAgent` and runtime reload return an explicit error until the
+  repair completes instead of silently falling back to stale database content.
 
 ## Cross-provider acceptance
 

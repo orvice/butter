@@ -12,6 +12,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -60,7 +61,7 @@ func TestOnboardExportCurrent(t *testing.T) {
 	}
 
 	// The published snapshot must carry the exported DB content.
-	snap, err := fx.svc.contentRepo.GetSnapshot(ctx, "ws-a")
+	snap, err := fx.svc.contentRepo.GetSnapshot(ctx, "ws-a", resp.Msg.GetBinding().GetActiveCommitSha())
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -203,6 +204,50 @@ func TestGetAgentOverlaysGitContent(t *testing.T) {
 	}
 }
 
+func TestSyncRepairsMissingActiveContentSnapshot(t *testing.T) {
+	fx, rt := newPublicationFixture(t)
+	ctx := ownerCtx()
+
+	if _, err := fx.svc.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("initial sync: %v", err)
+	}
+
+	// Older deployments stored Active Agent Content only in process memory.
+	// Simulate a restart while keeping the persisted binding and repository
+	// cache, then sync the unchanged revision to repair the missing snapshot.
+	fx.svc.SetContentRepo(agentcontentmemory.New())
+	if _, err := fx.svc.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("repair sync: %v", err)
+	}
+
+	agentSvc := NewAgentServiceServer(fx.agentRepo)
+	agentSvc.SetRuntime(rt)
+	agentSvc.SetContentCoordinator(fx.svc)
+	resp, err := agentSvc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "my-agent"}))
+	if err != nil {
+		t.Fatalf("GetAgent after repair sync: %v", err)
+	}
+	if got := resp.Msg.GetAgent().GetConfig().GetInstruction(); got != "You are a helpful agent." {
+		t.Fatalf("GetAgent prompt after repair sync = %q, want Git Active Revision content", got)
+	}
+}
+
+func TestGetAgentRejectsMissingActiveContentSnapshot(t *testing.T) {
+	fx, rt := newPublicationFixture(t)
+	ctx := ownerCtx()
+
+	if _, err := fx.svc.SyncWorkspaceRepository(ctx, connect.NewRequest(&agentsv1.SyncWorkspaceRepositoryRequest{})); err != nil {
+		t.Fatalf("initial sync: %v", err)
+	}
+	fx.svc.SetContentRepo(agentcontentmemory.New())
+
+	agentSvc := NewAgentServiceServer(fx.agentRepo)
+	agentSvc.SetRuntime(rt)
+	agentSvc.SetContentCoordinator(fx.svc)
+	_, err := agentSvc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "my-agent"}))
+	wantCode(t, err, connect.CodeInternal)
+}
+
 func TestOnboardExportRequiresOwnerOrAdmin(t *testing.T) {
 	fx, _ := newPublicationFixture(t)
 	_, err := fx.svc.OnboardWorkspaceRepository(memberCtx(), connect.NewRequest(&agentsv1.OnboardWorkspaceRepositoryRequest{
@@ -242,7 +287,7 @@ func TestOnboardImportRepository(t *testing.T) {
 		t.Fatal("import should have reloaded the runner after publication")
 	}
 
-	snap, err := fx.svc.contentRepo.GetSnapshot(ctx, "ws-a")
+	snap, err := fx.svc.contentRepo.GetSnapshot(ctx, "ws-a", resp.Msg.GetBinding().GetActiveCommitSha())
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -257,9 +302,13 @@ func TestOnboardImportRepository(t *testing.T) {
 func TestDetachMaterializesActiveContent(t *testing.T) {
 	fx, rt := newContentEditFixture(t) // syncs + publishes: active snapshot exists
 	ctx := ownerCtx()
+	binding, err := fx.bindingRepo.Get(ctx, "ws-a")
+	if err != nil {
+		t.Fatalf("Get binding: %v", err)
+	}
 
 	// The published snapshot carries git content the DB agent does not yet have.
-	snap, err := fx.svc.contentRepo.GetSnapshot(ctx, "ws-a")
+	snap, err := fx.svc.contentRepo.GetSnapshot(ctx, "ws-a", binding.GetActiveCommitSha())
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -300,7 +349,7 @@ func TestDetachMaterializesActiveContent(t *testing.T) {
 	if _, err := fx.bindingRepo.Get(ctx, "ws-a"); !errors.Is(err, repobindingrepo.ErrNotFound) {
 		t.Fatalf("binding still present after detach: %v", err)
 	}
-	if _, err := fx.svc.contentRepo.GetSnapshot(ctx, "ws-a"); err == nil {
+	if _, err := fx.svc.contentRepo.GetSnapshot(ctx, "ws-a", binding.GetActiveCommitSha()); err == nil {
 		t.Fatal("content snapshot should be removed after detach")
 	}
 }

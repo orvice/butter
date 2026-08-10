@@ -143,7 +143,7 @@ func (s *RepoBindingServiceServer) onboardImport(ctx context.Context, ws string,
 	published := final.GetActiveCommitSha() != "" && final.GetActiveCommitSha() == final.GetObservedCommitSha()
 	imported := 0
 	if published && s.contentRepo != nil {
-		if snap, snapErr := s.contentRepo.GetSnapshot(ctx, ws); snapErr == nil {
+		if snap, snapErr := s.contentRepo.GetSnapshot(ctx, ws, final.GetActiveCommitSha()); snapErr == nil {
 			imported = len(snap.Entries)
 		}
 	}

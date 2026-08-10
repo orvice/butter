@@ -482,7 +482,7 @@ func (s *RepoBindingServiceServer) DeleteWorkspaceRepoBinding(ctx context.Contex
 	var snapshot agentcontent.Snapshot
 	hasValidSnapshot := false
 	if s.contentRepo != nil && binding.GetActiveCommitSha() != "" {
-		if snap, snapErr := s.contentRepo.GetSnapshot(ctx, ws); snapErr == nil && snap.CommitSHA == binding.GetActiveCommitSha() {
+		if snap, snapErr := s.contentRepo.GetSnapshot(ctx, ws, binding.GetActiveCommitSha()); snapErr == nil {
 			snapshot = snap
 			hasValidSnapshot = true
 		}
@@ -1215,14 +1215,23 @@ func (s *RepoBindingServiceServer) publishActiveRevision(ctx context.Context, ws
 		return false, nil, nil
 	}
 
-	// Idempotent: already published this revision.
+	// Idempotent only when the exact Active Revision snapshot still exists.
+	// Older deployments stored snapshots in process memory, so a restart can
+	// leave active_commit_sha persisted while the snapshot is missing. In that
+	// case continue through the cached parse/validation path to repair it.
 	if binding.GetActiveCommitSha() == observedSHA {
-		if s.configRuntime != nil {
-			if err := s.configRuntime.ReloadRunner(ctx); err != nil {
-				return false, nil, fmt.Errorf("reload runner for active revision: %w", err)
+		if _, snapshotErr := s.contentRepo.GetSnapshot(ctx, ws, observedSHA); snapshotErr == nil {
+			if s.configRuntime != nil {
+				if err := s.configRuntime.ReloadRunner(ctx); err != nil {
+					return false, nil, fmt.Errorf("reload runner for active revision: %w", err)
+				}
 			}
+			return true, nil, nil
+		} else if !errors.Is(snapshotErr, agentcontentrepo.ErrNotFound) {
+			return false, nil, fmt.Errorf("read active content snapshot: %w", snapshotErr)
 		}
-		return true, nil, nil
+		logger.Warn("active Agent Content snapshot missing; rebuilding from repository cache",
+			"workspace_id", ws, "active_commit_sha", observedSHA)
 	}
 
 	metadata, err := s.cacheRepo.GetMetadata(ctx, ws)
@@ -1292,6 +1301,9 @@ func (s *RepoBindingServiceServer) publishActiveRevision(ctx context.Context, ws
 	binding.PublicationErrors = nil
 	if _, err := s.repo.Put(ctx, ws, binding); err != nil {
 		return false, nil, fmt.Errorf("advance active revision: %w", err)
+	}
+	if err := s.contentRepo.PruneSnapshots(ctx, ws, observedSHA); err != nil {
+		logger.Warn("failed to prune inactive Agent Content snapshots", "workspace_id", ws, "err", err)
 	}
 
 	if s.configRuntime != nil {
@@ -1494,12 +1506,9 @@ func (s *RepoBindingServiceServer) GetActiveSnapshot(ctx context.Context, ws str
 	if binding.GetActiveCommitSha() == "" {
 		return nil, nil
 	}
-	snap, err := s.contentRepo.GetSnapshot(ctx, ws)
+	snap, err := s.contentRepo.GetSnapshot(ctx, ws, binding.GetActiveCommitSha())
 	if err != nil {
-		if errors.Is(err, agentcontentrepo.ErrNotFound) {
-			return nil, nil
-		}
-		return nil, err
+		return nil, fmt.Errorf("active Agent Content snapshot %q: %w", binding.GetActiveCommitSha(), err)
 	}
 	return &snap, nil
 }
@@ -2102,7 +2111,7 @@ func (s *RepoBindingServiceServer) simulateAndValidate(ctx context.Context, ws s
 	// Start from the current active content snapshot if available.
 	simulated := make(map[string]agentcontent.AgentContent)
 	if s.contentRepo != nil {
-		if snap, err := s.contentRepo.GetSnapshot(ctx, ws); err == nil {
+		if snap, err := s.GetActiveSnapshot(ctx, ws); err == nil && snap != nil {
 			for k, v := range snap.Entries {
 				simulated[k] = v
 			}
