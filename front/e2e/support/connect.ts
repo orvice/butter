@@ -25,6 +25,33 @@ export async function fulfillProto<T extends DescMessage>(
   return true
 }
 
+// Connect error codes and their protocol-defined HTTP statuses (subset used
+// by the fixtures).
+const CONNECT_ERROR_STATUS: Record<string, number> = {
+  not_found: 404,
+  failed_precondition: 412,
+  permission_denied: 403,
+  unauthenticated: 401,
+  invalid_argument: 400,
+  internal: 500,
+}
+
+// fulfillConnectError responds to a unary Connect request with an error in
+// the JSON error envelope connect-web expects; the HTTP status is derived
+// from the Connect code.
+export async function fulfillConnectError(
+  route: Route,
+  code: keyof typeof CONNECT_ERROR_STATUS,
+  message = ''
+): Promise<true> {
+  await route.fulfill({
+    status: CONNECT_ERROR_STATUS[code],
+    contentType: 'application/json',
+    body: JSON.stringify({ code, message }),
+  })
+  return true
+}
+
 // connectStreamBody frames messages using the Connect streaming envelope
 // (1 flag byte + 4-byte big-endian length per message, then an EndStream
 // frame with flag 0x02), matching what connect-web expects from a

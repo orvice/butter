@@ -1068,10 +1068,18 @@ is idle). Dashboard async invocations (`source = dashboard-async`) are private:
 only the submitting user sees them; other members — including workspace
 owners — get `not_found`; global admins retain support access.
 
-**Request:** `invocation_id` *(or)* `session_id`.
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `invocation_id` | string | Direct lookup. Takes precedence over the session lookups below |
+| `session_id` | string | With an empty `invocation_id`: session-scoped lookup |
+| `latest` | bool | With `session_id`: return the session's **most recent** invocation regardless of status instead of only an active one. Used to render a failed or stopped last turn inline after reload or navigation |
+| `include_input_parts` | bool | Also return the invocation's retained `input_parts`. Parts are kept for `FAILED` and `CANCELLED` invocations so the original input can be restored for explicit resubmission; a `SUCCEEDED` invocation's parts were cleaned up and come back empty |
 
 **Response:** the full `Invocation` record (`id`, `session_id`, `status`,
-`input`, `output`, `error`, timings, `agent_id`, …).
+`input`, `output`, `error`, timings, `agent_id`, …) plus `input_parts`
+(`InputPart[]`, only when requested and still stored).
 
 #### WatchAgentInvocation
 
@@ -1106,6 +1114,36 @@ fresh watch for future output. Persisted session events and terminal
 The dashboard chat uses `front/src/api/chat.ts::submitAgentInvocation` +
 `watchChatInvocation`; live output renders from the observer stream rather
 than high-frequency session polling.
+
+#### Async failure, timeout, restart, and retry semantics
+
+Asynchronous dashboard execution is **single-instance** in this release: one
+Butter process owns all async runs, and the deployment must not scale the
+service beyond one replica while relying on dashboard async chat.
+
+An async run ends `FAILED` with an actionable `Invocation.error` in three
+operational cases, in addition to ordinary run errors:
+
+| Cause | Behavior |
+|-------|----------|
+| **Timeout** | A run exceeding `chat_async.max_run_duration` (default **30 minutes**) is cancelled and recorded `FAILED` with a deadline-exceeded reason naming the configured duration |
+| **Graceful shutdown** | Process teardown stops process-owned runs and waits (bounded, 15 s) for each to persist `FAILED` with a shutdown reason before exit |
+| **Process restart** | On startup, stale `QUEUED`/`RUNNING` records from the previous process are marked `FAILED` with a restart reason. Reconciliation only marks records — it never re-invokes the Agent or repeats tool side effects |
+
+Operational errors live only on the `Invocation` record. They are **never**
+appended as Agent-authored session events, so a failure cannot poison the
+conversation context. Explicit user cancellation stays `CANCELLED` (rendered
+as *stopped*), distinct from every `FAILED` case above — including when a
+Stop races a shutdown.
+
+**Retry is always explicit.** The client restores the original text and Input
+Parts (`GetAgentInvocation` with `include_input_parts`) into the composer for
+review and editing; sending again submits a **new** `request_id` and creates a
+**new** Invocation. Retry is never automatic and never disguised as a
+continuation of the failed Invocation, and the UI warns that resubmitting may
+repeat external tool side effects. The dashboard renders the failed or stopped
+last turn inline (via `GetAgentInvocation` with `latest`) after reload or
+navigation.
 
 #### ReloadAgents
 

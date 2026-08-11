@@ -10,6 +10,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Store is a thread-safe in-memory implementation of invocation.Repository.
@@ -164,10 +165,34 @@ func (s *Store) MarkStaleRunning(_ context.Context, reason string) (int64, error
 			st == agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING {
 			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
 			inv.Error = reason
+			inv.FinishedAt = timestamppb.Now()
 			count++
 		}
 	}
 	return count, nil
+}
+
+func (s *Store) FindLatestBySession(_ context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var latest *agentsv1.Invocation
+	for _, inv := range s.byID {
+		if inv.GetWorkspaceId() != workspaceID || inv.GetSessionId() != sessionID {
+			continue
+		}
+		// Ties on started_at break by descending ID, matching the mongo
+		// implementation's (started_at desc, _id desc) sort; invocation IDs
+		// are v7 UUIDs, so a higher ID is the later-created record.
+		if latest == nil ||
+			inv.GetStartedAt().AsTime().After(latest.GetStartedAt().AsTime()) ||
+			(inv.GetStartedAt().AsTime().Equal(latest.GetStartedAt().AsTime()) && inv.GetId() > latest.GetId()) {
+			latest = inv
+		}
+	}
+	if latest == nil {
+		return nil, invocation.ErrNotFound
+	}
+	return proto.Clone(latest).(*agentsv1.Invocation), nil
 }
 
 func (s *Store) snapshotDesc() []*agentsv1.Invocation {

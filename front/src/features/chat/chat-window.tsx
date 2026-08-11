@@ -11,7 +11,7 @@ import {
 import { AgentAvatar } from "@/components/butter/primitives";
 import { cn } from "@/lib/utils";
 import { parseSessionEvent, parseSessionEvents, type ParsedEvent, type ToolCallSummary, type ToolResponseSummary } from "@/lib/session-events";
-import { buildInputParts, type InputPartInit } from "@/lib/image-attachments";
+import { buildInputParts, decodeInputParts, type InputPartInit } from "@/lib/image-attachments";
 import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { useLiveSession, useUpdateSessionTitle } from "@/api/sessions";
 import { useAgents } from "@/api/agents";
@@ -23,6 +23,8 @@ import {
   cancelAgentInvocation,
   getActiveInvocationForSession,
   getAgentInvocation,
+  getAgentInvocationInput,
+  getLatestInvocationForSession,
   isTerminalInvocationStatus,
   submitAgentInvocation,
   watchChatInvocation,
@@ -40,6 +42,7 @@ import {
   Pencil,
   Square,
   Trash2,
+  Undo2,
   Wrench,
   X,
 } from "lucide-react";
@@ -75,17 +78,43 @@ interface ChatRunState {
   invocationId: string | null;
 }
 
+// TerminalNotice renders a FAILED or CANCELLED invocation inline beside the
+// related submitted turn. It is derived from Invocation metadata — never from
+// Session events — and survives reload via the latest-invocation lookup.
+interface TerminalNotice {
+  sessionId: string;
+  invocationId: string;
+  status: "failed" | "stopped";
+  error: string;
+  /** Submitted text, shown when the turn never persisted as a session event
+   * (e.g. a run orphaned while QUEUED by a restart). */
+  input: string;
+}
+
+function terminalNoticeFor(inv: Invocation | null, sessionId: string): TerminalNotice | null {
+  if (!inv?.id) return null;
+  if (inv.status === InvocationStatus.FAILED) {
+    return { sessionId, invocationId: inv.id, status: "failed", error: inv.error, input: inv.input };
+  }
+  if (inv.status === InvocationStatus.CANCELLED) {
+    return { sessionId, invocationId: inv.id, status: "stopped", error: "", input: inv.input };
+  }
+  return null;
+}
+
 export function ChatWindow({ session, userId, agentName, agentId, onDelete, onInvocationAccepted, pendingMessage, initialInvocationId }: ChatWindowProps) {
   const sessionId = session?.session_id ?? "";
   const [draft, setDraft] = useState("");
   const {
     attachments, previewUrls, isDragOver,
-    removeAttachment, clearAttachments,
+    addFiles, removeAttachment, clearAttachments,
     validateForSend,
     handleDragOver, handleDragEnter, handleDragLeave, handleDrop,
     handlePaste, fileInputRef, openFilePicker, handleFileInputChange, fileAccept,
   } = useImageAttachments(sessionId);
   const [runState, setRunState] = useState<ChatRunState>(() => emptyChatRunState(""));
+  const [notice, setNotice] = useState<TerminalNotice | null>(null);
+  const activeNotice = notice && notice.sessionId === sessionId ? notice : null;
   // Synchronous re-entry guard: `pending` flips only after the async file
   // read in handleSend, so two rapid clicks could otherwise both pass the
   // guard and start two runs.
@@ -201,7 +230,19 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, onIn
       } catch {
         return; // lookup unavailable — plain reads still work
       }
-      if (stale || !active?.id || isTerminalInvocationStatus(active.status)) return;
+      if (stale) return;
+      if (!active?.id || isTerminalInvocationStatus(active.status)) {
+        // No live run to observe. Surface a failed or stopped last turn
+        // inline so it survives reload and navigation.
+        try {
+          const latest = await getLatestInvocationForSession(sessionId);
+          if (stale || sendingRef.current) return;
+          setNotice(terminalNoticeFor(latest, sessionId));
+        } catch {
+          // lookup unavailable — plain reads still work
+        }
+        return;
+      }
       if (sendingRef.current) return;
       await liveQuery.refetch();
       if (stale || sendingRef.current) return;
@@ -295,6 +336,9 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, onIn
         ...current,
         invocationId: accepted.invocation_id,
       })));
+      // A resubmission is a new Invocation under a fresh request ID; the
+      // previous turn's failure notice is superseded.
+      setNotice(null);
       clearAttachments();
       sendingRef.current = false;
       if (onInvocationAccepted) {
@@ -324,6 +368,28 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, onIn
     }
   }
 
+  // handleRestoreInput copies a failed or stopped invocation's original text
+  // and Input Parts back into the composer for review and editing. Sending is
+  // a separate, explicit action that submits a new request ID and creates a
+  // new Invocation — never a hidden continuation of the failed one.
+  async function handleRestoreInput() {
+    const target = activeNotice;
+    if (!target) return;
+    try {
+      const { invocation: inv, parts } = await getAgentInvocationInput(target.invocationId);
+      const { text: restoredText, files } = decodeInputParts(parts);
+      setDraft(restoredText || inv.input);
+      if (taRef.current) {
+        taRef.current.style.height = "auto";
+      }
+      clearAttachments();
+      if (files.length > 0) addFiles(files);
+      taRef.current?.focus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to restore input");
+    }
+  }
+
   // observeInvocation attaches the read-only WatchAgentInvocation stream and
   // feeds live frames into the run state. Observation never owns the run:
   // detaching (session switch, unmount, a newer observation) leaves execution
@@ -340,11 +406,13 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, onIn
       await liveQuery.refetch();
       if (detached()) return;
       setRunState((prev) => prev.runId === runId ? emptyChatRunState(observedSessionId) : prev);
+      // Failure and stop render inline beside the submitted turn; the notice
+      // offers explicit input restore instead of silently repopulating the
+      // composer.
+      setNotice(terminalNoticeFor(inv, observedSessionId));
       if (inv.status === InvocationStatus.CANCELLED) {
-        if (retryText) setDraft(retryText);
         toast.info("Chat stopped");
       } else if (inv.status === InvocationStatus.FAILED) {
-        if (retryText) setDraft(retryText);
         toast.error(inv.error || "Agent invocation failed");
       }
     };
@@ -537,6 +605,16 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, onIn
                 </div>
               )}
             </div>
+          )}
+          {activeNotice && !pending && !liveQuery.isLoading && (
+            <InvocationNotice
+              notice={activeNotice}
+              // A run orphaned before execution (e.g. QUEUED at a restart)
+              // never persisted the submitted turn as a session event, so the
+              // notice carries the original message itself.
+              showInput={visibleEvents.length === 0}
+              onRestore={() => void handleRestoreInput()}
+            />
           )}
         </div>
       </div>
@@ -744,6 +822,60 @@ function groupToolEvents(events: ParsedEvent[]): ParsedEvent[] {
   }
 
   return grouped;
+}
+
+// InvocationNotice renders a terminal failure or user stop inline beside the
+// submitted turn. A stop is presented neutrally — user intent, not an Agent
+// failure. Both variants offer explicit input restore and state that sending
+// again starts a new run that may repeat external tool side effects.
+function InvocationNotice({
+  notice,
+  showInput,
+  onRestore,
+}: {
+  notice: TerminalNotice;
+  showInput: boolean;
+  onRestore: () => void;
+}) {
+  const failed = notice.status === "failed";
+  return (
+    <div
+      role={failed ? "alert" : "status"}
+      className={cn(
+        "mb-4 rounded-lg border px-3.5 py-3 text-sm",
+        failed
+          ? "border-destructive/35 bg-destructive/5"
+          : "border-border/70 bg-muted/30",
+      )}
+    >
+      {showInput && notice.input && (
+        <p className="mb-2 truncate border-l-2 border-border pl-2 text-[0.85rem] italic text-muted-foreground">
+          {notice.input}
+        </p>
+      )}
+      <p className={cn("font-medium", failed ? "text-destructive" : "text-foreground")}>
+        {failed ? "This run failed" : "Stopped"}
+      </p>
+      <p className="mt-1 text-[0.85rem] leading-5 text-muted-foreground">
+        {failed
+          ? notice.error || "The run ended with an error."
+          : "You stopped this response before it finished."}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <button
+          type="button"
+          onClick={onRestore}
+          className="inline-flex touch-manipulation items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium transition-[background-color,scale] hover:bg-muted active:scale-[0.97] motion-reduce:active:scale-100"
+        >
+          <Undo2 className="size-3.5" />
+          Restore input
+        </button>
+        <span className="text-[0.75rem] leading-4 text-muted-foreground/90">
+          Sending again starts a new run and may repeat external tool actions.
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function isActiveInvocation(status: InvocationStatus): boolean {

@@ -6658,6 +6658,10 @@ func (m *GetAgentInvocationRequest) validate(all bool) error {
 
 	// no validation rules for SessionId
 
+	// no validation rules for Latest
+
+	// no validation rules for IncludeInputParts
+
 	if len(errors) > 0 {
 		return GetAgentInvocationRequestMultiError(errors)
 	}
@@ -6787,6 +6791,40 @@ func (m *GetAgentInvocationResponse) validate(all bool) error {
 				cause:  err,
 			}
 		}
+	}
+
+	for idx, item := range m.GetInputParts() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetAgentInvocationResponseValidationError{
+						field:  fmt.Sprintf("InputParts[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetAgentInvocationResponseValidationError{
+						field:  fmt.Sprintf("InputParts[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return GetAgentInvocationResponseValidationError{
+					field:  fmt.Sprintf("InputParts[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	if len(errors) > 0 {

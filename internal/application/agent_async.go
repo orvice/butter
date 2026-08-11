@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -239,7 +240,12 @@ func buildProtoParts(parts []*agentsv1.InputPart, message string) []*agentsv1.In
 // GetAgentInvocation returns the authoritative state of one invocation.
 // When invocation_id is empty and session_id is set, it looks up the
 // session's active (QUEUED/RUNNING) invocation instead — the reconnect path
-// clients use to decide whether to attach a WatchAgentInvocation observer.
+// clients use to decide whether to attach a WatchAgentInvocation observer —
+// or, with `latest`, the session's most recent invocation regardless of
+// status (inline failed/stopped turn rendering after reload). With
+// `include_input_parts` the retained Input Parts of a FAILED/CANCELLED
+// invocation are returned so the original input can be restored for an
+// explicit resubmission.
 func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connect.Request[agentsv1.GetAgentInvocationRequest]) (*connect.Response[agentsv1.GetAgentInvocationResponse], error) {
 	if s.invRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("invocation repository not available"))
@@ -256,9 +262,12 @@ func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connec
 
 	var inv *agentsv1.Invocation
 	var err error
-	if req.Msg.GetInvocationId() != "" {
+	switch {
+	case req.Msg.GetInvocationId() != "":
 		inv, err = getInvocation(ctx, s.invRepo, wsID, req.Msg.GetInvocationId())
-	} else {
+	case req.Msg.GetLatest():
+		inv, err = s.invRepo.FindLatestBySession(ctx, wsID, req.Msg.GetSessionId())
+	default:
 		inv, err = s.invRepo.FindActiveBySession(ctx, wsID, req.Msg.GetSessionId())
 	}
 	if err != nil {
@@ -275,9 +284,19 @@ func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connec
 		return nil, err
 	}
 
-	return connect.NewResponse(&agentsv1.GetAgentInvocationResponse{
-		Invocation: inv,
-	}), nil
+	resp := &agentsv1.GetAgentInvocationResponse{Invocation: inv}
+	if req.Msg.GetIncludeInputParts() && s.inputPartRepo != nil {
+		// Parts are retained for FAILED/CANCELLED invocations so the user can
+		// restore the original input for explicit resubmission; a successful
+		// run's parts were cleaned up and simply come back empty.
+		parts, partsErr := s.inputPartRepo.Load(ctx, inv.GetId())
+		if partsErr == nil {
+			resp.InputParts = parts
+		} else if !errors.Is(partsErr, inputpart.ErrNotFound) {
+			return nil, connectx.InternalWith(partsErr)
+		}
+	}
+	return connect.NewResponse(resp), nil
 }
 
 func getInvocation(ctx context.Context, repo invocation.Repository, workspaceID, invocationID string) (*agentsv1.Invocation, error) {

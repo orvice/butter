@@ -144,6 +144,16 @@ langfuse:
 # (text-truncation) titles only.
 # chat_title_model: "flash"
 
+# Asynchronous dashboard chat execution. Single-instance in this release:
+# run exactly one Butter replica when relying on dashboard async chat. On
+# restart, stale QUEUED/RUNNING invocations are marked FAILED and are never
+# replayed automatically.
+# chat_async:
+#   # Maximum wall-clock duration of one async run. A run exceeding it is
+#   # cancelled and recorded FAILED with a deadline-exceeded reason.
+#   # Default: 30m.
+#   max_run_duration: 30m
+
 # Model provider mappings
 # Maps model names to provider backends. If a model isn't listed here, Gemini is used as default.
 model_providers:

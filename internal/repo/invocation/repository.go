@@ -61,4 +61,8 @@ type Repository interface {
 	// FindActiveBySession returns the QUEUED or RUNNING invocation for the
 	// given session, or ErrNotFound when there is no active invocation.
 	FindActiveBySession(ctx context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error)
+	// FindLatestBySession returns the most recent invocation for the given
+	// session regardless of status, or ErrNotFound when the session has
+	// none. Drives the inline failed/stopped turn rendering after reload.
+	FindLatestBySession(ctx context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error)
 }

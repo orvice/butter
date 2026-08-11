@@ -42,13 +42,15 @@ type Config struct {
 
 // Coordinator manages the lifecycle of async dashboard invocations.
 type Coordinator struct {
-	invRepo      invocation.Repository
+	invRepo       invocation.Repository
 	inputPartRepo inputpart.Repository
-	runner       Runner
-	cfg          Config
+	runner        Runner
+	cfg           Config
 
-	mu      sync.Mutex
-	running map[string]*runEntry // invocationID → active run
+	mu           sync.Mutex
+	running      map[string]*runEntry // invocationID → active run
+	shuttingDown bool
+	wg           sync.WaitGroup
 
 	hub *watchHub
 
@@ -56,10 +58,15 @@ type Coordinator struct {
 }
 
 type runEntry struct {
-	cancel          context.CancelFunc
-	workspaceID     string
+	cancel      context.CancelFunc
+	workspaceID string
+	// cancelRequested marks an explicit user Stop; the run ends CANCELLED.
 	cancelRequested bool
-	finished        bool
+	// shutdownRequested marks a graceful process shutdown; the run ends
+	// FAILED with an honest operational reason, never CANCELLED, so user
+	// intent stays distinguishable from a system interruption.
+	shutdownRequested bool
+	finished          bool
 }
 
 // New creates a Coordinator. The runner and invRepo must be non-nil.
@@ -100,10 +107,20 @@ func (c *Coordinator) Enqueue(inv *agentsv1.Invocation, agentName string, modelO
 	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.MaxRunDuration)
 
 	c.mu.Lock()
+	if c.shuttingDown {
+		c.mu.Unlock()
+		cancel()
+		c.failInvocation(inv, shutdownFailureReason)
+		return
+	}
 	c.running[invID] = &runEntry{cancel: cancel, workspaceID: inv.GetWorkspaceId()}
+	c.wg.Add(1)
 	c.mu.Unlock()
 
-	go c.execute(ctx, cancel, inv, agentName, modelOverride)
+	go func() {
+		defer c.wg.Done()
+		c.execute(ctx, cancel, inv, agentName, modelOverride)
+	}()
 }
 
 func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, inv *agentsv1.Invocation, agentName string, modelOverride string) {
@@ -169,19 +186,27 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 	}
 
 	now := timestamppb.Now()
-	if c.claimTerminal(invID) {
+	claim := c.claimTerminal(invID)
+	switch {
+	case claim.cancelled:
 		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED
 		inv.Error = "cancelled by user"
 		inv.Output = ""
-	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-		inv.Error = "exceeded maximum run duration"
-	} else if runErr != nil {
-		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-		inv.Error = runErr.Error()
-	} else {
+	case runErr == nil:
+		// The runner finished cleanly, so the output is complete — record the
+		// honest SUCCEEDED even when a shutdown or deadline signal raced the
+		// finish line.
 		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED
 		inv.Output = response
+	case claim.shutdown:
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = shutdownFailureReason
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = deadlineFailureReason(c.cfg.MaxRunDuration)
+	default:
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = runErr.Error()
 	}
 	inv.FinishedAt = now
 	if inv.GetStartedAt() != nil {
@@ -256,18 +281,29 @@ func (c *Coordinator) cancelRequested(invocationID string) bool {
 	return ok && entry.cancelRequested
 }
 
+// terminalClaim reports why a run's context was interrupted, if it was.
+// Explicit user cancellation takes precedence over shutdown so a Stop
+// pressed just before shutdown still records user intent.
+type terminalClaim struct {
+	cancelled bool
+	shutdown  bool
+}
+
 // claimTerminal atomically closes the cancellation window. A Cancel that
 // returns true always sets cancelRequested before this point; once finished is
 // set, later cancellation reports false and cannot overwrite the chosen state.
-func (c *Coordinator) claimTerminal(invocationID string) bool {
+func (c *Coordinator) claimTerminal(invocationID string) terminalClaim {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	entry, ok := c.running[invocationID]
 	if !ok {
-		return false
+		return terminalClaim{}
 	}
 	entry.finished = true
-	return entry.cancelRequested
+	return terminalClaim{
+		cancelled: entry.cancelRequested,
+		shutdown:  entry.shutdownRequested && !entry.cancelRequested,
+	}
 }
 
 // Cancel stops a running invocation. Returns true if found and cancelled.
@@ -288,6 +324,51 @@ func (c *Coordinator) Cancel(invocationID, workspaceID string) bool {
 	// Also propagate to the runner's cancel registry for context guard.
 	c.runner.CancelInvocation(invocationID, workspaceID)
 	return true
+}
+
+// noReplaySuffix closes every operational failure reason: work is never
+// replayed automatically, and the user's recovery path is an explicit
+// resubmission. Reasons are surfaced verbatim in the dashboard beside the
+// submitted turn.
+const noReplaySuffix = "; no work was replayed automatically. Review your message and resubmit to retry."
+
+// shutdownFailureReason is the honest terminal error recorded when a graceful
+// process shutdown interrupts an async run (or rejects one submitted while
+// shutting down).
+const shutdownFailureReason = "interrupted by a service shutdown" + noReplaySuffix
+
+// deadlineFailureReason is the honest terminal error recorded when a run
+// exceeds the configured maximum duration.
+func deadlineFailureReason(max time.Duration) string {
+	return "exceeded the maximum run duration (" + max.String() + ") and was stopped" + noReplaySuffix
+}
+
+// Shutdown stops all process-owned async work for a graceful process exit.
+// Every in-flight run is cancelled and persists FAILED with an honest
+// shutdown reason; Shutdown blocks until those terminal writes complete or
+// ctx expires. New Enqueue calls after Shutdown fail immediately.
+func (c *Coordinator) Shutdown(ctx context.Context) error {
+	c.mu.Lock()
+	c.shuttingDown = true
+	for _, entry := range c.running {
+		if !entry.finished {
+			entry.shutdownRequested = true
+			entry.cancel()
+		}
+	}
+	c.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		c.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // IsActive reports whether the given invocation is tracked as in-flight.
@@ -320,10 +401,16 @@ func BuildContextInfo(workspaceID, userID, sessionID, invocationID string) *agen
 	}
 }
 
+// staleFailureReason is the honest terminal error recorded for QUEUED/RUNNING
+// invocations orphaned by a previous process exit. Startup reconciliation
+// only marks records — it never re-invokes the Agent or repeats tool side
+// effects.
+const staleFailureReason = "interrupted by a service restart before it could finish" + noReplaySuffix
+
 // ReconcileStale marks orphaned QUEUED/RUNNING invocations as FAILED on
 // startup. Returns the number of affected records.
 func ReconcileStale(ctx context.Context, repo invocation.Repository) (int64, error) {
-	return repo.MarkStaleRunning(ctx, "process restarted: invocation orphaned")
+	return repo.MarkStaleRunning(ctx, staleFailureReason)
 }
 
 // Ensure Coordinator satisfies a minimal interface for type checking.

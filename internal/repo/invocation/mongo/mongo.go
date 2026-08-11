@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -288,17 +289,48 @@ func (s *Store) FindActiveBySession(ctx context.Context, workspaceID, sessionID 
 }
 
 func (s *Store) MarkStaleRunning(ctx context.Context, reason string) (int64, error) {
+	// The authoritative record is the protojson Spec — a blind $set on the
+	// doc-level status query field would leave decoded reads still QUEUED or
+	// RUNNING. Rewrite each stale record through Save instead.
 	filter := bson.M{"status": bson.M{"$in": []string{
 		agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED.String(),
 		agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING.String(),
 	}}}
-	result, err := s.coll.UpdateMany(ctx, filter, bson.M{"$set": bson.M{
-		"status": agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED.String(),
-	}})
+	cursor, err := s.coll.Find(ctx, filter)
 	if err != nil {
-		return 0, fmt.Errorf("mark stale running invocations: %w", err)
+		return 0, fmt.Errorf("find stale running invocations: %w", err)
 	}
-	return result.ModifiedCount, nil
+	defer cursor.Close(ctx)
+	stale, err := drain(ctx, cursor)
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	for _, inv := range stale {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = reason
+		inv.FinishedAt = timestamppb.Now()
+		if err := s.Save(ctx, inv); err != nil {
+			return count, fmt.Errorf("mark stale invocation %s: %w", inv.GetId(), err)
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (s *Store) FindLatestBySession(ctx context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error) {
+	var d doc
+	err := s.coll.FindOne(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"session_id":   sessionID,
+	}, options.FindOne().SetSort(bson.D{{Key: "started_at", Value: -1}, {Key: "_id", Value: -1}})).Decode(&d)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, invocation.ErrNotFound
+		}
+		return nil, fmt.Errorf("find latest invocation by session: %w", err)
+	}
+	return decode(&d)
 }
 
 func drain(ctx context.Context, cursor *mongo.Cursor) ([]*agentsv1.Invocation, error) {
