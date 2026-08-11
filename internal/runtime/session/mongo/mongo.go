@@ -17,6 +17,8 @@ import (
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
+
+	"go.orx.me/apps/butter/internal/workspace"
 )
 
 const (
@@ -36,6 +38,7 @@ type sessionDoc struct {
 	State          map[string]any `bson:"state"`
 	LastUpdateTime time.Time      `bson:"last_update_time"`
 	Title          string         `bson:"title,omitempty"`
+	WorkspaceID    string         `bson:"workspace_id,omitempty"`
 }
 
 // eventDoc is the MongoDB document for an event.
@@ -203,6 +206,17 @@ func (s *Service) ensureIndexes(ctx context.Context) error {
 		return err
 	}
 
+	_, err = s.sessions.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "workspace_id", Value: 1},
+			{Key: "user_id", Value: 1},
+			{Key: "last_update_time", Value: -1},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
 	logger.Debug("mongodb indexes ensured")
 	return nil
 }
@@ -220,18 +234,22 @@ func (s *Service) Create(ctx context.Context, req *session.CreateRequest) (*sess
 		state = make(map[string]any)
 	}
 
+	wsID, _ := workspace.FromContext(ctx)
+
 	doc := sessionDoc{
 		SessionID:      sid,
 		AppName:        req.AppName,
 		UserID:         req.UserID,
 		State:          state,
 		LastUpdateTime: time.Now(),
+		WorkspaceID:    wsID,
 	}
 
 	logger.Info("creating session",
 		"app_name", req.AppName,
 		"user_id", req.UserID,
 		"session_id", sid,
+		"workspace_id", wsID,
 	)
 
 	if _, err := s.sessions.InsertOne(ctx, doc); err != nil {
@@ -250,6 +268,7 @@ func (s *Service) Create(ctx context.Context, req *session.CreateRequest) (*sess
 		state:          newState(state),
 		events:         newEvents(nil),
 		lastUpdateTime: doc.LastUpdateTime,
+		workspaceID:    wsID,
 	}
 
 	logger.Debug("session created", "app_name", req.AppName, "session_id", sid)
@@ -347,6 +366,7 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 		events:         newEvents(events),
 		lastUpdateTime: doc.LastUpdateTime,
 		title:          doc.Title,
+		workspaceID:    doc.WorkspaceID,
 	}
 
 	logger.Debug("session loaded",
@@ -395,6 +415,7 @@ func (s *Service) List(ctx context.Context, req *session.ListRequest) (*session.
 			events:         newEvents(nil),
 			lastUpdateTime: doc.LastUpdateTime,
 			title:          doc.Title,
+			workspaceID:    doc.WorkspaceID,
 		})
 	}
 
@@ -405,6 +426,65 @@ func (s *Service) List(ctx context.Context, req *session.ListRequest) (*session.
 	)
 
 	return &session.ListResponse{Sessions: sessions}, nil
+}
+
+// ListByWorkspace returns sessions owned by the given workspace and user,
+// ordered newest-first. Legacy sessions without workspace_id are excluded.
+func (s *Service) ListByWorkspace(ctx context.Context, workspaceID, userID string) ([]session.Session, error) {
+	logger := log.FromContext(ctx)
+	logger.Debug("listing sessions by workspace", "workspace_id", workspaceID, "user_id", userID)
+
+	filter := bson.M{"workspace_id": workspaceID}
+	if userID != "" {
+		filter["user_id"] = userID
+	}
+
+	findOpts := options.Find().SetSort(bson.D{{Key: "last_update_time", Value: -1}})
+	cursor, err := s.sessions.Find(ctx, filter, findOpts)
+	if err != nil {
+		return nil, fmt.Errorf("listing workspace sessions: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var docs []sessionDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("decoding workspace sessions: %w", err)
+	}
+
+	result := make([]session.Session, 0, len(docs))
+	for _, doc := range docs {
+		result = append(result, &mongoSession{
+			id:             doc.SessionID,
+			appName:        doc.AppName,
+			userID:         doc.UserID,
+			state:          newState(doc.State),
+			events:         newEvents(nil),
+			lastUpdateTime: doc.LastUpdateTime,
+			title:          doc.Title,
+			workspaceID:    doc.WorkspaceID,
+		})
+	}
+
+	logger.Debug("workspace sessions listed", "workspace_id", workspaceID, "user_id", userID, "count", len(result))
+	return result, nil
+}
+
+// GetWorkspaceID returns the workspace_id for a given session, or empty if
+// the session does not exist or is a legacy session without workspace.
+func (s *Service) GetWorkspaceID(ctx context.Context, appName, userID, sessionID string) (string, error) {
+	filter := bson.M{
+		"app_name":   appName,
+		"user_id":    userID,
+		"session_id": sessionID,
+	}
+	var doc sessionDoc
+	if err := s.sessions.FindOne(ctx, filter, options.FindOne().SetProjection(bson.M{"workspace_id": 1})).Decode(&doc); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return "", fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, appName, userID, sessionID)
+		}
+		return "", fmt.Errorf("looking up session workspace: %w", err)
+	}
+	return doc.WorkspaceID, nil
 }
 
 func (s *Service) Delete(ctx context.Context, req *session.DeleteRequest) error {
@@ -539,6 +619,7 @@ type mongoSession struct {
 	events         *eventsImpl
 	lastUpdateTime time.Time
 	title          string
+	workspaceID    string
 }
 
 func (s *mongoSession) ID() string                { return s.id }
@@ -550,6 +631,9 @@ func (s *mongoSession) LastUpdateTime() time.Time { return s.lastUpdateTime }
 
 // Title returns the Butter-owned first-class title. Empty means unset.
 func (s *mongoSession) Title() string { return s.title }
+
+// WorkspaceID returns the owning workspace. Empty for legacy sessions.
+func (s *mongoSession) WorkspaceID() string { return s.workspaceID }
 
 // stateImpl implements session.State backed by a map.
 type stateImpl struct {

@@ -1028,6 +1028,10 @@ message ListSessionsRequest {
   int32 page_size = 5;
   // Pagination token from a previous response.
   string page_token = 6;
+  // When true, only return sessions that belong to the active workspace
+  // (from X-Workspace-ID header). Legacy sessions without workspace_id are
+  // excluded. When false (default), behaves as before for backwards compat.
+  bool workspace_scoped = 7;
 }
 
 message ListSessionsResponse {
@@ -1094,6 +1098,10 @@ message SessionInfo {
   // First-class session title. Effective-title precedence: this field,
   // then legacy state["title"], then agent name, then shortened session ID.
   string title = 7;
+  // Workspace that owns this session. Derived from the authenticated
+  // request context at creation time; clients cannot override it.
+  // Empty on legacy sessions created before workspace scoping.
+  string workspace_id = 100;
 }
 
 // SessionDetail includes the session info plus recent events.

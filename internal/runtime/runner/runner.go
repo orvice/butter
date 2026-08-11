@@ -30,6 +30,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/skilltool"
+	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -898,6 +899,9 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		"chat_type", ctxInfo.GetChatType().String(),
 	)
 	ctx = log.WithLogger(ctx, logger)
+	if wsID := ctxInfo.GetWorkspaceId(); wsID != "" {
+		ctx = workspace.WithID(ctx, wsID)
+	}
 	ctx = agentfiletool.WithRuntimeContext(ctx, agentfiletool.RuntimeContext{
 		WorkspaceID: ctxInfo.GetWorkspaceId(),
 		AgentName:   agentName,

@@ -52,12 +52,20 @@ type SessionTitleStore interface {
 	SetSessionTitleIfEmpty(ctx context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, bool, error)
 }
 
+// WorkspaceSessionStore provides workspace-scoped session queries that go
+// beyond the generic ADK session.Service interface.
+type WorkspaceSessionStore interface {
+	ListByWorkspace(ctx context.Context, workspaceID, userID string) ([]session.Session, error)
+	GetWorkspaceID(ctx context.Context, appName, userID, sessionID string) (string, error)
+}
+
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
 type SessionServiceServer struct {
 	mu              sync.RWMutex
 	sessionSvc      session.Service
 	runnerSvc       sessionReplyRunner
 	titleStore      SessionTitleStore
+	wsStore         WorkspaceSessionStore
 	langfuseHost    string
 	deleteListeners []SessionDeleteListener
 
@@ -128,6 +136,72 @@ func (s *SessionServiceServer) SetTitleStore(store SessionTitleStore) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.titleStore = store
+}
+
+// SetWorkspaceSessionStore wires workspace-scoped session queries.
+func (s *SessionServiceServer) SetWorkspaceSessionStore(store WorkspaceSessionStore) {
+	if store == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wsStore = store
+}
+
+func (s *SessionServiceServer) getWSStore() WorkspaceSessionStore {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.wsStore
+}
+
+// workspacedSession is implemented by session backends that carry workspace_id.
+type workspacedSession interface {
+	WorkspaceID() string
+}
+
+// enforceWorkspaceAccess verifies that the loaded session belongs to the
+// caller's active workspace. Returns nil when the caller is not workspace-
+// scoped (no X-Workspace-ID) or is a global admin.
+func (s *SessionServiceServer) enforceWorkspaceAccess(ctx context.Context, sess session.Session) error {
+	if auth.IsAdmin(ctx) {
+		return nil
+	}
+	wsID, ok := workspace.FromContext(ctx)
+	if !ok || wsID == "" {
+		return nil
+	}
+	ws, hasWS := sess.(workspacedSession)
+	if !hasWS || ws.WorkspaceID() == "" || ws.WorkspaceID() != wsID {
+		return connectx.NotFound("session not found in this workspace")
+	}
+	return nil
+}
+
+// enforceWorkspaceAccessByID looks up the session's workspace from the store
+// and validates access. Used by mutations that load the session after the check.
+func (s *SessionServiceServer) enforceWorkspaceAccessByID(ctx context.Context, appName, userID, sessionID string) error {
+	if auth.IsAdmin(ctx) {
+		return nil
+	}
+	wsID, ok := workspace.FromContext(ctx)
+	if !ok || wsID == "" {
+		return nil
+	}
+	wsStore := s.getWSStore()
+	if wsStore == nil {
+		return nil
+	}
+	sessWS, err := wsStore.GetWorkspaceID(ctx, appName, userID, sessionID)
+	if err != nil {
+		if strings.Contains(err.Error(), "session not found") {
+			return connectx.NotFound("session not found")
+		}
+		return connectx.InternalWith(err)
+	}
+	if sessWS == "" || sessWS != wsID {
+		return connectx.NotFound("session not found in this workspace")
+	}
+	return nil
 }
 
 func (s *SessionServiceServer) getTitleStore() SessionTitleStore {
@@ -263,6 +337,14 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *connect.Requ
 		return nil, connectx.InternalWith(err)
 	}
 
+	// Workspace guard: when the caller is workspace-scoped, the session
+	// must belong to that workspace. Sessions from another workspace (or
+	// legacy sessions with no workspace) return not-found to avoid leaking
+	// their existence. Global admins bypass this check.
+	if err := s.enforceWorkspaceAccess(ctx, resp.Session); err != nil {
+		return nil, err
+	}
+
 	detail := &agentsv1.SessionDetail{
 		Session: sessionToInfo(resp.Session),
 	}
@@ -292,6 +374,13 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *connect.Re
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
+	}
+
+	// Workspace-scoped path: list only sessions owned by both the active
+	// workspace and the authenticated user. Legacy sessions without
+	// workspace_id are excluded.
+	if req.Msg.GetWorkspaceScoped() {
+		return s.listSessionsWorkspaceScoped(ctx, req)
 	}
 
 	resp, err := sessionSvc.List(ctx, &session.ListRequest{
@@ -333,6 +422,61 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *connect.Re
 	}), nil
 }
 
+// listSessionsWorkspaceScoped returns sessions scoped to the active workspace
+// and authenticated user. Only workspace-owned sessions are included; legacy
+// sessions without workspace_id are excluded.
+func (s *SessionServiceServer) listSessionsWorkspaceScoped(ctx context.Context, req *connect.Request[agentsv1.ListSessionsRequest]) (*connect.Response[agentsv1.ListSessionsResponse], error) {
+	wsID, _ := workspace.FromContext(ctx)
+	if wsID == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace_scoped listing requires X-Workspace-ID header"))
+	}
+
+	wsStore := s.getWSStore()
+	if wsStore == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace session store not available"))
+	}
+
+	// Determine the user to filter on: non-admins can only see their own
+	// sessions; admins may specify a user_id or leave empty for all users.
+	userID := req.Msg.GetUserId()
+	if !auth.IsAdmin(ctx) {
+		user, ok := auth.UserFromContext(ctx)
+		if !ok {
+			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+		}
+		userID = user.GetId()
+	}
+
+	sessions, err := wsStore.ListByWorkspace(ctx, wsID, userID)
+	if err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+
+	// Apply date-range filter.
+	startTs := req.Msg.GetStartTime()
+	endTs := req.Msg.GetEndTime()
+	infos := make([]*agentsv1.SessionInfo, 0, len(sessions))
+	for _, sess := range sessions {
+		last := sess.LastUpdateTime()
+		if startTs != nil && last.Before(startTs.AsTime()) {
+			continue
+		}
+		if endTs != nil && last.After(endTs.AsTime()) {
+			continue
+		}
+		infos = append(infos, sessionToInfo(sess))
+	}
+
+	total := int32(len(infos))
+	page, next := paginateSessions(infos, req.Msg.GetPageSize(), req.Msg.GetPageToken())
+
+	return connect.NewResponse(&agentsv1.ListSessionsResponse{
+		Sessions:      page,
+		NextPageToken: next,
+		Total:         total,
+	}), nil
+}
+
 func paginateSessions(items []*agentsv1.SessionInfo, pageSize int32, pageToken string) ([]*agentsv1.SessionInfo, string) {
 	if pageSize <= 0 {
 		pageSize = 20
@@ -363,6 +507,12 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
+	}
+
+	// Workspace guard: when workspace-scoped, validate the session belongs
+	// to the caller's workspace before allowing deletion.
+	if err := s.enforceWorkspaceAccessByID(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId()); err != nil {
+		return nil, err
 	}
 
 	logger := log.FromContext(ctx)
@@ -535,6 +685,10 @@ func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {
 		UserId:         sess.UserID(),
 		LastUpdateTime: timestamppb.New(sess.LastUpdateTime()),
 		Title:          effectiveTitle(sess),
+	}
+
+	if ws, ok := sess.(workspacedSession); ok {
+		info.WorkspaceId = ws.WorkspaceID()
 	}
 
 	// Convert state to protobuf Struct.

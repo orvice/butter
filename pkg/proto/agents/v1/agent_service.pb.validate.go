@@ -16032,6 +16032,8 @@ func (m *ListSessionsRequest) validate(all bool) error {
 
 	// no validation rules for PageToken
 
+	// no validation rules for WorkspaceScoped
+
 	if len(errors) > 0 {
 		return ListSessionsRequestMultiError(errors)
 	}
@@ -17046,6 +17048,8 @@ func (m *SessionInfo) validate(all bool) error {
 	// no validation rules for TurnCount
 
 	// no validation rules for Title
+
+	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
 		return SessionInfoMultiError(errors)

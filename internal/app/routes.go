@@ -156,6 +156,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if result.SessionTitleStore != nil {
 		h.sessionSvcServer.SetTitleStore(result.SessionTitleStore)
 	}
+	if result.SessionWSStore != nil {
+		h.sessionSvcServer.SetWorkspaceSessionStore(result.SessionWSStore)
+	}
 	if result.RunnerSvc != nil {
 		h.sessionSvcServer.SetTitleModelResolver(result.RunnerSvc)
 	}
