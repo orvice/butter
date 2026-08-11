@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"butterfly.orx.me/core"
 	"butterfly.orx.me/core/app"
@@ -50,6 +51,15 @@ func main() {
 		TeardownFunc: []func() error{
 			func() error {
 				channelCancel()
+				// Stop process-owned async dashboard work and wait for each
+				// in-flight run to persist its honest FAILED terminal state.
+				// Bounded so a stuck run cannot block process exit; anything
+				// still QUEUED/RUNNING afterwards is reconciled at next startup.
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				if err := handlers.ShutdownAsync(shutdownCtx); err != nil {
+					slog.Warn("async coordinator shutdown incomplete", "err", err)
+				}
 				return nil
 			},
 		},

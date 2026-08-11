@@ -230,6 +230,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
   - 命名返回 + defer 在结束时回写 `SUCCEEDED` / `FAILED` + `output` / `error` + `latency_ms`（input/output/error 截到 4096 字符）。
   - 记录失败只 warn 日志，不阻塞 Run。
 - `runner.Service.CancelInvocation(id)` 保留同步调用的 request-scoped 取消；dashboard async Invocation 由 `asyncrun.Coordinator` 持有外层 cancel context，`AgentService.CancelAgentInvocation` 在权限校验后优先取消该 context，确保显式 Stop 写为 `CANCELLED` 而非 `FAILED`。
+- **诚实失败与显式重试（首版单实例）**：async 运行超过 `chat_async.max_run_duration`（默认 30 分钟）、遇到优雅停机、或进程重启后被启动对账发现遗留，均记 `FAILED` + 可行动的 error 原因；运维性错误只写 Invocation 记录，绝不作为 Agent 署名的 session event 混入对话上下文，也绝不自动重放。前端把失败/停止内联渲染在对应发送轮次旁（reload 后经 `GetAgentInvocation latest` 恢复），"恢复输入"按钮经 `include_input_parts` 取回保留的原始文本与图片供审阅编辑；重新发送使用全新 `request_id` 创建全新 Invocation，UI 明示可能重复外部工具副作用。
 - `AgentService.ListAgentInvocations`：按 agent（`agent_id` 优先，legacy `agent_name` 兼容）/ session 过滤 + 分页；invocation 记录携带 `agent_id` 与 `agent_display_name` 快照。
 - `DashboardService.GetActivityFeed`：把最近 invocation 映射成 `ActivityEvent`（kind 派生自 status）。
 - `AgentRuntimeStatus`（`GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses`）从最近 100 条 invocation 派生 state / last_run_at / in_flight，驱动前端 Agents 表的 Status 列。

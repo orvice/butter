@@ -8,7 +8,7 @@ import {
   SessionService,
   type StreamAgentRunEvent,
 } from "@/gen/agents/v1/agent_service_pb";
-import type { InputPartSchema } from "@/gen/agents/v1/content_pb";
+import type { InputPart, InputPartSchema } from "@/gen/agents/v1/content_pb";
 import { ApiError } from "./client";
 import { makeClient } from "./transport";
 
@@ -158,18 +158,44 @@ export async function getAgentInvocation(invocationId: string): Promise<Invocati
   return res.invocation;
 }
 
-// getActiveInvocationForSession returns the session's QUEUED/RUNNING
-// invocation, or null when the session is idle. Clients re-entering a
-// session call this after loading persisted events to decide whether to
-// attach a watch stream.
-export async function getActiveInvocationForSession(sessionId: string): Promise<Invocation | null> {
+async function findInvocationForSession(sessionId: string, latest: boolean): Promise<Invocation | null> {
   try {
-    const res = await agentClient.getAgentInvocation({ sessionId });
+    const res = await agentClient.getAgentInvocation({ sessionId, latest });
     return res.invocation ?? null;
   } catch (err) {
     if (err instanceof ConnectError && err.code === Code.NotFound) return null;
     throw err;
   }
+}
+
+// getActiveInvocationForSession returns the session's QUEUED/RUNNING
+// invocation, or null when the session is idle. Clients re-entering a
+// session call this after loading persisted events to decide whether to
+// attach a watch stream.
+export function getActiveInvocationForSession(sessionId: string): Promise<Invocation | null> {
+  return findInvocationForSession(sessionId, false);
+}
+
+// getLatestInvocationForSession returns the session's most recent invocation
+// regardless of status, or null when the session has none. Used to render a
+// failed or stopped last turn inline after reload or navigation.
+export function getLatestInvocationForSession(sessionId: string): Promise<Invocation | null> {
+  return findInvocationForSession(sessionId, true);
+}
+
+export interface InvocationInput {
+  invocation: Invocation;
+  parts: InputPart[];
+}
+
+// getAgentInvocationInput fetches an invocation together with its retained
+// Input Parts. Parts are kept for FAILED and CANCELLED invocations so the
+// original input can be restored into the composer for explicit review and
+// resubmission; a successful run's parts were cleaned up and come back empty.
+export async function getAgentInvocationInput(invocationId: string): Promise<InvocationInput> {
+  const res = await agentClient.getAgentInvocation({ invocationId, includeInputParts: true });
+  if (!res.invocation) throw new Error("invocation not found");
+  return { invocation: res.invocation, parts: res.inputParts };
 }
 
 export interface WatchChatHandlers {

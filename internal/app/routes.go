@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/workspace"
+	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/service"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -64,6 +65,17 @@ type Handlers struct {
 	channelRepo            configrepo.ChannelRepository
 	cfg                    *config.AppConfig
 	reconciler             *Reconciler
+	asyncCoordinator       *asyncrun.Coordinator
+}
+
+// ShutdownAsync stops process-owned async dashboard work for a graceful
+// process exit. In-flight runs persist an honest FAILED terminal state; the
+// call blocks until those writes complete or ctx expires.
+func (h *Handlers) ShutdownAsync(ctx context.Context) error {
+	if h == nil || h.asyncCoordinator == nil {
+		return nil
+	}
+	return h.asyncCoordinator.Shutdown(ctx)
 }
 
 // apiTokenRepoFromHolder returns the currently wired apitoken repository, if any.
@@ -127,6 +139,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.agentSvcServer.SetInputPartRepo(result.InputPartRepo)
 	}
 	if result.AsyncCoordinator != nil {
+		h.asyncCoordinator = result.AsyncCoordinator
 		h.agentSvcServer.SetAsyncCoordinator(result.AsyncCoordinator)
 		// Wire best-effort title generation after the first successful async turn.
 		if h.sessionSvcServer != nil {

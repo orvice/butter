@@ -222,7 +222,9 @@ WatchAgentInvocation handler（internal/application/agent_watch.go）
   -> 转发 run_event / text_delta / state 帧，一个终态帧后结束
 ```
 
-任意数量的授权观察者可同时 attach；断开任何/全部观察者不影响执行。每个观察者持有有界 channel（256 帧），发布侧永不阻塞——落后的观察者被摘除并以 `resource_exhausted` 断开，客户端回读持久化 session events 与权威 Invocation 状态后重新 attach（token 级增量不做持久重放，ADR 精神同 #243 PRD）。鉴权与 `GetAgentInvocation` 一致：workspace 隔离 + `dashboard-async` 来源的私有会话仅提交者本人可见（含 watch 帧），全局 admin 保留支持通道；`GetAgentInvocation` 亦支持按 `session_id` 查活跃 Invocation（重连路径）。前端 `chat-window.tsx` 以 submit + watch 渲染实时输出，不再依赖高频全量 session 轮询；显式 Stop 走 `CancelAgentInvocation`（终态 `CANCELLED`），导航/关页仅断开观察者。
+任意数量的授权观察者可同时 attach；断开任何/全部观察者不影响执行。每个观察者持有有界 channel（256 帧），发布侧永不阻塞——落后的观察者被摘除并以 `resource_exhausted` 断开，客户端回读持久化 session events 与权威 Invocation 状态后重新 attach（token 级增量不做持久重放，ADR 精神同 #243 PRD）。鉴权与 `GetAgentInvocation` 一致：workspace 隔离 + `dashboard-async` 来源的私有会话仅提交者本人可见（含 watch 帧），全局 admin 保留支持通道；`GetAgentInvocation` 亦支持按 `session_id` 查活跃 Invocation（重连路径），`latest` 参数返回会话最近一次 Invocation（reload 后内联渲染失败/停止用），`include_input_parts` 返回失败/取消 Invocation 保留的 Input Parts（显式重试恢复输入用）。前端 `chat-window.tsx` 以 submit + watch 渲染实时输出，不再依赖高频全量 session 轮询；显式 Stop 走 `CancelAgentInvocation`（终态 `CANCELLED`），导航/关页仅断开观察者。
+
+**失败语义（诚实终态，首版单实例）**：async 执行为单实例进程内模型，部署不得多副本依赖 dashboard async chat。三类运维性失败均记录可行动的 `Invocation.error`，且**绝不**写入 Agent 署名的 session events：(1) **超时** —— 超过 `chat_async.max_run_duration`（默认 30 分钟）的运行被取消并记 `FAILED`（原因含配置时长）；(2) **优雅停机** —— `Coordinator.Shutdown`（`cmd/butter/main.go` TeardownFunc 接线，15 s 上限）取消进程内运行并等待各自持久化 `FAILED` 停机原因；(3) **进程重启** —— 启动时 `asyncrun.ReconcileStale` 将上一进程遗留的 `QUEUED`/`RUNNING` 记录标为 `FAILED`（重启原因），只标记、绝不自动重放 Agent 或重复工具副作用。用户显式 Stop 恒为 `CANCELLED`（前端呈现为"已停止"而非失败），即使与停机竞争。重试始终显式：前端恢复原始输入（文本 + Input Parts，失败/取消时保留）供用户审阅编辑，重新发送使用全新 `request_id` 创建全新 Invocation，UI 明示可能重复外部工具副作用。
 
 ## Session 标题生成（LLM）
 

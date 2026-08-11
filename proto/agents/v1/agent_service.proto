@@ -694,10 +694,23 @@ message GetAgentInvocationRequest {
   // active invocation. Used by clients re-entering a session to decide
   // whether to attach a WatchAgentInvocation observer.
   string session_id = 2;
+  // With session_id and an empty invocation_id: return the session's most
+  // recent invocation regardless of status instead of only an active one.
+  // Used to render a failed or cancelled turn inline after reload or
+  // navigation.
+  bool latest = 3;
+  // Also return the retained Input Parts of the invocation. Parts are kept
+  // for FAILED and CANCELLED invocations so the original input can be
+  // restored into the composer for explicit review and resubmission; parts
+  // of SUCCEEDED invocations are deleted and come back empty.
+  bool include_input_parts = 4;
 }
 
 message GetAgentInvocationResponse {
   Invocation invocation = 1;
+  // The invocation's retained Input Parts, populated only when
+  // include_input_parts was set and the parts are still stored.
+  repeated InputPart input_parts = 2;
 }
 
 // --- WatchAgentInvocation messages ---
