@@ -105,6 +105,7 @@ type BootstrapResult struct {
 	LangfuseHost          string
 	SessionCounter        func(ctx context.Context) (int64, error)
 	SessionTitleStore     application.SessionTitleStore
+	SessionWSStore        application.WorkspaceSessionStore
 	ChatTitleModel        string
 }
 
@@ -366,6 +367,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		RunnerSvc:             runnerSvc,
 		SessionSvc:            sessionSvc,
 		SessionTitleStore:     newMongoTitleStore(sessionSvc),
+		SessionWSStore:        sessionSvc,
 		CronScheduler:         cronScheduler,
 		CronRepo:              cronExecRepo,
 		CronJobRepo:           cronJobRepo,
