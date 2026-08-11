@@ -115,6 +115,49 @@ func (s *Store) CountByTimeRange(_ context.Context, start, end time.Time) (int64
 	return total, failed, nil
 }
 
+func (s *Store) FindByRequestID(_ context.Context, workspaceID, requestID string) (*agentsv1.Invocation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, inv := range s.byID {
+		if inv.GetWorkspaceId() == workspaceID && inv.GetRequestId() == requestID {
+			return proto.Clone(inv).(*agentsv1.Invocation), nil
+		}
+	}
+	return nil, invocation.ErrNotFound
+}
+
+func (s *Store) FindActiveBySession(_ context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, inv := range s.byID {
+		if inv.GetWorkspaceId() != workspaceID || inv.GetSessionId() != sessionID {
+			continue
+		}
+		st := inv.GetStatus()
+		if st == agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED ||
+			st == agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING {
+			return proto.Clone(inv).(*agentsv1.Invocation), nil
+		}
+	}
+	return nil, invocation.ErrNotFound
+}
+
+func (s *Store) MarkStaleRunning(_ context.Context, reason string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var count int64
+	for _, inv := range s.byID {
+		st := inv.GetStatus()
+		if st == agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED ||
+			st == agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING {
+			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+			inv.Error = reason
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (s *Store) snapshotDesc() []*agentsv1.Invocation {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -37,6 +37,7 @@ type doc struct {
 	SessionID   string    `bson:"session_id,omitempty"`
 	StartedAt   time.Time `bson:"started_at,omitempty"`
 	Status      string    `bson:"status,omitempty"`
+	RequestID   string    `bson:"request_id,omitempty"`
 	Spec        string    `bson:"spec"`
 }
 
@@ -52,6 +53,9 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "agent_id", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "session_id", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "started_at", Value: -1}}},
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "request_id", Value: 1}},
+			Options: options.Index().SetUnique(true).SetPartialFilterExpression(bson.M{"request_id": bson.M{"$gt": ""}})},
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "session_id", Value: 1}, {Key: "status", Value: 1}}},
 	})
 	if err != nil {
 		return fmt.Errorf("create invocation indexes: %w", err)
@@ -71,6 +75,7 @@ func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 		AgentID:     inv.GetAgentId(),
 		SessionID:   inv.GetSessionId(),
 		Status:      inv.GetStatus().String(),
+		RequestID:   inv.GetRequestId(),
 		Spec:        string(b),
 	}
 	if ts := inv.GetStartedAt(); ts != nil {
@@ -238,6 +243,54 @@ func (s *Store) CountByTimeRange(ctx context.Context, start, end time.Time) (int
 		return 0, 0, fmt.Errorf("count failed invocations: %w", err)
 	}
 	return total, failed, nil
+}
+
+func (s *Store) FindByRequestID(ctx context.Context, workspaceID, requestID string) (*agentsv1.Invocation, error) {
+	var d doc
+	err := s.coll.FindOne(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"request_id":   requestID,
+	}).Decode(&d)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, invocation.ErrNotFound
+		}
+		return nil, fmt.Errorf("find invocation by request_id: %w", err)
+	}
+	return decode(&d)
+}
+
+func (s *Store) FindActiveBySession(ctx context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error) {
+	var d doc
+	err := s.coll.FindOne(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"session_id":   sessionID,
+		"status": bson.M{"$in": []string{
+			agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED.String(),
+			agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING.String(),
+		}},
+	}).Decode(&d)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, invocation.ErrNotFound
+		}
+		return nil, fmt.Errorf("find active invocation by session: %w", err)
+	}
+	return decode(&d)
+}
+
+func (s *Store) MarkStaleRunning(ctx context.Context, reason string) (int64, error) {
+	filter := bson.M{"status": bson.M{"$in": []string{
+		agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED.String(),
+		agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING.String(),
+	}}}
+	result, err := s.coll.UpdateMany(ctx, filter, bson.M{"$set": bson.M{
+		"status": agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED.String(),
+	}})
+	if err != nil {
+		return 0, fmt.Errorf("mark stale running invocations: %w", err)
+	}
+	return result.ModifiedCount, nil
 }
 
 func drain(ctx context.Context, cursor *mongo.Cursor) ([]*agentsv1.Invocation, error) {

@@ -59,6 +59,7 @@ import (
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
+	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	internalautomation "go.orx.me/apps/butter/internal/runtime/automation"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
@@ -107,6 +108,7 @@ type BootstrapResult struct {
 	SessionTitleStore     application.SessionTitleStore
 	SessionWSStore        application.WorkspaceSessionStore
 	ChatTitleModel        string
+	AsyncCoordinator     *asyncrun.Coordinator
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -363,6 +365,18 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	logger.Info("starting channel manager in background")
 	go mgr.Start(ctx)
 
+	// Create async coordinator for dashboard background execution.
+	asyncCoord := asyncrun.New(invRepo, runnerSvc, asyncrun.Config{
+		MaxRunDuration: cfg.ChatAsync.EffectiveMaxRunDuration(),
+	})
+
+	// Reconcile stale QUEUED/RUNNING invocations from a prior process.
+	if stale, staleErr := asyncrun.ReconcileStale(ctx, invRepo); staleErr != nil {
+		logger.Warn("async reconciliation failed", "err", staleErr)
+	} else if stale > 0 {
+		logger.Info("reconciled stale async invocations", "count", stale)
+	}
+
 	return &BootstrapResult{
 		RunnerSvc:             runnerSvc,
 		SessionSvc:            sessionSvc,
@@ -402,5 +416,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LangfuseHost:          cfg.Langfuse.Host,
 		SessionCounter:        sessionSvc.CountSessions,
 		ChatTitleModel:        cfg.ChatTitleModel,
+		AsyncCoordinator:     asyncCoord,
 	}, nil
 }

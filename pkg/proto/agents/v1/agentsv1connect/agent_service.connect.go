@@ -96,6 +96,12 @@ const (
 	// AgentServiceRestoreAgentProcedure is the fully-qualified name of the AgentService's RestoreAgent
 	// RPC.
 	AgentServiceRestoreAgentProcedure = "/agents.v1.AgentService/RestoreAgent"
+	// AgentServiceSubmitAgentInvocationProcedure is the fully-qualified name of the AgentService's
+	// SubmitAgentInvocation RPC.
+	AgentServiceSubmitAgentInvocationProcedure = "/agents.v1.AgentService/SubmitAgentInvocation"
+	// AgentServiceGetAgentInvocationProcedure is the fully-qualified name of the AgentService's
+	// GetAgentInvocation RPC.
+	AgentServiceGetAgentInvocationProcedure = "/agents.v1.AgentService/GetAgentInvocation"
 	// AgentServiceGetAgentOperationProcedure is the fully-qualified name of the AgentService's
 	// GetAgentOperation RPC.
 	AgentServiceGetAgentOperationProcedure = "/agents.v1.AgentService/GetAgentOperation"
@@ -311,6 +317,13 @@ type AgentServiceClient interface {
 	// retained configuration and Agent Content, flipping it from DELETED back to
 	// ACTIVE and re-publishing the retained content.
 	RestoreAgent(context.Context, *connect.Request[v1.RestoreAgentRequest]) (*connect.Response[v1.RestoreAgentResponse], error)
+	// SubmitAgentInvocation durably accepts a dashboard chat turn as an
+	// asynchronous Invocation. Creates a workspace-owned Session when session_id
+	// is empty. Returns promptly; the runner executes independently.
+	SubmitAgentInvocation(context.Context, *connect.Request[v1.SubmitAgentInvocationRequest]) (*connect.Response[v1.SubmitAgentInvocationResponse], error)
+	// GetAgentInvocation returns the authoritative state of one invocation,
+	// scoped by workspace and user ownership.
+	GetAgentInvocation(context.Context, *connect.Request[v1.GetAgentInvocationRequest]) (*connect.Response[v1.GetAgentInvocationResponse], error)
 	// GetAgentOperation returns a durable lifecycle operation record by ID.
 	GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error)
 	// ListAgentOperations lists lifecycle operations in the workspace, optionally
@@ -434,6 +447,18 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("RestoreAgent")),
 			connect.WithClientOptions(opts...),
 		),
+		submitAgentInvocation: connect.NewClient[v1.SubmitAgentInvocationRequest, v1.SubmitAgentInvocationResponse](
+			httpClient,
+			baseURL+AgentServiceSubmitAgentInvocationProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("SubmitAgentInvocation")),
+			connect.WithClientOptions(opts...),
+		),
+		getAgentInvocation: connect.NewClient[v1.GetAgentInvocationRequest, v1.GetAgentInvocationResponse](
+			httpClient,
+			baseURL+AgentServiceGetAgentInvocationProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("GetAgentInvocation")),
+			connect.WithClientOptions(opts...),
+		),
 		getAgentOperation: connect.NewClient[v1.GetAgentOperationRequest, v1.GetAgentOperationResponse](
 			httpClient,
 			baseURL+AgentServiceGetAgentOperationProcedure,
@@ -474,6 +499,8 @@ type agentServiceClient struct {
 	migrateAgentsV2          *connect.Client[v1.MigrateAgentsV2Request, v1.MigrateAgentsV2Response]
 	updateAgentConfiguration *connect.Client[v1.UpdateAgentConfigurationRequest, v1.UpdateAgentConfigurationResponse]
 	restoreAgent             *connect.Client[v1.RestoreAgentRequest, v1.RestoreAgentResponse]
+	submitAgentInvocation    *connect.Client[v1.SubmitAgentInvocationRequest, v1.SubmitAgentInvocationResponse]
+	getAgentInvocation       *connect.Client[v1.GetAgentInvocationRequest, v1.GetAgentInvocationResponse]
 	getAgentOperation        *connect.Client[v1.GetAgentOperationRequest, v1.GetAgentOperationResponse]
 	listAgentOperations      *connect.Client[v1.ListAgentOperationsRequest, v1.ListAgentOperationsResponse]
 	retryAgentOperation      *connect.Client[v1.RetryAgentOperationRequest, v1.RetryAgentOperationResponse]
@@ -564,6 +591,16 @@ func (c *agentServiceClient) RestoreAgent(ctx context.Context, req *connect.Requ
 	return c.restoreAgent.CallUnary(ctx, req)
 }
 
+// SubmitAgentInvocation calls agents.v1.AgentService.SubmitAgentInvocation.
+func (c *agentServiceClient) SubmitAgentInvocation(ctx context.Context, req *connect.Request[v1.SubmitAgentInvocationRequest]) (*connect.Response[v1.SubmitAgentInvocationResponse], error) {
+	return c.submitAgentInvocation.CallUnary(ctx, req)
+}
+
+// GetAgentInvocation calls agents.v1.AgentService.GetAgentInvocation.
+func (c *agentServiceClient) GetAgentInvocation(ctx context.Context, req *connect.Request[v1.GetAgentInvocationRequest]) (*connect.Response[v1.GetAgentInvocationResponse], error) {
+	return c.getAgentInvocation.CallUnary(ctx, req)
+}
+
 // GetAgentOperation calls agents.v1.AgentService.GetAgentOperation.
 func (c *agentServiceClient) GetAgentOperation(ctx context.Context, req *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error) {
 	return c.getAgentOperation.CallUnary(ctx, req)
@@ -639,6 +676,13 @@ type AgentServiceHandler interface {
 	// retained configuration and Agent Content, flipping it from DELETED back to
 	// ACTIVE and re-publishing the retained content.
 	RestoreAgent(context.Context, *connect.Request[v1.RestoreAgentRequest]) (*connect.Response[v1.RestoreAgentResponse], error)
+	// SubmitAgentInvocation durably accepts a dashboard chat turn as an
+	// asynchronous Invocation. Creates a workspace-owned Session when session_id
+	// is empty. Returns promptly; the runner executes independently.
+	SubmitAgentInvocation(context.Context, *connect.Request[v1.SubmitAgentInvocationRequest]) (*connect.Response[v1.SubmitAgentInvocationResponse], error)
+	// GetAgentInvocation returns the authoritative state of one invocation,
+	// scoped by workspace and user ownership.
+	GetAgentInvocation(context.Context, *connect.Request[v1.GetAgentInvocationRequest]) (*connect.Response[v1.GetAgentInvocationResponse], error)
 	// GetAgentOperation returns a durable lifecycle operation record by ID.
 	GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error)
 	// ListAgentOperations lists lifecycle operations in the workspace, optionally
@@ -758,6 +802,18 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("RestoreAgent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceSubmitAgentInvocationHandler := connect.NewUnaryHandler(
+		AgentServiceSubmitAgentInvocationProcedure,
+		svc.SubmitAgentInvocation,
+		connect.WithSchema(agentServiceMethods.ByName("SubmitAgentInvocation")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceGetAgentInvocationHandler := connect.NewUnaryHandler(
+		AgentServiceGetAgentInvocationProcedure,
+		svc.GetAgentInvocation,
+		connect.WithSchema(agentServiceMethods.ByName("GetAgentInvocation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	agentServiceGetAgentOperationHandler := connect.NewUnaryHandler(
 		AgentServiceGetAgentOperationProcedure,
 		svc.GetAgentOperation,
@@ -812,6 +868,10 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceUpdateAgentConfigurationHandler.ServeHTTP(w, r)
 		case AgentServiceRestoreAgentProcedure:
 			agentServiceRestoreAgentHandler.ServeHTTP(w, r)
+		case AgentServiceSubmitAgentInvocationProcedure:
+			agentServiceSubmitAgentInvocationHandler.ServeHTTP(w, r)
+		case AgentServiceGetAgentInvocationProcedure:
+			agentServiceGetAgentInvocationHandler.ServeHTTP(w, r)
 		case AgentServiceGetAgentOperationProcedure:
 			agentServiceGetAgentOperationHandler.ServeHTTP(w, r)
 		case AgentServiceListAgentOperationsProcedure:
@@ -893,6 +953,14 @@ func (UnimplementedAgentServiceHandler) UpdateAgentConfiguration(context.Context
 
 func (UnimplementedAgentServiceHandler) RestoreAgent(context.Context, *connect.Request[v1.RestoreAgentRequest]) (*connect.Response[v1.RestoreAgentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.RestoreAgent is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) SubmitAgentInvocation(context.Context, *connect.Request[v1.SubmitAgentInvocationRequest]) (*connect.Response[v1.SubmitAgentInvocationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.SubmitAgentInvocation is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) GetAgentInvocation(context.Context, *connect.Request[v1.GetAgentInvocationRequest]) (*connect.Response[v1.GetAgentInvocationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.GetAgentInvocation is not implemented"))
 }
 
 func (UnimplementedAgentServiceHandler) GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error) {

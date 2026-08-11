@@ -123,6 +123,17 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.dashboardSvcServer.SetInvocationRepo(result.InvocationRepo)
 		}
 	}
+	if result.AsyncCoordinator != nil {
+		h.agentSvcServer.SetAsyncCoordinator(result.AsyncCoordinator)
+		// Wire best-effort title generation after the first successful async turn.
+		if h.sessionSvcServer != nil {
+			sessServer := h.sessionSvcServer
+			result.AsyncCoordinator.SetTurnCompleteCallback(sessServer.AsyncTurnComplete)
+		}
+	}
+	if result.SessionSvc != nil {
+		h.agentSvcServer.SetSessionService(result.SessionSvc)
+	}
 	if result.MCPOAuthSvc != nil {
 		h.mcpSvcServer.SetOAuthService(result.MCPOAuthSvc)
 	}
