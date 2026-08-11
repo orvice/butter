@@ -59,7 +59,9 @@ jobs:
 
       # Scheduled (default branch) -> `nightly`
       # Push to main               -> `main`
-      # Push to other branches     -> `nightly` (shared; last push wins)
+      # Push to other branches     -> `nightly` tag, built only, not pushed
+      #                               (ghcr denies branch pushes to the shared
+      #                               nightly tag with 403 permission_denied)
       # Push to vX.Y.Z             -> `X.Y.Z`, `X.Y`, `X`, `latest`
       # PR                         -> `pr-<n>` (built only, not pushed)
       - name: Extract Docker metadata
@@ -82,7 +84,7 @@ jobs:
         with:
           context: .
           file: ./cmd/butter-daemon/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -91,7 +93,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=daemon
 
       - name: Sign the published Docker image
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) }}
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
