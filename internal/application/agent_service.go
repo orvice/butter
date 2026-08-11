@@ -20,6 +20,7 @@ import (
 	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -63,15 +64,16 @@ func resolveAgentRunnerRef(r interface {
 }
 
 type AgentServiceServer struct {
-	repo       configrepo.AgentRepository
-	runtime    ConfigRuntime
-	runnerSvc  agentRunner
-	invRepo    invocation.Repository
-	wsRepo     workspacerepo.Repository
-	opRepo     agentoprepo.Repository
-	content    agentContentCoordinator
-	asyncCoord asyncCoordinator
-	sessionSvc adksession.Service
+	repo          configrepo.AgentRepository
+	runtime       ConfigRuntime
+	runnerSvc     agentRunner
+	invRepo       invocation.Repository
+	inputPartRepo inputpart.Repository
+	wsRepo        workspacerepo.Repository
+	opRepo        agentoprepo.Repository
+	content       agentContentCoordinator
+	asyncCoord    asyncCoordinator
+	sessionSvc    adksession.Service
 
 	// asyncSubmitMu serializes the short accept transaction (idempotency
 	// lookup, active-session check, optional Session creation, Invocation
@@ -123,6 +125,12 @@ func (s *AgentServiceServer) SetRunnerService(svc *runner.Service) {
 // ListAgentInvocations.
 func (s *AgentServiceServer) SetInvocationRepo(repo invocation.Repository) {
 	s.invRepo = repo
+}
+
+// SetInputPartRepo wires the Input Part repository used to persist multimodal
+// input for async invocations.
+func (s *AgentServiceServer) SetInputPartRepo(repo inputpart.Repository) {
+	s.inputPartRepo = repo
 }
 
 // SetWorkspaceRepo wires the workspace repository used by
