@@ -58,11 +58,6 @@ func (r *asyncTestRunner) GetAgentIdentity(name string) (string, string, bool) {
 	return "", name, true
 }
 
-func (r *asyncTestRunner) callCount() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.calls
-}
 
 // fakeAsyncCoordinator captures Enqueue calls for testing without real
 // goroutines.
