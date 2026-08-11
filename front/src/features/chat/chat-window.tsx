@@ -47,6 +47,8 @@ interface ChatWindowProps {
   /** Immutable agent_id from session state; preferred over agentName when set. */
   agentId?: string | null;
   onDelete?: () => void;
+  /** Message queued from the draft composer; auto-sent once the session is ready. */
+  pendingMessage?: string;
 }
 
 interface ChatRunState {
@@ -60,7 +62,7 @@ interface ChatRunState {
   invocationId: string | null;
 }
 
-export function ChatWindow({ session, userId, agentName, agentId, onDelete }: ChatWindowProps) {
+export function ChatWindow({ session, userId, agentName, agentId, onDelete, pendingMessage }: ChatWindowProps) {
   const sessionId = session?.session_id ?? "";
   const [draft, setDraft] = useState("");
   const {
@@ -153,6 +155,128 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete }: Ch
   useEffect(() => {
     abortRef.current?.abort();
   }, [sessionId]);
+
+  // Auto-send a pending message queued from the draft composer.
+  const pendingSentRef = useRef(false);
+  useEffect(() => {
+    if (
+      pendingMessage &&
+      sessionId &&
+      agentName &&
+      resolvedAgentId &&
+      !pendingSentRef.current &&
+      !pending &&
+      !sendingRef.current
+    ) {
+      pendingSentRef.current = true;
+      setDraft(pendingMessage);
+      requestAnimationFrame(() => {
+        setDraft("");
+        void (async () => {
+          const text = pendingMessage.trim();
+          if (!text || !agentName) return;
+          const rid = resolvedAgentId;
+          if (!rid) return;
+          sendingRef.current = true;
+          const runId = newRunId();
+          abortRef.current?.abort();
+          activeRunIdRef.current = runId;
+          setRunState({
+            runId,
+            sessionId,
+            pending: true,
+            pendingBaseEventIds: new Set(persistedEvents.map((evt) => evt.eventId)),
+            pendingUserMessage: text,
+            streamingEvents: [],
+            streamingResponse: "",
+            invocationId: null,
+          });
+          const controller = new AbortController();
+          abortRef.current = controller;
+          let streamStarted = false;
+          try {
+            await streamChat(
+              {
+                agent_name: agentName,
+                agent_id: rid,
+                app_name: APP_NAME,
+                user_id: userId,
+                session_id: sessionId,
+                message: text,
+              },
+              {
+                onStarted: (payload) => {
+                  streamStarted = true;
+                  if (payload.invocation_id) {
+                    setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                      ...current,
+                      invocationId: payload.invocation_id ?? current.invocationId,
+                    })));
+                  }
+                },
+                onAgentEvent: (payload) => {
+                  const event = payloadToParsedEvent(payload);
+                  if (event) {
+                    setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                      ...current,
+                      streamingEvents: [...current.streamingEvents, event],
+                    })));
+                  }
+                },
+                onTextDelta: (payload) => {
+                  if (payload.text_delta) {
+                    setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                      ...current,
+                      streamingResponse: current.streamingResponse + payload.text_delta,
+                    })));
+                  }
+                },
+                onFinal: (payload) => {
+                  setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+                    ...current,
+                    streamingResponse: payload.response ?? "",
+                  })));
+                },
+                onError: (payload) => {
+                  if (payload.error) toast.error(payload.error);
+                },
+              },
+              controller.signal,
+            );
+            await liveQuery.refetch();
+            maybeGenerateTitle();
+          } catch (err) {
+            if (isAbortError(err)) {
+              toast.info("Chat stopped");
+            } else if (!streamStarted) {
+              try {
+                await reply.mutateAsync({
+                  agent_name: agentName,
+                  agent_id: rid,
+                  app_name: APP_NAME,
+                  user_id: userId,
+                  session_id: sessionId,
+                  message: text,
+                });
+                maybeGenerateTitle();
+              } catch (fallbackErr) {
+                toast.error(fallbackErr instanceof Error ? fallbackErr.message : "Failed to send message");
+              }
+            } else {
+              toast.error(err instanceof Error ? err.message : "Failed to send message");
+            }
+          } finally {
+            sendingRef.current = false;
+            setRunState((prev) => prev.runId === runId ? emptyChatRunState(prev.sessionId) : prev);
+            if (activeRunIdRef.current === runId) {
+              activeRunIdRef.current = null;
+              abortRef.current = null;
+            }
+          }
+        })();
+      });
+    }
+  }, [pendingMessage, sessionId, agentName, resolvedAgentId, pending]);
 
   useEffect(() => {
     const node = scrollRef.current;

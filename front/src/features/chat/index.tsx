@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { Agent, SessionInfo } from '@/types/api'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
 import { useCreateSession, useDeleteSession, useSessions } from '@/api/sessions'
-import { CHAT_APP_NAME } from '@/lib/constants'
+import { CHAT_APP_NAME, CHAT_LAST_AGENT_PREFIX } from '@/lib/constants'
 import {
   sessionAgentID,
   sessionAgentName,
   sessionTitle,
 } from '@/lib/session-title'
 import { useAuth } from '@/hooks/use-auth'
+import { useWorkspace } from '@/hooks/use-workspace'
 import { DeleteDialog } from '@/components/delete-dialog'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -19,9 +20,24 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { AgentSelector } from './agent-selector'
 import { ChatWindow } from './chat-window'
+import { DraftComposer } from './draft-composer'
+
+function isRunnableAgent(a: Agent): boolean {
+  const status = a.lifecycle_status
+  return (
+    !status ||
+    status === 'AGENT_LIFECYCLE_STATUS_UNSPECIFIED' ||
+    status === 'AGENT_LIFECYCLE_STATUS_ACTIVE'
+  )
+}
+
+function lastAgentKey(workspaceId: string): string {
+  return `${CHAT_LAST_AGENT_PREFIX}${workspaceId}`
+}
 
 export function ChatPage() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
+  const { selectedWorkspaceId } = useWorkspace()
   const navigate = useNavigate()
   const search = useSearch({ from: '/_authenticated/chat' })
   const userId = user?.id ?? ''
@@ -44,42 +60,89 @@ export function ChatPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
 
-  const wantsNewChat = search.new === 1
+  // Normalize legacy ?new=1 to plain /chat by stripping the param.
+  const wantsLegacyNew = search.new === 1
+  const normalizedRef = useRef(false)
+  useEffect(() => {
+    if (wantsLegacyNew && !normalizedRef.current) {
+      normalizedRef.current = true
+      navigate({
+        to: '/chat',
+        search: search.agent ? { agent: search.agent } : {},
+        replace: true,
+      })
+    }
+  }, [wantsLegacyNew, search.agent, navigate])
+
   const requestedSessionId = search.session ?? null
   const requestedAgent = search.agent ?? null
 
-  // The `agent` search param is an opaque ref: an immutable agent_id, or a
-  // plain name for old links / agents without an ID. Resolving it needs the
-  // agent list, so only fetch it while a quick-start link is pending.
-  const agentsQuery = useAgents(
-    { page_size: 200 },
-    { enabled: !!(wantsNewChat && requestedAgent && userId) }
+  const agentsQuery = useAgents({ page_size: 200 }, { enabled: !!userId })
+  const allAgents = useMemo(
+    () => (agentsQuery.data?.agents ?? []).filter(isRunnableAgent),
+    [agentsQuery.data],
   )
 
-  // Quick-start links (/chat?new=1&agent=x) create the session immediately.
-  // The guard ref makes this fire once; the redirect replaces the URL so a
-  // refresh lands on the created session instead of creating another one.
-  const autoCreatedRef = useRef(false)
-  useEffect(() => {
-    if (!wantsNewChat || !requestedAgent || !userId || autoCreatedRef.current)
-      return
-    const agents = agentsQuery.data?.agents
-    if (!agents) return
-    autoCreatedRef.current = true
-    const match =
-      agents.find((a) => a.agent_id === requestedAgent) ??
-      agents.find((a) => a.name === requestedAgent)
-    void handleCreate(match ?? { name: requestedAgent })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantsNewChat, requestedAgent, userId, agentsQuery.data])
-
-  const activeSession = useMemo(() => {
-    if (wantsNewChat) return null
-    if (requestedSessionId) {
-      return sessions.find((s) => s.session_id === requestedSessionId) ?? null
+  // Resolve the selected draft agent from URL, localStorage, or default.
+  const resolveInitialAgent = useCallback((): Agent | null => {
+    if (requestedAgent && allAgents.length > 0) {
+      const match =
+        allAgents.find((a) => a.agent_id === requestedAgent) ??
+        allAgents.find((a) => a.name === requestedAgent)
+      if (match) return match
     }
-    return sessions[0] ?? null
-  }, [wantsNewChat, requestedSessionId, sessions])
+    if (selectedWorkspaceId) {
+      const saved = localStorage.getItem(lastAgentKey(selectedWorkspaceId))
+      if (saved) {
+        const match =
+          allAgents.find((a) => a.agent_id === saved) ??
+          allAgents.find((a) => a.name === saved)
+        if (match) return match
+        localStorage.removeItem(lastAgentKey(selectedWorkspaceId))
+      }
+    }
+    return null
+  }, [requestedAgent, allAgents, selectedWorkspaceId])
+
+  const [draftAgent, setDraftAgent] = useState<Agent | null>(null)
+  const agentsLoadedRef = useRef(false)
+  useEffect(() => {
+    if (allAgents.length > 0 && !agentsLoadedRef.current) {
+      agentsLoadedRef.current = true
+      setDraftAgent(resolveInitialAgent())
+    }
+  }, [allAgents, resolveInitialAgent])
+
+  // Re-resolve when ?agent= param changes.
+  const prevRequestedAgent = useRef(requestedAgent)
+  useEffect(() => {
+    if (requestedAgent !== prevRequestedAgent.current) {
+      prevRequestedAgent.current = requestedAgent
+      if (requestedAgent && allAgents.length > 0) {
+        const match =
+          allAgents.find((a) => a.agent_id === requestedAgent) ??
+          allAgents.find((a) => a.name === requestedAgent)
+        if (match) setDraftAgent(match)
+      }
+    }
+  }, [requestedAgent, allAgents])
+
+  function handlePickAgent(agent: Agent) {
+    setDraftAgent(agent)
+    if (selectedWorkspaceId) {
+      localStorage.setItem(
+        lastAgentKey(selectedWorkspaceId),
+        agent.agent_id || agent.name,
+      )
+    }
+  }
+
+  // Determine if we're viewing an existing session.
+  // Plain /chat (no ?session=) → show the draft view, never auto-activate.
+  const activeSession = useMemo(() => {
+    if (!requestedSessionId) return null
+    return sessions.find((s) => s.session_id === requestedSessionId) ?? null
+  }, [requestedSessionId, sessions])
 
   const activeAgent = activeSession
     ? (sessionAgentName(activeSession.state) ?? null)
@@ -88,7 +151,10 @@ export function ChatPage() {
     ? (sessionAgentID(activeSession.state) ?? null)
     : null
 
-  async function handleCreate(agent: Pick<Agent, 'name' | 'agent_id'>) {
+  async function handleDraftSend(
+    message: string,
+    agent: Agent,
+  ): Promise<void> {
     if (!userId) {
       toast.error('Missing user context; please re-login.')
       return
@@ -104,7 +170,10 @@ export function ChatPage() {
       })
       navigate({
         to: '/chat',
-        search: { session: resp.session.session_id },
+        search: {
+          session: resp.session.session_id,
+          pending_message: message,
+        },
         replace: true,
       })
     } catch (err) {
@@ -124,12 +193,14 @@ export function ChatPage() {
         onSuccess: () => {
           toast.success('Chat deleted')
           setDeleteTarget(null)
-          navigate({ to: '/chat', search: { new: 1 }, replace: true })
+          navigate({ to: '/chat', search: {}, replace: true })
         },
         onError: (err) => toast.error(err.message),
       }
     )
   }
+
+  const isDraftView = !requestedSessionId
 
   let content: React.ReactNode
   if (!userId) {
@@ -142,29 +213,35 @@ export function ChatPage() {
         </p>
       </div>
     )
+  } else if (isDraftView) {
+    content = (
+      <DraftComposer
+        agent={draftAgent}
+        agentSelector={
+          <AgentSelector selected={draftAgent} onPick={handlePickAgent} />
+        }
+        onSend={(message) => {
+          if (!draftAgent) return
+          void handleDraftSend(message, draftAgent)
+        }}
+        busy={createMutation.isPending}
+      />
+    )
   } else if (
     !activeSession &&
-    (sessionsQuery.isLoading || (wantsNewChat && requestedAgent))
+    sessionsQuery.isLoading
   ) {
-    // A specific session was requested but the list is still loading — avoid
-    // flashing the agent selector before we know whether it exists.
     content = (
       <div className='flex flex-1 items-center justify-center'>
         <p className='text-sm text-muted-foreground'>Loading chat…</p>
       </div>
     )
   } else if (!activeSession) {
-    // New-chat / empty state — centered agent selector
     content = (
-      <div className='flex min-h-0 flex-1 flex-col'>
-        <div className='flex flex-1 scrollbar-thin overflow-y-auto px-4 py-8 sm:px-6'>
-          <div className='my-auto w-full'>
-            <AgentSelector
-              onPick={(agent) => void handleCreate(agent)}
-              busy={createMutation.isPending}
-            />
-          </div>
-        </div>
+      <div className='flex flex-1 items-center justify-center'>
+        <p className='text-sm text-muted-foreground'>
+          Session not found. <button type="button" className="text-primary underline" onClick={() => navigate({ to: '/chat', search: {}, replace: true })}>Start a new chat</button>
+        </p>
       </div>
     )
   } else {
@@ -176,6 +253,7 @@ export function ChatPage() {
           agentName={activeAgent}
           agentId={activeAgentId}
           onDelete={() => setDeleteTarget(activeSession)}
+          pendingMessage={search.pending_message ?? undefined}
         />
         <DeleteDialog
           open={!!deleteTarget}

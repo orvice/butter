@@ -90,7 +90,7 @@ export function NavChatHistory() {
             asChild
             className='h-9 border border-sidebar-border bg-background/60 font-medium shadow-none'
           >
-            <Link to='/chat' search={{ new: 1 }}>
+            <Link to='/chat' search={{}}>
               <SquarePen />
               <span>New Chat</span>
             </Link>

@@ -317,7 +317,7 @@ function AgentCard({
           <Button size='sm' asChild>
             <Link
               to='/chat'
-              search={{ new: 1, agent: agent.agent_id || agent.name }}
+              search={{ agent: agent.agent_id || agent.name }}
             >
               <MessageSquarePlus />
               Start chat

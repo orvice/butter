@@ -450,7 +450,7 @@ export function Dashboard() {
               </Link>
             </Button>
             <Button size='sm' asChild>
-              <Link to='/chat' search={{ new: 1 }}>
+              <Link to='/chat' search={{}}>
                 <Plus className='size-4' />
                 New chat
               </Link>
@@ -616,7 +616,7 @@ export function Dashboard() {
                         <Link
                           key={agent.name}
                           to='/chat'
-                          search={{ new: 1, agent: agent.name }}
+                          search={{ agent: agent.name }}
                           className='group flex min-w-0 touch-manipulation items-center gap-2.5 rounded-lg border border-transparent bg-card px-3 py-2.5 text-left shadow-card transition-[background-color,box-shadow,scale] duration-150 ease-out hover:bg-accent hover:shadow-card-hover active:scale-[0.96] motion-reduce:active:scale-100'
                         >
                           <AgentAvatar name={agent.name} size='sm' />
