@@ -48,9 +48,16 @@ type Coordinator struct {
 	cfg          Config
 
 	mu      sync.Mutex
-	running map[string]context.CancelFunc // invocationID → cancel
+	running map[string]*runEntry // invocationID → active run
 
 	onTurnComplete TurnCompleteFunc
+}
+
+type runEntry struct {
+	cancel          context.CancelFunc
+	workspaceID     string
+	cancelRequested bool
+	finished        bool
 }
 
 // New creates a Coordinator. The runner and invRepo must be non-nil.
@@ -63,7 +70,7 @@ func New(invRepo invocation.Repository, inputPartRepo inputpart.Repository, r Ru
 		inputPartRepo: inputPartRepo,
 		runner:        r,
 		cfg:           cfg,
-		running:       make(map[string]context.CancelFunc),
+		running:       make(map[string]*runEntry),
 	}
 }
 
@@ -90,7 +97,7 @@ func (c *Coordinator) Enqueue(inv *agentsv1.Invocation, agentName string, modelO
 	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.MaxRunDuration)
 
 	c.mu.Lock()
-	c.running[invID] = cancel
+	c.running[invID] = &runEntry{cancel: cancel, workspaceID: inv.GetWorkspaceId()}
 	c.mu.Unlock()
 
 	go c.execute(ctx, cancel, inv, agentName, modelOverride)
@@ -124,8 +131,9 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 	// Transition to RUNNING.
 	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING
 	inv.StartedAt = timestamppb.Now()
-	if err := c.invRepo.Save(ctx, inv); err != nil {
+	if err := c.invRepo.Save(context.Background(), inv); err != nil {
 		logger.Error("async run: failed to persist RUNNING status", "invocation_id", invID, "err", err)
+		c.claimTerminal(invID)
 		return
 	}
 
@@ -139,20 +147,25 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
 	}
 
-	response, runErr := c.runner.RunSSE(ctx, agentName, parts, modelOverride, ctxInfo, nil, nil)
+	var response string
+	var runErr error
+	if c.cancelRequested(invID) {
+		runErr = context.Canceled
+	} else {
+		response, runErr = c.runner.RunSSE(runner.WithoutInvocationRecording(ctx), agentName, parts, modelOverride, ctxInfo, nil, nil)
+	}
 
 	now := timestamppb.Now()
-	if runErr != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED
-			inv.Error = "cancelled by user"
-		} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-			inv.Error = "exceeded maximum run duration"
-		} else {
-			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-			inv.Error = runErr.Error()
-		}
+	if c.claimTerminal(invID) {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED
+		inv.Error = "cancelled by user"
+		inv.Output = ""
+	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = "exceeded maximum run duration"
+	} else if runErr != nil {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = runErr.Error()
 	} else {
 		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED
 		inv.Output = response
@@ -214,15 +227,42 @@ func (c *Coordinator) failInvocation(inv *agentsv1.Invocation, reason string) {
 	_ = c.invRepo.Save(context.Background(), inv)
 }
 
-// Cancel stops a running invocation. Returns true if found and cancelled.
-func (c *Coordinator) Cancel(invocationID, workspaceID string) bool {
+func (c *Coordinator) cancelRequested(invocationID string) bool {
 	c.mu.Lock()
-	cancelFn, ok := c.running[invocationID]
-	c.mu.Unlock()
+	defer c.mu.Unlock()
+	entry, ok := c.running[invocationID]
+	return ok && entry.cancelRequested
+}
+
+// claimTerminal atomically closes the cancellation window. A Cancel that
+// returns true always sets cancelRequested before this point; once finished is
+// set, later cancellation reports false and cannot overwrite the chosen state.
+func (c *Coordinator) claimTerminal(invocationID string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.running[invocationID]
 	if !ok {
 		return false
 	}
-	cancelFn()
+	entry.finished = true
+	return entry.cancelRequested
+}
+
+// Cancel stops a running invocation. Returns true if found and cancelled.
+func (c *Coordinator) Cancel(invocationID, workspaceID string) bool {
+	c.mu.Lock()
+	entry, ok := c.running[invocationID]
+	if !ok || entry.finished {
+		c.mu.Unlock()
+		return false
+	}
+	if workspaceID != "" && entry.workspaceID != workspaceID {
+		c.mu.Unlock()
+		return false
+	}
+	entry.cancelRequested = true
+	entry.cancel()
+	c.mu.Unlock()
 	// Also propagate to the runner's cancel registry for context guard.
 	c.runner.CancelInvocation(invocationID, workspaceID)
 	return true
@@ -231,9 +271,9 @@ func (c *Coordinator) Cancel(invocationID, workspaceID string) bool {
 // IsActive reports whether the given invocation is tracked as in-flight.
 func (c *Coordinator) IsActive(invocationID string) bool {
 	c.mu.Lock()
-	_, ok := c.running[invocationID]
-	c.mu.Unlock()
-	return ok
+	defer c.mu.Unlock()
+	entry, ok := c.running[invocationID]
+	return ok && !entry.finished
 }
 
 // NewInvocationID generates a v7 UUID for a new invocation.

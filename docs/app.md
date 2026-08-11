@@ -111,7 +111,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 配置类：
 
-- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（dashboard chat server-stream）/ `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name），stream 事件与 invocation 记录携带 `agent_id`。
+- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。dashboard chat 提交后由后台 coordinator 独立执行；同一 Session 只允许一个 QUEUED/RUNNING Invocation，不同 Session 可并发。Stop 是唯一普通取消动作，终态为 CANCELLED；导航和 observer 断开不取消。Get/Cancel 校验 Workspace 与 private Session owner。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name）。
 - `MCPServerService`：共享 MCP Server CRUD + `GetMCPServerStatus`（live 探活）+ `ListMCPTools`（聚合工具列表）+ `StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`（MCP OAuth2 授权流程）。
 - `RemoteAgentService`：远程 Agent CRUD + `GetRemoteAgentStatus`（A2A `/.well-known/agent.json` 探测 / Daemon 注册表查找）。
 - `ChannelService`：渠道配置 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
@@ -229,7 +229,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
   - Run 开始时记 `INVOCATION_STATUS_RUNNING` + `started_at`。
   - 命名返回 + defer 在结束时回写 `SUCCEEDED` / `FAILED` + `output` / `error` + `latency_ms`（input/output/error 截到 4096 字符）。
   - 记录失败只 warn 日志，不阻塞 Run。
-- `runner.Service.CancelInvocation(id)` 调用注册的 `context.CancelFunc` 取消在飞 invocation；`AgentService.CancelAgentInvocation` 把信号送过去。
+- `runner.Service.CancelInvocation(id)` 保留同步调用的 request-scoped 取消；dashboard async Invocation 由 `asyncrun.Coordinator` 持有外层 cancel context，`AgentService.CancelAgentInvocation` 在权限校验后优先取消该 context，确保显式 Stop 写为 `CANCELLED` 而非 `FAILED`。
 - `AgentService.ListAgentInvocations`：按 agent（`agent_id` 优先，legacy `agent_name` 兼容）/ session 过滤 + 分页；invocation 记录携带 `agent_id` 与 `agent_display_name` 快照。
 - `DashboardService.GetActivityFeed`：把最近 invocation 映射成 `ActivityEvent`（kind 派生自 status）。
 - `AgentRuntimeStatus`（`GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses`）从最近 100 条 invocation 派生 state / last_run_at / in_flight，驱动前端 Agents 表的 Status 列。
