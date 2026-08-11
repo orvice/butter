@@ -34,7 +34,19 @@ func (s *Store) Save(_ context.Context, inv *agentsv1.Invocation) error {
 	return nil
 }
 
-func (s *Store) Get(_ context.Context, id string) (*agentsv1.Invocation, error) {
+func (s *Store) Get(_ context.Context, workspaceID, id string) (*agentsv1.Invocation, error) {
+	inv, err := s.get(id)
+	if err != nil || inv.GetWorkspaceId() != workspaceID {
+		return nil, invocation.ErrNotFound
+	}
+	return inv, nil
+}
+
+func (s *Store) GetAcrossWorkspaces(_ context.Context, id string) (*agentsv1.Invocation, error) {
+	return s.get(id)
+}
+
+func (s *Store) get(id string) (*agentsv1.Invocation, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	inv, ok := s.byID[id]

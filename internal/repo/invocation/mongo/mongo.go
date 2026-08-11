@@ -88,9 +88,17 @@ func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 	return nil
 }
 
-func (s *Store) Get(ctx context.Context, id string) (*agentsv1.Invocation, error) {
+func (s *Store) Get(ctx context.Context, workspaceID, id string) (*agentsv1.Invocation, error) {
+	return s.get(ctx, bson.M{"_id": id, "workspace_id": workspaceID})
+}
+
+func (s *Store) GetAcrossWorkspaces(ctx context.Context, id string) (*agentsv1.Invocation, error) {
+	return s.get(ctx, bson.M{"_id": id})
+}
+
+func (s *Store) get(ctx context.Context, filter bson.M) (*agentsv1.Invocation, error) {
 	var d doc
-	err := s.coll.FindOne(ctx, bson.M{"_id": id}).Decode(&d)
+	err := s.coll.FindOne(ctx, filter).Decode(&d)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, invocation.ErrNotFound

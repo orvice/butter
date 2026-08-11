@@ -87,6 +87,12 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 	}
 	userID := user.GetId()
 
+	// The first release is explicitly single-instance. Serialize only the
+	// durable accept transaction so two browser tabs cannot both pass the
+	// active-Invocation check before either QUEUED record is visible.
+	s.asyncSubmitMu.Lock()
+	defer s.asyncSubmitMu.Unlock()
+
 	// Idempotency check: if this request_id already exists, return original.
 	existing, findErr := s.invRepo.FindByRequestID(ctx, wsID, req.Msg.GetRequestId())
 	if findErr == nil && existing != nil {
@@ -97,16 +103,45 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 			SessionCreated: false,
 		}), nil
 	}
+	if findErr != nil && !errors.Is(findErr, invocation.ErrNotFound) {
+		return nil, connectx.InternalWith(findErr)
+	}
 
 	sessionID := req.Msg.GetSessionId()
 	sessionCreated := false
 
-	// Enforce single-active-invocation per session if session exists.
+	// Validate an existing private Session before checking its active
+	// Invocation. The authenticated user supplies no user_id in this command,
+	// so another user's Session is intentionally indistinguishable from a
+	// missing one.
 	if sessionID != "" {
+		if s.sessionSvc == nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
+		}
+		sessResp, sessErr := s.sessionSvc.Get(ctx, &adksession.GetRequest{
+			AppName:   "web-chat",
+			UserID:    userID,
+			SessionID: sessionID,
+		})
+		if sessErr != nil || sessResp == nil || sessResp.Session == nil {
+			return nil, connectx.NotFound("session not found")
+		}
+		if value, stateErr := sessResp.Session.State().Get("workspace_id"); stateErr != nil || value != wsID {
+			return nil, connectx.NotFound("session not found")
+		}
+		if value, stateErr := sessResp.Session.State().Get("agent_id"); stateErr == nil && value != "" && value != agentID {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session is bound to another agent"))
+		}
+		if value, stateErr := sessResp.Session.State().Get("agent_name"); stateErr == nil && value != "" && value != agentName {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session is bound to another agent"))
+		}
+
 		active, activeErr := s.invRepo.FindActiveBySession(ctx, wsID, sessionID)
 		if activeErr == nil && active != nil {
-			return nil, connect.NewError(connect.CodeFailedPrecondition,
-				errors.New("session has an active invocation: "+active.GetId()))
+			return nil, activeInvocationError(active.GetId())
+		}
+		if activeErr != nil && !errors.Is(activeErr, invocation.ErrNotFound) {
+			return nil, connectx.InternalWith(activeErr)
 		}
 	}
 
@@ -121,6 +156,7 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 			SessionID: "chat-" + asyncrun.NewInvocationID(),
 			State: map[string]any{
 				"agent_name":   agentName,
+				"agent_id":     agentID,
 				"workspace_id": wsID,
 			},
 		})
@@ -190,7 +226,7 @@ func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connec
 			errors.New("workspace required (set X-Workspace-ID header)"))
 	}
 
-	inv, err := s.invRepo.Get(ctx, req.Msg.GetInvocationId())
+	inv, err := getInvocation(ctx, s.invRepo, wsID, req.Msg.GetInvocationId())
 	if err != nil {
 		if errors.Is(err, invocation.ErrNotFound) {
 			return nil, connectx.NotFound("invocation not found")
@@ -198,15 +234,44 @@ func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connec
 		return nil, connectx.InternalWith(err)
 	}
 
-	// Workspace scope check: non-admin callers can only see invocations in
-	// their workspace.
-	if wsID != "" && inv.GetWorkspaceId() != wsID {
-		return nil, connectx.NotFound("invocation not found")
+	if err := authorizeInvocationAccess(ctx, wsID, inv); err != nil {
+		return nil, err
 	}
 
 	return connect.NewResponse(&agentsv1.GetAgentInvocationResponse{
 		Invocation: inv,
 	}), nil
+}
+
+func getInvocation(ctx context.Context, repo invocation.Repository, workspaceID, invocationID string) (*agentsv1.Invocation, error) {
+	if workspaceID == "" {
+		return repo.GetAcrossWorkspaces(ctx, invocationID)
+	}
+	return repo.Get(ctx, workspaceID, invocationID)
+}
+
+func activeInvocationError(invocationID string) *connect.Error {
+	err := connect.NewError(connect.CodeFailedPrecondition,
+		errors.New("session has an active invocation: "+invocationID))
+	err.Meta().Set("active-invocation-id", invocationID)
+	return err
+}
+
+func authorizeInvocationAccess(ctx context.Context, workspaceID string, inv *agentsv1.Invocation) error {
+	if workspaceID != "" && inv.GetWorkspaceId() != workspaceID {
+		return connectx.NotFound("invocation not found")
+	}
+	if auth.IsAdmin(ctx) || inv.GetAppName() != "web-chat" {
+		return nil
+	}
+	user, ok := auth.UserFromContext(ctx)
+	if !ok {
+		return connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+	}
+	if inv.GetUserId() != user.GetId() {
+		return connectx.NotFound("invocation not found")
+	}
+	return nil
 }
 
 // extractTextInput returns the text content from parts for persisting as the

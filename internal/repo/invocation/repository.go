@@ -36,7 +36,9 @@ type StatusSummary struct {
 type Repository interface {
 	Save(ctx context.Context, inv *agentsv1.Invocation) error
 	List(ctx context.Context, filter ListFilter, pageSize int32, pageToken string) ([]*agentsv1.Invocation, string, int32, error)
-	Get(ctx context.Context, id string) (*agentsv1.Invocation, error)
+	Get(ctx context.Context, workspaceID, id string) (*agentsv1.Invocation, error)
+	// GetAcrossWorkspaces is the explicit global-admin/runtime lookup path.
+	GetAcrossWorkspaces(ctx context.Context, id string) (*agentsv1.Invocation, error)
 	// FindByRequestID returns the invocation associated with the given
 	// workspace+request_id pair, or ErrNotFound when none exists.
 	FindByRequestID(ctx context.Context, workspaceID, requestID string) (*agentsv1.Invocation, error)

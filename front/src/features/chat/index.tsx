@@ -3,8 +3,10 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { Agent, SessionInfo } from '@/types/api'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
-import { useCreateSession, useDeleteSession, useSessions } from '@/api/sessions'
+import { submitAgentInvocation } from '@/api/chat'
+import { useDeleteSession, useSessions } from '@/api/sessions'
 import { CHAT_APP_NAME, CHAT_LAST_AGENT_PREFIX } from '@/lib/constants'
+import { newClientID } from '@/lib/client-id'
 import {
   sessionAgentID,
   sessionAgentName,
@@ -47,10 +49,10 @@ export function ChatPage() {
       app_name: CHAT_APP_NAME,
       user_id: userId || undefined,
       page_size: 100,
+      workspace_scoped: true,
     },
     { enabled: !!userId }
   )
-  const createMutation = useCreateSession()
   const deleteMutation = useDeleteSession()
 
   const sessions = useMemo(
@@ -59,6 +61,7 @@ export function ChatPage() {
   )
 
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
+  const [draftSubmitting, setDraftSubmitting] = useState(false)
 
   // Normalize legacy ?new=1 to plain /chat by stripping the param.
   const wantsLegacyNew = search.new === 1
@@ -122,7 +125,10 @@ export function ChatPage() {
         const match =
           allAgents.find((a) => a.agent_id === requestedAgent) ??
           allAgents.find((a) => a.name === requestedAgent)
-        if (match) setDraftAgent(match)
+        if (match) {
+          const frame = globalThis.requestAnimationFrame(() => setDraftAgent(match))
+          return () => globalThis.cancelAnimationFrame(frame)
+        }
       }
     }
   }, [requestedAgent, allAgents])
@@ -159,25 +165,32 @@ export function ChatPage() {
       toast.error('Missing user context; please re-login.')
       return
     }
+    if (draftSubmitting) return
+    setDraftSubmitting(true)
     try {
-      const resp = await createMutation.mutateAsync({
-        app_name: CHAT_APP_NAME,
-        user_id: userId,
-        state: {
-          agent_name: agent.name,
-          ...(agent.agent_id ? { agent_id: agent.agent_id } : {}),
-        },
+      if (!agent.agent_id) {
+        toast.error('This Agent is missing an immutable ID and cannot be invoked.')
+        return
+      }
+      const resp = await submitAgentInvocation({
+        request_id: newClientID(),
+        agent_id: agent.agent_id,
+        message,
       })
+      await sessionsQuery.refetch()
       navigate({
         to: '/chat',
         search: {
-          session: resp.session.session_id,
+          session: resp.session_id,
           pending_message: message,
+          invocation: resp.invocation_id,
         },
         replace: true,
       })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create chat')
+    } finally {
+      setDraftSubmitting(false)
     }
   }
 
@@ -224,7 +237,7 @@ export function ChatPage() {
           if (!draftAgent) return
           void handleDraftSend(message, draftAgent)
         }}
-        busy={createMutation.isPending}
+        busy={draftSubmitting}
       />
     )
   } else if (
@@ -253,7 +266,19 @@ export function ChatPage() {
           agentName={activeAgent}
           agentId={activeAgentId}
           onDelete={() => setDeleteTarget(activeSession)}
+          onInvocationAccepted={(invocationId, message) => {
+            navigate({
+              to: '/chat',
+              search: {
+                session: activeSession.session_id,
+                invocation: invocationId,
+                pending_message: message,
+              },
+              replace: true,
+            })
+          }}
           pendingMessage={search.pending_message ?? undefined}
+          initialInvocationId={search.invocation ?? undefined}
         />
         <DeleteDialog
           open={!!deleteTarget}
