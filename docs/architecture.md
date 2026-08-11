@@ -226,7 +226,7 @@ WatchAgentInvocation handler（internal/application/agent_watch.go）
 
 ## Session 标题生成（LLM）
 
-Web Chat 首轮完成后，客户端调用 `SessionService.GenerateSessionTitle`（dashboard 在 `StreamAgent` 收到 `final` 并 refetch session 后触发）。实现位于 `internal/application/session_service.go` 与 `session_title_llm.go`。
+Web Chat 首轮异步 Invocation 成功后，`asyncrun.Coordinator` 调用 `SessionServiceServer.AsyncTurnComplete`，由服务端触发 `SessionService.GenerateSessionTitle`；标题生成不阻塞 Invocation 终态持久化。实现位于 `internal/application/session_async_title.go`、`session_service.go` 与 `session_title_llm.go`。
 
 ```text
 GenerateSessionTitle
@@ -333,7 +333,7 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 
 配置 / 执行：
 
-- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（chat server-stream）/ `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，外加 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status/invocation 查询以 `agent_id` 为主，并对历史记录兼容 legacy name 过滤。stream 事件与 `Invocation` 记录携带 `agent_id`（及 `agent_display_name` 快照）。
+- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，外加 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。dashboard async chat 的短提交事务在单实例内串行化，保证每个 Session 最多一个 QUEUED/RUNNING Invocation；不同 Session 的 runner 并发执行。Get/Cancel 同时校验 Workspace 与 private Session owner，显式 Stop 终态为 CANCELLED，导航和观察者断开只停止本地 polling。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status/invocation 查询以 `agent_id` 为主，并对历史记录兼容 legacy name 过滤。
 - `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools` + MCP OAuth2 流程（`StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`）。
 - `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
 - `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。

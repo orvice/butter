@@ -13,6 +13,8 @@ import (
 	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/repo/inputpart"
+	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
@@ -87,17 +89,19 @@ func textEvent(text string, partial bool) *session.Event {
 // identity comes from test headers: X-Test-User (user id), X-Test-Role, and
 // X-Test-Workspace (defaults to wsTest).
 type watchTestEnv struct {
-	invRepo invocation.Repository
-	coord   *asyncrun.Coordinator
-	runner  *watchTestRunner
-	client  agentsv1connect.AgentServiceClient
+	invRepo  invocation.Repository
+	coord    *asyncrun.Coordinator
+	partRepo inputpart.Repository
+	runner   *watchTestRunner
+	client   agentsv1connect.AgentServiceClient
 }
 
 func newWatchTestEnv(t *testing.T) *watchTestEnv {
 	t.Helper()
 	invRepo := invocationmemory.New()
+	partRepo := inputpartmemory.New()
 	fake := newWatchTestRunner()
-	coord := asyncrun.New(invRepo, fake, asyncrun.Config{})
+	coord := asyncrun.New(invRepo, partRepo, fake, asyncrun.Config{})
 
 	svc := &AgentServiceServer{
 		runnerSvc:  fake,
@@ -125,10 +129,11 @@ func newWatchTestEnv(t *testing.T) *watchTestEnv {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return &watchTestEnv{
-		invRepo: invRepo,
-		coord:   coord,
-		runner:  fake,
-		client:  agentsv1connect.NewAgentServiceClient(srv.Client(), srv.URL),
+		invRepo:  invRepo,
+		partRepo: partRepo,
+		coord:    coord,
+		runner:   fake,
+		client:   agentsv1connect.NewAgentServiceClient(srv.Client(), srv.URL),
 	}
 }
 
@@ -147,6 +152,12 @@ func (e *watchTestEnv) seedInvocation(t *testing.T, id, owner string) *agentsv1.
 		WorkspaceId: wsTest,
 	}
 	if err := e.invRepo.Save(context.Background(), inv); err != nil {
+		t.Fatal(err)
+	}
+	// The coordinator loads durable input parts at execution time.
+	if err := e.partRepo.SaveAll(context.Background(), id, []*agentsv1.InputPart{
+		{Part: &agentsv1.InputPart_Text{Text: "hi"}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	return inv
@@ -192,7 +203,7 @@ func TestWatchAgentInvocation_OrderedLiveFramesAndTerminal(t *testing.T) {
 	}
 
 	// Start execution; the watcher must observe the RUNNING transition.
-	env.coord.Enqueue(inv, "test-agent", []*genai.Part{{Text: "hi"}}, "")
+	env.coord.Enqueue(inv, "test-agent", "")
 	running := receiveFrame(t, stream)
 	if running.GetState().GetInvocation().GetStatus() != agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING {
 		t.Fatalf("second frame = %v, want RUNNING state", running)
@@ -236,7 +247,7 @@ func TestWatchAgentInvocation_MultipleObservers(t *testing.T) {
 	receiveFrame(t, s1) // QUEUED snapshot
 	receiveFrame(t, s2)
 
-	env.coord.Enqueue(inv, "test-agent", []*genai.Part{{Text: "hi"}}, "")
+	env.coord.Enqueue(inv, "test-agent", "")
 	receiveFrame(t, s1) // RUNNING
 	receiveFrame(t, s2)
 
@@ -272,7 +283,7 @@ func TestWatchAgentInvocation_DisconnectDoesNotCancelRun(t *testing.T) {
 	defer sB.Close()
 	receiveFrame(t, sB)
 
-	env.coord.Enqueue(inv, "test-agent", []*genai.Part{{Text: "hi"}}, "")
+	env.coord.Enqueue(inv, "test-agent", "")
 	receiveFrame(t, sB) // RUNNING
 
 	// Disconnect all of observer A mid-run.
@@ -291,7 +302,7 @@ func TestWatchAgentInvocation_DisconnectDoesNotCancelRun(t *testing.T) {
 	}
 
 	// And the persisted record is complete.
-	stored, err := env.invRepo.Get(context.Background(), inv.GetId())
+	stored, err := env.invRepo.Get(context.Background(), wsTest, inv.GetId())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +319,7 @@ func TestWatchAgentInvocation_AllObserversGone_RunStillCompletes(t *testing.T) {
 	stream := env.watch(t, ctx, inv.GetId(), "user-1", "")
 	receiveFrame(t, stream)
 
-	env.coord.Enqueue(inv, "test-agent", []*genai.Part{{Text: "hi"}}, "")
+	env.coord.Enqueue(inv, "test-agent", "")
 
 	// Drop the only observer.
 	stream.Close()
@@ -319,7 +330,7 @@ func TestWatchAgentInvocation_AllObserversGone_RunStillCompletes(t *testing.T) {
 
 	deadline := time.After(5 * time.Second)
 	for {
-		stored, err := env.invRepo.Get(context.Background(), inv.GetId())
+		stored, err := env.invRepo.Get(context.Background(), wsTest, inv.GetId())
 		if err == nil && stored.GetStatus() == agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED {
 			if stored.GetOutput() != "unobserved result" {
 				t.Fatalf("output = %q, want 'unobserved result'", stored.GetOutput())
@@ -418,6 +429,7 @@ func TestWatchAgentInvocation_LaggedObserverDisconnectedWithResourceExhausted(t 
 	invRepo := invocationmemory.New()
 	inv := &agentsv1.Invocation{
 		Id:          "inv-lag",
+		AppName:     "web-chat",
 		UserId:      "user-1",
 		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
 		Source:      "dashboard-async",
@@ -467,6 +479,7 @@ func TestGetAgentInvocation_ActiveBySession(t *testing.T) {
 
 	inv := &agentsv1.Invocation{
 		Id:          "inv-active",
+		AppName:     "web-chat",
 		UserId:      "user-1",
 		SessionId:   "sess-a",
 		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
@@ -498,6 +511,7 @@ func TestGetAgentInvocation_PrivateOwnershipEnforced(t *testing.T) {
 
 	inv := &agentsv1.Invocation{
 		Id:          "inv-owned",
+		AppName:     "web-chat",
 		UserId:      "owner-user",
 		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
 		Source:      "dashboard-async",

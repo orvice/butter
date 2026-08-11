@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/genai"
 
+	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -128,7 +129,7 @@ func (r *noopRunner) CancelInvocation(string, string) bool             { return 
 func TestCoordinator_RunningPersistFailureStillEmitsTerminalFrame(t *testing.T) {
 	repo := &failingSaveRepo{Repository: invocationmemory.New(), failures: 1}
 	fake := &noopRunner{}
-	c := New(repo, fake, Config{})
+	c := New(repo, inputpartmemory.New(), fake, Config{})
 
 	inv := &agentsv1.Invocation{
 		Id:     "inv-persist-fail",
@@ -137,7 +138,7 @@ func TestCoordinator_RunningPersistFailureStillEmitsTerminalFrame(t *testing.T) 
 	frames, cancel := c.Watch(inv.GetId())
 	defer cancel()
 
-	c.Enqueue(inv, "agent", []*genai.Part{{Text: "hi"}}, "")
+	c.Enqueue(inv, "agent", "")
 
 	// The watcher must observe one FAILED terminal frame, then close —
 	// close-without-terminal would misread as observer lag.

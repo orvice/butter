@@ -17,27 +17,7 @@ import (
 )
 
 // sourceDashboardAsync marks invocations created by dashboard async chat.
-// These are private conversations: only the owning user (or a global admin
-// on the support path) may look them up or watch them.
 const sourceDashboardAsync = "dashboard-async"
-
-// authorizeInvocationRead enforces the read boundary shared by
-// GetAgentInvocation and WatchAgentInvocation: workspace scope for every
-// caller, plus private-session ownership for dashboard async chat
-// invocations. Failures are reported as NotFound so an unauthorized caller
-// cannot distinguish "exists elsewhere" from "does not exist".
-func authorizeInvocationRead(ctx context.Context, wsID string, inv *agentsv1.Invocation) error {
-	if wsID != "" && inv.GetWorkspaceId() != wsID {
-		return connectx.NotFound("invocation not found")
-	}
-	if inv.GetSource() == sourceDashboardAsync && !auth.IsAdmin(ctx) {
-		user, ok := auth.UserFromContext(ctx)
-		if !ok || user.GetId() != inv.GetUserId() {
-			return connectx.NotFound("invocation not found")
-		}
-	}
-	return nil
-}
 
 // WatchAgentInvocation streams read-only observer frames for one async
 // invocation. The first frame is always the authoritative current state;
@@ -74,14 +54,14 @@ func (s *AgentServiceServer) WatchAgentInvocation(
 	frames, cancelWatch := s.asyncCoord.Watch(invID)
 	defer cancelWatch()
 
-	inv, err := s.invRepo.Get(ctx, invID)
+	inv, err := getInvocation(ctx, s.invRepo, wsID, invID)
 	if err != nil {
 		if errors.Is(err, invocation.ErrNotFound) {
 			return connectx.NotFound("invocation not found")
 		}
 		return connectx.InternalWith(err)
 	}
-	if err := authorizeInvocationRead(ctx, wsID, inv); err != nil {
+	if err := authorizeInvocationAccess(ctx, wsID, inv); err != nil {
 		return err
 	}
 

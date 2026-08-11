@@ -3,9 +3,9 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import {
   AgentService,
+  type Invocation,
   InvocationStatus,
   SessionService,
-  type Invocation,
   type StreamAgentRunEvent,
 } from "@/gen/agents/v1/agent_service_pb";
 import type { InputPartSchema } from "@/gen/agents/v1/content_pb";
@@ -36,6 +36,22 @@ export interface ReplySessionResponse {
   response: string;
 }
 
+export interface SubmitAgentInvocationParams {
+  request_id: string;
+  agent_id: string;
+  session_id?: string;
+  message: string;
+  model_override?: string;
+  parts?: InputPartInit[];
+}
+
+export interface SubmitAgentInvocationResult {
+  session_id: string;
+  invocation_id: string;
+  status: InvocationStatus;
+  session_created: boolean;
+}
+
 // ChatStreamRunEvent mirrors the legacy SSE payload shape so chat-window.tsx
 // can keep parsing events into ParsedEvent via the same path it always has.
 // The fields come from the proto StreamAgentRunEvent message.
@@ -61,6 +77,14 @@ export interface ChatStreamPayload {
   event?: ChatStreamRunEvent;
 }
 
+export interface ChatStreamHandlers {
+  onStarted?: (payload: ChatStreamPayload) => void;
+  onAgentEvent?: (payload: ChatStreamPayload) => void;
+  onTextDelta?: (payload: ChatStreamPayload) => void;
+  onFinal?: (payload: ChatStreamPayload) => void;
+  onError?: (payload: ChatStreamPayload) => void;
+}
+
 // runEventPayload maps a proto StreamAgentRunEvent (shared by StreamAgent and
 // WatchAgentInvocation frames) into the legacy callback payload shape.
 function runEventPayload(v: StreamAgentRunEvent): ChatStreamPayload {
@@ -82,12 +106,12 @@ function runEventPayload(v: StreamAgentRunEvent): ChatStreamPayload {
   };
 }
 
-export interface ChatStreamHandlers {
-  onStarted?: (payload: ChatStreamPayload) => void;
-  onAgentEvent?: (payload: ChatStreamPayload) => void;
-  onTextDelta?: (payload: ChatStreamPayload) => void;
-  onFinal?: (payload: ChatStreamPayload) => void;
-  onError?: (payload: ChatStreamPayload) => void;
+export function isTerminalInvocationStatus(status: InvocationStatus): boolean {
+  return (
+    status === InvocationStatus.SUCCEEDED ||
+    status === InvocationStatus.FAILED ||
+    status === InvocationStatus.CANCELLED
+  );
 }
 
 export async function replySession(params: SendChatParams): Promise<ReplySessionResponse> {
@@ -109,111 +133,39 @@ export async function cancelAgentInvocation(invocationId: string): Promise<{ can
   return { cancelled: res.cancelled };
 }
 
-// --- Asynchronous invocations (submit / lookup / observe) ---
-
-export type InvocationStatusName =
-  | "unspecified"
-  | "queued"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "cancelled";
-
-export function invocationStatusName(status: InvocationStatus): InvocationStatusName {
-  switch (status) {
-    case InvocationStatus.QUEUED:
-      return "queued";
-    case InvocationStatus.RUNNING:
-      return "running";
-    case InvocationStatus.SUCCEEDED:
-      return "succeeded";
-    case InvocationStatus.FAILED:
-      return "failed";
-    case InvocationStatus.CANCELLED:
-      return "cancelled";
-    default:
-      return "unspecified";
-  }
-}
-
-export function isTerminalInvocationStatus(status: InvocationStatusName): boolean {
-  return status === "succeeded" || status === "failed" || status === "cancelled";
-}
-
-export interface InvocationSummary {
-  invocation_id: string;
-  session_id: string;
-  status: InvocationStatusName;
-  output?: string;
-  error?: string;
-}
-
-function invocationSummary(inv: Invocation): InvocationSummary {
-  return {
-    invocation_id: inv.id,
-    session_id: inv.sessionId,
-    status: invocationStatusName(inv.status),
-    output: inv.output || undefined,
-    error: inv.error || undefined,
-  };
-}
-
-export interface SubmitChatParams {
-  /** Client-generated idempotency key. */
-  request_id: string;
-  agent_id: string;
-  session_id?: string;
-  message: string;
-  parts?: InputPartInit[];
-  model_override?: string;
-}
-
-export interface SubmitChatResult {
-  session_id: string;
-  invocation_id: string;
-  status: InvocationStatusName;
-  session_created: boolean;
-}
-
-// submitChatInvocation durably accepts one chat turn as an asynchronous
-// Invocation. The server returns as soon as the input is durable; the agent
-// runs independently of this browser connection.
-export async function submitChatInvocation(params: SubmitChatParams): Promise<SubmitChatResult> {
+export async function submitAgentInvocation(
+  params: SubmitAgentInvocationParams,
+): Promise<SubmitAgentInvocationResult> {
   const res = await agentClient.submitAgentInvocation({
     requestId: params.request_id,
     agentId: params.agent_id,
     sessionId: params.session_id ?? "",
     message: params.message,
-    parts: params.parts,
     modelOverride: params.model_override ?? "",
+    parts: params.parts,
   });
   return {
     session_id: res.sessionId,
     invocation_id: res.invocationId,
-    status: invocationStatusName(res.status),
+    status: res.status,
     session_created: res.sessionCreated,
   };
 }
 
-// getInvocation returns the authoritative state of one invocation.
-export async function getInvocation(invocationId: string): Promise<InvocationSummary | null> {
-  try {
-    const res = await agentClient.getAgentInvocation({ invocationId });
-    return res.invocation ? invocationSummary(res.invocation) : null;
-  } catch (err) {
-    if (err instanceof ConnectError && err.code === Code.NotFound) return null;
-    throw err;
-  }
+export async function getAgentInvocation(invocationId: string): Promise<Invocation> {
+  const res = await agentClient.getAgentInvocation({ invocationId });
+  if (!res.invocation) throw new Error("invocation not found");
+  return res.invocation;
 }
 
 // getActiveInvocationForSession returns the session's QUEUED/RUNNING
 // invocation, or null when the session is idle. Clients re-entering a
 // session call this after loading persisted events to decide whether to
 // attach a watch stream.
-export async function getActiveInvocationForSession(sessionId: string): Promise<InvocationSummary | null> {
+export async function getActiveInvocationForSession(sessionId: string): Promise<Invocation | null> {
   try {
     const res = await agentClient.getAgentInvocation({ sessionId });
-    return res.invocation ? invocationSummary(res.invocation) : null;
+    return res.invocation ?? null;
   } catch (err) {
     if (err instanceof ConnectError && err.code === Code.NotFound) return null;
     throw err;
@@ -221,23 +173,23 @@ export async function getActiveInvocationForSession(sessionId: string): Promise<
 }
 
 export interface WatchChatHandlers {
-  /** Authoritative invocation snapshots (first frame, RUNNING, terminal). */
-  onState?: (inv: InvocationSummary) => void;
+  /** Authoritative invocation snapshots (first frame, RUNNING transition). */
+  onState?: (inv: Invocation) => void;
   onAgentEvent?: (payload: ChatStreamPayload) => void;
   onTextDelta?: (payload: ChatStreamPayload) => void;
 }
 
 // watchChatInvocation attaches a read-only observer stream to a running
 // invocation. It never owns the run: aborting the signal only detaches this
-// observer. Resolves with the terminal invocation state, or null when the
-// stream ended without one (e.g. this observer lagged and was disconnected —
-// reload persisted state and re-attach). Rejects with AbortError when the
-// signal aborts, mirroring streamChat.
+// observer. Resolves with the terminal Invocation, or null when the stream
+// ended without one (e.g. this observer lagged and was disconnected — reload
+// persisted state and re-attach). Rejects with AbortError when the signal
+// aborts, mirroring streamChat.
 export async function watchChatInvocation(
   invocationId: string,
   handlers: WatchChatHandlers,
   signal?: AbortSignal,
-): Promise<InvocationSummary | null> {
+): Promise<Invocation | null> {
   try {
     const stream = agentClient.watchAgentInvocation({ invocationId }, { signal });
     for await (const msg of stream) {
@@ -245,9 +197,8 @@ export async function watchChatInvocation(
         case "state": {
           const inv = msg.event.value.invocation;
           if (!inv) break;
-          const summary = invocationSummary(inv);
-          handlers.onState?.(summary);
-          if (isTerminalInvocationStatus(summary.status)) return summary;
+          handlers.onState?.(inv);
+          if (isTerminalInvocationStatus(inv.status)) return inv;
           break;
         }
         case "textDelta": {

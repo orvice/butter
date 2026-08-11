@@ -53,6 +53,7 @@ interface ListSessionsParams {
   end_time?: string;
   page_size?: number;
   page_token?: string;
+  workspace_scoped?: boolean;
 }
 
 interface ListSessionsResponse {
@@ -124,6 +125,7 @@ async function listSessions(params: ListSessionsParams): Promise<ListSessionsRes
       : undefined,
     pageSize: params.page_size ?? 0,
     pageToken: params.page_token ?? "",
+    workspaceScoped: params.workspace_scoped ?? false,
   });
   return {
     sessions: res.sessions.map(infoFromProto),

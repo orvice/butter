@@ -15,6 +15,7 @@ import (
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/runtime/streamorch"
@@ -41,29 +42,38 @@ type Config struct {
 
 // Coordinator manages the lifecycle of async dashboard invocations.
 type Coordinator struct {
-	invRepo invocation.Repository
-	runner  Runner
-	cfg     Config
+	invRepo      invocation.Repository
+	inputPartRepo inputpart.Repository
+	runner       Runner
+	cfg          Config
 
 	mu      sync.Mutex
-	running map[string]context.CancelFunc // invocationID → cancel
+	running map[string]*runEntry // invocationID → active run
 
 	hub *watchHub
 
 	onTurnComplete TurnCompleteFunc
 }
 
+type runEntry struct {
+	cancel          context.CancelFunc
+	workspaceID     string
+	cancelRequested bool
+	finished        bool
+}
+
 // New creates a Coordinator. The runner and invRepo must be non-nil.
-func New(invRepo invocation.Repository, r Runner, cfg Config) *Coordinator {
+func New(invRepo invocation.Repository, inputPartRepo inputpart.Repository, r Runner, cfg Config) *Coordinator {
 	if cfg.MaxRunDuration == 0 {
 		cfg.MaxRunDuration = 30 * time.Minute
 	}
 	return &Coordinator{
-		invRepo: invRepo,
-		runner:  r,
-		cfg:     cfg,
-		running: make(map[string]context.CancelFunc),
-		hub:     newWatchHub(),
+		invRepo:       invRepo,
+		inputPartRepo: inputPartRepo,
+		runner:        r,
+		cfg:           cfg,
+		running:       make(map[string]*runEntry),
+		hub:           newWatchHub(),
 	}
 }
 
@@ -81,20 +91,22 @@ func (c *Coordinator) getTurnComplete() TurnCompleteFunc {
 }
 
 // Enqueue transitions the invocation from QUEUED to RUNNING and starts
-// background execution. It must be called after the invocation is durably
-// persisted. The caller passes the pre-resolved agentName and parts.
-func (c *Coordinator) Enqueue(inv *agentsv1.Invocation, agentName string, parts []*genai.Part, modelOverride string) {
+// background execution. It must be called after both the invocation and its
+// Input Parts are durably persisted. Parts are loaded from the InputPart
+// repository at execution time so they survive process restarts between
+// accept and run.
+func (c *Coordinator) Enqueue(inv *agentsv1.Invocation, agentName string, modelOverride string) {
 	invID := inv.GetId()
 	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.MaxRunDuration)
 
 	c.mu.Lock()
-	c.running[invID] = cancel
+	c.running[invID] = &runEntry{cancel: cancel, workspaceID: inv.GetWorkspaceId()}
 	c.mu.Unlock()
 
-	go c.execute(ctx, cancel, inv, agentName, parts, modelOverride)
+	go c.execute(ctx, cancel, inv, agentName, modelOverride)
 }
 
-func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, inv *agentsv1.Invocation, agentName string, parts []*genai.Part, modelOverride string) {
+func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, inv *agentsv1.Invocation, agentName string, modelOverride string) {
 	invID := inv.GetId()
 	defer func() {
 		cancel()
@@ -111,22 +123,24 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 		"workspace_id", inv.GetWorkspaceId(),
 	)
 
+	// Load persisted input parts.
+	parts, loadErr := c.loadParts(ctx, invID)
+	if loadErr != nil {
+		logger.Error("async run: failed to load input parts", "invocation_id", invID, "err", loadErr)
+		c.failInvocation(inv, "failed to load input parts: "+loadErr.Error())
+		return
+	}
+
 	// Transition to RUNNING.
 	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING
 	inv.StartedAt = timestamppb.Now()
-	if err := c.invRepo.Save(ctx, inv); err != nil {
+	if err := c.invRepo.Save(context.Background(), inv); err != nil {
 		logger.Error("async run: failed to persist RUNNING status", "invocation_id", invID, "err", err)
-		// The run never starts, so observers must still see one terminal
-		// state frame — otherwise close-without-terminal would read as
-		// observer lag and clients would re-attach to a dead invocation.
-		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-		inv.Error = "failed to persist RUNNING status: " + err.Error()
-		inv.FinishedAt = timestamppb.Now()
-		if saveErr := c.invRepo.Save(context.Background(), inv); saveErr != nil {
-			logger.Error("async run: failed to persist FAILED status", "invocation_id", invID, "err", saveErr)
-		}
-		c.publishState(inv)
-		c.hub.closeAll(invID)
+		c.claimTerminal(invID)
+		// Observers must still see one terminal state frame — otherwise
+		// close-without-terminal reads as observer lag and clients would
+		// re-attach to a dead invocation.
+		c.failInvocation(inv, "failed to persist RUNNING status: "+err.Error())
 		return
 	}
 	c.publishState(inv)
@@ -141,24 +155,30 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
 	}
 
-	// Drive the run through the shared streaming orchestration so observers
-	// attached via Watch receive the same frame sequence StreamAgent emits.
-	sink := &hubSink{hub: c.hub, invocationID: invID}
-	runErr := streamorch.Run(ctx, c.runner, streamorch.AgentRef{Name: agentName, ID: inv.GetAgentId()}, parts, modelOverride, ctxInfo, sink)
-	response := sink.response
+	var response string
+	var runErr error
+	if c.cancelRequested(invID) {
+		runErr = context.Canceled
+	} else {
+		// Drive the run through the shared streaming orchestration so
+		// observers attached via Watch receive the same frame sequence
+		// StreamAgent emits.
+		sink := &hubSink{hub: c.hub, invocationID: invID}
+		runErr = streamorch.Run(runner.WithoutInvocationRecording(ctx), c.runner, streamorch.AgentRef{Name: agentName, ID: inv.GetAgentId()}, parts, modelOverride, ctxInfo, sink)
+		response = sink.response
+	}
 
 	now := timestamppb.Now()
-	if runErr != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED
-			inv.Error = "cancelled by user"
-		} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-			inv.Error = "exceeded maximum run duration"
-		} else {
-			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-			inv.Error = runErr.Error()
-		}
+	if c.claimTerminal(invID) {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED
+		inv.Error = "cancelled by user"
+		inv.Output = ""
+	} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = "exceeded maximum run duration"
+	} else if runErr != nil {
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = runErr.Error()
 	} else {
 		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED
 		inv.Output = response
@@ -178,6 +198,13 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 	c.publishState(inv)
 	c.hub.closeAll(invID)
 
+	// Clean up temporary input parts after successful session event commit.
+	if inv.GetStatus() == agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED {
+		if delErr := c.inputPartRepo.Delete(context.Background(), invID); delErr != nil {
+			logger.Warn("async run: failed to clean up input parts", "invocation_id", invID, "err", delErr)
+		}
+	}
+
 	logger.Info("async run finished",
 		"invocation_id", invID,
 		"status", inv.GetStatus().String(),
@@ -191,15 +218,73 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 	}
 }
 
-// Cancel stops a running invocation. Returns true if found and cancelled.
-func (c *Coordinator) Cancel(invocationID, workspaceID string) bool {
+// loadParts reads persisted InputPart protos and converts them to genai.Part
+// for the runner.
+func (c *Coordinator) loadParts(ctx context.Context, invocationID string) ([]*genai.Part, error) {
+	stored, err := c.inputPartRepo.Load(ctx, invocationID)
+	if err != nil {
+		return nil, err
+	}
+	parts := make([]*genai.Part, 0, len(stored))
+	for _, sp := range stored {
+		switch p := sp.GetPart().(type) {
+		case *agentsv1.InputPart_Text:
+			parts = append(parts, genai.NewPartFromText(p.Text))
+		case *agentsv1.InputPart_InlineData:
+			parts = append(parts, genai.NewPartFromBytes(p.InlineData.GetData(), p.InlineData.GetMimeType()))
+		}
+	}
+	return parts, nil
+}
+
+// failInvocation persists a FAILED status without entering RUNNING, and
+// delivers the terminal state frame to any attached observers so a run that
+// never starts still ends their streams with terminal-then-close.
+func (c *Coordinator) failInvocation(inv *agentsv1.Invocation, reason string) {
+	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+	inv.Error = reason
+	inv.FinishedAt = timestamppb.Now()
+	_ = c.invRepo.Save(context.Background(), inv)
+	c.publishState(inv)
+	c.hub.closeAll(inv.GetId())
+}
+
+func (c *Coordinator) cancelRequested(invocationID string) bool {
 	c.mu.Lock()
-	cancelFn, ok := c.running[invocationID]
-	c.mu.Unlock()
+	defer c.mu.Unlock()
+	entry, ok := c.running[invocationID]
+	return ok && entry.cancelRequested
+}
+
+// claimTerminal atomically closes the cancellation window. A Cancel that
+// returns true always sets cancelRequested before this point; once finished is
+// set, later cancellation reports false and cannot overwrite the chosen state.
+func (c *Coordinator) claimTerminal(invocationID string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.running[invocationID]
 	if !ok {
 		return false
 	}
-	cancelFn()
+	entry.finished = true
+	return entry.cancelRequested
+}
+
+// Cancel stops a running invocation. Returns true if found and cancelled.
+func (c *Coordinator) Cancel(invocationID, workspaceID string) bool {
+	c.mu.Lock()
+	entry, ok := c.running[invocationID]
+	if !ok || entry.finished {
+		c.mu.Unlock()
+		return false
+	}
+	if workspaceID != "" && entry.workspaceID != workspaceID {
+		c.mu.Unlock()
+		return false
+	}
+	entry.cancelRequested = true
+	entry.cancel()
+	c.mu.Unlock()
 	// Also propagate to the runner's cancel registry for context guard.
 	c.runner.CancelInvocation(invocationID, workspaceID)
 	return true
@@ -208,9 +293,9 @@ func (c *Coordinator) Cancel(invocationID, workspaceID string) bool {
 // IsActive reports whether the given invocation is tracked as in-flight.
 func (c *Coordinator) IsActive(invocationID string) bool {
 	c.mu.Lock()
-	_, ok := c.running[invocationID]
-	c.mu.Unlock()
-	return ok
+	defer c.mu.Unlock()
+	entry, ok := c.running[invocationID]
+	return ok && !entry.finished
 }
 
 // NewInvocationID generates a v7 UUID for a new invocation.

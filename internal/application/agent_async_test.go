@@ -2,14 +2,18 @@ package application
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
+	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
+	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -62,19 +66,39 @@ func (r *asyncTestRunner) GetAgentIdentity(name string) (string, string, bool) {
 // fakeAsyncCoordinator captures Enqueue calls for testing without real
 // goroutines.
 type fakeAsyncCoordinator struct {
-	mu       sync.Mutex
-	enqueued []*agentsv1.Invocation
+	mu              sync.Mutex
+	enqueued        []*agentsv1.Invocation
+	cancelled       bool
+	cancelledID     string
+	cancelWorkspace string
 }
 
-func (c *fakeAsyncCoordinator) Enqueue(inv *agentsv1.Invocation, _ string, _ []*genai.Part, _ string) {
+func (c *fakeAsyncCoordinator) Enqueue(inv *agentsv1.Invocation, _ string, _ string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.enqueued = append(c.enqueued, inv)
 }
-func (c *fakeAsyncCoordinator) Cancel(string, string) bool { return false }
+func (c *fakeAsyncCoordinator) Cancel(invocationID, workspaceID string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cancelledID = invocationID
+	c.cancelWorkspace = workspaceID
+	return c.cancelled
+}
+
 func (c *fakeAsyncCoordinator) Watch(string) (<-chan asyncrun.Frame, func()) {
 	ch := make(chan asyncrun.Frame)
 	return ch, func() {}
+}
+
+type delayedActiveLookupRepo struct {
+	invocation.Repository
+	delay time.Duration
+}
+
+func (r *delayedActiveLookupRepo) FindActiveBySession(ctx context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error) {
+	time.Sleep(r.delay)
+	return r.Repository.FindActiveBySession(ctx, workspaceID, sessionID)
 }
 
 func testContextWithUser(wsID, userID string) context.Context {
@@ -85,14 +109,16 @@ func testContextWithUser(wsID, userID string) context.Context {
 
 func TestSubmitAgentInvocation_Basic(t *testing.T) {
 	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
 	coord := &fakeAsyncCoordinator{}
 	fake := &asyncTestRunner{idToName: map[string]string{"test-agent": "test-agent-name"}, response: "ok"}
 
 	svc := &AgentServiceServer{
-		runnerSvc:  fake,
-		invRepo:    invRepo,
-		asyncCoord: coord,
-		sessionSvc: session.InMemoryService(),
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
 	}
 
 	ctx := testContextWithUser(wsTest, "user-1")
@@ -125,14 +151,16 @@ func TestSubmitAgentInvocation_Basic(t *testing.T) {
 
 func TestSubmitAgentInvocation_Idempotency(t *testing.T) {
 	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
 	coord := &fakeAsyncCoordinator{}
 	fake := &asyncTestRunner{idToName: map[string]string{"test-agent": "test-agent-name"}, response: "ok"}
 
 	svc := &AgentServiceServer{
-		runnerSvc:  fake,
-		invRepo:    invRepo,
-		asyncCoord: coord,
-		sessionSvc: session.InMemoryService(),
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
 	}
 
 	ctx := testContextWithUser(wsTest, "user-1")
@@ -172,14 +200,16 @@ func TestSubmitAgentInvocation_Idempotency(t *testing.T) {
 
 func TestSubmitAgentInvocation_SingleActivePerSession(t *testing.T) {
 	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
 	coord := &fakeAsyncCoordinator{}
 	fake := &asyncTestRunner{idToName: map[string]string{"test-agent": "test-agent-name"}, response: "ok"}
 
 	svc := &AgentServiceServer{
-		runnerSvc:  fake,
-		invRepo:    invRepo,
-		asyncCoord: coord,
-		sessionSvc: session.InMemoryService(),
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
 	}
 
 	ctx := testContextWithUser(wsTest, "user-1")
@@ -208,13 +238,140 @@ func TestSubmitAgentInvocation_SingleActivePerSession(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("expected FailedPrecondition, got %v: %v", connect.CodeOf(err), err)
 	}
+	if !strings.Contains(err.Error(), resp.Msg.GetInvocationId()) {
+		t.Fatalf("error %q does not include active invocation id %q", err, resp.Msg.GetInvocationId())
+	}
+	if got := err.(*connect.Error).Meta().Get("active-invocation-id"); got != resp.Msg.GetInvocationId() {
+		t.Fatalf("active-invocation-id metadata = %q, want %q", got, resp.Msg.GetInvocationId())
+	}
+}
+
+func TestSubmitAgentInvocation_SimultaneousSubmitsCannotBypassSingleActiveRule(t *testing.T) {
+	baseRepo := invocationmemory.New()
+	invRepo := &delayedActiveLookupRepo{Repository: baseRepo, delay: 40 * time.Millisecond}
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"test-agent": "test-agent-name"}}
+	sessionSvc := session.InMemoryService()
+	ctx := testContextWithUser(wsTest, "user-1")
+
+	created, err := sessionSvc.Create(ctx, &session.CreateRequest{
+		AppName:   "web-chat",
+		UserID:    "user-1",
+		SessionID: "shared-session",
+		State:     map[string]any{"workspace_id": wsTest, "agent_name": "test-agent-name"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    sessionSvc,
+	}
+
+	start := make(chan struct{})
+	type result struct {
+		resp *connect.Response[agentsv1.SubmitAgentInvocationResponse]
+		err  error
+	}
+	results := make(chan result, 2)
+	for _, requestID := range []string{"simultaneous-1", "simultaneous-2"} {
+		requestID := requestID
+		go func() {
+			<-start
+			resp, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
+				RequestId: requestID,
+				AgentId:   "test-agent",
+				SessionId: created.Session.ID(),
+				Message:   requestID,
+			}))
+			results <- result{resp: resp, err: err}
+		}()
+	}
+	close(start)
+
+	var successfulID string
+	var failed error
+	for range 2 {
+		result := <-results
+		if result.err == nil {
+			if successfulID != "" {
+				t.Fatal("both simultaneous submissions succeeded")
+			}
+			successfulID = result.resp.Msg.GetInvocationId()
+			continue
+		}
+		failed = result.err
+	}
+	if successfulID == "" {
+		t.Fatal("neither simultaneous submission succeeded")
+	}
+	if connect.CodeOf(failed) != connect.CodeFailedPrecondition {
+		t.Fatalf("losing submission error = %v, want FailedPrecondition", failed)
+	}
+	if !strings.Contains(failed.Error(), successfulID) {
+		t.Fatalf("losing submission error %q does not include active invocation id %q", failed, successfulID)
+	}
+	if len(coord.enqueued) != 1 {
+		t.Fatalf("enqueued %d invocations, want 1", len(coord.enqueued))
+	}
+}
+
+func TestSubmitAgentInvocation_DifferentSessionsMayRunConcurrently(t *testing.T) {
+	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"test-agent": "test-agent-name"}}
+	sessionSvc := session.InMemoryService()
+	ctx := testContextWithUser(wsTest, "user-1")
+
+	for _, sessionID := range []string{"session-a", "session-b"} {
+		if _, err := sessionSvc.Create(ctx, &session.CreateRequest{
+			AppName:   "web-chat",
+			UserID:    "user-1",
+			SessionID: sessionID,
+			State: map[string]any{
+				"workspace_id": wsTest,
+				"agent_id":     "test-agent",
+				"agent_name":   "test-agent-name",
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    sessionSvc,
+	}
+	for index, sessionID := range []string{"session-a", "session-b"} {
+		if _, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
+			RequestId: "cross-session-" + sessionID,
+			AgentId:   "test-agent",
+			SessionId: sessionID,
+			Message:   "message",
+		})); err != nil {
+			t.Fatalf("submit %d to %s: %v", index, sessionID, err)
+		}
+	}
+	if len(coord.enqueued) != 2 {
+		t.Fatalf("enqueued %d invocations, want 2", len(coord.enqueued))
+	}
 }
 
 func TestSubmitAgentInvocation_RequiresRequestID(t *testing.T) {
 	svc := &AgentServiceServer{
-		runnerSvc:  &asyncTestRunner{idToName: map[string]string{"a": "a"}},
-		invRepo:    invocationmemory.New(),
-		asyncCoord: &fakeAsyncCoordinator{},
+		runnerSvc:     &asyncTestRunner{idToName: map[string]string{"a": "a"}},
+		invRepo:       invocationmemory.New(),
+		inputPartRepo: inputpartmemory.New(),
+		asyncCoord:    &fakeAsyncCoordinator{},
 	}
 	ctx := testContextWithUser(wsTest, "user-1")
 
@@ -229,9 +386,10 @@ func TestSubmitAgentInvocation_RequiresRequestID(t *testing.T) {
 
 func TestSubmitAgentInvocation_RequiresAgentID(t *testing.T) {
 	svc := &AgentServiceServer{
-		runnerSvc:  &asyncTestRunner{idToName: map[string]string{"a": "a"}},
-		invRepo:    invocationmemory.New(),
-		asyncCoord: &fakeAsyncCoordinator{},
+		runnerSvc:     &asyncTestRunner{idToName: map[string]string{"a": "a"}},
+		invRepo:       invocationmemory.New(),
+		inputPartRepo: inputpartmemory.New(),
+		asyncCoord:    &fakeAsyncCoordinator{},
 	}
 	ctx := testContextWithUser(wsTest, "user-1")
 
@@ -246,9 +404,10 @@ func TestSubmitAgentInvocation_RequiresAgentID(t *testing.T) {
 
 func TestSubmitAgentInvocation_RequiresAuth(t *testing.T) {
 	svc := &AgentServiceServer{
-		runnerSvc:  &asyncTestRunner{idToName: map[string]string{"a": "a"}},
-		invRepo:    invocationmemory.New(),
-		asyncCoord: &fakeAsyncCoordinator{},
+		runnerSvc:     &asyncTestRunner{idToName: map[string]string{"a": "a"}},
+		invRepo:       invocationmemory.New(),
+		inputPartRepo: inputpartmemory.New(),
+		asyncCoord:    &fakeAsyncCoordinator{},
 	}
 	// Context with workspace but no user.
 	ctx := workspace.WithID(context.Background(), wsTest)
@@ -329,5 +488,387 @@ func TestGetAgentInvocation_WorkspaceIsolation(t *testing.T) {
 	}))
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("expected NotFound for wrong workspace, got %v: %v", connect.CodeOf(err), err)
+	}
+}
+
+func TestGetAgentInvocation_PrivateSessionOwnership(t *testing.T) {
+	invRepo := invocationmemory.New()
+	svc := &AgentServiceServer{invRepo: invRepo}
+	if err := invRepo.Save(context.Background(), &agentsv1.Invocation{
+		Id:          "inv-private",
+		WorkspaceId: wsTest,
+		UserId:      "user-1",
+		AppName:     "web-chat",
+		Source:      "dashboard-async",
+		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := svc.GetAgentInvocation(testContextWithUser(wsTest, "user-2"), connect.NewRequest(&agentsv1.GetAgentInvocationRequest{
+		InvocationId: "inv-private",
+	}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("other user lookup error = %v, want NotFound", err)
+	}
+}
+
+func TestSubmitAgentInvocation_ImageOnlyPersistsParts(t *testing.T) {
+	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"a": "a-name"}, response: "ok"}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
+	}
+
+	ctx := testContextWithUser(wsTest, "user-1")
+	imgData := []byte("fake-png-data-for-test")
+	resp, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
+		RequestId: "img-req",
+		AgentId:   "a",
+		Parts: []*agentsv1.InputPart{
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{
+				MimeType: "image/png",
+				Data:     imgData,
+			}}},
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parts, loadErr := ipRepo.Load(context.Background(), resp.Msg.GetInvocationId())
+	if loadErr != nil {
+		t.Fatalf("Load: %v", loadErr)
+	}
+	if len(parts) != 1 {
+		t.Fatalf("expected 1 part, got %d", len(parts))
+	}
+	inline := parts[0].GetInlineData()
+	if inline == nil {
+		t.Fatal("expected InlineData")
+	}
+	if inline.GetMimeType() != "image/png" {
+		t.Fatalf("mime = %q, want image/png", inline.GetMimeType())
+	}
+	if string(inline.GetData()) != string(imgData) {
+		t.Fatal("image data mismatch")
+	}
+}
+
+func TestSubmitAgentInvocation_MixedOrderedParts(t *testing.T) {
+	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"a": "a-name"}, response: "ok"}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
+	}
+
+	ctx := testContextWithUser(wsTest, "user-1")
+	resp, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
+		RequestId: "mixed-req",
+		AgentId:   "a",
+		Parts: []*agentsv1.InputPart{
+			{Part: &agentsv1.InputPart_Text{Text: "describe this"}},
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{
+				MimeType: "image/jpeg",
+				Data:     []byte("jpeg-bytes"),
+			}}},
+			{Part: &agentsv1.InputPart_Text{Text: "and this"}},
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{
+				MimeType: "image/webp",
+				Data:     []byte("webp-bytes"),
+			}}},
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parts, loadErr := ipRepo.Load(context.Background(), resp.Msg.GetInvocationId())
+	if loadErr != nil {
+		t.Fatalf("Load: %v", loadErr)
+	}
+	if len(parts) != 4 {
+		t.Fatalf("expected 4 parts, got %d", len(parts))
+	}
+	if parts[0].GetText() != "describe this" {
+		t.Fatalf("part[0] text = %q", parts[0].GetText())
+	}
+	if parts[1].GetInlineData().GetMimeType() != "image/jpeg" {
+		t.Fatalf("part[1] mime = %q", parts[1].GetInlineData().GetMimeType())
+	}
+	if parts[2].GetText() != "and this" {
+		t.Fatalf("part[2] text = %q", parts[2].GetText())
+	}
+	if parts[3].GetInlineData().GetMimeType() != "image/webp" {
+		t.Fatalf("part[3] mime = %q", parts[3].GetInlineData().GetMimeType())
+	}
+}
+
+func TestSubmitAgentInvocation_RejectsUnsupportedMIME(t *testing.T) {
+	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"a": "a-name"}, response: "ok"}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
+	}
+
+	ctx := testContextWithUser(wsTest, "user-1")
+	_, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
+		RequestId: "bad-mime",
+		AgentId:   "a",
+		Parts: []*agentsv1.InputPart{
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{
+				MimeType: "application/pdf",
+				Data:     []byte("pdf-data"),
+			}}},
+		},
+	}))
+	if err == nil {
+		t.Fatal("expected error for unsupported MIME type")
+	}
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument, got %v: %v", connect.CodeOf(err), err)
+	}
+}
+
+func TestSubmitAgentInvocation_RejectsOversizedImage(t *testing.T) {
+	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"a": "a-name"}, response: "ok"}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
+	}
+
+	ctx := testContextWithUser(wsTest, "user-1")
+	oversized := make([]byte, 11<<20) // 11 MiB, exceeds 10 MiB limit
+	_, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
+		RequestId: "oversize",
+		AgentId:   "a",
+		Parts: []*agentsv1.InputPart{
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{
+				MimeType: "image/png",
+				Data:     oversized,
+			}}},
+		},
+	}))
+	if err == nil {
+		t.Fatal("expected error for oversized image")
+	}
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument, got %v: %v", connect.CodeOf(err), err)
+	}
+}
+
+func TestSubmitAgentInvocation_RejectsTooManyImages(t *testing.T) {
+	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"a": "a-name"}, response: "ok"}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
+	}
+
+	ctx := testContextWithUser(wsTest, "user-1")
+	parts := make([]*agentsv1.InputPart, 11) // 11 images, exceeds 10
+	for i := range parts {
+		parts[i] = &agentsv1.InputPart{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{
+			MimeType: "image/png",
+			Data:     []byte("small"),
+		}}}
+	}
+	_, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
+		RequestId: "too-many",
+		AgentId:   "a",
+		Parts:     parts,
+	}))
+	if err == nil {
+		t.Fatal("expected error for too many images")
+	}
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument, got %v: %v", connect.CodeOf(err), err)
+	}
+}
+
+func TestSubmitAgentInvocation_IdempotencyDoesNotDuplicateParts(t *testing.T) {
+	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"a": "a-name"}, response: "ok"}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
+	}
+
+	ctx := testContextWithUser(wsTest, "user-1")
+	req := &agentsv1.SubmitAgentInvocationRequest{
+		RequestId: "idem-parts",
+		AgentId:   "a",
+		Parts: []*agentsv1.InputPart{
+			{Part: &agentsv1.InputPart_Text{Text: "hello"}},
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{
+				MimeType: "image/gif",
+				Data:     []byte("gif-data"),
+			}}},
+		},
+	}
+
+	resp1, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(req))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Retry the same request.
+	resp2, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(req))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp1.Msg.GetInvocationId() != resp2.Msg.GetInvocationId() {
+		t.Fatal("idempotent retry returned different invocation_id")
+	}
+
+	// Parts should exist once (from the first submit).
+	parts, loadErr := ipRepo.Load(context.Background(), resp1.Msg.GetInvocationId())
+	if loadErr != nil {
+		t.Fatalf("Load: %v", loadErr)
+	}
+	if len(parts) != 2 {
+		t.Fatalf("expected 2 parts, got %d", len(parts))
+	}
+	// Only one enqueue should have happened.
+	if len(coord.enqueued) != 1 {
+		t.Fatalf("expected 1 enqueue, got %d", len(coord.enqueued))
+	}
+}
+
+func TestSubmitAgentInvocation_MaxPayloadRejected(t *testing.T) {
+	invRepo := invocationmemory.New()
+	ipRepo := inputpartmemory.New()
+	coord := &fakeAsyncCoordinator{}
+	fake := &asyncTestRunner{idToName: map[string]string{"a": "a-name"}, response: "ok"}
+
+	svc := &AgentServiceServer{
+		runnerSvc:     fake,
+		invRepo:       invRepo,
+		inputPartRepo: ipRepo,
+		asyncCoord:    coord,
+		sessionSvc:    session.InMemoryService(),
+	}
+
+	ctx := testContextWithUser(wsTest, "user-1")
+	// 3 images at 9 MiB each = 27 MiB, exceeds 20 MiB combined limit
+	bigImg := make([]byte, 9<<20)
+	_, err := svc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
+		RequestId: "too-big",
+		AgentId:   "a",
+		Parts: []*agentsv1.InputPart{
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{MimeType: "image/png", Data: bigImg}}},
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{MimeType: "image/png", Data: bigImg}}},
+			{Part: &agentsv1.InputPart_InlineData{InlineData: &agentsv1.InlineData{MimeType: "image/png", Data: bigImg}}},
+		},
+	}))
+	if err == nil {
+		t.Fatal("expected error for exceeding total payload")
+	}
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument, got %v: %v", connect.CodeOf(err), err)
+	}
+}
+
+func TestCancelAgentInvocation_VerifyAssertions(t *testing.T) {
+	invRepo := invocationmemory.New()
+	coord := &fakeAsyncCoordinator{cancelled: true}
+	svc := &AgentServiceServer{
+		runnerSvc:  &asyncTestRunner{},
+		invRepo:    invRepo,
+		asyncCoord: coord,
+	}
+	if err := invRepo.Save(context.Background(), &agentsv1.Invocation{
+		Id:          "inv-queued",
+		WorkspaceId: wsTest,
+		UserId:      "user-1",
+		AppName:     "web-chat",
+		Source:      "dashboard-async",
+		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := svc.CancelAgentInvocation(testContextWithUser(wsTest, "user-1"), connect.NewRequest(&agentsv1.CancelAgentInvocationRequest{
+		InvocationId: "inv-queued",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.Msg.GetCancelled() {
+		t.Fatal("cancelled = false, want true")
+	}
+	if coord.cancelledID != "inv-queued" || coord.cancelWorkspace != wsTest {
+		t.Fatalf("coordinator cancel = (%q, %q), want (inv-queued, %s)", coord.cancelledID, coord.cancelWorkspace, wsTest)
+	}
+}
+
+func TestCancelAgentInvocation_RejectsOtherPrivateSessionOwner(t *testing.T) {
+	invRepo := invocationmemory.New()
+	coord := &fakeAsyncCoordinator{cancelled: true}
+	svc := &AgentServiceServer{
+		runnerSvc:  &asyncTestRunner{},
+		invRepo:    invRepo,
+		asyncCoord: coord,
+	}
+	if err := invRepo.Save(context.Background(), &agentsv1.Invocation{
+		Id:          "inv-owned",
+		WorkspaceId: wsTest,
+		UserId:      "user-1",
+		AppName:     "web-chat",
+		Source:      "dashboard-async",
+		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := svc.CancelAgentInvocation(testContextWithUser(wsTest, "user-2"), connect.NewRequest(&agentsv1.CancelAgentInvocationRequest{
+		InvocationId: "inv-owned",
+	}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("other user cancellation error = %v, want NotFound", err)
+	}
+	if coord.cancelledID != "" {
+		t.Fatalf("unauthorized cancellation reached coordinator for %q", coord.cancelledID)
 	}
 }

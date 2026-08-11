@@ -21,7 +21,7 @@ import (
 // asyncCoordinator is the subset of *asyncrun.Coordinator used by the RPC
 // handlers; allows test substitution.
 type asyncCoordinator interface {
-	Enqueue(inv *agentsv1.Invocation, agentName string, parts []*genai.Part, modelOverride string)
+	Enqueue(inv *agentsv1.Invocation, agentName string, modelOverride string)
 	Cancel(invocationID, workspaceID string) bool
 	Watch(invocationID string) (<-chan asyncrun.Frame, func())
 }
@@ -49,6 +49,9 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 	if s.invRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("invocation repository not available"))
 	}
+	if s.inputPartRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("input part repository not available"))
+	}
 
 	// Validate required fields.
 	if req.Msg.GetRequestId() == "" {
@@ -75,7 +78,7 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 	}
 	agentID, displayName, _ := s.runnerSvc.GetAgentIdentity(agentName)
 
-	// Validate/convert input parts.
+	// Validate/convert input parts (validates limits and MIME types).
 	parts, err := resolveUserParts(req.Msg.GetParts(), req.Msg.GetMessage())
 	if err != nil {
 		return nil, err
@@ -88,6 +91,12 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 	}
 	userID := user.GetId()
 
+	// The first release is explicitly single-instance. Serialize only the
+	// durable accept transaction so two browser tabs cannot both pass the
+	// active-Invocation check before either QUEUED record is visible.
+	s.asyncSubmitMu.Lock()
+	defer s.asyncSubmitMu.Unlock()
+
 	// Idempotency check: if this request_id already exists, return original.
 	existing, findErr := s.invRepo.FindByRequestID(ctx, wsID, req.Msg.GetRequestId())
 	if findErr == nil && existing != nil {
@@ -98,16 +107,45 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 			SessionCreated: false,
 		}), nil
 	}
+	if findErr != nil && !errors.Is(findErr, invocation.ErrNotFound) {
+		return nil, connectx.InternalWith(findErr)
+	}
 
 	sessionID := req.Msg.GetSessionId()
 	sessionCreated := false
 
-	// Enforce single-active-invocation per session if session exists.
+	// Validate an existing private Session before checking its active
+	// Invocation. The authenticated user supplies no user_id in this command,
+	// so another user's Session is intentionally indistinguishable from a
+	// missing one.
 	if sessionID != "" {
+		if s.sessionSvc == nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
+		}
+		sessResp, sessErr := s.sessionSvc.Get(ctx, &adksession.GetRequest{
+			AppName:   "web-chat",
+			UserID:    userID,
+			SessionID: sessionID,
+		})
+		if sessErr != nil || sessResp == nil || sessResp.Session == nil {
+			return nil, connectx.NotFound("session not found")
+		}
+		if value, stateErr := sessResp.Session.State().Get("workspace_id"); stateErr != nil || value != wsID {
+			return nil, connectx.NotFound("session not found")
+		}
+		if value, stateErr := sessResp.Session.State().Get("agent_id"); stateErr == nil && value != "" && value != agentID {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session is bound to another agent"))
+		}
+		if value, stateErr := sessResp.Session.State().Get("agent_name"); stateErr == nil && value != "" && value != agentName {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session is bound to another agent"))
+		}
+
 		active, activeErr := s.invRepo.FindActiveBySession(ctx, wsID, sessionID)
 		if activeErr == nil && active != nil {
-			return nil, connect.NewError(connect.CodeFailedPrecondition,
-				errors.New("session has an active invocation: "+active.GetId()))
+			return nil, activeInvocationError(active.GetId())
+		}
+		if activeErr != nil && !errors.Is(activeErr, invocation.ErrNotFound) {
+			return nil, connectx.InternalWith(activeErr)
 		}
 	}
 
@@ -122,6 +160,7 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 			SessionID: "chat-" + asyncrun.NewInvocationID(),
 			State: map[string]any{
 				"agent_name":   agentName,
+				"agent_id":     agentID,
 				"workspace_id": wsID,
 			},
 		})
@@ -154,6 +193,14 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 		return nil, connectx.InternalWith(err)
 	}
 
+	// Persist input parts durably before enqueuing. This guarantees that the
+	// response means every validated input part is recoverable even if the
+	// process crashes before execution starts.
+	protoParts := buildProtoParts(req.Msg.GetParts(), req.Msg.GetMessage())
+	if err := s.inputPartRepo.SaveAll(ctx, invID, protoParts); err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+
 	logger := log.FromContext(ctx)
 	logger.Info("async invocation submitted",
 		"invocation_id", invID,
@@ -163,10 +210,11 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 		"session_id", sessionID,
 		"request_id", req.Msg.GetRequestId(),
 		"session_created", sessionCreated,
+		"input_parts", len(protoParts),
 	)
 
 	// Enqueue for background execution.
-	s.asyncCoord.Enqueue(inv, agentName, parts, req.Msg.GetModelOverride())
+	s.asyncCoord.Enqueue(inv, agentName, req.Msg.GetModelOverride())
 
 	return connect.NewResponse(&agentsv1.SubmitAgentInvocationResponse{
 		SessionId:      sessionID,
@@ -174,6 +222,18 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 		Status:         agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED,
 		SessionCreated: sessionCreated,
 	}), nil
+}
+
+// buildProtoParts constructs the canonical InputPart slice for persistence.
+// When parts is non-empty it is used directly; otherwise the text message is
+// wrapped as a single text part.
+func buildProtoParts(parts []*agentsv1.InputPart, message string) []*agentsv1.InputPart {
+	if len(parts) > 0 {
+		return parts
+	}
+	return []*agentsv1.InputPart{
+		{Part: &agentsv1.InputPart_Text{Text: message}},
+	}
 }
 
 // GetAgentInvocation returns the authoritative state of one invocation.
@@ -197,7 +257,7 @@ func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connec
 	var inv *agentsv1.Invocation
 	var err error
 	if req.Msg.GetInvocationId() != "" {
-		inv, err = s.invRepo.Get(ctx, req.Msg.GetInvocationId())
+		inv, err = getInvocation(ctx, s.invRepo, wsID, req.Msg.GetInvocationId())
 	} else {
 		inv, err = s.invRepo.FindActiveBySession(ctx, wsID, req.Msg.GetSessionId())
 	}
@@ -211,13 +271,44 @@ func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connec
 		return nil, connectx.NotFound("invocation not found")
 	}
 
-	if err := authorizeInvocationRead(ctx, wsID, inv); err != nil {
+	if err := authorizeInvocationAccess(ctx, wsID, inv); err != nil {
 		return nil, err
 	}
 
 	return connect.NewResponse(&agentsv1.GetAgentInvocationResponse{
 		Invocation: inv,
 	}), nil
+}
+
+func getInvocation(ctx context.Context, repo invocation.Repository, workspaceID, invocationID string) (*agentsv1.Invocation, error) {
+	if workspaceID == "" {
+		return repo.GetAcrossWorkspaces(ctx, invocationID)
+	}
+	return repo.Get(ctx, workspaceID, invocationID)
+}
+
+func activeInvocationError(invocationID string) *connect.Error {
+	err := connect.NewError(connect.CodeFailedPrecondition,
+		errors.New("session has an active invocation: "+invocationID))
+	err.Meta().Set("active-invocation-id", invocationID)
+	return err
+}
+
+func authorizeInvocationAccess(ctx context.Context, workspaceID string, inv *agentsv1.Invocation) error {
+	if workspaceID != "" && inv.GetWorkspaceId() != workspaceID {
+		return connectx.NotFound("invocation not found")
+	}
+	if auth.IsAdmin(ctx) || inv.GetAppName() != "web-chat" {
+		return nil
+	}
+	user, ok := auth.UserFromContext(ctx)
+	if !ok {
+		return connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+	}
+	if inv.GetUserId() != user.GetId() {
+		return connectx.NotFound("invocation not found")
+	}
+	return nil
 }
 
 // extractTextInput returns the text content from parts for persisting as the

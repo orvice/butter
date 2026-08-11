@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -19,6 +20,7 @@ import (
 	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -62,15 +64,21 @@ func resolveAgentRunnerRef(r interface {
 }
 
 type AgentServiceServer struct {
-	repo       configrepo.AgentRepository
-	runtime    ConfigRuntime
-	runnerSvc  agentRunner
-	invRepo    invocation.Repository
-	wsRepo     workspacerepo.Repository
-	opRepo     agentoprepo.Repository
-	content    agentContentCoordinator
-	asyncCoord asyncCoordinator
-	sessionSvc adksession.Service
+	repo          configrepo.AgentRepository
+	runtime       ConfigRuntime
+	runnerSvc     agentRunner
+	invRepo       invocation.Repository
+	inputPartRepo inputpart.Repository
+	wsRepo        workspacerepo.Repository
+	opRepo        agentoprepo.Repository
+	content       agentContentCoordinator
+	asyncCoord    asyncCoordinator
+	sessionSvc    adksession.Service
+
+	// asyncSubmitMu serializes the short accept transaction (idempotency
+	// lookup, active-session check, optional Session creation, Invocation
+	// persistence). Execution itself remains fully concurrent across Sessions.
+	asyncSubmitMu sync.Mutex
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
@@ -117,6 +125,12 @@ func (s *AgentServiceServer) SetRunnerService(svc *runner.Service) {
 // ListAgentInvocations.
 func (s *AgentServiceServer) SetInvocationRepo(repo invocation.Repository) {
 	s.invRepo = repo
+}
+
+// SetInputPartRepo wires the Input Part repository used to persist multimodal
+// input for async invocations.
+func (s *AgentServiceServer) SetInputPartRepo(repo inputpart.Repository) {
+	s.inputPartRepo = repo
 }
 
 // SetWorkspaceRepo wires the workspace repository used by
@@ -707,10 +721,34 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("workspace required (set X-Workspace-ID header)"))
 	}
-	cancelled := s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
-	// Also try the async coordinator — it manages dashboard async runs
-	// which register their own cancellation contexts.
-	if !cancelled && s.asyncCoord != nil {
+
+	var inv *agentsv1.Invocation
+	if s.invRepo != nil {
+		stored, err := getInvocation(ctx, s.invRepo, wsID, req.Msg.GetInvocationId())
+		if err == nil {
+			if err := authorizeInvocationAccess(ctx, wsID, stored); err != nil {
+				return nil, err
+			}
+			inv = stored
+		} else if !errors.Is(err, invocation.ErrNotFound) {
+			return nil, connectx.InternalWith(err)
+		}
+	}
+
+	var cancelled bool
+	if inv != nil && inv.GetSource() == "dashboard-async" && s.asyncCoord != nil {
+		// The coordinator owns the outer async context. Cancelling only the
+		// runner's nested context would make the coordinator classify Stop as a
+		// generic failure.
+		cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
+	}
+	if !cancelled {
+		cancelled = s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
+	}
+	if !cancelled && inv == nil && s.asyncCoord != nil {
+		// Compatibility fallback for tests or deployments without an Invocation
+		// recorder. Persisted dashboard async Invocations take the authorized path
+		// above.
 		cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
 	}
 	log.FromContext(ctx).Info("cancel agent invocation requested",

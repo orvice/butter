@@ -1,9 +1,11 @@
 import type { Page, Route } from '@playwright/test'
 import {
   create,
+  fromBinary,
   toBinary,
   type DescMessage,
   type MessageInitShape,
+  type MessageShape,
 } from '@bufbuild/protobuf'
 import { MeResponseSchema } from '../../src/gen/agents/v1/auth_pb'
 import { ListWorkspacesResponseSchema } from '../../src/gen/agents/v1/workspace_pb'
@@ -45,6 +47,18 @@ export function connectStreamBody<T extends DescMessage>(
   endHead.writeUInt32BE(end.length, 1)
   chunks.push(endHead, end)
   return Buffer.concat(chunks)
+}
+
+// decodeConnectStreamRequest parses the single request message of a Connect
+// server-stream call. Stream requests are enveloped (1 flag byte + 4-byte
+// big-endian length before the payload), unlike unary binary requests.
+export function decodeConnectStreamRequest<T extends DescMessage>(
+  schema: T,
+  body: Buffer | null
+): MessageShape<T> {
+  const raw = body ?? Buffer.alloc(0)
+  const payload = raw.length >= 5 ? raw.subarray(5) : Buffer.alloc(0)
+  return fromBinary(schema, payload)
 }
 
 // fulfillConnectStream responds to a Connect server-stream request with the

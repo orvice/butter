@@ -38,6 +38,9 @@ import (
 	githostrepo "go.orx.me/apps/butter/internal/repo/githost"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
 	githostmongo "go.orx.me/apps/butter/internal/repo/githost/mongo"
+	"go.orx.me/apps/butter/internal/repo/inputpart"
+	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
+	inputpartmongo "go.orx.me/apps/butter/internal/repo/inputpart/mongo"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	invocationmongo "go.orx.me/apps/butter/internal/repo/invocation/mongo"
@@ -88,6 +91,7 @@ type BootstrapResult struct {
 	OAuthProviders        *provider.Registry
 	APITokenRepo          apitoken.Repository
 	InvocationRepo        invocation.Repository
+	InputPartRepo         inputpart.Repository
 	ForumRepo             forum.Repository
 	WorkspaceRepo         workspacerepo.Repository
 	MCPOAuthRepo          mcpoauthrepo.Repository
@@ -143,6 +147,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		authRepo       auth.Repository
 		tokenRepo      apitoken.Repository
 		invRepo        invocation.Repository
+		inputPartRepo  inputpart.Repository
 		forumRepo      forum.Repository
 		wsRepo         workspacerepo.Repository
 		oauthRepo      mcpoauthrepo.Repository
@@ -172,6 +177,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 			return nil, err
 		}
 		invRepo = invMongo
+		ipMongo := inputpartmongo.New(db)
+		if err := ipMongo.EnsureIndexes(ctx); err != nil {
+			logger.Error("failed to create input part indexes", "err", err)
+			return nil, err
+		}
+		inputPartRepo = ipMongo
 		forumRepo = forummongo.New(db)
 		wsRepo = workspacemongo.New(db)
 		oauthRepo = mcpoauthmongo.New(db)
@@ -191,6 +202,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
+		inputPartRepo = inputpartmemory.New()
 		forumRepo = forummemory.New()
 		wsRepo = workspacememory.New()
 		oauthRepo = mcpoauthmemory.New()
@@ -366,7 +378,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	go mgr.Start(ctx)
 
 	// Create async coordinator for dashboard background execution.
-	asyncCoord := asyncrun.New(invRepo, runnerSvc, asyncrun.Config{
+	asyncCoord := asyncrun.New(invRepo, inputPartRepo, runnerSvc, asyncrun.Config{
 		MaxRunDuration: cfg.ChatAsync.EffectiveMaxRunDuration(),
 	})
 
@@ -398,6 +410,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		OAuthProviders:        oauthProviders,
 		APITokenRepo:          tokenRepo,
 		InvocationRepo:        invRepo,
+		InputPartRepo:         inputPartRepo,
 		ForumRepo:             forumRepo,
 		WorkspaceRepo:         wsRepo,
 		MCPOAuthRepo:          oauthRepo,
