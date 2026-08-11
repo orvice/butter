@@ -186,6 +186,12 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if result.SessionWSStore != nil {
 		h.sessionSvcServer.SetWorkspaceSessionStore(result.SessionWSStore)
 	}
+	if result.SessionReadStore != nil {
+		h.sessionSvcServer.SetReadStore(result.SessionReadStore)
+	}
+	if result.InvocationRepo != nil {
+		h.sessionSvcServer.SetInvocationRepo(result.InvocationRepo)
+	}
 	if result.RunnerSvc != nil {
 		h.sessionSvcServer.SetTitleModelResolver(result.RunnerSvc)
 	}

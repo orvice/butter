@@ -258,6 +258,9 @@ const (
 	// SessionServiceGenerateSessionTitleProcedure is the fully-qualified name of the SessionService's
 	// GenerateSessionTitle RPC.
 	SessionServiceGenerateSessionTitleProcedure = "/agents.v1.SessionService/GenerateSessionTitle"
+	// SessionServiceMarkSessionReadProcedure is the fully-qualified name of the SessionService's
+	// MarkSessionRead RPC.
+	SessionServiceMarkSessionReadProcedure = "/agents.v1.SessionService/MarkSessionRead"
 )
 
 // AgentServiceClient is a client for the agents.v1.AgentService service.
@@ -2414,6 +2417,12 @@ type SessionServiceClient interface {
 	// Manual, legacy, and concurrent titles always win. Returns the effective
 	// SessionInfo and whether this call actually generated a new title.
 	GenerateSessionTitle(context.Context, *connect.Request[v1.GenerateSessionTitleRequest]) (*connect.Response[v1.GenerateSessionTitleResponse], error)
+	// MarkSessionRead records that the authenticated user has viewed the
+	// session up to (and including) the given event. The server persists the
+	// read cursor; subsequent ListSessions / GetSession responses reflect it
+	// through SessionInfo.unread. Only the session owner may mark read;
+	// another user's attempt returns NotFound.
+	MarkSessionRead(context.Context, *connect.Request[v1.MarkSessionReadRequest]) (*connect.Response[v1.MarkSessionReadResponse], error)
 }
 
 // NewSessionServiceClient constructs a client for the agents.v1.SessionService service. By default,
@@ -2469,6 +2478,12 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("GenerateSessionTitle")),
 			connect.WithClientOptions(opts...),
 		),
+		markSessionRead: connect.NewClient[v1.MarkSessionReadRequest, v1.MarkSessionReadResponse](
+			httpClient,
+			baseURL+SessionServiceMarkSessionReadProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("MarkSessionRead")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -2481,6 +2496,7 @@ type sessionServiceClient struct {
 	replySession         *connect.Client[v1.ReplySessionRequest, v1.ReplySessionResponse]
 	updateSessionTitle   *connect.Client[v1.UpdateSessionTitleRequest, v1.UpdateSessionTitleResponse]
 	generateSessionTitle *connect.Client[v1.GenerateSessionTitleRequest, v1.GenerateSessionTitleResponse]
+	markSessionRead      *connect.Client[v1.MarkSessionReadRequest, v1.MarkSessionReadResponse]
 }
 
 // CreateSession calls agents.v1.SessionService.CreateSession.
@@ -2518,6 +2534,11 @@ func (c *sessionServiceClient) GenerateSessionTitle(ctx context.Context, req *co
 	return c.generateSessionTitle.CallUnary(ctx, req)
 }
 
+// MarkSessionRead calls agents.v1.SessionService.MarkSessionRead.
+func (c *sessionServiceClient) MarkSessionRead(ctx context.Context, req *connect.Request[v1.MarkSessionReadRequest]) (*connect.Response[v1.MarkSessionReadResponse], error) {
+	return c.markSessionRead.CallUnary(ctx, req)
+}
+
 // SessionServiceHandler is an implementation of the agents.v1.SessionService service.
 type SessionServiceHandler interface {
 	// CreateSession creates a new session for the given agent.
@@ -2537,6 +2558,12 @@ type SessionServiceHandler interface {
 	// Manual, legacy, and concurrent titles always win. Returns the effective
 	// SessionInfo and whether this call actually generated a new title.
 	GenerateSessionTitle(context.Context, *connect.Request[v1.GenerateSessionTitleRequest]) (*connect.Response[v1.GenerateSessionTitleResponse], error)
+	// MarkSessionRead records that the authenticated user has viewed the
+	// session up to (and including) the given event. The server persists the
+	// read cursor; subsequent ListSessions / GetSession responses reflect it
+	// through SessionInfo.unread. Only the session owner may mark read;
+	// another user's attempt returns NotFound.
+	MarkSessionRead(context.Context, *connect.Request[v1.MarkSessionReadRequest]) (*connect.Response[v1.MarkSessionReadResponse], error)
 }
 
 // NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -2588,6 +2615,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("GenerateSessionTitle")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceMarkSessionReadHandler := connect.NewUnaryHandler(
+		SessionServiceMarkSessionReadProcedure,
+		svc.MarkSessionRead,
+		connect.WithSchema(sessionServiceMethods.ByName("MarkSessionRead")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SessionServiceCreateSessionProcedure:
@@ -2604,6 +2637,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceUpdateSessionTitleHandler.ServeHTTP(w, r)
 		case SessionServiceGenerateSessionTitleProcedure:
 			sessionServiceGenerateSessionTitleHandler.ServeHTTP(w, r)
+		case SessionServiceMarkSessionReadProcedure:
+			sessionServiceMarkSessionReadHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2639,4 +2674,8 @@ func (UnimplementedSessionServiceHandler) UpdateSessionTitle(context.Context, *c
 
 func (UnimplementedSessionServiceHandler) GenerateSessionTitle(context.Context, *connect.Request[v1.GenerateSessionTitleRequest]) (*connect.Response[v1.GenerateSessionTitleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.GenerateSessionTitle is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) MarkSessionRead(context.Context, *connect.Request[v1.MarkSessionReadRequest]) (*connect.Response[v1.MarkSessionReadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.SessionService.MarkSessionRead is not implemented"))
 }

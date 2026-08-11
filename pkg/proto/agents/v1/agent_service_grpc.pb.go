@@ -3110,6 +3110,7 @@ const (
 	SessionService_ReplySession_FullMethodName         = "/agents.v1.SessionService/ReplySession"
 	SessionService_UpdateSessionTitle_FullMethodName   = "/agents.v1.SessionService/UpdateSessionTitle"
 	SessionService_GenerateSessionTitle_FullMethodName = "/agents.v1.SessionService/GenerateSessionTitle"
+	SessionService_MarkSessionRead_FullMethodName      = "/agents.v1.SessionService/MarkSessionRead"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -3133,6 +3134,12 @@ type SessionServiceClient interface {
 	// Manual, legacy, and concurrent titles always win. Returns the effective
 	// SessionInfo and whether this call actually generated a new title.
 	GenerateSessionTitle(ctx context.Context, in *GenerateSessionTitleRequest, opts ...grpc.CallOption) (*GenerateSessionTitleResponse, error)
+	// MarkSessionRead records that the authenticated user has viewed the
+	// session up to (and including) the given event. The server persists the
+	// read cursor; subsequent ListSessions / GetSession responses reflect it
+	// through SessionInfo.unread. Only the session owner may mark read;
+	// another user's attempt returns NotFound.
+	MarkSessionRead(ctx context.Context, in *MarkSessionReadRequest, opts ...grpc.CallOption) (*MarkSessionReadResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -3213,6 +3220,16 @@ func (c *sessionServiceClient) GenerateSessionTitle(ctx context.Context, in *Gen
 	return out, nil
 }
 
+func (c *sessionServiceClient) MarkSessionRead(ctx context.Context, in *MarkSessionReadRequest, opts ...grpc.CallOption) (*MarkSessionReadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MarkSessionReadResponse)
+	err := c.cc.Invoke(ctx, SessionService_MarkSessionRead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -3234,6 +3251,12 @@ type SessionServiceServer interface {
 	// Manual, legacy, and concurrent titles always win. Returns the effective
 	// SessionInfo and whether this call actually generated a new title.
 	GenerateSessionTitle(context.Context, *GenerateSessionTitleRequest) (*GenerateSessionTitleResponse, error)
+	// MarkSessionRead records that the authenticated user has viewed the
+	// session up to (and including) the given event. The server persists the
+	// read cursor; subsequent ListSessions / GetSession responses reflect it
+	// through SessionInfo.unread. Only the session owner may mark read;
+	// another user's attempt returns NotFound.
+	MarkSessionRead(context.Context, *MarkSessionReadRequest) (*MarkSessionReadResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -3264,6 +3287,9 @@ func (UnimplementedSessionServiceServer) UpdateSessionTitle(context.Context, *Up
 }
 func (UnimplementedSessionServiceServer) GenerateSessionTitle(context.Context, *GenerateSessionTitleRequest) (*GenerateSessionTitleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GenerateSessionTitle not implemented")
+}
+func (UnimplementedSessionServiceServer) MarkSessionRead(context.Context, *MarkSessionReadRequest) (*MarkSessionReadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MarkSessionRead not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -3412,6 +3438,24 @@ func _SessionService_GenerateSessionTitle_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_MarkSessionRead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MarkSessionReadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).MarkSessionRead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_MarkSessionRead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).MarkSessionRead(ctx, req.(*MarkSessionReadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3446,6 +3490,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateSessionTitle",
 			Handler:    _SessionService_GenerateSessionTitle_Handler,
+		},
+		{
+			MethodName: "MarkSessionRead",
+			Handler:    _SessionService_MarkSessionRead_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

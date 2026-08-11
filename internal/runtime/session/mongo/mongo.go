@@ -39,6 +39,7 @@ type sessionDoc struct {
 	LastUpdateTime time.Time      `bson:"last_update_time"`
 	Title          string         `bson:"title,omitempty"`
 	WorkspaceID    string         `bson:"workspace_id,omitempty"`
+	LastReadAt     *time.Time     `bson:"last_read_at,omitempty"`
 }
 
 // eventDoc is the MongoDB document for an event.
@@ -367,6 +368,7 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 		lastUpdateTime: doc.LastUpdateTime,
 		title:          doc.Title,
 		workspaceID:    doc.WorkspaceID,
+		lastReadAt:     doc.LastReadAt,
 	}
 
 	logger.Debug("session loaded",
@@ -416,6 +418,7 @@ func (s *Service) List(ctx context.Context, req *session.ListRequest) (*session.
 			lastUpdateTime: doc.LastUpdateTime,
 			title:          doc.Title,
 			workspaceID:    doc.WorkspaceID,
+			lastReadAt:     doc.LastReadAt,
 		})
 	}
 
@@ -462,6 +465,7 @@ func (s *Service) ListByWorkspace(ctx context.Context, workspaceID, userID strin
 			lastUpdateTime: doc.LastUpdateTime,
 			title:          doc.Title,
 			workspaceID:    doc.WorkspaceID,
+			lastReadAt:     doc.LastReadAt,
 		})
 	}
 
@@ -620,6 +624,7 @@ type mongoSession struct {
 	lastUpdateTime time.Time
 	title          string
 	workspaceID    string
+	lastReadAt     *time.Time
 }
 
 func (s *mongoSession) ID() string                { return s.id }
@@ -634,6 +639,54 @@ func (s *mongoSession) Title() string { return s.title }
 
 // WorkspaceID returns the owning workspace. Empty for legacy sessions.
 func (s *mongoSession) WorkspaceID() string { return s.workspaceID }
+
+// LastReadAt returns when the session owner last marked the session read.
+// Nil means never read.
+func (s *mongoSession) LastReadAt() *time.Time { return s.lastReadAt }
+
+// MarkReadResult carries the post-update session snapshot.
+type MarkReadResult struct {
+	SessionID      string
+	AppName        string
+	UserID         string
+	Title          string
+	LastUpdateTime time.Time
+	LastReadAt     time.Time
+	WorkspaceID    string
+}
+
+// MarkRead atomically records a read timestamp on the session. Returns the
+// updated session snapshot. The caller validates ownership; this method only
+// ensures the session exists.
+func (s *Service) MarkRead(ctx context.Context, appName, userID, sessionID string, readAt time.Time) (MarkReadResult, error) {
+	filter := bson.M{
+		"app_name":   appName,
+		"user_id":    userID,
+		"session_id": sessionID,
+	}
+	update := bson.M{"$set": bson.M{"last_read_at": readAt}}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	var doc sessionDoc
+	if err := s.sessions.FindOneAndUpdate(ctx, filter, update, opts).Decode(&doc); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return MarkReadResult{}, fmt.Errorf("%w: %s/%s/%s", ErrSessionNotFound, appName, userID, sessionID)
+		}
+		return MarkReadResult{}, fmt.Errorf("marking session read: %w", err)
+	}
+	ra := readAt
+	if doc.LastReadAt != nil {
+		ra = *doc.LastReadAt
+	}
+	return MarkReadResult{
+		SessionID:      doc.SessionID,
+		AppName:        doc.AppName,
+		UserID:         doc.UserID,
+		Title:          doc.Title,
+		LastUpdateTime: doc.LastUpdateTime,
+		LastReadAt:     ra,
+		WorkspaceID:    doc.WorkspaceID,
+	}, nil
+}
 
 // stateImpl implements session.State backed by a map.
 type stateImpl struct {

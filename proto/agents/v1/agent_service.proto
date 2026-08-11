@@ -1093,6 +1093,12 @@ service SessionService {
   // Manual, legacy, and concurrent titles always win. Returns the effective
   // SessionInfo and whether this call actually generated a new title.
   rpc GenerateSessionTitle(GenerateSessionTitleRequest) returns (GenerateSessionTitleResponse);
+  // MarkSessionRead records that the authenticated user has viewed the
+  // session up to (and including) the given event. The server persists the
+  // read cursor; subsequent ListSessions / GetSession responses reflect it
+  // through SessionInfo.unread. Only the session owner may mark read;
+  // another user's attempt returns NotFound.
+  rpc MarkSessionRead(MarkSessionReadRequest) returns (MarkSessionReadResponse);
 }
 
 // --- Session messages ---
@@ -1205,6 +1211,26 @@ message SessionInfo {
   // First-class session title. Effective-title precedence: this field,
   // then legacy state["title"], then agent name, then shortened session ID.
   string title = 7;
+
+  // Active or latest dashboard Invocation ID for this session. Empty when
+  // the session has no recorded invocations.
+  string latest_invocation_id = 8;
+  // Status of the invocation referenced by latest_invocation_id.
+  InvocationStatus latest_invocation_status = 9;
+
+  // True when the session has unanswered Workflow Agent Human Input
+  // Interrupts, derived through the existing interrupt seam (ADR-0002).
+  bool has_pending_interrupt = 10;
+
+  // True when the session contains content the authenticated user has not
+  // yet viewed (last_update_time > last_read_at, or no read record).
+  bool unread = 11;
+
+  // Server-backed timestamp recording when the authenticated user last
+  // viewed this session's content. Zero when the session has never been
+  // read.
+  google.protobuf.Timestamp last_read_at = 12;
+
   // Workspace that owns this session. Derived from the authenticated
   // request context at creation time; clients cannot override it.
   // Empty on legacy sessions created before workspace scoping.
@@ -1230,6 +1256,21 @@ message GenerateSessionTitleResponse {
   // True when this call derived and persisted a new title; false when an
   // effective title already existed or was set concurrently.
   bool generated = 2;
+}
+
+message MarkSessionReadRequest {
+  string app_name = 1;
+  string user_id = 2;
+  string session_id = 3;
+  // The event ID the client has rendered up to. The server records the
+  // timestamp: clients that send this only when the session is the active
+  // conversation, the document is visible, and the latest known event or
+  // terminal invocation state has been rendered.
+  string last_read_event_id = 4;
+}
+
+message MarkSessionReadResponse {
+  SessionInfo session = 1;
 }
 
 // SessionEvent is a serializable representation of a session event.

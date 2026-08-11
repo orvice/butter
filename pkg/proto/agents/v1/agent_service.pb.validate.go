@@ -18051,6 +18051,43 @@ func (m *SessionInfo) validate(all bool) error {
 
 	// no validation rules for Title
 
+	// no validation rules for LatestInvocationId
+
+	// no validation rules for LatestInvocationStatus
+
+	// no validation rules for HasPendingInterrupt
+
+	// no validation rules for Unread
+
+	if all {
+		switch v := interface{}(m.GetLastReadAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, SessionInfoValidationError{
+					field:  "LastReadAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, SessionInfoValidationError{
+					field:  "LastReadAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetLastReadAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return SessionInfoValidationError{
+				field:  "LastReadAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
@@ -18564,6 +18601,247 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = GenerateSessionTitleResponseValidationError{}
+
+// Validate checks the field values on MarkSessionReadRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MarkSessionReadRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MarkSessionReadRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MarkSessionReadRequestMultiError, or nil if none found.
+func (m *MarkSessionReadRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MarkSessionReadRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AppName
+
+	// no validation rules for UserId
+
+	// no validation rules for SessionId
+
+	// no validation rules for LastReadEventId
+
+	if len(errors) > 0 {
+		return MarkSessionReadRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// MarkSessionReadRequestMultiError is an error wrapping multiple validation
+// errors returned by MarkSessionReadRequest.ValidateAll() if the designated
+// constraints aren't met.
+type MarkSessionReadRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MarkSessionReadRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MarkSessionReadRequestMultiError) AllErrors() []error { return m }
+
+// MarkSessionReadRequestValidationError is the validation error returned by
+// MarkSessionReadRequest.Validate if the designated constraints aren't met.
+type MarkSessionReadRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MarkSessionReadRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MarkSessionReadRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MarkSessionReadRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MarkSessionReadRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MarkSessionReadRequestValidationError) ErrorName() string {
+	return "MarkSessionReadRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MarkSessionReadRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMarkSessionReadRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MarkSessionReadRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MarkSessionReadRequestValidationError{}
+
+// Validate checks the field values on MarkSessionReadResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MarkSessionReadResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MarkSessionReadResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MarkSessionReadResponseMultiError, or nil if none found.
+func (m *MarkSessionReadResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MarkSessionReadResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetSession()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, MarkSessionReadResponseValidationError{
+					field:  "Session",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, MarkSessionReadResponseValidationError{
+					field:  "Session",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSession()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return MarkSessionReadResponseValidationError{
+				field:  "Session",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return MarkSessionReadResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// MarkSessionReadResponseMultiError is an error wrapping multiple validation
+// errors returned by MarkSessionReadResponse.ValidateAll() if the designated
+// constraints aren't met.
+type MarkSessionReadResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MarkSessionReadResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MarkSessionReadResponseMultiError) AllErrors() []error { return m }
+
+// MarkSessionReadResponseValidationError is the validation error returned by
+// MarkSessionReadResponse.Validate if the designated constraints aren't met.
+type MarkSessionReadResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MarkSessionReadResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MarkSessionReadResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MarkSessionReadResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MarkSessionReadResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MarkSessionReadResponseValidationError) ErrorName() string {
+	return "MarkSessionReadResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MarkSessionReadResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMarkSessionReadResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MarkSessionReadResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MarkSessionReadResponseValidationError{}
 
 // Validate checks the field values on SessionEvent with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
