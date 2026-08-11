@@ -25,6 +25,7 @@ import (
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -61,13 +62,15 @@ func resolveAgentRunnerRef(r interface {
 }
 
 type AgentServiceServer struct {
-	repo      configrepo.AgentRepository
-	runtime   ConfigRuntime
-	runnerSvc agentRunner
-	invRepo   invocation.Repository
-	wsRepo    workspacerepo.Repository
-	opRepo    agentoprepo.Repository
-	content   agentContentCoordinator
+	repo       configrepo.AgentRepository
+	runtime    ConfigRuntime
+	runnerSvc  agentRunner
+	invRepo    invocation.Repository
+	wsRepo     workspacerepo.Repository
+	opRepo     agentoprepo.Repository
+	content    agentContentCoordinator
+	asyncCoord asyncCoordinator
+	sessionSvc adksession.Service
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
@@ -705,6 +708,11 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 			errors.New("workspace required (set X-Workspace-ID header)"))
 	}
 	cancelled := s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
+	// Also try the async coordinator — it manages dashboard async runs
+	// which register their own cancellation contexts.
+	if !cancelled && s.asyncCoord != nil {
+		cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
+	}
 	log.FromContext(ctx).Info("cancel agent invocation requested",
 		"invocation_id", req.Msg.GetInvocationId(),
 		"workspace_id", wsID,

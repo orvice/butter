@@ -77,6 +77,15 @@ service AgentService {
   // ACTIVE and re-publishing the retained content.
   rpc RestoreAgent(RestoreAgentRequest) returns (RestoreAgentResponse);
 
+  // SubmitAgentInvocation durably accepts a dashboard chat turn as an
+  // asynchronous Invocation. Creates a workspace-owned Session when session_id
+  // is empty. Returns promptly; the runner executes independently.
+  rpc SubmitAgentInvocation(SubmitAgentInvocationRequest) returns (SubmitAgentInvocationResponse);
+
+  // GetAgentInvocation returns the authoritative state of one invocation,
+  // scoped by workspace and user ownership.
+  rpc GetAgentInvocation(GetAgentInvocationRequest) returns (GetAgentInvocationResponse);
+
   // GetAgentOperation returns a durable lifecycle operation record by ID.
   rpc GetAgentOperation(GetAgentOperationRequest) returns (GetAgentOperationResponse);
 
@@ -568,6 +577,8 @@ enum InvocationStatus {
   INVOCATION_STATUS_RUNNING = 1;
   INVOCATION_STATUS_SUCCEEDED = 2;
   INVOCATION_STATUS_FAILED = 3;
+  INVOCATION_STATUS_QUEUED = 4;
+  INVOCATION_STATUS_CANCELLED = 5;
 }
 
 // Invocation is a persisted record of a single Runner.Run call.
@@ -608,6 +619,9 @@ message Invocation {
   // readable after renames.
   // @gotags: bson:"agent_display_name,omitempty"
   string agent_display_name = 16;
+  // Client-generated idempotency key for async submissions.
+  // @gotags: bson:"request_id,omitempty"
+  string request_id = 17;
   // @gotags: bson:"workspace_id,omitempty"
   string workspace_id = 100;
 }
@@ -629,6 +643,44 @@ message ListAgentInvocationsResponse {
   repeated Invocation invocations = 1;
   string next_page_token = 2;
   int32 total = 3;
+}
+
+// --- SubmitAgentInvocation messages ---
+
+message SubmitAgentInvocationRequest {
+  // Client-generated idempotency key (required, non-empty).
+  string request_id = 1;
+  // Immutable agent_id of the agent to invoke (required).
+  string agent_id = 2;
+  // Existing session ID, or empty to create a new workspace-owned session.
+  string session_id = 3;
+  // Text input (used when parts is empty).
+  string message = 4;
+  // Multimodal input parts. When non-empty, message is ignored.
+  repeated InputPart parts = 5;
+  // Optional model override alias or full name.
+  string model_override = 6;
+}
+
+message SubmitAgentInvocationResponse {
+  // The session used (may have been newly created).
+  string session_id = 1;
+  // The created invocation.
+  string invocation_id = 2;
+  // Current invocation status (QUEUED immediately after acceptance).
+  InvocationStatus status = 3;
+  // True when this submission created a new session.
+  bool session_created = 4;
+}
+
+// --- GetAgentInvocation messages ---
+
+message GetAgentInvocationRequest {
+  string invocation_id = 1;
+}
+
+message GetAgentInvocationResponse {
+  Invocation invocation = 1;
 }
 
 // --- MCPServer messages ---
