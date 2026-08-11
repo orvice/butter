@@ -13,8 +13,15 @@ import {
   ListSessionsResponseSchema,
   SubmitAgentInvocationRequestSchema,
   SubmitAgentInvocationResponseSchema,
+  WatchAgentInvocationRequestSchema,
+  WatchAgentInvocationResponseSchema,
 } from '../src/gen/agents/v1/agent_service_pb'
-import { fulfillProto, setupAuthenticatedConnectRoutes } from './support/connect'
+import {
+  decodeConnectStreamRequest,
+  fulfillConnectStream,
+  fulfillProto,
+  setupAuthenticatedConnectRoutes,
+} from './support/connect'
 
 const sessions = ['session-a', 'session-b'].map((sessionId) => ({
   sessionId,
@@ -108,6 +115,45 @@ async function setupChat(page: Page): Promise<MockState> {
           status: state.statuses.get(invocationId) ?? InvocationStatus.RUNNING,
         },
       })
+    }
+    if (url.includes('AgentService/WatchAgentInvocation')) {
+      const request = decodeConnectStreamRequest(
+        WatchAgentInvocationRequestSchema,
+        route.request().postDataBuffer()
+      )
+      const invocationId = request.invocationId
+      // Hold the observer stream open while the run is active, then deliver
+      // the single terminal state frame.
+      const deadline = Date.now() + 15_000
+      while (
+        (state.statuses.get(invocationId) ?? InvocationStatus.RUNNING) ===
+          InvocationStatus.RUNNING &&
+        Date.now() < deadline
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+      try {
+        return await fulfillConnectStream(route, WatchAgentInvocationResponseSchema, [
+          {
+            event: {
+              case: 'state',
+              value: {
+                invocation: {
+                  id: invocationId,
+                  appName: 'web-chat',
+                  userId: 'test-user-1',
+                  sessionId: invocationId === 'inv-a' ? 'session-a' : 'session-b',
+                  workspaceId: 'default',
+                  source: 'dashboard-async',
+                  status: state.statuses.get(invocationId) ?? InvocationStatus.RUNNING,
+                },
+              },
+            },
+          },
+        ])
+      } catch {
+        return true // observer detached (request aborted by navigation)
+      }
     }
     if (url.includes('AgentService/CancelAgentInvocation')) {
       const request = fromBinary(

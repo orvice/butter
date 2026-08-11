@@ -15,6 +15,7 @@ import (
 	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
+	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -83,6 +84,11 @@ func (c *fakeAsyncCoordinator) Cancel(invocationID, workspaceID string) bool {
 	c.cancelledID = invocationID
 	c.cancelWorkspace = workspaceID
 	return c.cancelled
+}
+
+func (c *fakeAsyncCoordinator) Watch(string) (<-chan asyncrun.Frame, func()) {
+	ch := make(chan asyncrun.Frame)
+	return ch, func() {}
 }
 
 type delayedActiveLookupRepo struct {

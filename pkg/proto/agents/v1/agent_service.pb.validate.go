@@ -6656,6 +6656,8 @@ func (m *GetAgentInvocationRequest) validate(all bool) error {
 
 	// no validation rules for InvocationId
 
+	// no validation rules for SessionId
+
 	if len(errors) > 0 {
 		return GetAgentInvocationRequestMultiError(errors)
 	}
@@ -6866,6 +6868,473 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = GetAgentInvocationResponseValidationError{}
+
+// Validate checks the field values on WatchAgentInvocationRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *WatchAgentInvocationRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on WatchAgentInvocationRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// WatchAgentInvocationRequestMultiError, or nil if none found.
+func (m *WatchAgentInvocationRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *WatchAgentInvocationRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for InvocationId
+
+	if len(errors) > 0 {
+		return WatchAgentInvocationRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// WatchAgentInvocationRequestMultiError is an error wrapping multiple
+// validation errors returned by WatchAgentInvocationRequest.ValidateAll() if
+// the designated constraints aren't met.
+type WatchAgentInvocationRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m WatchAgentInvocationRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m WatchAgentInvocationRequestMultiError) AllErrors() []error { return m }
+
+// WatchAgentInvocationRequestValidationError is the validation error returned
+// by WatchAgentInvocationRequest.Validate if the designated constraints
+// aren't met.
+type WatchAgentInvocationRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e WatchAgentInvocationRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e WatchAgentInvocationRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e WatchAgentInvocationRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e WatchAgentInvocationRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e WatchAgentInvocationRequestValidationError) ErrorName() string {
+	return "WatchAgentInvocationRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e WatchAgentInvocationRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sWatchAgentInvocationRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = WatchAgentInvocationRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = WatchAgentInvocationRequestValidationError{}
+
+// Validate checks the field values on WatchAgentInvocationResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *WatchAgentInvocationResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on WatchAgentInvocationResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// WatchAgentInvocationResponseMultiError, or nil if none found.
+func (m *WatchAgentInvocationResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *WatchAgentInvocationResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch v := m.Event.(type) {
+	case *WatchAgentInvocationResponse_State:
+		if v == nil {
+			err := WatchAgentInvocationResponseValidationError{
+				field:  "Event",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetState()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WatchAgentInvocationResponseValidationError{
+						field:  "State",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WatchAgentInvocationResponseValidationError{
+						field:  "State",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetState()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WatchAgentInvocationResponseValidationError{
+					field:  "State",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *WatchAgentInvocationResponse_RunEvent:
+		if v == nil {
+			err := WatchAgentInvocationResponseValidationError{
+				field:  "Event",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetRunEvent()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WatchAgentInvocationResponseValidationError{
+						field:  "RunEvent",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WatchAgentInvocationResponseValidationError{
+						field:  "RunEvent",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetRunEvent()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WatchAgentInvocationResponseValidationError{
+					field:  "RunEvent",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *WatchAgentInvocationResponse_TextDelta:
+		if v == nil {
+			err := WatchAgentInvocationResponseValidationError{
+				field:  "Event",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetTextDelta()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WatchAgentInvocationResponseValidationError{
+						field:  "TextDelta",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WatchAgentInvocationResponseValidationError{
+						field:  "TextDelta",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetTextDelta()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WatchAgentInvocationResponseValidationError{
+					field:  "TextDelta",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
+	}
+
+	if len(errors) > 0 {
+		return WatchAgentInvocationResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// WatchAgentInvocationResponseMultiError is an error wrapping multiple
+// validation errors returned by WatchAgentInvocationResponse.ValidateAll() if
+// the designated constraints aren't met.
+type WatchAgentInvocationResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m WatchAgentInvocationResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m WatchAgentInvocationResponseMultiError) AllErrors() []error { return m }
+
+// WatchAgentInvocationResponseValidationError is the validation error returned
+// by WatchAgentInvocationResponse.Validate if the designated constraints
+// aren't met.
+type WatchAgentInvocationResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e WatchAgentInvocationResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e WatchAgentInvocationResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e WatchAgentInvocationResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e WatchAgentInvocationResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e WatchAgentInvocationResponseValidationError) ErrorName() string {
+	return "WatchAgentInvocationResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e WatchAgentInvocationResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sWatchAgentInvocationResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = WatchAgentInvocationResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = WatchAgentInvocationResponseValidationError{}
+
+// Validate checks the field values on WatchAgentInvocationState with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *WatchAgentInvocationState) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on WatchAgentInvocationState with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// WatchAgentInvocationStateMultiError, or nil if none found.
+func (m *WatchAgentInvocationState) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *WatchAgentInvocationState) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetInvocation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, WatchAgentInvocationStateValidationError{
+					field:  "Invocation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, WatchAgentInvocationStateValidationError{
+					field:  "Invocation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetInvocation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return WatchAgentInvocationStateValidationError{
+				field:  "Invocation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return WatchAgentInvocationStateMultiError(errors)
+	}
+
+	return nil
+}
+
+// WatchAgentInvocationStateMultiError is an error wrapping multiple validation
+// errors returned by WatchAgentInvocationState.ValidateAll() if the
+// designated constraints aren't met.
+type WatchAgentInvocationStateMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m WatchAgentInvocationStateMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m WatchAgentInvocationStateMultiError) AllErrors() []error { return m }
+
+// WatchAgentInvocationStateValidationError is the validation error returned by
+// WatchAgentInvocationState.Validate if the designated constraints aren't met.
+type WatchAgentInvocationStateValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e WatchAgentInvocationStateValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e WatchAgentInvocationStateValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e WatchAgentInvocationStateValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e WatchAgentInvocationStateValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e WatchAgentInvocationStateValidationError) ErrorName() string {
+	return "WatchAgentInvocationStateValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e WatchAgentInvocationStateValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sWatchAgentInvocationState.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = WatchAgentInvocationStateValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = WatchAgentInvocationStateValidationError{}
 
 // Validate checks the field values on ListMCPServersRequest with the rules
 // defined in the proto definition for this message. If any rules are

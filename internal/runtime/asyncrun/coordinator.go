@@ -50,6 +50,8 @@ type Coordinator struct {
 	mu      sync.Mutex
 	running map[string]*runEntry // invocationID → active run
 
+	hub *watchHub
+
 	onTurnComplete TurnCompleteFunc
 }
 
@@ -71,6 +73,7 @@ func New(invRepo invocation.Repository, inputPartRepo inputpart.Repository, r Ru
 		runner:        r,
 		cfg:           cfg,
 		running:       make(map[string]*runEntry),
+		hub:           newWatchHub(),
 	}
 }
 
@@ -134,8 +137,13 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 	if err := c.invRepo.Save(context.Background(), inv); err != nil {
 		logger.Error("async run: failed to persist RUNNING status", "invocation_id", invID, "err", err)
 		c.claimTerminal(invID)
+		// Observers must still see one terminal state frame — otherwise
+		// close-without-terminal reads as observer lag and clients would
+		// re-attach to a dead invocation.
+		c.failInvocation(inv, "failed to persist RUNNING status: "+err.Error())
 		return
 	}
+	c.publishState(inv)
 
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        invID,
@@ -152,7 +160,12 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 	if c.cancelRequested(invID) {
 		runErr = context.Canceled
 	} else {
-		response, runErr = c.runner.RunSSE(runner.WithoutInvocationRecording(ctx), agentName, parts, modelOverride, ctxInfo, nil, nil)
+		// Drive the run through the shared streaming orchestration so
+		// observers attached via Watch receive the same frame sequence
+		// StreamAgent emits.
+		sink := &hubSink{hub: c.hub, invocationID: invID}
+		runErr = streamorch.Run(runner.WithoutInvocationRecording(ctx), c.runner, streamorch.AgentRef{Name: agentName, ID: inv.GetAgentId()}, parts, modelOverride, ctxInfo, sink)
+		response = sink.response
 	}
 
 	now := timestamppb.Now()
@@ -179,6 +192,11 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 		logger.Error("async run: failed to persist terminal status",
 			"invocation_id", invID, "status", inv.GetStatus().String(), "err", err)
 	}
+
+	// Publish the single terminal state frame, then close every observer so
+	// watchers see terminal-then-close in order.
+	c.publishState(inv)
+	c.hub.closeAll(invID)
 
 	// Clean up temporary input parts after successful session event commit.
 	if inv.GetStatus() == agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED {
@@ -219,12 +237,16 @@ func (c *Coordinator) loadParts(ctx context.Context, invocationID string) ([]*ge
 	return parts, nil
 }
 
-// failInvocation persists a FAILED status without entering RUNNING.
+// failInvocation persists a FAILED status without entering RUNNING, and
+// delivers the terminal state frame to any attached observers so a run that
+// never starts still ends their streams with terminal-then-close.
 func (c *Coordinator) failInvocation(inv *agentsv1.Invocation, reason string) {
 	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
 	inv.Error = reason
 	inv.FinishedAt = timestamppb.Now()
 	_ = c.invRepo.Save(context.Background(), inv)
+	c.publishState(inv)
+	c.hub.closeAll(inv.GetId())
 }
 
 func (c *Coordinator) cancelRequested(invocationID string) bool {

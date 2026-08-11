@@ -102,6 +102,9 @@ const (
 	// AgentServiceGetAgentInvocationProcedure is the fully-qualified name of the AgentService's
 	// GetAgentInvocation RPC.
 	AgentServiceGetAgentInvocationProcedure = "/agents.v1.AgentService/GetAgentInvocation"
+	// AgentServiceWatchAgentInvocationProcedure is the fully-qualified name of the AgentService's
+	// WatchAgentInvocation RPC.
+	AgentServiceWatchAgentInvocationProcedure = "/agents.v1.AgentService/WatchAgentInvocation"
 	// AgentServiceGetAgentOperationProcedure is the fully-qualified name of the AgentService's
 	// GetAgentOperation RPC.
 	AgentServiceGetAgentOperationProcedure = "/agents.v1.AgentService/GetAgentOperation"
@@ -324,6 +327,17 @@ type AgentServiceClient interface {
 	// GetAgentInvocation returns the authoritative state of one invocation,
 	// scoped by workspace and user ownership.
 	GetAgentInvocation(context.Context, *connect.Request[v1.GetAgentInvocationRequest]) (*connect.Response[v1.GetAgentInvocationResponse], error)
+	// WatchAgentInvocation is a read-only observer stream over one asynchronous
+	// invocation. Connecting, disconnecting, or reconnecting never starts,
+	// owns, cancels, or slows execution; any number of authorized observers may
+	// watch concurrently. The first frame is always a `state` frame carrying
+	// the authoritative current Invocation; live run events and text deltas
+	// follow, and the stream ends with exactly one terminal `state` frame. A
+	// watcher that falls too far behind the live run is disconnected with
+	// RESOURCE_EXHAUSTED and should reload persisted session state before
+	// re-watching. Scoped by workspace and private-session ownership (global
+	// admins retain support access).
+	WatchAgentInvocation(context.Context, *connect.Request[v1.WatchAgentInvocationRequest]) (*connect.ServerStreamForClient[v1.WatchAgentInvocationResponse], error)
 	// GetAgentOperation returns a durable lifecycle operation record by ID.
 	GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error)
 	// ListAgentOperations lists lifecycle operations in the workspace, optionally
@@ -459,6 +473,12 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("GetAgentInvocation")),
 			connect.WithClientOptions(opts...),
 		),
+		watchAgentInvocation: connect.NewClient[v1.WatchAgentInvocationRequest, v1.WatchAgentInvocationResponse](
+			httpClient,
+			baseURL+AgentServiceWatchAgentInvocationProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("WatchAgentInvocation")),
+			connect.WithClientOptions(opts...),
+		),
 		getAgentOperation: connect.NewClient[v1.GetAgentOperationRequest, v1.GetAgentOperationResponse](
 			httpClient,
 			baseURL+AgentServiceGetAgentOperationProcedure,
@@ -501,6 +521,7 @@ type agentServiceClient struct {
 	restoreAgent             *connect.Client[v1.RestoreAgentRequest, v1.RestoreAgentResponse]
 	submitAgentInvocation    *connect.Client[v1.SubmitAgentInvocationRequest, v1.SubmitAgentInvocationResponse]
 	getAgentInvocation       *connect.Client[v1.GetAgentInvocationRequest, v1.GetAgentInvocationResponse]
+	watchAgentInvocation     *connect.Client[v1.WatchAgentInvocationRequest, v1.WatchAgentInvocationResponse]
 	getAgentOperation        *connect.Client[v1.GetAgentOperationRequest, v1.GetAgentOperationResponse]
 	listAgentOperations      *connect.Client[v1.ListAgentOperationsRequest, v1.ListAgentOperationsResponse]
 	retryAgentOperation      *connect.Client[v1.RetryAgentOperationRequest, v1.RetryAgentOperationResponse]
@@ -601,6 +622,11 @@ func (c *agentServiceClient) GetAgentInvocation(ctx context.Context, req *connec
 	return c.getAgentInvocation.CallUnary(ctx, req)
 }
 
+// WatchAgentInvocation calls agents.v1.AgentService.WatchAgentInvocation.
+func (c *agentServiceClient) WatchAgentInvocation(ctx context.Context, req *connect.Request[v1.WatchAgentInvocationRequest]) (*connect.ServerStreamForClient[v1.WatchAgentInvocationResponse], error) {
+	return c.watchAgentInvocation.CallServerStream(ctx, req)
+}
+
 // GetAgentOperation calls agents.v1.AgentService.GetAgentOperation.
 func (c *agentServiceClient) GetAgentOperation(ctx context.Context, req *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error) {
 	return c.getAgentOperation.CallUnary(ctx, req)
@@ -683,6 +709,17 @@ type AgentServiceHandler interface {
 	// GetAgentInvocation returns the authoritative state of one invocation,
 	// scoped by workspace and user ownership.
 	GetAgentInvocation(context.Context, *connect.Request[v1.GetAgentInvocationRequest]) (*connect.Response[v1.GetAgentInvocationResponse], error)
+	// WatchAgentInvocation is a read-only observer stream over one asynchronous
+	// invocation. Connecting, disconnecting, or reconnecting never starts,
+	// owns, cancels, or slows execution; any number of authorized observers may
+	// watch concurrently. The first frame is always a `state` frame carrying
+	// the authoritative current Invocation; live run events and text deltas
+	// follow, and the stream ends with exactly one terminal `state` frame. A
+	// watcher that falls too far behind the live run is disconnected with
+	// RESOURCE_EXHAUSTED and should reload persisted session state before
+	// re-watching. Scoped by workspace and private-session ownership (global
+	// admins retain support access).
+	WatchAgentInvocation(context.Context, *connect.Request[v1.WatchAgentInvocationRequest], *connect.ServerStream[v1.WatchAgentInvocationResponse]) error
 	// GetAgentOperation returns a durable lifecycle operation record by ID.
 	GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error)
 	// ListAgentOperations lists lifecycle operations in the workspace, optionally
@@ -814,6 +851,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("GetAgentInvocation")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceWatchAgentInvocationHandler := connect.NewServerStreamHandler(
+		AgentServiceWatchAgentInvocationProcedure,
+		svc.WatchAgentInvocation,
+		connect.WithSchema(agentServiceMethods.ByName("WatchAgentInvocation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	agentServiceGetAgentOperationHandler := connect.NewUnaryHandler(
 		AgentServiceGetAgentOperationProcedure,
 		svc.GetAgentOperation,
@@ -872,6 +915,8 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceSubmitAgentInvocationHandler.ServeHTTP(w, r)
 		case AgentServiceGetAgentInvocationProcedure:
 			agentServiceGetAgentInvocationHandler.ServeHTTP(w, r)
+		case AgentServiceWatchAgentInvocationProcedure:
+			agentServiceWatchAgentInvocationHandler.ServeHTTP(w, r)
 		case AgentServiceGetAgentOperationProcedure:
 			agentServiceGetAgentOperationHandler.ServeHTTP(w, r)
 		case AgentServiceListAgentOperationsProcedure:
@@ -961,6 +1006,10 @@ func (UnimplementedAgentServiceHandler) SubmitAgentInvocation(context.Context, *
 
 func (UnimplementedAgentServiceHandler) GetAgentInvocation(context.Context, *connect.Request[v1.GetAgentInvocationRequest]) (*connect.Response[v1.GetAgentInvocationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.GetAgentInvocation is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) WatchAgentInvocation(context.Context, *connect.Request[v1.WatchAgentInvocationRequest], *connect.ServerStream[v1.WatchAgentInvocationResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.WatchAgentInvocation is not implemented"))
 }
 
 func (UnimplementedAgentServiceHandler) GetAgentOperation(context.Context, *connect.Request[v1.GetAgentOperationRequest]) (*connect.Response[v1.GetAgentOperationResponse], error) {

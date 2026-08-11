@@ -3762,6 +3762,11 @@ type GetAgentInvocationRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	InvocationId string `protobuf:"bytes,1,opt,name=invocation_id,json=invocationId,proto3" json:"invocation_id,omitempty"`
+	// When invocation_id is empty, looks up the active (QUEUED or RUNNING)
+	// invocation for this session instead. NotFound when the session has no
+	// active invocation. Used by clients re-entering a session to decide
+	// whether to attach a WatchAgentInvocation observer.
+	SessionId string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 }
 
 func (x *GetAgentInvocationRequest) Reset() {
@@ -3799,6 +3804,13 @@ func (*GetAgentInvocationRequest) Descriptor() ([]byte, []int) {
 func (x *GetAgentInvocationRequest) GetInvocationId() string {
 	if x != nil {
 		return x.InvocationId
+	}
+	return ""
+}
+
+func (x *GetAgentInvocationRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -3850,6 +3862,202 @@ func (x *GetAgentInvocationResponse) GetInvocation() *Invocation {
 	return nil
 }
 
+type WatchAgentInvocationRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	InvocationId string `protobuf:"bytes,1,opt,name=invocation_id,json=invocationId,proto3" json:"invocation_id,omitempty"`
+}
+
+func (x *WatchAgentInvocationRequest) Reset() {
+	*x = WatchAgentInvocationRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_agent_service_proto_msgTypes[53]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *WatchAgentInvocationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchAgentInvocationRequest) ProtoMessage() {}
+
+func (x *WatchAgentInvocationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_agent_service_proto_msgTypes[53]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchAgentInvocationRequest.ProtoReflect.Descriptor instead.
+func (*WatchAgentInvocationRequest) Descriptor() ([]byte, []int) {
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *WatchAgentInvocationRequest) GetInvocationId() string {
+	if x != nil {
+		return x.InvocationId
+	}
+	return ""
+}
+
+// WatchAgentInvocationResponse is one observer frame. `state` frames carry
+// the authoritative Invocation record: the first frame is always a state
+// frame, another is sent when the invocation transitions to RUNNING, and the
+// final frame before the server closes the stream is the terminal state.
+// Between state frames the stream relays the same run-event and text-delta
+// shapes StreamAgent uses, so clients share rendering code.
+type WatchAgentInvocationResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to Event:
+	//
+	//	*WatchAgentInvocationResponse_State
+	//	*WatchAgentInvocationResponse_RunEvent
+	//	*WatchAgentInvocationResponse_TextDelta
+	Event isWatchAgentInvocationResponse_Event `protobuf_oneof:"event"`
+}
+
+func (x *WatchAgentInvocationResponse) Reset() {
+	*x = WatchAgentInvocationResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_agent_service_proto_msgTypes[54]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *WatchAgentInvocationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchAgentInvocationResponse) ProtoMessage() {}
+
+func (x *WatchAgentInvocationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_agent_service_proto_msgTypes[54]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchAgentInvocationResponse.ProtoReflect.Descriptor instead.
+func (*WatchAgentInvocationResponse) Descriptor() ([]byte, []int) {
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{54}
+}
+
+func (m *WatchAgentInvocationResponse) GetEvent() isWatchAgentInvocationResponse_Event {
+	if m != nil {
+		return m.Event
+	}
+	return nil
+}
+
+func (x *WatchAgentInvocationResponse) GetState() *WatchAgentInvocationState {
+	if x, ok := x.GetEvent().(*WatchAgentInvocationResponse_State); ok {
+		return x.State
+	}
+	return nil
+}
+
+func (x *WatchAgentInvocationResponse) GetRunEvent() *StreamAgentRunEvent {
+	if x, ok := x.GetEvent().(*WatchAgentInvocationResponse_RunEvent); ok {
+		return x.RunEvent
+	}
+	return nil
+}
+
+func (x *WatchAgentInvocationResponse) GetTextDelta() *StreamAgentTextDelta {
+	if x, ok := x.GetEvent().(*WatchAgentInvocationResponse_TextDelta); ok {
+		return x.TextDelta
+	}
+	return nil
+}
+
+type isWatchAgentInvocationResponse_Event interface {
+	isWatchAgentInvocationResponse_Event()
+}
+
+type WatchAgentInvocationResponse_State struct {
+	State *WatchAgentInvocationState `protobuf:"bytes,1,opt,name=state,proto3,oneof"`
+}
+
+type WatchAgentInvocationResponse_RunEvent struct {
+	RunEvent *StreamAgentRunEvent `protobuf:"bytes,2,opt,name=run_event,json=runEvent,proto3,oneof"`
+}
+
+type WatchAgentInvocationResponse_TextDelta struct {
+	TextDelta *StreamAgentTextDelta `protobuf:"bytes,3,opt,name=text_delta,json=textDelta,proto3,oneof"`
+}
+
+func (*WatchAgentInvocationResponse_State) isWatchAgentInvocationResponse_Event() {}
+
+func (*WatchAgentInvocationResponse_RunEvent) isWatchAgentInvocationResponse_Event() {}
+
+func (*WatchAgentInvocationResponse_TextDelta) isWatchAgentInvocationResponse_Event() {}
+
+// WatchAgentInvocationState carries the authoritative Invocation snapshot.
+type WatchAgentInvocationState struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Invocation *Invocation `protobuf:"bytes,1,opt,name=invocation,proto3" json:"invocation,omitempty"`
+}
+
+func (x *WatchAgentInvocationState) Reset() {
+	*x = WatchAgentInvocationState{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agents_v1_agent_service_proto_msgTypes[55]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *WatchAgentInvocationState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchAgentInvocationState) ProtoMessage() {}
+
+func (x *WatchAgentInvocationState) ProtoReflect() protoreflect.Message {
+	mi := &file_agents_v1_agent_service_proto_msgTypes[55]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchAgentInvocationState.ProtoReflect.Descriptor instead.
+func (*WatchAgentInvocationState) Descriptor() ([]byte, []int) {
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *WatchAgentInvocationState) GetInvocation() *Invocation {
+	if x != nil {
+		return x.Invocation
+	}
+	return nil
+}
+
 type ListMCPServersRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -3859,7 +4067,7 @@ type ListMCPServersRequest struct {
 func (x *ListMCPServersRequest) Reset() {
 	*x = ListMCPServersRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[53]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[56]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3872,7 +4080,7 @@ func (x *ListMCPServersRequest) String() string {
 func (*ListMCPServersRequest) ProtoMessage() {}
 
 func (x *ListMCPServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[53]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[56]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3885,7 +4093,7 @@ func (x *ListMCPServersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMCPServersRequest.ProtoReflect.Descriptor instead.
 func (*ListMCPServersRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{53}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{56}
 }
 
 type ListMCPServersResponse struct {
@@ -3899,7 +4107,7 @@ type ListMCPServersResponse struct {
 func (x *ListMCPServersResponse) Reset() {
 	*x = ListMCPServersResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[54]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[57]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3912,7 +4120,7 @@ func (x *ListMCPServersResponse) String() string {
 func (*ListMCPServersResponse) ProtoMessage() {}
 
 func (x *ListMCPServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[54]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[57]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3925,7 +4133,7 @@ func (x *ListMCPServersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMCPServersResponse.ProtoReflect.Descriptor instead.
 func (*ListMCPServersResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{54}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ListMCPServersResponse) GetMcpServers() []*MCPServer {
@@ -3946,7 +4154,7 @@ type GetMCPServerRequest struct {
 func (x *GetMCPServerRequest) Reset() {
 	*x = GetMCPServerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[55]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[58]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3959,7 +4167,7 @@ func (x *GetMCPServerRequest) String() string {
 func (*GetMCPServerRequest) ProtoMessage() {}
 
 func (x *GetMCPServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[55]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[58]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3972,7 +4180,7 @@ func (x *GetMCPServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMCPServerRequest.ProtoReflect.Descriptor instead.
 func (*GetMCPServerRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{55}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *GetMCPServerRequest) GetId() string {
@@ -3993,7 +4201,7 @@ type GetMCPServerResponse struct {
 func (x *GetMCPServerResponse) Reset() {
 	*x = GetMCPServerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[56]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[59]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4006,7 +4214,7 @@ func (x *GetMCPServerResponse) String() string {
 func (*GetMCPServerResponse) ProtoMessage() {}
 
 func (x *GetMCPServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[56]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[59]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4019,7 +4227,7 @@ func (x *GetMCPServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMCPServerResponse.ProtoReflect.Descriptor instead.
 func (*GetMCPServerResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{56}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *GetMCPServerResponse) GetMcpServer() *MCPServer {
@@ -4040,7 +4248,7 @@ type CreateMCPServerRequest struct {
 func (x *CreateMCPServerRequest) Reset() {
 	*x = CreateMCPServerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[57]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[60]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4053,7 +4261,7 @@ func (x *CreateMCPServerRequest) String() string {
 func (*CreateMCPServerRequest) ProtoMessage() {}
 
 func (x *CreateMCPServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[57]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[60]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4066,7 +4274,7 @@ func (x *CreateMCPServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMCPServerRequest.ProtoReflect.Descriptor instead.
 func (*CreateMCPServerRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{57}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *CreateMCPServerRequest) GetMcpServer() *MCPServer {
@@ -4087,7 +4295,7 @@ type CreateMCPServerResponse struct {
 func (x *CreateMCPServerResponse) Reset() {
 	*x = CreateMCPServerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[58]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[61]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4100,7 +4308,7 @@ func (x *CreateMCPServerResponse) String() string {
 func (*CreateMCPServerResponse) ProtoMessage() {}
 
 func (x *CreateMCPServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[58]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[61]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4113,7 +4321,7 @@ func (x *CreateMCPServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMCPServerResponse.ProtoReflect.Descriptor instead.
 func (*CreateMCPServerResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{58}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *CreateMCPServerResponse) GetMcpServer() *MCPServer {
@@ -4134,7 +4342,7 @@ type UpdateMCPServerRequest struct {
 func (x *UpdateMCPServerRequest) Reset() {
 	*x = UpdateMCPServerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[59]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[62]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4147,7 +4355,7 @@ func (x *UpdateMCPServerRequest) String() string {
 func (*UpdateMCPServerRequest) ProtoMessage() {}
 
 func (x *UpdateMCPServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[59]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[62]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4160,7 +4368,7 @@ func (x *UpdateMCPServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateMCPServerRequest.ProtoReflect.Descriptor instead.
 func (*UpdateMCPServerRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{59}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *UpdateMCPServerRequest) GetMcpServer() *MCPServer {
@@ -4181,7 +4389,7 @@ type UpdateMCPServerResponse struct {
 func (x *UpdateMCPServerResponse) Reset() {
 	*x = UpdateMCPServerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[60]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[63]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4194,7 +4402,7 @@ func (x *UpdateMCPServerResponse) String() string {
 func (*UpdateMCPServerResponse) ProtoMessage() {}
 
 func (x *UpdateMCPServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[60]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[63]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4207,7 +4415,7 @@ func (x *UpdateMCPServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateMCPServerResponse.ProtoReflect.Descriptor instead.
 func (*UpdateMCPServerResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{60}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *UpdateMCPServerResponse) GetMcpServer() *MCPServer {
@@ -4228,7 +4436,7 @@ type DeleteMCPServerRequest struct {
 func (x *DeleteMCPServerRequest) Reset() {
 	*x = DeleteMCPServerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[61]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[64]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4241,7 +4449,7 @@ func (x *DeleteMCPServerRequest) String() string {
 func (*DeleteMCPServerRequest) ProtoMessage() {}
 
 func (x *DeleteMCPServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[61]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[64]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4254,7 +4462,7 @@ func (x *DeleteMCPServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMCPServerRequest.ProtoReflect.Descriptor instead.
 func (*DeleteMCPServerRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{61}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *DeleteMCPServerRequest) GetId() string {
@@ -4273,7 +4481,7 @@ type DeleteMCPServerResponse struct {
 func (x *DeleteMCPServerResponse) Reset() {
 	*x = DeleteMCPServerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[62]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[65]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4286,7 +4494,7 @@ func (x *DeleteMCPServerResponse) String() string {
 func (*DeleteMCPServerResponse) ProtoMessage() {}
 
 func (x *DeleteMCPServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[62]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[65]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4299,7 +4507,7 @@ func (x *DeleteMCPServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMCPServerResponse.ProtoReflect.Descriptor instead.
 func (*DeleteMCPServerResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{62}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{65}
 }
 
 type StartMCPServerOAuthRequest struct {
@@ -4316,7 +4524,7 @@ type StartMCPServerOAuthRequest struct {
 func (x *StartMCPServerOAuthRequest) Reset() {
 	*x = StartMCPServerOAuthRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[63]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[66]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4329,7 +4537,7 @@ func (x *StartMCPServerOAuthRequest) String() string {
 func (*StartMCPServerOAuthRequest) ProtoMessage() {}
 
 func (x *StartMCPServerOAuthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[63]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[66]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4342,7 +4550,7 @@ func (x *StartMCPServerOAuthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartMCPServerOAuthRequest.ProtoReflect.Descriptor instead.
 func (*StartMCPServerOAuthRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{63}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *StartMCPServerOAuthRequest) GetServerId() string {
@@ -4371,7 +4579,7 @@ type StartMCPServerOAuthResponse struct {
 func (x *StartMCPServerOAuthResponse) Reset() {
 	*x = StartMCPServerOAuthResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[64]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[67]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4384,7 +4592,7 @@ func (x *StartMCPServerOAuthResponse) String() string {
 func (*StartMCPServerOAuthResponse) ProtoMessage() {}
 
 func (x *StartMCPServerOAuthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[64]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[67]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4397,7 +4605,7 @@ func (x *StartMCPServerOAuthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartMCPServerOAuthResponse.ProtoReflect.Descriptor instead.
 func (*StartMCPServerOAuthResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{64}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *StartMCPServerOAuthResponse) GetAuthorizationUrl() string {
@@ -4427,7 +4635,7 @@ type CompleteMCPServerOAuthRequest struct {
 func (x *CompleteMCPServerOAuthRequest) Reset() {
 	*x = CompleteMCPServerOAuthRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[65]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[68]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4440,7 +4648,7 @@ func (x *CompleteMCPServerOAuthRequest) String() string {
 func (*CompleteMCPServerOAuthRequest) ProtoMessage() {}
 
 func (x *CompleteMCPServerOAuthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[65]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[68]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4453,7 +4661,7 @@ func (x *CompleteMCPServerOAuthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteMCPServerOAuthRequest.ProtoReflect.Descriptor instead.
 func (*CompleteMCPServerOAuthRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{65}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *CompleteMCPServerOAuthRequest) GetFlowId() string {
@@ -4488,7 +4696,7 @@ type CompleteMCPServerOAuthResponse struct {
 func (x *CompleteMCPServerOAuthResponse) Reset() {
 	*x = CompleteMCPServerOAuthResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[66]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[69]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4501,7 +4709,7 @@ func (x *CompleteMCPServerOAuthResponse) String() string {
 func (*CompleteMCPServerOAuthResponse) ProtoMessage() {}
 
 func (x *CompleteMCPServerOAuthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[66]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[69]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4514,7 +4722,7 @@ func (x *CompleteMCPServerOAuthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteMCPServerOAuthResponse.ProtoReflect.Descriptor instead.
 func (*CompleteMCPServerOAuthResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{66}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *CompleteMCPServerOAuthResponse) GetStatus() *MCPOAuthConnectionStatus {
@@ -4535,7 +4743,7 @@ type GetMCPServerOAuthStatusRequest struct {
 func (x *GetMCPServerOAuthStatusRequest) Reset() {
 	*x = GetMCPServerOAuthStatusRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[67]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[70]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4548,7 +4756,7 @@ func (x *GetMCPServerOAuthStatusRequest) String() string {
 func (*GetMCPServerOAuthStatusRequest) ProtoMessage() {}
 
 func (x *GetMCPServerOAuthStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[67]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[70]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4561,7 +4769,7 @@ func (x *GetMCPServerOAuthStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMCPServerOAuthStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetMCPServerOAuthStatusRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{67}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *GetMCPServerOAuthStatusRequest) GetServerId() string {
@@ -4582,7 +4790,7 @@ type GetMCPServerOAuthStatusResponse struct {
 func (x *GetMCPServerOAuthStatusResponse) Reset() {
 	*x = GetMCPServerOAuthStatusResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[68]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[71]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4595,7 +4803,7 @@ func (x *GetMCPServerOAuthStatusResponse) String() string {
 func (*GetMCPServerOAuthStatusResponse) ProtoMessage() {}
 
 func (x *GetMCPServerOAuthStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[68]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[71]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4608,7 +4816,7 @@ func (x *GetMCPServerOAuthStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMCPServerOAuthStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetMCPServerOAuthStatusResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{68}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *GetMCPServerOAuthStatusResponse) GetStatus() *MCPOAuthConnectionStatus {
@@ -4629,7 +4837,7 @@ type DisconnectMCPServerOAuthRequest struct {
 func (x *DisconnectMCPServerOAuthRequest) Reset() {
 	*x = DisconnectMCPServerOAuthRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[69]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[72]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4642,7 +4850,7 @@ func (x *DisconnectMCPServerOAuthRequest) String() string {
 func (*DisconnectMCPServerOAuthRequest) ProtoMessage() {}
 
 func (x *DisconnectMCPServerOAuthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[69]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[72]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4655,7 +4863,7 @@ func (x *DisconnectMCPServerOAuthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectMCPServerOAuthRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectMCPServerOAuthRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{69}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *DisconnectMCPServerOAuthRequest) GetServerId() string {
@@ -4676,7 +4884,7 @@ type DisconnectMCPServerOAuthResponse struct {
 func (x *DisconnectMCPServerOAuthResponse) Reset() {
 	*x = DisconnectMCPServerOAuthResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[70]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[73]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4689,7 +4897,7 @@ func (x *DisconnectMCPServerOAuthResponse) String() string {
 func (*DisconnectMCPServerOAuthResponse) ProtoMessage() {}
 
 func (x *DisconnectMCPServerOAuthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[70]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[73]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4702,7 +4910,7 @@ func (x *DisconnectMCPServerOAuthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectMCPServerOAuthResponse.ProtoReflect.Descriptor instead.
 func (*DisconnectMCPServerOAuthResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{70}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *DisconnectMCPServerOAuthResponse) GetStatus() *MCPOAuthConnectionStatus {
@@ -4729,7 +4937,7 @@ type MCPOAuthConnectionStatus struct {
 func (x *MCPOAuthConnectionStatus) Reset() {
 	*x = MCPOAuthConnectionStatus{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[71]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[74]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4742,7 +4950,7 @@ func (x *MCPOAuthConnectionStatus) String() string {
 func (*MCPOAuthConnectionStatus) ProtoMessage() {}
 
 func (x *MCPOAuthConnectionStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[71]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[74]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4755,7 +4963,7 @@ func (x *MCPOAuthConnectionStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MCPOAuthConnectionStatus.ProtoReflect.Descriptor instead.
 func (*MCPOAuthConnectionStatus) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{71}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *MCPOAuthConnectionStatus) GetServerId() string {
@@ -4816,7 +5024,7 @@ type ListGlobalMCPServersRequest struct {
 func (x *ListGlobalMCPServersRequest) Reset() {
 	*x = ListGlobalMCPServersRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[72]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[75]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4829,7 +5037,7 @@ func (x *ListGlobalMCPServersRequest) String() string {
 func (*ListGlobalMCPServersRequest) ProtoMessage() {}
 
 func (x *ListGlobalMCPServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[72]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[75]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4842,7 +5050,7 @@ func (x *ListGlobalMCPServersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGlobalMCPServersRequest.ProtoReflect.Descriptor instead.
 func (*ListGlobalMCPServersRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{72}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{75}
 }
 
 type ListGlobalMCPServersResponse struct {
@@ -4856,7 +5064,7 @@ type ListGlobalMCPServersResponse struct {
 func (x *ListGlobalMCPServersResponse) Reset() {
 	*x = ListGlobalMCPServersResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[73]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[76]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4869,7 +5077,7 @@ func (x *ListGlobalMCPServersResponse) String() string {
 func (*ListGlobalMCPServersResponse) ProtoMessage() {}
 
 func (x *ListGlobalMCPServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[73]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[76]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4882,7 +5090,7 @@ func (x *ListGlobalMCPServersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGlobalMCPServersResponse.ProtoReflect.Descriptor instead.
 func (*ListGlobalMCPServersResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{73}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *ListGlobalMCPServersResponse) GetMcpServers() []*MCPServer {
@@ -4903,7 +5111,7 @@ type CreateGlobalMCPServerRequest struct {
 func (x *CreateGlobalMCPServerRequest) Reset() {
 	*x = CreateGlobalMCPServerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[74]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[77]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4916,7 +5124,7 @@ func (x *CreateGlobalMCPServerRequest) String() string {
 func (*CreateGlobalMCPServerRequest) ProtoMessage() {}
 
 func (x *CreateGlobalMCPServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[74]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[77]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4929,7 +5137,7 @@ func (x *CreateGlobalMCPServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGlobalMCPServerRequest.ProtoReflect.Descriptor instead.
 func (*CreateGlobalMCPServerRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{74}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *CreateGlobalMCPServerRequest) GetMcpServer() *MCPServer {
@@ -4950,7 +5158,7 @@ type CreateGlobalMCPServerResponse struct {
 func (x *CreateGlobalMCPServerResponse) Reset() {
 	*x = CreateGlobalMCPServerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[75]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[78]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4963,7 +5171,7 @@ func (x *CreateGlobalMCPServerResponse) String() string {
 func (*CreateGlobalMCPServerResponse) ProtoMessage() {}
 
 func (x *CreateGlobalMCPServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[75]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[78]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4976,7 +5184,7 @@ func (x *CreateGlobalMCPServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGlobalMCPServerResponse.ProtoReflect.Descriptor instead.
 func (*CreateGlobalMCPServerResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{75}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *CreateGlobalMCPServerResponse) GetMcpServer() *MCPServer {
@@ -4997,7 +5205,7 @@ type UpdateGlobalMCPServerRequest struct {
 func (x *UpdateGlobalMCPServerRequest) Reset() {
 	*x = UpdateGlobalMCPServerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[76]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[79]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5010,7 +5218,7 @@ func (x *UpdateGlobalMCPServerRequest) String() string {
 func (*UpdateGlobalMCPServerRequest) ProtoMessage() {}
 
 func (x *UpdateGlobalMCPServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[76]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[79]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5023,7 +5231,7 @@ func (x *UpdateGlobalMCPServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGlobalMCPServerRequest.ProtoReflect.Descriptor instead.
 func (*UpdateGlobalMCPServerRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{76}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *UpdateGlobalMCPServerRequest) GetMcpServer() *MCPServer {
@@ -5044,7 +5252,7 @@ type UpdateGlobalMCPServerResponse struct {
 func (x *UpdateGlobalMCPServerResponse) Reset() {
 	*x = UpdateGlobalMCPServerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[77]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[80]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5057,7 +5265,7 @@ func (x *UpdateGlobalMCPServerResponse) String() string {
 func (*UpdateGlobalMCPServerResponse) ProtoMessage() {}
 
 func (x *UpdateGlobalMCPServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[77]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[80]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5070,7 +5278,7 @@ func (x *UpdateGlobalMCPServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGlobalMCPServerResponse.ProtoReflect.Descriptor instead.
 func (*UpdateGlobalMCPServerResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{77}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *UpdateGlobalMCPServerResponse) GetMcpServer() *MCPServer {
@@ -5091,7 +5299,7 @@ type DeleteGlobalMCPServerRequest struct {
 func (x *DeleteGlobalMCPServerRequest) Reset() {
 	*x = DeleteGlobalMCPServerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[78]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[81]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5104,7 +5312,7 @@ func (x *DeleteGlobalMCPServerRequest) String() string {
 func (*DeleteGlobalMCPServerRequest) ProtoMessage() {}
 
 func (x *DeleteGlobalMCPServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[78]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[81]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5117,7 +5325,7 @@ func (x *DeleteGlobalMCPServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGlobalMCPServerRequest.ProtoReflect.Descriptor instead.
 func (*DeleteGlobalMCPServerRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{78}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *DeleteGlobalMCPServerRequest) GetId() string {
@@ -5136,7 +5344,7 @@ type DeleteGlobalMCPServerResponse struct {
 func (x *DeleteGlobalMCPServerResponse) Reset() {
 	*x = DeleteGlobalMCPServerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[79]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[82]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5149,7 +5357,7 @@ func (x *DeleteGlobalMCPServerResponse) String() string {
 func (*DeleteGlobalMCPServerResponse) ProtoMessage() {}
 
 func (x *DeleteGlobalMCPServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[79]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[82]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5162,7 +5370,7 @@ func (x *DeleteGlobalMCPServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGlobalMCPServerResponse.ProtoReflect.Descriptor instead.
 func (*DeleteGlobalMCPServerResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{79}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{82}
 }
 
 type InstallGlobalMCPServerRequest struct {
@@ -5181,7 +5389,7 @@ type InstallGlobalMCPServerRequest struct {
 func (x *InstallGlobalMCPServerRequest) Reset() {
 	*x = InstallGlobalMCPServerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[80]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[83]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5194,7 +5402,7 @@ func (x *InstallGlobalMCPServerRequest) String() string {
 func (*InstallGlobalMCPServerRequest) ProtoMessage() {}
 
 func (x *InstallGlobalMCPServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[80]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[83]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5207,7 +5415,7 @@ func (x *InstallGlobalMCPServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallGlobalMCPServerRequest.ProtoReflect.Descriptor instead.
 func (*InstallGlobalMCPServerRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{80}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *InstallGlobalMCPServerRequest) GetId() string {
@@ -5235,7 +5443,7 @@ type InstallGlobalMCPServerResponse struct {
 func (x *InstallGlobalMCPServerResponse) Reset() {
 	*x = InstallGlobalMCPServerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[81]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[84]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5248,7 +5456,7 @@ func (x *InstallGlobalMCPServerResponse) String() string {
 func (*InstallGlobalMCPServerResponse) ProtoMessage() {}
 
 func (x *InstallGlobalMCPServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[81]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[84]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5261,7 +5469,7 @@ func (x *InstallGlobalMCPServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallGlobalMCPServerResponse.ProtoReflect.Descriptor instead.
 func (*InstallGlobalMCPServerResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{81}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *InstallGlobalMCPServerResponse) GetMcpServer() *MCPServer {
@@ -5280,7 +5488,7 @@ type ListModelProvidersRequest struct {
 func (x *ListModelProvidersRequest) Reset() {
 	*x = ListModelProvidersRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[82]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[85]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5293,7 +5501,7 @@ func (x *ListModelProvidersRequest) String() string {
 func (*ListModelProvidersRequest) ProtoMessage() {}
 
 func (x *ListModelProvidersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[82]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[85]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5306,7 +5514,7 @@ func (x *ListModelProvidersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelProvidersRequest.ProtoReflect.Descriptor instead.
 func (*ListModelProvidersRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{82}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{85}
 }
 
 type ListModelProvidersResponse struct {
@@ -5320,7 +5528,7 @@ type ListModelProvidersResponse struct {
 func (x *ListModelProvidersResponse) Reset() {
 	*x = ListModelProvidersResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[83]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[86]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5333,7 +5541,7 @@ func (x *ListModelProvidersResponse) String() string {
 func (*ListModelProvidersResponse) ProtoMessage() {}
 
 func (x *ListModelProvidersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[83]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[86]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5346,7 +5554,7 @@ func (x *ListModelProvidersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelProvidersResponse.ProtoReflect.Descriptor instead.
 func (*ListModelProvidersResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{83}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *ListModelProvidersResponse) GetModelProviders() []*ModelProvider {
@@ -5367,7 +5575,7 @@ type GetModelProviderRequest struct {
 func (x *GetModelProviderRequest) Reset() {
 	*x = GetModelProviderRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[84]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[87]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5380,7 +5588,7 @@ func (x *GetModelProviderRequest) String() string {
 func (*GetModelProviderRequest) ProtoMessage() {}
 
 func (x *GetModelProviderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[84]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[87]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5393,7 +5601,7 @@ func (x *GetModelProviderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetModelProviderRequest.ProtoReflect.Descriptor instead.
 func (*GetModelProviderRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{84}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *GetModelProviderRequest) GetName() string {
@@ -5414,7 +5622,7 @@ type GetModelProviderResponse struct {
 func (x *GetModelProviderResponse) Reset() {
 	*x = GetModelProviderResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[85]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[88]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5427,7 +5635,7 @@ func (x *GetModelProviderResponse) String() string {
 func (*GetModelProviderResponse) ProtoMessage() {}
 
 func (x *GetModelProviderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[85]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[88]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5440,7 +5648,7 @@ func (x *GetModelProviderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetModelProviderResponse.ProtoReflect.Descriptor instead.
 func (*GetModelProviderResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{85}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *GetModelProviderResponse) GetModelProvider() *ModelProvider {
@@ -5461,7 +5669,7 @@ type CreateModelProviderRequest struct {
 func (x *CreateModelProviderRequest) Reset() {
 	*x = CreateModelProviderRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[86]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[89]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5474,7 +5682,7 @@ func (x *CreateModelProviderRequest) String() string {
 func (*CreateModelProviderRequest) ProtoMessage() {}
 
 func (x *CreateModelProviderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[86]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[89]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5487,7 +5695,7 @@ func (x *CreateModelProviderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateModelProviderRequest.ProtoReflect.Descriptor instead.
 func (*CreateModelProviderRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{86}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *CreateModelProviderRequest) GetModelProvider() *ModelProvider {
@@ -5508,7 +5716,7 @@ type CreateModelProviderResponse struct {
 func (x *CreateModelProviderResponse) Reset() {
 	*x = CreateModelProviderResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[87]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[90]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5521,7 +5729,7 @@ func (x *CreateModelProviderResponse) String() string {
 func (*CreateModelProviderResponse) ProtoMessage() {}
 
 func (x *CreateModelProviderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[87]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[90]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5534,7 +5742,7 @@ func (x *CreateModelProviderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateModelProviderResponse.ProtoReflect.Descriptor instead.
 func (*CreateModelProviderResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{87}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *CreateModelProviderResponse) GetModelProvider() *ModelProvider {
@@ -5555,7 +5763,7 @@ type UpdateModelProviderRequest struct {
 func (x *UpdateModelProviderRequest) Reset() {
 	*x = UpdateModelProviderRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[88]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[91]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5568,7 +5776,7 @@ func (x *UpdateModelProviderRequest) String() string {
 func (*UpdateModelProviderRequest) ProtoMessage() {}
 
 func (x *UpdateModelProviderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[88]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[91]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5581,7 +5789,7 @@ func (x *UpdateModelProviderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateModelProviderRequest.ProtoReflect.Descriptor instead.
 func (*UpdateModelProviderRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{88}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *UpdateModelProviderRequest) GetModelProvider() *ModelProvider {
@@ -5602,7 +5810,7 @@ type UpdateModelProviderResponse struct {
 func (x *UpdateModelProviderResponse) Reset() {
 	*x = UpdateModelProviderResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[89]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[92]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5615,7 +5823,7 @@ func (x *UpdateModelProviderResponse) String() string {
 func (*UpdateModelProviderResponse) ProtoMessage() {}
 
 func (x *UpdateModelProviderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[89]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[92]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5628,7 +5836,7 @@ func (x *UpdateModelProviderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateModelProviderResponse.ProtoReflect.Descriptor instead.
 func (*UpdateModelProviderResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{89}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *UpdateModelProviderResponse) GetModelProvider() *ModelProvider {
@@ -5649,7 +5857,7 @@ type DeleteModelProviderRequest struct {
 func (x *DeleteModelProviderRequest) Reset() {
 	*x = DeleteModelProviderRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[90]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[93]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5662,7 +5870,7 @@ func (x *DeleteModelProviderRequest) String() string {
 func (*DeleteModelProviderRequest) ProtoMessage() {}
 
 func (x *DeleteModelProviderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[90]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[93]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5675,7 +5883,7 @@ func (x *DeleteModelProviderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteModelProviderRequest.ProtoReflect.Descriptor instead.
 func (*DeleteModelProviderRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{90}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *DeleteModelProviderRequest) GetName() string {
@@ -5694,7 +5902,7 @@ type DeleteModelProviderResponse struct {
 func (x *DeleteModelProviderResponse) Reset() {
 	*x = DeleteModelProviderResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[91]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[94]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5707,7 +5915,7 @@ func (x *DeleteModelProviderResponse) String() string {
 func (*DeleteModelProviderResponse) ProtoMessage() {}
 
 func (x *DeleteModelProviderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[91]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[94]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5720,7 +5928,7 @@ func (x *DeleteModelProviderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteModelProviderResponse.ProtoReflect.Descriptor instead.
 func (*DeleteModelProviderResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{91}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{94}
 }
 
 type ListNotifyGroupsRequest struct {
@@ -5732,7 +5940,7 @@ type ListNotifyGroupsRequest struct {
 func (x *ListNotifyGroupsRequest) Reset() {
 	*x = ListNotifyGroupsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[92]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[95]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5745,7 +5953,7 @@ func (x *ListNotifyGroupsRequest) String() string {
 func (*ListNotifyGroupsRequest) ProtoMessage() {}
 
 func (x *ListNotifyGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[92]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[95]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5758,7 +5966,7 @@ func (x *ListNotifyGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNotifyGroupsRequest.ProtoReflect.Descriptor instead.
 func (*ListNotifyGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{92}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{95}
 }
 
 type ListNotifyGroupsResponse struct {
@@ -5772,7 +5980,7 @@ type ListNotifyGroupsResponse struct {
 func (x *ListNotifyGroupsResponse) Reset() {
 	*x = ListNotifyGroupsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[93]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[96]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5785,7 +5993,7 @@ func (x *ListNotifyGroupsResponse) String() string {
 func (*ListNotifyGroupsResponse) ProtoMessage() {}
 
 func (x *ListNotifyGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[93]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[96]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5798,7 +6006,7 @@ func (x *ListNotifyGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNotifyGroupsResponse.ProtoReflect.Descriptor instead.
 func (*ListNotifyGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{93}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *ListNotifyGroupsResponse) GetNotifyGroups() []*NotifyGroup {
@@ -5819,7 +6027,7 @@ type GetNotifyGroupRequest struct {
 func (x *GetNotifyGroupRequest) Reset() {
 	*x = GetNotifyGroupRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[94]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[97]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5832,7 +6040,7 @@ func (x *GetNotifyGroupRequest) String() string {
 func (*GetNotifyGroupRequest) ProtoMessage() {}
 
 func (x *GetNotifyGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[94]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[97]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5845,7 +6053,7 @@ func (x *GetNotifyGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNotifyGroupRequest.ProtoReflect.Descriptor instead.
 func (*GetNotifyGroupRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{94}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *GetNotifyGroupRequest) GetName() string {
@@ -5866,7 +6074,7 @@ type GetNotifyGroupResponse struct {
 func (x *GetNotifyGroupResponse) Reset() {
 	*x = GetNotifyGroupResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[95]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[98]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5879,7 +6087,7 @@ func (x *GetNotifyGroupResponse) String() string {
 func (*GetNotifyGroupResponse) ProtoMessage() {}
 
 func (x *GetNotifyGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[95]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[98]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5892,7 +6100,7 @@ func (x *GetNotifyGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNotifyGroupResponse.ProtoReflect.Descriptor instead.
 func (*GetNotifyGroupResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{95}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *GetNotifyGroupResponse) GetNotifyGroup() *NotifyGroup {
@@ -5913,7 +6121,7 @@ type CreateNotifyGroupRequest struct {
 func (x *CreateNotifyGroupRequest) Reset() {
 	*x = CreateNotifyGroupRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[96]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[99]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5926,7 +6134,7 @@ func (x *CreateNotifyGroupRequest) String() string {
 func (*CreateNotifyGroupRequest) ProtoMessage() {}
 
 func (x *CreateNotifyGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[96]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[99]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5939,7 +6147,7 @@ func (x *CreateNotifyGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNotifyGroupRequest.ProtoReflect.Descriptor instead.
 func (*CreateNotifyGroupRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{96}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *CreateNotifyGroupRequest) GetNotifyGroup() *NotifyGroup {
@@ -5960,7 +6168,7 @@ type CreateNotifyGroupResponse struct {
 func (x *CreateNotifyGroupResponse) Reset() {
 	*x = CreateNotifyGroupResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[97]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[100]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5973,7 +6181,7 @@ func (x *CreateNotifyGroupResponse) String() string {
 func (*CreateNotifyGroupResponse) ProtoMessage() {}
 
 func (x *CreateNotifyGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[97]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[100]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5986,7 +6194,7 @@ func (x *CreateNotifyGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNotifyGroupResponse.ProtoReflect.Descriptor instead.
 func (*CreateNotifyGroupResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{97}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *CreateNotifyGroupResponse) GetNotifyGroup() *NotifyGroup {
@@ -6007,7 +6215,7 @@ type UpdateNotifyGroupRequest struct {
 func (x *UpdateNotifyGroupRequest) Reset() {
 	*x = UpdateNotifyGroupRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[98]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[101]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6020,7 +6228,7 @@ func (x *UpdateNotifyGroupRequest) String() string {
 func (*UpdateNotifyGroupRequest) ProtoMessage() {}
 
 func (x *UpdateNotifyGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[98]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[101]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6033,7 +6241,7 @@ func (x *UpdateNotifyGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateNotifyGroupRequest.ProtoReflect.Descriptor instead.
 func (*UpdateNotifyGroupRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{98}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *UpdateNotifyGroupRequest) GetNotifyGroup() *NotifyGroup {
@@ -6054,7 +6262,7 @@ type UpdateNotifyGroupResponse struct {
 func (x *UpdateNotifyGroupResponse) Reset() {
 	*x = UpdateNotifyGroupResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[99]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[102]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6067,7 +6275,7 @@ func (x *UpdateNotifyGroupResponse) String() string {
 func (*UpdateNotifyGroupResponse) ProtoMessage() {}
 
 func (x *UpdateNotifyGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[99]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[102]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6080,7 +6288,7 @@ func (x *UpdateNotifyGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateNotifyGroupResponse.ProtoReflect.Descriptor instead.
 func (*UpdateNotifyGroupResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{99}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *UpdateNotifyGroupResponse) GetNotifyGroup() *NotifyGroup {
@@ -6101,7 +6309,7 @@ type DeleteNotifyGroupRequest struct {
 func (x *DeleteNotifyGroupRequest) Reset() {
 	*x = DeleteNotifyGroupRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[100]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[103]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6114,7 +6322,7 @@ func (x *DeleteNotifyGroupRequest) String() string {
 func (*DeleteNotifyGroupRequest) ProtoMessage() {}
 
 func (x *DeleteNotifyGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[100]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[103]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6127,7 +6335,7 @@ func (x *DeleteNotifyGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNotifyGroupRequest.ProtoReflect.Descriptor instead.
 func (*DeleteNotifyGroupRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{100}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *DeleteNotifyGroupRequest) GetName() string {
@@ -6146,7 +6354,7 @@ type DeleteNotifyGroupResponse struct {
 func (x *DeleteNotifyGroupResponse) Reset() {
 	*x = DeleteNotifyGroupResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[101]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[104]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6159,7 +6367,7 @@ func (x *DeleteNotifyGroupResponse) String() string {
 func (*DeleteNotifyGroupResponse) ProtoMessage() {}
 
 func (x *DeleteNotifyGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[101]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[104]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6172,7 +6380,7 @@ func (x *DeleteNotifyGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNotifyGroupResponse.ProtoReflect.Descriptor instead.
 func (*DeleteNotifyGroupResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{101}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{104}
 }
 
 type ListRemoteAgentsRequest struct {
@@ -6184,7 +6392,7 @@ type ListRemoteAgentsRequest struct {
 func (x *ListRemoteAgentsRequest) Reset() {
 	*x = ListRemoteAgentsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[102]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[105]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6197,7 +6405,7 @@ func (x *ListRemoteAgentsRequest) String() string {
 func (*ListRemoteAgentsRequest) ProtoMessage() {}
 
 func (x *ListRemoteAgentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[102]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[105]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6210,7 +6418,7 @@ func (x *ListRemoteAgentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRemoteAgentsRequest.ProtoReflect.Descriptor instead.
 func (*ListRemoteAgentsRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{102}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{105}
 }
 
 type ListRemoteAgentsResponse struct {
@@ -6224,7 +6432,7 @@ type ListRemoteAgentsResponse struct {
 func (x *ListRemoteAgentsResponse) Reset() {
 	*x = ListRemoteAgentsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[103]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[106]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6237,7 +6445,7 @@ func (x *ListRemoteAgentsResponse) String() string {
 func (*ListRemoteAgentsResponse) ProtoMessage() {}
 
 func (x *ListRemoteAgentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[103]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[106]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6250,7 +6458,7 @@ func (x *ListRemoteAgentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRemoteAgentsResponse.ProtoReflect.Descriptor instead.
 func (*ListRemoteAgentsResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{103}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *ListRemoteAgentsResponse) GetRemoteAgents() []*RemoteAgent {
@@ -6271,7 +6479,7 @@ type GetRemoteAgentRequest struct {
 func (x *GetRemoteAgentRequest) Reset() {
 	*x = GetRemoteAgentRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[104]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[107]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6284,7 +6492,7 @@ func (x *GetRemoteAgentRequest) String() string {
 func (*GetRemoteAgentRequest) ProtoMessage() {}
 
 func (x *GetRemoteAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[104]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[107]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6297,7 +6505,7 @@ func (x *GetRemoteAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRemoteAgentRequest.ProtoReflect.Descriptor instead.
 func (*GetRemoteAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{104}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *GetRemoteAgentRequest) GetId() string {
@@ -6318,7 +6526,7 @@ type GetRemoteAgentResponse struct {
 func (x *GetRemoteAgentResponse) Reset() {
 	*x = GetRemoteAgentResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[105]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[108]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6331,7 +6539,7 @@ func (x *GetRemoteAgentResponse) String() string {
 func (*GetRemoteAgentResponse) ProtoMessage() {}
 
 func (x *GetRemoteAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[105]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[108]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6344,7 +6552,7 @@ func (x *GetRemoteAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRemoteAgentResponse.ProtoReflect.Descriptor instead.
 func (*GetRemoteAgentResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{105}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *GetRemoteAgentResponse) GetRemoteAgent() *RemoteAgent {
@@ -6365,7 +6573,7 @@ type CreateRemoteAgentRequest struct {
 func (x *CreateRemoteAgentRequest) Reset() {
 	*x = CreateRemoteAgentRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[106]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[109]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6378,7 +6586,7 @@ func (x *CreateRemoteAgentRequest) String() string {
 func (*CreateRemoteAgentRequest) ProtoMessage() {}
 
 func (x *CreateRemoteAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[106]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[109]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6391,7 +6599,7 @@ func (x *CreateRemoteAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRemoteAgentRequest.ProtoReflect.Descriptor instead.
 func (*CreateRemoteAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{106}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *CreateRemoteAgentRequest) GetRemoteAgent() *RemoteAgent {
@@ -6412,7 +6620,7 @@ type CreateRemoteAgentResponse struct {
 func (x *CreateRemoteAgentResponse) Reset() {
 	*x = CreateRemoteAgentResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[107]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[110]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6425,7 +6633,7 @@ func (x *CreateRemoteAgentResponse) String() string {
 func (*CreateRemoteAgentResponse) ProtoMessage() {}
 
 func (x *CreateRemoteAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[107]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[110]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6438,7 +6646,7 @@ func (x *CreateRemoteAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRemoteAgentResponse.ProtoReflect.Descriptor instead.
 func (*CreateRemoteAgentResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{107}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *CreateRemoteAgentResponse) GetRemoteAgent() *RemoteAgent {
@@ -6459,7 +6667,7 @@ type UpdateRemoteAgentRequest struct {
 func (x *UpdateRemoteAgentRequest) Reset() {
 	*x = UpdateRemoteAgentRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[108]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[111]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6472,7 +6680,7 @@ func (x *UpdateRemoteAgentRequest) String() string {
 func (*UpdateRemoteAgentRequest) ProtoMessage() {}
 
 func (x *UpdateRemoteAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[108]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[111]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6485,7 +6693,7 @@ func (x *UpdateRemoteAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRemoteAgentRequest.ProtoReflect.Descriptor instead.
 func (*UpdateRemoteAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{108}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *UpdateRemoteAgentRequest) GetRemoteAgent() *RemoteAgent {
@@ -6506,7 +6714,7 @@ type UpdateRemoteAgentResponse struct {
 func (x *UpdateRemoteAgentResponse) Reset() {
 	*x = UpdateRemoteAgentResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[109]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[112]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6519,7 +6727,7 @@ func (x *UpdateRemoteAgentResponse) String() string {
 func (*UpdateRemoteAgentResponse) ProtoMessage() {}
 
 func (x *UpdateRemoteAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[109]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[112]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6532,7 +6740,7 @@ func (x *UpdateRemoteAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRemoteAgentResponse.ProtoReflect.Descriptor instead.
 func (*UpdateRemoteAgentResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{109}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *UpdateRemoteAgentResponse) GetRemoteAgent() *RemoteAgent {
@@ -6553,7 +6761,7 @@ type DeleteRemoteAgentRequest struct {
 func (x *DeleteRemoteAgentRequest) Reset() {
 	*x = DeleteRemoteAgentRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[110]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[113]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6566,7 +6774,7 @@ func (x *DeleteRemoteAgentRequest) String() string {
 func (*DeleteRemoteAgentRequest) ProtoMessage() {}
 
 func (x *DeleteRemoteAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[110]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[113]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6579,7 +6787,7 @@ func (x *DeleteRemoteAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRemoteAgentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRemoteAgentRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{110}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *DeleteRemoteAgentRequest) GetId() string {
@@ -6598,7 +6806,7 @@ type DeleteRemoteAgentResponse struct {
 func (x *DeleteRemoteAgentResponse) Reset() {
 	*x = DeleteRemoteAgentResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[111]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[114]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6611,7 +6819,7 @@ func (x *DeleteRemoteAgentResponse) String() string {
 func (*DeleteRemoteAgentResponse) ProtoMessage() {}
 
 func (x *DeleteRemoteAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[111]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[114]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6624,7 +6832,7 @@ func (x *DeleteRemoteAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRemoteAgentResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRemoteAgentResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{111}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{114}
 }
 
 type ListChannelsRequest struct {
@@ -6636,7 +6844,7 @@ type ListChannelsRequest struct {
 func (x *ListChannelsRequest) Reset() {
 	*x = ListChannelsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[112]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[115]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6649,7 +6857,7 @@ func (x *ListChannelsRequest) String() string {
 func (*ListChannelsRequest) ProtoMessage() {}
 
 func (x *ListChannelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[112]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[115]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6662,7 +6870,7 @@ func (x *ListChannelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListChannelsRequest.ProtoReflect.Descriptor instead.
 func (*ListChannelsRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{112}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{115}
 }
 
 type ListChannelsResponse struct {
@@ -6676,7 +6884,7 @@ type ListChannelsResponse struct {
 func (x *ListChannelsResponse) Reset() {
 	*x = ListChannelsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[113]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[116]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6689,7 +6897,7 @@ func (x *ListChannelsResponse) String() string {
 func (*ListChannelsResponse) ProtoMessage() {}
 
 func (x *ListChannelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[113]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[116]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6702,7 +6910,7 @@ func (x *ListChannelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListChannelsResponse.ProtoReflect.Descriptor instead.
 func (*ListChannelsResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{113}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *ListChannelsResponse) GetChannels() []*AgentChannel {
@@ -6723,7 +6931,7 @@ type GetChannelRequest struct {
 func (x *GetChannelRequest) Reset() {
 	*x = GetChannelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[114]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[117]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6736,7 +6944,7 @@ func (x *GetChannelRequest) String() string {
 func (*GetChannelRequest) ProtoMessage() {}
 
 func (x *GetChannelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[114]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[117]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6749,7 +6957,7 @@ func (x *GetChannelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetChannelRequest.ProtoReflect.Descriptor instead.
 func (*GetChannelRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{114}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *GetChannelRequest) GetName() string {
@@ -6770,7 +6978,7 @@ type GetChannelResponse struct {
 func (x *GetChannelResponse) Reset() {
 	*x = GetChannelResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[115]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[118]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6783,7 +6991,7 @@ func (x *GetChannelResponse) String() string {
 func (*GetChannelResponse) ProtoMessage() {}
 
 func (x *GetChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[115]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[118]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6796,7 +7004,7 @@ func (x *GetChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetChannelResponse.ProtoReflect.Descriptor instead.
 func (*GetChannelResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{115}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *GetChannelResponse) GetChannel() *AgentChannel {
@@ -6817,7 +7025,7 @@ type CreateChannelRequest struct {
 func (x *CreateChannelRequest) Reset() {
 	*x = CreateChannelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[116]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[119]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6830,7 +7038,7 @@ func (x *CreateChannelRequest) String() string {
 func (*CreateChannelRequest) ProtoMessage() {}
 
 func (x *CreateChannelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[116]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[119]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6843,7 +7051,7 @@ func (x *CreateChannelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateChannelRequest.ProtoReflect.Descriptor instead.
 func (*CreateChannelRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{116}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *CreateChannelRequest) GetChannel() *AgentChannel {
@@ -6864,7 +7072,7 @@ type CreateChannelResponse struct {
 func (x *CreateChannelResponse) Reset() {
 	*x = CreateChannelResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[117]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[120]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6877,7 +7085,7 @@ func (x *CreateChannelResponse) String() string {
 func (*CreateChannelResponse) ProtoMessage() {}
 
 func (x *CreateChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[117]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[120]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6890,7 +7098,7 @@ func (x *CreateChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateChannelResponse.ProtoReflect.Descriptor instead.
 func (*CreateChannelResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{117}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *CreateChannelResponse) GetChannel() *AgentChannel {
@@ -6911,7 +7119,7 @@ type UpdateChannelRequest struct {
 func (x *UpdateChannelRequest) Reset() {
 	*x = UpdateChannelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[118]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[121]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6924,7 +7132,7 @@ func (x *UpdateChannelRequest) String() string {
 func (*UpdateChannelRequest) ProtoMessage() {}
 
 func (x *UpdateChannelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[118]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[121]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6937,7 +7145,7 @@ func (x *UpdateChannelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateChannelRequest.ProtoReflect.Descriptor instead.
 func (*UpdateChannelRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{118}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *UpdateChannelRequest) GetChannel() *AgentChannel {
@@ -6958,7 +7166,7 @@ type UpdateChannelResponse struct {
 func (x *UpdateChannelResponse) Reset() {
 	*x = UpdateChannelResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[119]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[122]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6971,7 +7179,7 @@ func (x *UpdateChannelResponse) String() string {
 func (*UpdateChannelResponse) ProtoMessage() {}
 
 func (x *UpdateChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[119]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[122]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6984,7 +7192,7 @@ func (x *UpdateChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateChannelResponse.ProtoReflect.Descriptor instead.
 func (*UpdateChannelResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{119}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *UpdateChannelResponse) GetChannel() *AgentChannel {
@@ -7005,7 +7213,7 @@ type DeleteChannelRequest struct {
 func (x *DeleteChannelRequest) Reset() {
 	*x = DeleteChannelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[120]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[123]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7018,7 +7226,7 @@ func (x *DeleteChannelRequest) String() string {
 func (*DeleteChannelRequest) ProtoMessage() {}
 
 func (x *DeleteChannelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[120]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[123]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7031,7 +7239,7 @@ func (x *DeleteChannelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteChannelRequest.ProtoReflect.Descriptor instead.
 func (*DeleteChannelRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{120}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *DeleteChannelRequest) GetName() string {
@@ -7050,7 +7258,7 @@ type DeleteChannelResponse struct {
 func (x *DeleteChannelResponse) Reset() {
 	*x = DeleteChannelResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[121]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[124]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7063,7 +7271,7 @@ func (x *DeleteChannelResponse) String() string {
 func (*DeleteChannelResponse) ProtoMessage() {}
 
 func (x *DeleteChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[121]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[124]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7076,7 +7284,7 @@ func (x *DeleteChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteChannelResponse.ProtoReflect.Descriptor instead.
 func (*DeleteChannelResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{121}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{124}
 }
 
 type RestartChannelRequest struct {
@@ -7091,7 +7299,7 @@ type RestartChannelRequest struct {
 func (x *RestartChannelRequest) Reset() {
 	*x = RestartChannelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[122]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[125]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7104,7 +7312,7 @@ func (x *RestartChannelRequest) String() string {
 func (*RestartChannelRequest) ProtoMessage() {}
 
 func (x *RestartChannelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[122]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[125]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7117,7 +7325,7 @@ func (x *RestartChannelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartChannelRequest.ProtoReflect.Descriptor instead.
 func (*RestartChannelRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{122}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *RestartChannelRequest) GetName() string {
@@ -7138,7 +7346,7 @@ type RestartChannelResponse struct {
 func (x *RestartChannelResponse) Reset() {
 	*x = RestartChannelResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[123]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[126]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7151,7 +7359,7 @@ func (x *RestartChannelResponse) String() string {
 func (*RestartChannelResponse) ProtoMessage() {}
 
 func (x *RestartChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[123]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[126]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7164,7 +7372,7 @@ func (x *RestartChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartChannelResponse.ProtoReflect.Descriptor instead.
 func (*RestartChannelResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{123}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *RestartChannelResponse) GetChannel() *AgentChannel {
@@ -7185,7 +7393,7 @@ type PauseChannelRequest struct {
 func (x *PauseChannelRequest) Reset() {
 	*x = PauseChannelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[124]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[127]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7198,7 +7406,7 @@ func (x *PauseChannelRequest) String() string {
 func (*PauseChannelRequest) ProtoMessage() {}
 
 func (x *PauseChannelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[124]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[127]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7211,7 +7419,7 @@ func (x *PauseChannelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PauseChannelRequest.ProtoReflect.Descriptor instead.
 func (*PauseChannelRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{124}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *PauseChannelRequest) GetName() string {
@@ -7232,7 +7440,7 @@ type PauseChannelResponse struct {
 func (x *PauseChannelResponse) Reset() {
 	*x = PauseChannelResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[125]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[128]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7245,7 +7453,7 @@ func (x *PauseChannelResponse) String() string {
 func (*PauseChannelResponse) ProtoMessage() {}
 
 func (x *PauseChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[125]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[128]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7258,7 +7466,7 @@ func (x *PauseChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PauseChannelResponse.ProtoReflect.Descriptor instead.
 func (*PauseChannelResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{125}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *PauseChannelResponse) GetChannel() *AgentChannel {
@@ -7279,7 +7487,7 @@ type ResumeChannelRequest struct {
 func (x *ResumeChannelRequest) Reset() {
 	*x = ResumeChannelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[126]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[129]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7292,7 +7500,7 @@ func (x *ResumeChannelRequest) String() string {
 func (*ResumeChannelRequest) ProtoMessage() {}
 
 func (x *ResumeChannelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[126]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[129]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7305,7 +7513,7 @@ func (x *ResumeChannelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResumeChannelRequest.ProtoReflect.Descriptor instead.
 func (*ResumeChannelRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{126}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *ResumeChannelRequest) GetName() string {
@@ -7326,7 +7534,7 @@ type ResumeChannelResponse struct {
 func (x *ResumeChannelResponse) Reset() {
 	*x = ResumeChannelResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[127]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[130]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7339,7 +7547,7 @@ func (x *ResumeChannelResponse) String() string {
 func (*ResumeChannelResponse) ProtoMessage() {}
 
 func (x *ResumeChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[127]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[130]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7352,7 +7560,7 @@ func (x *ResumeChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResumeChannelResponse.ProtoReflect.Descriptor instead.
 func (*ResumeChannelResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{127}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *ResumeChannelResponse) GetChannel() *AgentChannel {
@@ -7380,7 +7588,7 @@ type CreateSessionRequest struct {
 func (x *CreateSessionRequest) Reset() {
 	*x = CreateSessionRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[128]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[131]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7393,7 +7601,7 @@ func (x *CreateSessionRequest) String() string {
 func (*CreateSessionRequest) ProtoMessage() {}
 
 func (x *CreateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[128]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[131]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7406,7 +7614,7 @@ func (x *CreateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSessionRequest.ProtoReflect.Descriptor instead.
 func (*CreateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{128}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *CreateSessionRequest) GetAppName() string {
@@ -7448,7 +7656,7 @@ type CreateSessionResponse struct {
 func (x *CreateSessionResponse) Reset() {
 	*x = CreateSessionResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[129]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[132]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7461,7 +7669,7 @@ func (x *CreateSessionResponse) String() string {
 func (*CreateSessionResponse) ProtoMessage() {}
 
 func (x *CreateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[129]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[132]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7474,7 +7682,7 @@ func (x *CreateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSessionResponse.ProtoReflect.Descriptor instead.
 func (*CreateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{129}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *CreateSessionResponse) GetSession() *SessionInfo {
@@ -7499,7 +7707,7 @@ type GetSessionRequest struct {
 func (x *GetSessionRequest) Reset() {
 	*x = GetSessionRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[130]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[133]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7512,7 +7720,7 @@ func (x *GetSessionRequest) String() string {
 func (*GetSessionRequest) ProtoMessage() {}
 
 func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[130]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[133]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7525,7 +7733,7 @@ func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{130}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *GetSessionRequest) GetAppName() string {
@@ -7567,7 +7775,7 @@ type GetSessionResponse struct {
 func (x *GetSessionResponse) Reset() {
 	*x = GetSessionResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[131]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[134]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7580,7 +7788,7 @@ func (x *GetSessionResponse) String() string {
 func (*GetSessionResponse) ProtoMessage() {}
 
 func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[131]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[134]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7593,7 +7801,7 @@ func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{131}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *GetSessionResponse) GetSessionDetail() *SessionDetail {
@@ -7627,7 +7835,7 @@ type ListSessionsRequest struct {
 func (x *ListSessionsRequest) Reset() {
 	*x = ListSessionsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[132]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[135]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7640,7 +7848,7 @@ func (x *ListSessionsRequest) String() string {
 func (*ListSessionsRequest) ProtoMessage() {}
 
 func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[132]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[135]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7653,7 +7861,7 @@ func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{132}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *ListSessionsRequest) GetAppName() string {
@@ -7718,7 +7926,7 @@ type ListSessionsResponse struct {
 func (x *ListSessionsResponse) Reset() {
 	*x = ListSessionsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[133]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[136]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7731,7 +7939,7 @@ func (x *ListSessionsResponse) String() string {
 func (*ListSessionsResponse) ProtoMessage() {}
 
 func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[133]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[136]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7744,7 +7952,7 @@ func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{133}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *ListSessionsResponse) GetSessions() []*SessionInfo {
@@ -7781,7 +7989,7 @@ type DeleteSessionRequest struct {
 func (x *DeleteSessionRequest) Reset() {
 	*x = DeleteSessionRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[134]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[137]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7794,7 +8002,7 @@ func (x *DeleteSessionRequest) String() string {
 func (*DeleteSessionRequest) ProtoMessage() {}
 
 func (x *DeleteSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[134]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[137]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7807,7 +8015,7 @@ func (x *DeleteSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSessionRequest.ProtoReflect.Descriptor instead.
 func (*DeleteSessionRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{134}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *DeleteSessionRequest) GetAppName() string {
@@ -7840,7 +8048,7 @@ type DeleteSessionResponse struct {
 func (x *DeleteSessionResponse) Reset() {
 	*x = DeleteSessionResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[135]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[138]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7853,7 +8061,7 @@ func (x *DeleteSessionResponse) String() string {
 func (*DeleteSessionResponse) ProtoMessage() {}
 
 func (x *DeleteSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[135]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[138]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7866,7 +8074,7 @@ func (x *DeleteSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSessionResponse.ProtoReflect.Descriptor instead.
 func (*DeleteSessionResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{135}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{138}
 }
 
 type ReplySessionRequest struct {
@@ -7896,7 +8104,7 @@ type ReplySessionRequest struct {
 func (x *ReplySessionRequest) Reset() {
 	*x = ReplySessionRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[136]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[139]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7909,7 +8117,7 @@ func (x *ReplySessionRequest) String() string {
 func (*ReplySessionRequest) ProtoMessage() {}
 
 func (x *ReplySessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[136]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[139]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7922,7 +8130,7 @@ func (x *ReplySessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplySessionRequest.ProtoReflect.Descriptor instead.
 func (*ReplySessionRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{136}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *ReplySessionRequest) GetAgentName() string {
@@ -7993,7 +8201,7 @@ type ReplySessionResponse struct {
 func (x *ReplySessionResponse) Reset() {
 	*x = ReplySessionResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[137]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[140]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8006,7 +8214,7 @@ func (x *ReplySessionResponse) String() string {
 func (*ReplySessionResponse) ProtoMessage() {}
 
 func (x *ReplySessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[137]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[140]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8019,7 +8227,7 @@ func (x *ReplySessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplySessionResponse.ProtoReflect.Descriptor instead.
 func (*ReplySessionResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{137}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *ReplySessionResponse) GetResponse() string {
@@ -8045,7 +8253,7 @@ type UpdateSessionTitleRequest struct {
 func (x *UpdateSessionTitleRequest) Reset() {
 	*x = UpdateSessionTitleRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[138]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[141]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8058,7 +8266,7 @@ func (x *UpdateSessionTitleRequest) String() string {
 func (*UpdateSessionTitleRequest) ProtoMessage() {}
 
 func (x *UpdateSessionTitleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[138]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[141]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8071,7 +8279,7 @@ func (x *UpdateSessionTitleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionTitleRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSessionTitleRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{138}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *UpdateSessionTitleRequest) GetAppName() string {
@@ -8113,7 +8321,7 @@ type UpdateSessionTitleResponse struct {
 func (x *UpdateSessionTitleResponse) Reset() {
 	*x = UpdateSessionTitleResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[139]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[142]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8126,7 +8334,7 @@ func (x *UpdateSessionTitleResponse) String() string {
 func (*UpdateSessionTitleResponse) ProtoMessage() {}
 
 func (x *UpdateSessionTitleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[139]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[142]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8139,7 +8347,7 @@ func (x *UpdateSessionTitleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionTitleResponse.ProtoReflect.Descriptor instead.
 func (*UpdateSessionTitleResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{139}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *UpdateSessionTitleResponse) GetSession() *SessionInfo {
@@ -8174,7 +8382,7 @@ type SessionInfo struct {
 func (x *SessionInfo) Reset() {
 	*x = SessionInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[140]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[143]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8187,7 +8395,7 @@ func (x *SessionInfo) String() string {
 func (*SessionInfo) ProtoMessage() {}
 
 func (x *SessionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[140]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[143]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8200,7 +8408,7 @@ func (x *SessionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionInfo.ProtoReflect.Descriptor instead.
 func (*SessionInfo) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{140}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *SessionInfo) GetSessionId() string {
@@ -8274,7 +8482,7 @@ type SessionDetail struct {
 func (x *SessionDetail) Reset() {
 	*x = SessionDetail{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[141]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[144]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8287,7 +8495,7 @@ func (x *SessionDetail) String() string {
 func (*SessionDetail) ProtoMessage() {}
 
 func (x *SessionDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[141]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[144]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8300,7 +8508,7 @@ func (x *SessionDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionDetail.ProtoReflect.Descriptor instead.
 func (*SessionDetail) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{141}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *SessionDetail) GetSession() *SessionInfo {
@@ -8337,7 +8545,7 @@ type GenerateSessionTitleRequest struct {
 func (x *GenerateSessionTitleRequest) Reset() {
 	*x = GenerateSessionTitleRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[142]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[145]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8350,7 +8558,7 @@ func (x *GenerateSessionTitleRequest) String() string {
 func (*GenerateSessionTitleRequest) ProtoMessage() {}
 
 func (x *GenerateSessionTitleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[142]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[145]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8363,7 +8571,7 @@ func (x *GenerateSessionTitleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateSessionTitleRequest.ProtoReflect.Descriptor instead.
 func (*GenerateSessionTitleRequest) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{142}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *GenerateSessionTitleRequest) GetAppName() string {
@@ -8401,7 +8609,7 @@ type GenerateSessionTitleResponse struct {
 func (x *GenerateSessionTitleResponse) Reset() {
 	*x = GenerateSessionTitleResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[143]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[146]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8414,7 +8622,7 @@ func (x *GenerateSessionTitleResponse) String() string {
 func (*GenerateSessionTitleResponse) ProtoMessage() {}
 
 func (x *GenerateSessionTitleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[143]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[146]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8427,7 +8635,7 @@ func (x *GenerateSessionTitleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateSessionTitleResponse.ProtoReflect.Descriptor instead.
 func (*GenerateSessionTitleResponse) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{143}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{146}
 }
 
 func (x *GenerateSessionTitleResponse) GetSession() *SessionInfo {
@@ -8468,7 +8676,7 @@ type SessionEvent struct {
 func (x *SessionEvent) Reset() {
 	*x = SessionEvent{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agents_v1_agent_service_proto_msgTypes[144]
+		mi := &file_agents_v1_agent_service_proto_msgTypes[147]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8481,7 +8689,7 @@ func (x *SessionEvent) String() string {
 func (*SessionEvent) ProtoMessage() {}
 
 func (x *SessionEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_agents_v1_agent_service_proto_msgTypes[144]
+	mi := &file_agents_v1_agent_service_proto_msgTypes[147]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8494,7 +8702,7 @@ func (x *SessionEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionEvent.ProtoReflect.Descriptor instead.
 func (*SessionEvent) Descriptor() ([]byte, []int) {
-	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{144}
+	return file_agents_v1_agent_service_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *SessionEvent) GetEventId() string {
@@ -9026,13 +9234,39 @@ var file_agents_v1_agent_service_proto_rawDesc = []byte{
 	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x27,
 	0x0a, 0x0f, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65,
 	0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0e, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
-	0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x22, 0x40, 0x0a, 0x19, 0x47, 0x65, 0x74, 0x41, 0x67,
+	0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x22, 0x5f, 0x0a, 0x19, 0x47, 0x65, 0x74, 0x41, 0x67,
 	0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71,
 	0x75, 0x65, 0x73, 0x74, 0x12, 0x23, 0x0a, 0x0d, 0x69, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69,
 	0x6f, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x69, 0x6e, 0x76,
-	0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x64, 0x22, 0x53, 0x0a, 0x1a, 0x47, 0x65, 0x74,
-	0x41, 0x67, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x35, 0x0a, 0x0a, 0x69, 0x6e, 0x76, 0x6f, 0x63,
+	0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x65, 0x73,
+	0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x73,
+	0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x49, 0x64, 0x22, 0x53, 0x0a, 0x1a, 0x47, 0x65, 0x74, 0x41,
+	0x67, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x35, 0x0a, 0x0a, 0x69, 0x6e, 0x76, 0x6f, 0x63, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f,
+	0x6e, 0x52, 0x0a, 0x69, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x42, 0x0a,
+	0x1b, 0x57, 0x61, 0x74, 0x63, 0x68, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x23, 0x0a, 0x0d,
+	0x69, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x0c, 0x69, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49,
+	0x64, 0x22, 0xe6, 0x01, 0x0a, 0x1c, 0x57, 0x61, 0x74, 0x63, 0x68, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x3c, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x57, 0x61,
+	0x74, 0x63, 0x68, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69,
+	0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x48, 0x00, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65,
+	0x12, 0x3d, 0x0a, 0x09, 0x72, 0x75, 0x6e, 0x5f, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x75, 0x6e, 0x45, 0x76,
+	0x65, 0x6e, 0x74, 0x48, 0x00, 0x52, 0x08, 0x72, 0x75, 0x6e, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x12,
+	0x40, 0x0a, 0x0a, 0x74, 0x65, 0x78, 0x74, 0x5f, 0x64, 0x65, 0x6c, 0x74, 0x61, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x54, 0x65, 0x78, 0x74, 0x44,
+	0x65, 0x6c, 0x74, 0x61, 0x48, 0x00, 0x52, 0x09, 0x74, 0x65, 0x78, 0x74, 0x44, 0x65, 0x6c, 0x74,
+	0x61, 0x42, 0x07, 0x0a, 0x05, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x22, 0x52, 0x0a, 0x19, 0x57, 0x61,
+	0x74, 0x63, 0x68, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69,
+	0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x35, 0x0a, 0x0a, 0x69, 0x6e, 0x76, 0x6f, 0x63,
 	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x61, 0x67,
 	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69,
 	0x6f, 0x6e, 0x52, 0x0a, 0x69, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x17,
@@ -9590,7 +9824,7 @@ var file_agents_v1_agent_service_proto_rawDesc = []byte{
 	0x54, 0x48, 0x4f, 0x52, 0x49, 0x5a, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x52, 0x45, 0x51, 0x55,
 	0x49, 0x52, 0x45, 0x44, 0x10, 0x03, 0x12, 0x24, 0x0a, 0x20, 0x4d, 0x43, 0x50, 0x4f, 0x5f, 0x41,
 	0x55, 0x54, 0x48, 0x5f, 0x43, 0x4f, 0x4e, 0x4e, 0x45, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53,
-	0x54, 0x41, 0x54, 0x45, 0x5f, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x04, 0x32, 0x88, 0x10, 0x0a,
+	0x54, 0x41, 0x54, 0x45, 0x5f, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x04, 0x32, 0xf3, 0x10, 0x0a,
 	0x0c, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x49, 0x0a,
 	0x0a, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x12, 0x1c, 0x2e, 0x61, 0x67,
 	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x67, 0x65, 0x6e,
@@ -9700,321 +9934,328 @@ var file_agents_v1_agent_service_proto_rawDesc = []byte{
 	0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71,
 	0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
 	0x2e, 0x47, 0x65, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x47,
-	0x65, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e,
-	0x12, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
+	0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x69, 0x0a, 0x14, 0x57,
+	0x61, 0x74, 0x63, 0x68, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x12, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x57, 0x61, 0x74, 0x63, 0x68, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x57, 0x61, 0x74, 0x63, 0x68, 0x41, 0x67, 0x65,
+	0x6e, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x30, 0x01, 0x12, 0x5e, 0x0a, 0x11, 0x47, 0x65, 0x74, 0x41, 0x67, 0x65,
+	0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x23, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
 	0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x13, 0x4c,
-	0x69, 0x73, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x73, 0x12, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c,
-	0x69, 0x73, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f,
-	0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
-	0x65, 0x12, 0x64, 0x0a, 0x13, 0x52, 0x65, 0x74, 0x72, 0x79, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f,
-	0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
-	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x74, 0x72, 0x79, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f,
-	0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x74, 0x72,
-	0x79, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xb8, 0x08, 0x0a, 0x10, 0x4d, 0x43, 0x50, 0x53,
-	0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x55, 0x0a, 0x0e,
-	0x4c, 0x69, 0x73, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x12, 0x20,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d,
-	0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x21, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73,
-	0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
-	0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
-	0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x0f, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x43,
-	0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x21, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
-	0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x67, 0x65,
-	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x43, 0x50,
-	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58,
-	0x0a, 0x0f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x12, 0x21, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70,
-	0x64, 0x61, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x0f, 0x44, 0x65, 0x6c, 0x65,
-	0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x21, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x43,
-	0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74,
-	0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x61, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76,
-	0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
-	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x43,
-	0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0c, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x43, 0x50,
-	0x54, 0x6f, 0x6f, 0x6c, 0x73, 0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x43, 0x50, 0x54, 0x6f, 0x6f, 0x6c, 0x73, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x43, 0x50, 0x54, 0x6f, 0x6f, 0x6c, 0x73, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x13, 0x53, 0x74, 0x61, 0x72, 0x74, 0x4d,
-	0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x12, 0x25, 0x2e,
-	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x4d,
-	0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x71,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x13, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x67,
+	0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x25, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x67,
+	0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x71,
 	0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f,
-	0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a, 0x16,
-	0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x12, 0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
-	0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x29, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6d,
-	0x70, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41,
-	0x75, 0x74, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x70, 0x0a, 0x17, 0x47,
-	0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68,
-	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x29, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
-	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f,
-	0x41, 0x75, 0x74, 0x68, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x2a, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
-	0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x53,
-	0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x73, 0x0a,
-	0x18, 0x44, 0x69, 0x73, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x12, 0x2a, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x69, 0x73, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74,
+	0x2e, 0x4c, 0x69, 0x73, 0x74, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x13,
+	0x52, 0x65, 0x74, 0x72, 0x79, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x12, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x52, 0x65, 0x74, 0x72, 0x79, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x74, 0x72, 0x79, 0x41, 0x67, 0x65, 0x6e,
+	0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x32, 0xb8, 0x08, 0x0a, 0x10, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x55, 0x0a, 0x0e, 0x4c, 0x69, 0x73, 0x74, 0x4d,
+	0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x12, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x43, 0x50, 0x53,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f,
+	0x0a, 0x0c, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x1e,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x43,
+	0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x43,
+	0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x58, 0x0a, 0x0f, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x12, 0x21, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43,
+	0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
+	0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x0f, 0x55, 0x70, 0x64,
+	0x61, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x21, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d,
+	0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61,
+	0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x58, 0x0a, 0x0f, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x43, 0x50,
+	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x21, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
+	0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x61, 0x0a,
+	0x12, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x74, 0x61,
+	0x74, 0x75, 0x73, 0x12, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74,
+	0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x12, 0x4f, 0x0a, 0x0c, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x43, 0x50, 0x54, 0x6f, 0x6f, 0x6c, 0x73,
+	0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73,
+	0x74, 0x4d, 0x43, 0x50, 0x54, 0x6f, 0x6f, 0x6c, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73,
+	0x74, 0x4d, 0x43, 0x50, 0x54, 0x6f, 0x6f, 0x6c, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x64, 0x0a, 0x13, 0x53, 0x74, 0x61, 0x72, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x12, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x74, 0x61, 0x72,
+	0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a, 0x16, 0x43, 0x6f, 0x6d, 0x70, 0x6c,
+	0x65, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74,
+	0x68, 0x12, 0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f,
+	0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f,
+	0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x29, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65,
 	0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2b, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x44, 0x69, 0x73, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x4d, 0x43, 0x50, 0x53,
-	0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x32, 0xb4, 0x04, 0x0a, 0x16, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50,
-	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x67, 0x0a,
-	0x14, 0x4c, 0x69, 0x73, 0x74, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x73, 0x12, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53,
-	0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e,
-	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x47, 0x6c,
-	0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6a, 0x0a, 0x15, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65,
-	0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12,
-	0x27, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x70, 0x0a, 0x17, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50,
+	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x53, 0x74, 0x61, 0x74, 0x75,
+	0x73, 0x12, 0x29, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
+	0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x53,
+	0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x43, 0x50, 0x53,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x73, 0x0a, 0x18, 0x44, 0x69, 0x73, 0x63,
+	0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4f,
+	0x41, 0x75, 0x74, 0x68, 0x12, 0x2a, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x2e, 0x44, 0x69, 0x73, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x4f, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x2b, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x69, 0x73,
+	0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x4f, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xb4, 0x04,
+	0x0a, 0x16, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x67, 0x0a, 0x14, 0x4c, 0x69, 0x73, 0x74,
+	0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73,
+	0x12, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73,
+	0x74, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d,
+	0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x6a, 0x0a, 0x15, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61,
+	0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x27, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x47, 0x6c, 0x6f,
+	0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6a, 0x0a,
+	0x15, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50,
+	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x27, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
+	0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d,
+	0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61,
 	0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
-	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61,
-	0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x6a, 0x0a, 0x15, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62,
-	0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x27, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x47, 0x6c,
-	0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50,
-	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6a,
-	0x0a, 0x15, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43,
-	0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x27, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
-	0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c,
-	0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c,
+	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6a, 0x0a, 0x15, 0x44, 0x65, 0x6c,
 	0x65, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76,
-	0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a, 0x16, 0x49, 0x6e,
-	0x73, 0x74, 0x61, 0x6c, 0x6c, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x12, 0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43,
-	0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x29,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x49, 0x6e, 0x73, 0x74, 0x61,
-	0x6c, 0x6c, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0x88, 0x04, 0x0a, 0x14, 0x4d, 0x6f,
-	0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69,
-	0x63, 0x65, 0x12, 0x61, 0x0a, 0x12, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50,
-	0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x73, 0x12, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
-	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72,
-	0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d,
-	0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x64, 0x65,
-	0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x12, 0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72,
-	0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e,
-	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x64,
-	0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x64, 0x0a, 0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65,
-	0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x12, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65,
-	0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65,
-	0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x13, 0x55, 0x70, 0x64, 0x61,
-	0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x12,
-	0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61,
-	0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
-	0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72,
-	0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64,
-	0x0a, 0x13, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f,
-	0x76, 0x69, 0x64, 0x65, 0x72, 0x12, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f,
-	0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4d,
-	0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x32, 0xe8, 0x03, 0x0a, 0x12, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47,
-	0x72, 0x6f, 0x75, 0x70, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x5b, 0x0a, 0x10, 0x4c,
-	0x69, 0x73, 0x74, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x12,
-	0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74,
-	0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
-	0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x55, 0x0a, 0x0e, 0x47, 0x65, 0x74, 0x4e,
-	0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12, 0x20, 0x2e, 0x61, 0x67, 0x65,
-	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79,
-	0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x74, 0x69,
-	0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x5e, 0x0a, 0x11, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47,
-	0x72, 0x6f, 0x75, 0x70, 0x12, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f,
-	0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69,
-	0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x5e, 0x0a, 0x11, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47,
-	0x72, 0x6f, 0x75, 0x70, 0x12, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f,
-	0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69,
-	0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x5e, 0x0a, 0x11, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47,
-	0x72, 0x6f, 0x75, 0x70, 0x12, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f,
-	0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69,
-	0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32,
-	0xd1, 0x04, 0x0a, 0x12, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53,
-	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x5b, 0x0a, 0x10, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65,
-	0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x12, 0x22, 0x2e, 0x61, 0x67, 0x65,
-	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74,
-	0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x52,
-	0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x55, 0x0a, 0x0e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65,
-	0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x65, 0x72, 0x12, 0x27, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x47, 0x6c,
+	0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6d, 0x0a, 0x16, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c,
+	0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12,
+	0x28, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x49, 0x6e, 0x73, 0x74,
+	0x61, 0x6c, 0x6c, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x29, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6c, 0x6c, 0x47, 0x6c, 0x6f,
+	0x62, 0x61, 0x6c, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x32, 0x88, 0x04, 0x0a, 0x14, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72,
+	0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x61, 0x0a,
+	0x12, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64,
+	0x65, 0x72, 0x73, 0x12, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x4c, 0x69, 0x73, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65,
+	0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50,
+	0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x12, 0x5b, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76,
+	0x69, 0x64, 0x65, 0x72, 0x12, 0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x2e, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65,
+	0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f,
+	0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a,
+	0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76,
+	0x69, 0x64, 0x65, 0x72, 0x12, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76,
+	0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4d, 0x6f,
+	0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x13, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64,
+	0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x12, 0x25, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64,
+	0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70,
+	0x64, 0x61, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65,
+	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x13, 0x44, 0x65, 0x6c,
+	0x65, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72,
+	0x12, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c,
+	0x65, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x6c, 0x50,
+	0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32,
+	0xe8, 0x03, 0x0a, 0x12, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x53,
+	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x5b, 0x0a, 0x10, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f,
+	0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x12, 0x22, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x74, 0x69, 0x66,
+	0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x4e,
+	0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x55, 0x0a, 0x0e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79,
+	0x47, 0x72, 0x6f, 0x75, 0x70, 0x12, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
+	0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70,
 	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
-	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65,
-	0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x43, 0x72,
-	0x65, 0x61, 0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12,
+	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x43, 0x72,
+	0x65, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12,
 	0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61,
-	0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71,
+	0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x71,
 	0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65,
-	0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x55, 0x70,
-	0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12,
+	0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x55, 0x70,
+	0x64, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12,
 	0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61,
-	0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71,
+	0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x71,
 	0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65,
-	0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x44, 0x65,
-	0x6c, 0x65, 0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12,
+	0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x44, 0x65,
+	0x6c, 0x65, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12,
 	0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65,
-	0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71,
+	0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x71,
 	0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65,
-	0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x14, 0x47, 0x65,
-	0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74,
-	0x75, 0x73, 0x12, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61,
-	0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x61, 0x67, 0x65,
-	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65,
-	0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x32, 0x81, 0x06, 0x0a, 0x0e, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x53,
-	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x4f, 0x0a, 0x0c, 0x4c, 0x69, 0x73, 0x74, 0x43, 0x68,
-	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
-	0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
-	0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49, 0x0a, 0x0a, 0x47, 0x65, 0x74, 0x43, 0x68,
-	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x1c, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
-	0x47, 0x65, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e,
-	0x6e, 0x65, 0x6c, 0x12, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
-	0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65,
-	0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
-	0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65,
-	0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
-	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e,
-	0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x44, 0x65,
-	0x6c, 0x65, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x1f, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43, 0x68,
-	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43,
-	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b,
-	0x0a, 0x10, 0x47, 0x65, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x53, 0x74, 0x61, 0x74,
-	0x75, 0x73, 0x12, 0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x65, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
-	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x53, 0x74, 0x61,
-	0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x55, 0x0a, 0x0e, 0x52,
-	0x65, 0x73, 0x74, 0x61, 0x72, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x20, 0x2e,
-	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x74, 0x61, 0x72,
-	0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x21, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x74,
-	0x61, 0x72, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0c, 0x50, 0x61, 0x75, 0x73, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e,
-	0x65, 0x6c, 0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x50,
-	0x61, 0x75, 0x73, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x50,
-	0x61, 0x75, 0x73, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x43, 0x68, 0x61,
-	0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
-	0x2e, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xf1, 0x04, 0x0a, 0x0e, 0x53, 0x65, 0x73, 0x73,
-	0x69, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x43, 0x72,
-	0x65, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1f, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x65,
-	0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53,
-	0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49,
-	0x0a, 0x0a, 0x47, 0x65, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1c, 0x2e, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x73, 0x73,
-	0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x61, 0x67, 0x65,
-	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f,
-	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0c, 0x4c, 0x69, 0x73,
-	0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f,
-	0x6e, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f,
-	0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x44, 0x65,
-	0x6c, 0x65, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1f, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x65,
-	0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53,
-	0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f,
-	0x0a, 0x0c, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1e,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x70, 0x6c, 0x79,
-	0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x70, 0x6c, 0x79,
-	0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x61, 0x0a, 0x12, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
-	0x54, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
-	0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x54,
-	0x69, 0x74, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x65,
-	0x73, 0x73, 0x69, 0x6f, 0x6e, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x67, 0x0a, 0x14, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x53, 0x65,
-	0x73, 0x73, 0x69, 0x6f, 0x6e, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x26, 0x2e, 0x61, 0x67, 0x65,
-	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x53,
-	0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x27, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47,
-	0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x54, 0x69,
-	0x74, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x34, 0x5a, 0x32, 0x67,
-	0x6f, 0x2e, 0x6f, 0x72, 0x78, 0x2e, 0x6d, 0x65, 0x2f, 0x61, 0x70, 0x70, 0x73, 0x2f, 0x62, 0x75,
-	0x74, 0x74, 0x65, 0x72, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x73, 0x2f, 0x76, 0x31, 0x3b, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x76,
-	0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xd1, 0x04, 0x0a, 0x12, 0x52,
+	0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
+	0x65, 0x12, 0x5b, 0x0a, 0x10, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41,
+	0x67, 0x65, 0x6e, 0x74, 0x73, 0x12, 0x22, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
+	0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65,
+	0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x55,
+	0x0a, 0x0e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x12, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
+	0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47,
+	0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x52,
+	0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x23, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x52, 0x65, 0x6d,
+	0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61,
+	0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x52,
+	0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x23, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x6d,
+	0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61,
+	0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5e, 0x0a, 0x11, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x52,
+	0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x23, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x52, 0x65, 0x6d,
+	0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65,
+	0x74, 0x65, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f,
+	0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x26, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6d,
+	0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
+	0x31, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0x81,
+	0x06, 0x0a, 0x0e, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
+	0x65, 0x12, 0x4f, 0x0a, 0x0c, 0x4c, 0x69, 0x73, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
+	0x73, 0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69,
+	0x73, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69,
+	0x73, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x49, 0x0a, 0x0a, 0x47, 0x65, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
+	0x12, 0x1c, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,
+	0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x68,
+	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x52, 0x0a,
+	0x0d, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x1f,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74,
+	0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61,
+	0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x52, 0x0a, 0x0d, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e,
+	0x65, 0x6c, 0x12, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55,
+	0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e,
+	0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43,
+	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
+	0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65,
+	0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x10, 0x47, 0x65, 0x74,
+	0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x22, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x68, 0x61,
+	0x6e, 0x6e, 0x65, 0x6c, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x23, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
+	0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x55, 0x0a, 0x0e, 0x52, 0x65, 0x73, 0x74, 0x61, 0x72,
+	0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x74, 0x61, 0x72, 0x74, 0x43, 0x68, 0x61, 0x6e,
+	0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x74, 0x61, 0x72, 0x74, 0x43, 0x68,
+	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a,
+	0x0c, 0x50, 0x61, 0x75, 0x73, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x1e, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x61, 0x75, 0x73, 0x65, 0x43,
+	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x61, 0x75, 0x73, 0x65, 0x43,
+	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x52,
+	0x0a, 0x0d, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12,
+	0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x75,
+	0x6d, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73,
+	0x75, 0x6d, 0x65, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x32, 0xf1, 0x04, 0x0a, 0x0e, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x53, 0x65,
+	0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53,
+	0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
+	0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f,
+	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49, 0x0a, 0x0a, 0x47, 0x65, 0x74,
+	0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1c, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
+	0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0c, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x65, 0x73, 0x73,
+	0x69, 0x6f, 0x6e, 0x73, 0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x52, 0x0a, 0x0d, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53,
+	0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
+	0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f,
+	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4f, 0x0a, 0x0c, 0x52, 0x65, 0x70,
+	0x6c, 0x79, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1e, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x53, 0x65, 0x73, 0x73, 0x69,
+	0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x53, 0x65, 0x73, 0x73, 0x69,
+	0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x61, 0x0a, 0x12, 0x55, 0x70,
+	0x64, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x54, 0x69, 0x74, 0x6c, 0x65,
+	0x12, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64,
+	0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e,
+	0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
+	0x54, 0x69, 0x74, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a,
+	0x14, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
+	0x54, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x26, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
+	0x31, 0x2e, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f,
+	0x6e, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61,
+	0x74, 0x65, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x54, 0x69, 0x74, 0x6c, 0x65, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x34, 0x5a, 0x32, 0x67, 0x6f, 0x2e, 0x6f, 0x72, 0x78,
+	0x2e, 0x6d, 0x65, 0x2f, 0x61, 0x70, 0x70, 0x73, 0x2f, 0x62, 0x75, 0x74, 0x74, 0x65, 0x72, 0x2f,
+	0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73,
+	0x2f, 0x76, 0x31, 0x3b, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -10030,7 +10271,7 @@ func file_agents_v1_agent_service_proto_rawDescGZIP() []byte {
 }
 
 var file_agents_v1_agent_service_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_agents_v1_agent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 145)
+var file_agents_v1_agent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 148)
 var file_agents_v1_agent_service_proto_goTypes = []interface{}{
 	(AgentRuntimeState)(0),                   // 0: agents.v1.AgentRuntimeState
 	(MigrationReadiness)(0),                  // 1: agents.v1.MigrationReadiness
@@ -10090,371 +10331,380 @@ var file_agents_v1_agent_service_proto_goTypes = []interface{}{
 	(*SubmitAgentInvocationResponse)(nil),    // 55: agents.v1.SubmitAgentInvocationResponse
 	(*GetAgentInvocationRequest)(nil),        // 56: agents.v1.GetAgentInvocationRequest
 	(*GetAgentInvocationResponse)(nil),       // 57: agents.v1.GetAgentInvocationResponse
-	(*ListMCPServersRequest)(nil),            // 58: agents.v1.ListMCPServersRequest
-	(*ListMCPServersResponse)(nil),           // 59: agents.v1.ListMCPServersResponse
-	(*GetMCPServerRequest)(nil),              // 60: agents.v1.GetMCPServerRequest
-	(*GetMCPServerResponse)(nil),             // 61: agents.v1.GetMCPServerResponse
-	(*CreateMCPServerRequest)(nil),           // 62: agents.v1.CreateMCPServerRequest
-	(*CreateMCPServerResponse)(nil),          // 63: agents.v1.CreateMCPServerResponse
-	(*UpdateMCPServerRequest)(nil),           // 64: agents.v1.UpdateMCPServerRequest
-	(*UpdateMCPServerResponse)(nil),          // 65: agents.v1.UpdateMCPServerResponse
-	(*DeleteMCPServerRequest)(nil),           // 66: agents.v1.DeleteMCPServerRequest
-	(*DeleteMCPServerResponse)(nil),          // 67: agents.v1.DeleteMCPServerResponse
-	(*StartMCPServerOAuthRequest)(nil),       // 68: agents.v1.StartMCPServerOAuthRequest
-	(*StartMCPServerOAuthResponse)(nil),      // 69: agents.v1.StartMCPServerOAuthResponse
-	(*CompleteMCPServerOAuthRequest)(nil),    // 70: agents.v1.CompleteMCPServerOAuthRequest
-	(*CompleteMCPServerOAuthResponse)(nil),   // 71: agents.v1.CompleteMCPServerOAuthResponse
-	(*GetMCPServerOAuthStatusRequest)(nil),   // 72: agents.v1.GetMCPServerOAuthStatusRequest
-	(*GetMCPServerOAuthStatusResponse)(nil),  // 73: agents.v1.GetMCPServerOAuthStatusResponse
-	(*DisconnectMCPServerOAuthRequest)(nil),  // 74: agents.v1.DisconnectMCPServerOAuthRequest
-	(*DisconnectMCPServerOAuthResponse)(nil), // 75: agents.v1.DisconnectMCPServerOAuthResponse
-	(*MCPOAuthConnectionStatus)(nil),         // 76: agents.v1.MCPOAuthConnectionStatus
-	(*ListGlobalMCPServersRequest)(nil),      // 77: agents.v1.ListGlobalMCPServersRequest
-	(*ListGlobalMCPServersResponse)(nil),     // 78: agents.v1.ListGlobalMCPServersResponse
-	(*CreateGlobalMCPServerRequest)(nil),     // 79: agents.v1.CreateGlobalMCPServerRequest
-	(*CreateGlobalMCPServerResponse)(nil),    // 80: agents.v1.CreateGlobalMCPServerResponse
-	(*UpdateGlobalMCPServerRequest)(nil),     // 81: agents.v1.UpdateGlobalMCPServerRequest
-	(*UpdateGlobalMCPServerResponse)(nil),    // 82: agents.v1.UpdateGlobalMCPServerResponse
-	(*DeleteGlobalMCPServerRequest)(nil),     // 83: agents.v1.DeleteGlobalMCPServerRequest
-	(*DeleteGlobalMCPServerResponse)(nil),    // 84: agents.v1.DeleteGlobalMCPServerResponse
-	(*InstallGlobalMCPServerRequest)(nil),    // 85: agents.v1.InstallGlobalMCPServerRequest
-	(*InstallGlobalMCPServerResponse)(nil),   // 86: agents.v1.InstallGlobalMCPServerResponse
-	(*ListModelProvidersRequest)(nil),        // 87: agents.v1.ListModelProvidersRequest
-	(*ListModelProvidersResponse)(nil),       // 88: agents.v1.ListModelProvidersResponse
-	(*GetModelProviderRequest)(nil),          // 89: agents.v1.GetModelProviderRequest
-	(*GetModelProviderResponse)(nil),         // 90: agents.v1.GetModelProviderResponse
-	(*CreateModelProviderRequest)(nil),       // 91: agents.v1.CreateModelProviderRequest
-	(*CreateModelProviderResponse)(nil),      // 92: agents.v1.CreateModelProviderResponse
-	(*UpdateModelProviderRequest)(nil),       // 93: agents.v1.UpdateModelProviderRequest
-	(*UpdateModelProviderResponse)(nil),      // 94: agents.v1.UpdateModelProviderResponse
-	(*DeleteModelProviderRequest)(nil),       // 95: agents.v1.DeleteModelProviderRequest
-	(*DeleteModelProviderResponse)(nil),      // 96: agents.v1.DeleteModelProviderResponse
-	(*ListNotifyGroupsRequest)(nil),          // 97: agents.v1.ListNotifyGroupsRequest
-	(*ListNotifyGroupsResponse)(nil),         // 98: agents.v1.ListNotifyGroupsResponse
-	(*GetNotifyGroupRequest)(nil),            // 99: agents.v1.GetNotifyGroupRequest
-	(*GetNotifyGroupResponse)(nil),           // 100: agents.v1.GetNotifyGroupResponse
-	(*CreateNotifyGroupRequest)(nil),         // 101: agents.v1.CreateNotifyGroupRequest
-	(*CreateNotifyGroupResponse)(nil),        // 102: agents.v1.CreateNotifyGroupResponse
-	(*UpdateNotifyGroupRequest)(nil),         // 103: agents.v1.UpdateNotifyGroupRequest
-	(*UpdateNotifyGroupResponse)(nil),        // 104: agents.v1.UpdateNotifyGroupResponse
-	(*DeleteNotifyGroupRequest)(nil),         // 105: agents.v1.DeleteNotifyGroupRequest
-	(*DeleteNotifyGroupResponse)(nil),        // 106: agents.v1.DeleteNotifyGroupResponse
-	(*ListRemoteAgentsRequest)(nil),          // 107: agents.v1.ListRemoteAgentsRequest
-	(*ListRemoteAgentsResponse)(nil),         // 108: agents.v1.ListRemoteAgentsResponse
-	(*GetRemoteAgentRequest)(nil),            // 109: agents.v1.GetRemoteAgentRequest
-	(*GetRemoteAgentResponse)(nil),           // 110: agents.v1.GetRemoteAgentResponse
-	(*CreateRemoteAgentRequest)(nil),         // 111: agents.v1.CreateRemoteAgentRequest
-	(*CreateRemoteAgentResponse)(nil),        // 112: agents.v1.CreateRemoteAgentResponse
-	(*UpdateRemoteAgentRequest)(nil),         // 113: agents.v1.UpdateRemoteAgentRequest
-	(*UpdateRemoteAgentResponse)(nil),        // 114: agents.v1.UpdateRemoteAgentResponse
-	(*DeleteRemoteAgentRequest)(nil),         // 115: agents.v1.DeleteRemoteAgentRequest
-	(*DeleteRemoteAgentResponse)(nil),        // 116: agents.v1.DeleteRemoteAgentResponse
-	(*ListChannelsRequest)(nil),              // 117: agents.v1.ListChannelsRequest
-	(*ListChannelsResponse)(nil),             // 118: agents.v1.ListChannelsResponse
-	(*GetChannelRequest)(nil),                // 119: agents.v1.GetChannelRequest
-	(*GetChannelResponse)(nil),               // 120: agents.v1.GetChannelResponse
-	(*CreateChannelRequest)(nil),             // 121: agents.v1.CreateChannelRequest
-	(*CreateChannelResponse)(nil),            // 122: agents.v1.CreateChannelResponse
-	(*UpdateChannelRequest)(nil),             // 123: agents.v1.UpdateChannelRequest
-	(*UpdateChannelResponse)(nil),            // 124: agents.v1.UpdateChannelResponse
-	(*DeleteChannelRequest)(nil),             // 125: agents.v1.DeleteChannelRequest
-	(*DeleteChannelResponse)(nil),            // 126: agents.v1.DeleteChannelResponse
-	(*RestartChannelRequest)(nil),            // 127: agents.v1.RestartChannelRequest
-	(*RestartChannelResponse)(nil),           // 128: agents.v1.RestartChannelResponse
-	(*PauseChannelRequest)(nil),              // 129: agents.v1.PauseChannelRequest
-	(*PauseChannelResponse)(nil),             // 130: agents.v1.PauseChannelResponse
-	(*ResumeChannelRequest)(nil),             // 131: agents.v1.ResumeChannelRequest
-	(*ResumeChannelResponse)(nil),            // 132: agents.v1.ResumeChannelResponse
-	(*CreateSessionRequest)(nil),             // 133: agents.v1.CreateSessionRequest
-	(*CreateSessionResponse)(nil),            // 134: agents.v1.CreateSessionResponse
-	(*GetSessionRequest)(nil),                // 135: agents.v1.GetSessionRequest
-	(*GetSessionResponse)(nil),               // 136: agents.v1.GetSessionResponse
-	(*ListSessionsRequest)(nil),              // 137: agents.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),             // 138: agents.v1.ListSessionsResponse
-	(*DeleteSessionRequest)(nil),             // 139: agents.v1.DeleteSessionRequest
-	(*DeleteSessionResponse)(nil),            // 140: agents.v1.DeleteSessionResponse
-	(*ReplySessionRequest)(nil),              // 141: agents.v1.ReplySessionRequest
-	(*ReplySessionResponse)(nil),             // 142: agents.v1.ReplySessionResponse
-	(*UpdateSessionTitleRequest)(nil),        // 143: agents.v1.UpdateSessionTitleRequest
-	(*UpdateSessionTitleResponse)(nil),       // 144: agents.v1.UpdateSessionTitleResponse
-	(*SessionInfo)(nil),                      // 145: agents.v1.SessionInfo
-	(*SessionDetail)(nil),                    // 146: agents.v1.SessionDetail
-	(*GenerateSessionTitleRequest)(nil),      // 147: agents.v1.GenerateSessionTitleRequest
-	(*GenerateSessionTitleResponse)(nil),     // 148: agents.v1.GenerateSessionTitleResponse
-	(*SessionEvent)(nil),                     // 149: agents.v1.SessionEvent
-	(*Agent)(nil),                            // 150: agents.v1.Agent
-	(*timestamppb.Timestamp)(nil),            // 151: google.protobuf.Timestamp
-	(*InputPart)(nil),                        // 152: agents.v1.InputPart
-	(*AgentOperation)(nil),                   // 153: agents.v1.AgentOperation
-	(*ContentFileAction)(nil),                // 154: agents.v1.ContentFileAction
-	(AgentOperationStatus)(0),                // 155: agents.v1.AgentOperationStatus
-	(*MCPServer)(nil),                        // 156: agents.v1.MCPServer
-	(*ModelProvider)(nil),                    // 157: agents.v1.ModelProvider
-	(*NotifyGroup)(nil),                      // 158: agents.v1.NotifyGroup
-	(*RemoteAgent)(nil),                      // 159: agents.v1.RemoteAgent
-	(*AgentChannel)(nil),                     // 160: agents.v1.AgentChannel
-	(*structpb.Struct)(nil),                  // 161: google.protobuf.Struct
-	(*durationpb.Duration)(nil),              // 162: google.protobuf.Duration
-	(*GetMCPServerStatusRequest)(nil),        // 163: agents.v1.GetMCPServerStatusRequest
-	(*ListMCPToolsRequest)(nil),              // 164: agents.v1.ListMCPToolsRequest
-	(*GetRemoteAgentStatusRequest)(nil),      // 165: agents.v1.GetRemoteAgentStatusRequest
-	(*GetChannelStatusRequest)(nil),          // 166: agents.v1.GetChannelStatusRequest
-	(*GetMCPServerStatusResponse)(nil),       // 167: agents.v1.GetMCPServerStatusResponse
-	(*ListMCPToolsResponse)(nil),             // 168: agents.v1.ListMCPToolsResponse
-	(*GetRemoteAgentStatusResponse)(nil),     // 169: agents.v1.GetRemoteAgentStatusResponse
-	(*GetChannelStatusResponse)(nil),         // 170: agents.v1.GetChannelStatusResponse
+	(*WatchAgentInvocationRequest)(nil),      // 58: agents.v1.WatchAgentInvocationRequest
+	(*WatchAgentInvocationResponse)(nil),     // 59: agents.v1.WatchAgentInvocationResponse
+	(*WatchAgentInvocationState)(nil),        // 60: agents.v1.WatchAgentInvocationState
+	(*ListMCPServersRequest)(nil),            // 61: agents.v1.ListMCPServersRequest
+	(*ListMCPServersResponse)(nil),           // 62: agents.v1.ListMCPServersResponse
+	(*GetMCPServerRequest)(nil),              // 63: agents.v1.GetMCPServerRequest
+	(*GetMCPServerResponse)(nil),             // 64: agents.v1.GetMCPServerResponse
+	(*CreateMCPServerRequest)(nil),           // 65: agents.v1.CreateMCPServerRequest
+	(*CreateMCPServerResponse)(nil),          // 66: agents.v1.CreateMCPServerResponse
+	(*UpdateMCPServerRequest)(nil),           // 67: agents.v1.UpdateMCPServerRequest
+	(*UpdateMCPServerResponse)(nil),          // 68: agents.v1.UpdateMCPServerResponse
+	(*DeleteMCPServerRequest)(nil),           // 69: agents.v1.DeleteMCPServerRequest
+	(*DeleteMCPServerResponse)(nil),          // 70: agents.v1.DeleteMCPServerResponse
+	(*StartMCPServerOAuthRequest)(nil),       // 71: agents.v1.StartMCPServerOAuthRequest
+	(*StartMCPServerOAuthResponse)(nil),      // 72: agents.v1.StartMCPServerOAuthResponse
+	(*CompleteMCPServerOAuthRequest)(nil),    // 73: agents.v1.CompleteMCPServerOAuthRequest
+	(*CompleteMCPServerOAuthResponse)(nil),   // 74: agents.v1.CompleteMCPServerOAuthResponse
+	(*GetMCPServerOAuthStatusRequest)(nil),   // 75: agents.v1.GetMCPServerOAuthStatusRequest
+	(*GetMCPServerOAuthStatusResponse)(nil),  // 76: agents.v1.GetMCPServerOAuthStatusResponse
+	(*DisconnectMCPServerOAuthRequest)(nil),  // 77: agents.v1.DisconnectMCPServerOAuthRequest
+	(*DisconnectMCPServerOAuthResponse)(nil), // 78: agents.v1.DisconnectMCPServerOAuthResponse
+	(*MCPOAuthConnectionStatus)(nil),         // 79: agents.v1.MCPOAuthConnectionStatus
+	(*ListGlobalMCPServersRequest)(nil),      // 80: agents.v1.ListGlobalMCPServersRequest
+	(*ListGlobalMCPServersResponse)(nil),     // 81: agents.v1.ListGlobalMCPServersResponse
+	(*CreateGlobalMCPServerRequest)(nil),     // 82: agents.v1.CreateGlobalMCPServerRequest
+	(*CreateGlobalMCPServerResponse)(nil),    // 83: agents.v1.CreateGlobalMCPServerResponse
+	(*UpdateGlobalMCPServerRequest)(nil),     // 84: agents.v1.UpdateGlobalMCPServerRequest
+	(*UpdateGlobalMCPServerResponse)(nil),    // 85: agents.v1.UpdateGlobalMCPServerResponse
+	(*DeleteGlobalMCPServerRequest)(nil),     // 86: agents.v1.DeleteGlobalMCPServerRequest
+	(*DeleteGlobalMCPServerResponse)(nil),    // 87: agents.v1.DeleteGlobalMCPServerResponse
+	(*InstallGlobalMCPServerRequest)(nil),    // 88: agents.v1.InstallGlobalMCPServerRequest
+	(*InstallGlobalMCPServerResponse)(nil),   // 89: agents.v1.InstallGlobalMCPServerResponse
+	(*ListModelProvidersRequest)(nil),        // 90: agents.v1.ListModelProvidersRequest
+	(*ListModelProvidersResponse)(nil),       // 91: agents.v1.ListModelProvidersResponse
+	(*GetModelProviderRequest)(nil),          // 92: agents.v1.GetModelProviderRequest
+	(*GetModelProviderResponse)(nil),         // 93: agents.v1.GetModelProviderResponse
+	(*CreateModelProviderRequest)(nil),       // 94: agents.v1.CreateModelProviderRequest
+	(*CreateModelProviderResponse)(nil),      // 95: agents.v1.CreateModelProviderResponse
+	(*UpdateModelProviderRequest)(nil),       // 96: agents.v1.UpdateModelProviderRequest
+	(*UpdateModelProviderResponse)(nil),      // 97: agents.v1.UpdateModelProviderResponse
+	(*DeleteModelProviderRequest)(nil),       // 98: agents.v1.DeleteModelProviderRequest
+	(*DeleteModelProviderResponse)(nil),      // 99: agents.v1.DeleteModelProviderResponse
+	(*ListNotifyGroupsRequest)(nil),          // 100: agents.v1.ListNotifyGroupsRequest
+	(*ListNotifyGroupsResponse)(nil),         // 101: agents.v1.ListNotifyGroupsResponse
+	(*GetNotifyGroupRequest)(nil),            // 102: agents.v1.GetNotifyGroupRequest
+	(*GetNotifyGroupResponse)(nil),           // 103: agents.v1.GetNotifyGroupResponse
+	(*CreateNotifyGroupRequest)(nil),         // 104: agents.v1.CreateNotifyGroupRequest
+	(*CreateNotifyGroupResponse)(nil),        // 105: agents.v1.CreateNotifyGroupResponse
+	(*UpdateNotifyGroupRequest)(nil),         // 106: agents.v1.UpdateNotifyGroupRequest
+	(*UpdateNotifyGroupResponse)(nil),        // 107: agents.v1.UpdateNotifyGroupResponse
+	(*DeleteNotifyGroupRequest)(nil),         // 108: agents.v1.DeleteNotifyGroupRequest
+	(*DeleteNotifyGroupResponse)(nil),        // 109: agents.v1.DeleteNotifyGroupResponse
+	(*ListRemoteAgentsRequest)(nil),          // 110: agents.v1.ListRemoteAgentsRequest
+	(*ListRemoteAgentsResponse)(nil),         // 111: agents.v1.ListRemoteAgentsResponse
+	(*GetRemoteAgentRequest)(nil),            // 112: agents.v1.GetRemoteAgentRequest
+	(*GetRemoteAgentResponse)(nil),           // 113: agents.v1.GetRemoteAgentResponse
+	(*CreateRemoteAgentRequest)(nil),         // 114: agents.v1.CreateRemoteAgentRequest
+	(*CreateRemoteAgentResponse)(nil),        // 115: agents.v1.CreateRemoteAgentResponse
+	(*UpdateRemoteAgentRequest)(nil),         // 116: agents.v1.UpdateRemoteAgentRequest
+	(*UpdateRemoteAgentResponse)(nil),        // 117: agents.v1.UpdateRemoteAgentResponse
+	(*DeleteRemoteAgentRequest)(nil),         // 118: agents.v1.DeleteRemoteAgentRequest
+	(*DeleteRemoteAgentResponse)(nil),        // 119: agents.v1.DeleteRemoteAgentResponse
+	(*ListChannelsRequest)(nil),              // 120: agents.v1.ListChannelsRequest
+	(*ListChannelsResponse)(nil),             // 121: agents.v1.ListChannelsResponse
+	(*GetChannelRequest)(nil),                // 122: agents.v1.GetChannelRequest
+	(*GetChannelResponse)(nil),               // 123: agents.v1.GetChannelResponse
+	(*CreateChannelRequest)(nil),             // 124: agents.v1.CreateChannelRequest
+	(*CreateChannelResponse)(nil),            // 125: agents.v1.CreateChannelResponse
+	(*UpdateChannelRequest)(nil),             // 126: agents.v1.UpdateChannelRequest
+	(*UpdateChannelResponse)(nil),            // 127: agents.v1.UpdateChannelResponse
+	(*DeleteChannelRequest)(nil),             // 128: agents.v1.DeleteChannelRequest
+	(*DeleteChannelResponse)(nil),            // 129: agents.v1.DeleteChannelResponse
+	(*RestartChannelRequest)(nil),            // 130: agents.v1.RestartChannelRequest
+	(*RestartChannelResponse)(nil),           // 131: agents.v1.RestartChannelResponse
+	(*PauseChannelRequest)(nil),              // 132: agents.v1.PauseChannelRequest
+	(*PauseChannelResponse)(nil),             // 133: agents.v1.PauseChannelResponse
+	(*ResumeChannelRequest)(nil),             // 134: agents.v1.ResumeChannelRequest
+	(*ResumeChannelResponse)(nil),            // 135: agents.v1.ResumeChannelResponse
+	(*CreateSessionRequest)(nil),             // 136: agents.v1.CreateSessionRequest
+	(*CreateSessionResponse)(nil),            // 137: agents.v1.CreateSessionResponse
+	(*GetSessionRequest)(nil),                // 138: agents.v1.GetSessionRequest
+	(*GetSessionResponse)(nil),               // 139: agents.v1.GetSessionResponse
+	(*ListSessionsRequest)(nil),              // 140: agents.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),             // 141: agents.v1.ListSessionsResponse
+	(*DeleteSessionRequest)(nil),             // 142: agents.v1.DeleteSessionRequest
+	(*DeleteSessionResponse)(nil),            // 143: agents.v1.DeleteSessionResponse
+	(*ReplySessionRequest)(nil),              // 144: agents.v1.ReplySessionRequest
+	(*ReplySessionResponse)(nil),             // 145: agents.v1.ReplySessionResponse
+	(*UpdateSessionTitleRequest)(nil),        // 146: agents.v1.UpdateSessionTitleRequest
+	(*UpdateSessionTitleResponse)(nil),       // 147: agents.v1.UpdateSessionTitleResponse
+	(*SessionInfo)(nil),                      // 148: agents.v1.SessionInfo
+	(*SessionDetail)(nil),                    // 149: agents.v1.SessionDetail
+	(*GenerateSessionTitleRequest)(nil),      // 150: agents.v1.GenerateSessionTitleRequest
+	(*GenerateSessionTitleResponse)(nil),     // 151: agents.v1.GenerateSessionTitleResponse
+	(*SessionEvent)(nil),                     // 152: agents.v1.SessionEvent
+	(*Agent)(nil),                            // 153: agents.v1.Agent
+	(*timestamppb.Timestamp)(nil),            // 154: google.protobuf.Timestamp
+	(*InputPart)(nil),                        // 155: agents.v1.InputPart
+	(*AgentOperation)(nil),                   // 156: agents.v1.AgentOperation
+	(*ContentFileAction)(nil),                // 157: agents.v1.ContentFileAction
+	(AgentOperationStatus)(0),                // 158: agents.v1.AgentOperationStatus
+	(*MCPServer)(nil),                        // 159: agents.v1.MCPServer
+	(*ModelProvider)(nil),                    // 160: agents.v1.ModelProvider
+	(*NotifyGroup)(nil),                      // 161: agents.v1.NotifyGroup
+	(*RemoteAgent)(nil),                      // 162: agents.v1.RemoteAgent
+	(*AgentChannel)(nil),                     // 163: agents.v1.AgentChannel
+	(*structpb.Struct)(nil),                  // 164: google.protobuf.Struct
+	(*durationpb.Duration)(nil),              // 165: google.protobuf.Duration
+	(*GetMCPServerStatusRequest)(nil),        // 166: agents.v1.GetMCPServerStatusRequest
+	(*ListMCPToolsRequest)(nil),              // 167: agents.v1.ListMCPToolsRequest
+	(*GetRemoteAgentStatusRequest)(nil),      // 168: agents.v1.GetRemoteAgentStatusRequest
+	(*GetChannelStatusRequest)(nil),          // 169: agents.v1.GetChannelStatusRequest
+	(*GetMCPServerStatusResponse)(nil),       // 170: agents.v1.GetMCPServerStatusResponse
+	(*ListMCPToolsResponse)(nil),             // 171: agents.v1.ListMCPToolsResponse
+	(*GetRemoteAgentStatusResponse)(nil),     // 172: agents.v1.GetRemoteAgentStatusResponse
+	(*GetChannelStatusResponse)(nil),         // 173: agents.v1.GetChannelStatusResponse
 }
 var file_agents_v1_agent_service_proto_depIdxs = []int32{
-	150, // 0: agents.v1.ListAgentsResponse.agents:type_name -> agents.v1.Agent
-	151, // 1: agents.v1.ReloadAgentsResponse.reloaded_at:type_name -> google.protobuf.Timestamp
+	153, // 0: agents.v1.ListAgentsResponse.agents:type_name -> agents.v1.Agent
+	154, // 1: agents.v1.ReloadAgentsResponse.reloaded_at:type_name -> google.protobuf.Timestamp
 	0,   // 2: agents.v1.AgentRuntimeStatus.state:type_name -> agents.v1.AgentRuntimeState
-	151, // 3: agents.v1.AgentRuntimeStatus.last_run_at:type_name -> google.protobuf.Timestamp
+	154, // 3: agents.v1.AgentRuntimeStatus.last_run_at:type_name -> google.protobuf.Timestamp
 	9,   // 4: agents.v1.GetAgentRuntimeStatusResponse.status:type_name -> agents.v1.AgentRuntimeStatus
 	9,   // 5: agents.v1.ListAgentRuntimeStatusesResponse.statuses:type_name -> agents.v1.AgentRuntimeStatus
-	152, // 6: agents.v1.StreamAgentRequest.parts:type_name -> agents.v1.InputPart
+	155, // 6: agents.v1.StreamAgentRequest.parts:type_name -> agents.v1.InputPart
 	18,  // 7: agents.v1.StreamAgentResponse.started:type_name -> agents.v1.StreamAgentStarted
 	19,  // 8: agents.v1.StreamAgentResponse.run_event:type_name -> agents.v1.StreamAgentRunEvent
 	20,  // 9: agents.v1.StreamAgentResponse.text_delta:type_name -> agents.v1.StreamAgentTextDelta
 	21,  // 10: agents.v1.StreamAgentResponse.final:type_name -> agents.v1.StreamAgentFinal
-	151, // 11: agents.v1.StreamAgentRunEvent.timestamp:type_name -> google.protobuf.Timestamp
-	150, // 12: agents.v1.GetAgentResponse.agent:type_name -> agents.v1.Agent
-	150, // 13: agents.v1.CreateAgentRequest.agent:type_name -> agents.v1.Agent
+	154, // 11: agents.v1.StreamAgentRunEvent.timestamp:type_name -> google.protobuf.Timestamp
+	153, // 12: agents.v1.GetAgentResponse.agent:type_name -> agents.v1.Agent
+	153, // 13: agents.v1.CreateAgentRequest.agent:type_name -> agents.v1.Agent
 	26,  // 14: agents.v1.CreateAgentRequest.initial_content:type_name -> agents.v1.AgentContentInput
-	150, // 15: agents.v1.CreateAgentResponse.agent:type_name -> agents.v1.Agent
-	153, // 16: agents.v1.CreateAgentResponse.operation:type_name -> agents.v1.AgentOperation
-	150, // 17: agents.v1.UpdateAgentConfigurationRequest.agent_patch:type_name -> agents.v1.Agent
-	154, // 18: agents.v1.UpdateAgentConfigurationRequest.content_changes:type_name -> agents.v1.ContentFileAction
-	150, // 19: agents.v1.UpdateAgentConfigurationResponse.agent:type_name -> agents.v1.Agent
-	153, // 20: agents.v1.UpdateAgentConfigurationResponse.operation:type_name -> agents.v1.AgentOperation
-	150, // 21: agents.v1.RestoreAgentResponse.agent:type_name -> agents.v1.Agent
-	153, // 22: agents.v1.RestoreAgentResponse.operation:type_name -> agents.v1.AgentOperation
-	153, // 23: agents.v1.GetAgentOperationResponse.operation:type_name -> agents.v1.AgentOperation
-	155, // 24: agents.v1.ListAgentOperationsRequest.status:type_name -> agents.v1.AgentOperationStatus
-	153, // 25: agents.v1.ListAgentOperationsResponse.operations:type_name -> agents.v1.AgentOperation
-	150, // 26: agents.v1.RetryAgentOperationResponse.agent:type_name -> agents.v1.Agent
-	153, // 27: agents.v1.RetryAgentOperationResponse.operation:type_name -> agents.v1.AgentOperation
-	150, // 28: agents.v1.UpdateAgentRequest.agent:type_name -> agents.v1.Agent
-	150, // 29: agents.v1.UpdateAgentResponse.agent:type_name -> agents.v1.Agent
-	153, // 30: agents.v1.DeleteAgentResponse.operation:type_name -> agents.v1.AgentOperation
-	150, // 31: agents.v1.AssignAgentIDResponse.agent:type_name -> agents.v1.Agent
+	153, // 15: agents.v1.CreateAgentResponse.agent:type_name -> agents.v1.Agent
+	156, // 16: agents.v1.CreateAgentResponse.operation:type_name -> agents.v1.AgentOperation
+	153, // 17: agents.v1.UpdateAgentConfigurationRequest.agent_patch:type_name -> agents.v1.Agent
+	157, // 18: agents.v1.UpdateAgentConfigurationRequest.content_changes:type_name -> agents.v1.ContentFileAction
+	153, // 19: agents.v1.UpdateAgentConfigurationResponse.agent:type_name -> agents.v1.Agent
+	156, // 20: agents.v1.UpdateAgentConfigurationResponse.operation:type_name -> agents.v1.AgentOperation
+	153, // 21: agents.v1.RestoreAgentResponse.agent:type_name -> agents.v1.Agent
+	156, // 22: agents.v1.RestoreAgentResponse.operation:type_name -> agents.v1.AgentOperation
+	156, // 23: agents.v1.GetAgentOperationResponse.operation:type_name -> agents.v1.AgentOperation
+	158, // 24: agents.v1.ListAgentOperationsRequest.status:type_name -> agents.v1.AgentOperationStatus
+	156, // 25: agents.v1.ListAgentOperationsResponse.operations:type_name -> agents.v1.AgentOperation
+	153, // 26: agents.v1.RetryAgentOperationResponse.agent:type_name -> agents.v1.Agent
+	156, // 27: agents.v1.RetryAgentOperationResponse.operation:type_name -> agents.v1.AgentOperation
+	153, // 28: agents.v1.UpdateAgentRequest.agent:type_name -> agents.v1.Agent
+	153, // 29: agents.v1.UpdateAgentResponse.agent:type_name -> agents.v1.Agent
+	156, // 30: agents.v1.DeleteAgentResponse.operation:type_name -> agents.v1.AgentOperation
+	153, // 31: agents.v1.AssignAgentIDResponse.agent:type_name -> agents.v1.Agent
 	45,  // 32: agents.v1.GetMigrationReadinessResponse.statuses:type_name -> agents.v1.AgentMigrationStatus
 	1,   // 33: agents.v1.AgentMigrationStatus.readiness:type_name -> agents.v1.MigrationReadiness
 	2,   // 34: agents.v1.MigrateAgentsV2Request.mode:type_name -> agents.v1.MigrateMode
 	2,   // 35: agents.v1.MigrateAgentsV2Response.mode:type_name -> agents.v1.MigrateMode
 	47,  // 36: agents.v1.MigrateAgentsV2Response.results:type_name -> agents.v1.MigrateAgentResult
 	3,   // 37: agents.v1.Invocation.status:type_name -> agents.v1.InvocationStatus
-	151, // 38: agents.v1.Invocation.started_at:type_name -> google.protobuf.Timestamp
-	151, // 39: agents.v1.Invocation.finished_at:type_name -> google.protobuf.Timestamp
+	154, // 38: agents.v1.Invocation.started_at:type_name -> google.protobuf.Timestamp
+	154, // 39: agents.v1.Invocation.finished_at:type_name -> google.protobuf.Timestamp
 	51,  // 40: agents.v1.ListAgentInvocationsResponse.invocations:type_name -> agents.v1.Invocation
-	152, // 41: agents.v1.SubmitAgentInvocationRequest.parts:type_name -> agents.v1.InputPart
+	155, // 41: agents.v1.SubmitAgentInvocationRequest.parts:type_name -> agents.v1.InputPart
 	3,   // 42: agents.v1.SubmitAgentInvocationResponse.status:type_name -> agents.v1.InvocationStatus
 	51,  // 43: agents.v1.GetAgentInvocationResponse.invocation:type_name -> agents.v1.Invocation
-	156, // 44: agents.v1.ListMCPServersResponse.mcp_servers:type_name -> agents.v1.MCPServer
-	156, // 45: agents.v1.GetMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
-	156, // 46: agents.v1.CreateMCPServerRequest.mcp_server:type_name -> agents.v1.MCPServer
-	156, // 47: agents.v1.CreateMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
-	156, // 48: agents.v1.UpdateMCPServerRequest.mcp_server:type_name -> agents.v1.MCPServer
-	156, // 49: agents.v1.UpdateMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
-	76,  // 50: agents.v1.CompleteMCPServerOAuthResponse.status:type_name -> agents.v1.MCPOAuthConnectionStatus
-	76,  // 51: agents.v1.GetMCPServerOAuthStatusResponse.status:type_name -> agents.v1.MCPOAuthConnectionStatus
-	76,  // 52: agents.v1.DisconnectMCPServerOAuthResponse.status:type_name -> agents.v1.MCPOAuthConnectionStatus
-	4,   // 53: agents.v1.MCPOAuthConnectionStatus.state:type_name -> agents.v1.MCPOAuthConnectionState
-	151, // 54: agents.v1.MCPOAuthConnectionStatus.connected_at:type_name -> google.protobuf.Timestamp
-	151, // 55: agents.v1.MCPOAuthConnectionStatus.expires_at:type_name -> google.protobuf.Timestamp
-	151, // 56: agents.v1.MCPOAuthConnectionStatus.checked_at:type_name -> google.protobuf.Timestamp
-	156, // 57: agents.v1.ListGlobalMCPServersResponse.mcp_servers:type_name -> agents.v1.MCPServer
-	156, // 58: agents.v1.CreateGlobalMCPServerRequest.mcp_server:type_name -> agents.v1.MCPServer
-	156, // 59: agents.v1.CreateGlobalMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
-	156, // 60: agents.v1.UpdateGlobalMCPServerRequest.mcp_server:type_name -> agents.v1.MCPServer
-	156, // 61: agents.v1.UpdateGlobalMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
-	156, // 62: agents.v1.InstallGlobalMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
-	157, // 63: agents.v1.ListModelProvidersResponse.model_providers:type_name -> agents.v1.ModelProvider
-	157, // 64: agents.v1.GetModelProviderResponse.model_provider:type_name -> agents.v1.ModelProvider
-	157, // 65: agents.v1.CreateModelProviderRequest.model_provider:type_name -> agents.v1.ModelProvider
-	157, // 66: agents.v1.CreateModelProviderResponse.model_provider:type_name -> agents.v1.ModelProvider
-	157, // 67: agents.v1.UpdateModelProviderRequest.model_provider:type_name -> agents.v1.ModelProvider
-	157, // 68: agents.v1.UpdateModelProviderResponse.model_provider:type_name -> agents.v1.ModelProvider
-	158, // 69: agents.v1.ListNotifyGroupsResponse.notify_groups:type_name -> agents.v1.NotifyGroup
-	158, // 70: agents.v1.GetNotifyGroupResponse.notify_group:type_name -> agents.v1.NotifyGroup
-	158, // 71: agents.v1.CreateNotifyGroupRequest.notify_group:type_name -> agents.v1.NotifyGroup
-	158, // 72: agents.v1.CreateNotifyGroupResponse.notify_group:type_name -> agents.v1.NotifyGroup
-	158, // 73: agents.v1.UpdateNotifyGroupRequest.notify_group:type_name -> agents.v1.NotifyGroup
-	158, // 74: agents.v1.UpdateNotifyGroupResponse.notify_group:type_name -> agents.v1.NotifyGroup
-	159, // 75: agents.v1.ListRemoteAgentsResponse.remote_agents:type_name -> agents.v1.RemoteAgent
-	159, // 76: agents.v1.GetRemoteAgentResponse.remote_agent:type_name -> agents.v1.RemoteAgent
-	159, // 77: agents.v1.CreateRemoteAgentRequest.remote_agent:type_name -> agents.v1.RemoteAgent
-	159, // 78: agents.v1.CreateRemoteAgentResponse.remote_agent:type_name -> agents.v1.RemoteAgent
-	159, // 79: agents.v1.UpdateRemoteAgentRequest.remote_agent:type_name -> agents.v1.RemoteAgent
-	159, // 80: agents.v1.UpdateRemoteAgentResponse.remote_agent:type_name -> agents.v1.RemoteAgent
-	160, // 81: agents.v1.ListChannelsResponse.channels:type_name -> agents.v1.AgentChannel
-	160, // 82: agents.v1.GetChannelResponse.channel:type_name -> agents.v1.AgentChannel
-	160, // 83: agents.v1.CreateChannelRequest.channel:type_name -> agents.v1.AgentChannel
-	160, // 84: agents.v1.CreateChannelResponse.channel:type_name -> agents.v1.AgentChannel
-	160, // 85: agents.v1.UpdateChannelRequest.channel:type_name -> agents.v1.AgentChannel
-	160, // 86: agents.v1.UpdateChannelResponse.channel:type_name -> agents.v1.AgentChannel
-	160, // 87: agents.v1.RestartChannelResponse.channel:type_name -> agents.v1.AgentChannel
-	160, // 88: agents.v1.PauseChannelResponse.channel:type_name -> agents.v1.AgentChannel
-	160, // 89: agents.v1.ResumeChannelResponse.channel:type_name -> agents.v1.AgentChannel
-	161, // 90: agents.v1.CreateSessionRequest.state:type_name -> google.protobuf.Struct
-	145, // 91: agents.v1.CreateSessionResponse.session:type_name -> agents.v1.SessionInfo
-	146, // 92: agents.v1.GetSessionResponse.session_detail:type_name -> agents.v1.SessionDetail
-	151, // 93: agents.v1.ListSessionsRequest.start_time:type_name -> google.protobuf.Timestamp
-	151, // 94: agents.v1.ListSessionsRequest.end_time:type_name -> google.protobuf.Timestamp
-	145, // 95: agents.v1.ListSessionsResponse.sessions:type_name -> agents.v1.SessionInfo
-	152, // 96: agents.v1.ReplySessionRequest.parts:type_name -> agents.v1.InputPart
-	145, // 97: agents.v1.UpdateSessionTitleResponse.session:type_name -> agents.v1.SessionInfo
-	161, // 98: agents.v1.SessionInfo.state:type_name -> google.protobuf.Struct
-	151, // 99: agents.v1.SessionInfo.last_update_time:type_name -> google.protobuf.Timestamp
-	145, // 100: agents.v1.SessionDetail.session:type_name -> agents.v1.SessionInfo
-	149, // 101: agents.v1.SessionDetail.events:type_name -> agents.v1.SessionEvent
-	162, // 102: agents.v1.SessionDetail.duration:type_name -> google.protobuf.Duration
-	145, // 103: agents.v1.GenerateSessionTitleResponse.session:type_name -> agents.v1.SessionInfo
-	151, // 104: agents.v1.SessionEvent.timestamp:type_name -> google.protobuf.Timestamp
-	5,   // 105: agents.v1.AgentService.ListAgents:input_type -> agents.v1.ListAgentsRequest
-	22,  // 106: agents.v1.AgentService.GetAgent:input_type -> agents.v1.GetAgentRequest
-	24,  // 107: agents.v1.AgentService.CreateAgent:input_type -> agents.v1.CreateAgentRequest
-	37,  // 108: agents.v1.AgentService.UpdateAgent:input_type -> agents.v1.UpdateAgentRequest
-	39,  // 109: agents.v1.AgentService.DeleteAgent:input_type -> agents.v1.DeleteAgentRequest
-	49,  // 110: agents.v1.AgentService.InvokeAgent:input_type -> agents.v1.InvokeAgentRequest
-	52,  // 111: agents.v1.AgentService.ListAgentInvocations:input_type -> agents.v1.ListAgentInvocationsRequest
-	7,   // 112: agents.v1.AgentService.ReloadAgents:input_type -> agents.v1.ReloadAgentsRequest
-	10,  // 113: agents.v1.AgentService.GetAgentRuntimeStatus:input_type -> agents.v1.GetAgentRuntimeStatusRequest
-	12,  // 114: agents.v1.AgentService.ListAgentRuntimeStatuses:input_type -> agents.v1.ListAgentRuntimeStatusesRequest
-	14,  // 115: agents.v1.AgentService.CancelAgentInvocation:input_type -> agents.v1.CancelAgentInvocationRequest
-	16,  // 116: agents.v1.AgentService.StreamAgent:input_type -> agents.v1.StreamAgentRequest
-	41,  // 117: agents.v1.AgentService.AssignAgentID:input_type -> agents.v1.AssignAgentIDRequest
-	43,  // 118: agents.v1.AgentService.GetMigrationReadiness:input_type -> agents.v1.GetMigrationReadinessRequest
-	46,  // 119: agents.v1.AgentService.MigrateAgentsV2:input_type -> agents.v1.MigrateAgentsV2Request
-	27,  // 120: agents.v1.AgentService.UpdateAgentConfiguration:input_type -> agents.v1.UpdateAgentConfigurationRequest
-	29,  // 121: agents.v1.AgentService.RestoreAgent:input_type -> agents.v1.RestoreAgentRequest
-	54,  // 122: agents.v1.AgentService.SubmitAgentInvocation:input_type -> agents.v1.SubmitAgentInvocationRequest
-	56,  // 123: agents.v1.AgentService.GetAgentInvocation:input_type -> agents.v1.GetAgentInvocationRequest
-	31,  // 124: agents.v1.AgentService.GetAgentOperation:input_type -> agents.v1.GetAgentOperationRequest
-	33,  // 125: agents.v1.AgentService.ListAgentOperations:input_type -> agents.v1.ListAgentOperationsRequest
-	35,  // 126: agents.v1.AgentService.RetryAgentOperation:input_type -> agents.v1.RetryAgentOperationRequest
-	58,  // 127: agents.v1.MCPServerService.ListMCPServers:input_type -> agents.v1.ListMCPServersRequest
-	60,  // 128: agents.v1.MCPServerService.GetMCPServer:input_type -> agents.v1.GetMCPServerRequest
-	62,  // 129: agents.v1.MCPServerService.CreateMCPServer:input_type -> agents.v1.CreateMCPServerRequest
-	64,  // 130: agents.v1.MCPServerService.UpdateMCPServer:input_type -> agents.v1.UpdateMCPServerRequest
-	66,  // 131: agents.v1.MCPServerService.DeleteMCPServer:input_type -> agents.v1.DeleteMCPServerRequest
-	163, // 132: agents.v1.MCPServerService.GetMCPServerStatus:input_type -> agents.v1.GetMCPServerStatusRequest
-	164, // 133: agents.v1.MCPServerService.ListMCPTools:input_type -> agents.v1.ListMCPToolsRequest
-	68,  // 134: agents.v1.MCPServerService.StartMCPServerOAuth:input_type -> agents.v1.StartMCPServerOAuthRequest
-	70,  // 135: agents.v1.MCPServerService.CompleteMCPServerOAuth:input_type -> agents.v1.CompleteMCPServerOAuthRequest
-	72,  // 136: agents.v1.MCPServerService.GetMCPServerOAuthStatus:input_type -> agents.v1.GetMCPServerOAuthStatusRequest
-	74,  // 137: agents.v1.MCPServerService.DisconnectMCPServerOAuth:input_type -> agents.v1.DisconnectMCPServerOAuthRequest
-	77,  // 138: agents.v1.GlobalMCPServerService.ListGlobalMCPServers:input_type -> agents.v1.ListGlobalMCPServersRequest
-	79,  // 139: agents.v1.GlobalMCPServerService.CreateGlobalMCPServer:input_type -> agents.v1.CreateGlobalMCPServerRequest
-	81,  // 140: agents.v1.GlobalMCPServerService.UpdateGlobalMCPServer:input_type -> agents.v1.UpdateGlobalMCPServerRequest
-	83,  // 141: agents.v1.GlobalMCPServerService.DeleteGlobalMCPServer:input_type -> agents.v1.DeleteGlobalMCPServerRequest
-	85,  // 142: agents.v1.GlobalMCPServerService.InstallGlobalMCPServer:input_type -> agents.v1.InstallGlobalMCPServerRequest
-	87,  // 143: agents.v1.ModelProviderService.ListModelProviders:input_type -> agents.v1.ListModelProvidersRequest
-	89,  // 144: agents.v1.ModelProviderService.GetModelProvider:input_type -> agents.v1.GetModelProviderRequest
-	91,  // 145: agents.v1.ModelProviderService.CreateModelProvider:input_type -> agents.v1.CreateModelProviderRequest
-	93,  // 146: agents.v1.ModelProviderService.UpdateModelProvider:input_type -> agents.v1.UpdateModelProviderRequest
-	95,  // 147: agents.v1.ModelProviderService.DeleteModelProvider:input_type -> agents.v1.DeleteModelProviderRequest
-	97,  // 148: agents.v1.NotifyGroupService.ListNotifyGroups:input_type -> agents.v1.ListNotifyGroupsRequest
-	99,  // 149: agents.v1.NotifyGroupService.GetNotifyGroup:input_type -> agents.v1.GetNotifyGroupRequest
-	101, // 150: agents.v1.NotifyGroupService.CreateNotifyGroup:input_type -> agents.v1.CreateNotifyGroupRequest
-	103, // 151: agents.v1.NotifyGroupService.UpdateNotifyGroup:input_type -> agents.v1.UpdateNotifyGroupRequest
-	105, // 152: agents.v1.NotifyGroupService.DeleteNotifyGroup:input_type -> agents.v1.DeleteNotifyGroupRequest
-	107, // 153: agents.v1.RemoteAgentService.ListRemoteAgents:input_type -> agents.v1.ListRemoteAgentsRequest
-	109, // 154: agents.v1.RemoteAgentService.GetRemoteAgent:input_type -> agents.v1.GetRemoteAgentRequest
-	111, // 155: agents.v1.RemoteAgentService.CreateRemoteAgent:input_type -> agents.v1.CreateRemoteAgentRequest
-	113, // 156: agents.v1.RemoteAgentService.UpdateRemoteAgent:input_type -> agents.v1.UpdateRemoteAgentRequest
-	115, // 157: agents.v1.RemoteAgentService.DeleteRemoteAgent:input_type -> agents.v1.DeleteRemoteAgentRequest
-	165, // 158: agents.v1.RemoteAgentService.GetRemoteAgentStatus:input_type -> agents.v1.GetRemoteAgentStatusRequest
-	117, // 159: agents.v1.ChannelService.ListChannels:input_type -> agents.v1.ListChannelsRequest
-	119, // 160: agents.v1.ChannelService.GetChannel:input_type -> agents.v1.GetChannelRequest
-	121, // 161: agents.v1.ChannelService.CreateChannel:input_type -> agents.v1.CreateChannelRequest
-	123, // 162: agents.v1.ChannelService.UpdateChannel:input_type -> agents.v1.UpdateChannelRequest
-	125, // 163: agents.v1.ChannelService.DeleteChannel:input_type -> agents.v1.DeleteChannelRequest
-	166, // 164: agents.v1.ChannelService.GetChannelStatus:input_type -> agents.v1.GetChannelStatusRequest
-	127, // 165: agents.v1.ChannelService.RestartChannel:input_type -> agents.v1.RestartChannelRequest
-	129, // 166: agents.v1.ChannelService.PauseChannel:input_type -> agents.v1.PauseChannelRequest
-	131, // 167: agents.v1.ChannelService.ResumeChannel:input_type -> agents.v1.ResumeChannelRequest
-	133, // 168: agents.v1.SessionService.CreateSession:input_type -> agents.v1.CreateSessionRequest
-	135, // 169: agents.v1.SessionService.GetSession:input_type -> agents.v1.GetSessionRequest
-	137, // 170: agents.v1.SessionService.ListSessions:input_type -> agents.v1.ListSessionsRequest
-	139, // 171: agents.v1.SessionService.DeleteSession:input_type -> agents.v1.DeleteSessionRequest
-	141, // 172: agents.v1.SessionService.ReplySession:input_type -> agents.v1.ReplySessionRequest
-	143, // 173: agents.v1.SessionService.UpdateSessionTitle:input_type -> agents.v1.UpdateSessionTitleRequest
-	147, // 174: agents.v1.SessionService.GenerateSessionTitle:input_type -> agents.v1.GenerateSessionTitleRequest
-	6,   // 175: agents.v1.AgentService.ListAgents:output_type -> agents.v1.ListAgentsResponse
-	23,  // 176: agents.v1.AgentService.GetAgent:output_type -> agents.v1.GetAgentResponse
-	25,  // 177: agents.v1.AgentService.CreateAgent:output_type -> agents.v1.CreateAgentResponse
-	38,  // 178: agents.v1.AgentService.UpdateAgent:output_type -> agents.v1.UpdateAgentResponse
-	40,  // 179: agents.v1.AgentService.DeleteAgent:output_type -> agents.v1.DeleteAgentResponse
-	50,  // 180: agents.v1.AgentService.InvokeAgent:output_type -> agents.v1.InvokeAgentResponse
-	53,  // 181: agents.v1.AgentService.ListAgentInvocations:output_type -> agents.v1.ListAgentInvocationsResponse
-	8,   // 182: agents.v1.AgentService.ReloadAgents:output_type -> agents.v1.ReloadAgentsResponse
-	11,  // 183: agents.v1.AgentService.GetAgentRuntimeStatus:output_type -> agents.v1.GetAgentRuntimeStatusResponse
-	13,  // 184: agents.v1.AgentService.ListAgentRuntimeStatuses:output_type -> agents.v1.ListAgentRuntimeStatusesResponse
-	15,  // 185: agents.v1.AgentService.CancelAgentInvocation:output_type -> agents.v1.CancelAgentInvocationResponse
-	17,  // 186: agents.v1.AgentService.StreamAgent:output_type -> agents.v1.StreamAgentResponse
-	42,  // 187: agents.v1.AgentService.AssignAgentID:output_type -> agents.v1.AssignAgentIDResponse
-	44,  // 188: agents.v1.AgentService.GetMigrationReadiness:output_type -> agents.v1.GetMigrationReadinessResponse
-	48,  // 189: agents.v1.AgentService.MigrateAgentsV2:output_type -> agents.v1.MigrateAgentsV2Response
-	28,  // 190: agents.v1.AgentService.UpdateAgentConfiguration:output_type -> agents.v1.UpdateAgentConfigurationResponse
-	30,  // 191: agents.v1.AgentService.RestoreAgent:output_type -> agents.v1.RestoreAgentResponse
-	55,  // 192: agents.v1.AgentService.SubmitAgentInvocation:output_type -> agents.v1.SubmitAgentInvocationResponse
-	57,  // 193: agents.v1.AgentService.GetAgentInvocation:output_type -> agents.v1.GetAgentInvocationResponse
-	32,  // 194: agents.v1.AgentService.GetAgentOperation:output_type -> agents.v1.GetAgentOperationResponse
-	34,  // 195: agents.v1.AgentService.ListAgentOperations:output_type -> agents.v1.ListAgentOperationsResponse
-	36,  // 196: agents.v1.AgentService.RetryAgentOperation:output_type -> agents.v1.RetryAgentOperationResponse
-	59,  // 197: agents.v1.MCPServerService.ListMCPServers:output_type -> agents.v1.ListMCPServersResponse
-	61,  // 198: agents.v1.MCPServerService.GetMCPServer:output_type -> agents.v1.GetMCPServerResponse
-	63,  // 199: agents.v1.MCPServerService.CreateMCPServer:output_type -> agents.v1.CreateMCPServerResponse
-	65,  // 200: agents.v1.MCPServerService.UpdateMCPServer:output_type -> agents.v1.UpdateMCPServerResponse
-	67,  // 201: agents.v1.MCPServerService.DeleteMCPServer:output_type -> agents.v1.DeleteMCPServerResponse
-	167, // 202: agents.v1.MCPServerService.GetMCPServerStatus:output_type -> agents.v1.GetMCPServerStatusResponse
-	168, // 203: agents.v1.MCPServerService.ListMCPTools:output_type -> agents.v1.ListMCPToolsResponse
-	69,  // 204: agents.v1.MCPServerService.StartMCPServerOAuth:output_type -> agents.v1.StartMCPServerOAuthResponse
-	71,  // 205: agents.v1.MCPServerService.CompleteMCPServerOAuth:output_type -> agents.v1.CompleteMCPServerOAuthResponse
-	73,  // 206: agents.v1.MCPServerService.GetMCPServerOAuthStatus:output_type -> agents.v1.GetMCPServerOAuthStatusResponse
-	75,  // 207: agents.v1.MCPServerService.DisconnectMCPServerOAuth:output_type -> agents.v1.DisconnectMCPServerOAuthResponse
-	78,  // 208: agents.v1.GlobalMCPServerService.ListGlobalMCPServers:output_type -> agents.v1.ListGlobalMCPServersResponse
-	80,  // 209: agents.v1.GlobalMCPServerService.CreateGlobalMCPServer:output_type -> agents.v1.CreateGlobalMCPServerResponse
-	82,  // 210: agents.v1.GlobalMCPServerService.UpdateGlobalMCPServer:output_type -> agents.v1.UpdateGlobalMCPServerResponse
-	84,  // 211: agents.v1.GlobalMCPServerService.DeleteGlobalMCPServer:output_type -> agents.v1.DeleteGlobalMCPServerResponse
-	86,  // 212: agents.v1.GlobalMCPServerService.InstallGlobalMCPServer:output_type -> agents.v1.InstallGlobalMCPServerResponse
-	88,  // 213: agents.v1.ModelProviderService.ListModelProviders:output_type -> agents.v1.ListModelProvidersResponse
-	90,  // 214: agents.v1.ModelProviderService.GetModelProvider:output_type -> agents.v1.GetModelProviderResponse
-	92,  // 215: agents.v1.ModelProviderService.CreateModelProvider:output_type -> agents.v1.CreateModelProviderResponse
-	94,  // 216: agents.v1.ModelProviderService.UpdateModelProvider:output_type -> agents.v1.UpdateModelProviderResponse
-	96,  // 217: agents.v1.ModelProviderService.DeleteModelProvider:output_type -> agents.v1.DeleteModelProviderResponse
-	98,  // 218: agents.v1.NotifyGroupService.ListNotifyGroups:output_type -> agents.v1.ListNotifyGroupsResponse
-	100, // 219: agents.v1.NotifyGroupService.GetNotifyGroup:output_type -> agents.v1.GetNotifyGroupResponse
-	102, // 220: agents.v1.NotifyGroupService.CreateNotifyGroup:output_type -> agents.v1.CreateNotifyGroupResponse
-	104, // 221: agents.v1.NotifyGroupService.UpdateNotifyGroup:output_type -> agents.v1.UpdateNotifyGroupResponse
-	106, // 222: agents.v1.NotifyGroupService.DeleteNotifyGroup:output_type -> agents.v1.DeleteNotifyGroupResponse
-	108, // 223: agents.v1.RemoteAgentService.ListRemoteAgents:output_type -> agents.v1.ListRemoteAgentsResponse
-	110, // 224: agents.v1.RemoteAgentService.GetRemoteAgent:output_type -> agents.v1.GetRemoteAgentResponse
-	112, // 225: agents.v1.RemoteAgentService.CreateRemoteAgent:output_type -> agents.v1.CreateRemoteAgentResponse
-	114, // 226: agents.v1.RemoteAgentService.UpdateRemoteAgent:output_type -> agents.v1.UpdateRemoteAgentResponse
-	116, // 227: agents.v1.RemoteAgentService.DeleteRemoteAgent:output_type -> agents.v1.DeleteRemoteAgentResponse
-	169, // 228: agents.v1.RemoteAgentService.GetRemoteAgentStatus:output_type -> agents.v1.GetRemoteAgentStatusResponse
-	118, // 229: agents.v1.ChannelService.ListChannels:output_type -> agents.v1.ListChannelsResponse
-	120, // 230: agents.v1.ChannelService.GetChannel:output_type -> agents.v1.GetChannelResponse
-	122, // 231: agents.v1.ChannelService.CreateChannel:output_type -> agents.v1.CreateChannelResponse
-	124, // 232: agents.v1.ChannelService.UpdateChannel:output_type -> agents.v1.UpdateChannelResponse
-	126, // 233: agents.v1.ChannelService.DeleteChannel:output_type -> agents.v1.DeleteChannelResponse
-	170, // 234: agents.v1.ChannelService.GetChannelStatus:output_type -> agents.v1.GetChannelStatusResponse
-	128, // 235: agents.v1.ChannelService.RestartChannel:output_type -> agents.v1.RestartChannelResponse
-	130, // 236: agents.v1.ChannelService.PauseChannel:output_type -> agents.v1.PauseChannelResponse
-	132, // 237: agents.v1.ChannelService.ResumeChannel:output_type -> agents.v1.ResumeChannelResponse
-	134, // 238: agents.v1.SessionService.CreateSession:output_type -> agents.v1.CreateSessionResponse
-	136, // 239: agents.v1.SessionService.GetSession:output_type -> agents.v1.GetSessionResponse
-	138, // 240: agents.v1.SessionService.ListSessions:output_type -> agents.v1.ListSessionsResponse
-	140, // 241: agents.v1.SessionService.DeleteSession:output_type -> agents.v1.DeleteSessionResponse
-	142, // 242: agents.v1.SessionService.ReplySession:output_type -> agents.v1.ReplySessionResponse
-	144, // 243: agents.v1.SessionService.UpdateSessionTitle:output_type -> agents.v1.UpdateSessionTitleResponse
-	148, // 244: agents.v1.SessionService.GenerateSessionTitle:output_type -> agents.v1.GenerateSessionTitleResponse
-	175, // [175:245] is the sub-list for method output_type
-	105, // [105:175] is the sub-list for method input_type
-	105, // [105:105] is the sub-list for extension type_name
-	105, // [105:105] is the sub-list for extension extendee
-	0,   // [0:105] is the sub-list for field type_name
+	60,  // 44: agents.v1.WatchAgentInvocationResponse.state:type_name -> agents.v1.WatchAgentInvocationState
+	19,  // 45: agents.v1.WatchAgentInvocationResponse.run_event:type_name -> agents.v1.StreamAgentRunEvent
+	20,  // 46: agents.v1.WatchAgentInvocationResponse.text_delta:type_name -> agents.v1.StreamAgentTextDelta
+	51,  // 47: agents.v1.WatchAgentInvocationState.invocation:type_name -> agents.v1.Invocation
+	159, // 48: agents.v1.ListMCPServersResponse.mcp_servers:type_name -> agents.v1.MCPServer
+	159, // 49: agents.v1.GetMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
+	159, // 50: agents.v1.CreateMCPServerRequest.mcp_server:type_name -> agents.v1.MCPServer
+	159, // 51: agents.v1.CreateMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
+	159, // 52: agents.v1.UpdateMCPServerRequest.mcp_server:type_name -> agents.v1.MCPServer
+	159, // 53: agents.v1.UpdateMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
+	79,  // 54: agents.v1.CompleteMCPServerOAuthResponse.status:type_name -> agents.v1.MCPOAuthConnectionStatus
+	79,  // 55: agents.v1.GetMCPServerOAuthStatusResponse.status:type_name -> agents.v1.MCPOAuthConnectionStatus
+	79,  // 56: agents.v1.DisconnectMCPServerOAuthResponse.status:type_name -> agents.v1.MCPOAuthConnectionStatus
+	4,   // 57: agents.v1.MCPOAuthConnectionStatus.state:type_name -> agents.v1.MCPOAuthConnectionState
+	154, // 58: agents.v1.MCPOAuthConnectionStatus.connected_at:type_name -> google.protobuf.Timestamp
+	154, // 59: agents.v1.MCPOAuthConnectionStatus.expires_at:type_name -> google.protobuf.Timestamp
+	154, // 60: agents.v1.MCPOAuthConnectionStatus.checked_at:type_name -> google.protobuf.Timestamp
+	159, // 61: agents.v1.ListGlobalMCPServersResponse.mcp_servers:type_name -> agents.v1.MCPServer
+	159, // 62: agents.v1.CreateGlobalMCPServerRequest.mcp_server:type_name -> agents.v1.MCPServer
+	159, // 63: agents.v1.CreateGlobalMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
+	159, // 64: agents.v1.UpdateGlobalMCPServerRequest.mcp_server:type_name -> agents.v1.MCPServer
+	159, // 65: agents.v1.UpdateGlobalMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
+	159, // 66: agents.v1.InstallGlobalMCPServerResponse.mcp_server:type_name -> agents.v1.MCPServer
+	160, // 67: agents.v1.ListModelProvidersResponse.model_providers:type_name -> agents.v1.ModelProvider
+	160, // 68: agents.v1.GetModelProviderResponse.model_provider:type_name -> agents.v1.ModelProvider
+	160, // 69: agents.v1.CreateModelProviderRequest.model_provider:type_name -> agents.v1.ModelProvider
+	160, // 70: agents.v1.CreateModelProviderResponse.model_provider:type_name -> agents.v1.ModelProvider
+	160, // 71: agents.v1.UpdateModelProviderRequest.model_provider:type_name -> agents.v1.ModelProvider
+	160, // 72: agents.v1.UpdateModelProviderResponse.model_provider:type_name -> agents.v1.ModelProvider
+	161, // 73: agents.v1.ListNotifyGroupsResponse.notify_groups:type_name -> agents.v1.NotifyGroup
+	161, // 74: agents.v1.GetNotifyGroupResponse.notify_group:type_name -> agents.v1.NotifyGroup
+	161, // 75: agents.v1.CreateNotifyGroupRequest.notify_group:type_name -> agents.v1.NotifyGroup
+	161, // 76: agents.v1.CreateNotifyGroupResponse.notify_group:type_name -> agents.v1.NotifyGroup
+	161, // 77: agents.v1.UpdateNotifyGroupRequest.notify_group:type_name -> agents.v1.NotifyGroup
+	161, // 78: agents.v1.UpdateNotifyGroupResponse.notify_group:type_name -> agents.v1.NotifyGroup
+	162, // 79: agents.v1.ListRemoteAgentsResponse.remote_agents:type_name -> agents.v1.RemoteAgent
+	162, // 80: agents.v1.GetRemoteAgentResponse.remote_agent:type_name -> agents.v1.RemoteAgent
+	162, // 81: agents.v1.CreateRemoteAgentRequest.remote_agent:type_name -> agents.v1.RemoteAgent
+	162, // 82: agents.v1.CreateRemoteAgentResponse.remote_agent:type_name -> agents.v1.RemoteAgent
+	162, // 83: agents.v1.UpdateRemoteAgentRequest.remote_agent:type_name -> agents.v1.RemoteAgent
+	162, // 84: agents.v1.UpdateRemoteAgentResponse.remote_agent:type_name -> agents.v1.RemoteAgent
+	163, // 85: agents.v1.ListChannelsResponse.channels:type_name -> agents.v1.AgentChannel
+	163, // 86: agents.v1.GetChannelResponse.channel:type_name -> agents.v1.AgentChannel
+	163, // 87: agents.v1.CreateChannelRequest.channel:type_name -> agents.v1.AgentChannel
+	163, // 88: agents.v1.CreateChannelResponse.channel:type_name -> agents.v1.AgentChannel
+	163, // 89: agents.v1.UpdateChannelRequest.channel:type_name -> agents.v1.AgentChannel
+	163, // 90: agents.v1.UpdateChannelResponse.channel:type_name -> agents.v1.AgentChannel
+	163, // 91: agents.v1.RestartChannelResponse.channel:type_name -> agents.v1.AgentChannel
+	163, // 92: agents.v1.PauseChannelResponse.channel:type_name -> agents.v1.AgentChannel
+	163, // 93: agents.v1.ResumeChannelResponse.channel:type_name -> agents.v1.AgentChannel
+	164, // 94: agents.v1.CreateSessionRequest.state:type_name -> google.protobuf.Struct
+	148, // 95: agents.v1.CreateSessionResponse.session:type_name -> agents.v1.SessionInfo
+	149, // 96: agents.v1.GetSessionResponse.session_detail:type_name -> agents.v1.SessionDetail
+	154, // 97: agents.v1.ListSessionsRequest.start_time:type_name -> google.protobuf.Timestamp
+	154, // 98: agents.v1.ListSessionsRequest.end_time:type_name -> google.protobuf.Timestamp
+	148, // 99: agents.v1.ListSessionsResponse.sessions:type_name -> agents.v1.SessionInfo
+	155, // 100: agents.v1.ReplySessionRequest.parts:type_name -> agents.v1.InputPart
+	148, // 101: agents.v1.UpdateSessionTitleResponse.session:type_name -> agents.v1.SessionInfo
+	164, // 102: agents.v1.SessionInfo.state:type_name -> google.protobuf.Struct
+	154, // 103: agents.v1.SessionInfo.last_update_time:type_name -> google.protobuf.Timestamp
+	148, // 104: agents.v1.SessionDetail.session:type_name -> agents.v1.SessionInfo
+	152, // 105: agents.v1.SessionDetail.events:type_name -> agents.v1.SessionEvent
+	165, // 106: agents.v1.SessionDetail.duration:type_name -> google.protobuf.Duration
+	148, // 107: agents.v1.GenerateSessionTitleResponse.session:type_name -> agents.v1.SessionInfo
+	154, // 108: agents.v1.SessionEvent.timestamp:type_name -> google.protobuf.Timestamp
+	5,   // 109: agents.v1.AgentService.ListAgents:input_type -> agents.v1.ListAgentsRequest
+	22,  // 110: agents.v1.AgentService.GetAgent:input_type -> agents.v1.GetAgentRequest
+	24,  // 111: agents.v1.AgentService.CreateAgent:input_type -> agents.v1.CreateAgentRequest
+	37,  // 112: agents.v1.AgentService.UpdateAgent:input_type -> agents.v1.UpdateAgentRequest
+	39,  // 113: agents.v1.AgentService.DeleteAgent:input_type -> agents.v1.DeleteAgentRequest
+	49,  // 114: agents.v1.AgentService.InvokeAgent:input_type -> agents.v1.InvokeAgentRequest
+	52,  // 115: agents.v1.AgentService.ListAgentInvocations:input_type -> agents.v1.ListAgentInvocationsRequest
+	7,   // 116: agents.v1.AgentService.ReloadAgents:input_type -> agents.v1.ReloadAgentsRequest
+	10,  // 117: agents.v1.AgentService.GetAgentRuntimeStatus:input_type -> agents.v1.GetAgentRuntimeStatusRequest
+	12,  // 118: agents.v1.AgentService.ListAgentRuntimeStatuses:input_type -> agents.v1.ListAgentRuntimeStatusesRequest
+	14,  // 119: agents.v1.AgentService.CancelAgentInvocation:input_type -> agents.v1.CancelAgentInvocationRequest
+	16,  // 120: agents.v1.AgentService.StreamAgent:input_type -> agents.v1.StreamAgentRequest
+	41,  // 121: agents.v1.AgentService.AssignAgentID:input_type -> agents.v1.AssignAgentIDRequest
+	43,  // 122: agents.v1.AgentService.GetMigrationReadiness:input_type -> agents.v1.GetMigrationReadinessRequest
+	46,  // 123: agents.v1.AgentService.MigrateAgentsV2:input_type -> agents.v1.MigrateAgentsV2Request
+	27,  // 124: agents.v1.AgentService.UpdateAgentConfiguration:input_type -> agents.v1.UpdateAgentConfigurationRequest
+	29,  // 125: agents.v1.AgentService.RestoreAgent:input_type -> agents.v1.RestoreAgentRequest
+	54,  // 126: agents.v1.AgentService.SubmitAgentInvocation:input_type -> agents.v1.SubmitAgentInvocationRequest
+	56,  // 127: agents.v1.AgentService.GetAgentInvocation:input_type -> agents.v1.GetAgentInvocationRequest
+	58,  // 128: agents.v1.AgentService.WatchAgentInvocation:input_type -> agents.v1.WatchAgentInvocationRequest
+	31,  // 129: agents.v1.AgentService.GetAgentOperation:input_type -> agents.v1.GetAgentOperationRequest
+	33,  // 130: agents.v1.AgentService.ListAgentOperations:input_type -> agents.v1.ListAgentOperationsRequest
+	35,  // 131: agents.v1.AgentService.RetryAgentOperation:input_type -> agents.v1.RetryAgentOperationRequest
+	61,  // 132: agents.v1.MCPServerService.ListMCPServers:input_type -> agents.v1.ListMCPServersRequest
+	63,  // 133: agents.v1.MCPServerService.GetMCPServer:input_type -> agents.v1.GetMCPServerRequest
+	65,  // 134: agents.v1.MCPServerService.CreateMCPServer:input_type -> agents.v1.CreateMCPServerRequest
+	67,  // 135: agents.v1.MCPServerService.UpdateMCPServer:input_type -> agents.v1.UpdateMCPServerRequest
+	69,  // 136: agents.v1.MCPServerService.DeleteMCPServer:input_type -> agents.v1.DeleteMCPServerRequest
+	166, // 137: agents.v1.MCPServerService.GetMCPServerStatus:input_type -> agents.v1.GetMCPServerStatusRequest
+	167, // 138: agents.v1.MCPServerService.ListMCPTools:input_type -> agents.v1.ListMCPToolsRequest
+	71,  // 139: agents.v1.MCPServerService.StartMCPServerOAuth:input_type -> agents.v1.StartMCPServerOAuthRequest
+	73,  // 140: agents.v1.MCPServerService.CompleteMCPServerOAuth:input_type -> agents.v1.CompleteMCPServerOAuthRequest
+	75,  // 141: agents.v1.MCPServerService.GetMCPServerOAuthStatus:input_type -> agents.v1.GetMCPServerOAuthStatusRequest
+	77,  // 142: agents.v1.MCPServerService.DisconnectMCPServerOAuth:input_type -> agents.v1.DisconnectMCPServerOAuthRequest
+	80,  // 143: agents.v1.GlobalMCPServerService.ListGlobalMCPServers:input_type -> agents.v1.ListGlobalMCPServersRequest
+	82,  // 144: agents.v1.GlobalMCPServerService.CreateGlobalMCPServer:input_type -> agents.v1.CreateGlobalMCPServerRequest
+	84,  // 145: agents.v1.GlobalMCPServerService.UpdateGlobalMCPServer:input_type -> agents.v1.UpdateGlobalMCPServerRequest
+	86,  // 146: agents.v1.GlobalMCPServerService.DeleteGlobalMCPServer:input_type -> agents.v1.DeleteGlobalMCPServerRequest
+	88,  // 147: agents.v1.GlobalMCPServerService.InstallGlobalMCPServer:input_type -> agents.v1.InstallGlobalMCPServerRequest
+	90,  // 148: agents.v1.ModelProviderService.ListModelProviders:input_type -> agents.v1.ListModelProvidersRequest
+	92,  // 149: agents.v1.ModelProviderService.GetModelProvider:input_type -> agents.v1.GetModelProviderRequest
+	94,  // 150: agents.v1.ModelProviderService.CreateModelProvider:input_type -> agents.v1.CreateModelProviderRequest
+	96,  // 151: agents.v1.ModelProviderService.UpdateModelProvider:input_type -> agents.v1.UpdateModelProviderRequest
+	98,  // 152: agents.v1.ModelProviderService.DeleteModelProvider:input_type -> agents.v1.DeleteModelProviderRequest
+	100, // 153: agents.v1.NotifyGroupService.ListNotifyGroups:input_type -> agents.v1.ListNotifyGroupsRequest
+	102, // 154: agents.v1.NotifyGroupService.GetNotifyGroup:input_type -> agents.v1.GetNotifyGroupRequest
+	104, // 155: agents.v1.NotifyGroupService.CreateNotifyGroup:input_type -> agents.v1.CreateNotifyGroupRequest
+	106, // 156: agents.v1.NotifyGroupService.UpdateNotifyGroup:input_type -> agents.v1.UpdateNotifyGroupRequest
+	108, // 157: agents.v1.NotifyGroupService.DeleteNotifyGroup:input_type -> agents.v1.DeleteNotifyGroupRequest
+	110, // 158: agents.v1.RemoteAgentService.ListRemoteAgents:input_type -> agents.v1.ListRemoteAgentsRequest
+	112, // 159: agents.v1.RemoteAgentService.GetRemoteAgent:input_type -> agents.v1.GetRemoteAgentRequest
+	114, // 160: agents.v1.RemoteAgentService.CreateRemoteAgent:input_type -> agents.v1.CreateRemoteAgentRequest
+	116, // 161: agents.v1.RemoteAgentService.UpdateRemoteAgent:input_type -> agents.v1.UpdateRemoteAgentRequest
+	118, // 162: agents.v1.RemoteAgentService.DeleteRemoteAgent:input_type -> agents.v1.DeleteRemoteAgentRequest
+	168, // 163: agents.v1.RemoteAgentService.GetRemoteAgentStatus:input_type -> agents.v1.GetRemoteAgentStatusRequest
+	120, // 164: agents.v1.ChannelService.ListChannels:input_type -> agents.v1.ListChannelsRequest
+	122, // 165: agents.v1.ChannelService.GetChannel:input_type -> agents.v1.GetChannelRequest
+	124, // 166: agents.v1.ChannelService.CreateChannel:input_type -> agents.v1.CreateChannelRequest
+	126, // 167: agents.v1.ChannelService.UpdateChannel:input_type -> agents.v1.UpdateChannelRequest
+	128, // 168: agents.v1.ChannelService.DeleteChannel:input_type -> agents.v1.DeleteChannelRequest
+	169, // 169: agents.v1.ChannelService.GetChannelStatus:input_type -> agents.v1.GetChannelStatusRequest
+	130, // 170: agents.v1.ChannelService.RestartChannel:input_type -> agents.v1.RestartChannelRequest
+	132, // 171: agents.v1.ChannelService.PauseChannel:input_type -> agents.v1.PauseChannelRequest
+	134, // 172: agents.v1.ChannelService.ResumeChannel:input_type -> agents.v1.ResumeChannelRequest
+	136, // 173: agents.v1.SessionService.CreateSession:input_type -> agents.v1.CreateSessionRequest
+	138, // 174: agents.v1.SessionService.GetSession:input_type -> agents.v1.GetSessionRequest
+	140, // 175: agents.v1.SessionService.ListSessions:input_type -> agents.v1.ListSessionsRequest
+	142, // 176: agents.v1.SessionService.DeleteSession:input_type -> agents.v1.DeleteSessionRequest
+	144, // 177: agents.v1.SessionService.ReplySession:input_type -> agents.v1.ReplySessionRequest
+	146, // 178: agents.v1.SessionService.UpdateSessionTitle:input_type -> agents.v1.UpdateSessionTitleRequest
+	150, // 179: agents.v1.SessionService.GenerateSessionTitle:input_type -> agents.v1.GenerateSessionTitleRequest
+	6,   // 180: agents.v1.AgentService.ListAgents:output_type -> agents.v1.ListAgentsResponse
+	23,  // 181: agents.v1.AgentService.GetAgent:output_type -> agents.v1.GetAgentResponse
+	25,  // 182: agents.v1.AgentService.CreateAgent:output_type -> agents.v1.CreateAgentResponse
+	38,  // 183: agents.v1.AgentService.UpdateAgent:output_type -> agents.v1.UpdateAgentResponse
+	40,  // 184: agents.v1.AgentService.DeleteAgent:output_type -> agents.v1.DeleteAgentResponse
+	50,  // 185: agents.v1.AgentService.InvokeAgent:output_type -> agents.v1.InvokeAgentResponse
+	53,  // 186: agents.v1.AgentService.ListAgentInvocations:output_type -> agents.v1.ListAgentInvocationsResponse
+	8,   // 187: agents.v1.AgentService.ReloadAgents:output_type -> agents.v1.ReloadAgentsResponse
+	11,  // 188: agents.v1.AgentService.GetAgentRuntimeStatus:output_type -> agents.v1.GetAgentRuntimeStatusResponse
+	13,  // 189: agents.v1.AgentService.ListAgentRuntimeStatuses:output_type -> agents.v1.ListAgentRuntimeStatusesResponse
+	15,  // 190: agents.v1.AgentService.CancelAgentInvocation:output_type -> agents.v1.CancelAgentInvocationResponse
+	17,  // 191: agents.v1.AgentService.StreamAgent:output_type -> agents.v1.StreamAgentResponse
+	42,  // 192: agents.v1.AgentService.AssignAgentID:output_type -> agents.v1.AssignAgentIDResponse
+	44,  // 193: agents.v1.AgentService.GetMigrationReadiness:output_type -> agents.v1.GetMigrationReadinessResponse
+	48,  // 194: agents.v1.AgentService.MigrateAgentsV2:output_type -> agents.v1.MigrateAgentsV2Response
+	28,  // 195: agents.v1.AgentService.UpdateAgentConfiguration:output_type -> agents.v1.UpdateAgentConfigurationResponse
+	30,  // 196: agents.v1.AgentService.RestoreAgent:output_type -> agents.v1.RestoreAgentResponse
+	55,  // 197: agents.v1.AgentService.SubmitAgentInvocation:output_type -> agents.v1.SubmitAgentInvocationResponse
+	57,  // 198: agents.v1.AgentService.GetAgentInvocation:output_type -> agents.v1.GetAgentInvocationResponse
+	59,  // 199: agents.v1.AgentService.WatchAgentInvocation:output_type -> agents.v1.WatchAgentInvocationResponse
+	32,  // 200: agents.v1.AgentService.GetAgentOperation:output_type -> agents.v1.GetAgentOperationResponse
+	34,  // 201: agents.v1.AgentService.ListAgentOperations:output_type -> agents.v1.ListAgentOperationsResponse
+	36,  // 202: agents.v1.AgentService.RetryAgentOperation:output_type -> agents.v1.RetryAgentOperationResponse
+	62,  // 203: agents.v1.MCPServerService.ListMCPServers:output_type -> agents.v1.ListMCPServersResponse
+	64,  // 204: agents.v1.MCPServerService.GetMCPServer:output_type -> agents.v1.GetMCPServerResponse
+	66,  // 205: agents.v1.MCPServerService.CreateMCPServer:output_type -> agents.v1.CreateMCPServerResponse
+	68,  // 206: agents.v1.MCPServerService.UpdateMCPServer:output_type -> agents.v1.UpdateMCPServerResponse
+	70,  // 207: agents.v1.MCPServerService.DeleteMCPServer:output_type -> agents.v1.DeleteMCPServerResponse
+	170, // 208: agents.v1.MCPServerService.GetMCPServerStatus:output_type -> agents.v1.GetMCPServerStatusResponse
+	171, // 209: agents.v1.MCPServerService.ListMCPTools:output_type -> agents.v1.ListMCPToolsResponse
+	72,  // 210: agents.v1.MCPServerService.StartMCPServerOAuth:output_type -> agents.v1.StartMCPServerOAuthResponse
+	74,  // 211: agents.v1.MCPServerService.CompleteMCPServerOAuth:output_type -> agents.v1.CompleteMCPServerOAuthResponse
+	76,  // 212: agents.v1.MCPServerService.GetMCPServerOAuthStatus:output_type -> agents.v1.GetMCPServerOAuthStatusResponse
+	78,  // 213: agents.v1.MCPServerService.DisconnectMCPServerOAuth:output_type -> agents.v1.DisconnectMCPServerOAuthResponse
+	81,  // 214: agents.v1.GlobalMCPServerService.ListGlobalMCPServers:output_type -> agents.v1.ListGlobalMCPServersResponse
+	83,  // 215: agents.v1.GlobalMCPServerService.CreateGlobalMCPServer:output_type -> agents.v1.CreateGlobalMCPServerResponse
+	85,  // 216: agents.v1.GlobalMCPServerService.UpdateGlobalMCPServer:output_type -> agents.v1.UpdateGlobalMCPServerResponse
+	87,  // 217: agents.v1.GlobalMCPServerService.DeleteGlobalMCPServer:output_type -> agents.v1.DeleteGlobalMCPServerResponse
+	89,  // 218: agents.v1.GlobalMCPServerService.InstallGlobalMCPServer:output_type -> agents.v1.InstallGlobalMCPServerResponse
+	91,  // 219: agents.v1.ModelProviderService.ListModelProviders:output_type -> agents.v1.ListModelProvidersResponse
+	93,  // 220: agents.v1.ModelProviderService.GetModelProvider:output_type -> agents.v1.GetModelProviderResponse
+	95,  // 221: agents.v1.ModelProviderService.CreateModelProvider:output_type -> agents.v1.CreateModelProviderResponse
+	97,  // 222: agents.v1.ModelProviderService.UpdateModelProvider:output_type -> agents.v1.UpdateModelProviderResponse
+	99,  // 223: agents.v1.ModelProviderService.DeleteModelProvider:output_type -> agents.v1.DeleteModelProviderResponse
+	101, // 224: agents.v1.NotifyGroupService.ListNotifyGroups:output_type -> agents.v1.ListNotifyGroupsResponse
+	103, // 225: agents.v1.NotifyGroupService.GetNotifyGroup:output_type -> agents.v1.GetNotifyGroupResponse
+	105, // 226: agents.v1.NotifyGroupService.CreateNotifyGroup:output_type -> agents.v1.CreateNotifyGroupResponse
+	107, // 227: agents.v1.NotifyGroupService.UpdateNotifyGroup:output_type -> agents.v1.UpdateNotifyGroupResponse
+	109, // 228: agents.v1.NotifyGroupService.DeleteNotifyGroup:output_type -> agents.v1.DeleteNotifyGroupResponse
+	111, // 229: agents.v1.RemoteAgentService.ListRemoteAgents:output_type -> agents.v1.ListRemoteAgentsResponse
+	113, // 230: agents.v1.RemoteAgentService.GetRemoteAgent:output_type -> agents.v1.GetRemoteAgentResponse
+	115, // 231: agents.v1.RemoteAgentService.CreateRemoteAgent:output_type -> agents.v1.CreateRemoteAgentResponse
+	117, // 232: agents.v1.RemoteAgentService.UpdateRemoteAgent:output_type -> agents.v1.UpdateRemoteAgentResponse
+	119, // 233: agents.v1.RemoteAgentService.DeleteRemoteAgent:output_type -> agents.v1.DeleteRemoteAgentResponse
+	172, // 234: agents.v1.RemoteAgentService.GetRemoteAgentStatus:output_type -> agents.v1.GetRemoteAgentStatusResponse
+	121, // 235: agents.v1.ChannelService.ListChannels:output_type -> agents.v1.ListChannelsResponse
+	123, // 236: agents.v1.ChannelService.GetChannel:output_type -> agents.v1.GetChannelResponse
+	125, // 237: agents.v1.ChannelService.CreateChannel:output_type -> agents.v1.CreateChannelResponse
+	127, // 238: agents.v1.ChannelService.UpdateChannel:output_type -> agents.v1.UpdateChannelResponse
+	129, // 239: agents.v1.ChannelService.DeleteChannel:output_type -> agents.v1.DeleteChannelResponse
+	173, // 240: agents.v1.ChannelService.GetChannelStatus:output_type -> agents.v1.GetChannelStatusResponse
+	131, // 241: agents.v1.ChannelService.RestartChannel:output_type -> agents.v1.RestartChannelResponse
+	133, // 242: agents.v1.ChannelService.PauseChannel:output_type -> agents.v1.PauseChannelResponse
+	135, // 243: agents.v1.ChannelService.ResumeChannel:output_type -> agents.v1.ResumeChannelResponse
+	137, // 244: agents.v1.SessionService.CreateSession:output_type -> agents.v1.CreateSessionResponse
+	139, // 245: agents.v1.SessionService.GetSession:output_type -> agents.v1.GetSessionResponse
+	141, // 246: agents.v1.SessionService.ListSessions:output_type -> agents.v1.ListSessionsResponse
+	143, // 247: agents.v1.SessionService.DeleteSession:output_type -> agents.v1.DeleteSessionResponse
+	145, // 248: agents.v1.SessionService.ReplySession:output_type -> agents.v1.ReplySessionResponse
+	147, // 249: agents.v1.SessionService.UpdateSessionTitle:output_type -> agents.v1.UpdateSessionTitleResponse
+	151, // 250: agents.v1.SessionService.GenerateSessionTitle:output_type -> agents.v1.GenerateSessionTitleResponse
+	180, // [180:251] is the sub-list for method output_type
+	109, // [109:180] is the sub-list for method input_type
+	109, // [109:109] is the sub-list for extension type_name
+	109, // [109:109] is the sub-list for extension extendee
+	0,   // [0:109] is the sub-list for field type_name
 }
 
 func init() { file_agents_v1_agent_service_proto_init() }
@@ -11106,7 +11356,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListMCPServersRequest); i {
+			switch v := v.(*WatchAgentInvocationRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11118,7 +11368,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[54].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListMCPServersResponse); i {
+			switch v := v.(*WatchAgentInvocationResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11130,7 +11380,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetMCPServerRequest); i {
+			switch v := v.(*WatchAgentInvocationState); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11142,7 +11392,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[56].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetMCPServerResponse); i {
+			switch v := v.(*ListMCPServersRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11154,7 +11404,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[57].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateMCPServerRequest); i {
+			switch v := v.(*ListMCPServersResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11166,7 +11416,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[58].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateMCPServerResponse); i {
+			switch v := v.(*GetMCPServerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11178,7 +11428,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateMCPServerRequest); i {
+			switch v := v.(*GetMCPServerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11190,7 +11440,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[60].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateMCPServerResponse); i {
+			switch v := v.(*CreateMCPServerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11202,7 +11452,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[61].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteMCPServerRequest); i {
+			switch v := v.(*CreateMCPServerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11214,7 +11464,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteMCPServerResponse); i {
+			switch v := v.(*UpdateMCPServerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11226,7 +11476,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[63].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StartMCPServerOAuthRequest); i {
+			switch v := v.(*UpdateMCPServerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11238,7 +11488,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[64].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StartMCPServerOAuthResponse); i {
+			switch v := v.(*DeleteMCPServerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11250,7 +11500,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[65].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CompleteMCPServerOAuthRequest); i {
+			switch v := v.(*DeleteMCPServerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11262,7 +11512,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[66].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CompleteMCPServerOAuthResponse); i {
+			switch v := v.(*StartMCPServerOAuthRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11274,7 +11524,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[67].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetMCPServerOAuthStatusRequest); i {
+			switch v := v.(*StartMCPServerOAuthResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11286,7 +11536,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[68].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetMCPServerOAuthStatusResponse); i {
+			switch v := v.(*CompleteMCPServerOAuthRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11298,7 +11548,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[69].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DisconnectMCPServerOAuthRequest); i {
+			switch v := v.(*CompleteMCPServerOAuthResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11310,7 +11560,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[70].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DisconnectMCPServerOAuthResponse); i {
+			switch v := v.(*GetMCPServerOAuthStatusRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11322,7 +11572,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[71].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MCPOAuthConnectionStatus); i {
+			switch v := v.(*GetMCPServerOAuthStatusResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11334,7 +11584,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[72].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListGlobalMCPServersRequest); i {
+			switch v := v.(*DisconnectMCPServerOAuthRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11346,7 +11596,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[73].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListGlobalMCPServersResponse); i {
+			switch v := v.(*DisconnectMCPServerOAuthResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11358,7 +11608,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[74].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateGlobalMCPServerRequest); i {
+			switch v := v.(*MCPOAuthConnectionStatus); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11370,7 +11620,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[75].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateGlobalMCPServerResponse); i {
+			switch v := v.(*ListGlobalMCPServersRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11382,7 +11632,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[76].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateGlobalMCPServerRequest); i {
+			switch v := v.(*ListGlobalMCPServersResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11394,7 +11644,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[77].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateGlobalMCPServerResponse); i {
+			switch v := v.(*CreateGlobalMCPServerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11406,7 +11656,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[78].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteGlobalMCPServerRequest); i {
+			switch v := v.(*CreateGlobalMCPServerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11418,7 +11668,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[79].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteGlobalMCPServerResponse); i {
+			switch v := v.(*UpdateGlobalMCPServerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11430,7 +11680,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[80].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*InstallGlobalMCPServerRequest); i {
+			switch v := v.(*UpdateGlobalMCPServerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11442,7 +11692,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[81].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*InstallGlobalMCPServerResponse); i {
+			switch v := v.(*DeleteGlobalMCPServerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11454,7 +11704,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[82].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListModelProvidersRequest); i {
+			switch v := v.(*DeleteGlobalMCPServerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11466,7 +11716,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[83].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListModelProvidersResponse); i {
+			switch v := v.(*InstallGlobalMCPServerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11478,7 +11728,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[84].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetModelProviderRequest); i {
+			switch v := v.(*InstallGlobalMCPServerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11490,7 +11740,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[85].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetModelProviderResponse); i {
+			switch v := v.(*ListModelProvidersRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11502,7 +11752,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[86].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateModelProviderRequest); i {
+			switch v := v.(*ListModelProvidersResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11514,7 +11764,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[87].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateModelProviderResponse); i {
+			switch v := v.(*GetModelProviderRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11526,7 +11776,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[88].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateModelProviderRequest); i {
+			switch v := v.(*GetModelProviderResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11538,7 +11788,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[89].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateModelProviderResponse); i {
+			switch v := v.(*CreateModelProviderRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11550,7 +11800,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[90].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteModelProviderRequest); i {
+			switch v := v.(*CreateModelProviderResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11562,7 +11812,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[91].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteModelProviderResponse); i {
+			switch v := v.(*UpdateModelProviderRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11574,7 +11824,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[92].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListNotifyGroupsRequest); i {
+			switch v := v.(*UpdateModelProviderResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11586,7 +11836,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[93].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListNotifyGroupsResponse); i {
+			switch v := v.(*DeleteModelProviderRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11598,7 +11848,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[94].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNotifyGroupRequest); i {
+			switch v := v.(*DeleteModelProviderResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11610,7 +11860,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[95].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNotifyGroupResponse); i {
+			switch v := v.(*ListNotifyGroupsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11622,7 +11872,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[96].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateNotifyGroupRequest); i {
+			switch v := v.(*ListNotifyGroupsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11634,7 +11884,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[97].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateNotifyGroupResponse); i {
+			switch v := v.(*GetNotifyGroupRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11646,7 +11896,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[98].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateNotifyGroupRequest); i {
+			switch v := v.(*GetNotifyGroupResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11658,7 +11908,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[99].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateNotifyGroupResponse); i {
+			switch v := v.(*CreateNotifyGroupRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11670,7 +11920,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[100].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteNotifyGroupRequest); i {
+			switch v := v.(*CreateNotifyGroupResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11682,7 +11932,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[101].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteNotifyGroupResponse); i {
+			switch v := v.(*UpdateNotifyGroupRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11694,7 +11944,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[102].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListRemoteAgentsRequest); i {
+			switch v := v.(*UpdateNotifyGroupResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11706,7 +11956,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[103].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListRemoteAgentsResponse); i {
+			switch v := v.(*DeleteNotifyGroupRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11718,7 +11968,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[104].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetRemoteAgentRequest); i {
+			switch v := v.(*DeleteNotifyGroupResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11730,7 +11980,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[105].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetRemoteAgentResponse); i {
+			switch v := v.(*ListRemoteAgentsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11742,7 +11992,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[106].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateRemoteAgentRequest); i {
+			switch v := v.(*ListRemoteAgentsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11754,7 +12004,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[107].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateRemoteAgentResponse); i {
+			switch v := v.(*GetRemoteAgentRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11766,7 +12016,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[108].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateRemoteAgentRequest); i {
+			switch v := v.(*GetRemoteAgentResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11778,7 +12028,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[109].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateRemoteAgentResponse); i {
+			switch v := v.(*CreateRemoteAgentRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11790,7 +12040,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[110].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteRemoteAgentRequest); i {
+			switch v := v.(*CreateRemoteAgentResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11802,7 +12052,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[111].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteRemoteAgentResponse); i {
+			switch v := v.(*UpdateRemoteAgentRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11814,7 +12064,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[112].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListChannelsRequest); i {
+			switch v := v.(*UpdateRemoteAgentResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11826,7 +12076,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[113].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListChannelsResponse); i {
+			switch v := v.(*DeleteRemoteAgentRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11838,7 +12088,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[114].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetChannelRequest); i {
+			switch v := v.(*DeleteRemoteAgentResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11850,7 +12100,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[115].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetChannelResponse); i {
+			switch v := v.(*ListChannelsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11862,7 +12112,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[116].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateChannelRequest); i {
+			switch v := v.(*ListChannelsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11874,7 +12124,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[117].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateChannelResponse); i {
+			switch v := v.(*GetChannelRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11886,7 +12136,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[118].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateChannelRequest); i {
+			switch v := v.(*GetChannelResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11898,7 +12148,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[119].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateChannelResponse); i {
+			switch v := v.(*CreateChannelRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11910,7 +12160,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[120].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteChannelRequest); i {
+			switch v := v.(*CreateChannelResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11922,7 +12172,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[121].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteChannelResponse); i {
+			switch v := v.(*UpdateChannelRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11934,7 +12184,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[122].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RestartChannelRequest); i {
+			switch v := v.(*UpdateChannelResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11946,7 +12196,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[123].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RestartChannelResponse); i {
+			switch v := v.(*DeleteChannelRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11958,7 +12208,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[124].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PauseChannelRequest); i {
+			switch v := v.(*DeleteChannelResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11970,7 +12220,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[125].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PauseChannelResponse); i {
+			switch v := v.(*RestartChannelRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11982,7 +12232,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[126].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ResumeChannelRequest); i {
+			switch v := v.(*RestartChannelResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11994,7 +12244,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[127].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ResumeChannelResponse); i {
+			switch v := v.(*PauseChannelRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12006,7 +12256,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[128].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSessionRequest); i {
+			switch v := v.(*PauseChannelResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12018,7 +12268,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[129].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSessionResponse); i {
+			switch v := v.(*ResumeChannelRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12030,7 +12280,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[130].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetSessionRequest); i {
+			switch v := v.(*ResumeChannelResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12042,7 +12292,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[131].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetSessionResponse); i {
+			switch v := v.(*CreateSessionRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12054,7 +12304,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[132].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListSessionsRequest); i {
+			switch v := v.(*CreateSessionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12066,7 +12316,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[133].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ListSessionsResponse); i {
+			switch v := v.(*GetSessionRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12078,7 +12328,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[134].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteSessionRequest); i {
+			switch v := v.(*GetSessionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12090,7 +12340,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[135].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteSessionResponse); i {
+			switch v := v.(*ListSessionsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12102,7 +12352,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[136].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReplySessionRequest); i {
+			switch v := v.(*ListSessionsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12114,7 +12364,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[137].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReplySessionResponse); i {
+			switch v := v.(*DeleteSessionRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12126,7 +12376,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[138].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateSessionTitleRequest); i {
+			switch v := v.(*DeleteSessionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12138,7 +12388,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[139].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UpdateSessionTitleResponse); i {
+			switch v := v.(*ReplySessionRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12150,7 +12400,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[140].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SessionInfo); i {
+			switch v := v.(*ReplySessionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12162,7 +12412,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[141].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SessionDetail); i {
+			switch v := v.(*UpdateSessionTitleRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12174,7 +12424,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[142].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GenerateSessionTitleRequest); i {
+			switch v := v.(*UpdateSessionTitleResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12186,7 +12436,7 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[143].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GenerateSessionTitleResponse); i {
+			switch v := v.(*SessionInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12198,6 +12448,42 @@ func file_agents_v1_agent_service_proto_init() {
 			}
 		}
 		file_agents_v1_agent_service_proto_msgTypes[144].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SessionDetail); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_agent_service_proto_msgTypes[145].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GenerateSessionTitleRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_agent_service_proto_msgTypes[146].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GenerateSessionTitleResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agents_v1_agent_service_proto_msgTypes[147].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SessionEvent); i {
 			case 0:
 				return &v.state
@@ -12216,13 +12502,18 @@ func file_agents_v1_agent_service_proto_init() {
 		(*StreamAgentResponse_TextDelta)(nil),
 		(*StreamAgentResponse_Final)(nil),
 	}
+	file_agents_v1_agent_service_proto_msgTypes[54].OneofWrappers = []interface{}{
+		(*WatchAgentInvocationResponse_State)(nil),
+		(*WatchAgentInvocationResponse_RunEvent)(nil),
+		(*WatchAgentInvocationResponse_TextDelta)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_agents_v1_agent_service_proto_rawDesc,
 			NumEnums:      5,
-			NumMessages:   145,
+			NumMessages:   148,
 			NumExtensions: 0,
 			NumServices:   8,
 		},
