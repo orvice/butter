@@ -123,6 +123,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.dashboardSvcServer.SetInvocationRepo(result.InvocationRepo)
 		}
 	}
+	if result.InputPartRepo != nil {
+		h.agentSvcServer.SetInputPartRepo(result.InputPartRepo)
+	}
 	if result.AsyncCoordinator != nil {
 		h.agentSvcServer.SetAsyncCoordinator(result.AsyncCoordinator)
 		// Wire best-effort title generation after the first successful async turn.

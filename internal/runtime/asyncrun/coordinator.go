@@ -15,6 +15,7 @@ import (
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/runtime/streamorch"
@@ -41,9 +42,10 @@ type Config struct {
 
 // Coordinator manages the lifecycle of async dashboard invocations.
 type Coordinator struct {
-	invRepo invocation.Repository
-	runner  Runner
-	cfg     Config
+	invRepo      invocation.Repository
+	inputPartRepo inputpart.Repository
+	runner       Runner
+	cfg          Config
 
 	mu      sync.Mutex
 	running map[string]context.CancelFunc // invocationID → cancel
@@ -52,15 +54,16 @@ type Coordinator struct {
 }
 
 // New creates a Coordinator. The runner and invRepo must be non-nil.
-func New(invRepo invocation.Repository, r Runner, cfg Config) *Coordinator {
+func New(invRepo invocation.Repository, inputPartRepo inputpart.Repository, r Runner, cfg Config) *Coordinator {
 	if cfg.MaxRunDuration == 0 {
 		cfg.MaxRunDuration = 30 * time.Minute
 	}
 	return &Coordinator{
-		invRepo: invRepo,
-		runner:  r,
-		cfg:     cfg,
-		running: make(map[string]context.CancelFunc),
+		invRepo:       invRepo,
+		inputPartRepo: inputPartRepo,
+		runner:        r,
+		cfg:           cfg,
+		running:       make(map[string]context.CancelFunc),
 	}
 }
 
@@ -78,9 +81,11 @@ func (c *Coordinator) getTurnComplete() TurnCompleteFunc {
 }
 
 // Enqueue transitions the invocation from QUEUED to RUNNING and starts
-// background execution. It must be called after the invocation is durably
-// persisted. The caller passes the pre-resolved agentName and parts.
-func (c *Coordinator) Enqueue(inv *agentsv1.Invocation, agentName string, parts []*genai.Part, modelOverride string) {
+// background execution. It must be called after both the invocation and its
+// Input Parts are durably persisted. Parts are loaded from the InputPart
+// repository at execution time so they survive process restarts between
+// accept and run.
+func (c *Coordinator) Enqueue(inv *agentsv1.Invocation, agentName string, modelOverride string) {
 	invID := inv.GetId()
 	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.MaxRunDuration)
 
@@ -88,10 +93,10 @@ func (c *Coordinator) Enqueue(inv *agentsv1.Invocation, agentName string, parts 
 	c.running[invID] = cancel
 	c.mu.Unlock()
 
-	go c.execute(ctx, cancel, inv, agentName, parts, modelOverride)
+	go c.execute(ctx, cancel, inv, agentName, modelOverride)
 }
 
-func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, inv *agentsv1.Invocation, agentName string, parts []*genai.Part, modelOverride string) {
+func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, inv *agentsv1.Invocation, agentName string, modelOverride string) {
 	invID := inv.GetId()
 	defer func() {
 		cancel()
@@ -107,6 +112,14 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 		"session_id", inv.GetSessionId(),
 		"workspace_id", inv.GetWorkspaceId(),
 	)
+
+	// Load persisted input parts.
+	parts, loadErr := c.loadParts(ctx, invID)
+	if loadErr != nil {
+		logger.Error("async run: failed to load input parts", "invocation_id", invID, "err", loadErr)
+		c.failInvocation(inv, "failed to load input parts: "+loadErr.Error())
+		return
+	}
 
 	// Transition to RUNNING.
 	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING
@@ -154,6 +167,13 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 			"invocation_id", invID, "status", inv.GetStatus().String(), "err", err)
 	}
 
+	// Clean up temporary input parts after successful session event commit.
+	if inv.GetStatus() == agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED {
+		if delErr := c.inputPartRepo.Delete(context.Background(), invID); delErr != nil {
+			logger.Warn("async run: failed to clean up input parts", "invocation_id", invID, "err", delErr)
+		}
+	}
+
 	logger.Info("async run finished",
 		"invocation_id", invID,
 		"status", inv.GetStatus().String(),
@@ -165,6 +185,33 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 			fn(context.Background(), inv)
 		}
 	}
+}
+
+// loadParts reads persisted InputPart protos and converts them to genai.Part
+// for the runner.
+func (c *Coordinator) loadParts(ctx context.Context, invocationID string) ([]*genai.Part, error) {
+	stored, err := c.inputPartRepo.Load(ctx, invocationID)
+	if err != nil {
+		return nil, err
+	}
+	parts := make([]*genai.Part, 0, len(stored))
+	for _, sp := range stored {
+		switch p := sp.GetPart().(type) {
+		case *agentsv1.InputPart_Text:
+			parts = append(parts, genai.NewPartFromText(p.Text))
+		case *agentsv1.InputPart_InlineData:
+			parts = append(parts, genai.NewPartFromBytes(p.InlineData.GetData(), p.InlineData.GetMimeType()))
+		}
+	}
+	return parts, nil
+}
+
+// failInvocation persists a FAILED status without entering RUNNING.
+func (c *Coordinator) failInvocation(inv *agentsv1.Invocation, reason string) {
+	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+	inv.Error = reason
+	inv.FinishedAt = timestamppb.Now()
+	_ = c.invRepo.Save(context.Background(), inv)
 }
 
 // Cancel stops a running invocation. Returns true if found and cancelled.

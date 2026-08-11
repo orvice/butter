@@ -21,7 +21,7 @@ import (
 // asyncCoordinator is the subset of *asyncrun.Coordinator used by the RPC
 // handlers; allows test substitution.
 type asyncCoordinator interface {
-	Enqueue(inv *agentsv1.Invocation, agentName string, parts []*genai.Part, modelOverride string)
+	Enqueue(inv *agentsv1.Invocation, agentName string, modelOverride string)
 	Cancel(invocationID, workspaceID string) bool
 }
 
@@ -47,6 +47,9 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 	}
 	if s.invRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("invocation repository not available"))
+	}
+	if s.inputPartRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("input part repository not available"))
 	}
 
 	// Validate required fields.
@@ -74,7 +77,7 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 	}
 	agentID, displayName, _ := s.runnerSvc.GetAgentIdentity(agentName)
 
-	// Validate/convert input parts.
+	// Validate/convert input parts (validates limits and MIME types).
 	parts, err := resolveUserParts(req.Msg.GetParts(), req.Msg.GetMessage())
 	if err != nil {
 		return nil, err
@@ -153,6 +156,14 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 		return nil, connectx.InternalWith(err)
 	}
 
+	// Persist input parts durably before enqueuing. This guarantees that the
+	// response means every validated input part is recoverable even if the
+	// process crashes before execution starts.
+	protoParts := buildProtoParts(req.Msg.GetParts(), req.Msg.GetMessage())
+	if err := s.inputPartRepo.SaveAll(ctx, invID, protoParts); err != nil {
+		return nil, connectx.InternalWith(err)
+	}
+
 	logger := log.FromContext(ctx)
 	logger.Info("async invocation submitted",
 		"invocation_id", invID,
@@ -162,10 +173,11 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 		"session_id", sessionID,
 		"request_id", req.Msg.GetRequestId(),
 		"session_created", sessionCreated,
+		"input_parts", len(protoParts),
 	)
 
 	// Enqueue for background execution.
-	s.asyncCoord.Enqueue(inv, agentName, parts, req.Msg.GetModelOverride())
+	s.asyncCoord.Enqueue(inv, agentName, req.Msg.GetModelOverride())
 
 	return connect.NewResponse(&agentsv1.SubmitAgentInvocationResponse{
 		SessionId:      sessionID,
@@ -173,6 +185,18 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 		Status:         agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED,
 		SessionCreated: sessionCreated,
 	}), nil
+}
+
+// buildProtoParts constructs the canonical InputPart slice for persistence.
+// When parts is non-empty it is used directly; otherwise the text message is
+// wrapped as a single text part.
+func buildProtoParts(parts []*agentsv1.InputPart, message string) []*agentsv1.InputPart {
+	if len(parts) > 0 {
+		return parts
+	}
+	return []*agentsv1.InputPart{
+		{Part: &agentsv1.InputPart_Text{Text: message}},
+	}
 }
 
 // GetAgentInvocation returns the authoritative state of one invocation.

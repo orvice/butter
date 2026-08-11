@@ -10,6 +10,7 @@ import (
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
 	"go.orx.me/apps/butter/internal/repo/invocation/memory"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -45,8 +46,9 @@ func (r *fakeRunner) CancelInvocation(string, string) bool { return false }
 
 func TestCoordinator_EnqueueAndComplete(t *testing.T) {
 	repo := memory.New()
+	ipRepo := inputpartmemory.New()
 	fr := &fakeRunner{response: "done"}
-	coord := New(repo, fr, Config{MaxRunDuration: 5 * time.Second})
+	coord := New(repo, ipRepo, fr, Config{MaxRunDuration: 5 * time.Second})
 
 	var completedMu sync.Mutex
 	var completedInv *agentsv1.Invocation
@@ -68,8 +70,11 @@ func TestCoordinator_EnqueueAndComplete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parts := []*genai.Part{genai.NewPartFromText("hello")}
-	coord.Enqueue(inv, "test", parts, "")
+	// Persist input parts before enqueue (as the RPC handler does).
+	ipRepo.SaveAll(context.Background(), "inv-1", []*agentsv1.InputPart{
+		{Part: &agentsv1.InputPart_Text{Text: "hello"}},
+	})
+	coord.Enqueue(inv, "test", "")
 
 	// Wait for completion.
 	deadline := time.After(3 * time.Second)
@@ -99,13 +104,67 @@ func TestCoordinator_EnqueueAndComplete(t *testing.T) {
 		t.Fatal("turn complete callback not called")
 	}
 	completedMu.Unlock()
+
+	// Verify input parts were cleaned up after successful execution.
+	_, loadErr := ipRepo.Load(context.Background(), "inv-1")
+	if loadErr == nil {
+		t.Fatal("expected input parts to be deleted after success")
+	}
+}
+
+func TestCoordinator_FailedRunRetainsInputParts(t *testing.T) {
+	repo := memory.New()
+	ipRepo := inputpartmemory.New()
+	fr := &fakeRunner{err: errors.New("boom")}
+	coord := New(repo, ipRepo, fr, Config{MaxRunDuration: 5 * time.Second})
+
+	inv := &agentsv1.Invocation{
+		Id:          "inv-retain",
+		AgentName:   "test",
+		SessionId:   "sess-1",
+		WorkspaceId: "ws-1",
+		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED,
+		StartedAt:   timestamppb.Now(),
+	}
+	if err := repo.Save(context.Background(), inv); err != nil {
+		t.Fatal(err)
+	}
+	ipRepo.SaveAll(context.Background(), "inv-retain", []*agentsv1.InputPart{
+		{Part: &agentsv1.InputPart_Text{Text: "keep me"}},
+	})
+	coord.Enqueue(inv, "test", "")
+
+	// Wait for FAILED status.
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for FAILED")
+		default:
+		}
+		got, _ := repo.Get(context.Background(), "inv-retain")
+		if got != nil && got.GetStatus() == agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Input parts should still be loadable for recovery.
+	parts, loadErr := ipRepo.Load(context.Background(), "inv-retain")
+	if loadErr != nil {
+		t.Fatalf("expected input parts to be retained after failure, got: %v", loadErr)
+	}
+	if len(parts) != 1 || parts[0].GetText() != "keep me" {
+		t.Fatalf("unexpected parts: %+v", parts)
+	}
 }
 
 func TestCoordinator_Cancel(t *testing.T) {
 	repo := memory.New()
+	ipRepo := inputpartmemory.New()
 	block := make(chan struct{})
 	fr := &fakeRunner{block: block, response: "done"}
-	coord := New(repo, fr, Config{MaxRunDuration: 5 * time.Second})
+	coord := New(repo, ipRepo, fr, Config{MaxRunDuration: 5 * time.Second})
 
 	inv := &agentsv1.Invocation{
 		Id:          "inv-cancel",
@@ -119,8 +178,10 @@ func TestCoordinator_Cancel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parts := []*genai.Part{genai.NewPartFromText("hello")}
-	coord.Enqueue(inv, "test", parts, "")
+	ipRepo.SaveAll(context.Background(), "inv-cancel", []*agentsv1.InputPart{
+		{Part: &agentsv1.InputPart_Text{Text: "hello"}},
+	})
+	coord.Enqueue(inv, "test", "")
 
 	// Wait for it to become RUNNING.
 	deadline := time.After(2 * time.Second)
@@ -160,8 +221,9 @@ func TestCoordinator_Cancel(t *testing.T) {
 
 func TestCoordinator_RunError(t *testing.T) {
 	repo := memory.New()
+	ipRepo := inputpartmemory.New()
 	fr := &fakeRunner{err: errors.New("model error")}
-	coord := New(repo, fr, Config{MaxRunDuration: 5 * time.Second})
+	coord := New(repo, ipRepo, fr, Config{MaxRunDuration: 5 * time.Second})
 
 	inv := &agentsv1.Invocation{
 		Id:          "inv-fail",
@@ -175,8 +237,10 @@ func TestCoordinator_RunError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parts := []*genai.Part{genai.NewPartFromText("hello")}
-	coord.Enqueue(inv, "test", parts, "")
+	ipRepo.SaveAll(context.Background(), "inv-fail", []*agentsv1.InputPart{
+		{Part: &agentsv1.InputPart_Text{Text: "hello"}},
+	})
+	coord.Enqueue(inv, "test", "")
 
 	deadline := time.After(3 * time.Second)
 	for {
