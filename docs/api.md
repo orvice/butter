@@ -901,10 +901,13 @@ One-shot agent run. If `session_id` is empty an ephemeral id `invoke-<uuid>` is 
 POST /api/agents.v1.AgentService/StreamAgent
 ```
 
-**Server-streaming** RPC for the dashboard chat UI. Replaces the removed
+**Synchronous server-streaming** RPC retained for compatibility. Replaces the removed
 `POST /api/chat/stream` SSE endpoint. The client opens a Connect server stream,
 sends one `StreamAgentRequest`, then reads `StreamAgentResponse` messages until
 the server closes the stream after `final` or aborts with a `connect.Error`.
+Dashboard chat text turns use `SubmitAgentInvocation` plus authoritative
+`GetAgentInvocation` polling so navigation and observer disconnects do not own
+execution lifetime.
 
 Requires the same Bearer token as other `/api` RPCs. Non-admin callers must set
 `X-Workspace-ID` so the runner invocation is workspace-scoped (same rule as
@@ -957,8 +960,42 @@ Terminal failures are **`connect.Error`** on the RPC (e.g. `failed_precondition`
 when the runner is unavailable or workspace header is missing), not an in-stream
 error payload.
 
-The dashboard calls this via `front/src/api/chat.ts::streamChat` using
-`agentClient.streamAgent(...)` with an optional `AbortSignal` for stop/cancel.
+Existing synchronous clients may call this via
+`front/src/api/chat.ts::streamChat`. Aborting that request retains its legacy
+request-scoped cancellation behavior.
+
+#### SubmitAgentInvocation
+
+```
+POST /api/agents.v1.AgentService/SubmitAgentInvocation
+```
+
+Durably accepts one private dashboard chat turn and returns immediately. An
+empty `session_id` creates a Workspace-owned, Agent-bound Session. The complete
+validated input and QUEUED Invocation are persisted before success is returned;
+execution then continues independently of the browser request.
+
+At most one QUEUED or RUNNING Invocation is accepted per Session. A concurrent
+submit returns `failed_precondition`; the error message and
+`active-invocation-id` metadata contain the active Invocation ID. Different
+Sessions may execute concurrently.
+
+**Request:** `request_id` (required idempotency key), `agent_id` (required),
+optional `session_id`, `message` or `parts`, and optional `model_override`.
+
+**Response:** `session_id`, `invocation_id`, current `status`, and
+`session_created`.
+
+#### GetAgentInvocation
+
+```
+POST /api/agents.v1.AgentService/GetAgentInvocation
+```
+
+Returns the authoritative Invocation record for `invocation_id`. Non-admin
+callers must select the owning Workspace and may read only their own private
+`web-chat` Invocations. Wrong-Workspace and wrong-owner requests return
+`not_found`.
 
 #### CancelAgentInvocation
 
@@ -966,7 +1003,13 @@ The dashboard calls this via `front/src/api/chat.ts::streamChat` using
 POST /api/agents.v1.AgentService/CancelAgentInvocation
 ```
 
-Cancels an in-flight invocation by id. The invocation transitions to `FAILED` with a cancellation error.
+Explicitly cancels an in-flight invocation by id. Dashboard async QUEUED and
+RUNNING work is supported and transitions to `CANCELLED`, never `FAILED`.
+Cancellation waits for the runner to stop before the terminal status is
+persisted, so no Session events can be appended after terminal cancellation.
+Navigation, New Chat, page changes, and observer disconnects do not call this
+RPC. Non-admin callers may cancel only their own private chat Invocations in
+the selected Workspace. Existing synchronous cancellation remains supported.
 
 **Request:**
 

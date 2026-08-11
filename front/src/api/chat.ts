@@ -1,7 +1,12 @@
 import { ConnectError } from "@connectrpc/connect";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { AgentService, SessionService } from "@/gen/agents/v1/agent_service_pb";
+import {
+  AgentService,
+  type Invocation,
+  type InvocationStatus,
+  SessionService,
+} from "@/gen/agents/v1/agent_service_pb";
 import type { InputPartSchema } from "@/gen/agents/v1/content_pb";
 import { ApiError } from "./client";
 import { makeClient } from "./transport";
@@ -28,6 +33,22 @@ export interface SendChatParams {
 
 export interface ReplySessionResponse {
   response: string;
+}
+
+export interface SubmitAgentInvocationParams {
+  request_id: string;
+  agent_id: string;
+  session_id?: string;
+  message: string;
+  model_override?: string;
+  parts?: InputPartInit[];
+}
+
+export interface SubmitAgentInvocationResult {
+  session_id: string;
+  invocation_id: string;
+  status: InvocationStatus;
+  session_created: boolean;
 }
 
 // ChatStreamRunEvent mirrors the legacy SSE payload shape so chat-window.tsx
@@ -80,6 +101,31 @@ export async function replySession(params: SendChatParams): Promise<ReplySession
 export async function cancelAgentInvocation(invocationId: string): Promise<{ cancelled: boolean }> {
   const res = await agentClient.cancelAgentInvocation({ invocationId });
   return { cancelled: res.cancelled };
+}
+
+export async function submitAgentInvocation(
+  params: SubmitAgentInvocationParams,
+): Promise<SubmitAgentInvocationResult> {
+  const res = await agentClient.submitAgentInvocation({
+    requestId: params.request_id,
+    agentId: params.agent_id,
+    sessionId: params.session_id ?? "",
+    message: params.message,
+    modelOverride: params.model_override ?? "",
+    parts: params.parts,
+  });
+  return {
+    session_id: res.sessionId,
+    invocation_id: res.invocationId,
+    status: res.status,
+    session_created: res.sessionCreated,
+  };
+}
+
+export async function getAgentInvocation(invocationId: string): Promise<Invocation> {
+  const res = await agentClient.getAgentInvocation({ invocationId });
+  if (!res.invocation) throw new Error("invocation not found");
+  return res.invocation;
 }
 
 // streamChat invokes the AgentService.StreamAgent server-stream and

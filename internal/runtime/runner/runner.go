@@ -144,6 +144,21 @@ func (s *Service) recorder() InvocationRecorder {
 	return s.invRecorder
 }
 
+type invocationRecordingDisabledKey struct{}
+
+// WithoutInvocationRecording marks a run whose Invocation lifecycle is
+// already owned by an outer coordinator. Session execution is unchanged, but
+// runner-level persistence is skipped so it cannot overwrite async metadata
+// such as request_id or misclassify explicit cancellation.
+func WithoutInvocationRecording(ctx context.Context) context.Context {
+	return context.WithValue(ctx, invocationRecordingDisabledKey{}, true)
+}
+
+func invocationRecordingDisabled(ctx context.Context) bool {
+	disabled, _ := ctx.Value(invocationRecordingDisabledKey{}).(bool)
+	return disabled
+}
+
 // CancelInvocation signals the in-flight invocation with the given id to stop.
 // workspaceID scopes the cancel to the caller's tenant: an empty value is the
 // admin/system path and may cancel any invocation, otherwise the invocation
@@ -875,7 +890,10 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
 
-	inv := s.startInvocation(ctx, agentName, parts, modelOverride, ctxInfo)
+	var inv *agentsv1.Invocation
+	if !invocationRecordingDisabled(ctx) {
+		inv = s.startInvocation(ctx, agentName, parts, modelOverride, ctxInfo)
+	}
 	defer s.finishInvocation(ctx, inv, output, &runErr)
 	if inv != nil {
 		var cancel context.CancelFunc
