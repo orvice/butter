@@ -23,6 +23,7 @@ import (
 type asyncCoordinator interface {
 	Enqueue(inv *agentsv1.Invocation, agentName string, parts []*genai.Part, modelOverride string)
 	Cancel(invocationID, workspaceID string) bool
+	Watch(invocationID string) (<-chan asyncrun.Frame, func())
 }
 
 // SetAsyncCoordinator wires the background execution coordinator.
@@ -143,7 +144,7 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 		SessionId:        sessionID,
 		Status:           agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED,
 		Input:            extractTextInput(parts),
-		Source:           "dashboard-async",
+		Source:           sourceDashboardAsync,
 		RequestId:        req.Msg.GetRequestId(),
 		WorkspaceId:      wsID,
 		StartedAt:        timestamppb.Now(),
@@ -176,11 +177,14 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 }
 
 // GetAgentInvocation returns the authoritative state of one invocation.
+// When invocation_id is empty and session_id is set, it looks up the
+// session's active (QUEUED/RUNNING) invocation instead — the reconnect path
+// clients use to decide whether to attach a WatchAgentInvocation observer.
 func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connect.Request[agentsv1.GetAgentInvocationRequest]) (*connect.Response[agentsv1.GetAgentInvocationResponse], error) {
 	if s.invRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("invocation repository not available"))
 	}
-	if req.Msg.GetInvocationId() == "" {
+	if req.Msg.GetInvocationId() == "" && req.Msg.GetSessionId() == "" {
 		return nil, connectx.RequiredArgument("invocation_id")
 	}
 
@@ -190,18 +194,25 @@ func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connec
 			errors.New("workspace required (set X-Workspace-ID header)"))
 	}
 
-	inv, err := s.invRepo.Get(ctx, req.Msg.GetInvocationId())
+	var inv *agentsv1.Invocation
+	var err error
+	if req.Msg.GetInvocationId() != "" {
+		inv, err = s.invRepo.Get(ctx, req.Msg.GetInvocationId())
+	} else {
+		inv, err = s.invRepo.FindActiveBySession(ctx, wsID, req.Msg.GetSessionId())
+	}
 	if err != nil {
 		if errors.Is(err, invocation.ErrNotFound) {
 			return nil, connectx.NotFound("invocation not found")
 		}
 		return nil, connectx.InternalWith(err)
 	}
-
-	// Workspace scope check: non-admin callers can only see invocations in
-	// their workspace.
-	if wsID != "" && inv.GetWorkspaceId() != wsID {
+	if inv == nil {
 		return nil, connectx.NotFound("invocation not found")
+	}
+
+	if err := authorizeInvocationRead(ctx, wsID, inv); err != nil {
+		return nil, err
 	}
 
 	return connect.NewResponse(&agentsv1.GetAgentInvocationResponse{

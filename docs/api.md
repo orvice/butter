@@ -980,6 +980,90 @@ Cancels an in-flight invocation by id. The invocation transitions to `FAILED` wi
 |-------|------|-------------|
 | `cancelled` | bool | True if the invocation was found and signalled |
 
+Covers both synchronous streams and asynchronous dashboard invocations. A
+user-cancelled async invocation ends as `CANCELLED` (distinct from `FAILED`).
+
+#### SubmitAgentInvocation
+
+```
+POST /api/agents.v1.AgentService/SubmitAgentInvocation
+```
+
+Durably accepts one dashboard chat turn as an **asynchronous Invocation** and
+returns immediately; the agent runs server-side, independent of the browser
+connection. Creates a workspace-owned session when `session_id` is empty.
+Dashboard-session auth only (not exposed to API tokens); requires
+`X-Workspace-ID`. Single-instance in the first release: on process restart,
+stale `QUEUED`/`RUNNING` records are marked `FAILED` and never replayed.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `request_id` | string | **Required.** Client-generated idempotency key; repeating an accepted id returns the original session/invocation and runs the agent exactly once |
+| `agent_id` | string | **Required.** Immutable Agent ID |
+| `session_id` | string | Existing session, or empty to create one |
+| `message` | string | Text input (used when `parts` is empty) |
+| `parts` | `InputPart[]` | Multimodal input; same limits as `StreamAgent` |
+| `model_override` | string | Optional model alias or full name |
+
+**Response:** `session_id`, `invocation_id`, `status` (`QUEUED` on acceptance),
+`session_created`. A session with an active invocation rejects a second submit
+with `failed_precondition` naming the active invocation id.
+
+#### GetAgentInvocation
+
+```
+POST /api/agents.v1.AgentService/GetAgentInvocation
+```
+
+Returns the authoritative state of one invocation. With an empty
+`invocation_id` and a `session_id`, returns the session's **active**
+(`QUEUED`/`RUNNING`) invocation instead — the reconnect path clients use to
+decide whether to attach `WatchAgentInvocation` (`not_found` when the session
+is idle). Dashboard async invocations (`source = dashboard-async`) are private:
+only the submitting user sees them; other members — including workspace
+owners — get `not_found`; global admins retain support access.
+
+**Request:** `invocation_id` *(or)* `session_id`.
+
+**Response:** the full `Invocation` record (`id`, `session_id`, `status`,
+`input`, `output`, `error`, timings, `agent_id`, …).
+
+#### WatchAgentInvocation
+
+```
+POST /api/agents.v1.AgentService/WatchAgentInvocation
+```
+
+**Server-streaming, read-only observer** over one asynchronous invocation.
+Watching never starts, owns, cancels, or slows execution: any number of
+authorized observers may attach to the same invocation, and closing every
+observer stream leaves the run untouched. Enforces the same workspace +
+private-session ownership rules as `GetAgentInvocation`.
+
+**Request:** `invocation_id` (required).
+
+**Stream messages (`WatchAgentInvocationResponse.event` oneof):**
+
+| Variant | Description |
+|---------|-------------|
+| `state` | Authoritative `Invocation` snapshot. Always the **first** frame; sent again on the `RUNNING` transition; the **last** frame is the single terminal state (`SUCCEEDED`/`FAILED`/`CANCELLED`), after which the server closes the stream. Watching an already-terminal invocation yields one terminal `state` frame and a clean close. |
+| `text_delta` | Same shape as `StreamAgent`'s `text_delta`. |
+| `run_event` | Same shape as `StreamAgent`'s `run_event`. |
+
+A slow observer can never backpressure the runner: each observer has a bounded
+buffer, and one that falls behind is disconnected with `resource_exhausted`.
+Transient text deltas emitted while no observer is attached are **not**
+durably replayed — on reconnect, load persisted session events and the
+invocation status first (`GetSession` + `GetAgentInvocation`), then attach a
+fresh watch for future output. Persisted session events and terminal
+`Invocation.output` always remain complete regardless of observer gaps.
+
+The dashboard chat uses `front/src/api/chat.ts::submitChatInvocation` +
+`watchChatInvocation`; live output renders from the observer stream rather
+than high-frequency session polling.
+
 #### ReloadAgents
 
 ```

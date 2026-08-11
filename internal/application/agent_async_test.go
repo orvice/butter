@@ -11,6 +11,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/repo/auth"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
+	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -58,7 +59,6 @@ func (r *asyncTestRunner) GetAgentIdentity(name string) (string, string, bool) {
 	return "", name, true
 }
 
-
 // fakeAsyncCoordinator captures Enqueue calls for testing without real
 // goroutines.
 type fakeAsyncCoordinator struct {
@@ -72,7 +72,10 @@ func (c *fakeAsyncCoordinator) Enqueue(inv *agentsv1.Invocation, _ string, _ []*
 	c.enqueued = append(c.enqueued, inv)
 }
 func (c *fakeAsyncCoordinator) Cancel(string, string) bool { return false }
-
+func (c *fakeAsyncCoordinator) Watch(string) (<-chan asyncrun.Frame, func()) {
+	ch := make(chan asyncrun.Frame)
+	return ch, func() {}
+}
 
 func testContextWithUser(wsID, userID string) context.Context {
 	ctx := workspace.WithID(context.Background(), wsID)

@@ -203,6 +203,27 @@ input parts + ContextInfo
 
 当 agent 配置、MCP server 或 remote agent 发生变更时，`ConfigRuntime.ReloadRunner` 会重新构建 proto agent registry，并清空 runner 与 model override 缓存。
 
+## 异步 Invocation 与只读观察流（issue #243 系列）
+
+Dashboard chat 的文本轮次通过 `AgentService.SubmitAgentInvocation` 异步执行：请求在输入持久化（`QUEUED` Invocation 落库）后立即返回，`internal/runtime/asyncrun.Coordinator` 在后台 goroutine 中驱动执行（`QUEUED → RUNNING → SUCCEEDED/FAILED/CANCELLED`），生命周期与浏览器连接完全解耦。执行复用共享编排 `streamorch.Run`（与 `StreamAgent` 同一条路径），不引入第二套执行实现。提交要求客户端幂等 `request_id`；同一 session 同时只允许一个活跃 Invocation。首个版本为单实例：进程重启时 `asyncrun.ReconcileStale` 把遗留的 `QUEUED/RUNNING` 记录标记为 `FAILED`，不自动重放。
+
+**观察与执行分离**（`WatchAgentInvocation`，只读 server stream）：
+
+```text
+Coordinator.execute
+  -> streamorch.Run(sink = hubSink)
+       TextDelta / RunEvent -> watchHub.publish（非阻塞 fan-out）
+  -> RUNNING / 终态落库后 publishState（权威 Invocation 快照）
+  -> 终态帧发布后 closeAll（观察者看到 terminal-then-close）
+
+WatchAgentInvocation handler（internal/application/agent_watch.go）
+  -> 先 Subscribe 再读快照（终态帧在落库后才发布，保证不丢终态）
+  -> 首帧恒为权威 state 快照；已终态则单帧后干净关闭
+  -> 转发 run_event / text_delta / state 帧，一个终态帧后结束
+```
+
+任意数量的授权观察者可同时 attach；断开任何/全部观察者不影响执行。每个观察者持有有界 channel（256 帧），发布侧永不阻塞——落后的观察者被摘除并以 `resource_exhausted` 断开，客户端回读持久化 session events 与权威 Invocation 状态后重新 attach（token 级增量不做持久重放，ADR 精神同 #243 PRD）。鉴权与 `GetAgentInvocation` 一致：workspace 隔离 + `dashboard-async` 来源的私有会话仅提交者本人可见（含 watch 帧），全局 admin 保留支持通道；`GetAgentInvocation` 亦支持按 `session_id` 查活跃 Invocation（重连路径）。前端 `chat-window.tsx` 以 submit + watch 渲染实时输出，不再依赖高频全量 session 轮询；显式 Stop 走 `CancelAgentInvocation`（终态 `CANCELLED`），导航/关页仅断开观察者。
+
 ## Session 标题生成（LLM）
 
 Web Chat 首轮完成后，客户端调用 `SessionService.GenerateSessionTitle`（dashboard 在 `StreamAgent` 收到 `final` 并 refetch session 后触发）。实现位于 `internal/application/session_service.go` 与 `session_title_llm.go`。

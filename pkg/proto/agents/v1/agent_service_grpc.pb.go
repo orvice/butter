@@ -38,6 +38,7 @@ const (
 	AgentService_RestoreAgent_FullMethodName             = "/agents.v1.AgentService/RestoreAgent"
 	AgentService_SubmitAgentInvocation_FullMethodName    = "/agents.v1.AgentService/SubmitAgentInvocation"
 	AgentService_GetAgentInvocation_FullMethodName       = "/agents.v1.AgentService/GetAgentInvocation"
+	AgentService_WatchAgentInvocation_FullMethodName     = "/agents.v1.AgentService/WatchAgentInvocation"
 	AgentService_GetAgentOperation_FullMethodName        = "/agents.v1.AgentService/GetAgentOperation"
 	AgentService_ListAgentOperations_FullMethodName      = "/agents.v1.AgentService/ListAgentOperations"
 	AgentService_RetryAgentOperation_FullMethodName      = "/agents.v1.AgentService/RetryAgentOperation"
@@ -114,6 +115,17 @@ type AgentServiceClient interface {
 	// GetAgentInvocation returns the authoritative state of one invocation,
 	// scoped by workspace and user ownership.
 	GetAgentInvocation(ctx context.Context, in *GetAgentInvocationRequest, opts ...grpc.CallOption) (*GetAgentInvocationResponse, error)
+	// WatchAgentInvocation is a read-only observer stream over one asynchronous
+	// invocation. Connecting, disconnecting, or reconnecting never starts,
+	// owns, cancels, or slows execution; any number of authorized observers may
+	// watch concurrently. The first frame is always a `state` frame carrying
+	// the authoritative current Invocation; live run events and text deltas
+	// follow, and the stream ends with exactly one terminal `state` frame. A
+	// watcher that falls too far behind the live run is disconnected with
+	// RESOURCE_EXHAUSTED and should reload persisted session state before
+	// re-watching. Scoped by workspace and private-session ownership (global
+	// admins retain support access).
+	WatchAgentInvocation(ctx context.Context, in *WatchAgentInvocationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchAgentInvocationResponse], error)
 	// GetAgentOperation returns a durable lifecycle operation record by ID.
 	GetAgentOperation(ctx context.Context, in *GetAgentOperationRequest, opts ...grpc.CallOption) (*GetAgentOperationResponse, error)
 	// ListAgentOperations lists lifecycle operations in the workspace, optionally
@@ -331,6 +343,25 @@ func (c *agentServiceClient) GetAgentInvocation(ctx context.Context, in *GetAgen
 	return out, nil
 }
 
+func (c *agentServiceClient) WatchAgentInvocation(ctx context.Context, in *WatchAgentInvocationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchAgentInvocationResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[1], AgentService_WatchAgentInvocation_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchAgentInvocationRequest, WatchAgentInvocationResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_WatchAgentInvocationClient = grpc.ServerStreamingClient[WatchAgentInvocationResponse]
+
 func (c *agentServiceClient) GetAgentOperation(ctx context.Context, in *GetAgentOperationRequest, opts ...grpc.CallOption) (*GetAgentOperationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetAgentOperationResponse)
@@ -432,6 +463,17 @@ type AgentServiceServer interface {
 	// GetAgentInvocation returns the authoritative state of one invocation,
 	// scoped by workspace and user ownership.
 	GetAgentInvocation(context.Context, *GetAgentInvocationRequest) (*GetAgentInvocationResponse, error)
+	// WatchAgentInvocation is a read-only observer stream over one asynchronous
+	// invocation. Connecting, disconnecting, or reconnecting never starts,
+	// owns, cancels, or slows execution; any number of authorized observers may
+	// watch concurrently. The first frame is always a `state` frame carrying
+	// the authoritative current Invocation; live run events and text deltas
+	// follow, and the stream ends with exactly one terminal `state` frame. A
+	// watcher that falls too far behind the live run is disconnected with
+	// RESOURCE_EXHAUSTED and should reload persisted session state before
+	// re-watching. Scoped by workspace and private-session ownership (global
+	// admins retain support access).
+	WatchAgentInvocation(*WatchAgentInvocationRequest, grpc.ServerStreamingServer[WatchAgentInvocationResponse]) error
 	// GetAgentOperation returns a durable lifecycle operation record by ID.
 	GetAgentOperation(context.Context, *GetAgentOperationRequest) (*GetAgentOperationResponse, error)
 	// ListAgentOperations lists lifecycle operations in the workspace, optionally
@@ -506,6 +548,9 @@ func (UnimplementedAgentServiceServer) SubmitAgentInvocation(context.Context, *S
 }
 func (UnimplementedAgentServiceServer) GetAgentInvocation(context.Context, *GetAgentInvocationRequest) (*GetAgentInvocationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAgentInvocation not implemented")
+}
+func (UnimplementedAgentServiceServer) WatchAgentInvocation(*WatchAgentInvocationRequest, grpc.ServerStreamingServer[WatchAgentInvocationResponse]) error {
+	return status.Error(codes.Unimplemented, "method WatchAgentInvocation not implemented")
 }
 func (UnimplementedAgentServiceServer) GetAgentOperation(context.Context, *GetAgentOperationRequest) (*GetAgentOperationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAgentOperation not implemented")
@@ -872,6 +917,17 @@ func _AgentService_GetAgentInvocation_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_WatchAgentInvocation_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchAgentInvocationRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentServiceServer).WatchAgentInvocation(m, &grpc.GenericServerStream[WatchAgentInvocationRequest, WatchAgentInvocationResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_WatchAgentInvocationServer = grpc.ServerStreamingServer[WatchAgentInvocationResponse]
+
 func _AgentService_GetAgentOperation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAgentOperationRequest)
 	if err := dec(in); err != nil {
@@ -1022,6 +1078,11 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamAgent",
 			Handler:       _AgentService_StreamAgent_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "WatchAgentInvocation",
+			Handler:       _AgentService_WatchAgentInvocation_Handler,
 			ServerStreams: true,
 		},
 	},

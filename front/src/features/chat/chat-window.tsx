@@ -18,7 +18,16 @@ import { useAgents } from "@/api/agents";
 import { InlineTitleInput } from "@/components/inline-title-input";
 import { sessionTitle } from "@/lib/session-title";
 import { CHAT_APP_NAME } from "@/lib/constants";
-import { cancelAgentInvocation, streamChat, type ChatStreamPayload } from "@/api/chat";
+import {
+  cancelAgentInvocation,
+  getActiveInvocationForSession,
+  getInvocation,
+  isTerminalInvocationStatus,
+  submitChatInvocation,
+  watchChatInvocation,
+  type ChatStreamPayload,
+  type InvocationSummary,
+} from "@/api/chat";
 import {
   ArrowUp,
   ChevronDown,
@@ -79,6 +88,9 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, pend
   const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
+  // Distinguishes an explicit Stop from a passive observer detach (session
+  // switch, unmount): only Stop cancels the invocation or announces itself.
+  const stopRequestedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -90,7 +102,11 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, pend
   const streamingResponse = isRunForCurrentSession ? runState.streamingResponse : "";
   const invocationId = isRunForCurrentSession ? runState.invocationId : null;
 
-  const liveQuery = useLiveSession(APP_NAME, userId, sessionId, pending);
+  // Live output arrives over the WatchAgentInvocation observer stream; the
+  // session query only refetches on explicit reconciliation points plus a
+  // slow safety-net interval while a run is active (never the old
+  // high-frequency polling).
+  const liveQuery = useLiveSession(APP_NAME, userId, sessionId, pending, 15000);
   const reply = useReplySession();
   // Sessions created before the Agent ID migration only stored agent_name.
   // The backend now requires agent_id on ReplySession/StreamAgent, so resolve
@@ -152,8 +168,13 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, pend
   const visibleEvents = useMemo(() => events.filter(isRenderableEvent), [events]);
   const timelineEvents = useMemo(() => groupToolEvents(visibleEvents), [visibleEvents]);
 
+  // Detach any observer stream when switching sessions AND on unmount —
+  // detaching never affects the background run itself.
   useEffect(() => {
     abortRef.current?.abort();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [sessionId]);
 
   // Auto-send a pending message queued from the draft composer.
@@ -172,111 +193,75 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, pend
       setDraft(pendingMessage);
       requestAnimationFrame(() => {
         setDraft("");
-        void (async () => {
-          const text = pendingMessage.trim();
-          if (!text || !agentName) return;
-          const rid = resolvedAgentId;
-          if (!rid) return;
-          sendingRef.current = true;
-          const runId = newRunId();
-          abortRef.current?.abort();
-          activeRunIdRef.current = runId;
-          setRunState({
-            runId,
-            sessionId,
-            pending: true,
-            pendingBaseEventIds: new Set(persistedEvents.map((evt) => evt.eventId)),
-            pendingUserMessage: text,
-            streamingEvents: [],
-            streamingResponse: "",
-            invocationId: null,
-          });
-          const controller = new AbortController();
-          abortRef.current = controller;
-          let streamStarted = false;
-          try {
-            await streamChat(
-              {
-                agent_name: agentName,
-                agent_id: rid,
-                app_name: APP_NAME,
-                user_id: userId,
-                session_id: sessionId,
-                message: text,
-              },
-              {
-                onStarted: (payload) => {
-                  streamStarted = true;
-                  if (payload.invocation_id) {
-                    setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
-                      ...current,
-                      invocationId: payload.invocation_id ?? current.invocationId,
-                    })));
-                  }
-                },
-                onAgentEvent: (payload) => {
-                  const event = payloadToParsedEvent(payload);
-                  if (event) {
-                    setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
-                      ...current,
-                      streamingEvents: [...current.streamingEvents, event],
-                    })));
-                  }
-                },
-                onTextDelta: (payload) => {
-                  if (payload.text_delta) {
-                    setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
-                      ...current,
-                      streamingResponse: current.streamingResponse + payload.text_delta,
-                    })));
-                  }
-                },
-                onFinal: (payload) => {
-                  setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
-                    ...current,
-                    streamingResponse: payload.response ?? "",
-                  })));
-                },
-                onError: (payload) => {
-                  if (payload.error) toast.error(payload.error);
-                },
-              },
-              controller.signal,
-            );
-            await liveQuery.refetch();
-            maybeGenerateTitle();
-          } catch (err) {
-            if (isAbortError(err)) {
-              toast.info("Chat stopped");
-            } else if (!streamStarted) {
-              try {
-                await reply.mutateAsync({
-                  agent_name: agentName,
-                  agent_id: rid,
-                  app_name: APP_NAME,
-                  user_id: userId,
-                  session_id: sessionId,
-                  message: text,
-                });
-                maybeGenerateTitle();
-              } catch (fallbackErr) {
-                toast.error(fallbackErr instanceof Error ? fallbackErr.message : "Failed to send message");
-              }
-            } else {
-              toast.error(err instanceof Error ? err.message : "Failed to send message");
-            }
-          } finally {
-            sendingRef.current = false;
-            setRunState((prev) => prev.runId === runId ? emptyChatRunState(prev.sessionId) : prev);
-            if (activeRunIdRef.current === runId) {
-              activeRunIdRef.current = null;
-              abortRef.current = null;
-            }
-          }
-        })();
+        const text = pendingMessage.trim();
+        if (!text) return;
+        void sendMessage(text, undefined, text);
       });
     }
   }, [pendingMessage, sessionId, agentName, resolvedAgentId, pending]);
+
+  // Re-entering a session with a run still in flight: load persisted events
+  // and the authoritative invocation status first, then attach a read-only
+  // observer for future live output. Observation never owns the run.
+  useEffect(() => {
+    if (!sessionId) return;
+    // The draft composer's queued first message owns this session's run.
+    if (pendingMessage && !pendingSentRef.current) return;
+    let stale = false;
+    void (async () => {
+      let active: InvocationSummary | null;
+      try {
+        active = await getActiveInvocationForSession(sessionId);
+      } catch {
+        return; // lookup unavailable — plain reads still work
+      }
+      if (stale || !active || isTerminalInvocationStatus(active.status)) return;
+      if (sendingRef.current || activeRunIdRef.current) return;
+      // Persisted events first (reconnect correctness does not depend on
+      // replaying transient deltas), then watch future frames.
+      await liveQuery.refetch();
+      if (stale || sendingRef.current || activeRunIdRef.current) return;
+      const runId = newRunId();
+      activeRunIdRef.current = runId;
+      stopRequestedRef.current = false;
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setRunState({
+        runId,
+        sessionId,
+        pending: true,
+        pendingBaseEventIds: null,
+        pendingUserMessage: null,
+        streamingEvents: [],
+        streamingResponse: "",
+        invocationId: active.invocation_id,
+      });
+      try {
+        const terminal = await observeInvocation(active.invocation_id, runId, sessionId, controller);
+        await liveQuery.refetch();
+        if (terminal?.status === "failed") {
+          toast.error(terminal.error || "Agent run failed");
+        } else if (terminal?.status === "cancelled" && stopRequestedRef.current) {
+          toast.info("Chat stopped");
+        }
+      } catch (err) {
+        if (isAbortError(err)) {
+          if (stopRequestedRef.current) toast.info("Chat stopped");
+        } else {
+          toast.error(err instanceof Error ? err.message : "Lost connection to the running chat");
+        }
+      } finally {
+        setRunState((prev) => (prev.runId === runId ? emptyChatRunState(prev.sessionId) : prev));
+        if (activeRunIdRef.current === runId) {
+          activeRunIdRef.current = null;
+          abortRef.current = null;
+        }
+      }
+    })();
+    return () => {
+      stale = true;
+    };
+  }, [sessionId, pendingMessage]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -291,86 +276,31 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, pend
     );
   }
 
-  async function handleSend() {
-    const text = draft.trim();
-    const images = attachments;
-    if ((!text && images.length === 0) || !agentName || pending || sendingRef.current) return;
-    if (!resolvedAgentId) {
-      toast.error(
-        agents
-          ? `Agent "${agentName}" is no longer available; cannot resume this chat.`
-          : "Agents are still loading; please try again in a moment.",
-      );
-      return;
-    }
-    sendingRef.current = true;
-
-    if (images.length > 0) {
-      const validationErrors = validateForSend();
-      if (validationErrors.length > 0) {
-        validationErrors.forEach((msg) => toast.error(msg));
-        sendingRef.current = false;
-        return;
-      }
-    }
-
-    let parts: InputPartInit[] | undefined;
-    try {
-      parts = images.length > 0 ? await buildInputParts(text, images) : undefined;
-    } catch {
-      toast.error("Failed to read attached images");
-      sendingRef.current = false;
-      return;
-    }
-
-    // Attachments stay visible (and in state) while the run is in flight.
-    // the picker is disabled during pending, and they are only cleared once
-    // the send actually succeeds, so any failure path keeps them for retry.
-    const runId = newRunId();
-    abortRef.current?.abort();
-    activeRunIdRef.current = runId;
-    setDraft("");
-    if (taRef.current) taRef.current.style.height = "auto";
-    setRunState({
-      runId,
-      sessionId,
-      pending: true,
-      pendingBaseEventIds: new Set(persistedEvents.map((evt) => evt.eventId)),
-      pendingUserMessage: text || `(${images.length} image${images.length > 1 ? "s" : ""})`,
-      streamingEvents: [],
-      streamingResponse: "",
-      invocationId: null,
-    });
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-    let streamStarted = false;
-
-    try {
-      await streamChat(
+  // observeInvocation attaches the read-only watch stream and feeds live
+  // frames into the run state, reconciling from persisted session state and
+  // re-attaching if this observer lags behind and gets disconnected.
+  // Resolves with the terminal invocation state (or null when it cannot be
+  // determined). Rejects with AbortError when the observer detaches.
+  async function observeInvocation(
+    invId: string,
+    runId: string,
+    targetSessionId: string,
+    controller: AbortController,
+  ): Promise<InvocationSummary | null> {
+    for (;;) {
+      const terminal = await watchChatInvocation(
+        invId,
         {
-          agent_name: agentName,
-          agent_id: resolvedAgentId,
-          app_name: APP_NAME,
-          user_id: userId,
-          session_id: sessionId,
-          message: text,
-          parts,
-        },
-        {
-          onStarted: (payload) => {
-            streamStarted = true;
-            if (payload.invocation_id) {
-              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
-                ...current,
-                invocationId: payload.invocation_id ?? current.invocationId,
-              })));
-            }
+          onState: (inv) => {
+            setRunState((prev) => updateChatRun(prev, targetSessionId, runId, (current) => ({
+              ...current,
+              invocationId: inv.invocation_id,
+            })));
           },
           onAgentEvent: (payload) => {
             const event = payloadToParsedEvent(payload);
             if (event) {
-              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+              setRunState((prev) => updateChatRun(prev, targetSessionId, runId, (current) => ({
                 ...current,
                 streamingEvents: [...current.streamingEvents, event],
               })));
@@ -378,47 +308,109 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, pend
           },
           onTextDelta: (payload) => {
             if (payload.text_delta) {
-              setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+              setRunState((prev) => updateChatRun(prev, targetSessionId, runId, (current) => ({
                 ...current,
                 streamingResponse: current.streamingResponse + payload.text_delta,
               })));
             }
           },
-          onFinal: (payload) => {
-            setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
-              ...current,
-              streamingResponse: payload.response ?? "",
-            })));
-          },
-          onError: (payload) => {
-            if (payload.error) toast.error(payload.error);
-          },
         },
         controller.signal,
       );
+      if (terminal) return terminal;
+      // The watch ended without a terminal state (lagged observer). The run
+      // itself is unaffected: reconcile from persisted events, then decide
+      // whether to re-attach.
       await liveQuery.refetch();
-      clearAttachments();
-      maybeGenerateTitle();
+      setRunState((prev) => updateChatRun(prev, targetSessionId, runId, (current) => ({
+        ...current,
+        pendingBaseEventIds: null,
+        pendingUserMessage: null,
+        streamingEvents: [],
+        streamingResponse: "",
+      })));
+      const current = await getInvocation(invId);
+      if (!current || isTerminalInvocationStatus(current.status)) return current;
+    }
+  }
+
+  // sendMessage submits one turn as an asynchronous invocation and observes
+  // it. The invocation runs server-side independently of this stream: a
+  // dropped observer never cancels the turn.
+  async function sendMessage(
+    text: string,
+    parts: InputPartInit[] | undefined,
+    displayText: string,
+    opts?: { onSuccess?: () => void; onSubmitFailure?: () => void },
+  ) {
+    const rid = resolvedAgentId;
+    if (!rid) return;
+    sendingRef.current = true;
+    const runId = newRunId();
+    abortRef.current?.abort();
+    activeRunIdRef.current = runId;
+    stopRequestedRef.current = false;
+    setRunState({
+      runId,
+      sessionId,
+      pending: true,
+      pendingBaseEventIds: new Set(persistedEvents.map((evt) => evt.eventId)),
+      pendingUserMessage: displayText,
+      streamingEvents: [],
+      streamingResponse: "",
+      invocationId: null,
+    });
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let submitted = false;
+
+    try {
+      const submit = await submitChatInvocation({
+        request_id: runId,
+        agent_id: rid,
+        session_id: sessionId,
+        message: text,
+        parts,
+      });
+      submitted = true;
+      setRunState((prev) => updateChatRun(prev, sessionId, runId, (current) => ({
+        ...current,
+        invocationId: submit.invocation_id,
+      })));
+
+      const terminal = await observeInvocation(submit.invocation_id, runId, sessionId, controller);
+      await liveQuery.refetch();
+      if (terminal?.status === "failed") {
+        toast.error(terminal.error || "Agent run failed");
+      } else if (terminal?.status === "cancelled") {
+        toast.info("Chat stopped");
+      } else {
+        opts?.onSuccess?.();
+        maybeGenerateTitle();
+      }
     } catch (err) {
       if (isAbortError(err)) {
-        toast.info("Chat stopped");
-      } else if (!streamStarted) {
-        // Preserve old behavior as a fallback when the SSE endpoint cannot be opened.
+        // Observer detached (session switch / unmount); the invocation keeps
+        // running in the background. Only an explicit Stop announces itself.
+        if (stopRequestedRef.current) toast.info("Chat stopped");
+      } else if (!submitted) {
+        // Async submission unavailable — preserve the synchronous fallback.
         try {
           await reply.mutateAsync({
-            agent_name: agentName,
-            agent_id: resolvedAgentId,
+            agent_name: agentName ?? "",
+            agent_id: rid,
             app_name: APP_NAME,
             user_id: userId,
             session_id: sessionId,
             message: text,
             parts,
           });
-          clearAttachments();
+          await liveQuery.refetch();
+          opts?.onSuccess?.();
           maybeGenerateTitle();
         } catch (fallbackErr) {
           toast.error(fallbackErr instanceof Error ? fallbackErr.message : "Failed to send message");
-          setDraft(text);
+          opts?.onSubmitFailure?.();
         }
       } else {
         toast.error(err instanceof Error ? err.message : "Failed to send message");
@@ -433,15 +425,68 @@ export function ChatWindow({ session, userId, agentName, agentId, onDelete, pend
     }
   }
 
-  async function handleStop() {
-    abortRef.current?.abort();
-    const id = invocationId;
-    if (id) {
-      try {
-        await cancelAgentInvocation(id);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to cancel invocation");
+  async function handleSend() {
+    const text = draft.trim();
+    const images = attachments;
+    if ((!text && images.length === 0) || !agentName || pending || sendingRef.current) return;
+    if (!resolvedAgentId) {
+      toast.error(
+        agents
+          ? `Agent "${agentName}" is no longer available; cannot resume this chat.`
+          : "Agents are still loading; please try again in a moment.",
+      );
+      return;
+    }
+
+    if (images.length > 0) {
+      const validationErrors = validateForSend();
+      if (validationErrors.length > 0) {
+        validationErrors.forEach((msg) => toast.error(msg));
+        return;
       }
+    }
+
+    let parts: InputPartInit[] | undefined;
+    try {
+      parts = images.length > 0 ? await buildInputParts(text, images) : undefined;
+    } catch {
+      toast.error("Failed to read attached images");
+      return;
+    }
+
+    // Attachments stay visible (and in state) while the run is in flight.
+    // the picker is disabled during pending, and they are only cleared once
+    // the send actually succeeds, so any failure path keeps them for retry.
+    setDraft("");
+    if (taRef.current) taRef.current.style.height = "auto";
+    await sendMessage(
+      text,
+      parts,
+      text || `(${images.length} image${images.length > 1 ? "s" : ""})`,
+      {
+        onSuccess: () => clearAttachments(),
+        onSubmitFailure: () => setDraft(text),
+      },
+    );
+  }
+
+  async function handleStop() {
+    stopRequestedRef.current = true;
+    const id = invocationId;
+    if (!id) {
+      // Nothing submitted yet — just abort the in-flight request.
+      abortRef.current?.abort();
+      return;
+    }
+    try {
+      const { cancelled } = await cancelAgentInvocation(id);
+      if (!cancelled) {
+        // Already terminal server-side; detach the observer.
+        abortRef.current?.abort();
+      }
+      // Otherwise stay attached: the CANCELLED terminal frame ends the run.
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel invocation");
     }
   }
 

@@ -23,6 +23,45 @@ export async function fulfillProto<T extends DescMessage>(
   return true
 }
 
+// connectStreamBody frames messages using the Connect streaming envelope
+// (1 flag byte + 4-byte big-endian length per message, then an EndStream
+// frame with flag 0x02), matching what connect-web expects from a
+// server-stream RPC over the binary transport.
+export function connectStreamBody<T extends DescMessage>(
+  schema: T,
+  messages: MessageInitShape<T>[]
+): Buffer {
+  const chunks: Buffer[] = []
+  for (const value of messages) {
+    const bin = toBinary(schema, create(schema, value))
+    const head = Buffer.alloc(5)
+    head.writeUInt8(0, 0)
+    head.writeUInt32BE(bin.length, 1)
+    chunks.push(head, Buffer.from(bin))
+  }
+  const end = Buffer.from(JSON.stringify({}))
+  const endHead = Buffer.alloc(5)
+  endHead.writeUInt8(2, 0)
+  endHead.writeUInt32BE(end.length, 1)
+  chunks.push(endHead, end)
+  return Buffer.concat(chunks)
+}
+
+// fulfillConnectStream responds to a Connect server-stream request with the
+// given ordered messages followed by a clean end-of-stream frame.
+export async function fulfillConnectStream<T extends DescMessage>(
+  route: Route,
+  schema: T,
+  messages: MessageInitShape<T>[]
+): Promise<true> {
+  await route.fulfill({
+    status: 200,
+    contentType: 'application/connect+proto',
+    body: connectStreamBody(schema, messages),
+  })
+  return true
+}
+
 export async function setupAuthenticatedConnectRoutes(
   page: Page,
   handleRoute: ConnectRouteHandler

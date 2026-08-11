@@ -48,6 +48,8 @@ type Coordinator struct {
 	mu      sync.Mutex
 	running map[string]context.CancelFunc // invocationID → cancel
 
+	hub *watchHub
+
 	onTurnComplete TurnCompleteFunc
 }
 
@@ -61,6 +63,7 @@ func New(invRepo invocation.Repository, r Runner, cfg Config) *Coordinator {
 		runner:  r,
 		cfg:     cfg,
 		running: make(map[string]context.CancelFunc),
+		hub:     newWatchHub(),
 	}
 }
 
@@ -113,8 +116,20 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 	inv.StartedAt = timestamppb.Now()
 	if err := c.invRepo.Save(ctx, inv); err != nil {
 		logger.Error("async run: failed to persist RUNNING status", "invocation_id", invID, "err", err)
+		// The run never starts, so observers must still see one terminal
+		// state frame — otherwise close-without-terminal would read as
+		// observer lag and clients would re-attach to a dead invocation.
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = "failed to persist RUNNING status: " + err.Error()
+		inv.FinishedAt = timestamppb.Now()
+		if saveErr := c.invRepo.Save(context.Background(), inv); saveErr != nil {
+			logger.Error("async run: failed to persist FAILED status", "invocation_id", invID, "err", saveErr)
+		}
+		c.publishState(inv)
+		c.hub.closeAll(invID)
 		return
 	}
+	c.publishState(inv)
 
 	ctxInfo := &agentsv1.ContextInfo{
 		Uuid:        invID,
@@ -126,7 +141,11 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
 	}
 
-	response, runErr := c.runner.RunSSE(ctx, agentName, parts, modelOverride, ctxInfo, nil, nil)
+	// Drive the run through the shared streaming orchestration so observers
+	// attached via Watch receive the same frame sequence StreamAgent emits.
+	sink := &hubSink{hub: c.hub, invocationID: invID}
+	runErr := streamorch.Run(ctx, c.runner, streamorch.AgentRef{Name: agentName, ID: inv.GetAgentId()}, parts, modelOverride, ctxInfo, sink)
+	response := sink.response
 
 	now := timestamppb.Now()
 	if runErr != nil {
@@ -153,6 +172,11 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 		logger.Error("async run: failed to persist terminal status",
 			"invocation_id", invID, "status", inv.GetStatus().String(), "err", err)
 	}
+
+	// Publish the single terminal state frame, then close every observer so
+	// watchers see terminal-then-close in order.
+	c.publishState(inv)
+	c.hub.closeAll(invID)
 
 	logger.Info("async run finished",
 		"invocation_id", invID,
