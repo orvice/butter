@@ -148,7 +148,7 @@ text, streaming, and tool-call request before switching it.
 Sources: [OpenAI constructor], [official example README], [current adapter
 source].
 
-### Image input: API capability versus ADK conversion
+### Image and file input: API capability versus ADK conversion
 
 The OpenAI Responses API itself supports image input for models with image
 understanding. Its official example sends an `input_image` content item
@@ -156,8 +156,8 @@ alongside `input_text`, and the image guide demonstrates an image URL, a base64
 data URL, and a file ID. The `openai-go` v3.8.1 SDK used by ADK v2.1.0 also
 exposes this capability through `ResponseInputImageParam` and the `OfInputImage`
 arm of `ResponseInputContentUnionParam`. The SDK likewise has an `OfInputFile`
-arm. Therefore, this is not a limitation of the Responses API or the underlying
-Go SDK.
+arm. For image and file inputs, therefore, this is not a limitation of the
+Responses API or the underlying Go SDK.
 
 The missing layer is ADK Go v2.1.0's `genai.Part` converter. Its
 `convertContents` switch handles only:
@@ -168,7 +168,9 @@ The missing layer is ADK Go v2.1.0's `genai.Part` converter. Its
 
 Every other `genai.Part` shape returns `openai: unsupported content part`. This
 includes both `Part.InlineData` (raw bytes plus MIME type) and `Part.FileData`
-(URI-based data). The v2.1.0 tests explicitly assert that an `InlineData` part
+(a Google Cloud Storage URI plus MIME type). The latter is not necessarily a
+direct mapping to Responses `file_url`; a future implementation may need to
+fetch or upload it. The v2.1.0 tests explicitly assert that an `InlineData` part
 must fail. The OpenAI example is text-and-tool-only and does not demonstrate an
 ADK image part.
 
@@ -183,16 +185,23 @@ image content. It also converts inline WAV/MP3 audio and inline PDF/text bytes.
 It does **not** handle `Part.FileData`, so the earlier shorthand "supports file
 data" should not be read as support for the `genai.Part.FileData` field.
 
+Inline audio is a different compatibility case. The current adapter uses Chat
+Completions `input_audio`, while the Responses create input-content union used
+by ADK v2.1.0 exposes `input_text`, `input_image`, and `input_file`, but no
+equivalent `input_audio` arm. Image and inline PDF/text gaps can be attributed to
+ADK's missing conversion; inline audio cannot be described solely that way.
+
 This distinction is operationally relevant: Butter's Telegram and Discord
 image paths download images and construct `genai.Part.InlineData`. Switching
 those agents to ADK v2.1.0 `openaimodel` would reject the image before any
 Responses API request is sent, even though OpenAI itself supports image input.
 
-Sources: [OpenAI image input guide], [OpenAI OpenAPI image example], [openai-go
-v3.8.1 response input types], [v2.1.0 request conversion], [v2.1.0 request
-tests], [v2.2.0 request conversion], [v2.2.0 request tests], [main request
-conversion], [main request tests], and [current adapter source]. Butter paths:
-`internal/channel/telegram/photo.go` and `internal/channel/discord/photo.go`.
+Sources: [OpenAI image input guide], [OpenAI file input guide], [OpenAI Responses
+create reference], [openai-go v3.8.1 response input types], [genai FileData],
+[v2.1.0 request conversion], [v2.1.0 request tests], [v2.2.0 request conversion],
+[v2.2.0 request tests], [main request conversion], [main request tests], and
+[current adapter source]. Butter paths: `internal/channel/telegram/photo.go` and
+`internal/channel/discord/photo.go`.
 
 ### Tools and generation settings
 
@@ -298,7 +307,9 @@ Sources: [v2.1.0 release], [v2.0.0...v2.1.0 comparison], [v2.0.0 go.mod],
 [issue #1197]: https://github.com/google/adk-go/issues/1197
 [PR #1205]: https://github.com/google/adk-go/pull/1205
 [PR #1291]: https://github.com/google/adk-go/pull/1291
-[OpenAI image input guide]: https://platform.openai.com/docs/guides/images-vision?api-mode=responses
-[OpenAI OpenAPI image example]: https://github.com/openai/openai-openapi/blob/main/openapi.yaml#L17242-L17263
+[OpenAI image input guide]: https://developers.openai.com/api/docs/guides/images-vision
+[OpenAI file input guide]: https://developers.openai.com/api/docs/guides/file-inputs
+[OpenAI Responses create reference]: https://developers.openai.com/api/reference/resources/responses/methods/create
 [openai-go v3.8.1 response input types]: https://github.com/openai/openai-go/blob/v3.8.1/responses/response.go#L5863-L5887
+[genai FileData]: https://pkg.go.dev/google.golang.org/genai#FileData
 [current adapter source]: https://github.com/achetronic/adk-utils-go/blob/v0.22.0/genai/openai/openai.go#L407-L428
