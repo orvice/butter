@@ -105,8 +105,6 @@ func (d *fakeDebug) Toggle(ctx context.Context, channelName, sessionID string, c
 type fakeTransport struct {
 	replies         []string
 	typingCount     int
-	debugEvents     int
-	compactions     []string
 	debugStatus     []bool
 	agentLists      [][]AgentChoice
 	modelLists      [][]ModelChoice
