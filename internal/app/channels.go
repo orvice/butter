@@ -111,6 +111,7 @@ type BootstrapResult struct {
 	SessionCounter        func(ctx context.Context) (int64, error)
 	SessionTitleStore     application.SessionTitleStore
 	SessionWSStore        application.WorkspaceSessionStore
+	SessionReadStore      application.SessionReadStore
 	ChatTitleModel        string
 	AsyncCoordinator     *asyncrun.Coordinator
 }
@@ -394,6 +395,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		SessionSvc:            sessionSvc,
 		SessionTitleStore:     newMongoTitleStore(sessionSvc),
 		SessionWSStore:        sessionSvc,
+		SessionReadStore:      newMongoReadStore(sessionSvc),
 		CronScheduler:         cronScheduler,
 		CronRepo:              cronExecRepo,
 		CronJobRepo:           cronJobRepo,

@@ -21,6 +21,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/repo/invocation"
+	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
@@ -59,6 +61,23 @@ type WorkspaceSessionStore interface {
 	GetWorkspaceID(ctx context.Context, appName, userID, sessionID string) (string, error)
 }
 
+// SessionReadStore persists and retrieves server-backed read state for a
+// session. The Mongo session service implements it.
+type SessionReadStore interface {
+	MarkRead(ctx context.Context, appName, userID, sessionID string, readAt time.Time) (SessionReadResult, error)
+}
+
+// SessionReadResult carries the post-update read snapshot.
+type SessionReadResult struct {
+	SessionID      string
+	AppName        string
+	UserID         string
+	Title          string
+	LastUpdateTime time.Time
+	LastReadAt     time.Time
+	WorkspaceID    string
+}
+
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
 type SessionServiceServer struct {
 	mu              sync.RWMutex
@@ -66,6 +85,8 @@ type SessionServiceServer struct {
 	runnerSvc       sessionReplyRunner
 	titleStore      SessionTitleStore
 	wsStore         WorkspaceSessionStore
+	readStore       SessionReadStore
+	invRepo         invocation.Repository
 	langfuseHost    string
 	deleteListeners []SessionDeleteListener
 
@@ -146,6 +167,39 @@ func (s *SessionServiceServer) SetWorkspaceSessionStore(store WorkspaceSessionSt
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.wsStore = store
+}
+
+// SetReadStore wires the server-backed read-state persistence.
+func (s *SessionServiceServer) SetReadStore(store SessionReadStore) {
+	if store == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.readStore = store
+}
+
+func (s *SessionServiceServer) getReadStore() SessionReadStore {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.readStore
+}
+
+// SetInvocationRepo wires the invocation repository for enriching session
+// summaries with the active/latest invocation status.
+func (s *SessionServiceServer) SetInvocationRepo(repo invocation.Repository) {
+	if repo == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.invRepo = repo
+}
+
+func (s *SessionServiceServer) getInvRepo() invocation.Repository {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.invRepo
 }
 
 func (s *SessionServiceServer) getWSStore() WorkspaceSessionStore {
@@ -367,6 +421,12 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *connect.Requ
 		detail.Duration = durationpb.New(lastTS.Sub(firstTS))
 	}
 
+	// Enrich with invocation status. Events are already loaded, so derive
+	// pending interrupts directly instead of loading them again.
+	wsID, _ := workspace.FromContext(ctx)
+	s.enrichInvocationStatus(ctx, wsID, detail.Session)
+	detail.Session.HasPendingInterrupt = len(interrupt.Pending(resp.Session)) > 0
+
 	return connect.NewResponse(&agentsv1.GetSessionResponse{SessionDetail: detail}), nil
 }
 
@@ -470,11 +530,66 @@ func (s *SessionServiceServer) listSessionsWorkspaceScoped(ctx context.Context, 
 	total := int32(len(infos))
 	page, next := paginateSessions(infos, req.Msg.GetPageSize(), req.Msg.GetPageToken())
 
+	// Enrich the current page with invocation + interrupt state.
+	s.enrichSessionInfos(ctx, wsID, page)
+
 	return connect.NewResponse(&agentsv1.ListSessionsResponse{
 		Sessions:      page,
 		NextPageToken: next,
 		Total:         total,
 	}), nil
+}
+
+// enrichInvocationStatus populates the invocation ID and status on one
+// SessionInfo. Tries the active (QUEUED/RUNNING) invocation first, then falls
+// back to the latest regardless of status.
+func (s *SessionServiceServer) enrichInvocationStatus(ctx context.Context, wsID string, info *agentsv1.SessionInfo) {
+	invRepo := s.getInvRepo()
+	if invRepo == nil {
+		return
+	}
+	logger := log.FromContext(ctx)
+	sid := info.GetSessionId()
+
+	active, err := invRepo.FindActiveBySession(ctx, wsID, sid)
+	if err == nil && active != nil {
+		info.LatestInvocationId = active.GetId()
+		info.LatestInvocationStatus = active.GetStatus()
+		return
+	}
+	latest, latestErr := invRepo.FindLatestBySession(ctx, wsID, sid)
+	if latestErr == nil && latest != nil {
+		info.LatestInvocationId = latest.GetId()
+		info.LatestInvocationStatus = latest.GetStatus()
+	} else if latestErr != nil && !errors.Is(latestErr, invocation.ErrNotFound) {
+		logger.Warn("enriching session invocation failed",
+			"session_id", sid, "err", latestErr)
+	}
+}
+
+// enrichSessionInfos populates invocation status and pending-interrupt state
+// on the given session infos. Enrichment is best-effort: failures are logged
+// and the fields are left at their zero values.
+func (s *SessionServiceServer) enrichSessionInfos(ctx context.Context, wsID string, infos []*agentsv1.SessionInfo) {
+	sessionSvc := s.getSessionSvc()
+
+	for _, info := range infos {
+		s.enrichInvocationStatus(ctx, wsID, info)
+
+		// Pending-interrupt enrichment (ADR-0002): load session events and
+		// call interrupt.Pending. Only for web-chat sessions to avoid loading
+		// events for non-dashboard sessions.
+		if sessionSvc != nil && info.GetAppName() == "web-chat" {
+			sessResp, sessErr := sessionSvc.Get(ctx, &session.GetRequest{
+				AppName:   info.GetAppName(),
+				UserID:    info.GetUserId(),
+				SessionID: info.GetSessionId(),
+			})
+			if sessErr == nil && sessResp.Session != nil {
+				info.HasPendingInterrupt = len(interrupt.Pending(sessResp.Session)) > 0
+			}
+		}
+	}
 }
 
 func paginateSessions(items []*agentsv1.SessionInfo, pageSize int32, pageToken string) ([]*agentsv1.SessionInfo, string) {
@@ -678,6 +793,11 @@ func effectiveTitle(sess session.Session) string {
 	return ""
 }
 
+// readableSession is implemented by session backends that carry last_read_at.
+type readableSession interface {
+	LastReadAt() *time.Time
+}
+
 func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {
 	info := &agentsv1.SessionInfo{
 		SessionId:      sess.ID(),
@@ -689,6 +809,15 @@ func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {
 
 	if ws, ok := sess.(workspacedSession); ok {
 		info.WorkspaceId = ws.WorkspaceID()
+	}
+
+	if rs, ok := sess.(readableSession); ok {
+		if ra := rs.LastReadAt(); ra != nil {
+			info.LastReadAt = timestamppb.New(*ra)
+			info.Unread = sess.LastUpdateTime().After(*ra)
+		} else {
+			info.Unread = true
+		}
 	}
 
 	// Convert state to protobuf Struct.
@@ -703,6 +832,60 @@ func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {
 	}
 
 	return info
+}
+
+func (s *SessionServiceServer) MarkSessionRead(ctx context.Context, req *connect.Request[agentsv1.MarkSessionReadRequest]) (*connect.Response[agentsv1.MarkSessionReadResponse], error) {
+	if req.Msg.GetAppName() == "" {
+		return nil, connectx.RequiredArgument("app_name")
+	}
+	if req.Msg.GetUserId() == "" {
+		return nil, connectx.RequiredArgument("user_id")
+	}
+	if req.Msg.GetSessionId() == "" {
+		return nil, connectx.RequiredArgument("session_id")
+	}
+
+	// Authorization: only the session owner may mark it read.
+	if !auth.IsAdmin(ctx) {
+		user, ok := auth.UserFromContext(ctx)
+		if !ok {
+			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+		}
+		if user.GetId() != req.Msg.GetUserId() {
+			return nil, connectx.NotFound("session not found")
+		}
+	}
+
+	// Workspace guard.
+	if err := s.enforceWorkspaceAccessByID(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId()); err != nil {
+		return nil, err
+	}
+
+	readStore := s.getReadStore()
+	if readStore == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session read store not available"))
+	}
+
+	result, err := readStore.MarkRead(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId(), time.Now())
+	if err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			return nil, connectx.NotFound(err.Error())
+		}
+		return nil, connectx.InternalWith(err)
+	}
+
+	info := &agentsv1.SessionInfo{
+		SessionId:      result.SessionID,
+		AppName:        result.AppName,
+		UserId:         result.UserID,
+		Title:          result.Title,
+		LastUpdateTime: timestamppb.New(result.LastUpdateTime),
+		LastReadAt:     timestamppb.New(result.LastReadAt),
+		Unread:         result.LastUpdateTime.After(result.LastReadAt),
+		WorkspaceId:    result.WorkspaceID,
+	}
+
+	return connect.NewResponse(&agentsv1.MarkSessionReadResponse{Session: info}), nil
 }
 
 const maxAutoTitleCodePoints = 30
