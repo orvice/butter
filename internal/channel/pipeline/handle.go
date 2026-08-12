@@ -87,7 +87,7 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 	processingMsgID := h.transport.SendProcessing(ctx, msg, agentName)
 
 	modelOverride := h.ActiveModel(ctx, msg.SessionID)
-	response, err := h.runner.Run(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
+	turn, err := h.runner.RunTurn(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", h.cfg.ChannelName,
@@ -104,8 +104,17 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 		return
 	}
 
-	if response == "" {
-		response = "(no response)"
+	response := TurnResponseText(turn)
+	if !TurnHasVisibleText(turn) {
+		logger.Warn("agent turn completed without visible text",
+			"channel", h.cfg.ChannelName,
+			"agent", agentName,
+			"session_id", msg.SessionID,
+			"invocation_id", ctxInfo.GetUuid(),
+			"event_count", turnEventCount(turn),
+			"finish_reason", turnFinishReason(turn),
+			"error_code", turnErrorCode(turn),
+		)
 	}
 
 	logger.Info("agent response ready",

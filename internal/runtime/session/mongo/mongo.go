@@ -2,7 +2,6 @@ package mongo
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -14,9 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/session"
-	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/workspace"
 )
@@ -50,6 +47,7 @@ type eventDoc struct {
 	InvocationID string    `bson:"invocation_id"`
 	Author       string    `bson:"author"`
 	Branch       string    `bson:"branch"`
+	EventJSON    []byte    `bson:"event_json,omitempty"`
 	ContentJSON  []byte    `bson:"content_json,omitempty"`
 	Timestamp    time.Time `bson:"timestamp"`
 }
@@ -340,21 +338,12 @@ func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.Ge
 
 	events := make([]*session.Event, 0, len(eventDocs))
 	for _, ed := range eventDocs {
-		evt := session.NewEvent(ctx, ed.InvocationID)
-		evt.ID = ed.EventID
-		evt.Timestamp = ed.Timestamp
-		evt.Author = ed.Author
-		evt.Branch = ed.Branch
-		if len(ed.ContentJSON) > 0 {
-			var content genai.Content
-			if err := json.Unmarshal(ed.ContentJSON, &content); err != nil {
-				logger.Warn("failed to unmarshal event content",
-					"event_id", ed.EventID,
-					"err", err,
-				)
-			} else {
-				evt.LLMResponse = model.LLMResponse{Content: &content}
-			}
+		evt, err := eventFromDoc(ctx, ed)
+		if err != nil {
+			logger.Warn("failed to restore complete event",
+				"event_id", ed.EventID,
+				"err", err,
+			)
 		}
 		events = append(events, evt)
 	}
@@ -547,22 +536,9 @@ func (s *Service) AppendEvent(ctx context.Context, sess session.Session, evt *se
 		"invocation_id", evt.InvocationID,
 	)
 
-	ed := eventDoc{
-		SessionID:    sess.ID(),
-		AppName:      sess.AppName(),
-		EventID:      evt.ID,
-		InvocationID: evt.InvocationID,
-		Author:       evt.Author,
-		Branch:       evt.Branch,
-		Timestamp:    evt.Timestamp,
-	}
-
-	if evt.Content != nil {
-		contentBytes, err := json.Marshal(evt.Content)
-		if err != nil {
-			return fmt.Errorf("marshaling event content: %w", err)
-		}
-		ed.ContentJSON = contentBytes
+	ed, err := eventToDoc(sess.AppName(), sess.ID(), evt)
+	if err != nil {
+		return err
 	}
 
 	if _, err := s.events.InsertOne(ctx, ed); err != nil {
