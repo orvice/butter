@@ -100,7 +100,8 @@ export type CronDeliveryType =
   | "CRON_DELIVERY_TYPE_LOG"
   | "CRON_DELIVERY_TYPE_WEBHOOK"
   | "CRON_DELIVERY_TYPE_CHANNEL"
-  | "CRON_DELIVERY_TYPE_NOTIFY_GROUP";
+  | "CRON_DELIVERY_TYPE_NOTIFY_GROUP"
+  | "CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION";
 
 export type NotifyTargetType =
   | "NOTIFY_TARGET_TYPE_UNSPECIFIED"
@@ -295,9 +296,15 @@ export interface ModelProvider {
 }
 
 export interface TelegramNotifyTarget {
+  /** The Telegram Destination this target delivers to (issue #264). */
+  destination_id?: string;
+  /** @deprecated Rejected on write; use destination_id. */
   bot_token?: string;
+  /** @deprecated Rejected on write; use destination_id. */
   chat_id?: string;
+  /** @deprecated Rejected on write; markdown handling is centralized. */
   parse_mode?: string;
+  /** @deprecated Rejected on write; the destination owns the forum topic. */
   message_thread_id?: number;
 }
 
@@ -647,9 +654,13 @@ export interface APIToken {
 export interface CronDelivery {
   type?: CronDeliveryType;
   webhook_url?: string;
+  /** @deprecated Legacy AgentChannel delivery; rejected on write (issue #264). */
   channel_name?: string;
+  /** @deprecated Legacy raw chat ID; rejected on write (issue #264). */
   chat_id?: string;
   notify_group_name?: string;
+  /** Telegram Destination for TELEGRAM_DESTINATION delivery (issue #264). */
+  telegram_destination_id?: string;
 }
 
 export interface CronJob {

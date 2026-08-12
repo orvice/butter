@@ -11,41 +11,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
-
-// telegramBotTokenPattern matches the canonical Telegram Bot API token
-// format `<bot_id>:<secret>`. We validate before interpolating the token
-// into the API URL so a malformed value cannot inject path segments,
-// query strings, or CRLF.
-var telegramBotTokenPattern = regexp.MustCompile(`^[0-9]+:[A-Za-z0-9_-]+$`)
-
-// telegramMaxTextBytes is the Telegram Bot API hard limit for the `text` field.
-const telegramMaxTextBytes = 4096
-
-// truncateForTelegram shortens s to at most telegramMaxTextBytes bytes,
-// appending an ellipsis when truncation occurs.
-func truncateForTelegram(s string) string {
-	const ellipsis = "…[truncated]"
-	if len(s) <= telegramMaxTextBytes {
-		return s
-	}
-	// Cut at a rune boundary.
-	cut := []rune(s)
-	maxRunes := telegramMaxTextBytes - len(ellipsis)
-	if maxRunes < 0 {
-		maxRunes = 0
-	}
-	if len(cut) > maxRunes {
-		cut = cut[:maxRunes]
-	}
-	return string(cut) + ellipsis
-}
 
 type Message struct {
 	Title string
@@ -54,8 +25,19 @@ type Message struct {
 
 const DefaultHTTPTimeout = 10 * time.Second
 
+// TelegramDelivery delivers a message to one Telegram Destination.
+//
+// notify holds this as an interface rather than reaching for the Telegram
+// repository directly: after issue #264 a notify target carries only a
+// Destination ID, and resolving it — credential, chat, Forum Topic, Markdown
+// handling, retry_after — is the unified sender's job, not this package's.
+type TelegramDelivery interface {
+	SendToDestination(ctx context.Context, workspaceID, destinationID, text string) error
+}
+
 type Sender struct {
-	client *http.Client
+	client   *http.Client
+	telegram TelegramDelivery
 }
 
 func NewSender(client *http.Client) *Sender {
@@ -65,7 +47,14 @@ func NewSender(client *http.Client) *Sender {
 	return &Sender{client: client}
 }
 
-func (s *Sender) Send(ctx context.Context, target *agentsv1.NotifyTarget, msg Message) error {
+// SetTelegramDelivery wires the unified Telegram sender. Without it, Telegram
+// targets fail explicitly rather than being skipped: an alert that silently
+// goes nowhere is worse than one that reports a failure.
+func (s *Sender) SetTelegramDelivery(delivery TelegramDelivery) {
+	s.telegram = delivery
+}
+
+func (s *Sender) Send(ctx context.Context, workspaceID string, target *agentsv1.NotifyTarget, msg Message) error {
 	if target == nil {
 		return fmt.Errorf("notify target is nil")
 	}
@@ -74,7 +63,7 @@ func (s *Sender) Send(ctx context.Context, target *agentsv1.NotifyTarget, msg Me
 	}
 	switch target.GetType() {
 	case agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM:
-		return s.sendTelegram(ctx, target.GetTelegram(), msg)
+		return s.sendTelegram(ctx, workspaceID, target.GetTelegram(), msg)
 	case agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_LARK_WEBHOOK:
 		return s.sendLark(ctx, target.GetLark(), msg)
 	case agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK:
@@ -84,41 +73,18 @@ func (s *Sender) Send(ctx context.Context, target *agentsv1.NotifyTarget, msg Me
 	}
 }
 
-func (s *Sender) sendTelegram(ctx context.Context, target *agentsv1.TelegramNotifyTarget, msg Message) error {
-	if target.GetBotToken() == "" || target.GetChatId() == "" {
-		return fmt.Errorf("telegram target requires bot_token and chat_id")
+func (s *Sender) sendTelegram(ctx context.Context, workspaceID string, target *agentsv1.TelegramNotifyTarget, msg Message) error {
+	destinationID := strings.TrimSpace(target.GetDestinationId())
+	if destinationID == "" {
+		return fmt.Errorf("telegram target requires destination_id")
 	}
-	if !telegramBotTokenPattern.MatchString(target.GetBotToken()) {
-		return fmt.Errorf("telegram bot_token does not match expected format <bot_id>:<secret>")
+	if s.telegram == nil {
+		return fmt.Errorf("telegram destination delivery is not configured")
 	}
-	typingPayload := map[string]any{
-		"chat_id": target.GetChatId(),
-		"action":  "typing",
+	if workspaceID == "" {
+		return fmt.Errorf("telegram delivery requires a workspace")
 	}
-	if target.GetMessageThreadId() != 0 {
-		typingPayload["message_thread_id"] = target.GetMessageThreadId()
-	}
-	typingEndpoint := "https://api.telegram.org/bot" + target.GetBotToken() + "/sendChatAction"
-	if err := s.postJSON(ctx, typingEndpoint, typingPayload); err != nil {
-		return err
-	}
-
-	text := formatMessage(msg)
-	if isTelegramMarkdownV2(target.GetParseMode()) {
-		text = escapeTelegramMarkdownV2(text)
-	}
-	payload := map[string]any{
-		"chat_id": target.GetChatId(),
-		"text":    truncateForTelegram(text),
-	}
-	if target.GetParseMode() != "" {
-		payload["parse_mode"] = target.GetParseMode()
-	}
-	if target.GetMessageThreadId() != 0 {
-		payload["message_thread_id"] = target.GetMessageThreadId()
-	}
-	endpoint := "https://api.telegram.org/bot" + target.GetBotToken() + "/sendMessage"
-	return s.postJSON(ctx, endpoint, payload)
+	return s.telegram.SendToDestination(ctx, workspaceID, destinationID, formatMessage(msg))
 }
 
 func (s *Sender) sendLark(ctx context.Context, target *agentsv1.LarkNotifyTarget, msg Message) error {
@@ -196,23 +162,6 @@ func formatMessage(msg Message) string {
 		return msg.Title
 	}
 	return msg.Title + "\n" + msg.Text
-}
-
-func isTelegramMarkdownV2(parseMode string) bool {
-	return strings.EqualFold(strings.TrimSpace(parseMode), "MarkdownV2")
-}
-
-func escapeTelegramMarkdownV2(text string) string {
-	var b strings.Builder
-	b.Grow(len(text))
-	for _, r := range text {
-		switch r {
-		case '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!', '\\':
-			b.WriteRune('\\')
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
 }
 
 func larkSign(timestamp, secret string) string {

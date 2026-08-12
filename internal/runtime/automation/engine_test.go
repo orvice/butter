@@ -108,7 +108,7 @@ type engineNotifier struct {
 	calls int
 }
 
-func (n *engineNotifier) Send(context.Context, *agentsv1.NotifyTarget, notify.Message) error {
+func (n *engineNotifier) Send(context.Context, string, *agentsv1.NotifyTarget, notify.Message) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.calls++

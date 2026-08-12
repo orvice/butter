@@ -465,8 +465,15 @@ service TelegramDestinationService {
   // address; redirecting traffic requires creating a new Destination.
   rpc UpdateTelegramDestination(UpdateTelegramDestinationRequest) returns (UpdateTelegramDestinationResponse);
 
-  // DeleteTelegramDestination removes a Destination.
+  // DeleteTelegramDestination removes a Destination. It is refused while a
+  // Notify Group or Cron job still references it.
   rpc DeleteTelegramDestination(DeleteTelegramDestinationRequest) returns (DeleteTelegramDestinationResponse);
+
+  // SendTelegramTestMessage delivers a message to the Destination through the
+  // unified sender. It is the explicit action that proves an address works:
+  // creating a Destination never sends anything. A successful send marks an
+  // unverified Destination verified.
+  rpc SendTelegramTestMessage(SendTelegramTestMessageRequest) returns (SendTelegramTestMessageResponse);
 }
 
 message ListTelegramDestinationsRequest {
@@ -509,3 +516,18 @@ message DeleteTelegramDestinationRequest {
 }
 
 message DeleteTelegramDestinationResponse {}
+
+message SendTelegramTestMessageRequest {
+  string destination_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Optional message body. Empty sends a default confirmation text.
+  string text = 2;
+}
+
+message SendTelegramTestMessageResponse {
+  // The Destination with refreshed verification metadata.
+  TelegramDestination destination = 1;
+
+  // Telegram message IDs produced by the send, in delivery order.
+  repeated string message_ids = 2;
+}

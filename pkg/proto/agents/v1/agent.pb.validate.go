@@ -2496,6 +2496,8 @@ func (m *TelegramNotifyTarget) validate(all bool) error {
 
 	// no validation rules for MessageThreadId
 
+	// no validation rules for DestinationId
+
 	if len(errors) > 0 {
 		return TelegramNotifyTargetMultiError(errors)
 	}

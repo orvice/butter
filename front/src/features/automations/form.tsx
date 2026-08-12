@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAgents } from '@/api/agents'
 import { useNotifyGroups } from '@/api/notify-groups'
+import { useTelegramDestinations } from '@/api/telegram'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,6 +28,7 @@ const schema = z.object({
   channel_name: z.string().optional(),
   chat_id: z.string().optional(),
   notify_group_name: z.string().optional(),
+  telegram_destination_id: z.string().optional(),
   timeout_seconds: z.number().optional(),
   retry_attempts: z.number().optional(),
   retry_backoff_seconds: z.number().optional(),
@@ -70,6 +72,9 @@ export function AutomationForm({
     defaultValues: formValuesFromJob(initialValue),
   })
   const deliveryType = useWatch({ control: form.control, name: 'delivery_type' })
+  // Telegram cron delivery references a destination; the chat, forum topic,
+  // and bot credential all live there (issue #264).
+  const { data: telegramDestinations = [] } = useTelegramDestinations()
   const isEdit = mode === 'edit'
 
   function handleSubmit(values: FormValues) {
@@ -93,6 +98,7 @@ export function AutomationForm({
         channel_name: values.channel_name,
         chat_id: values.chat_id,
         notify_group_name: values.notify_group_name,
+        telegram_destination_id: values.telegram_destination_id,
       },
       timeout_seconds: values.timeout_seconds || undefined,
       retry: values.retry_attempts
@@ -221,7 +227,7 @@ export function AutomationForm({
                   <SelectContent>
                     <SelectItem value='CRON_DELIVERY_TYPE_LOG'>Log</SelectItem>
                     <SelectItem value='CRON_DELIVERY_TYPE_WEBHOOK'>Webhook</SelectItem>
-                    <SelectItem value='CRON_DELIVERY_TYPE_CHANNEL'>Channel</SelectItem>
+                    <SelectItem value='CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION'>Telegram Destination</SelectItem>
                     <SelectItem value='CRON_DELIVERY_TYPE_NOTIFY_GROUP'>Notify Group</SelectItem>
                   </SelectContent>
                 </Select>
@@ -233,14 +239,35 @@ export function AutomationForm({
               )} />
             )}
             {deliveryType === 'CRON_DELIVERY_TYPE_CHANNEL' && (
-              <>
-                <FormField control={form.control} name='channel_name' render={({ field }) => (
-                  <FormItem><FormLabel>Channel Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-                )} />
-                <FormField control={form.control} name='chat_id' render={({ field }) => (
-                  <FormItem><FormLabel>Chat ID</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-                )} />
-              </>
+              // Retained read-only for jobs saved before issue #264. Saving
+              // one now is rejected by the API, so the form says so instead
+              // of letting the operator discover it on submit.
+              <p className='text-sm text-destructive'>
+                Channel delivery is retired. Choose Telegram Destination instead; this job
+                cannot be saved until you do.
+              </p>
+            )}
+            {deliveryType === 'CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION' && (
+              <FormField control={form.control} name='telegram_destination_id' render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Telegram destination</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || undefined}>
+                    <FormControl>
+                      <SelectTrigger aria-label='Telegram destination'>
+                        <SelectValue placeholder='Select a destination' />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {telegramDestinations.map((destination) => (
+                        <SelectItem key={destination.id} value={destination.id}>
+                          {destination.name || destination.key}
+                          {destination.messageThreadId ? ` \u00b7 topic ${destination.messageThreadId}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )} />
             )}
             {deliveryType === 'CRON_DELIVERY_TYPE_NOTIFY_GROUP' && (
               <FormField control={form.control} name='notify_group_name' render={({ field }) => (
@@ -282,6 +309,7 @@ function formValuesFromJob(job?: CronJob): FormValues {
     channel_name: job?.delivery?.channel_name ?? '',
     chat_id: job?.delivery?.chat_id ?? '',
     notify_group_name: job?.delivery?.notify_group_name ?? '',
+    telegram_destination_id: job?.delivery?.telegram_destination_id ?? '',
     timeout_seconds: job?.timeout_seconds ?? 0,
     retry_attempts: job?.retry?.max_attempts ?? 0,
     retry_backoff_seconds: job?.retry?.backoff_seconds ?? 0,

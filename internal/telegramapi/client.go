@@ -81,6 +81,13 @@ type Client interface {
 	// single validation used before a Channel or a rotated credential is
 	// committed.
 	GetMe(ctx context.Context) (BotIdentity, error)
+
+	// SendMessage delivers one text message. Forum Topic targeting travels
+	// in SendMessageParams.MessageThreadID.
+	SendMessage(ctx context.Context, params SendMessageParams) (Message, error)
+
+	// EditMessageText replaces the text of a message this Bot sent.
+	EditMessageText(ctx context.Context, params EditMessageParams) (Message, error)
 }
 
 // Factory builds a Client for a decrypted Bot Token. Services hold a Factory

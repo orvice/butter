@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,16 +10,26 @@ import (
 	"connectrpc.com/connect"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 type NotifyGroupServiceServer struct {
 	repo configrepo.NotifyGroupRepository
+	// telegramRepo resolves Telegram Destination references so a group can
+	// never be saved pointing at an address that does not exist, belongs to
+	// another workspace, or cannot send.
+	telegramRepo telegramrepo.Repository
 }
 
 func NewNotifyGroupServiceServer(repo configrepo.NotifyGroupRepository) *NotifyGroupServiceServer {
 	return &NotifyGroupServiceServer{repo: repo}
+}
+
+// SetTelegramRepo wires Destination resolution after bootstrap.
+func (s *NotifyGroupServiceServer) SetTelegramRepo(repo telegramrepo.Repository) {
+	s.telegramRepo = repo
 }
 
 func validateNotifyGroup(group *agentsv1.NotifyGroup) error {
@@ -28,6 +39,10 @@ func validateNotifyGroup(group *agentsv1.NotifyGroup) error {
 	if strings.TrimSpace(group.GetName()) == "" {
 		return connectx.RequiredArgument("notify_group.name")
 	}
+	// Two targets pointing at the same Telegram Destination would deliver the
+	// same alert twice to the same chat. The same Destination in *different*
+	// groups is fine and intentional.
+	seenDestinations := make(map[string]int)
 	for i, target := range group.GetTargets() {
 		field := fmt.Sprintf("notify_group.targets[%d]", i)
 		if target == nil {
@@ -35,15 +50,25 @@ func validateNotifyGroup(group *agentsv1.NotifyGroup) error {
 		}
 		switch target.GetType() {
 		case agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM:
-			if target.GetTelegram() == nil {
+			telegram := target.GetTelegram()
+			if telegram == nil {
 				return connectx.RequiredArgument(field + ".telegram")
 			}
-			if strings.TrimSpace(target.GetTelegram().GetBotToken()) == "" {
-				return connectx.RequiredArgument(field + ".telegram.bot_token")
+			// The legacy raw-address fields are refused rather than ignored:
+			// silently dropping a Bot Token an operator just pasted would
+			// leave them believing it is in use (issue #264).
+			if err := rejectLegacyTelegramTargetFields(field, telegram); err != nil {
+				return err
 			}
-			if strings.TrimSpace(target.GetTelegram().GetChatId()) == "" {
-				return connectx.RequiredArgument(field + ".telegram.chat_id")
+			destinationID := strings.TrimSpace(telegram.GetDestinationId())
+			if destinationID == "" {
+				return connectx.RequiredArgument(field + ".telegram.destination_id")
 			}
+			if prev, dup := seenDestinations[destinationID]; dup {
+				return connectx.InvalidArgument(field+".telegram.destination_id",
+					fmt.Sprintf("duplicates target %d in the same group", prev))
+			}
+			seenDestinations[destinationID] = i
 		case agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_LARK_WEBHOOK:
 			if target.GetLark() == nil {
 				return connectx.RequiredArgument(field + ".lark")
@@ -60,6 +85,55 @@ func validateNotifyGroup(group *agentsv1.NotifyGroup) error {
 			}
 		default:
 			return connectx.InvalidArgument(field+".type", fmt.Sprintf("unsupported notify target type %s", target.GetType()))
+		}
+	}
+	return nil
+}
+
+// rejectLegacyTelegramTargetFields refuses the pre-#264 raw address fields.
+func rejectLegacyTelegramTargetFields(field string, telegram *agentsv1.TelegramNotifyTarget) error {
+	//nolint:staticcheck // deliberately reading deprecated fields to refuse them
+	switch {
+	case strings.TrimSpace(telegram.GetBotToken()) != "":
+		return connectx.InvalidArgument(field+".telegram.bot_token",
+			"is no longer accepted; reference a telegram destination instead")
+	case strings.TrimSpace(telegram.GetChatId()) != "":
+		return connectx.InvalidArgument(field+".telegram.chat_id",
+			"is no longer accepted; reference a telegram destination instead")
+	case strings.TrimSpace(telegram.GetParseMode()) != "":
+		return connectx.InvalidArgument(field+".telegram.parse_mode",
+			"is no longer accepted; markdown handling is centralized")
+	case telegram.GetMessageThreadId() != 0:
+		return connectx.InvalidArgument(field+".telegram.message_thread_id",
+			"is no longer accepted; the destination owns the forum topic")
+	}
+	return nil
+}
+
+// resolveTelegramTargets checks that every Telegram target names a
+// Destination in this workspace that is currently able to send. Resolving at
+// write time is what turns "the alert silently went nowhere" into a
+// validation error the operator sees while editing.
+func (s *NotifyGroupServiceServer) resolveTelegramTargets(ctx context.Context, workspaceID string, group *agentsv1.NotifyGroup) error {
+	if s.telegramRepo == nil {
+		return nil
+	}
+	for i, target := range group.GetTargets() {
+		if target.GetType() != agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM {
+			continue
+		}
+		field := fmt.Sprintf("notify_group.targets[%d].telegram.destination_id", i)
+		destinationID := strings.TrimSpace(target.GetTelegram().GetDestinationId())
+		dest, err := s.telegramRepo.GetDestination(ctx, workspaceID, destinationID)
+		if err != nil {
+			if errors.Is(err, telegramrepo.ErrNotFound) {
+				return connectx.InvalidArgument(field, "references an unknown telegram destination")
+			}
+			return connectx.InternalWith(err)
+		}
+		if !dest.GetOutboundEnabled() {
+			return connectx.InvalidArgument(field,
+				fmt.Sprintf("destination %q has outbound delivery disabled", dest.GetKey()))
 		}
 	}
 	return nil
@@ -97,6 +171,9 @@ func (s *NotifyGroupServiceServer) CreateNotifyGroup(ctx context.Context, req *c
 	if err := validateNotifyGroup(req.Msg.GetNotifyGroup()); err != nil {
 		return nil, err
 	}
+	if err := s.resolveTelegramTargets(ctx, wsID, req.Msg.GetNotifyGroup()); err != nil {
+		return nil, err
+	}
 	logger := log.FromContext(ctx)
 	logger.Info("creating notify group", "workspace_id", wsID, "name", req.Msg.GetNotifyGroup().GetName())
 	group, err := s.repo.CreateNotifyGroup(ctx, wsID, req.Msg.GetNotifyGroup())
@@ -113,6 +190,9 @@ func (s *NotifyGroupServiceServer) UpdateNotifyGroup(ctx context.Context, req *c
 		return nil, err
 	}
 	if err := validateNotifyGroup(req.Msg.GetNotifyGroup()); err != nil {
+		return nil, err
+	}
+	if err := s.resolveTelegramTargets(ctx, wsID, req.Msg.GetNotifyGroup()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)

@@ -15,6 +15,7 @@ import (
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/telegramapi"
+	"go.orx.me/apps/butter/internal/telegramsend"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -85,6 +86,26 @@ func mapTelegramRepoErr(err error) *connect.Error {
 		return connect.NewError(connect.CodeFailedPrecondition, err)
 	default:
 		return connectx.InternalWith(err)
+	}
+}
+
+// mapTelegramSendErr translates a unified-sender failure. An unavailable
+// Destination is a configuration problem the caller can fix, so it is a
+// FailedPrecondition rather than an Internal error.
+func mapTelegramSendErr(err error) *connect.Error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, telegramsend.ErrDestinationNotFound):
+		return connectx.NotFound(err.Error())
+	case errors.Is(err, telegramsend.ErrDestinationUnavailable),
+		errors.Is(err, telegramsend.ErrNotConfigured):
+		return connect.NewError(connect.CodeFailedPrecondition, err)
+	case errors.Is(err, telegramapi.ErrUnauthorized):
+		return connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("telegram rejected the channel credential: %w", err))
+	default:
+		return connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 }
 

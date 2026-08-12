@@ -449,6 +449,7 @@ const (
 	TelegramDestinationService_CreateTelegramDestination_FullMethodName = "/agents.v1.TelegramDestinationService/CreateTelegramDestination"
 	TelegramDestinationService_UpdateTelegramDestination_FullMethodName = "/agents.v1.TelegramDestinationService/UpdateTelegramDestination"
 	TelegramDestinationService_DeleteTelegramDestination_FullMethodName = "/agents.v1.TelegramDestinationService/DeleteTelegramDestination"
+	TelegramDestinationService_SendTelegramTestMessage_FullMethodName   = "/agents.v1.TelegramDestinationService/SendTelegramTestMessage"
 )
 
 // TelegramDestinationServiceClient is the client API for TelegramDestinationService service.
@@ -471,8 +472,14 @@ type TelegramDestinationServiceClient interface {
 	// requires the expected revision and rejects any change to the immutable
 	// address; redirecting traffic requires creating a new Destination.
 	UpdateTelegramDestination(ctx context.Context, in *UpdateTelegramDestinationRequest, opts ...grpc.CallOption) (*UpdateTelegramDestinationResponse, error)
-	// DeleteTelegramDestination removes a Destination.
+	// DeleteTelegramDestination removes a Destination. It is refused while a
+	// Notify Group or Cron job still references it.
 	DeleteTelegramDestination(ctx context.Context, in *DeleteTelegramDestinationRequest, opts ...grpc.CallOption) (*DeleteTelegramDestinationResponse, error)
+	// SendTelegramTestMessage delivers a message to the Destination through the
+	// unified sender. It is the explicit action that proves an address works:
+	// creating a Destination never sends anything. A successful send marks an
+	// unverified Destination verified.
+	SendTelegramTestMessage(ctx context.Context, in *SendTelegramTestMessageRequest, opts ...grpc.CallOption) (*SendTelegramTestMessageResponse, error)
 }
 
 type telegramDestinationServiceClient struct {
@@ -533,6 +540,16 @@ func (c *telegramDestinationServiceClient) DeleteTelegramDestination(ctx context
 	return out, nil
 }
 
+func (c *telegramDestinationServiceClient) SendTelegramTestMessage(ctx context.Context, in *SendTelegramTestMessageRequest, opts ...grpc.CallOption) (*SendTelegramTestMessageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendTelegramTestMessageResponse)
+	err := c.cc.Invoke(ctx, TelegramDestinationService_SendTelegramTestMessage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TelegramDestinationServiceServer is the server API for TelegramDestinationService service.
 // All implementations must embed UnimplementedTelegramDestinationServiceServer
 // for forward compatibility.
@@ -553,8 +570,14 @@ type TelegramDestinationServiceServer interface {
 	// requires the expected revision and rejects any change to the immutable
 	// address; redirecting traffic requires creating a new Destination.
 	UpdateTelegramDestination(context.Context, *UpdateTelegramDestinationRequest) (*UpdateTelegramDestinationResponse, error)
-	// DeleteTelegramDestination removes a Destination.
+	// DeleteTelegramDestination removes a Destination. It is refused while a
+	// Notify Group or Cron job still references it.
 	DeleteTelegramDestination(context.Context, *DeleteTelegramDestinationRequest) (*DeleteTelegramDestinationResponse, error)
+	// SendTelegramTestMessage delivers a message to the Destination through the
+	// unified sender. It is the explicit action that proves an address works:
+	// creating a Destination never sends anything. A successful send marks an
+	// unverified Destination verified.
+	SendTelegramTestMessage(context.Context, *SendTelegramTestMessageRequest) (*SendTelegramTestMessageResponse, error)
 	mustEmbedUnimplementedTelegramDestinationServiceServer()
 }
 
@@ -579,6 +602,9 @@ func (UnimplementedTelegramDestinationServiceServer) UpdateTelegramDestination(c
 }
 func (UnimplementedTelegramDestinationServiceServer) DeleteTelegramDestination(context.Context, *DeleteTelegramDestinationRequest) (*DeleteTelegramDestinationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteTelegramDestination not implemented")
+}
+func (UnimplementedTelegramDestinationServiceServer) SendTelegramTestMessage(context.Context, *SendTelegramTestMessageRequest) (*SendTelegramTestMessageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendTelegramTestMessage not implemented")
 }
 func (UnimplementedTelegramDestinationServiceServer) mustEmbedUnimplementedTelegramDestinationServiceServer() {
 }
@@ -692,6 +718,24 @@ func _TelegramDestinationService_DeleteTelegramDestination_Handler(srv interface
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TelegramDestinationService_SendTelegramTestMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendTelegramTestMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TelegramDestinationServiceServer).SendTelegramTestMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TelegramDestinationService_SendTelegramTestMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TelegramDestinationServiceServer).SendTelegramTestMessage(ctx, req.(*SendTelegramTestMessageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TelegramDestinationService_ServiceDesc is the grpc.ServiceDesc for TelegramDestinationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -718,6 +762,10 @@ var TelegramDestinationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteTelegramDestination",
 			Handler:    _TelegramDestinationService_DeleteTelegramDestination_Handler,
+		},
+		{
+			MethodName: "SendTelegramTestMessage",
+			Handler:    _TelegramDestinationService_SendTelegramTestMessage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

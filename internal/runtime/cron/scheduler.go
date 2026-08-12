@@ -46,6 +46,10 @@ type Scheduler struct {
 	channelRepo   configrepo.ChannelRepository
 	notifier      *notify.Sender
 	channelSender channelSender
+	// telegramSender delivers TELEGRAM_DESTINATION results. Held as the
+	// notify seam so the scheduler does not depend on the Telegram
+	// repository or credential handling.
+	telegramSender notify.TelegramDelivery
 	sessionSvc    sessionDeleter
 	ctx           context.Context
 	cancelFn      context.CancelFunc
@@ -75,6 +79,15 @@ type sessionDeleter interface {
 // sessions in place.
 func (s *Scheduler) SetSessionService(svc sessionDeleter) {
 	s.sessionSvc = svc
+}
+
+// SetTelegramDelivery wires the unified Telegram sender for both
+// TELEGRAM_DESTINATION deliveries and Telegram notify-group targets.
+func (s *Scheduler) SetTelegramDelivery(delivery notify.TelegramDelivery) {
+	s.telegramSender = delivery
+	if s.notifier != nil {
+		s.notifier.SetTelegramDelivery(delivery)
+	}
 }
 
 // cleanupSession deletes a terminal execution's session. Per-execution
@@ -858,9 +871,46 @@ func (s *Scheduler) deliver(job *agentsv1.CronJob, exec *agentsv1.CronExecution)
 		s.deliverChannel(job, exec)
 	case agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_NOTIFY_GROUP:
 		s.deliverNotifyGroup(job, exec)
+	case agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION:
+		s.deliverTelegramDestination(job, exec)
 	default:
 		s.deliverLog(job, exec)
 	}
+}
+
+// deliverTelegramDestination routes the result through the unified Telegram
+// sender (issue #264). The job stores only a Destination ID, so the chat, the
+// optional Forum Topic, and the credential all come from current Destination
+// state rather than from the job.
+func (s *Scheduler) deliverTelegramDestination(job *agentsv1.CronJob, exec *agentsv1.CronExecution) {
+	logger := log.FromContext(s.ctx)
+	destinationID := job.GetDelivery().GetTelegramDestinationId()
+	if s.telegramSender == nil {
+		logger.Error("telegram destination delivery configured but sender is not available",
+			"job", job.GetName(), "workspace_id", job.GetWorkspaceId(), "exec_id", exec.GetId())
+		return
+	}
+	if destinationID == "" {
+		logger.Error("telegram destination delivery configured without a destination",
+			"job", job.GetName(), "workspace_id", job.GetWorkspaceId(), "exec_id", exec.GetId())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, channelDeliveryTimeout)
+	err := s.telegramSender.SendToDestination(ctx, job.GetWorkspaceId(), destinationID, cronDeliveryMessage(exec))
+	cancel()
+	if err != nil {
+		// An unavailable Destination is reported, never silently skipped or
+		// redirected: a cron result that quietly goes nowhere looks like a
+		// job that never ran.
+		logger.Error("telegram destination delivery failed",
+			"job", job.GetName(), "workspace_id", job.GetWorkspaceId(),
+			"exec_id", exec.GetId(), "destination_id", destinationID, "err", err)
+		return
+	}
+	logger.Info("telegram destination delivery succeeded",
+		"job", job.GetName(), "workspace_id", job.GetWorkspaceId(),
+		"exec_id", exec.GetId(), "destination_id", destinationID)
 }
 
 func (s *Scheduler) deliverLog(job *agentsv1.CronJob, exec *agentsv1.CronExecution) {
@@ -1045,7 +1095,7 @@ func (s *Scheduler) deliverNotifyGroup(job *agentsv1.CronJob, exec *agentsv1.Cro
 			continue
 		}
 		ctx, cancel := context.WithTimeout(s.ctx, notifyTargetTimeout)
-		err := s.notifier.Send(ctx, target, message)
+		err := s.notifier.Send(ctx, job.GetWorkspaceId(), target, message)
 		cancel()
 		if err != nil {
 			logger.Error("notify group target delivery failed",

@@ -195,6 +195,20 @@ export function useUpdateTelegramDestination() {
   })
 }
 
+export function useSendTelegramTestMessage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { destinationId: string; text?: string }) => {
+      const res = await destinationClient.sendTelegramTestMessage({
+        destinationId: input.destinationId,
+        text: input.text ?? '',
+      })
+      return res
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: DESTINATIONS_KEY }),
+  })
+}
+
 export function useDeleteTelegramDestination() {
   const qc = useQueryClient()
   return useMutation({

@@ -53,7 +53,7 @@ type runnerService interface {
 }
 
 type notifySender interface {
-	Send(ctx context.Context, target *agentsv1.NotifyTarget, msg notify.Message) error
+	Send(ctx context.Context, workspaceID string, target *agentsv1.NotifyTarget, msg notify.Message) error
 }
 
 type httpDoer interface {
@@ -102,6 +102,15 @@ type Engine struct {
 type runningAutomation struct {
 	cancel context.CancelFunc
 	done   chan struct{}
+}
+
+// SetTelegramDelivery wires the unified Telegram sender so notify-group steps
+// can reach Telegram Destinations. Without it, Telegram targets fail
+// explicitly rather than being skipped.
+func (e *Engine) SetTelegramDelivery(delivery notify.TelegramDelivery) {
+	if sender, ok := e.notifier.(*notify.Sender); ok {
+		sender.SetTelegramDelivery(delivery)
+	}
 }
 
 func NewEngine(defRepo DefinitionRepo, runRepo RunRepo, stepRepo StepRunRepo, opts EngineOptions) *Engine {
@@ -679,7 +688,7 @@ func (e *Engine) sendNotifyGroup(ctx context.Context, workspaceID string, step *
 		if target == nil || !target.GetEnabled() {
 			continue
 		}
-		if err := e.notifier.Send(ctx, target, msg); err != nil {
+		if err := e.notifier.Send(ctx, group.GetWorkspaceId(), target, msg); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", target.GetName(), err))
 			continue
 		}

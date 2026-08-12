@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { AlertTriangle, KeyRound, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, KeyRound, Plus, Send, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useDeleteTelegramChannel,
@@ -9,6 +9,7 @@ import {
   useSetTelegramChannelEnabled,
   useTelegramChannel,
   useTelegramChannelStatus,
+  useSendTelegramTestMessage,
   useTelegramDestinations,
   useUpdateTelegramChannel,
 } from '@/api/telegram'
@@ -42,6 +43,7 @@ export function TelegramChannelDetail() {
   const setEnabled = useSetTelegramChannelEnabled()
   const removeChannel = useDeleteTelegramChannel()
   const removeDestination = useDeleteTelegramDestination()
+  const sendTest = useSendTelegramTestMessage()
 
   const [name, setName] = useState('')
   const [receiveMode, setReceiveMode] = useState<TelegramReceiveMode>(
@@ -331,6 +333,25 @@ export function TelegramChannelDetail() {
                       <AddressLabel destination={destination} />
                     </div>
                     <div className='flex items-center gap-2'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        aria-label={`Send test message to ${destination.key}`}
+                        disabled={!destination.outboundEnabled || sendTest.isPending}
+                        onClick={async () => {
+                          try {
+                            await sendTest.mutateAsync({ destinationId: destination.id })
+                            toast.success('Test message delivered')
+                          } catch (err) {
+                            toast.error(
+                              err instanceof Error ? err.message : 'Test message failed'
+                            )
+                          }
+                        }}
+                      >
+                        <Send className='h-4 w-4' />
+                        Test
+                      </Button>
                       <Button variant='outline' size='sm' asChild>
                         <Link
                           to='/telegram-destinations/$id'

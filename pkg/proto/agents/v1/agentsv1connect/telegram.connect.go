@@ -75,6 +75,9 @@ const (
 	// TelegramDestinationServiceDeleteTelegramDestinationProcedure is the fully-qualified name of the
 	// TelegramDestinationService's DeleteTelegramDestination RPC.
 	TelegramDestinationServiceDeleteTelegramDestinationProcedure = "/agents.v1.TelegramDestinationService/DeleteTelegramDestination"
+	// TelegramDestinationServiceSendTelegramTestMessageProcedure is the fully-qualified name of the
+	// TelegramDestinationService's SendTelegramTestMessage RPC.
+	TelegramDestinationServiceSendTelegramTestMessageProcedure = "/agents.v1.TelegramDestinationService/SendTelegramTestMessage"
 )
 
 // TelegramChannelServiceClient is a client for the agents.v1.TelegramChannelService service.
@@ -384,8 +387,14 @@ type TelegramDestinationServiceClient interface {
 	// requires the expected revision and rejects any change to the immutable
 	// address; redirecting traffic requires creating a new Destination.
 	UpdateTelegramDestination(context.Context, *connect.Request[v1.UpdateTelegramDestinationRequest]) (*connect.Response[v1.UpdateTelegramDestinationResponse], error)
-	// DeleteTelegramDestination removes a Destination.
+	// DeleteTelegramDestination removes a Destination. It is refused while a
+	// Notify Group or Cron job still references it.
 	DeleteTelegramDestination(context.Context, *connect.Request[v1.DeleteTelegramDestinationRequest]) (*connect.Response[v1.DeleteTelegramDestinationResponse], error)
+	// SendTelegramTestMessage delivers a message to the Destination through the
+	// unified sender. It is the explicit action that proves an address works:
+	// creating a Destination never sends anything. A successful send marks an
+	// unverified Destination verified.
+	SendTelegramTestMessage(context.Context, *connect.Request[v1.SendTelegramTestMessageRequest]) (*connect.Response[v1.SendTelegramTestMessageResponse], error)
 }
 
 // NewTelegramDestinationServiceClient constructs a client for the
@@ -429,6 +438,12 @@ func NewTelegramDestinationServiceClient(httpClient connect.HTTPClient, baseURL 
 			connect.WithSchema(telegramDestinationServiceMethods.ByName("DeleteTelegramDestination")),
 			connect.WithClientOptions(opts...),
 		),
+		sendTelegramTestMessage: connect.NewClient[v1.SendTelegramTestMessageRequest, v1.SendTelegramTestMessageResponse](
+			httpClient,
+			baseURL+TelegramDestinationServiceSendTelegramTestMessageProcedure,
+			connect.WithSchema(telegramDestinationServiceMethods.ByName("SendTelegramTestMessage")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -439,6 +454,7 @@ type telegramDestinationServiceClient struct {
 	createTelegramDestination *connect.Client[v1.CreateTelegramDestinationRequest, v1.CreateTelegramDestinationResponse]
 	updateTelegramDestination *connect.Client[v1.UpdateTelegramDestinationRequest, v1.UpdateTelegramDestinationResponse]
 	deleteTelegramDestination *connect.Client[v1.DeleteTelegramDestinationRequest, v1.DeleteTelegramDestinationResponse]
+	sendTelegramTestMessage   *connect.Client[v1.SendTelegramTestMessageRequest, v1.SendTelegramTestMessageResponse]
 }
 
 // ListTelegramDestinations calls agents.v1.TelegramDestinationService.ListTelegramDestinations.
@@ -466,6 +482,11 @@ func (c *telegramDestinationServiceClient) DeleteTelegramDestination(ctx context
 	return c.deleteTelegramDestination.CallUnary(ctx, req)
 }
 
+// SendTelegramTestMessage calls agents.v1.TelegramDestinationService.SendTelegramTestMessage.
+func (c *telegramDestinationServiceClient) SendTelegramTestMessage(ctx context.Context, req *connect.Request[v1.SendTelegramTestMessageRequest]) (*connect.Response[v1.SendTelegramTestMessageResponse], error) {
+	return c.sendTelegramTestMessage.CallUnary(ctx, req)
+}
+
 // TelegramDestinationServiceHandler is an implementation of the
 // agents.v1.TelegramDestinationService service.
 type TelegramDestinationServiceHandler interface {
@@ -481,8 +502,14 @@ type TelegramDestinationServiceHandler interface {
 	// requires the expected revision and rejects any change to the immutable
 	// address; redirecting traffic requires creating a new Destination.
 	UpdateTelegramDestination(context.Context, *connect.Request[v1.UpdateTelegramDestinationRequest]) (*connect.Response[v1.UpdateTelegramDestinationResponse], error)
-	// DeleteTelegramDestination removes a Destination.
+	// DeleteTelegramDestination removes a Destination. It is refused while a
+	// Notify Group or Cron job still references it.
 	DeleteTelegramDestination(context.Context, *connect.Request[v1.DeleteTelegramDestinationRequest]) (*connect.Response[v1.DeleteTelegramDestinationResponse], error)
+	// SendTelegramTestMessage delivers a message to the Destination through the
+	// unified sender. It is the explicit action that proves an address works:
+	// creating a Destination never sends anything. A successful send marks an
+	// unverified Destination verified.
+	SendTelegramTestMessage(context.Context, *connect.Request[v1.SendTelegramTestMessageRequest]) (*connect.Response[v1.SendTelegramTestMessageResponse], error)
 }
 
 // NewTelegramDestinationServiceHandler builds an HTTP handler from the service implementation. It
@@ -522,6 +549,12 @@ func NewTelegramDestinationServiceHandler(svc TelegramDestinationServiceHandler,
 		connect.WithSchema(telegramDestinationServiceMethods.ByName("DeleteTelegramDestination")),
 		connect.WithHandlerOptions(opts...),
 	)
+	telegramDestinationServiceSendTelegramTestMessageHandler := connect.NewUnaryHandler(
+		TelegramDestinationServiceSendTelegramTestMessageProcedure,
+		svc.SendTelegramTestMessage,
+		connect.WithSchema(telegramDestinationServiceMethods.ByName("SendTelegramTestMessage")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.TelegramDestinationService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TelegramDestinationServiceListTelegramDestinationsProcedure:
@@ -534,6 +567,8 @@ func NewTelegramDestinationServiceHandler(svc TelegramDestinationServiceHandler,
 			telegramDestinationServiceUpdateTelegramDestinationHandler.ServeHTTP(w, r)
 		case TelegramDestinationServiceDeleteTelegramDestinationProcedure:
 			telegramDestinationServiceDeleteTelegramDestinationHandler.ServeHTTP(w, r)
+		case TelegramDestinationServiceSendTelegramTestMessageProcedure:
+			telegramDestinationServiceSendTelegramTestMessageHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -561,4 +596,8 @@ func (UnimplementedTelegramDestinationServiceHandler) UpdateTelegramDestination(
 
 func (UnimplementedTelegramDestinationServiceHandler) DeleteTelegramDestination(context.Context, *connect.Request[v1.DeleteTelegramDestinationRequest]) (*connect.Response[v1.DeleteTelegramDestinationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramDestinationService.DeleteTelegramDestination is not implemented"))
+}
+
+func (UnimplementedTelegramDestinationServiceHandler) SendTelegramTestMessage(context.Context, *connect.Request[v1.SendTelegramTestMessageRequest]) (*connect.Response[v1.SendTelegramTestMessageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramDestinationService.SendTelegramTestMessage is not implemented"))
 }

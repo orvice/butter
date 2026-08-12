@@ -4338,3 +4338,251 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DeleteTelegramDestinationResponseValidationError{}
+
+// Validate checks the field values on SendTelegramTestMessageRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SendTelegramTestMessageRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SendTelegramTestMessageRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// SendTelegramTestMessageRequestMultiError, or nil if none found.
+func (m *SendTelegramTestMessageRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SendTelegramTestMessageRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetDestinationId()) < 1 {
+		err := SendTelegramTestMessageRequestValidationError{
+			field:  "DestinationId",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	// no validation rules for Text
+
+	if len(errors) > 0 {
+		return SendTelegramTestMessageRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// SendTelegramTestMessageRequestMultiError is an error wrapping multiple
+// validation errors returned by SendTelegramTestMessageRequest.ValidateAll()
+// if the designated constraints aren't met.
+type SendTelegramTestMessageRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SendTelegramTestMessageRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SendTelegramTestMessageRequestMultiError) AllErrors() []error { return m }
+
+// SendTelegramTestMessageRequestValidationError is the validation error
+// returned by SendTelegramTestMessageRequest.Validate if the designated
+// constraints aren't met.
+type SendTelegramTestMessageRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SendTelegramTestMessageRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SendTelegramTestMessageRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SendTelegramTestMessageRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SendTelegramTestMessageRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SendTelegramTestMessageRequestValidationError) ErrorName() string {
+	return "SendTelegramTestMessageRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SendTelegramTestMessageRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSendTelegramTestMessageRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SendTelegramTestMessageRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SendTelegramTestMessageRequestValidationError{}
+
+// Validate checks the field values on SendTelegramTestMessageResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SendTelegramTestMessageResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SendTelegramTestMessageResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// SendTelegramTestMessageResponseMultiError, or nil if none found.
+func (m *SendTelegramTestMessageResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SendTelegramTestMessageResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetDestination()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, SendTelegramTestMessageResponseValidationError{
+					field:  "Destination",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, SendTelegramTestMessageResponseValidationError{
+					field:  "Destination",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDestination()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return SendTelegramTestMessageResponseValidationError{
+				field:  "Destination",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return SendTelegramTestMessageResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// SendTelegramTestMessageResponseMultiError is an error wrapping multiple
+// validation errors returned by SendTelegramTestMessageResponse.ValidateAll()
+// if the designated constraints aren't met.
+type SendTelegramTestMessageResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SendTelegramTestMessageResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SendTelegramTestMessageResponseMultiError) AllErrors() []error { return m }
+
+// SendTelegramTestMessageResponseValidationError is the validation error
+// returned by SendTelegramTestMessageResponse.Validate if the designated
+// constraints aren't met.
+type SendTelegramTestMessageResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SendTelegramTestMessageResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SendTelegramTestMessageResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SendTelegramTestMessageResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SendTelegramTestMessageResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SendTelegramTestMessageResponseValidationError) ErrorName() string {
+	return "SendTelegramTestMessageResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SendTelegramTestMessageResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSendTelegramTestMessageResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SendTelegramTestMessageResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SendTelegramTestMessageResponseValidationError{}

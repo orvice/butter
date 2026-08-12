@@ -104,10 +104,12 @@ func TestNotifyGroupServiceServer_AcceptsSupportedTargets(t *testing.T) {
 			Enabled: true,
 			Targets: []*agentsv1.NotifyTarget{
 				{
-					Name:     "telegram",
-					Enabled:  true,
-					Type:     agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
-					Telegram: &agentsv1.TelegramNotifyTarget{BotToken: "token", ChatId: "chat"},
+					Name:    "telegram",
+					Enabled: true,
+					Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
+					// A Telegram target now carries only a Destination ID
+					// (issue #264); the raw bot token and chat ID are rejected.
+					Telegram: &agentsv1.TelegramNotifyTarget{DestinationId: "dest-1"},
 				},
 				{
 					Name:    "lark",

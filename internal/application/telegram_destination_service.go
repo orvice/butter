@@ -14,6 +14,7 @@ import (
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
+	"go.orx.me/apps/butter/internal/telegramsend"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -30,6 +31,18 @@ type TelegramDestinationServiceServer struct {
 	workspaceRepo workspacerepo.Repository
 	agentRepo     configrepo.AgentRepository
 	modelRepo     configrepo.ModelProviderRepository
+	// notifyRepo and cronRepo back the deletion guard: a Destination that a
+	// Notify Group or Cron job still points at may not be removed.
+	notifyRepo configrepo.NotifyGroupRepository
+	cronRepo   CronJobLister
+	sender     *telegramsend.Sender
+}
+
+// CronJobLister is the slice of the cron job repository the deletion guard
+// needs. Declaring it here rather than importing the scheduler keeps the
+// application layer from depending on the runtime package.
+type CronJobLister interface {
+	List(ctx context.Context, workspaceID string) ([]*agentsv1.CronJob, error)
 }
 
 func NewTelegramDestinationServiceServer(repo telegramrepo.Repository) *TelegramDestinationServiceServer {
@@ -45,6 +58,17 @@ func (s *TelegramDestinationServiceServer) SetWorkspaceRepo(repo workspacerepo.R
 func (s *TelegramDestinationServiceServer) SetConfigRepos(agents configrepo.AgentRepository, models configrepo.ModelProviderRepository) {
 	s.agentRepo = agents
 	s.modelRepo = models
+}
+
+// SetReferenceRepos wires the repositories consulted before a Destination is
+// deleted.
+func (s *TelegramDestinationServiceServer) SetReferenceRepos(notify configrepo.NotifyGroupRepository, cron CronJobLister) {
+	s.notifyRepo = notify
+	s.cronRepo = cron
+}
+
+func (s *TelegramDestinationServiceServer) SetSender(sender *telegramsend.Sender) {
+	s.sender = sender
 }
 
 func (s *TelegramDestinationServiceServer) requireReady() error {
@@ -277,12 +301,99 @@ func (s *TelegramDestinationServiceServer) DeleteTelegramDestination(ctx context
 	if strings.TrimSpace(req.Msg.GetId()) == "" {
 		return nil, connectx.RequiredArgument("id")
 	}
+	references, err := s.referencesTo(ctx, workspaceID, req.Msg.GetId())
+	if err != nil {
+		return nil, err
+	}
+	if len(references) > 0 {
+		// Name the referencing resources so the operator can repair them
+		// deliberately. Cascading the delete would silently stop deliveries
+		// that still look configured.
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("destination is referenced by: %s", strings.Join(references, ", ")))
+	}
 	if err := s.repo.DeleteDestination(ctx, workspaceID, req.Msg.GetId()); err != nil {
 		return nil, mapTelegramRepoErr(err)
 	}
 	log.FromContext(ctx).Info("telegram destination deleted",
 		"workspace_id", workspaceID, "destination_id", req.Msg.GetId())
 	return connect.NewResponse(&agentsv1.DeleteTelegramDestinationResponse{}), nil
+}
+
+// referencesTo lists the Notify Groups and Cron jobs pointing at a
+// Destination, in a form suitable for an error message.
+func (s *TelegramDestinationServiceServer) referencesTo(ctx context.Context, workspaceID, destinationID string) ([]string, error) {
+	var refs []string
+	if s.notifyRepo != nil {
+		groups, err := s.notifyRepo.ListNotifyGroups(ctx, workspaceID)
+		if err != nil {
+			return nil, connectx.InternalWith(err)
+		}
+		for _, group := range groups {
+			for _, target := range group.GetTargets() {
+				if target.GetTelegram().GetDestinationId() == destinationID {
+					refs = append(refs, "notify group "+group.GetName())
+					break
+				}
+			}
+		}
+	}
+	if s.cronRepo != nil {
+		jobs, err := s.cronRepo.List(ctx, workspaceID)
+		if err != nil {
+			return nil, connectx.InternalWith(err)
+		}
+		for _, job := range jobs {
+			if job.GetDelivery().GetTelegramDestinationId() == destinationID {
+				refs = append(refs, "cron job "+job.GetName())
+			}
+		}
+	}
+	return refs, nil
+}
+
+// --- Test message ----------------------------------------------------------
+
+func (s *TelegramDestinationServiceServer) SendTelegramTestMessage(ctx context.Context, req *connect.Request[agentsv1.SendTelegramTestMessageRequest]) (*connect.Response[agentsv1.SendTelegramTestMessageResponse], error) {
+	if err := s.requireReady(); err != nil {
+		return nil, err
+	}
+	if s.sender == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("telegram sender is not configured"))
+	}
+	workspaceID, err := telegramWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireTelegramManageRole(ctx, s.workspaceRepo, workspaceID, "send_test_message"); err != nil {
+		return nil, err
+	}
+	destinationID := strings.TrimSpace(req.Msg.GetDestinationId())
+	if destinationID == "" {
+		return nil, connectx.RequiredArgument("destination_id")
+	}
+
+	text := strings.TrimSpace(req.Msg.GetText())
+	if text == "" {
+		text = "Butter test message. If you can read this, the destination is reachable."
+	}
+	result, err := s.sender.Send(ctx, workspaceID, destinationID, telegramsend.Message{Text: text})
+	if err != nil {
+		return nil, mapTelegramSendErr(err)
+	}
+
+	// Re-read so the caller sees the verification the send just recorded.
+	dest, err := s.repo.GetDestination(ctx, workspaceID, destinationID)
+	if err != nil {
+		return nil, mapTelegramRepoErr(err)
+	}
+	log.FromContext(ctx).Info("telegram test message sent",
+		"workspace_id", workspaceID, "destination_id", destinationID)
+	return connect.NewResponse(&agentsv1.SendTelegramTestMessageResponse{
+		Destination: dest,
+		MessageIds:  result.MessageIDs,
+	}), nil
 }
 
 // --- Config validation -----------------------------------------------------

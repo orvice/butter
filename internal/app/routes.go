@@ -23,6 +23,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/service"
+	"go.orx.me/apps/butter/internal/telegramsend"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
@@ -306,8 +307,25 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.tgChannelSvcServer.SetRepo(result.TelegramRepo)
 			h.tgChannelSvcServer.SetKeyring(keyring)
 		}
+		// One sender instance backs every outbound Telegram path: Dashboard
+		// test messages, Notify Groups, and Cron delivery.
+		sender := telegramsend.New(result.TelegramRepo, keyring, nil)
 		if h.tgDestinationSvcServer != nil {
 			h.tgDestinationSvcServer.SetRepo(result.TelegramRepo)
+			h.tgDestinationSvcServer.SetSender(sender)
+			h.tgDestinationSvcServer.SetReferenceRepos(h.notifyGroupRepo, result.CronJobRepo)
+		}
+		if h.notifyGroupSvcServer != nil {
+			h.notifyGroupSvcServer.SetTelegramRepo(result.TelegramRepo)
+		}
+		if h.cronSvcServer != nil {
+			h.cronSvcServer.SetTelegramRepo(result.TelegramRepo)
+		}
+		if result.CronScheduler != nil {
+			result.CronScheduler.SetTelegramDelivery(sender)
+		}
+		if result.AutomationEngine != nil {
+			result.AutomationEngine.SetTelegramDelivery(sender)
 		}
 	}
 	if result.WorkspaceRepo != nil {
