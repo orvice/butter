@@ -5254,3 +5254,1109 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = UpdateTelegramSettingsResponseValidationError{}
+
+// Validate checks the field values on TelegramDeliverySegment with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *TelegramDeliverySegment) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on TelegramDeliverySegment with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// TelegramDeliverySegmentMultiError, or nil if none found.
+func (m *TelegramDeliverySegment) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *TelegramDeliverySegment) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Index
+
+	// no validation rules for Text
+
+	// no validation rules for Status
+
+	// no validation rules for MessageId
+
+	// no validation rules for Error
+
+	if len(errors) > 0 {
+		return TelegramDeliverySegmentMultiError(errors)
+	}
+
+	return nil
+}
+
+// TelegramDeliverySegmentMultiError is an error wrapping multiple validation
+// errors returned by TelegramDeliverySegment.ValidateAll() if the designated
+// constraints aren't met.
+type TelegramDeliverySegmentMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m TelegramDeliverySegmentMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m TelegramDeliverySegmentMultiError) AllErrors() []error { return m }
+
+// TelegramDeliverySegmentValidationError is the validation error returned by
+// TelegramDeliverySegment.Validate if the designated constraints aren't met.
+type TelegramDeliverySegmentValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e TelegramDeliverySegmentValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e TelegramDeliverySegmentValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e TelegramDeliverySegmentValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e TelegramDeliverySegmentValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e TelegramDeliverySegmentValidationError) ErrorName() string {
+	return "TelegramDeliverySegmentValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e TelegramDeliverySegmentValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sTelegramDeliverySegment.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = TelegramDeliverySegmentValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = TelegramDeliverySegmentValidationError{}
+
+// Validate checks the field values on TelegramProcessingRecord with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *TelegramProcessingRecord) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on TelegramProcessingRecord with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// TelegramProcessingRecordMultiError, or nil if none found.
+func (m *TelegramProcessingRecord) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *TelegramProcessingRecord) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for WorkspaceId
+
+	// no validation rules for ChannelId
+
+	// no validation rules for DestinationId
+
+	// no validation rules for UpdateId
+
+	// no validation rules for Status
+
+	// no validation rules for InvocationId
+
+	// no validation rules for Attempts
+
+	// no validation rules for DestinationRevision
+
+	// no validation rules for Error
+
+	// no validation rules for Output
+
+	for idx, item := range m.GetSegments() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, TelegramProcessingRecordValidationError{
+						field:  fmt.Sprintf("Segments[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, TelegramProcessingRecordValidationError{
+						field:  fmt.Sprintf("Segments[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return TelegramProcessingRecordValidationError{
+					field:  fmt.Sprintf("Segments[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if all {
+		switch v := interface{}(m.GetCreatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TelegramProcessingRecordValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TelegramProcessingRecordValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCreatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TelegramProcessingRecordValidationError{
+				field:  "CreatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TelegramProcessingRecordValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TelegramProcessingRecordValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TelegramProcessingRecordValidationError{
+				field:  "UpdatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetExpiresAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TelegramProcessingRecordValidationError{
+					field:  "ExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TelegramProcessingRecordValidationError{
+					field:  "ExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExpiresAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TelegramProcessingRecordValidationError{
+				field:  "ExpiresAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for DeadLettered
+
+	if len(errors) > 0 {
+		return TelegramProcessingRecordMultiError(errors)
+	}
+
+	return nil
+}
+
+// TelegramProcessingRecordMultiError is an error wrapping multiple validation
+// errors returned by TelegramProcessingRecord.ValidateAll() if the designated
+// constraints aren't met.
+type TelegramProcessingRecordMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m TelegramProcessingRecordMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m TelegramProcessingRecordMultiError) AllErrors() []error { return m }
+
+// TelegramProcessingRecordValidationError is the validation error returned by
+// TelegramProcessingRecord.Validate if the designated constraints aren't met.
+type TelegramProcessingRecordValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e TelegramProcessingRecordValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e TelegramProcessingRecordValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e TelegramProcessingRecordValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e TelegramProcessingRecordValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e TelegramProcessingRecordValidationError) ErrorName() string {
+	return "TelegramProcessingRecordValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e TelegramProcessingRecordValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sTelegramProcessingRecord.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = TelegramProcessingRecordValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = TelegramProcessingRecordValidationError{}
+
+// Validate checks the field values on ListTelegramProcessingRecordsRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the first error encountered is returned, or nil if
+// there are no violations.
+func (m *ListTelegramProcessingRecordsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListTelegramProcessingRecordsRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// ListTelegramProcessingRecordsRequestMultiError, or nil if none found.
+func (m *ListTelegramProcessingRecordsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListTelegramProcessingRecordsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ChannelId
+
+	// no validation rules for DestinationId
+
+	// no validation rules for Status
+
+	// no validation rules for PageSize
+
+	if len(errors) > 0 {
+		return ListTelegramProcessingRecordsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListTelegramProcessingRecordsRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// ListTelegramProcessingRecordsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type ListTelegramProcessingRecordsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListTelegramProcessingRecordsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListTelegramProcessingRecordsRequestMultiError) AllErrors() []error { return m }
+
+// ListTelegramProcessingRecordsRequestValidationError is the validation error
+// returned by ListTelegramProcessingRecordsRequest.Validate if the designated
+// constraints aren't met.
+type ListTelegramProcessingRecordsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListTelegramProcessingRecordsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListTelegramProcessingRecordsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListTelegramProcessingRecordsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListTelegramProcessingRecordsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListTelegramProcessingRecordsRequestValidationError) ErrorName() string {
+	return "ListTelegramProcessingRecordsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListTelegramProcessingRecordsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListTelegramProcessingRecordsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListTelegramProcessingRecordsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListTelegramProcessingRecordsRequestValidationError{}
+
+// Validate checks the field values on ListTelegramProcessingRecordsResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the first error encountered is returned, or nil if
+// there are no violations.
+func (m *ListTelegramProcessingRecordsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListTelegramProcessingRecordsResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// ListTelegramProcessingRecordsResponseMultiError, or nil if none found.
+func (m *ListTelegramProcessingRecordsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListTelegramProcessingRecordsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetRecords() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListTelegramProcessingRecordsResponseValidationError{
+						field:  fmt.Sprintf("Records[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListTelegramProcessingRecordsResponseValidationError{
+						field:  fmt.Sprintf("Records[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListTelegramProcessingRecordsResponseValidationError{
+					field:  fmt.Sprintf("Records[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListTelegramProcessingRecordsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListTelegramProcessingRecordsResponseMultiError is an error wrapping
+// multiple validation errors returned by
+// ListTelegramProcessingRecordsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type ListTelegramProcessingRecordsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListTelegramProcessingRecordsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListTelegramProcessingRecordsResponseMultiError) AllErrors() []error { return m }
+
+// ListTelegramProcessingRecordsResponseValidationError is the validation error
+// returned by ListTelegramProcessingRecordsResponse.Validate if the
+// designated constraints aren't met.
+type ListTelegramProcessingRecordsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListTelegramProcessingRecordsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListTelegramProcessingRecordsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListTelegramProcessingRecordsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListTelegramProcessingRecordsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListTelegramProcessingRecordsResponseValidationError) ErrorName() string {
+	return "ListTelegramProcessingRecordsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListTelegramProcessingRecordsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListTelegramProcessingRecordsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListTelegramProcessingRecordsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListTelegramProcessingRecordsResponseValidationError{}
+
+// Validate checks the field values on GetTelegramProcessingRecordRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *GetTelegramProcessingRecordRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetTelegramProcessingRecordRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// GetTelegramProcessingRecordRequestMultiError, or nil if none found.
+func (m *GetTelegramProcessingRecordRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetTelegramProcessingRecordRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := GetTelegramProcessingRecordRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return GetTelegramProcessingRecordRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetTelegramProcessingRecordRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// GetTelegramProcessingRecordRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetTelegramProcessingRecordRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetTelegramProcessingRecordRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetTelegramProcessingRecordRequestMultiError) AllErrors() []error { return m }
+
+// GetTelegramProcessingRecordRequestValidationError is the validation error
+// returned by GetTelegramProcessingRecordRequest.Validate if the designated
+// constraints aren't met.
+type GetTelegramProcessingRecordRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetTelegramProcessingRecordRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetTelegramProcessingRecordRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetTelegramProcessingRecordRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetTelegramProcessingRecordRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetTelegramProcessingRecordRequestValidationError) ErrorName() string {
+	return "GetTelegramProcessingRecordRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetTelegramProcessingRecordRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetTelegramProcessingRecordRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetTelegramProcessingRecordRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetTelegramProcessingRecordRequestValidationError{}
+
+// Validate checks the field values on GetTelegramProcessingRecordResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *GetTelegramProcessingRecordResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetTelegramProcessingRecordResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// GetTelegramProcessingRecordResponseMultiError, or nil if none found.
+func (m *GetTelegramProcessingRecordResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetTelegramProcessingRecordResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRecord()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetTelegramProcessingRecordResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetTelegramProcessingRecordResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRecord()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetTelegramProcessingRecordResponseValidationError{
+				field:  "Record",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetTelegramProcessingRecordResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetTelegramProcessingRecordResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// GetTelegramProcessingRecordResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetTelegramProcessingRecordResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetTelegramProcessingRecordResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetTelegramProcessingRecordResponseMultiError) AllErrors() []error { return m }
+
+// GetTelegramProcessingRecordResponseValidationError is the validation error
+// returned by GetTelegramProcessingRecordResponse.Validate if the designated
+// constraints aren't met.
+type GetTelegramProcessingRecordResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetTelegramProcessingRecordResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetTelegramProcessingRecordResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetTelegramProcessingRecordResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetTelegramProcessingRecordResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetTelegramProcessingRecordResponseValidationError) ErrorName() string {
+	return "GetTelegramProcessingRecordResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetTelegramProcessingRecordResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetTelegramProcessingRecordResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetTelegramProcessingRecordResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetTelegramProcessingRecordResponseValidationError{}
+
+// Validate checks the field values on ResendTelegramReplyRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ResendTelegramReplyRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ResendTelegramReplyRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ResendTelegramReplyRequestMultiError, or nil if none found.
+func (m *ResendTelegramReplyRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ResendTelegramReplyRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := ResendTelegramReplyRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return ResendTelegramReplyRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ResendTelegramReplyRequestMultiError is an error wrapping multiple
+// validation errors returned by ResendTelegramReplyRequest.ValidateAll() if
+// the designated constraints aren't met.
+type ResendTelegramReplyRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ResendTelegramReplyRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ResendTelegramReplyRequestMultiError) AllErrors() []error { return m }
+
+// ResendTelegramReplyRequestValidationError is the validation error returned
+// by ResendTelegramReplyRequest.Validate if the designated constraints aren't met.
+type ResendTelegramReplyRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ResendTelegramReplyRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ResendTelegramReplyRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ResendTelegramReplyRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ResendTelegramReplyRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ResendTelegramReplyRequestValidationError) ErrorName() string {
+	return "ResendTelegramReplyRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ResendTelegramReplyRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sResendTelegramReplyRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ResendTelegramReplyRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ResendTelegramReplyRequestValidationError{}
+
+// Validate checks the field values on ResendTelegramReplyResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ResendTelegramReplyResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ResendTelegramReplyResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ResendTelegramReplyResponseMultiError, or nil if none found.
+func (m *ResendTelegramReplyResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ResendTelegramReplyResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRecord()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ResendTelegramReplyResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ResendTelegramReplyResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRecord()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ResendTelegramReplyResponseValidationError{
+				field:  "Record",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return ResendTelegramReplyResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ResendTelegramReplyResponseMultiError is an error wrapping multiple
+// validation errors returned by ResendTelegramReplyResponse.ValidateAll() if
+// the designated constraints aren't met.
+type ResendTelegramReplyResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ResendTelegramReplyResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ResendTelegramReplyResponseMultiError) AllErrors() []error { return m }
+
+// ResendTelegramReplyResponseValidationError is the validation error returned
+// by ResendTelegramReplyResponse.Validate if the designated constraints
+// aren't met.
+type ResendTelegramReplyResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ResendTelegramReplyResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ResendTelegramReplyResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ResendTelegramReplyResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ResendTelegramReplyResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ResendTelegramReplyResponseValidationError) ErrorName() string {
+	return "ResendTelegramReplyResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ResendTelegramReplyResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sResendTelegramReplyResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ResendTelegramReplyResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ResendTelegramReplyResponseValidationError{}

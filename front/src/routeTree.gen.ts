@@ -27,6 +27,7 @@ import { Route as AuthenticatedOperationsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedRepoBindingRouteImport } from './routes/_authenticated/repo-binding'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
+import { Route as AuthenticatedTelegramUpdatesRouteImport } from './routes/_authenticated/telegram-updates'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminGitHostsRouteImport } from './routes/_authenticated/admin/git-hosts'
@@ -163,6 +164,12 @@ const AuthenticatedSettingsRouteRoute =
   AuthenticatedSettingsRouteRouteImport.update({
     id: '/settings',
     path: '/settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedTelegramUpdatesRoute =
+  AuthenticatedTelegramUpdatesRouteImport.update({
+    id: '/telegram-updates',
+    path: '/telegram-updates',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedUsersRoute = AuthenticatedUsersRouteImport.update({
@@ -447,6 +454,7 @@ export interface FileRoutesByFullPath {
   '/operations': typeof AuthenticatedOperationsRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/repo-binding': typeof AuthenticatedRepoBindingRoute
+  '/telegram-updates': typeof AuthenticatedTelegramUpdatesRoute
   '/users': typeof AuthenticatedUsersRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
@@ -509,6 +517,7 @@ export interface FileRoutesByTo {
   '/operations': typeof AuthenticatedOperationsRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/repo-binding': typeof AuthenticatedRepoBindingRoute
+  '/telegram-updates': typeof AuthenticatedTelegramUpdatesRoute
   '/users': typeof AuthenticatedUsersRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
@@ -575,6 +584,7 @@ export interface FileRoutesById {
   '/_authenticated/operations': typeof AuthenticatedOperationsRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/repo-binding': typeof AuthenticatedRepoBindingRoute
+  '/_authenticated/telegram-updates': typeof AuthenticatedTelegramUpdatesRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -642,6 +652,7 @@ export interface FileRouteTypes {
     | '/operations'
     | '/profile'
     | '/repo-binding'
+    | '/telegram-updates'
     | '/users'
     | '/workspaces'
     | '/admin/git-hosts'
@@ -704,6 +715,7 @@ export interface FileRouteTypes {
     | '/operations'
     | '/profile'
     | '/repo-binding'
+    | '/telegram-updates'
     | '/users'
     | '/workspaces'
     | '/'
@@ -769,6 +781,7 @@ export interface FileRouteTypes {
     | '/_authenticated/operations'
     | '/_authenticated/profile'
     | '/_authenticated/repo-binding'
+    | '/_authenticated/telegram-updates'
     | '/_authenticated/users'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
@@ -954,6 +967,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/telegram-updates': {
+      id: '/_authenticated/telegram-updates'
+      path: '/telegram-updates'
+      fullPath: '/telegram-updates'
+      preLoaderRoute: typeof AuthenticatedTelegramUpdatesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/users': {
@@ -1303,6 +1323,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOperationsRoute: typeof AuthenticatedOperationsRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedRepoBindingRoute: typeof AuthenticatedRepoBindingRoute
+  AuthenticatedTelegramUpdatesRoute: typeof AuthenticatedTelegramUpdatesRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -1358,6 +1379,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOperationsRoute: AuthenticatedOperationsRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedRepoBindingRoute: AuthenticatedRepoBindingRoute,
+  AuthenticatedTelegramUpdatesRoute: AuthenticatedTelegramUpdatesRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,

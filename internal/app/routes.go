@@ -62,6 +62,7 @@ type Handlers struct {
 	tgChannelSvcServer     *application.TelegramChannelServiceServer
 	tgDestinationSvcServer *application.TelegramDestinationServiceServer
 	tgAdminSvcServer       *application.TelegramAdminServiceServer
+	tgProcessingSvcServer  *application.TelegramProcessingServiceServer
 	tgReceiver             atomic.Value // *telegram.Receiver
 	tgReconciler           *telegramruntime.Reconciler
 	tgWorker               *telegramruntime.Worker
@@ -414,6 +415,10 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if h.modelProviderSvcServer != nil {
 			h.modelProviderSvcServer.SetTelegramGuard(guard)
 		}
+		if h.tgProcessingSvcServer != nil && result.TelegramProcessingRepo != nil {
+			h.tgProcessingSvcServer.SetRepo(result.TelegramProcessingRepo)
+			h.tgProcessingSvcServer.SetSender(sender)
+		}
 		if h.tgAdminSvcServer != nil && result.TelegramSettingRepo != nil {
 			h.tgAdminSvcServer.SetRepo(result.TelegramSettingRepo)
 		}
@@ -454,6 +459,13 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 				// Media is downloaded on the worker immediately before
 				// invocation, so Redis never holds binary data.
 				orchestrator.SetFileClientFactory(telegramFileClientFactory(result.TelegramRepo, keyring))
+				// The durable state machine and the session lease are what
+				// make a crashed worker's work reclaimable without repeating
+				// agent side effects.
+				if result.TelegramProcessingRepo != nil {
+					orchestrator.SetProcessingRepo(result.TelegramProcessingRepo)
+				}
+				orchestrator.SetSessionGuard(telegramruntime.NewRedisSessionGuard(result.Redis, instanceID))
 				interactions = orchestrator
 			}
 			h.tgWorker = telegramruntime.NewWorker(queue,
@@ -478,6 +490,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		}
 		if h.tgDestinationSvcServer != nil {
 			h.tgDestinationSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
+		if h.tgProcessingSvcServer != nil {
+			h.tgProcessingSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 		}
 	}
 	if h.repoBindingSvcServer != nil && result.RepoBindingRepo != nil && result.GitHostRepo != nil {
@@ -647,6 +662,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	tgDestinationConnectPath, tgDestinationConnectHandler := agentsv1connect.NewTelegramDestinationServiceHandler(tgDestinationSvcServer, connectOpts...)
 	tgAdminSvcServer := application.NewTelegramAdminServiceServer(nil)
 	tgAdminConnectPath, tgAdminConnectHandler := agentsv1connect.NewTelegramAdminServiceHandler(tgAdminSvcServer, connectOpts...)
+	tgProcessingSvcServer := application.NewTelegramProcessingServiceServer(nil)
+	tgProcessingConnectPath, tgProcessingConnectHandler := agentsv1connect.NewTelegramProcessingServiceHandler(tgProcessingSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -675,6 +692,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		tgChannelSvcServer:     tgChannelSvcServer,
 		tgDestinationSvcServer: tgDestinationSvcServer,
 		tgAdminSvcServer:       tgAdminSvcServer,
+		tgProcessingSvcServer:  tgProcessingSvcServer,
 		workspaceMCPSvc:        workspaceMCPSvc,
 		configStore:            configStore,
 		configRuntime:          configRuntime,
@@ -744,6 +762,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+tgChannelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgChannelConnectHandler)))
 		r.Any("/api"+tgDestinationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgDestinationConnectHandler)))
 		r.Any("/api"+tgAdminConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgAdminConnectHandler)))
+		r.Any("/api"+tgProcessingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgProcessingConnectHandler)))
 
 		// The Telegram callback is public: it authenticates with the
 		// per-Channel secret Telegram echoes, not with a Butter session, and

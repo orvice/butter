@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   TelegramAdminService,
+  TelegramProcessingService,
   TelegramChannelService,
   TelegramDestinationService,
   type TelegramChannel,
   type TelegramChannelStatus,
   type TelegramDestination,
+  type TelegramProcessingRecord,
+  type TelegramProcessingStatus,
   type TelegramSettings,
 } from '@/gen/agents/v1/telegram_pb'
 import { makeClient } from './transport'
@@ -13,6 +16,7 @@ import { makeClient } from './transport'
 const channelClient = makeClient(TelegramChannelService)
 const destinationClient = makeClient(TelegramDestinationService)
 const adminClient = makeClient(TelegramAdminService)
+const processingClient = makeClient(TelegramProcessingService)
 
 const CHANNELS_KEY = ['telegram-channels'] as const
 const DESTINATIONS_KEY = ['telegram-destinations'] as const
@@ -252,5 +256,56 @@ export function useDeleteTelegramDestination() {
       await destinationClient.deleteTelegramDestination({ id })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: DESTINATIONS_KEY }),
+  })
+}
+
+
+// --- Processing records -----------------------------------------------------
+
+const PROCESSING_KEY = ['telegram-processing'] as const
+
+export function useTelegramProcessingRecords(filter: {
+  channelId?: string
+  destinationId?: string
+  status?: TelegramProcessingStatus
+} = {}) {
+  return useQuery({
+    queryKey: [...PROCESSING_KEY, filter],
+    queryFn: async (): Promise<TelegramProcessingRecord[]> => {
+      const res = await processingClient.listTelegramProcessingRecords({
+        channelId: filter.channelId ?? '',
+        destinationId: filter.destinationId ?? '',
+        status: filter.status,
+      })
+      return res.records
+    },
+  })
+}
+
+export function useTelegramProcessingRecord(id: string | undefined) {
+  return useQuery({
+    queryKey: [...PROCESSING_KEY, 'detail', id],
+    enabled: Boolean(id),
+    queryFn: async (): Promise<TelegramProcessingRecord> => {
+      const res = await processingClient.getTelegramProcessingRecord({ id: id! })
+      if (!res.record) throw new Error('record not found')
+      return res.record
+    },
+  })
+}
+
+/**
+ * Resends the segments of an already-produced reply that never landed. There
+ * is deliberately no rerun action: once agent work may have had side effects,
+ * repeating it is an operator decision the dashboard does not make.
+ */
+export function useResendTelegramReply() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await processingClient.resendTelegramReply({ id })
+      return res
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: PROCESSING_KEY }),
   })
 }

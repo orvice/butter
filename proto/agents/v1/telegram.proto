@@ -603,3 +603,156 @@ message UpdateTelegramSettingsRequest {
 message UpdateTelegramSettingsResponse {
   TelegramSettings settings = 1;
 }
+
+// =============================================================================
+// Telegram update processing records (issue #264).
+//
+// One record per accepted update, written by the worker that claims it. The
+// state machine exists to answer one operational question honestly: is it
+// safe to run this again? Everything before Agent work has started is safe to
+// retry; once the Agent may have produced side effects it is not, and the
+// record says so rather than guessing.
+// =============================================================================
+
+enum TelegramProcessingStatus {
+  TELEGRAM_PROCESSING_STATUS_UNSPECIFIED = 0;
+  // Claimed from the queue, no Agent work started.
+  TELEGRAM_PROCESSING_STATUS_RECEIVED = 1;
+  // Agent work may have started. A crash from here is not safely retryable.
+  TELEGRAM_PROCESSING_STATUS_PROCESSING = 2;
+  // Agent output is safely persisted; only delivery remains.
+  TELEGRAM_PROCESSING_STATUS_READY_TO_DELIVER = 3;
+  // Delivered.
+  TELEGRAM_PROCESSING_STATUS_SUCCEEDED = 4;
+  // Failed before Agent work started, or failed to deliver. Safe to retry.
+  TELEGRAM_PROCESSING_STATUS_FAILED = 5;
+  // Failed after Agent work may have started. Deliberately NOT retried
+  // automatically: a rerun could repeat tool side effects.
+  TELEGRAM_PROCESSING_STATUS_FAILED_UNCERTAIN = 6;
+}
+
+// TelegramDeliverySegment is one piece of a response plus its delivery state.
+message TelegramDeliverySegment {
+  // @gotags: json:"index,omitempty" bson:"index,omitempty"
+  int32 index = 1;
+  // @gotags: json:"text,omitempty" bson:"text,omitempty"
+  string text = 2;
+  // One of "pending", "sent", "failed".
+  // @gotags: json:"status,omitempty" bson:"status,omitempty"
+  string status = 3;
+  // Telegram message ID once sent.
+  // @gotags: json:"message_id,omitempty" bson:"message_id,omitempty"
+  string message_id = 4;
+  // Sanitized failure summary. Never contains credential material.
+  // @gotags: json:"error,omitempty" bson:"error,omitempty"
+  string error = 5;
+}
+
+// TelegramProcessingRecord is the auditable state of one accepted update.
+message TelegramProcessingRecord {
+  // Service-generated identifier.
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 2;
+  // @gotags: json:"channel_id,omitempty" bson:"channel_id,omitempty"
+  string channel_id = 3;
+  // @gotags: json:"destination_id,omitempty" bson:"destination_id,omitempty"
+  string destination_id = 4;
+  // Telegram's own update identifier; unique with channel_id.
+  // @gotags: json:"update_id,omitempty" bson:"update_id,omitempty"
+  int64 update_id = 5;
+
+  // @gotags: json:"status,omitempty" bson:"status,omitempty"
+  TelegramProcessingStatus status = 6;
+
+  // Stable across retries so an operator can correlate one logical unit of
+  // work with the Agent invocation it produced.
+  // @gotags: json:"invocation_id,omitempty" bson:"invocation_id,omitempty"
+  string invocation_id = 7;
+
+  // How many times this record has been claimed.
+  // @gotags: json:"attempts,omitempty" bson:"attempts,omitempty"
+  int32 attempts = 8;
+
+  // Destination revision frozen at acceptance.
+  // @gotags: json:"destination_revision,omitempty" bson:"destination_revision,omitempty"
+  int64 destination_revision = 9;
+
+  // Sanitized failure summary. Never contains credential material or the
+  // full update body.
+  // @gotags: json:"error,omitempty" bson:"error,omitempty"
+  string error = 10;
+
+  // The complete Agent response, persisted before delivery begins so a
+  // delivery retry never has to re-run the Agent.
+  // @gotags: json:"output,omitempty" bson:"output,omitempty"
+  string output = 11;
+
+  // Per-segment delivery state.
+  // @gotags: json:"segments,omitempty" bson:"segments,omitempty"
+  repeated TelegramDeliverySegment segments = 12;
+
+  // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 13;
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 14;
+  // When the record becomes eligible for TTL cleanup (30 days).
+  // @gotags: json:"expires_at,omitempty" bson:"expires_at,omitempty"
+  google.protobuf.Timestamp expires_at = 15;
+
+  // Whether the record is in dead-letter handling and needs an operator.
+  // @gotags: json:"dead_lettered,omitempty" bson:"dead_lettered,omitempty"
+  bool dead_lettered = 16;
+}
+
+// =============================================================================
+// TelegramProcessingService
+//
+// Workspace members may read processing records and redacted failures for
+// their workspace; owners/admins may resend an already-produced reply.
+// There is deliberately no Agent rerun action: once Agent work may have
+// produced side effects, repeating it is an operator decision made with
+// context this API does not have.
+// =============================================================================
+service TelegramProcessingService {
+  rpc ListTelegramProcessingRecords(ListTelegramProcessingRecordsRequest) returns (ListTelegramProcessingRecordsResponse);
+  rpc GetTelegramProcessingRecord(GetTelegramProcessingRecordRequest) returns (GetTelegramProcessingRecordResponse);
+
+  // ResendTelegramReply re-delivers unsent or failed segments of a response
+  // that was already produced. It never invokes the Agent, and it is refused
+  // when no complete output exists.
+  rpc ResendTelegramReply(ResendTelegramReplyRequest) returns (ResendTelegramReplyResponse);
+}
+
+message ListTelegramProcessingRecordsRequest {
+  // Optional filters.
+  string channel_id = 1;
+  string destination_id = 2;
+  TelegramProcessingStatus status = 3;
+  // Maximum records to return. Defaults to 50, capped at 200.
+  int32 page_size = 4;
+}
+
+message ListTelegramProcessingRecordsResponse {
+  repeated TelegramProcessingRecord records = 1;
+}
+
+message GetTelegramProcessingRecordRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetTelegramProcessingRecordResponse {
+  TelegramProcessingRecord record = 1;
+}
+
+message ResendTelegramReplyRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ResendTelegramReplyResponse {
+  TelegramProcessingRecord record = 1;
+  // Telegram message IDs produced by this resend, in order.
+  repeated string message_ids = 2;
+}

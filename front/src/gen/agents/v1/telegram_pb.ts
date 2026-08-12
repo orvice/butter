@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/telegram.proto.
  */
 export const file_agents_v1_telegram: GenFile = /*@__PURE__*/
-  fileDesc("ChhhZ2VudHMvdjEvdGVsZWdyYW0ucHJvdG8SCWFnZW50cy52MSJ4ChdUZWxlZ3JhbUJvdENhcGFiaWxpdGllcxIXCg9jYW5fam9pbl9ncm91cHMYASABKAgSIwobY2FuX3JlYWRfYWxsX2dyb3VwX21lc3NhZ2VzGAIgASgIEh8KF3N1cHBvcnRzX2lubGluZV9xdWVyaWVzGAMgASgIIsoECg9UZWxlZ3JhbUNoYW5uZWwSCgoCaWQYASABKAkSFAoDa2V5GAIgASgJQgf6QgRyAhABEgwKBG5hbWUYAyABKAkSDgoGYm90X2lkGAQgASgJEhQKDGJvdF91c2VybmFtZRgFIAEoCRI8ChBib3RfY2FwYWJpbGl0aWVzGAYgASgLMiIuYWdlbnRzLnYxLlRlbGVncmFtQm90Q2FwYWJpbGl0aWVzEjQKDHJlY2VpdmVfbW9kZRgHIAEoDjIeLmFnZW50cy52MS5UZWxlZ3JhbVJlY2VpdmVNb2RlEhcKD2luYm91bmRfZW5hYmxlZBgIIAEoCBIYChBvdXRib3VuZF9lbmFibGVkGAkgASgIEhAKCHJldmlzaW9uGAogASgDEi4KCmNyZWF0ZWRfYXQYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjwKEGNyZWRlbnRpYWxfc3RhdGUYDSABKA4yIi5hZ2VudHMudjEuVGVsZWdyYW1DcmVkZW50aWFsU3RhdGUSOQoVY3JlZGVudGlhbF91cGRhdGVkX2F0GA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIaChJ3ZWJob29rX3NlY3JldF9zZXQYDyABKAgSHQoVbGFzdF9jcmVkZW50aWFsX2Vycm9yGBAgASgJEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSLlAgoZVGVsZWdyYW1EZXN0aW5hdGlvbkNvbmZpZxIQCghhZ2VudF9pZBgBIAEoCRINCgVtb2RlbBgCIAEoCRIcChRzZWxlY3RhYmxlX2FnZW50X2lkcxgDIAMoCRIZChFzZWxlY3RhYmxlX21vZGVscxgEIAMoCRI0Cgx0cmlnZ2VyX21vZGUYBSABKA4yHi5hZ2VudHMudjEuVGVsZWdyYW1UcmlnZ2VyTW9kZRI4Cg5zZXNzaW9uX3BvbGljeRgGIAEoDjIgLmFnZW50cy52MS5UZWxlZ3JhbVNlc3Npb25Qb2xpY3kSGAoQYWxsb3dlZF91c2VyX2lkcxgHIAMoCRIbChNjb250cm9sbGVyX3VzZXJfaWRzGAggAygJEjAKCnJlcGx5X21vZGUYCSABKA4yHC5hZ2VudHMudjEuVGVsZWdyYW1SZXBseU1vZGUSFQoNZGVidWdfZGVmYXVsdBgKIAEoCCLsAQofVGVsZWdyYW1EZXN0aW5hdGlvblZlcmlmaWNhdGlvbhIQCgh2ZXJpZmllZBgBIAEoCBIvCgt2ZXJpZmllZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPbGFzdF9pbmJvdW5kX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI0ChBsYXN0X291dGJvdW5kX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbChNsYXN0X291dGJvdW5kX2Vycm9yGAUgASgJIsoDChNUZWxlZ3JhbURlc3RpbmF0aW9uEgoKAmlkGAEgASgJEhQKA2tleRgCIAEoCUIH+kIEcgIQARIMCgRuYW1lGAMgASgJEhsKCmNoYW5uZWxfaWQYBCABKAlCB/pCBHICEAESGAoHY2hhdF9pZBgFIAEoCUIH+kIEcgIQARIZChFtZXNzYWdlX3RocmVhZF9pZBgGIAEoCRIXCg9pbmJvdW5kX2VuYWJsZWQYByABKAgSGAoQb3V0Ym91bmRfZW5hYmxlZBgIIAEoCBI0CgZjb25maWcYCSABKAsyJC5hZ2VudHMudjEuVGVsZWdyYW1EZXN0aW5hdGlvbkNvbmZpZxIQCghyZXZpc2lvbhgKIAEoAxIuCgpjcmVhdGVkX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBJACgx2ZXJpZmljYXRpb24YDSABKAsyKi5hZ2VudHMudjEuVGVsZWdyYW1EZXN0aW5hdGlvblZlcmlmaWNhdGlvbhIUCgx3b3Jrc3BhY2VfaWQYZCABKAkiHQobTGlzdFRlbGVncmFtQ2hhbm5lbHNSZXF1ZXN0IkwKHExpc3RUZWxlZ3JhbUNoYW5uZWxzUmVzcG9uc2USLAoIY2hhbm5lbHMYASADKAsyGi5hZ2VudHMudjEuVGVsZWdyYW1DaGFubmVsIjAKGUdldFRlbGVncmFtQ2hhbm5lbFJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiSQoaR2V0VGVsZWdyYW1DaGFubmVsUmVzcG9uc2USKwoHY2hhbm5lbBgBIAEoCzIaLmFnZW50cy52MS5UZWxlZ3JhbUNoYW5uZWwiZwocQ3JlYXRlVGVsZWdyYW1DaGFubmVsUmVxdWVzdBIrCgdjaGFubmVsGAEgASgLMhouYWdlbnRzLnYxLlRlbGVncmFtQ2hhbm5lbBIaCglib3RfdG9rZW4YAiABKAlCB/pCBHICEAEiTAodQ3JlYXRlVGVsZWdyYW1DaGFubmVsUmVzcG9uc2USKwoHY2hhbm5lbBgBIAEoCzIaLmFnZW50cy52MS5UZWxlZ3JhbUNoYW5uZWwiSwocVXBkYXRlVGVsZWdyYW1DaGFubmVsUmVxdWVzdBIrCgdjaGFubmVsGAEgASgLMhouYWdlbnRzLnYxLlRlbGVncmFtQ2hhbm5lbCJMCh1VcGRhdGVUZWxlZ3JhbUNoYW5uZWxSZXNwb25zZRIrCgdjaGFubmVsGAEgASgLMhouYWdlbnRzLnYxLlRlbGVncmFtQ2hhbm5lbCJhCiZSb3RhdGVUZWxlZ3JhbUNoYW5uZWxDcmVkZW50aWFsUmVxdWVzdBIbCgpjaGFubmVsX2lkGAEgASgJQgf6QgRyAhABEhoKCWJvdF90b2tlbhgCIAEoCUIH+kIEcgIQASJWCidSb3RhdGVUZWxlZ3JhbUNoYW5uZWxDcmVkZW50aWFsUmVzcG9uc2USKwoHY2hhbm5lbBgBIAEoCzIaLmFnZW50cy52MS5UZWxlZ3JhbUNoYW5uZWwihAEKIFNldFRlbGVncmFtQ2hhbm5lbEVuYWJsZWRSZXF1ZXN0EhsKCmNoYW5uZWxfaWQYASABKAlCB/pCBHICEAESEAoIcmV2aXNpb24YAiABKAMSFwoPaW5ib3VuZF9lbmFibGVkGAMgASgIEhgKEG91dGJvdW5kX2VuYWJsZWQYBCABKAgiYgohU2V0VGVsZWdyYW1DaGFubmVsRW5hYmxlZFJlc3BvbnNlEisKB2NoYW5uZWwYASABKAsyGi5hZ2VudHMudjEuVGVsZWdyYW1DaGFubmVsEhAKCHdhcm5pbmdzGAIgAygJIjMKHERlbGV0ZVRlbGVncmFtQ2hhbm5lbFJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiHwodRGVsZXRlVGVsZWdyYW1DaGFubmVsUmVzcG9uc2UiPgofR2V0VGVsZWdyYW1DaGFubmVsU3RhdHVzUmVxdWVzdBIbCgpjaGFubmVsX2lkGAEgASgJQgf6QgRyAhABIqoEChVUZWxlZ3JhbUNoYW5uZWxTdGF0dXMSEgoKY2hhbm5lbF9pZBgBIAEoCRIXCg9pbmJvdW5kX2Rlc2lyZWQYAiABKAgSGAoQb3V0Ym91bmRfZGVzaXJlZBgDIAEoCBI8ChBjcmVkZW50aWFsX3N0YXRlGAQgASgOMiIuYWdlbnRzLnYxLlRlbGVncmFtQ3JlZGVudGlhbFN0YXRlEjQKDHJlY2VpdmVfbW9kZRgFIAEoDjIeLmFnZW50cy52MS5UZWxlZ3JhbVJlY2VpdmVNb2RlEiEKGWluYm91bmRfZGVzdGluYXRpb25fY291bnQYBiABKAUSIgoab3V0Ym91bmRfZGVzdGluYXRpb25fY291bnQYByABKAUSEAoIYmxvY2tlcnMYCCADKAkSEAoId2FybmluZ3MYCSADKAkSHQoVbGFzdF9jcmVkZW50aWFsX2Vycm9yGAogASgJEjYKDXdlYmhvb2tfc3RhdGUYCyABKA4yHy5hZ2VudHMudjEuVGVsZWdyYW1XZWJob29rU3RhdGUSEwoLd2ViaG9va191cmwYDCABKAkSGgoSbGFzdF93ZWJob29rX2Vycm9yGA0gASgJEjYKEmxhc3RfcmVjb25jaWxlZF9hdBgOIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFgoOcG9sbGluZ19sZWFkZXIYDyABKAgSEwoLcXVldWVfcmVhZHkYECABKAgiVAogR2V0VGVsZWdyYW1DaGFubmVsU3RhdHVzUmVzcG9uc2USMAoGc3RhdHVzGAEgASgLMiAuYWdlbnRzLnYxLlRlbGVncmFtQ2hhbm5lbFN0YXR1cyI1Ch9MaXN0VGVsZWdyYW1EZXN0aW5hdGlvbnNSZXF1ZXN0EhIKCmNoYW5uZWxfaWQYASABKAkiWAogTGlzdFRlbGVncmFtRGVzdGluYXRpb25zUmVzcG9uc2USNAoMZGVzdGluYXRpb25zGAEgAygLMh4uYWdlbnRzLnYxLlRlbGVncmFtRGVzdGluYXRpb24iNAodR2V0VGVsZWdyYW1EZXN0aW5hdGlvblJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiVQoeR2V0VGVsZWdyYW1EZXN0aW5hdGlvblJlc3BvbnNlEjMKC2Rlc3RpbmF0aW9uGAEgASgLMh4uYWdlbnRzLnYxLlRlbGVncmFtRGVzdGluYXRpb24iVwogQ3JlYXRlVGVsZWdyYW1EZXN0aW5hdGlvblJlcXVlc3QSMwoLZGVzdGluYXRpb24YASABKAsyHi5hZ2VudHMudjEuVGVsZWdyYW1EZXN0aW5hdGlvbiJYCiFDcmVhdGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVzcG9uc2USMwoLZGVzdGluYXRpb24YASABKAsyHi5hZ2VudHMudjEuVGVsZWdyYW1EZXN0aW5hdGlvbiJXCiBVcGRhdGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVxdWVzdBIzCgtkZXN0aW5hdGlvbhgBIAEoCzIeLmFnZW50cy52MS5UZWxlZ3JhbURlc3RpbmF0aW9uIlgKIVVwZGF0ZVRlbGVncmFtRGVzdGluYXRpb25SZXNwb25zZRIzCgtkZXN0aW5hdGlvbhgBIAEoCzIeLmFnZW50cy52MS5UZWxlZ3JhbURlc3RpbmF0aW9uIjcKIERlbGV0ZVRlbGVncmFtRGVzdGluYXRpb25SZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIiMKIURlbGV0ZVRlbGVncmFtRGVzdGluYXRpb25SZXNwb25zZSJPCh5TZW5kVGVsZWdyYW1UZXN0TWVzc2FnZVJlcXVlc3QSHwoOZGVzdGluYXRpb25faWQYASABKAlCB/pCBHICEAESDAoEdGV4dBgCIAEoCSJrCh9TZW5kVGVsZWdyYW1UZXN0TWVzc2FnZVJlc3BvbnNlEjMKC2Rlc3RpbmF0aW9uGAEgASgLMh4uYWdlbnRzLnYxLlRlbGVncmFtRGVzdGluYXRpb24SEwoLbWVzc2FnZV9pZHMYAiADKAkiXAoQVGVsZWdyYW1TZXR0aW5ncxIYChB3ZWJob29rX2Jhc2VfdXJsGAEgASgJEi4KCnVwZGF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhwKGkdldFRlbGVncmFtU2V0dGluZ3NSZXF1ZXN0IkwKG0dldFRlbGVncmFtU2V0dGluZ3NSZXNwb25zZRItCghzZXR0aW5ncxgBIAEoCzIbLmFnZW50cy52MS5UZWxlZ3JhbVNldHRpbmdzIk4KHVVwZGF0ZVRlbGVncmFtU2V0dGluZ3NSZXF1ZXN0Ei0KCHNldHRpbmdzGAEgASgLMhsuYWdlbnRzLnYxLlRlbGVncmFtU2V0dGluZ3MiTwoeVXBkYXRlVGVsZWdyYW1TZXR0aW5nc1Jlc3BvbnNlEi0KCHNldHRpbmdzGAEgASgLMhsuYWdlbnRzLnYxLlRlbGVncmFtU2V0dGluZ3MqhwEKE1RlbGVncmFtUmVjZWl2ZU1vZGUSJQohVEVMRUdSQU1fUkVDRUlWRV9NT0RFX1VOU1BFQ0lGSUVEEAASIQodVEVMRUdSQU1fUkVDRUlWRV9NT0RFX1dFQkhPT0sQARImCiJURUxFR1JBTV9SRUNFSVZFX01PREVfTE9OR19QT0xMSU5HEAIqtwEKF1RlbGVncmFtQ3JlZGVudGlhbFN0YXRlEikKJVRFTEVHUkFNX0NSRURFTlRJQUxfU1RBVEVfVU5TUEVDSUZJRUQQABIlCiFURUxFR1JBTV9DUkVERU5USUFMX1NUQVRFX01JU1NJTkcQARIjCh9URUxFR1JBTV9DUkVERU5USUFMX1NUQVRFX1ZBTElEEAISJQohVEVMRUdSQU1fQ1JFREVOVElBTF9TVEFURV9JTlZBTElEEAMqzwEKE1RlbGVncmFtVHJpZ2dlck1vZGUSJQohVEVMRUdSQU1fVFJJR0dFUl9NT0RFX1VOU1BFQ0lGSUVEEAASHQoZVEVMRUdSQU1fVFJJR0dFUl9NT0RFX0FMTBABEiEKHVRFTEVHUkFNX1RSSUdHRVJfTU9ERV9NRU5USU9OEAISIQodVEVMRUdSQU1fVFJJR0dFUl9NT0RFX0NPTU1BTkQQAxIsCihURUxFR1JBTV9UUklHR0VSX01PREVfTUVOVElPTl9PUl9DT01NQU5EEAQqiwEKFVRlbGVncmFtU2Vzc2lvblBvbGljeRInCiNURUxFR1JBTV9TRVNTSU9OX1BPTElDWV9VTlNQRUNJRklFRBAAEicKI1RFTEVHUkFNX1NFU1NJT05fUE9MSUNZX0RFU1RJTkFUSU9OEAESIAocVEVMRUdSQU1fU0VTU0lPTl9QT0xJQ1lfVVNFUhACKnwKEVRlbGVncmFtUmVwbHlNb2RlEiMKH1RFTEVHUkFNX1JFUExZX01PREVfVU5TUEVDSUZJRUQQABIdChlURUxFR1JBTV9SRVBMWV9NT0RFX1JFUExZEAESIwofVEVMRUdSQU1fUkVQTFlfTU9ERV9ORVdfTUVTU0FHRRACKtcBChRUZWxlZ3JhbVdlYmhvb2tTdGF0ZRImCiJURUxFR1JBTV9XRUJIT09LX1NUQVRFX1VOU1BFQ0lGSUVEEAASKQolVEVMRUdSQU1fV0VCSE9PS19TVEFURV9OT1RfQVBQTElDQUJMRRABEiUKIVRFTEVHUkFNX1dFQkhPT0tfU1RBVEVfUkVHSVNURVJFRBACEiIKHlRFTEVHUkFNX1dFQkhPT0tfU1RBVEVfUEVORElORxADEiEKHVRFTEVHUkFNX1dFQkhPT0tfU1RBVEVfRkFJTEVEEAQyoAcKFlRlbGVncmFtQ2hhbm5lbFNlcnZpY2USZwoUTGlzdFRlbGVncmFtQ2hhbm5lbHMSJi5hZ2VudHMudjEuTGlzdFRlbGVncmFtQ2hhbm5lbHNSZXF1ZXN0GicuYWdlbnRzLnYxLkxpc3RUZWxlZ3JhbUNoYW5uZWxzUmVzcG9uc2USYQoSR2V0VGVsZWdyYW1DaGFubmVsEiQuYWdlbnRzLnYxLkdldFRlbGVncmFtQ2hhbm5lbFJlcXVlc3QaJS5hZ2VudHMudjEuR2V0VGVsZWdyYW1DaGFubmVsUmVzcG9uc2USagoVQ3JlYXRlVGVsZWdyYW1DaGFubmVsEicuYWdlbnRzLnYxLkNyZWF0ZVRlbGVncmFtQ2hhbm5lbFJlcXVlc3QaKC5hZ2VudHMudjEuQ3JlYXRlVGVsZWdyYW1DaGFubmVsUmVzcG9uc2USagoVVXBkYXRlVGVsZWdyYW1DaGFubmVsEicuYWdlbnRzLnYxLlVwZGF0ZVRlbGVncmFtQ2hhbm5lbFJlcXVlc3QaKC5hZ2VudHMudjEuVXBkYXRlVGVsZWdyYW1DaGFubmVsUmVzcG9uc2USiAEKH1JvdGF0ZVRlbGVncmFtQ2hhbm5lbENyZWRlbnRpYWwSMS5hZ2VudHMudjEuUm90YXRlVGVsZWdyYW1DaGFubmVsQ3JlZGVudGlhbFJlcXVlc3QaMi5hZ2VudHMudjEuUm90YXRlVGVsZWdyYW1DaGFubmVsQ3JlZGVudGlhbFJlc3BvbnNlEnYKGVNldFRlbGVncmFtQ2hhbm5lbEVuYWJsZWQSKy5hZ2VudHMudjEuU2V0VGVsZWdyYW1DaGFubmVsRW5hYmxlZFJlcXVlc3QaLC5hZ2VudHMudjEuU2V0VGVsZWdyYW1DaGFubmVsRW5hYmxlZFJlc3BvbnNlEmoKFURlbGV0ZVRlbGVncmFtQ2hhbm5lbBInLmFnZW50cy52MS5EZWxldGVUZWxlZ3JhbUNoYW5uZWxSZXF1ZXN0GiguYWdlbnRzLnYxLkRlbGV0ZVRlbGVncmFtQ2hhbm5lbFJlc3BvbnNlEnMKGEdldFRlbGVncmFtQ2hhbm5lbFN0YXR1cxIqLmFnZW50cy52MS5HZXRUZWxlZ3JhbUNoYW5uZWxTdGF0dXNSZXF1ZXN0GisuYWdlbnRzLnYxLkdldFRlbGVncmFtQ2hhbm5lbFN0YXR1c1Jlc3BvbnNlMtoFChpUZWxlZ3JhbURlc3RpbmF0aW9uU2VydmljZRJzChhMaXN0VGVsZWdyYW1EZXN0aW5hdGlvbnMSKi5hZ2VudHMudjEuTGlzdFRlbGVncmFtRGVzdGluYXRpb25zUmVxdWVzdBorLmFnZW50cy52MS5MaXN0VGVsZWdyYW1EZXN0aW5hdGlvbnNSZXNwb25zZRJtChZHZXRUZWxlZ3JhbURlc3RpbmF0aW9uEiguYWdlbnRzLnYxLkdldFRlbGVncmFtRGVzdGluYXRpb25SZXF1ZXN0GikuYWdlbnRzLnYxLkdldFRlbGVncmFtRGVzdGluYXRpb25SZXNwb25zZRJ2ChlDcmVhdGVUZWxlZ3JhbURlc3RpbmF0aW9uEisuYWdlbnRzLnYxLkNyZWF0ZVRlbGVncmFtRGVzdGluYXRpb25SZXF1ZXN0GiwuYWdlbnRzLnYxLkNyZWF0ZVRlbGVncmFtRGVzdGluYXRpb25SZXNwb25zZRJ2ChlVcGRhdGVUZWxlZ3JhbURlc3RpbmF0aW9uEisuYWdlbnRzLnYxLlVwZGF0ZVRlbGVncmFtRGVzdGluYXRpb25SZXF1ZXN0GiwuYWdlbnRzLnYxLlVwZGF0ZVRlbGVncmFtRGVzdGluYXRpb25SZXNwb25zZRJ2ChlEZWxldGVUZWxlZ3JhbURlc3RpbmF0aW9uEisuYWdlbnRzLnYxLkRlbGV0ZVRlbGVncmFtRGVzdGluYXRpb25SZXF1ZXN0GiwuYWdlbnRzLnYxLkRlbGV0ZVRlbGVncmFtRGVzdGluYXRpb25SZXNwb25zZRJwChdTZW5kVGVsZWdyYW1UZXN0TWVzc2FnZRIpLmFnZW50cy52MS5TZW5kVGVsZWdyYW1UZXN0TWVzc2FnZVJlcXVlc3QaKi5hZ2VudHMudjEuU2VuZFRlbGVncmFtVGVzdE1lc3NhZ2VSZXNwb25zZTLrAQoUVGVsZWdyYW1BZG1pblNlcnZpY2USZAoTR2V0VGVsZWdyYW1TZXR0aW5ncxIlLmFnZW50cy52MS5HZXRUZWxlZ3JhbVNldHRpbmdzUmVxdWVzdBomLmFnZW50cy52MS5HZXRUZWxlZ3JhbVNldHRpbmdzUmVzcG9uc2USbQoWVXBkYXRlVGVsZWdyYW1TZXR0aW5ncxIoLmFnZW50cy52MS5VcGRhdGVUZWxlZ3JhbVNldHRpbmdzUmVxdWVzdBopLmFnZW50cy52MS5VcGRhdGVUZWxlZ3JhbVNldHRpbmdzUmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChhhZ2VudHMvdjEvdGVsZWdyYW0ucHJvdG8SCWFnZW50cy52MSJ4ChdUZWxlZ3JhbUJvdENhcGFiaWxpdGllcxIXCg9jYW5fam9pbl9ncm91cHMYASABKAgSIwobY2FuX3JlYWRfYWxsX2dyb3VwX21lc3NhZ2VzGAIgASgIEh8KF3N1cHBvcnRzX2lubGluZV9xdWVyaWVzGAMgASgIIsoECg9UZWxlZ3JhbUNoYW5uZWwSCgoCaWQYASABKAkSFAoDa2V5GAIgASgJQgf6QgRyAhABEgwKBG5hbWUYAyABKAkSDgoGYm90X2lkGAQgASgJEhQKDGJvdF91c2VybmFtZRgFIAEoCRI8ChBib3RfY2FwYWJpbGl0aWVzGAYgASgLMiIuYWdlbnRzLnYxLlRlbGVncmFtQm90Q2FwYWJpbGl0aWVzEjQKDHJlY2VpdmVfbW9kZRgHIAEoDjIeLmFnZW50cy52MS5UZWxlZ3JhbVJlY2VpdmVNb2RlEhcKD2luYm91bmRfZW5hYmxlZBgIIAEoCBIYChBvdXRib3VuZF9lbmFibGVkGAkgASgIEhAKCHJldmlzaW9uGAogASgDEi4KCmNyZWF0ZWRfYXQYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjwKEGNyZWRlbnRpYWxfc3RhdGUYDSABKA4yIi5hZ2VudHMudjEuVGVsZWdyYW1DcmVkZW50aWFsU3RhdGUSOQoVY3JlZGVudGlhbF91cGRhdGVkX2F0GA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIaChJ3ZWJob29rX3NlY3JldF9zZXQYDyABKAgSHQoVbGFzdF9jcmVkZW50aWFsX2Vycm9yGBAgASgJEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSLlAgoZVGVsZWdyYW1EZXN0aW5hdGlvbkNvbmZpZxIQCghhZ2VudF9pZBgBIAEoCRINCgVtb2RlbBgCIAEoCRIcChRzZWxlY3RhYmxlX2FnZW50X2lkcxgDIAMoCRIZChFzZWxlY3RhYmxlX21vZGVscxgEIAMoCRI0Cgx0cmlnZ2VyX21vZGUYBSABKA4yHi5hZ2VudHMudjEuVGVsZWdyYW1UcmlnZ2VyTW9kZRI4Cg5zZXNzaW9uX3BvbGljeRgGIAEoDjIgLmFnZW50cy52MS5UZWxlZ3JhbVNlc3Npb25Qb2xpY3kSGAoQYWxsb3dlZF91c2VyX2lkcxgHIAMoCRIbChNjb250cm9sbGVyX3VzZXJfaWRzGAggAygJEjAKCnJlcGx5X21vZGUYCSABKA4yHC5hZ2VudHMudjEuVGVsZWdyYW1SZXBseU1vZGUSFQoNZGVidWdfZGVmYXVsdBgKIAEoCCLsAQofVGVsZWdyYW1EZXN0aW5hdGlvblZlcmlmaWNhdGlvbhIQCgh2ZXJpZmllZBgBIAEoCBIvCgt2ZXJpZmllZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPbGFzdF9pbmJvdW5kX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI0ChBsYXN0X291dGJvdW5kX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbChNsYXN0X291dGJvdW5kX2Vycm9yGAUgASgJIsoDChNUZWxlZ3JhbURlc3RpbmF0aW9uEgoKAmlkGAEgASgJEhQKA2tleRgCIAEoCUIH+kIEcgIQARIMCgRuYW1lGAMgASgJEhsKCmNoYW5uZWxfaWQYBCABKAlCB/pCBHICEAESGAoHY2hhdF9pZBgFIAEoCUIH+kIEcgIQARIZChFtZXNzYWdlX3RocmVhZF9pZBgGIAEoCRIXCg9pbmJvdW5kX2VuYWJsZWQYByABKAgSGAoQb3V0Ym91bmRfZW5hYmxlZBgIIAEoCBI0CgZjb25maWcYCSABKAsyJC5hZ2VudHMudjEuVGVsZWdyYW1EZXN0aW5hdGlvbkNvbmZpZxIQCghyZXZpc2lvbhgKIAEoAxIuCgpjcmVhdGVkX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBJACgx2ZXJpZmljYXRpb24YDSABKAsyKi5hZ2VudHMudjEuVGVsZWdyYW1EZXN0aW5hdGlvblZlcmlmaWNhdGlvbhIUCgx3b3Jrc3BhY2VfaWQYZCABKAkiHQobTGlzdFRlbGVncmFtQ2hhbm5lbHNSZXF1ZXN0IkwKHExpc3RUZWxlZ3JhbUNoYW5uZWxzUmVzcG9uc2USLAoIY2hhbm5lbHMYASADKAsyGi5hZ2VudHMudjEuVGVsZWdyYW1DaGFubmVsIjAKGUdldFRlbGVncmFtQ2hhbm5lbFJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiSQoaR2V0VGVsZWdyYW1DaGFubmVsUmVzcG9uc2USKwoHY2hhbm5lbBgBIAEoCzIaLmFnZW50cy52MS5UZWxlZ3JhbUNoYW5uZWwiZwocQ3JlYXRlVGVsZWdyYW1DaGFubmVsUmVxdWVzdBIrCgdjaGFubmVsGAEgASgLMhouYWdlbnRzLnYxLlRlbGVncmFtQ2hhbm5lbBIaCglib3RfdG9rZW4YAiABKAlCB/pCBHICEAEiTAodQ3JlYXRlVGVsZWdyYW1DaGFubmVsUmVzcG9uc2USKwoHY2hhbm5lbBgBIAEoCzIaLmFnZW50cy52MS5UZWxlZ3JhbUNoYW5uZWwiSwocVXBkYXRlVGVsZWdyYW1DaGFubmVsUmVxdWVzdBIrCgdjaGFubmVsGAEgASgLMhouYWdlbnRzLnYxLlRlbGVncmFtQ2hhbm5lbCJMCh1VcGRhdGVUZWxlZ3JhbUNoYW5uZWxSZXNwb25zZRIrCgdjaGFubmVsGAEgASgLMhouYWdlbnRzLnYxLlRlbGVncmFtQ2hhbm5lbCJhCiZSb3RhdGVUZWxlZ3JhbUNoYW5uZWxDcmVkZW50aWFsUmVxdWVzdBIbCgpjaGFubmVsX2lkGAEgASgJQgf6QgRyAhABEhoKCWJvdF90b2tlbhgCIAEoCUIH+kIEcgIQASJWCidSb3RhdGVUZWxlZ3JhbUNoYW5uZWxDcmVkZW50aWFsUmVzcG9uc2USKwoHY2hhbm5lbBgBIAEoCzIaLmFnZW50cy52MS5UZWxlZ3JhbUNoYW5uZWwihAEKIFNldFRlbGVncmFtQ2hhbm5lbEVuYWJsZWRSZXF1ZXN0EhsKCmNoYW5uZWxfaWQYASABKAlCB/pCBHICEAESEAoIcmV2aXNpb24YAiABKAMSFwoPaW5ib3VuZF9lbmFibGVkGAMgASgIEhgKEG91dGJvdW5kX2VuYWJsZWQYBCABKAgiYgohU2V0VGVsZWdyYW1DaGFubmVsRW5hYmxlZFJlc3BvbnNlEisKB2NoYW5uZWwYASABKAsyGi5hZ2VudHMudjEuVGVsZWdyYW1DaGFubmVsEhAKCHdhcm5pbmdzGAIgAygJIjMKHERlbGV0ZVRlbGVncmFtQ2hhbm5lbFJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiHwodRGVsZXRlVGVsZWdyYW1DaGFubmVsUmVzcG9uc2UiPgofR2V0VGVsZWdyYW1DaGFubmVsU3RhdHVzUmVxdWVzdBIbCgpjaGFubmVsX2lkGAEgASgJQgf6QgRyAhABIqoEChVUZWxlZ3JhbUNoYW5uZWxTdGF0dXMSEgoKY2hhbm5lbF9pZBgBIAEoCRIXCg9pbmJvdW5kX2Rlc2lyZWQYAiABKAgSGAoQb3V0Ym91bmRfZGVzaXJlZBgDIAEoCBI8ChBjcmVkZW50aWFsX3N0YXRlGAQgASgOMiIuYWdlbnRzLnYxLlRlbGVncmFtQ3JlZGVudGlhbFN0YXRlEjQKDHJlY2VpdmVfbW9kZRgFIAEoDjIeLmFnZW50cy52MS5UZWxlZ3JhbVJlY2VpdmVNb2RlEiEKGWluYm91bmRfZGVzdGluYXRpb25fY291bnQYBiABKAUSIgoab3V0Ym91bmRfZGVzdGluYXRpb25fY291bnQYByABKAUSEAoIYmxvY2tlcnMYCCADKAkSEAoId2FybmluZ3MYCSADKAkSHQoVbGFzdF9jcmVkZW50aWFsX2Vycm9yGAogASgJEjYKDXdlYmhvb2tfc3RhdGUYCyABKA4yHy5hZ2VudHMudjEuVGVsZWdyYW1XZWJob29rU3RhdGUSEwoLd2ViaG9va191cmwYDCABKAkSGgoSbGFzdF93ZWJob29rX2Vycm9yGA0gASgJEjYKEmxhc3RfcmVjb25jaWxlZF9hdBgOIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFgoOcG9sbGluZ19sZWFkZXIYDyABKAgSEwoLcXVldWVfcmVhZHkYECABKAgiVAogR2V0VGVsZWdyYW1DaGFubmVsU3RhdHVzUmVzcG9uc2USMAoGc3RhdHVzGAEgASgLMiAuYWdlbnRzLnYxLlRlbGVncmFtQ2hhbm5lbFN0YXR1cyI1Ch9MaXN0VGVsZWdyYW1EZXN0aW5hdGlvbnNSZXF1ZXN0EhIKCmNoYW5uZWxfaWQYASABKAkiWAogTGlzdFRlbGVncmFtRGVzdGluYXRpb25zUmVzcG9uc2USNAoMZGVzdGluYXRpb25zGAEgAygLMh4uYWdlbnRzLnYxLlRlbGVncmFtRGVzdGluYXRpb24iNAodR2V0VGVsZWdyYW1EZXN0aW5hdGlvblJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiVQoeR2V0VGVsZWdyYW1EZXN0aW5hdGlvblJlc3BvbnNlEjMKC2Rlc3RpbmF0aW9uGAEgASgLMh4uYWdlbnRzLnYxLlRlbGVncmFtRGVzdGluYXRpb24iVwogQ3JlYXRlVGVsZWdyYW1EZXN0aW5hdGlvblJlcXVlc3QSMwoLZGVzdGluYXRpb24YASABKAsyHi5hZ2VudHMudjEuVGVsZWdyYW1EZXN0aW5hdGlvbiJYCiFDcmVhdGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVzcG9uc2USMwoLZGVzdGluYXRpb24YASABKAsyHi5hZ2VudHMudjEuVGVsZWdyYW1EZXN0aW5hdGlvbiJXCiBVcGRhdGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVxdWVzdBIzCgtkZXN0aW5hdGlvbhgBIAEoCzIeLmFnZW50cy52MS5UZWxlZ3JhbURlc3RpbmF0aW9uIlgKIVVwZGF0ZVRlbGVncmFtRGVzdGluYXRpb25SZXNwb25zZRIzCgtkZXN0aW5hdGlvbhgBIAEoCzIeLmFnZW50cy52MS5UZWxlZ3JhbURlc3RpbmF0aW9uIjcKIERlbGV0ZVRlbGVncmFtRGVzdGluYXRpb25SZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIiMKIURlbGV0ZVRlbGVncmFtRGVzdGluYXRpb25SZXNwb25zZSJPCh5TZW5kVGVsZWdyYW1UZXN0TWVzc2FnZVJlcXVlc3QSHwoOZGVzdGluYXRpb25faWQYASABKAlCB/pCBHICEAESDAoEdGV4dBgCIAEoCSJrCh9TZW5kVGVsZWdyYW1UZXN0TWVzc2FnZVJlc3BvbnNlEjMKC2Rlc3RpbmF0aW9uGAEgASgLMh4uYWdlbnRzLnYxLlRlbGVncmFtRGVzdGluYXRpb24SEwoLbWVzc2FnZV9pZHMYAiADKAkiXAoQVGVsZWdyYW1TZXR0aW5ncxIYChB3ZWJob29rX2Jhc2VfdXJsGAEgASgJEi4KCnVwZGF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhwKGkdldFRlbGVncmFtU2V0dGluZ3NSZXF1ZXN0IkwKG0dldFRlbGVncmFtU2V0dGluZ3NSZXNwb25zZRItCghzZXR0aW5ncxgBIAEoCzIbLmFnZW50cy52MS5UZWxlZ3JhbVNldHRpbmdzIk4KHVVwZGF0ZVRlbGVncmFtU2V0dGluZ3NSZXF1ZXN0Ei0KCHNldHRpbmdzGAEgASgLMhsuYWdlbnRzLnYxLlRlbGVncmFtU2V0dGluZ3MiTwoeVXBkYXRlVGVsZWdyYW1TZXR0aW5nc1Jlc3BvbnNlEi0KCHNldHRpbmdzGAEgASgLMhsuYWdlbnRzLnYxLlRlbGVncmFtU2V0dGluZ3MiaQoXVGVsZWdyYW1EZWxpdmVyeVNlZ21lbnQSDQoFaW5kZXgYASABKAUSDAoEdGV4dBgCIAEoCRIOCgZzdGF0dXMYAyABKAkSEgoKbWVzc2FnZV9pZBgEIAEoCRINCgVlcnJvchgFIAEoCSLzAwoYVGVsZWdyYW1Qcm9jZXNzaW5nUmVjb3JkEgoKAmlkGAEgASgJEhQKDHdvcmtzcGFjZV9pZBgCIAEoCRISCgpjaGFubmVsX2lkGAMgASgJEhYKDmRlc3RpbmF0aW9uX2lkGAQgASgJEhEKCXVwZGF0ZV9pZBgFIAEoAxIzCgZzdGF0dXMYBiABKA4yIy5hZ2VudHMudjEuVGVsZWdyYW1Qcm9jZXNzaW5nU3RhdHVzEhUKDWludm9jYXRpb25faWQYByABKAkSEAoIYXR0ZW1wdHMYCCABKAUSHAoUZGVzdGluYXRpb25fcmV2aXNpb24YCSABKAMSDQoFZXJyb3IYCiABKAkSDgoGb3V0cHV0GAsgASgJEjQKCHNlZ21lbnRzGAwgAygLMiIuYWdlbnRzLnYxLlRlbGVncmFtRGVsaXZlcnlTZWdtZW50Ei4KCmNyZWF0ZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCmV4cGlyZXNfYXQYDyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhUKDWRlYWRfbGV0dGVyZWQYECABKAgimgEKJExpc3RUZWxlZ3JhbVByb2Nlc3NpbmdSZWNvcmRzUmVxdWVzdBISCgpjaGFubmVsX2lkGAEgASgJEhYKDmRlc3RpbmF0aW9uX2lkGAIgASgJEjMKBnN0YXR1cxgDIAEoDjIjLmFnZW50cy52MS5UZWxlZ3JhbVByb2Nlc3NpbmdTdGF0dXMSEQoJcGFnZV9zaXplGAQgASgFIl0KJUxpc3RUZWxlZ3JhbVByb2Nlc3NpbmdSZWNvcmRzUmVzcG9uc2USNAoHcmVjb3JkcxgBIAMoCzIjLmFnZW50cy52MS5UZWxlZ3JhbVByb2Nlc3NpbmdSZWNvcmQiOQoiR2V0VGVsZWdyYW1Qcm9jZXNzaW5nUmVjb3JkUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASJaCiNHZXRUZWxlZ3JhbVByb2Nlc3NpbmdSZWNvcmRSZXNwb25zZRIzCgZyZWNvcmQYASABKAsyIy5hZ2VudHMudjEuVGVsZWdyYW1Qcm9jZXNzaW5nUmVjb3JkIjEKGlJlc2VuZFRlbGVncmFtUmVwbHlSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABImcKG1Jlc2VuZFRlbGVncmFtUmVwbHlSZXNwb25zZRIzCgZyZWNvcmQYASABKAsyIy5hZ2VudHMudjEuVGVsZWdyYW1Qcm9jZXNzaW5nUmVjb3JkEhMKC21lc3NhZ2VfaWRzGAIgAygJKocBChNUZWxlZ3JhbVJlY2VpdmVNb2RlEiUKIVRFTEVHUkFNX1JFQ0VJVkVfTU9ERV9VTlNQRUNJRklFRBAAEiEKHVRFTEVHUkFNX1JFQ0VJVkVfTU9ERV9XRUJIT09LEAESJgoiVEVMRUdSQU1fUkVDRUlWRV9NT0RFX0xPTkdfUE9MTElORxACKrcBChdUZWxlZ3JhbUNyZWRlbnRpYWxTdGF0ZRIpCiVURUxFR1JBTV9DUkVERU5USUFMX1NUQVRFX1VOU1BFQ0lGSUVEEAASJQohVEVMRUdSQU1fQ1JFREVOVElBTF9TVEFURV9NSVNTSU5HEAESIwofVEVMRUdSQU1fQ1JFREVOVElBTF9TVEFURV9WQUxJRBACEiUKIVRFTEVHUkFNX0NSRURFTlRJQUxfU1RBVEVfSU5WQUxJRBADKs8BChNUZWxlZ3JhbVRyaWdnZXJNb2RlEiUKIVRFTEVHUkFNX1RSSUdHRVJfTU9ERV9VTlNQRUNJRklFRBAAEh0KGVRFTEVHUkFNX1RSSUdHRVJfTU9ERV9BTEwQARIhCh1URUxFR1JBTV9UUklHR0VSX01PREVfTUVOVElPThACEiEKHVRFTEVHUkFNX1RSSUdHRVJfTU9ERV9DT01NQU5EEAMSLAooVEVMRUdSQU1fVFJJR0dFUl9NT0RFX01FTlRJT05fT1JfQ09NTUFORBAEKosBChVUZWxlZ3JhbVNlc3Npb25Qb2xpY3kSJwojVEVMRUdSQU1fU0VTU0lPTl9QT0xJQ1lfVU5TUEVDSUZJRUQQABInCiNURUxFR1JBTV9TRVNTSU9OX1BPTElDWV9ERVNUSU5BVElPThABEiAKHFRFTEVHUkFNX1NFU1NJT05fUE9MSUNZX1VTRVIQAip8ChFUZWxlZ3JhbVJlcGx5TW9kZRIjCh9URUxFR1JBTV9SRVBMWV9NT0RFX1VOU1BFQ0lGSUVEEAASHQoZVEVMRUdSQU1fUkVQTFlfTU9ERV9SRVBMWRABEiMKH1RFTEVHUkFNX1JFUExZX01PREVfTkVXX01FU1NBR0UQAirXAQoUVGVsZWdyYW1XZWJob29rU3RhdGUSJgoiVEVMRUdSQU1fV0VCSE9PS19TVEFURV9VTlNQRUNJRklFRBAAEikKJVRFTEVHUkFNX1dFQkhPT0tfU1RBVEVfTk9UX0FQUExJQ0FCTEUQARIlCiFURUxFR1JBTV9XRUJIT09LX1NUQVRFX1JFR0lTVEVSRUQQAhIiCh5URUxFR1JBTV9XRUJIT09LX1NUQVRFX1BFTkRJTkcQAxIhCh1URUxFR1JBTV9XRUJIT09LX1NUQVRFX0ZBSUxFRBAEKs0CChhUZWxlZ3JhbVByb2Nlc3NpbmdTdGF0dXMSKgomVEVMRUdSQU1fUFJPQ0VTU0lOR19TVEFUVVNfVU5TUEVDSUZJRUQQABInCiNURUxFR1JBTV9QUk9DRVNTSU5HX1NUQVRVU19SRUNFSVZFRBABEikKJVRFTEVHUkFNX1BST0NFU1NJTkdfU1RBVFVTX1BST0NFU1NJTkcQAhIvCitURUxFR1JBTV9QUk9DRVNTSU5HX1NUQVRVU19SRUFEWV9UT19ERUxJVkVSEAMSKAokVEVMRUdSQU1fUFJPQ0VTU0lOR19TVEFUVVNfU1VDQ0VFREVEEAQSJQohVEVMRUdSQU1fUFJPQ0VTU0lOR19TVEFUVVNfRkFJTEVEEAUSLworVEVMRUdSQU1fUFJPQ0VTU0lOR19TVEFUVVNfRkFJTEVEX1VOQ0VSVEFJThAGMqAHChZUZWxlZ3JhbUNoYW5uZWxTZXJ2aWNlEmcKFExpc3RUZWxlZ3JhbUNoYW5uZWxzEiYuYWdlbnRzLnYxLkxpc3RUZWxlZ3JhbUNoYW5uZWxzUmVxdWVzdBonLmFnZW50cy52MS5MaXN0VGVsZWdyYW1DaGFubmVsc1Jlc3BvbnNlEmEKEkdldFRlbGVncmFtQ2hhbm5lbBIkLmFnZW50cy52MS5HZXRUZWxlZ3JhbUNoYW5uZWxSZXF1ZXN0GiUuYWdlbnRzLnYxLkdldFRlbGVncmFtQ2hhbm5lbFJlc3BvbnNlEmoKFUNyZWF0ZVRlbGVncmFtQ2hhbm5lbBInLmFnZW50cy52MS5DcmVhdGVUZWxlZ3JhbUNoYW5uZWxSZXF1ZXN0GiguYWdlbnRzLnYxLkNyZWF0ZVRlbGVncmFtQ2hhbm5lbFJlc3BvbnNlEmoKFVVwZGF0ZVRlbGVncmFtQ2hhbm5lbBInLmFnZW50cy52MS5VcGRhdGVUZWxlZ3JhbUNoYW5uZWxSZXF1ZXN0GiguYWdlbnRzLnYxLlVwZGF0ZVRlbGVncmFtQ2hhbm5lbFJlc3BvbnNlEogBCh9Sb3RhdGVUZWxlZ3JhbUNoYW5uZWxDcmVkZW50aWFsEjEuYWdlbnRzLnYxLlJvdGF0ZVRlbGVncmFtQ2hhbm5lbENyZWRlbnRpYWxSZXF1ZXN0GjIuYWdlbnRzLnYxLlJvdGF0ZVRlbGVncmFtQ2hhbm5lbENyZWRlbnRpYWxSZXNwb25zZRJ2ChlTZXRUZWxlZ3JhbUNoYW5uZWxFbmFibGVkEisuYWdlbnRzLnYxLlNldFRlbGVncmFtQ2hhbm5lbEVuYWJsZWRSZXF1ZXN0GiwuYWdlbnRzLnYxLlNldFRlbGVncmFtQ2hhbm5lbEVuYWJsZWRSZXNwb25zZRJqChVEZWxldGVUZWxlZ3JhbUNoYW5uZWwSJy5hZ2VudHMudjEuRGVsZXRlVGVsZWdyYW1DaGFubmVsUmVxdWVzdBooLmFnZW50cy52MS5EZWxldGVUZWxlZ3JhbUNoYW5uZWxSZXNwb25zZRJzChhHZXRUZWxlZ3JhbUNoYW5uZWxTdGF0dXMSKi5hZ2VudHMudjEuR2V0VGVsZWdyYW1DaGFubmVsU3RhdHVzUmVxdWVzdBorLmFnZW50cy52MS5HZXRUZWxlZ3JhbUNoYW5uZWxTdGF0dXNSZXNwb25zZTLaBQoaVGVsZWdyYW1EZXN0aW5hdGlvblNlcnZpY2UScwoYTGlzdFRlbGVncmFtRGVzdGluYXRpb25zEiouYWdlbnRzLnYxLkxpc3RUZWxlZ3JhbURlc3RpbmF0aW9uc1JlcXVlc3QaKy5hZ2VudHMudjEuTGlzdFRlbGVncmFtRGVzdGluYXRpb25zUmVzcG9uc2USbQoWR2V0VGVsZWdyYW1EZXN0aW5hdGlvbhIoLmFnZW50cy52MS5HZXRUZWxlZ3JhbURlc3RpbmF0aW9uUmVxdWVzdBopLmFnZW50cy52MS5HZXRUZWxlZ3JhbURlc3RpbmF0aW9uUmVzcG9uc2USdgoZQ3JlYXRlVGVsZWdyYW1EZXN0aW5hdGlvbhIrLmFnZW50cy52MS5DcmVhdGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVxdWVzdBosLmFnZW50cy52MS5DcmVhdGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVzcG9uc2USdgoZVXBkYXRlVGVsZWdyYW1EZXN0aW5hdGlvbhIrLmFnZW50cy52MS5VcGRhdGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVxdWVzdBosLmFnZW50cy52MS5VcGRhdGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVzcG9uc2USdgoZRGVsZXRlVGVsZWdyYW1EZXN0aW5hdGlvbhIrLmFnZW50cy52MS5EZWxldGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVxdWVzdBosLmFnZW50cy52MS5EZWxldGVUZWxlZ3JhbURlc3RpbmF0aW9uUmVzcG9uc2UScAoXU2VuZFRlbGVncmFtVGVzdE1lc3NhZ2USKS5hZ2VudHMudjEuU2VuZFRlbGVncmFtVGVzdE1lc3NhZ2VSZXF1ZXN0GiouYWdlbnRzLnYxLlNlbmRUZWxlZ3JhbVRlc3RNZXNzYWdlUmVzcG9uc2Uy6wEKFFRlbGVncmFtQWRtaW5TZXJ2aWNlEmQKE0dldFRlbGVncmFtU2V0dGluZ3MSJS5hZ2VudHMudjEuR2V0VGVsZWdyYW1TZXR0aW5nc1JlcXVlc3QaJi5hZ2VudHMudjEuR2V0VGVsZWdyYW1TZXR0aW5nc1Jlc3BvbnNlEm0KFlVwZGF0ZVRlbGVncmFtU2V0dGluZ3MSKC5hZ2VudHMudjEuVXBkYXRlVGVsZWdyYW1TZXR0aW5nc1JlcXVlc3QaKS5hZ2VudHMudjEuVXBkYXRlVGVsZWdyYW1TZXR0aW5nc1Jlc3BvbnNlMoQDChlUZWxlZ3JhbVByb2Nlc3NpbmdTZXJ2aWNlEoIBCh1MaXN0VGVsZWdyYW1Qcm9jZXNzaW5nUmVjb3JkcxIvLmFnZW50cy52MS5MaXN0VGVsZWdyYW1Qcm9jZXNzaW5nUmVjb3Jkc1JlcXVlc3QaMC5hZ2VudHMudjEuTGlzdFRlbGVncmFtUHJvY2Vzc2luZ1JlY29yZHNSZXNwb25zZRJ8ChtHZXRUZWxlZ3JhbVByb2Nlc3NpbmdSZWNvcmQSLS5hZ2VudHMudjEuR2V0VGVsZWdyYW1Qcm9jZXNzaW5nUmVjb3JkUmVxdWVzdBouLmFnZW50cy52MS5HZXRUZWxlZ3JhbVByb2Nlc3NpbmdSZWNvcmRSZXNwb25zZRJkChNSZXNlbmRUZWxlZ3JhbVJlcGx5EiUuYWdlbnRzLnYxLlJlc2VuZFRlbGVncmFtUmVwbHlSZXF1ZXN0GiYuYWdlbnRzLnYxLlJlc2VuZFRlbGVncmFtUmVwbHlSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * TelegramBotCapabilities mirrors the subset of Telegram `getMe` flags that
@@ -1228,6 +1228,325 @@ export const UpdateTelegramSettingsResponseSchema: GenMessage<UpdateTelegramSett
   messageDesc(file_agents_v1_telegram, 38);
 
 /**
+ * TelegramDeliverySegment is one piece of a response plus its delivery state.
+ *
+ * @generated from message agents.v1.TelegramDeliverySegment
+ */
+export type TelegramDeliverySegment = Message<"agents.v1.TelegramDeliverySegment"> & {
+  /**
+   * @gotags: json:"index,omitempty" bson:"index,omitempty"
+   *
+   * @generated from field: int32 index = 1;
+   */
+  index: number;
+
+  /**
+   * @gotags: json:"text,omitempty" bson:"text,omitempty"
+   *
+   * @generated from field: string text = 2;
+   */
+  text: string;
+
+  /**
+   * One of "pending", "sent", "failed".
+   * @gotags: json:"status,omitempty" bson:"status,omitempty"
+   *
+   * @generated from field: string status = 3;
+   */
+  status: string;
+
+  /**
+   * Telegram message ID once sent.
+   * @gotags: json:"message_id,omitempty" bson:"message_id,omitempty"
+   *
+   * @generated from field: string message_id = 4;
+   */
+  messageId: string;
+
+  /**
+   * Sanitized failure summary. Never contains credential material.
+   * @gotags: json:"error,omitempty" bson:"error,omitempty"
+   *
+   * @generated from field: string error = 5;
+   */
+  error: string;
+};
+
+/**
+ * Describes the message agents.v1.TelegramDeliverySegment.
+ * Use `create(TelegramDeliverySegmentSchema)` to create a new message.
+ */
+export const TelegramDeliverySegmentSchema: GenMessage<TelegramDeliverySegment> = /*@__PURE__*/
+  messageDesc(file_agents_v1_telegram, 39);
+
+/**
+ * TelegramProcessingRecord is the auditable state of one accepted update.
+ *
+ * @generated from message agents.v1.TelegramProcessingRecord
+ */
+export type TelegramProcessingRecord = Message<"agents.v1.TelegramProcessingRecord"> & {
+  /**
+   * Service-generated identifier.
+   * @gotags: json:"id,omitempty" bson:"id,omitempty"
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+   *
+   * @generated from field: string workspace_id = 2;
+   */
+  workspaceId: string;
+
+  /**
+   * @gotags: json:"channel_id,omitempty" bson:"channel_id,omitempty"
+   *
+   * @generated from field: string channel_id = 3;
+   */
+  channelId: string;
+
+  /**
+   * @gotags: json:"destination_id,omitempty" bson:"destination_id,omitempty"
+   *
+   * @generated from field: string destination_id = 4;
+   */
+  destinationId: string;
+
+  /**
+   * Telegram's own update identifier; unique with channel_id.
+   * @gotags: json:"update_id,omitempty" bson:"update_id,omitempty"
+   *
+   * @generated from field: int64 update_id = 5;
+   */
+  updateId: bigint;
+
+  /**
+   * @gotags: json:"status,omitempty" bson:"status,omitempty"
+   *
+   * @generated from field: agents.v1.TelegramProcessingStatus status = 6;
+   */
+  status: TelegramProcessingStatus;
+
+  /**
+   * Stable across retries so an operator can correlate one logical unit of
+   * work with the Agent invocation it produced.
+   * @gotags: json:"invocation_id,omitempty" bson:"invocation_id,omitempty"
+   *
+   * @generated from field: string invocation_id = 7;
+   */
+  invocationId: string;
+
+  /**
+   * How many times this record has been claimed.
+   * @gotags: json:"attempts,omitempty" bson:"attempts,omitempty"
+   *
+   * @generated from field: int32 attempts = 8;
+   */
+  attempts: number;
+
+  /**
+   * Destination revision frozen at acceptance.
+   * @gotags: json:"destination_revision,omitempty" bson:"destination_revision,omitempty"
+   *
+   * @generated from field: int64 destination_revision = 9;
+   */
+  destinationRevision: bigint;
+
+  /**
+   * Sanitized failure summary. Never contains credential material or the
+   * full update body.
+   * @gotags: json:"error,omitempty" bson:"error,omitempty"
+   *
+   * @generated from field: string error = 10;
+   */
+  error: string;
+
+  /**
+   * The complete Agent response, persisted before delivery begins so a
+   * delivery retry never has to re-run the Agent.
+   * @gotags: json:"output,omitempty" bson:"output,omitempty"
+   *
+   * @generated from field: string output = 11;
+   */
+  output: string;
+
+  /**
+   * Per-segment delivery state.
+   * @gotags: json:"segments,omitempty" bson:"segments,omitempty"
+   *
+   * @generated from field: repeated agents.v1.TelegramDeliverySegment segments = 12;
+   */
+  segments: TelegramDeliverySegment[];
+
+  /**
+   * @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp created_at = 13;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp updated_at = 14;
+   */
+  updatedAt?: Timestamp;
+
+  /**
+   * When the record becomes eligible for TTL cleanup (30 days).
+   * @gotags: json:"expires_at,omitempty" bson:"expires_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp expires_at = 15;
+   */
+  expiresAt?: Timestamp;
+
+  /**
+   * Whether the record is in dead-letter handling and needs an operator.
+   * @gotags: json:"dead_lettered,omitempty" bson:"dead_lettered,omitempty"
+   *
+   * @generated from field: bool dead_lettered = 16;
+   */
+  deadLettered: boolean;
+};
+
+/**
+ * Describes the message agents.v1.TelegramProcessingRecord.
+ * Use `create(TelegramProcessingRecordSchema)` to create a new message.
+ */
+export const TelegramProcessingRecordSchema: GenMessage<TelegramProcessingRecord> = /*@__PURE__*/
+  messageDesc(file_agents_v1_telegram, 40);
+
+/**
+ * @generated from message agents.v1.ListTelegramProcessingRecordsRequest
+ */
+export type ListTelegramProcessingRecordsRequest = Message<"agents.v1.ListTelegramProcessingRecordsRequest"> & {
+  /**
+   * Optional filters.
+   *
+   * @generated from field: string channel_id = 1;
+   */
+  channelId: string;
+
+  /**
+   * @generated from field: string destination_id = 2;
+   */
+  destinationId: string;
+
+  /**
+   * @generated from field: agents.v1.TelegramProcessingStatus status = 3;
+   */
+  status: TelegramProcessingStatus;
+
+  /**
+   * Maximum records to return. Defaults to 50, capped at 200.
+   *
+   * @generated from field: int32 page_size = 4;
+   */
+  pageSize: number;
+};
+
+/**
+ * Describes the message agents.v1.ListTelegramProcessingRecordsRequest.
+ * Use `create(ListTelegramProcessingRecordsRequestSchema)` to create a new message.
+ */
+export const ListTelegramProcessingRecordsRequestSchema: GenMessage<ListTelegramProcessingRecordsRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_telegram, 41);
+
+/**
+ * @generated from message agents.v1.ListTelegramProcessingRecordsResponse
+ */
+export type ListTelegramProcessingRecordsResponse = Message<"agents.v1.ListTelegramProcessingRecordsResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.TelegramProcessingRecord records = 1;
+   */
+  records: TelegramProcessingRecord[];
+};
+
+/**
+ * Describes the message agents.v1.ListTelegramProcessingRecordsResponse.
+ * Use `create(ListTelegramProcessingRecordsResponseSchema)` to create a new message.
+ */
+export const ListTelegramProcessingRecordsResponseSchema: GenMessage<ListTelegramProcessingRecordsResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_telegram, 42);
+
+/**
+ * @generated from message agents.v1.GetTelegramProcessingRecordRequest
+ */
+export type GetTelegramProcessingRecordRequest = Message<"agents.v1.GetTelegramProcessingRecordRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message agents.v1.GetTelegramProcessingRecordRequest.
+ * Use `create(GetTelegramProcessingRecordRequestSchema)` to create a new message.
+ */
+export const GetTelegramProcessingRecordRequestSchema: GenMessage<GetTelegramProcessingRecordRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_telegram, 43);
+
+/**
+ * @generated from message agents.v1.GetTelegramProcessingRecordResponse
+ */
+export type GetTelegramProcessingRecordResponse = Message<"agents.v1.GetTelegramProcessingRecordResponse"> & {
+  /**
+   * @generated from field: agents.v1.TelegramProcessingRecord record = 1;
+   */
+  record?: TelegramProcessingRecord;
+};
+
+/**
+ * Describes the message agents.v1.GetTelegramProcessingRecordResponse.
+ * Use `create(GetTelegramProcessingRecordResponseSchema)` to create a new message.
+ */
+export const GetTelegramProcessingRecordResponseSchema: GenMessage<GetTelegramProcessingRecordResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_telegram, 44);
+
+/**
+ * @generated from message agents.v1.ResendTelegramReplyRequest
+ */
+export type ResendTelegramReplyRequest = Message<"agents.v1.ResendTelegramReplyRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message agents.v1.ResendTelegramReplyRequest.
+ * Use `create(ResendTelegramReplyRequestSchema)` to create a new message.
+ */
+export const ResendTelegramReplyRequestSchema: GenMessage<ResendTelegramReplyRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_telegram, 45);
+
+/**
+ * @generated from message agents.v1.ResendTelegramReplyResponse
+ */
+export type ResendTelegramReplyResponse = Message<"agents.v1.ResendTelegramReplyResponse"> & {
+  /**
+   * @generated from field: agents.v1.TelegramProcessingRecord record = 1;
+   */
+  record?: TelegramProcessingRecord;
+
+  /**
+   * Telegram message IDs produced by this resend, in order.
+   *
+   * @generated from field: repeated string message_ids = 2;
+   */
+  messageIds: string[];
+};
+
+/**
+ * Describes the message agents.v1.ResendTelegramReplyResponse.
+ * Use `create(ResendTelegramReplyResponseSchema)` to create a new message.
+ */
+export const ResendTelegramReplyResponseSchema: GenMessage<ResendTelegramReplyResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_telegram, 46);
+
+/**
  * TelegramReceiveMode selects how a Channel consumes Telegram updates.
  *
  * @generated from enum agents.v1.TelegramReceiveMode
@@ -1461,6 +1780,65 @@ export const TelegramWebhookStateSchema: GenEnum<TelegramWebhookState> = /*@__PU
   enumDesc(file_agents_v1_telegram, 5);
 
 /**
+ * @generated from enum agents.v1.TelegramProcessingStatus
+ */
+export enum TelegramProcessingStatus {
+  /**
+   * @generated from enum value: TELEGRAM_PROCESSING_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Claimed from the queue, no Agent work started.
+   *
+   * @generated from enum value: TELEGRAM_PROCESSING_STATUS_RECEIVED = 1;
+   */
+  RECEIVED = 1,
+
+  /**
+   * Agent work may have started. A crash from here is not safely retryable.
+   *
+   * @generated from enum value: TELEGRAM_PROCESSING_STATUS_PROCESSING = 2;
+   */
+  PROCESSING = 2,
+
+  /**
+   * Agent output is safely persisted; only delivery remains.
+   *
+   * @generated from enum value: TELEGRAM_PROCESSING_STATUS_READY_TO_DELIVER = 3;
+   */
+  READY_TO_DELIVER = 3,
+
+  /**
+   * Delivered.
+   *
+   * @generated from enum value: TELEGRAM_PROCESSING_STATUS_SUCCEEDED = 4;
+   */
+  SUCCEEDED = 4,
+
+  /**
+   * Failed before Agent work started, or failed to deliver. Safe to retry.
+   *
+   * @generated from enum value: TELEGRAM_PROCESSING_STATUS_FAILED = 5;
+   */
+  FAILED = 5,
+
+  /**
+   * Failed after Agent work may have started. Deliberately NOT retried
+   * automatically: a rerun could repeat tool side effects.
+   *
+   * @generated from enum value: TELEGRAM_PROCESSING_STATUS_FAILED_UNCERTAIN = 6;
+   */
+  FAILED_UNCERTAIN = 6,
+}
+
+/**
+ * Describes the enum agents.v1.TelegramProcessingStatus.
+ */
+export const TelegramProcessingStatusSchema: GenEnum<TelegramProcessingStatus> = /*@__PURE__*/
+  enumDesc(file_agents_v1_telegram, 6);
+
+/**
  * =============================================================================
  * TelegramChannelService
  *
@@ -1681,4 +2059,49 @@ export const TelegramAdminService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_telegram, 2);
+
+/**
+ * =============================================================================
+ * TelegramProcessingService
+ *
+ * Workspace members may read processing records and redacted failures for
+ * their workspace; owners/admins may resend an already-produced reply.
+ * There is deliberately no Agent rerun action: once Agent work may have
+ * produced side effects, repeating it is an operator decision made with
+ * context this API does not have.
+ * =============================================================================
+ *
+ * @generated from service agents.v1.TelegramProcessingService
+ */
+export const TelegramProcessingService: GenService<{
+  /**
+   * @generated from rpc agents.v1.TelegramProcessingService.ListTelegramProcessingRecords
+   */
+  listTelegramProcessingRecords: {
+    methodKind: "unary";
+    input: typeof ListTelegramProcessingRecordsRequestSchema;
+    output: typeof ListTelegramProcessingRecordsResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.TelegramProcessingService.GetTelegramProcessingRecord
+   */
+  getTelegramProcessingRecord: {
+    methodKind: "unary";
+    input: typeof GetTelegramProcessingRecordRequestSchema;
+    output: typeof GetTelegramProcessingRecordResponseSchema;
+  },
+  /**
+   * ResendTelegramReply re-delivers unsent or failed segments of a response
+   * that was already produced. It never invokes the Agent, and it is refused
+   * when no complete output exists.
+   *
+   * @generated from rpc agents.v1.TelegramProcessingService.ResendTelegramReply
+   */
+  resendTelegramReply: {
+    methodKind: "unary";
+    input: typeof ResendTelegramReplyRequestSchema;
+    output: typeof ResendTelegramReplyResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_agents_v1_telegram, 3);
 

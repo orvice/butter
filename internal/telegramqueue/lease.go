@@ -102,7 +102,15 @@ const (
 	WebhookReconcilerLeaseKey = "butter:telegram:lease:webhook-reconciler"
 	// PollingLeaseKeyPrefix elects the single Pod long-polling one Channel.
 	PollingLeaseKeyPrefix = "butter:telegram:lease:polling:"
+	// SessionLeaseKeyPrefix serializes work within one derived session.
+	SessionLeaseKeyPrefix = "butter:telegram:lease:session:"
 )
+
+// SessionLeaseKey serializes turns inside one derived session. Two updates
+// for the same conversation running concurrently would interleave their
+// history writes; unrelated sessions are deliberately unaffected, which is
+// what keeps the fleet parallel.
+func SessionLeaseKey(sessionID string) string { return SessionLeaseKeyPrefix + sessionID }
 
 // PollingLeaseKey returns the Long Polling lease key for one Channel.
 func PollingLeaseKey(channelID string) string { return PollingLeaseKeyPrefix + channelID }

@@ -1,6 +1,7 @@
 import {
   TelegramCredentialState,
   TelegramReceiveMode,
+  TelegramProcessingStatus,
   TelegramWebhookState,
   TelegramReplyMode,
   TelegramSessionPolicy,
@@ -23,6 +24,15 @@ export const WEBHOOK_STATE_LABELS: Record<number, string> = {
   [TelegramWebhookState.REGISTERED]: 'Webhook registered',
   [TelegramWebhookState.PENDING]: 'Webhook pending',
   [TelegramWebhookState.FAILED]: 'Webhook failed',
+}
+
+export const PROCESSING_STATUS_LABELS: Record<number, string> = {
+  [TelegramProcessingStatus.RECEIVED]: 'Received',
+  [TelegramProcessingStatus.PROCESSING]: 'Processing',
+  [TelegramProcessingStatus.READY_TO_DELIVER]: 'Ready to deliver',
+  [TelegramProcessingStatus.SUCCEEDED]: 'Succeeded',
+  [TelegramProcessingStatus.FAILED]: 'Failed',
+  [TelegramProcessingStatus.FAILED_UNCERTAIN]: 'Uncertain',
 }
 
 export const TRIGGER_MODE_OPTIONS: { value: TelegramTriggerMode; label: string }[] = [

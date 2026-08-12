@@ -28,6 +28,9 @@ const (
 	TelegramDestinationServiceName = "agents.v1.TelegramDestinationService"
 	// TelegramAdminServiceName is the fully-qualified name of the TelegramAdminService service.
 	TelegramAdminServiceName = "agents.v1.TelegramAdminService"
+	// TelegramProcessingServiceName is the fully-qualified name of the TelegramProcessingService
+	// service.
+	TelegramProcessingServiceName = "agents.v1.TelegramProcessingService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -86,6 +89,15 @@ const (
 	// TelegramAdminServiceUpdateTelegramSettingsProcedure is the fully-qualified name of the
 	// TelegramAdminService's UpdateTelegramSettings RPC.
 	TelegramAdminServiceUpdateTelegramSettingsProcedure = "/agents.v1.TelegramAdminService/UpdateTelegramSettings"
+	// TelegramProcessingServiceListTelegramProcessingRecordsProcedure is the fully-qualified name of
+	// the TelegramProcessingService's ListTelegramProcessingRecords RPC.
+	TelegramProcessingServiceListTelegramProcessingRecordsProcedure = "/agents.v1.TelegramProcessingService/ListTelegramProcessingRecords"
+	// TelegramProcessingServiceGetTelegramProcessingRecordProcedure is the fully-qualified name of the
+	// TelegramProcessingService's GetTelegramProcessingRecord RPC.
+	TelegramProcessingServiceGetTelegramProcessingRecordProcedure = "/agents.v1.TelegramProcessingService/GetTelegramProcessingRecord"
+	// TelegramProcessingServiceResendTelegramReplyProcedure is the fully-qualified name of the
+	// TelegramProcessingService's ResendTelegramReply RPC.
+	TelegramProcessingServiceResendTelegramReplyProcedure = "/agents.v1.TelegramProcessingService/ResendTelegramReply"
 )
 
 // TelegramChannelServiceClient is a client for the agents.v1.TelegramChannelService service.
@@ -708,4 +720,135 @@ func (UnimplementedTelegramAdminServiceHandler) GetTelegramSettings(context.Cont
 
 func (UnimplementedTelegramAdminServiceHandler) UpdateTelegramSettings(context.Context, *connect.Request[v1.UpdateTelegramSettingsRequest]) (*connect.Response[v1.UpdateTelegramSettingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramAdminService.UpdateTelegramSettings is not implemented"))
+}
+
+// TelegramProcessingServiceClient is a client for the agents.v1.TelegramProcessingService service.
+type TelegramProcessingServiceClient interface {
+	ListTelegramProcessingRecords(context.Context, *connect.Request[v1.ListTelegramProcessingRecordsRequest]) (*connect.Response[v1.ListTelegramProcessingRecordsResponse], error)
+	GetTelegramProcessingRecord(context.Context, *connect.Request[v1.GetTelegramProcessingRecordRequest]) (*connect.Response[v1.GetTelegramProcessingRecordResponse], error)
+	// ResendTelegramReply re-delivers unsent or failed segments of a response
+	// that was already produced. It never invokes the Agent, and it is refused
+	// when no complete output exists.
+	ResendTelegramReply(context.Context, *connect.Request[v1.ResendTelegramReplyRequest]) (*connect.Response[v1.ResendTelegramReplyResponse], error)
+}
+
+// NewTelegramProcessingServiceClient constructs a client for the
+// agents.v1.TelegramProcessingService service. By default, it uses the Connect protocol with the
+// binary Protobuf Codec, asks for gzipped responses, and sends uncompressed requests. To use the
+// gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewTelegramProcessingServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) TelegramProcessingServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	telegramProcessingServiceMethods := v1.File_agents_v1_telegram_proto.Services().ByName("TelegramProcessingService").Methods()
+	return &telegramProcessingServiceClient{
+		listTelegramProcessingRecords: connect.NewClient[v1.ListTelegramProcessingRecordsRequest, v1.ListTelegramProcessingRecordsResponse](
+			httpClient,
+			baseURL+TelegramProcessingServiceListTelegramProcessingRecordsProcedure,
+			connect.WithSchema(telegramProcessingServiceMethods.ByName("ListTelegramProcessingRecords")),
+			connect.WithClientOptions(opts...),
+		),
+		getTelegramProcessingRecord: connect.NewClient[v1.GetTelegramProcessingRecordRequest, v1.GetTelegramProcessingRecordResponse](
+			httpClient,
+			baseURL+TelegramProcessingServiceGetTelegramProcessingRecordProcedure,
+			connect.WithSchema(telegramProcessingServiceMethods.ByName("GetTelegramProcessingRecord")),
+			connect.WithClientOptions(opts...),
+		),
+		resendTelegramReply: connect.NewClient[v1.ResendTelegramReplyRequest, v1.ResendTelegramReplyResponse](
+			httpClient,
+			baseURL+TelegramProcessingServiceResendTelegramReplyProcedure,
+			connect.WithSchema(telegramProcessingServiceMethods.ByName("ResendTelegramReply")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// telegramProcessingServiceClient implements TelegramProcessingServiceClient.
+type telegramProcessingServiceClient struct {
+	listTelegramProcessingRecords *connect.Client[v1.ListTelegramProcessingRecordsRequest, v1.ListTelegramProcessingRecordsResponse]
+	getTelegramProcessingRecord   *connect.Client[v1.GetTelegramProcessingRecordRequest, v1.GetTelegramProcessingRecordResponse]
+	resendTelegramReply           *connect.Client[v1.ResendTelegramReplyRequest, v1.ResendTelegramReplyResponse]
+}
+
+// ListTelegramProcessingRecords calls
+// agents.v1.TelegramProcessingService.ListTelegramProcessingRecords.
+func (c *telegramProcessingServiceClient) ListTelegramProcessingRecords(ctx context.Context, req *connect.Request[v1.ListTelegramProcessingRecordsRequest]) (*connect.Response[v1.ListTelegramProcessingRecordsResponse], error) {
+	return c.listTelegramProcessingRecords.CallUnary(ctx, req)
+}
+
+// GetTelegramProcessingRecord calls
+// agents.v1.TelegramProcessingService.GetTelegramProcessingRecord.
+func (c *telegramProcessingServiceClient) GetTelegramProcessingRecord(ctx context.Context, req *connect.Request[v1.GetTelegramProcessingRecordRequest]) (*connect.Response[v1.GetTelegramProcessingRecordResponse], error) {
+	return c.getTelegramProcessingRecord.CallUnary(ctx, req)
+}
+
+// ResendTelegramReply calls agents.v1.TelegramProcessingService.ResendTelegramReply.
+func (c *telegramProcessingServiceClient) ResendTelegramReply(ctx context.Context, req *connect.Request[v1.ResendTelegramReplyRequest]) (*connect.Response[v1.ResendTelegramReplyResponse], error) {
+	return c.resendTelegramReply.CallUnary(ctx, req)
+}
+
+// TelegramProcessingServiceHandler is an implementation of the agents.v1.TelegramProcessingService
+// service.
+type TelegramProcessingServiceHandler interface {
+	ListTelegramProcessingRecords(context.Context, *connect.Request[v1.ListTelegramProcessingRecordsRequest]) (*connect.Response[v1.ListTelegramProcessingRecordsResponse], error)
+	GetTelegramProcessingRecord(context.Context, *connect.Request[v1.GetTelegramProcessingRecordRequest]) (*connect.Response[v1.GetTelegramProcessingRecordResponse], error)
+	// ResendTelegramReply re-delivers unsent or failed segments of a response
+	// that was already produced. It never invokes the Agent, and it is refused
+	// when no complete output exists.
+	ResendTelegramReply(context.Context, *connect.Request[v1.ResendTelegramReplyRequest]) (*connect.Response[v1.ResendTelegramReplyResponse], error)
+}
+
+// NewTelegramProcessingServiceHandler builds an HTTP handler from the service implementation. It
+// returns the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewTelegramProcessingServiceHandler(svc TelegramProcessingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	telegramProcessingServiceMethods := v1.File_agents_v1_telegram_proto.Services().ByName("TelegramProcessingService").Methods()
+	telegramProcessingServiceListTelegramProcessingRecordsHandler := connect.NewUnaryHandler(
+		TelegramProcessingServiceListTelegramProcessingRecordsProcedure,
+		svc.ListTelegramProcessingRecords,
+		connect.WithSchema(telegramProcessingServiceMethods.ByName("ListTelegramProcessingRecords")),
+		connect.WithHandlerOptions(opts...),
+	)
+	telegramProcessingServiceGetTelegramProcessingRecordHandler := connect.NewUnaryHandler(
+		TelegramProcessingServiceGetTelegramProcessingRecordProcedure,
+		svc.GetTelegramProcessingRecord,
+		connect.WithSchema(telegramProcessingServiceMethods.ByName("GetTelegramProcessingRecord")),
+		connect.WithHandlerOptions(opts...),
+	)
+	telegramProcessingServiceResendTelegramReplyHandler := connect.NewUnaryHandler(
+		TelegramProcessingServiceResendTelegramReplyProcedure,
+		svc.ResendTelegramReply,
+		connect.WithSchema(telegramProcessingServiceMethods.ByName("ResendTelegramReply")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.TelegramProcessingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case TelegramProcessingServiceListTelegramProcessingRecordsProcedure:
+			telegramProcessingServiceListTelegramProcessingRecordsHandler.ServeHTTP(w, r)
+		case TelegramProcessingServiceGetTelegramProcessingRecordProcedure:
+			telegramProcessingServiceGetTelegramProcessingRecordHandler.ServeHTTP(w, r)
+		case TelegramProcessingServiceResendTelegramReplyProcedure:
+			telegramProcessingServiceResendTelegramReplyHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedTelegramProcessingServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedTelegramProcessingServiceHandler struct{}
+
+func (UnimplementedTelegramProcessingServiceHandler) ListTelegramProcessingRecords(context.Context, *connect.Request[v1.ListTelegramProcessingRecordsRequest]) (*connect.Response[v1.ListTelegramProcessingRecordsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramProcessingService.ListTelegramProcessingRecords is not implemented"))
+}
+
+func (UnimplementedTelegramProcessingServiceHandler) GetTelegramProcessingRecord(context.Context, *connect.Request[v1.GetTelegramProcessingRecordRequest]) (*connect.Response[v1.GetTelegramProcessingRecordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramProcessingService.GetTelegramProcessingRecord is not implemented"))
+}
+
+func (UnimplementedTelegramProcessingServiceHandler) ResendTelegramReply(context.Context, *connect.Request[v1.ResendTelegramReplyRequest]) (*connect.Response[v1.ResendTelegramReplyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramProcessingService.ResendTelegramReply is not implemented"))
 }

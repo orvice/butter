@@ -933,3 +933,208 @@ var TelegramAdminService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "agents/v1/telegram.proto",
 }
+
+const (
+	TelegramProcessingService_ListTelegramProcessingRecords_FullMethodName = "/agents.v1.TelegramProcessingService/ListTelegramProcessingRecords"
+	TelegramProcessingService_GetTelegramProcessingRecord_FullMethodName   = "/agents.v1.TelegramProcessingService/GetTelegramProcessingRecord"
+	TelegramProcessingService_ResendTelegramReply_FullMethodName           = "/agents.v1.TelegramProcessingService/ResendTelegramReply"
+)
+
+// TelegramProcessingServiceClient is the client API for TelegramProcessingService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// =============================================================================
+// TelegramProcessingService
+//
+// Workspace members may read processing records and redacted failures for
+// their workspace; owners/admins may resend an already-produced reply.
+// There is deliberately no Agent rerun action: once Agent work may have
+// produced side effects, repeating it is an operator decision made with
+// context this API does not have.
+// =============================================================================
+type TelegramProcessingServiceClient interface {
+	ListTelegramProcessingRecords(ctx context.Context, in *ListTelegramProcessingRecordsRequest, opts ...grpc.CallOption) (*ListTelegramProcessingRecordsResponse, error)
+	GetTelegramProcessingRecord(ctx context.Context, in *GetTelegramProcessingRecordRequest, opts ...grpc.CallOption) (*GetTelegramProcessingRecordResponse, error)
+	// ResendTelegramReply re-delivers unsent or failed segments of a response
+	// that was already produced. It never invokes the Agent, and it is refused
+	// when no complete output exists.
+	ResendTelegramReply(ctx context.Context, in *ResendTelegramReplyRequest, opts ...grpc.CallOption) (*ResendTelegramReplyResponse, error)
+}
+
+type telegramProcessingServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewTelegramProcessingServiceClient(cc grpc.ClientConnInterface) TelegramProcessingServiceClient {
+	return &telegramProcessingServiceClient{cc}
+}
+
+func (c *telegramProcessingServiceClient) ListTelegramProcessingRecords(ctx context.Context, in *ListTelegramProcessingRecordsRequest, opts ...grpc.CallOption) (*ListTelegramProcessingRecordsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTelegramProcessingRecordsResponse)
+	err := c.cc.Invoke(ctx, TelegramProcessingService_ListTelegramProcessingRecords_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *telegramProcessingServiceClient) GetTelegramProcessingRecord(ctx context.Context, in *GetTelegramProcessingRecordRequest, opts ...grpc.CallOption) (*GetTelegramProcessingRecordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTelegramProcessingRecordResponse)
+	err := c.cc.Invoke(ctx, TelegramProcessingService_GetTelegramProcessingRecord_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *telegramProcessingServiceClient) ResendTelegramReply(ctx context.Context, in *ResendTelegramReplyRequest, opts ...grpc.CallOption) (*ResendTelegramReplyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResendTelegramReplyResponse)
+	err := c.cc.Invoke(ctx, TelegramProcessingService_ResendTelegramReply_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// TelegramProcessingServiceServer is the server API for TelegramProcessingService service.
+// All implementations must embed UnimplementedTelegramProcessingServiceServer
+// for forward compatibility.
+//
+// =============================================================================
+// TelegramProcessingService
+//
+// Workspace members may read processing records and redacted failures for
+// their workspace; owners/admins may resend an already-produced reply.
+// There is deliberately no Agent rerun action: once Agent work may have
+// produced side effects, repeating it is an operator decision made with
+// context this API does not have.
+// =============================================================================
+type TelegramProcessingServiceServer interface {
+	ListTelegramProcessingRecords(context.Context, *ListTelegramProcessingRecordsRequest) (*ListTelegramProcessingRecordsResponse, error)
+	GetTelegramProcessingRecord(context.Context, *GetTelegramProcessingRecordRequest) (*GetTelegramProcessingRecordResponse, error)
+	// ResendTelegramReply re-delivers unsent or failed segments of a response
+	// that was already produced. It never invokes the Agent, and it is refused
+	// when no complete output exists.
+	ResendTelegramReply(context.Context, *ResendTelegramReplyRequest) (*ResendTelegramReplyResponse, error)
+	mustEmbedUnimplementedTelegramProcessingServiceServer()
+}
+
+// UnimplementedTelegramProcessingServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedTelegramProcessingServiceServer struct{}
+
+func (UnimplementedTelegramProcessingServiceServer) ListTelegramProcessingRecords(context.Context, *ListTelegramProcessingRecordsRequest) (*ListTelegramProcessingRecordsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTelegramProcessingRecords not implemented")
+}
+func (UnimplementedTelegramProcessingServiceServer) GetTelegramProcessingRecord(context.Context, *GetTelegramProcessingRecordRequest) (*GetTelegramProcessingRecordResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTelegramProcessingRecord not implemented")
+}
+func (UnimplementedTelegramProcessingServiceServer) ResendTelegramReply(context.Context, *ResendTelegramReplyRequest) (*ResendTelegramReplyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResendTelegramReply not implemented")
+}
+func (UnimplementedTelegramProcessingServiceServer) mustEmbedUnimplementedTelegramProcessingServiceServer() {
+}
+func (UnimplementedTelegramProcessingServiceServer) testEmbeddedByValue() {}
+
+// UnsafeTelegramProcessingServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to TelegramProcessingServiceServer will
+// result in compilation errors.
+type UnsafeTelegramProcessingServiceServer interface {
+	mustEmbedUnimplementedTelegramProcessingServiceServer()
+}
+
+func RegisterTelegramProcessingServiceServer(s grpc.ServiceRegistrar, srv TelegramProcessingServiceServer) {
+	// If the following call panics, it indicates UnimplementedTelegramProcessingServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&TelegramProcessingService_ServiceDesc, srv)
+}
+
+func _TelegramProcessingService_ListTelegramProcessingRecords_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTelegramProcessingRecordsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TelegramProcessingServiceServer).ListTelegramProcessingRecords(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TelegramProcessingService_ListTelegramProcessingRecords_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TelegramProcessingServiceServer).ListTelegramProcessingRecords(ctx, req.(*ListTelegramProcessingRecordsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TelegramProcessingService_GetTelegramProcessingRecord_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTelegramProcessingRecordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TelegramProcessingServiceServer).GetTelegramProcessingRecord(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TelegramProcessingService_GetTelegramProcessingRecord_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TelegramProcessingServiceServer).GetTelegramProcessingRecord(ctx, req.(*GetTelegramProcessingRecordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TelegramProcessingService_ResendTelegramReply_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResendTelegramReplyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TelegramProcessingServiceServer).ResendTelegramReply(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TelegramProcessingService_ResendTelegramReply_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TelegramProcessingServiceServer).ResendTelegramReply(ctx, req.(*ResendTelegramReplyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// TelegramProcessingService_ServiceDesc is the grpc.ServiceDesc for TelegramProcessingService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var TelegramProcessingService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.TelegramProcessingService",
+	HandlerType: (*TelegramProcessingServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListTelegramProcessingRecords",
+			Handler:    _TelegramProcessingService_ListTelegramProcessingRecords_Handler,
+		},
+		{
+			MethodName: "GetTelegramProcessingRecord",
+			Handler:    _TelegramProcessingService_GetTelegramProcessingRecord_Handler,
+		},
+		{
+			MethodName: "ResendTelegramReply",
+			Handler:    _TelegramProcessingService_ResendTelegramReply_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agents/v1/telegram.proto",
+}

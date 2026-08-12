@@ -112,6 +112,13 @@ const CONNECTION_SECTIONS: ManageSection[] = [
         icon: Send,
       },
       {
+        title: 'Telegram Updates',
+        description:
+          'Inspect processing history and resend replies that never landed.',
+        to: '/telegram-updates',
+        icon: ListTree,
+      },
+      {
         title: 'Channels',
         description:
           'Connect Telegram, Discord, and other conversation channels.',
