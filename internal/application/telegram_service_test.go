@@ -6,6 +6,7 @@ package application
 // uniqueness, and strong Agent/Model references.
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
+	telegramsettingmemory "go.orx.me/apps/butter/internal/repo/telegramsetting/memory"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/telegramapi"
@@ -34,7 +36,18 @@ type telegramFixture struct {
 	repo         telegramrepo.Repository
 	config       *configmemory.Store
 	bots         *telegramtest.Fake
+	settings     *telegramsettingmemory.Store
+	queue        *stubQueueProbe
 }
+
+// stubQueueProbe stands in for the Redis Streams queue in service tests.
+type stubQueueProbe struct {
+	available bool
+	pingErr   error
+}
+
+func (q *stubQueueProbe) Available() bool            { return q.available }
+func (q *stubQueueProbe) Ping(context.Context) error { return q.pingErr }
 
 func newTelegramFixture(t *testing.T) *telegramFixture {
 	t.Helper()
@@ -69,6 +82,19 @@ func newTelegramFixture(t *testing.T) *telegramFixture {
 	channels.SetWorkspaceRepo(wsRepo)
 	channels.SetKeyring(secretbox.NewKeyring(cryptokeymemory.New()))
 	channels.SetBotFactory(bots.Factory())
+	// Webhook mode has real infrastructure prerequisites (#267): a public
+	// base URL and a durable queue. The fixture satisfies both so tests about
+	// other rules are not dominated by them; the tests that care about the
+	// prerequisites remove them explicitly.
+	settings := telegramsettingmemory.New()
+	if _, err := settings.Put(t.Context(), &agentsv1.TelegramSettings{
+		WebhookBaseUrl: "https://butter.test",
+	}); err != nil {
+		t.Fatalf("seed telegram settings: %v", err)
+	}
+	channels.SetSettingsRepo(settings)
+	queue := &stubQueueProbe{available: true}
+	channels.SetQueueProbe(queue)
 
 	destinations := NewTelegramDestinationServiceServer(repo)
 	destinations.SetWorkspaceRepo(wsRepo)
@@ -80,6 +106,8 @@ func newTelegramFixture(t *testing.T) *telegramFixture {
 		repo:         repo,
 		config:       configStore,
 		bots:         bots,
+		settings:     settings,
+		queue:        queue,
 	}
 	fx.seedAgent(t, "ws-a", "support", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE)
 	fx.seedAgent(t, "ws-a", "research", agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE)

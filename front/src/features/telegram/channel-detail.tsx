@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { RECEIVE_MODE_LABELS } from './labels'
+import { RECEIVE_MODE_LABELS, WEBHOOK_STATE_LABELS } from './labels'
 import { AddressLabel, CredentialStateBadge } from './shared'
 
 export function TelegramChannelDetail() {
@@ -160,7 +160,22 @@ export function TelegramChannelDetail() {
                 <Badge variant='outline'>
                   {status?.outboundDestinationCount ?? 0} outbound destinations
                 </Badge>
+                {channel.receiveMode === TelegramReceiveMode.WEBHOOK && (
+                  <Badge variant='outline' data-testid='webhook-state'>
+                    {WEBHOOK_STATE_LABELS[status?.webhookState ?? 0] ?? 'Unknown'}
+                  </Badge>
+                )}
               </div>
+              {status?.webhookUrl && (
+                <p className='font-mono text-xs break-all text-muted-foreground'>
+                  Callback: {status.webhookUrl}
+                </p>
+              )}
+              {status?.lastWebhookError && (
+                <p className='text-destructive' data-testid='webhook-error'>
+                  {status.lastWebhookError}
+                </p>
+              )}
               {blockers.length > 0 && (
                 <div data-testid='channel-blockers' className='space-y-1'>
                   {blockers.map((blocker) => (

@@ -32,14 +32,14 @@ import (
 	authmongo "go.orx.me/apps/butter/internal/repo/auth/mongo"
 	authredis "go.orx.me/apps/butter/internal/repo/auth/redis"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	cryptokeyrepo "go.orx.me/apps/butter/internal/repo/cryptokey"
+	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
+	cryptokeymongo "go.orx.me/apps/butter/internal/repo/cryptokey/mongo"
 	"go.orx.me/apps/butter/internal/repo/forum"
 	forummemory "go.orx.me/apps/butter/internal/repo/forum/memory"
 	forummongo "go.orx.me/apps/butter/internal/repo/forum/mongo"
 	githostrepo "go.orx.me/apps/butter/internal/repo/githost"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
-	cryptokeyrepo "go.orx.me/apps/butter/internal/repo/cryptokey"
-	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
-	cryptokeymongo "go.orx.me/apps/butter/internal/repo/cryptokey/mongo"
 	githostmongo "go.orx.me/apps/butter/internal/repo/githost/mongo"
 	"go.orx.me/apps/butter/internal/repo/inputpart"
 	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
@@ -56,15 +56,18 @@ import (
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
-	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
-	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
-	telegrammongo "go.orx.me/apps/butter/internal/repo/telegram/mongo"
 	"go.orx.me/apps/butter/internal/repo/repocache"
 	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
 	repocachemongo "go.orx.me/apps/butter/internal/repo/repocache/mongo"
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	skillmongo "go.orx.me/apps/butter/internal/repo/skill/mongo"
+	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
+	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
+	telegrammongo "go.orx.me/apps/butter/internal/repo/telegram/mongo"
+	telegramsettingrepo "go.orx.me/apps/butter/internal/repo/telegramsetting"
+	telegramsettingmemory "go.orx.me/apps/butter/internal/repo/telegramsetting/memory"
+	telegramsettingmongo "go.orx.me/apps/butter/internal/repo/telegramsetting/mongo"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
@@ -108,6 +111,7 @@ type BootstrapResult struct {
 	GitHostRepo           githostrepo.Repository
 	RepoBindingRepo       repobindingrepo.Repository
 	TelegramRepo          telegramrepo.Repository
+	TelegramSettingRepo   telegramsettingrepo.Repository
 	CryptoKeyRepo         cryptokeyrepo.Repository
 	RepoCacheRepo         repocache.Repository
 	AgentContentRepo      agentcontentrepo.Repository
@@ -121,7 +125,7 @@ type BootstrapResult struct {
 	SessionWSStore        application.WorkspaceSessionStore
 	SessionReadStore      application.SessionReadStore
 	ChatTitleModel        string
-	AsyncCoordinator     *asyncrun.Coordinator
+	AsyncCoordinator      *asyncrun.Coordinator
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -153,23 +157,24 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 
 	// Pick auth, API token + invocation repository backends.
 	var (
-		authRepo       auth.Repository
-		tokenRepo      apitoken.Repository
-		invRepo        invocation.Repository
-		inputPartRepo  inputpart.Repository
-		forumRepo      forum.Repository
-		wsRepo         workspacerepo.Repository
-		oauthRepo      mcpoauthrepo.Repository
-		fileRepo       agentfile.Repository
-		skillRepo      skillrepo.Repository
-		oauthStateRepo oauthstate.Repository
-		gitHostRepo    githostrepo.Repository
-		bindingRepo    repobindingrepo.Repository
-		cacheRepo      repocache.Repository
-		contentRepo    agentcontentrepo.Repository
-		agentOpRepo    agentoprepo.Repository
-		telegramRepo   telegramrepo.Repository
-		cryptoKeyRepo  cryptokeyrepo.Repository
+		authRepo            auth.Repository
+		tokenRepo           apitoken.Repository
+		invRepo             invocation.Repository
+		inputPartRepo       inputpart.Repository
+		forumRepo           forum.Repository
+		wsRepo              workspacerepo.Repository
+		oauthRepo           mcpoauthrepo.Repository
+		fileRepo            agentfile.Repository
+		skillRepo           skillrepo.Repository
+		oauthStateRepo      oauthstate.Repository
+		gitHostRepo         githostrepo.Repository
+		bindingRepo         repobindingrepo.Repository
+		cacheRepo           repocache.Repository
+		contentRepo         agentcontentrepo.Repository
+		agentOpRepo         agentoprepo.Repository
+		telegramRepo        telegramrepo.Repository
+		cryptoKeyRepo       cryptokeyrepo.Repository
+		telegramSettingRepo telegramsettingrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -212,6 +217,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		agentOpRepo = agentOpMongo
 		telegramRepo = telegrammongo.New(db)
 		cryptoKeyRepo = cryptokeymongo.New(db)
+		telegramSettingRepo = telegramsettingmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -229,6 +235,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		agentOpRepo = agentopmemory.New()
 		telegramRepo = telegrammemory.New()
 		cryptoKeyRepo = cryptokeymemory.New()
+		telegramSettingRepo = telegramsettingmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -288,6 +295,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := cryptoKeyRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create crypto key indexes", "err", err)
+		return nil, err
+	}
+	if err := telegramSettingRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create telegram settings indexes", "err", err)
 		return nil, err
 	}
 	if err := applyActiveContent(ctx, cfg.Agents, bindingRepo, contentRepo); err != nil {
@@ -448,6 +459,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		GitHostRepo:           gitHostRepo,
 		RepoBindingRepo:       bindingRepo,
 		TelegramRepo:          telegramRepo,
+		TelegramSettingRepo:   telegramSettingRepo,
 		CryptoKeyRepo:         cryptoKeyRepo,
 		RepoCacheRepo:         cacheRepo,
 		AgentContentRepo:      contentRepo,
@@ -459,6 +471,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LangfuseHost:          cfg.Langfuse.Host,
 		SessionCounter:        sessionSvc.CountSessions,
 		ChatTitleModel:        cfg.ChatTitleModel,
-		AsyncCoordinator:     asyncCoord,
+		AsyncCoordinator:      asyncCoord,
 	}, nil
 }

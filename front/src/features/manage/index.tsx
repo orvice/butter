@@ -98,6 +98,13 @@ const CONNECTION_SECTIONS: ManageSection[] = [
       'Configure inbound channels and outbound notification targets.',
     items: [
       {
+        title: 'Telegram Platform Settings',
+        description:
+          'Set the public webhook base URL Telegram delivers callbacks to.',
+        to: '/admin/telegram',
+        icon: ShieldCheck,
+      },
+      {
         title: 'Telegram Channels',
         description:
           'Register Telegram bots and bind chats, groups, and forum topics.',

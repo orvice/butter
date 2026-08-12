@@ -422,8 +422,22 @@ message GetTelegramChannelStatusRequest {
   string channel_id = 1 [(validate.rules).string.min_len = 1];
 }
 
+// TelegramWebhookState reports how the Channel's callback registration
+// compares with what Telegram currently has.
+enum TelegramWebhookState {
+  TELEGRAM_WEBHOOK_STATE_UNSPECIFIED = 0;
+  // The Channel does not use Webhook mode.
+  TELEGRAM_WEBHOOK_STATE_NOT_APPLICABLE = 1;
+  // Desired and observed registration agree.
+  TELEGRAM_WEBHOOK_STATE_REGISTERED = 2;
+  // Telegram has no webhook, or a different URL, for this Bot.
+  TELEGRAM_WEBHOOK_STATE_PENDING = 3;
+  // The last reconciliation attempt failed.
+  TELEGRAM_WEBHOOK_STATE_FAILED = 4;
+}
+
 // TelegramChannelStatus is derived on every read. Nothing here is persisted
-// as configuration.
+// as configuration — availability is observed, not declared.
 message TelegramChannelStatus {
   string channel_id = 1;
   bool inbound_desired = 2;
@@ -439,6 +453,21 @@ message TelegramChannelStatus {
   // Accepted but degraded conditions, e.g. Group Privacy enabled.
   repeated string warnings = 9;
   string last_credential_error = 10;
+
+  // Webhook registration state as of the last reconciliation.
+  TelegramWebhookState webhook_state = 11;
+  // The callback URL derived from the global base URL and Channel ID.
+  // Empty when no global base URL is configured.
+  string webhook_url = 12;
+  // Sanitized failure summary from the last reconciliation. Never contains
+  // the per-Channel secret.
+  string last_webhook_error = 13;
+  // When the reconciler last compared desired and observed state.
+  google.protobuf.Timestamp last_reconciled_at = 14;
+  // Whether this Pod currently holds the Long Polling lease for the Channel.
+  bool polling_leader = 15;
+  // Whether the durable queue is reachable and correctly configured.
+  bool queue_ready = 16;
 }
 
 message GetTelegramChannelStatusResponse {
@@ -530,4 +559,47 @@ message SendTelegramTestMessageResponse {
 
   // Telegram message IDs produced by the send, in delivery order.
   repeated string message_ids = 2;
+}
+
+// =============================================================================
+// TelegramAdminService manages platform-level Telegram settings.
+//
+// The Webhook base URL is global, not per-workspace: it names the public
+// address of this deployment behind its load balancer, which is a platform
+// fact rather than a tenant choice. Only global administrators may read or
+// change it, so workspace input can never redirect Telegram callbacks.
+// =============================================================================
+service TelegramAdminService {
+  // GetTelegramSettings returns the platform Telegram settings.
+  rpc GetTelegramSettings(GetTelegramSettingsRequest) returns (GetTelegramSettingsResponse);
+
+  // UpdateTelegramSettings replaces the platform Telegram settings.
+  rpc UpdateTelegramSettings(UpdateTelegramSettingsRequest) returns (UpdateTelegramSettingsResponse);
+}
+
+// TelegramSettings holds platform-level Telegram configuration.
+message TelegramSettings {
+  // Public base URL Telegram callbacks are delivered to, e.g.
+  // "https://butter.example.com". Per-Channel callback URLs are derived from
+  // this and the immutable Channel ID, so rotating the host does not require
+  // touching any Channel.
+  // @gotags: json:"webhook_base_url,omitempty" bson:"webhook_base_url,omitempty"
+  string webhook_base_url = 1;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 2;
+}
+
+message GetTelegramSettingsRequest {}
+
+message GetTelegramSettingsResponse {
+  TelegramSettings settings = 1;
+}
+
+message UpdateTelegramSettingsRequest {
+  TelegramSettings settings = 1;
+}
+
+message UpdateTelegramSettingsResponse {
+  TelegramSettings settings = 1;
 }

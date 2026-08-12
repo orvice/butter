@@ -2878,6 +2878,45 @@ func (m *TelegramChannelStatus) validate(all bool) error {
 
 	// no validation rules for LastCredentialError
 
+	// no validation rules for WebhookState
+
+	// no validation rules for WebhookUrl
+
+	// no validation rules for LastWebhookError
+
+	if all {
+		switch v := interface{}(m.GetLastReconciledAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TelegramChannelStatusValidationError{
+					field:  "LastReconciledAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TelegramChannelStatusValidationError{
+					field:  "LastReconciledAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetLastReconciledAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TelegramChannelStatusValidationError{
+				field:  "LastReconciledAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for PollingLeader
+
+	// no validation rules for QueueReady
+
 	if len(errors) > 0 {
 		return TelegramChannelStatusMultiError(errors)
 	}
@@ -4586,3 +4625,632 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = SendTelegramTestMessageResponseValidationError{}
+
+// Validate checks the field values on TelegramSettings with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *TelegramSettings) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on TelegramSettings with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// TelegramSettingsMultiError, or nil if none found.
+func (m *TelegramSettings) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *TelegramSettings) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for WebhookBaseUrl
+
+	if all {
+		switch v := interface{}(m.GetUpdatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TelegramSettingsValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TelegramSettingsValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TelegramSettingsValidationError{
+				field:  "UpdatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return TelegramSettingsMultiError(errors)
+	}
+
+	return nil
+}
+
+// TelegramSettingsMultiError is an error wrapping multiple validation errors
+// returned by TelegramSettings.ValidateAll() if the designated constraints
+// aren't met.
+type TelegramSettingsMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m TelegramSettingsMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m TelegramSettingsMultiError) AllErrors() []error { return m }
+
+// TelegramSettingsValidationError is the validation error returned by
+// TelegramSettings.Validate if the designated constraints aren't met.
+type TelegramSettingsValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e TelegramSettingsValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e TelegramSettingsValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e TelegramSettingsValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e TelegramSettingsValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e TelegramSettingsValidationError) ErrorName() string { return "TelegramSettingsValidationError" }
+
+// Error satisfies the builtin error interface
+func (e TelegramSettingsValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sTelegramSettings.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = TelegramSettingsValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = TelegramSettingsValidationError{}
+
+// Validate checks the field values on GetTelegramSettingsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetTelegramSettingsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetTelegramSettingsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetTelegramSettingsRequestMultiError, or nil if none found.
+func (m *GetTelegramSettingsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetTelegramSettingsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return GetTelegramSettingsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetTelegramSettingsRequestMultiError is an error wrapping multiple
+// validation errors returned by GetTelegramSettingsRequest.ValidateAll() if
+// the designated constraints aren't met.
+type GetTelegramSettingsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetTelegramSettingsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetTelegramSettingsRequestMultiError) AllErrors() []error { return m }
+
+// GetTelegramSettingsRequestValidationError is the validation error returned
+// by GetTelegramSettingsRequest.Validate if the designated constraints aren't met.
+type GetTelegramSettingsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetTelegramSettingsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetTelegramSettingsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetTelegramSettingsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetTelegramSettingsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetTelegramSettingsRequestValidationError) ErrorName() string {
+	return "GetTelegramSettingsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetTelegramSettingsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetTelegramSettingsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetTelegramSettingsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetTelegramSettingsRequestValidationError{}
+
+// Validate checks the field values on GetTelegramSettingsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetTelegramSettingsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetTelegramSettingsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetTelegramSettingsResponseMultiError, or nil if none found.
+func (m *GetTelegramSettingsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetTelegramSettingsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetSettings()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetTelegramSettingsResponseValidationError{
+					field:  "Settings",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetTelegramSettingsResponseValidationError{
+					field:  "Settings",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSettings()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetTelegramSettingsResponseValidationError{
+				field:  "Settings",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetTelegramSettingsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetTelegramSettingsResponseMultiError is an error wrapping multiple
+// validation errors returned by GetTelegramSettingsResponse.ValidateAll() if
+// the designated constraints aren't met.
+type GetTelegramSettingsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetTelegramSettingsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetTelegramSettingsResponseMultiError) AllErrors() []error { return m }
+
+// GetTelegramSettingsResponseValidationError is the validation error returned
+// by GetTelegramSettingsResponse.Validate if the designated constraints
+// aren't met.
+type GetTelegramSettingsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetTelegramSettingsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetTelegramSettingsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetTelegramSettingsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetTelegramSettingsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetTelegramSettingsResponseValidationError) ErrorName() string {
+	return "GetTelegramSettingsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetTelegramSettingsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetTelegramSettingsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetTelegramSettingsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetTelegramSettingsResponseValidationError{}
+
+// Validate checks the field values on UpdateTelegramSettingsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateTelegramSettingsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateTelegramSettingsRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// UpdateTelegramSettingsRequestMultiError, or nil if none found.
+func (m *UpdateTelegramSettingsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateTelegramSettingsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetSettings()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateTelegramSettingsRequestValidationError{
+					field:  "Settings",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateTelegramSettingsRequestValidationError{
+					field:  "Settings",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSettings()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateTelegramSettingsRequestValidationError{
+				field:  "Settings",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateTelegramSettingsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateTelegramSettingsRequestMultiError is an error wrapping multiple
+// validation errors returned by UpdateTelegramSettingsRequest.ValidateAll()
+// if the designated constraints aren't met.
+type UpdateTelegramSettingsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateTelegramSettingsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateTelegramSettingsRequestMultiError) AllErrors() []error { return m }
+
+// UpdateTelegramSettingsRequestValidationError is the validation error
+// returned by UpdateTelegramSettingsRequest.Validate if the designated
+// constraints aren't met.
+type UpdateTelegramSettingsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateTelegramSettingsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateTelegramSettingsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateTelegramSettingsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateTelegramSettingsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateTelegramSettingsRequestValidationError) ErrorName() string {
+	return "UpdateTelegramSettingsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateTelegramSettingsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateTelegramSettingsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateTelegramSettingsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateTelegramSettingsRequestValidationError{}
+
+// Validate checks the field values on UpdateTelegramSettingsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateTelegramSettingsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateTelegramSettingsResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// UpdateTelegramSettingsResponseMultiError, or nil if none found.
+func (m *UpdateTelegramSettingsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateTelegramSettingsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetSettings()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateTelegramSettingsResponseValidationError{
+					field:  "Settings",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateTelegramSettingsResponseValidationError{
+					field:  "Settings",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSettings()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateTelegramSettingsResponseValidationError{
+				field:  "Settings",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateTelegramSettingsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateTelegramSettingsResponseMultiError is an error wrapping multiple
+// validation errors returned by UpdateTelegramSettingsResponse.ValidateAll()
+// if the designated constraints aren't met.
+type UpdateTelegramSettingsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateTelegramSettingsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateTelegramSettingsResponseMultiError) AllErrors() []error { return m }
+
+// UpdateTelegramSettingsResponseValidationError is the validation error
+// returned by UpdateTelegramSettingsResponse.Validate if the designated
+// constraints aren't met.
+type UpdateTelegramSettingsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateTelegramSettingsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateTelegramSettingsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateTelegramSettingsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateTelegramSettingsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateTelegramSettingsResponseValidationError) ErrorName() string {
+	return "UpdateTelegramSettingsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateTelegramSettingsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateTelegramSettingsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateTelegramSettingsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateTelegramSettingsResponseValidationError{}

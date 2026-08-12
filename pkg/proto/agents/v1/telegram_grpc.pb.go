@@ -771,3 +771,165 @@ var TelegramDestinationService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "agents/v1/telegram.proto",
 }
+
+const (
+	TelegramAdminService_GetTelegramSettings_FullMethodName    = "/agents.v1.TelegramAdminService/GetTelegramSettings"
+	TelegramAdminService_UpdateTelegramSettings_FullMethodName = "/agents.v1.TelegramAdminService/UpdateTelegramSettings"
+)
+
+// TelegramAdminServiceClient is the client API for TelegramAdminService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// =============================================================================
+// TelegramAdminService manages platform-level Telegram settings.
+//
+// The Webhook base URL is global, not per-workspace: it names the public
+// address of this deployment behind its load balancer, which is a platform
+// fact rather than a tenant choice. Only global administrators may read or
+// change it, so workspace input can never redirect Telegram callbacks.
+// =============================================================================
+type TelegramAdminServiceClient interface {
+	// GetTelegramSettings returns the platform Telegram settings.
+	GetTelegramSettings(ctx context.Context, in *GetTelegramSettingsRequest, opts ...grpc.CallOption) (*GetTelegramSettingsResponse, error)
+	// UpdateTelegramSettings replaces the platform Telegram settings.
+	UpdateTelegramSettings(ctx context.Context, in *UpdateTelegramSettingsRequest, opts ...grpc.CallOption) (*UpdateTelegramSettingsResponse, error)
+}
+
+type telegramAdminServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewTelegramAdminServiceClient(cc grpc.ClientConnInterface) TelegramAdminServiceClient {
+	return &telegramAdminServiceClient{cc}
+}
+
+func (c *telegramAdminServiceClient) GetTelegramSettings(ctx context.Context, in *GetTelegramSettingsRequest, opts ...grpc.CallOption) (*GetTelegramSettingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTelegramSettingsResponse)
+	err := c.cc.Invoke(ctx, TelegramAdminService_GetTelegramSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *telegramAdminServiceClient) UpdateTelegramSettings(ctx context.Context, in *UpdateTelegramSettingsRequest, opts ...grpc.CallOption) (*UpdateTelegramSettingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateTelegramSettingsResponse)
+	err := c.cc.Invoke(ctx, TelegramAdminService_UpdateTelegramSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// TelegramAdminServiceServer is the server API for TelegramAdminService service.
+// All implementations must embed UnimplementedTelegramAdminServiceServer
+// for forward compatibility.
+//
+// =============================================================================
+// TelegramAdminService manages platform-level Telegram settings.
+//
+// The Webhook base URL is global, not per-workspace: it names the public
+// address of this deployment behind its load balancer, which is a platform
+// fact rather than a tenant choice. Only global administrators may read or
+// change it, so workspace input can never redirect Telegram callbacks.
+// =============================================================================
+type TelegramAdminServiceServer interface {
+	// GetTelegramSettings returns the platform Telegram settings.
+	GetTelegramSettings(context.Context, *GetTelegramSettingsRequest) (*GetTelegramSettingsResponse, error)
+	// UpdateTelegramSettings replaces the platform Telegram settings.
+	UpdateTelegramSettings(context.Context, *UpdateTelegramSettingsRequest) (*UpdateTelegramSettingsResponse, error)
+	mustEmbedUnimplementedTelegramAdminServiceServer()
+}
+
+// UnimplementedTelegramAdminServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedTelegramAdminServiceServer struct{}
+
+func (UnimplementedTelegramAdminServiceServer) GetTelegramSettings(context.Context, *GetTelegramSettingsRequest) (*GetTelegramSettingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTelegramSettings not implemented")
+}
+func (UnimplementedTelegramAdminServiceServer) UpdateTelegramSettings(context.Context, *UpdateTelegramSettingsRequest) (*UpdateTelegramSettingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateTelegramSettings not implemented")
+}
+func (UnimplementedTelegramAdminServiceServer) mustEmbedUnimplementedTelegramAdminServiceServer() {}
+func (UnimplementedTelegramAdminServiceServer) testEmbeddedByValue()                              {}
+
+// UnsafeTelegramAdminServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to TelegramAdminServiceServer will
+// result in compilation errors.
+type UnsafeTelegramAdminServiceServer interface {
+	mustEmbedUnimplementedTelegramAdminServiceServer()
+}
+
+func RegisterTelegramAdminServiceServer(s grpc.ServiceRegistrar, srv TelegramAdminServiceServer) {
+	// If the following call panics, it indicates UnimplementedTelegramAdminServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&TelegramAdminService_ServiceDesc, srv)
+}
+
+func _TelegramAdminService_GetTelegramSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTelegramSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TelegramAdminServiceServer).GetTelegramSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TelegramAdminService_GetTelegramSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TelegramAdminServiceServer).GetTelegramSettings(ctx, req.(*GetTelegramSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TelegramAdminService_UpdateTelegramSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateTelegramSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TelegramAdminServiceServer).UpdateTelegramSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TelegramAdminService_UpdateTelegramSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TelegramAdminServiceServer).UpdateTelegramSettings(ctx, req.(*UpdateTelegramSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// TelegramAdminService_ServiceDesc is the grpc.ServiceDesc for TelegramAdminService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var TelegramAdminService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.TelegramAdminService",
+	HandlerType: (*TelegramAdminServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetTelegramSettings",
+			Handler:    _TelegramAdminService_GetTelegramSettings_Handler,
+		},
+		{
+			MethodName: "UpdateTelegramSettings",
+			Handler:    _TelegramAdminService_UpdateTelegramSettings_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agents/v1/telegram.proto",
+}

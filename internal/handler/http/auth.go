@@ -288,7 +288,10 @@ func isPublicPath(path string) bool {
 		"/api/mcp/oauth/callback":
 		return true
 	}
-	return false
+	// The Telegram callback carries a Channel ID in the path and
+	// authenticates with the per-Channel secret Telegram echoes, not with a
+	// Butter session or workspace header.
+	return strings.HasPrefix(path, "/api/telegram/webhook/")
 }
 
 func bearerToken(c *gin.Context) (string, bool) {

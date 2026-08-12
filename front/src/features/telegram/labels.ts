@@ -1,6 +1,7 @@
 import {
   TelegramCredentialState,
   TelegramReceiveMode,
+  TelegramWebhookState,
   TelegramReplyMode,
   TelegramSessionPolicy,
   TelegramTriggerMode,
@@ -15,6 +16,13 @@ export const CREDENTIAL_STATE_LABELS: Record<number, string> = {
   [TelegramCredentialState.MISSING]: 'No token',
   [TelegramCredentialState.VALID]: 'Token valid',
   [TelegramCredentialState.INVALID]: 'Token rejected',
+}
+
+export const WEBHOOK_STATE_LABELS: Record<number, string> = {
+  [TelegramWebhookState.NOT_APPLICABLE]: 'No webhook',
+  [TelegramWebhookState.REGISTERED]: 'Webhook registered',
+  [TelegramWebhookState.PENDING]: 'Webhook pending',
+  [TelegramWebhookState.FAILED]: 'Webhook failed',
 }
 
 export const TRIGGER_MODE_OPTIONS: { value: TelegramTriggerMode; label: string }[] = [

@@ -1,18 +1,54 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  TelegramAdminService,
   TelegramChannelService,
   TelegramDestinationService,
   type TelegramChannel,
   type TelegramChannelStatus,
   type TelegramDestination,
+  type TelegramSettings,
 } from '@/gen/agents/v1/telegram_pb'
 import { makeClient } from './transport'
 
 const channelClient = makeClient(TelegramChannelService)
 const destinationClient = makeClient(TelegramDestinationService)
+const adminClient = makeClient(TelegramAdminService)
 
 const CHANNELS_KEY = ['telegram-channels'] as const
 const DESTINATIONS_KEY = ['telegram-destinations'] as const
+const SETTINGS_KEY = ['telegram-settings'] as const
+
+// --- Platform settings (global admin) ---------------------------------------
+
+export function useTelegramSettings(enabled = true) {
+  return useQuery({
+    queryKey: SETTINGS_KEY,
+    enabled,
+    queryFn: async (): Promise<TelegramSettings> => {
+      const res = await adminClient.getTelegramSettings({})
+      if (!res.settings) throw new Error('settings unavailable')
+      return res.settings
+    },
+  })
+}
+
+export function useUpdateTelegramSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (webhookBaseUrl: string) => {
+      const res = await adminClient.updateTelegramSettings({
+        settings: { webhookBaseUrl },
+      })
+      if (!res.settings) throw new Error('update returned no settings')
+      return res.settings
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SETTINGS_KEY })
+      // The derived callback URL on every channel status depends on this.
+      qc.invalidateQueries({ queryKey: CHANNELS_KEY })
+    },
+  })
+}
 
 // --- Channels ---------------------------------------------------------------
 

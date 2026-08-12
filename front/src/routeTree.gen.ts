@@ -31,6 +31,7 @@ import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminGitHostsRouteImport } from './routes/_authenticated/admin/git-hosts'
 import { Route as AuthenticatedAdminGlobalMcpServersRouteImport } from './routes/_authenticated/admin/global-mcp-servers'
+import { Route as AuthenticatedAdminTelegramRouteImport } from './routes/_authenticated/admin/telegram'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAgentsIndexRouteImport } from './routes/_authenticated/agents/index'
 import { Route as AuthenticatedAgentsCreateRouteImport } from './routes/_authenticated/agents/create'
@@ -184,6 +185,12 @@ const AuthenticatedAdminGlobalMcpServersRoute =
   AuthenticatedAdminGlobalMcpServersRouteImport.update({
     id: '/admin/global-mcp-servers',
     path: '/admin/global-mcp-servers',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminTelegramRoute =
+  AuthenticatedAdminTelegramRouteImport.update({
+    id: '/admin/telegram',
+    path: '/admin/telegram',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
@@ -444,6 +451,7 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
+  '/admin/telegram': typeof AuthenticatedAdminTelegramRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/create': typeof AuthenticatedAgentsCreateRoute
   '/automations/create': typeof AuthenticatedAutomationsCreateRoute
@@ -506,6 +514,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
+  '/admin/telegram': typeof AuthenticatedAdminTelegramRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/create': typeof AuthenticatedAgentsCreateRoute
   '/automations/create': typeof AuthenticatedAutomationsCreateRoute
@@ -571,6 +580,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/_authenticated/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
+  '/_authenticated/admin/telegram': typeof AuthenticatedAdminTelegramRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/create': typeof AuthenticatedAgentsCreateRoute
   '/_authenticated/automations/create': typeof AuthenticatedAutomationsCreateRoute
@@ -636,6 +646,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/admin/git-hosts'
     | '/admin/global-mcp-servers'
+    | '/admin/telegram'
     | '/admin/users'
     | '/agents/create'
     | '/automations/create'
@@ -698,6 +709,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/git-hosts'
     | '/admin/global-mcp-servers'
+    | '/admin/telegram'
     | '/admin/users'
     | '/agents/create'
     | '/automations/create'
@@ -762,6 +774,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/admin/git-hosts'
     | '/_authenticated/admin/global-mcp-servers'
+    | '/_authenticated/admin/telegram'
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/create'
     | '/_authenticated/automations/create'
@@ -969,6 +982,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/global-mcp-servers'
       fullPath: '/admin/global-mcp-servers'
       preLoaderRoute: typeof AuthenticatedAdminGlobalMcpServersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/telegram': {
+      id: '/_authenticated/admin/telegram'
+      path: '/admin/telegram'
+      fullPath: '/admin/telegram'
+      preLoaderRoute: typeof AuthenticatedAdminTelegramRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/users': {
@@ -1288,6 +1308,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminGitHostsRoute: typeof AuthenticatedAdminGitHostsRoute
   AuthenticatedAdminGlobalMcpServersRoute: typeof AuthenticatedAdminGlobalMcpServersRoute
+  AuthenticatedAdminTelegramRoute: typeof AuthenticatedAdminTelegramRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAgentsCreateRoute: typeof AuthenticatedAgentsCreateRoute
   AuthenticatedAutomationsCreateRoute: typeof AuthenticatedAutomationsCreateRoute
@@ -1343,6 +1364,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminGitHostsRoute: AuthenticatedAdminGitHostsRoute,
   AuthenticatedAdminGlobalMcpServersRoute:
     AuthenticatedAdminGlobalMcpServersRoute,
+  AuthenticatedAdminTelegramRoute: AuthenticatedAdminTelegramRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAgentsCreateRoute: AuthenticatedAgentsCreateRoute,
   AuthenticatedAutomationsCreateRoute: AuthenticatedAutomationsCreateRoute,

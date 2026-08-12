@@ -2,16 +2,22 @@ package application
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"butterfly.orx.me/core/log"
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
+	"go.orx.me/apps/butter/internal/repo/telegramsetting"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
+	telegramruntime "go.orx.me/apps/butter/internal/runtime/telegram"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/telegramapi"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -33,6 +39,26 @@ type TelegramChannelServiceServer struct {
 	// botFactory builds a Telegram client from a decrypted Bot Token. Tests
 	// substitute a fake; production uses telegramapi.NewFactory.
 	botFactory telegramapi.Factory
+	// settings supplies the platform Webhook base URL, a prerequisite for
+	// enabling a Webhook Channel.
+	settings telegramsetting.Repository
+	// queue reports whether durable Redis Streams infrastructure is present.
+	// Webhook mode depends on it, so enabling without it would accept
+	// updates the fleet cannot durably hold.
+	queue QueueProbe
+	// webhookStatus supplies the reconciler's observed registration state.
+	webhookStatus WebhookStatusSource
+}
+
+// QueueProbe reports whether the durable update queue is usable.
+type QueueProbe interface {
+	Available() bool
+	Ping(ctx context.Context) error
+}
+
+// WebhookStatusSource exposes the reconciler's last observation for a Channel.
+type WebhookStatusSource interface {
+	State(channelID string) (telegramruntime.ReconcileState, bool)
 }
 
 func NewTelegramChannelServiceServer(repo telegramrepo.Repository) *TelegramChannelServiceServer {
@@ -49,6 +75,19 @@ func (s *TelegramChannelServiceServer) SetWorkspaceRepo(repo workspacerepo.Repos
 }
 
 func (s *TelegramChannelServiceServer) SetKeyring(keyring *secretbox.Keyring) { s.keyring = keyring }
+
+// SetSettingsRepo wires the platform settings repository.
+func (s *TelegramChannelServiceServer) SetSettingsRepo(repo telegramsetting.Repository) {
+	s.settings = repo
+}
+
+// SetQueueProbe wires the durable-queue readiness check.
+func (s *TelegramChannelServiceServer) SetQueueProbe(probe QueueProbe) { s.queue = probe }
+
+// SetWebhookStatusSource wires the reconciler's observed state.
+func (s *TelegramChannelServiceServer) SetWebhookStatusSource(source WebhookStatusSource) {
+	s.webhookStatus = source
+}
 
 // SetBotFactory overrides how Telegram clients are built. Used by tests.
 func (s *TelegramChannelServiceServer) SetBotFactory(factory telegramapi.Factory) {
@@ -177,11 +216,59 @@ func (s *TelegramChannelServiceServer) CreateTelegramChannel(ctx context.Context
 	if err != nil {
 		return nil, mapTelegramRepoErr(err)
 	}
+	// A Webhook Channel needs its callback secret before it can ever be
+	// enabled; generating it here means no operator step can be forgotten.
+	if err := s.ensureWebhookSecret(ctx, workspaceID, created); err != nil {
+		return nil, err
+	}
+	created.WebhookSecretSet = true
 	log.FromContext(ctx).Info("telegram channel created",
 		"workspace_id", workspaceID, "channel_id", created.GetId(),
 		"channel_key", created.GetKey(), "bot_id", created.GetBotId(),
 		"receive_mode", created.GetReceiveMode().String())
 	return connect.NewResponse(&agentsv1.CreateTelegramChannelResponse{Channel: created}), nil
+}
+
+// ensureWebhookSecret generates and stores a high-entropy per-Channel secret
+// unless one already exists.
+//
+// The secret is per Channel, not global: Telegram echoes it on every callback,
+// so a shared secret would let one compromised Channel authenticate callbacks
+// for every other. It is stored through the same encrypted credential seam as
+// the Bot Token and is never returned by any read.
+func (s *TelegramChannelServiceServer) ensureWebhookSecret(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel) error {
+	if channel.GetReceiveMode() != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
+		return nil
+	}
+	if _, err := s.repo.GetWebhookSecret(ctx, workspaceID, channel.GetId()); err == nil {
+		return nil
+	} else if !errors.Is(err, telegramrepo.ErrNoCredential) {
+		return mapTelegramRepoErr(err)
+	}
+
+	secret, err := generateWebhookSecret()
+	if err != nil {
+		return connectx.InternalWith(err)
+	}
+	ciphertext, keyID, err := s.keyring.Encrypt(ctx, []byte(secret))
+	if err != nil {
+		return connectx.InternalWith(fmt.Errorf("encrypt webhook secret: %w", err))
+	}
+	if err := s.repo.SetWebhookSecret(ctx, workspaceID, channel.GetId(),
+		telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID}); err != nil {
+		return mapTelegramRepoErr(err)
+	}
+	return nil
+}
+
+// generateWebhookSecret produces a token within Telegram's allowed alphabet
+// (A-Z, a-z, 0-9, _ and -) and length (1..256).
+func generateWebhookSecret() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, raw); err != nil {
+		return "", fmt.Errorf("generate webhook secret: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
 func capabilitiesOf(identity telegramapi.BotIdentity) *agentsv1.TelegramBotCapabilities {
@@ -229,6 +316,15 @@ func (s *TelegramChannelServiceServer) UpdateTelegramChannel(ctx context.Context
 	updated, err := s.repo.UpdateChannel(ctx, workspaceID, next, input.GetRevision())
 	if err != nil {
 		return nil, mapTelegramRepoErr(err)
+	}
+	// Switching into Webhook mode needs a secret just as much as creating in
+	// it does.
+	if updated.GetReceiveMode() == agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK &&
+		!updated.GetWebhookSecretSet() {
+		if err := s.ensureWebhookSecret(ctx, workspaceID, updated); err != nil {
+			return nil, err
+		}
+		updated.WebhookSecretSet = true
 	}
 	log.FromContext(ctx).Info("telegram channel updated",
 		"workspace_id", workspaceID, "channel_id", updated.GetId(), "revision", updated.GetRevision())
@@ -403,6 +499,29 @@ func (s *TelegramChannelServiceServer) evaluate(ctx context.Context, workspaceID
 	if channel.GetCredentialState() == agentsv1.TelegramCredentialState_TELEGRAM_CREDENTIAL_STATE_INVALID {
 		blockers = append(blockers, "the stored bot token was rejected by Telegram")
 	}
+	if inbound && channel.GetReceiveMode() == agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
+		// Webhook mode has infrastructure prerequisites that Long Polling
+		// does not: Telegram must have somewhere to deliver to, and the
+		// delivery must land somewhere durable before it is acknowledged.
+		if s.settings == nil {
+			blockers = append(blockers, "telegram platform settings are not available")
+		} else {
+			settings, settingsErr := s.settings.Get(ctx)
+			if settingsErr != nil {
+				return nil, nil, connectx.InternalWith(settingsErr)
+			}
+			if strings.TrimSpace(settings.GetWebhookBaseUrl()) == "" {
+				blockers = append(blockers,
+					"no public webhook base URL is configured; a global administrator must set one")
+			}
+		}
+		if s.queue == nil || !s.queue.Available() {
+			blockers = append(blockers,
+				"redis is not configured as a durable update queue, which webhook mode requires")
+		} else if pingErr := s.queue.Ping(ctx); pingErr != nil {
+			blockers = append(blockers, "the update queue is unreachable")
+		}
+	}
 	if inbound {
 		destinations, listErr := s.repo.ListDestinations(ctx, workspaceID, channel.GetId())
 		if listErr != nil {
@@ -463,20 +582,38 @@ func (s *TelegramChannelServiceServer) GetTelegramChannelStatus(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&agentsv1.GetTelegramChannelStatusResponse{
-		Status: &agentsv1.TelegramChannelStatus{
-			ChannelId:                channel.GetId(),
-			InboundDesired:           channel.GetInboundEnabled(),
-			OutboundDesired:          channel.GetOutboundEnabled(),
-			CredentialState:          channel.GetCredentialState(),
-			ReceiveMode:              channel.GetReceiveMode(),
-			InboundDestinationCount:  inboundCount,
-			OutboundDestinationCount: outboundCount,
-			Blockers:                 blockers,
-			Warnings:                 warnings,
-			LastCredentialError:      channel.GetLastCredentialError(),
-		},
-	}), nil
+	status := &agentsv1.TelegramChannelStatus{
+		ChannelId:                channel.GetId(),
+		InboundDesired:           channel.GetInboundEnabled(),
+		OutboundDesired:          channel.GetOutboundEnabled(),
+		CredentialState:          channel.GetCredentialState(),
+		ReceiveMode:              channel.GetReceiveMode(),
+		InboundDestinationCount:  inboundCount,
+		OutboundDestinationCount: outboundCount,
+		Blockers:                 blockers,
+		Warnings:                 warnings,
+		LastCredentialError:      channel.GetLastCredentialError(),
+		QueueReady:               s.queue != nil && s.queue.Available(),
+	}
+	// Registration state is observed by the reconciler, never persisted:
+	// availability is a runtime fact, not configuration.
+	if s.webhookStatus != nil {
+		if observed, ok := s.webhookStatus.State(channel.GetId()); ok {
+			status.WebhookState = observed.State
+			status.WebhookUrl = observed.URL
+			status.LastWebhookError = observed.Error
+			if !observed.ReconciledAt.IsZero() {
+				status.LastReconciledAt = timestamppb.New(observed.ReconciledAt)
+			}
+		}
+	}
+	if status.GetWebhookUrl() == "" && s.settings != nil {
+		if settings, err := s.settings.Get(ctx); err == nil &&
+			strings.TrimSpace(settings.GetWebhookBaseUrl()) != "" {
+			status.WebhookUrl = telegramruntime.CallbackURL(settings.GetWebhookBaseUrl(), channel.GetId())
+		}
+	}
+	return connect.NewResponse(&agentsv1.GetTelegramChannelStatusResponse{Status: status}), nil
 }
 
 // --- Delete ----------------------------------------------------------------

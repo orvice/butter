@@ -26,6 +26,8 @@ const (
 	// TelegramDestinationServiceName is the fully-qualified name of the TelegramDestinationService
 	// service.
 	TelegramDestinationServiceName = "agents.v1.TelegramDestinationService"
+	// TelegramAdminServiceName is the fully-qualified name of the TelegramAdminService service.
+	TelegramAdminServiceName = "agents.v1.TelegramAdminService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -78,6 +80,12 @@ const (
 	// TelegramDestinationServiceSendTelegramTestMessageProcedure is the fully-qualified name of the
 	// TelegramDestinationService's SendTelegramTestMessage RPC.
 	TelegramDestinationServiceSendTelegramTestMessageProcedure = "/agents.v1.TelegramDestinationService/SendTelegramTestMessage"
+	// TelegramAdminServiceGetTelegramSettingsProcedure is the fully-qualified name of the
+	// TelegramAdminService's GetTelegramSettings RPC.
+	TelegramAdminServiceGetTelegramSettingsProcedure = "/agents.v1.TelegramAdminService/GetTelegramSettings"
+	// TelegramAdminServiceUpdateTelegramSettingsProcedure is the fully-qualified name of the
+	// TelegramAdminService's UpdateTelegramSettings RPC.
+	TelegramAdminServiceUpdateTelegramSettingsProcedure = "/agents.v1.TelegramAdminService/UpdateTelegramSettings"
 )
 
 // TelegramChannelServiceClient is a client for the agents.v1.TelegramChannelService service.
@@ -600,4 +608,104 @@ func (UnimplementedTelegramDestinationServiceHandler) DeleteTelegramDestination(
 
 func (UnimplementedTelegramDestinationServiceHandler) SendTelegramTestMessage(context.Context, *connect.Request[v1.SendTelegramTestMessageRequest]) (*connect.Response[v1.SendTelegramTestMessageResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramDestinationService.SendTelegramTestMessage is not implemented"))
+}
+
+// TelegramAdminServiceClient is a client for the agents.v1.TelegramAdminService service.
+type TelegramAdminServiceClient interface {
+	// GetTelegramSettings returns the platform Telegram settings.
+	GetTelegramSettings(context.Context, *connect.Request[v1.GetTelegramSettingsRequest]) (*connect.Response[v1.GetTelegramSettingsResponse], error)
+	// UpdateTelegramSettings replaces the platform Telegram settings.
+	UpdateTelegramSettings(context.Context, *connect.Request[v1.UpdateTelegramSettingsRequest]) (*connect.Response[v1.UpdateTelegramSettingsResponse], error)
+}
+
+// NewTelegramAdminServiceClient constructs a client for the agents.v1.TelegramAdminService service.
+// By default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped
+// responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
+// connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewTelegramAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) TelegramAdminServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	telegramAdminServiceMethods := v1.File_agents_v1_telegram_proto.Services().ByName("TelegramAdminService").Methods()
+	return &telegramAdminServiceClient{
+		getTelegramSettings: connect.NewClient[v1.GetTelegramSettingsRequest, v1.GetTelegramSettingsResponse](
+			httpClient,
+			baseURL+TelegramAdminServiceGetTelegramSettingsProcedure,
+			connect.WithSchema(telegramAdminServiceMethods.ByName("GetTelegramSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		updateTelegramSettings: connect.NewClient[v1.UpdateTelegramSettingsRequest, v1.UpdateTelegramSettingsResponse](
+			httpClient,
+			baseURL+TelegramAdminServiceUpdateTelegramSettingsProcedure,
+			connect.WithSchema(telegramAdminServiceMethods.ByName("UpdateTelegramSettings")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// telegramAdminServiceClient implements TelegramAdminServiceClient.
+type telegramAdminServiceClient struct {
+	getTelegramSettings    *connect.Client[v1.GetTelegramSettingsRequest, v1.GetTelegramSettingsResponse]
+	updateTelegramSettings *connect.Client[v1.UpdateTelegramSettingsRequest, v1.UpdateTelegramSettingsResponse]
+}
+
+// GetTelegramSettings calls agents.v1.TelegramAdminService.GetTelegramSettings.
+func (c *telegramAdminServiceClient) GetTelegramSettings(ctx context.Context, req *connect.Request[v1.GetTelegramSettingsRequest]) (*connect.Response[v1.GetTelegramSettingsResponse], error) {
+	return c.getTelegramSettings.CallUnary(ctx, req)
+}
+
+// UpdateTelegramSettings calls agents.v1.TelegramAdminService.UpdateTelegramSettings.
+func (c *telegramAdminServiceClient) UpdateTelegramSettings(ctx context.Context, req *connect.Request[v1.UpdateTelegramSettingsRequest]) (*connect.Response[v1.UpdateTelegramSettingsResponse], error) {
+	return c.updateTelegramSettings.CallUnary(ctx, req)
+}
+
+// TelegramAdminServiceHandler is an implementation of the agents.v1.TelegramAdminService service.
+type TelegramAdminServiceHandler interface {
+	// GetTelegramSettings returns the platform Telegram settings.
+	GetTelegramSettings(context.Context, *connect.Request[v1.GetTelegramSettingsRequest]) (*connect.Response[v1.GetTelegramSettingsResponse], error)
+	// UpdateTelegramSettings replaces the platform Telegram settings.
+	UpdateTelegramSettings(context.Context, *connect.Request[v1.UpdateTelegramSettingsRequest]) (*connect.Response[v1.UpdateTelegramSettingsResponse], error)
+}
+
+// NewTelegramAdminServiceHandler builds an HTTP handler from the service implementation. It returns
+// the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewTelegramAdminServiceHandler(svc TelegramAdminServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	telegramAdminServiceMethods := v1.File_agents_v1_telegram_proto.Services().ByName("TelegramAdminService").Methods()
+	telegramAdminServiceGetTelegramSettingsHandler := connect.NewUnaryHandler(
+		TelegramAdminServiceGetTelegramSettingsProcedure,
+		svc.GetTelegramSettings,
+		connect.WithSchema(telegramAdminServiceMethods.ByName("GetTelegramSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	telegramAdminServiceUpdateTelegramSettingsHandler := connect.NewUnaryHandler(
+		TelegramAdminServiceUpdateTelegramSettingsProcedure,
+		svc.UpdateTelegramSettings,
+		connect.WithSchema(telegramAdminServiceMethods.ByName("UpdateTelegramSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.TelegramAdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case TelegramAdminServiceGetTelegramSettingsProcedure:
+			telegramAdminServiceGetTelegramSettingsHandler.ServeHTTP(w, r)
+		case TelegramAdminServiceUpdateTelegramSettingsProcedure:
+			telegramAdminServiceUpdateTelegramSettingsHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedTelegramAdminServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedTelegramAdminServiceHandler struct{}
+
+func (UnimplementedTelegramAdminServiceHandler) GetTelegramSettings(context.Context, *connect.Request[v1.GetTelegramSettingsRequest]) (*connect.Response[v1.GetTelegramSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramAdminService.GetTelegramSettings is not implemented"))
+}
+
+func (UnimplementedTelegramAdminServiceHandler) UpdateTelegramSettings(context.Context, *connect.Request[v1.UpdateTelegramSettingsRequest]) (*connect.Response[v1.UpdateTelegramSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.TelegramAdminService.UpdateTelegramSettings is not implemented"))
 }
