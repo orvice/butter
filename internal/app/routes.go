@@ -409,8 +409,18 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.tgReconciler.Start(context.Background())
 			h.tgChannelSvcServer.SetWebhookStatusSource(h.tgReconciler)
 
+			// `/where` is answered by the transport-level handler; everything
+			// else falls through to the Destination-scoped orchestrator.
+			var interactions telegramruntime.EventHandler
+			if result.RunnerSvc != nil {
+				orchestrator := telegramruntime.NewOrchestrator(result.TelegramRepo, sender, result.RunnerSvc)
+				if result.SessionSvc != nil {
+					orchestrator.SetSessionClearer(result.SessionSvc)
+				}
+				interactions = orchestrator
+			}
 			h.tgWorker = telegramruntime.NewWorker(queue,
-				telegramruntime.NewWhereHandler(sender, nil), instanceID)
+				telegramruntime.NewWhereHandler(sender, interactions), instanceID)
 			if err := h.tgWorker.Start(context.Background()); err != nil {
 				h.tgWorker = nil
 			}
