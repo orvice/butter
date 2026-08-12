@@ -141,12 +141,19 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if result.AsyncCoordinator != nil {
 		h.asyncCoordinator = result.AsyncCoordinator
 		h.agentSvcServer.SetAsyncCoordinator(result.AsyncCoordinator)
+		h.sessionSvcServer.SetAsyncCoordinator(result.AsyncCoordinator)
 		// Wire best-effort title generation after the first successful async turn.
 		if h.sessionSvcServer != nil {
 			sessServer := h.sessionSvcServer
 			result.AsyncCoordinator.SetTurnCompleteCallback(sessServer.AsyncTurnComplete)
 		}
 	}
+	if result.InputPartRepo != nil {
+		h.sessionSvcServer.SetInputPartRepo(result.InputPartRepo)
+	}
+	// Wire the session exclusion checker so the submit path rejects new
+	// invocations on sessions being deleted (issue #252).
+	h.agentSvcServer.SetSessionExcluder(h.sessionSvcServer)
 	if result.SessionSvc != nil {
 		h.agentSvcServer.SetSessionService(result.SessionSvc)
 	}

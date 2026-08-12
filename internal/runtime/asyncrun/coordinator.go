@@ -67,6 +67,8 @@ type runEntry struct {
 	// intent stays distinguishable from a system interruption.
 	shutdownRequested bool
 	finished          bool
+	// done is closed when execute returns; waiters block on it.
+	done chan struct{}
 }
 
 // New creates a Coordinator. The runner and invRepo must be non-nil.
@@ -113,7 +115,8 @@ func (c *Coordinator) Enqueue(inv *agentsv1.Invocation, agentName string, modelO
 		c.failInvocation(inv, shutdownFailureReason)
 		return
 	}
-	c.running[invID] = &runEntry{cancel: cancel, workspaceID: inv.GetWorkspaceId()}
+	entry := &runEntry{cancel: cancel, workspaceID: inv.GetWorkspaceId(), done: make(chan struct{})}
+	c.running[invID] = entry
 	c.wg.Add(1)
 	c.mu.Unlock()
 
@@ -128,6 +131,10 @@ func (c *Coordinator) execute(ctx context.Context, cancel context.CancelFunc, in
 	defer func() {
 		cancel()
 		c.mu.Lock()
+		entry, ok := c.running[invID]
+		if ok {
+			close(entry.done)
+		}
 		delete(c.running, invID)
 		c.mu.Unlock()
 	}()
@@ -324,6 +331,35 @@ func (c *Coordinator) Cancel(invocationID, workspaceID string) bool {
 	// Also propagate to the runner's cancel registry for context guard.
 	c.runner.CancelInvocation(invocationID, workspaceID)
 	return true
+}
+
+// CancelAndWait cancels the invocation and blocks until its goroutine
+// finishes. Returns true if the invocation was found and cancelled. If the
+// invocation is not tracked (already finished or never started) it returns
+// false immediately without blocking.
+func (c *Coordinator) CancelAndWait(ctx context.Context, invocationID, workspaceID string) bool {
+	c.mu.Lock()
+	entry, ok := c.running[invocationID]
+	if !ok || entry.finished {
+		c.mu.Unlock()
+		return false
+	}
+	if workspaceID != "" && entry.workspaceID != workspaceID {
+		c.mu.Unlock()
+		return false
+	}
+	entry.cancelRequested = true
+	entry.cancel()
+	done := entry.done
+	c.mu.Unlock()
+	c.runner.CancelInvocation(invocationID, workspaceID)
+
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return true
+	}
 }
 
 // noReplaySuffix closes every operational failure reason: work is never

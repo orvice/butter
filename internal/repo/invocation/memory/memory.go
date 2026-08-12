@@ -195,6 +195,30 @@ func (s *Store) FindLatestBySession(_ context.Context, workspaceID, sessionID st
 	return proto.Clone(latest).(*agentsv1.Invocation), nil
 }
 
+func (s *Store) ListBySession(_ context.Context, workspaceID, sessionID string) ([]*agentsv1.Invocation, error) {
+	all := s.snapshotDesc()
+	var out []*agentsv1.Invocation
+	for _, inv := range all {
+		if inv.GetWorkspaceId() == workspaceID && inv.GetSessionId() == sessionID {
+			out = append(out, inv)
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) RedactContent(_ context.Context, workspaceID, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inv, ok := s.byID[id]
+	if !ok || inv.GetWorkspaceId() != workspaceID {
+		return invocation.ErrNotFound
+	}
+	inv.Input = ""
+	inv.Output = ""
+	inv.Error = ""
+	return nil
+}
+
 func (s *Store) snapshotDesc() []*agentsv1.Invocation {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
