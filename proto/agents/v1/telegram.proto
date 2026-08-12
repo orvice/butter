@@ -1,0 +1,511 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// Telegram Channels and Destinations (issue #264).
+//
+// A TelegramChannel is one Telegram Bot transport. It owns the immutable Bot
+// identity, the encrypted write-only credential, the receive mode, and the
+// inbound/outbound lifecycle. It is deliberately NOT an address.
+//
+// A TelegramDestination is one exact Telegram address under a Channel: a
+// chat_id plus an optional message_thread_id. It owns inbound Agent routing
+// and interaction policy, and is the only reusable address that Cron jobs and
+// Notify Groups reference.
+//
+// The Bot Token is intentionally not a field of TelegramChannel: it is
+// encrypted at rest and handled through a separate repository credential seam
+// (the same pattern as WorkspaceRepoBinding PATs, ADR-0005) so plaintext
+// credentials can never appear in API responses, logs, or persisted public
+// models. `credential_state` only reports whether a usable one exists.
+//
+// Telegram-native identifiers (bot ID, chat ID, thread ID, user IDs) are
+// carried as canonical decimal strings so JSON clients never lose int64
+// precision.
+// =============================================================================
+
+// TelegramReceiveMode selects how a Channel consumes Telegram updates.
+enum TelegramReceiveMode {
+  TELEGRAM_RECEIVE_MODE_UNSPECIFIED = 0;
+  // Telegram pushes updates to a per-Channel callback URL. The default, and
+  // the only mode that works correctly across multiple Pods.
+  TELEGRAM_RECEIVE_MODE_WEBHOOK = 1;
+  // One leader Pod long-polls getUpdates. Intended for local development.
+  TELEGRAM_RECEIVE_MODE_LONG_POLLING = 2;
+}
+
+// TelegramCredentialState reports whether a Channel has a usable Bot Token
+// without ever revealing it.
+enum TelegramCredentialState {
+  TELEGRAM_CREDENTIAL_STATE_UNSPECIFIED = 0;
+  // No credential is stored for this Channel.
+  TELEGRAM_CREDENTIAL_STATE_MISSING = 1;
+  // A credential is stored and last resolved to the Channel's Bot ID.
+  TELEGRAM_CREDENTIAL_STATE_VALID = 2;
+  // A credential is stored but Telegram rejected it on last use.
+  TELEGRAM_CREDENTIAL_STATE_INVALID = 3;
+}
+
+// TelegramTriggerMode selects which messages at a Destination invoke the
+// Agent. Defaults to ALL.
+enum TelegramTriggerMode {
+  TELEGRAM_TRIGGER_MODE_UNSPECIFIED = 0;
+  // Every supported message invokes the Agent.
+  TELEGRAM_TRIGGER_MODE_ALL = 1;
+  // Only messages that mention the current Bot.
+  TELEGRAM_TRIGGER_MODE_MENTION = 2;
+  // Only messages that start with a command entity.
+  TELEGRAM_TRIGGER_MODE_COMMAND = 3;
+  // Either of the above.
+  TELEGRAM_TRIGGER_MODE_MENTION_OR_COMMAND = 4;
+}
+
+// TelegramSessionPolicy selects the session subject inside one Destination.
+enum TelegramSessionPolicy {
+  TELEGRAM_SESSION_POLICY_UNSPECIFIED = 0;
+  // All admitted users at the Destination share one conversation. Default.
+  TELEGRAM_SESSION_POLICY_DESTINATION = 1;
+  // Each admitted Telegram user keeps a separate conversation.
+  TELEGRAM_SESSION_POLICY_USER = 2;
+}
+
+// TelegramReplyMode selects whether responses quote the inbound message.
+// It is independent of Forum Topic targeting: every outbound message always
+// carries the Destination's optional thread ID regardless of this setting.
+enum TelegramReplyMode {
+  TELEGRAM_REPLY_MODE_UNSPECIFIED = 0;
+  // Quote the inbound message.
+  TELEGRAM_REPLY_MODE_REPLY = 1;
+  // Send a standalone message.
+  TELEGRAM_REPLY_MODE_NEW_MESSAGE = 2;
+}
+
+// TelegramBotCapabilities mirrors the subset of Telegram `getMe` flags that
+// change what a Channel can actually do in groups and Topics.
+message TelegramBotCapabilities {
+  // @gotags: json:"can_join_groups,omitempty" bson:"can_join_groups,omitempty"
+  bool can_join_groups = 1;
+
+  // False when BotFather Group Privacy is enabled, in which case ALL trigger
+  // mode only sees commands and replies. Surfaced, never changed by Butter.
+  // @gotags: json:"can_read_all_group_messages,omitempty" bson:"can_read_all_group_messages,omitempty"
+  bool can_read_all_group_messages = 2;
+
+  // @gotags: json:"supports_inline_queries,omitempty" bson:"supports_inline_queries,omitempty"
+  bool supports_inline_queries = 3;
+}
+
+// TelegramChannel is one Telegram Bot transport in a workspace.
+message TelegramChannel {
+  // Service-generated immutable identifier.
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // Workspace-unique immutable key chosen by the operator. Stable handle for
+  // configuration and logs.
+  // @gotags: json:"key,omitempty" bson:"key,omitempty"
+  string key = 2 [(validate.rules).string.min_len = 1];
+
+  // Mutable display name.
+  // @gotags: json:"name,omitempty" bson:"name,omitempty"
+  string name = 3;
+
+  // Immutable Telegram Bot ID as a decimal string, resolved by `getMe` at
+  // creation. Credential rotation may never change it.
+  // @gotags: json:"bot_id,omitempty" bson:"bot_id,omitempty"
+  string bot_id = 4;
+
+  // Bot username without the leading @, refreshed on credential validation.
+  // @gotags: json:"bot_username,omitempty" bson:"bot_username,omitempty"
+  string bot_username = 5;
+
+  // @gotags: json:"bot_capabilities,omitempty" bson:"bot_capabilities,omitempty"
+  TelegramBotCapabilities bot_capabilities = 6;
+
+  // Defaults to WEBHOOK when unspecified on create.
+  // @gotags: json:"receive_mode,omitempty" bson:"receive_mode,omitempty"
+  TelegramReceiveMode receive_mode = 7;
+
+  // Desired inbound state: whether this Channel consumes Telegram updates.
+  // @gotags: json:"inbound_enabled,omitempty" bson:"inbound_enabled,omitempty"
+  bool inbound_enabled = 8;
+
+  // Desired outbound state: whether this Channel may send messages.
+  // Inbound-enabled + outbound-disabled is rejected: every accepted
+  // interaction must be able to produce a reply.
+  // @gotags: json:"outbound_enabled,omitempty" bson:"outbound_enabled,omitempty"
+  bool outbound_enabled = 9;
+
+  // Optimistic concurrency token. Updates must send the revision they read.
+  // @gotags: json:"revision,omitempty" bson:"revision,omitempty"
+  int64 revision = 10;
+
+  // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 11;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 12;
+
+  // Server-owned. Never carries credential material.
+  // @gotags: json:"credential_state,omitempty" bson:"credential_state,omitempty"
+  TelegramCredentialState credential_state = 13;
+
+  // When the Bot Token was last set or rotated. Server-owned.
+  // @gotags: json:"credential_updated_at,omitempty" bson:"credential_updated_at,omitempty"
+  google.protobuf.Timestamp credential_updated_at = 14;
+
+  // Whether a per-Channel Telegram Webhook secret is stored. Server-owned.
+  // @gotags: json:"webhook_secret_set,omitempty" bson:"webhook_secret_set,omitempty"
+  bool webhook_secret_set = 15;
+
+  // Sanitized failure summary from the last credential validation. Empty on
+  // success; never contains credential material.
+  // @gotags: json:"last_credential_error,omitempty" bson:"last_credential_error,omitempty"
+  string last_credential_error = 16;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// TelegramDestinationConfig is the inbound routing and interaction policy of
+// one Destination. Only meaningful when the Destination is inbound-enabled,
+// but always persisted so enabling inbound later needs no reconfiguration.
+message TelegramDestinationConfig {
+  // Default Agent ID invoked at this address. Required for inbound
+  // Destinations; must be an ACTIVE Agent in the same workspace.
+  // @gotags: json:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 1;
+
+  // Optional explicit Model alias. Empty inherits the Agent's default Model.
+  // @gotags: json:"model,omitempty" bson:"model,omitempty"
+  string model = 2;
+
+  // Agents a controller may switch to with /agent. Empty locks Agent
+  // selection to `agent_id`.
+  // @gotags: json:"selectable_agent_ids,omitempty" bson:"selectable_agent_ids,omitempty"
+  repeated string selectable_agent_ids = 3;
+
+  // Model aliases a controller may switch to with /model. Empty locks Model
+  // selection.
+  // @gotags: json:"selectable_models,omitempty" bson:"selectable_models,omitempty"
+  repeated string selectable_models = 4;
+
+  // Defaults to ALL when unspecified.
+  // @gotags: json:"trigger_mode,omitempty" bson:"trigger_mode,omitempty"
+  TelegramTriggerMode trigger_mode = 5;
+
+  // Defaults to DESTINATION when unspecified.
+  // @gotags: json:"session_policy,omitempty" bson:"session_policy,omitempty"
+  TelegramSessionPolicy session_policy = 6;
+
+  // Telegram user IDs (decimal strings) admitted at this address. Empty
+  // admits every real Telegram user that can reach the address.
+  // @gotags: json:"allowed_user_ids,omitempty" bson:"allowed_user_ids,omitempty"
+  repeated string allowed_user_ids = 7;
+
+  // Telegram user IDs allowed to run management commands (/agent, /model,
+  // /debug, /clear). Controllers must also satisfy ordinary admission.
+  // @gotags: json:"controller_user_ids,omitempty" bson:"controller_user_ids,omitempty"
+  repeated string controller_user_ids = 8;
+
+  // Defaults to REPLY when unspecified.
+  // @gotags: json:"reply_mode,omitempty" bson:"reply_mode,omitempty"
+  TelegramReplyMode reply_mode = 9;
+
+  // Whether debug output starts enabled for new sessions at this address.
+  // @gotags: json:"debug_default,omitempty" bson:"debug_default,omitempty"
+  bool debug_default = 10;
+}
+
+// TelegramDestinationVerification is server-owned evidence that the address
+// actually works. It never rewrites the configured address.
+message TelegramDestinationVerification {
+  // True once a message was successfully sent to, or received from, this
+  // exact address.
+  // @gotags: json:"verified,omitempty" bson:"verified,omitempty"
+  bool verified = 1;
+
+  // @gotags: json:"verified_at,omitempty" bson:"verified_at,omitempty"
+  google.protobuf.Timestamp verified_at = 2;
+
+  // @gotags: json:"last_inbound_at,omitempty" bson:"last_inbound_at,omitempty"
+  google.protobuf.Timestamp last_inbound_at = 3;
+
+  // @gotags: json:"last_outbound_at,omitempty" bson:"last_outbound_at,omitempty"
+  google.protobuf.Timestamp last_outbound_at = 4;
+
+  // Sanitized summary of the most recent outbound failure. Empty on success.
+  // @gotags: json:"last_outbound_error,omitempty" bson:"last_outbound_error,omitempty"
+  string last_outbound_error = 5;
+}
+
+// TelegramDestination is one exact Telegram address under a Channel.
+message TelegramDestination {
+  // Service-generated immutable identifier. This is what Cron jobs and
+  // Notify Groups persist.
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // Workspace-unique immutable key chosen by the operator.
+  // @gotags: json:"key,omitempty" bson:"key,omitempty"
+  string key = 2 [(validate.rules).string.min_len = 1];
+
+  // Mutable display name.
+  // @gotags: json:"name,omitempty" bson:"name,omitempty"
+  string name = 3;
+
+  // Immutable owning Channel.
+  // @gotags: json:"channel_id,omitempty" bson:"channel_id,omitempty"
+  string channel_id = 4 [(validate.rules).string.min_len = 1];
+
+  // Immutable Telegram chat ID as a canonical decimal string. Negative for
+  // groups and supergroups.
+  // @gotags: json:"chat_id,omitempty" bson:"chat_id,omitempty"
+  string chat_id = 5 [(validate.rules).string.min_len = 1];
+
+  // Immutable optional Forum Topic ID as a canonical decimal string. Empty
+  // means "not a Topic address" and is distinct from any real thread ID; a
+  // present value must be positive.
+  // @gotags: json:"message_thread_id,omitempty" bson:"message_thread_id,omitempty"
+  string message_thread_id = 6;
+
+  // Whether Telegram updates at this address may invoke an Agent.
+  // @gotags: json:"inbound_enabled,omitempty" bson:"inbound_enabled,omitempty"
+  bool inbound_enabled = 7;
+
+  // Whether proactive senders (Cron, Notify Groups, test messages) may
+  // target this address.
+  // @gotags: json:"outbound_enabled,omitempty" bson:"outbound_enabled,omitempty"
+  bool outbound_enabled = 8;
+
+  // @gotags: json:"config,omitempty" bson:"config,omitempty"
+  TelegramDestinationConfig config = 9;
+
+  // Optimistic concurrency token. Also frozen into inbound queue events so a
+  // worker can tell that policy changed mid-flight.
+  // @gotags: json:"revision,omitempty" bson:"revision,omitempty"
+  int64 revision = 10;
+
+  // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 11;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 12;
+
+  // @gotags: json:"verification,omitempty" bson:"verification,omitempty"
+  TelegramDestinationVerification verification = 13;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// =============================================================================
+// TelegramChannelService
+//
+// Reads are open to every workspace member (the auth middleware already
+// verified membership for the X-Workspace-ID header). Mutations require the
+// caller to hold the workspace "owner" or "admin" role; global admins bypass.
+// No RPC ever returns a Bot Token.
+// =============================================================================
+service TelegramChannelService {
+  // ListTelegramChannels returns every Channel in the current workspace.
+  rpc ListTelegramChannels(ListTelegramChannelsRequest) returns (ListTelegramChannelsResponse);
+
+  // GetTelegramChannel returns one Channel by ID.
+  rpc GetTelegramChannel(GetTelegramChannelRequest) returns (GetTelegramChannelResponse);
+
+  // CreateTelegramChannel validates the supplied Bot Token with Telegram
+  // `getMe` before any Channel or credential record is committed, then stores
+  // the resolved immutable Bot identity. Channels are always created with
+  // inbound and outbound disabled; enablement is a separate action.
+  rpc CreateTelegramChannel(CreateTelegramChannelRequest) returns (CreateTelegramChannelResponse);
+
+  // UpdateTelegramChannel changes the mutable configuration (name, receive
+  // mode). It requires the expected revision and rejects changes to the
+  // immutable key and Bot identity.
+  rpc UpdateTelegramChannel(UpdateTelegramChannelRequest) returns (UpdateTelegramChannelResponse);
+
+  // RotateTelegramChannelCredential validates the new Bot Token first and
+  // accepts it only when it resolves to the same immutable Bot ID. The prior
+  // credential stays active if validation or persistence fails.
+  rpc RotateTelegramChannelCredential(RotateTelegramChannelCredentialRequest) returns (RotateTelegramChannelCredentialResponse);
+
+  // SetTelegramChannelEnabled applies the desired inbound/outbound state
+  // after a strict preflight. Enabling inbound without outbound is rejected.
+  rpc SetTelegramChannelEnabled(SetTelegramChannelEnabledRequest) returns (SetTelegramChannelEnabledResponse);
+
+  // DeleteTelegramChannel removes a Channel and its stored credential. It is
+  // refused while any Destination still references the Channel.
+  rpc DeleteTelegramChannel(DeleteTelegramChannelRequest) returns (DeleteTelegramChannelResponse);
+
+  // GetTelegramChannelStatus returns configured desired state plus derived
+  // runtime readiness. Runtime availability is never persisted as
+  // configuration.
+  rpc GetTelegramChannelStatus(GetTelegramChannelStatusRequest) returns (GetTelegramChannelStatusResponse);
+}
+
+message ListTelegramChannelsRequest {}
+
+message ListTelegramChannelsResponse {
+  repeated TelegramChannel channels = 1;
+}
+
+message GetTelegramChannelRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetTelegramChannelResponse {
+  TelegramChannel channel = 1;
+}
+
+message CreateTelegramChannelRequest {
+  // Only key, name, and receive_mode are read from this message. Bot
+  // identity, revision, timestamps, and credential state are server-owned.
+  TelegramChannel channel = 1;
+
+  // Bot Token, write-only. Validated with `getMe`, encrypted before storage,
+  // and never returned by any RPC or written to logs or error details.
+  string bot_token = 2 [(validate.rules).string.min_len = 1];
+}
+
+message CreateTelegramChannelResponse {
+  TelegramChannel channel = 1;
+}
+
+message UpdateTelegramChannelRequest {
+  // `id` selects the Channel and `revision` must match the stored one.
+  TelegramChannel channel = 1;
+}
+
+message UpdateTelegramChannelResponse {
+  TelegramChannel channel = 1;
+}
+
+message RotateTelegramChannelCredentialRequest {
+  string channel_id = 1 [(validate.rules).string.min_len = 1];
+
+  // The replacement Bot Token. Must resolve to the Channel's existing Bot ID.
+  string bot_token = 2 [(validate.rules).string.min_len = 1];
+}
+
+message RotateTelegramChannelCredentialResponse {
+  TelegramChannel channel = 1;
+}
+
+message SetTelegramChannelEnabledRequest {
+  string channel_id = 1 [(validate.rules).string.min_len = 1];
+  int64 revision = 2;
+  bool inbound_enabled = 3;
+  bool outbound_enabled = 4;
+}
+
+message SetTelegramChannelEnabledResponse {
+  TelegramChannel channel = 1;
+  // Human-readable preflight findings when the request was accepted but a
+  // capability is degraded (e.g. Group Privacy is on).
+  repeated string warnings = 2;
+}
+
+message DeleteTelegramChannelRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteTelegramChannelResponse {}
+
+message GetTelegramChannelStatusRequest {
+  string channel_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+// TelegramChannelStatus is derived on every read. Nothing here is persisted
+// as configuration.
+message TelegramChannelStatus {
+  string channel_id = 1;
+  bool inbound_desired = 2;
+  bool outbound_desired = 3;
+  TelegramCredentialState credential_state = 4;
+  TelegramReceiveMode receive_mode = 5;
+  // Number of enabled inbound Destinations under this Channel.
+  int32 inbound_destination_count = 6;
+  // Number of enabled outbound Destinations under this Channel.
+  int32 outbound_destination_count = 7;
+  // Unmet prerequisites that currently block enabling the Channel.
+  repeated string blockers = 8;
+  // Accepted but degraded conditions, e.g. Group Privacy enabled.
+  repeated string warnings = 9;
+  string last_credential_error = 10;
+}
+
+message GetTelegramChannelStatusResponse {
+  TelegramChannelStatus status = 1;
+}
+
+// =============================================================================
+// TelegramDestinationService
+// =============================================================================
+service TelegramDestinationService {
+  // ListTelegramDestinations returns the workspace's Destinations, optionally
+  // narrowed to one Channel.
+  rpc ListTelegramDestinations(ListTelegramDestinationsRequest) returns (ListTelegramDestinationsResponse);
+
+  // GetTelegramDestination returns one Destination by ID.
+  rpc GetTelegramDestination(GetTelegramDestinationRequest) returns (GetTelegramDestinationResponse);
+
+  // CreateTelegramDestination registers one exact Telegram address. Creating
+  // a Destination sends no Telegram message.
+  rpc CreateTelegramDestination(CreateTelegramDestinationRequest) returns (CreateTelegramDestinationResponse);
+
+  // UpdateTelegramDestination changes name, enablement, and policy. It
+  // requires the expected revision and rejects any change to the immutable
+  // address; redirecting traffic requires creating a new Destination.
+  rpc UpdateTelegramDestination(UpdateTelegramDestinationRequest) returns (UpdateTelegramDestinationResponse);
+
+  // DeleteTelegramDestination removes a Destination.
+  rpc DeleteTelegramDestination(DeleteTelegramDestinationRequest) returns (DeleteTelegramDestinationResponse);
+}
+
+message ListTelegramDestinationsRequest {
+  // Optional Channel filter. Empty lists every Destination in the workspace.
+  string channel_id = 1;
+}
+
+message ListTelegramDestinationsResponse {
+  repeated TelegramDestination destinations = 1;
+}
+
+message GetTelegramDestinationRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetTelegramDestinationResponse {
+  TelegramDestination destination = 1;
+}
+
+message CreateTelegramDestinationRequest {
+  // `id`, `revision`, timestamps, and `verification` are server-owned.
+  TelegramDestination destination = 1;
+}
+
+message CreateTelegramDestinationResponse {
+  TelegramDestination destination = 1;
+}
+
+message UpdateTelegramDestinationRequest {
+  // `id` selects the Destination and `revision` must match the stored one.
+  TelegramDestination destination = 1;
+}
+
+message UpdateTelegramDestinationResponse {
+  TelegramDestination destination = 1;
+}
+
+message DeleteTelegramDestinationRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteTelegramDestinationResponse {}

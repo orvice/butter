@@ -24,6 +24,7 @@ import {
   Plug,
   Radio,
   Satellite,
+  Send,
   Server,
   Settings2,
   ShieldCheck,
@@ -96,6 +97,13 @@ const CONNECTION_SECTIONS: ManageSection[] = [
     description:
       'Configure inbound channels and outbound notification targets.',
     items: [
+      {
+        title: 'Telegram Channels',
+        description:
+          'Register Telegram bots and bind chats, groups, and forum topics.',
+        to: '/telegram-channels',
+        icon: Send,
+      },
       {
         title: 'Channels',
         description:

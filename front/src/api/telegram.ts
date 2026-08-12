@@ -1,0 +1,206 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  TelegramChannelService,
+  TelegramDestinationService,
+  type TelegramChannel,
+  type TelegramChannelStatus,
+  type TelegramDestination,
+} from '@/gen/agents/v1/telegram_pb'
+import { makeClient } from './transport'
+
+const channelClient = makeClient(TelegramChannelService)
+const destinationClient = makeClient(TelegramDestinationService)
+
+const CHANNELS_KEY = ['telegram-channels'] as const
+const DESTINATIONS_KEY = ['telegram-destinations'] as const
+
+// --- Channels ---------------------------------------------------------------
+
+export function useTelegramChannels() {
+  return useQuery({
+    queryKey: CHANNELS_KEY,
+    queryFn: async (): Promise<TelegramChannel[]> => {
+      const res = await channelClient.listTelegramChannels({})
+      return res.channels
+    },
+  })
+}
+
+export function useTelegramChannel(id: string | undefined) {
+  return useQuery({
+    queryKey: [...CHANNELS_KEY, id],
+    enabled: Boolean(id),
+    queryFn: async (): Promise<TelegramChannel> => {
+      const res = await channelClient.getTelegramChannel({ id: id! })
+      if (!res.channel) throw new Error('channel not found')
+      return res.channel
+    },
+  })
+}
+
+export function useTelegramChannelStatus(id: string | undefined) {
+  return useQuery({
+    queryKey: [...CHANNELS_KEY, id, 'status'],
+    enabled: Boolean(id),
+    queryFn: async (): Promise<TelegramChannelStatus> => {
+      const res = await channelClient.getTelegramChannelStatus({ channelId: id! })
+      if (!res.status) throw new Error('status unavailable')
+      return res.status
+    },
+  })
+}
+
+export interface CreateTelegramChannelInput {
+  key: string
+  name?: string
+  receiveMode?: TelegramChannel['receiveMode']
+  /** Write-only: validated with getMe, encrypted at rest, never read back. */
+  botToken: string
+}
+
+export function useCreateTelegramChannel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: CreateTelegramChannelInput) => {
+      const res = await channelClient.createTelegramChannel({
+        channel: {
+          key: input.key,
+          name: input.name ?? '',
+          receiveMode: input.receiveMode,
+        },
+        botToken: input.botToken,
+      })
+      if (!res.channel) throw new Error('create returned no channel')
+      return res.channel
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: CHANNELS_KEY }),
+  })
+}
+
+export interface UpdateTelegramChannelInput {
+  id: string
+  revision: bigint
+  name: string
+  receiveMode: TelegramChannel['receiveMode']
+}
+
+export function useUpdateTelegramChannel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: UpdateTelegramChannelInput) => {
+      const res = await channelClient.updateTelegramChannel({
+        channel: {
+          id: input.id,
+          revision: input.revision,
+          name: input.name,
+          receiveMode: input.receiveMode,
+        },
+      })
+      if (!res.channel) throw new Error('update returned no channel')
+      return res.channel
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: CHANNELS_KEY }),
+  })
+}
+
+export function useRotateTelegramChannelCredential() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { channelId: string; botToken: string }) => {
+      const res = await channelClient.rotateTelegramChannelCredential(input)
+      if (!res.channel) throw new Error('rotation returned no channel')
+      return res.channel
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: CHANNELS_KEY }),
+  })
+}
+
+export function useSetTelegramChannelEnabled() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: {
+      channelId: string
+      revision: bigint
+      inboundEnabled: boolean
+      outboundEnabled: boolean
+    }) => {
+      const res = await channelClient.setTelegramChannelEnabled(input)
+      return { channel: res.channel, warnings: res.warnings }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: CHANNELS_KEY }),
+  })
+}
+
+export function useDeleteTelegramChannel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await channelClient.deleteTelegramChannel({ id })
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: CHANNELS_KEY }),
+  })
+}
+
+// --- Destinations -----------------------------------------------------------
+
+export function useTelegramDestinations(channelId?: string) {
+  return useQuery({
+    queryKey: [...DESTINATIONS_KEY, channelId ?? 'all'],
+    queryFn: async (): Promise<TelegramDestination[]> => {
+      const res = await destinationClient.listTelegramDestinations({
+        channelId: channelId ?? '',
+      })
+      return res.destinations
+    },
+  })
+}
+
+export function useTelegramDestination(id: string | undefined) {
+  return useQuery({
+    queryKey: [...DESTINATIONS_KEY, 'detail', id],
+    enabled: Boolean(id),
+    queryFn: async (): Promise<TelegramDestination> => {
+      const res = await destinationClient.getTelegramDestination({ id: id! })
+      if (!res.destination) throw new Error('destination not found')
+      return res.destination
+    },
+  })
+}
+
+export function useCreateTelegramDestination() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (destination: Partial<TelegramDestination>) => {
+      const res = await destinationClient.createTelegramDestination({
+        destination: destination as TelegramDestination,
+      })
+      if (!res.destination) throw new Error('create returned no destination')
+      return res.destination
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: DESTINATIONS_KEY }),
+  })
+}
+
+export function useUpdateTelegramDestination() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (destination: Partial<TelegramDestination>) => {
+      const res = await destinationClient.updateTelegramDestination({
+        destination: destination as TelegramDestination,
+      })
+      if (!res.destination) throw new Error('update returned no destination')
+      return res.destination
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: DESTINATIONS_KEY }),
+  })
+}
+
+export function useDeleteTelegramDestination() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await destinationClient.deleteTelegramDestination({ id })
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: DESTINATIONS_KEY }),
+  })
+}

@@ -55,6 +55,9 @@ import { Route as AuthenticatedSessionsDetailRouteImport } from './routes/_authe
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
+import { Route as AuthenticatedTelegramChannelsIndexRouteImport } from './routes/_authenticated/telegram-channels/index'
+import { Route as AuthenticatedTelegramChannelsCreateRouteImport } from './routes/_authenticated/telegram-channels/create'
+import { Route as AuthenticatedTelegramDestinationsIdRouteImport } from './routes/_authenticated/telegram-destinations/$id'
 import { Route as AuthenticatedAgentsNameEditRouteImport } from './routes/_authenticated/agents/$name.edit'
 import { Route as AuthenticatedAutomationsNameIndexRouteImport } from './routes/_authenticated/automations/$name.index'
 import { Route as AuthenticatedAutomationsNameEditRouteImport } from './routes/_authenticated/automations/$name.edit'
@@ -65,7 +68,9 @@ import { Route as AuthenticatedMcpServersIdEditRouteImport } from './routes/_aut
 import { Route as AuthenticatedModelProvidersNameEditRouteImport } from './routes/_authenticated/model-providers/$name.edit'
 import { Route as AuthenticatedNotifyGroupsNameEditRouteImport } from './routes/_authenticated/notify-groups/$name.edit'
 import { Route as AuthenticatedRemoteAgentsIdEditRouteImport } from './routes/_authenticated/remote-agents/$id.edit'
+import { Route as AuthenticatedTelegramChannelsIdIndexRouteImport } from './routes/_authenticated/telegram-channels/$id.index'
 import { Route as authAuthOauthCallbackProviderRouteImport } from './routes/(auth)/auth.oauth.callback.$provider'
+import { Route as AuthenticatedTelegramChannelsIdDestinationsCreateRouteImport } from './routes/_authenticated/telegram-channels/$id.destinations.create'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -320,6 +325,24 @@ const AuthenticatedSettingsDisplayRoute =
     path: '/display',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedTelegramChannelsIndexRoute =
+  AuthenticatedTelegramChannelsIndexRouteImport.update({
+    id: '/telegram-channels/',
+    path: '/telegram-channels/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedTelegramChannelsCreateRoute =
+  AuthenticatedTelegramChannelsCreateRouteImport.update({
+    id: '/telegram-channels/create',
+    path: '/telegram-channels/create',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedTelegramDestinationsIdRoute =
+  AuthenticatedTelegramDestinationsIdRouteImport.update({
+    id: '/telegram-destinations/$id',
+    path: '/telegram-destinations/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAgentsNameEditRoute =
   AuthenticatedAgentsNameEditRouteImport.update({
     id: '/agents/$name/edit',
@@ -380,11 +403,23 @@ const AuthenticatedRemoteAgentsIdEditRoute =
     path: '/remote-agents/$id/edit',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTelegramChannelsIdIndexRoute =
+  AuthenticatedTelegramChannelsIdIndexRouteImport.update({
+    id: '/telegram-channels/$id/',
+    path: '/telegram-channels/$id/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const authAuthOauthCallbackProviderRoute =
   authAuthOauthCallbackProviderRouteImport.update({
     id: '/(auth)/auth/oauth/callback/$provider',
     path: '/auth/oauth/callback/$provider',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedTelegramChannelsIdDestinationsCreateRoute =
+  AuthenticatedTelegramChannelsIdDestinationsCreateRouteImport.update({
+    id: '/telegram-channels/$id/destinations/create',
+    path: '/telegram-channels/$id/destinations/create',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -422,6 +457,8 @@ export interface FileRoutesByFullPath {
   '/sessions/detail': typeof AuthenticatedSessionsDetailRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/telegram-channels/create': typeof AuthenticatedTelegramChannelsCreateRoute
+  '/telegram-destinations/$id': typeof AuthenticatedTelegramDestinationsIdRoute
   '/agents/': typeof AuthenticatedAgentsIndexRoute
   '/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -433,6 +470,7 @@ export interface FileRoutesByFullPath {
   '/remote-agents/': typeof AuthenticatedRemoteAgentsIndexRoute
   '/sessions/': typeof AuthenticatedSessionsIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/telegram-channels/': typeof AuthenticatedTelegramChannelsIndexRoute
   '/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
   '/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/channels/$name/edit': typeof AuthenticatedChannelsNameEditRoute
@@ -443,7 +481,9 @@ export interface FileRoutesByFullPath {
   '/notify-groups/$name/edit': typeof AuthenticatedNotifyGroupsNameEditRoute
   '/remote-agents/$id/edit': typeof AuthenticatedRemoteAgentsIdEditRoute
   '/automations/$name/': typeof AuthenticatedAutomationsNameIndexRoute
+  '/telegram-channels/$id/': typeof AuthenticatedTelegramChannelsIdIndexRoute
   '/auth/oauth/callback/$provider': typeof authAuthOauthCallbackProviderRoute
+  '/telegram-channels/$id/destinations/create': typeof AuthenticatedTelegramChannelsIdDestinationsCreateRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
@@ -479,6 +519,8 @@ export interface FileRoutesByTo {
   '/sessions/detail': typeof AuthenticatedSessionsDetailRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/telegram-channels/create': typeof AuthenticatedTelegramChannelsCreateRoute
+  '/telegram-destinations/$id': typeof AuthenticatedTelegramDestinationsIdRoute
   '/agents': typeof AuthenticatedAgentsIndexRoute
   '/automations': typeof AuthenticatedAutomationsIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
@@ -490,6 +532,7 @@ export interface FileRoutesByTo {
   '/remote-agents': typeof AuthenticatedRemoteAgentsIndexRoute
   '/sessions': typeof AuthenticatedSessionsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/telegram-channels': typeof AuthenticatedTelegramChannelsIndexRoute
   '/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
   '/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/channels/$name/edit': typeof AuthenticatedChannelsNameEditRoute
@@ -500,7 +543,9 @@ export interface FileRoutesByTo {
   '/notify-groups/$name/edit': typeof AuthenticatedNotifyGroupsNameEditRoute
   '/remote-agents/$id/edit': typeof AuthenticatedRemoteAgentsIdEditRoute
   '/automations/$name': typeof AuthenticatedAutomationsNameIndexRoute
+  '/telegram-channels/$id': typeof AuthenticatedTelegramChannelsIdIndexRoute
   '/auth/oauth/callback/$provider': typeof authAuthOauthCallbackProviderRoute
+  '/telegram-channels/$id/destinations/create': typeof AuthenticatedTelegramChannelsIdDestinationsCreateRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -539,6 +584,8 @@ export interface FileRoutesById {
   '/_authenticated/sessions/detail': typeof AuthenticatedSessionsDetailRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
+  '/_authenticated/telegram-channels/create': typeof AuthenticatedTelegramChannelsCreateRoute
+  '/_authenticated/telegram-destinations/$id': typeof AuthenticatedTelegramDestinationsIdRoute
   '/_authenticated/agents/': typeof AuthenticatedAgentsIndexRoute
   '/_authenticated/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -550,6 +597,7 @@ export interface FileRoutesById {
   '/_authenticated/remote-agents/': typeof AuthenticatedRemoteAgentsIndexRoute
   '/_authenticated/sessions/': typeof AuthenticatedSessionsIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/telegram-channels/': typeof AuthenticatedTelegramChannelsIndexRoute
   '/_authenticated/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
   '/_authenticated/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/_authenticated/channels/$name/edit': typeof AuthenticatedChannelsNameEditRoute
@@ -560,7 +608,9 @@ export interface FileRoutesById {
   '/_authenticated/notify-groups/$name/edit': typeof AuthenticatedNotifyGroupsNameEditRoute
   '/_authenticated/remote-agents/$id/edit': typeof AuthenticatedRemoteAgentsIdEditRoute
   '/_authenticated/automations/$name/': typeof AuthenticatedAutomationsNameIndexRoute
+  '/_authenticated/telegram-channels/$id/': typeof AuthenticatedTelegramChannelsIdIndexRoute
   '/(auth)/auth/oauth/callback/$provider': typeof authAuthOauthCallbackProviderRoute
+  '/_authenticated/telegram-channels/$id/destinations/create': typeof AuthenticatedTelegramChannelsIdDestinationsCreateRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -599,6 +649,8 @@ export interface FileRouteTypes {
     | '/sessions/detail'
     | '/settings/appearance'
     | '/settings/display'
+    | '/telegram-channels/create'
+    | '/telegram-destinations/$id'
     | '/agents/'
     | '/automations/'
     | '/channels/'
@@ -610,6 +662,7 @@ export interface FileRouteTypes {
     | '/remote-agents/'
     | '/sessions/'
     | '/settings/'
+    | '/telegram-channels/'
     | '/agents/$name/edit'
     | '/automations/$name/edit'
     | '/channels/$name/edit'
@@ -620,7 +673,9 @@ export interface FileRouteTypes {
     | '/notify-groups/$name/edit'
     | '/remote-agents/$id/edit'
     | '/automations/$name/'
+    | '/telegram-channels/$id/'
     | '/auth/oauth/callback/$provider'
+    | '/telegram-channels/$id/destinations/create'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/sign-in'
@@ -656,6 +711,8 @@ export interface FileRouteTypes {
     | '/sessions/detail'
     | '/settings/appearance'
     | '/settings/display'
+    | '/telegram-channels/create'
+    | '/telegram-destinations/$id'
     | '/agents'
     | '/automations'
     | '/channels'
@@ -667,6 +724,7 @@ export interface FileRouteTypes {
     | '/remote-agents'
     | '/sessions'
     | '/settings'
+    | '/telegram-channels'
     | '/agents/$name/edit'
     | '/automations/$name/edit'
     | '/channels/$name/edit'
@@ -677,7 +735,9 @@ export interface FileRouteTypes {
     | '/notify-groups/$name/edit'
     | '/remote-agents/$id/edit'
     | '/automations/$name'
+    | '/telegram-channels/$id'
     | '/auth/oauth/callback/$provider'
+    | '/telegram-channels/$id/destinations/create'
   id:
     | '__root__'
     | '/_authenticated'
@@ -715,6 +775,8 @@ export interface FileRouteTypes {
     | '/_authenticated/sessions/detail'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
+    | '/_authenticated/telegram-channels/create'
+    | '/_authenticated/telegram-destinations/$id'
     | '/_authenticated/agents/'
     | '/_authenticated/automations/'
     | '/_authenticated/channels/'
@@ -726,6 +788,7 @@ export interface FileRouteTypes {
     | '/_authenticated/remote-agents/'
     | '/_authenticated/sessions/'
     | '/_authenticated/settings/'
+    | '/_authenticated/telegram-channels/'
     | '/_authenticated/agents/$name/edit'
     | '/_authenticated/automations/$name/edit'
     | '/_authenticated/channels/$name/edit'
@@ -736,7 +799,9 @@ export interface FileRouteTypes {
     | '/_authenticated/notify-groups/$name/edit'
     | '/_authenticated/remote-agents/$id/edit'
     | '/_authenticated/automations/$name/'
+    | '/_authenticated/telegram-channels/$id/'
     | '/(auth)/auth/oauth/callback/$provider'
+    | '/_authenticated/telegram-channels/$id/destinations/create'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1074,6 +1139,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsDisplayRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/telegram-channels/': {
+      id: '/_authenticated/telegram-channels/'
+      path: '/telegram-channels'
+      fullPath: '/telegram-channels/'
+      preLoaderRoute: typeof AuthenticatedTelegramChannelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/telegram-channels/create': {
+      id: '/_authenticated/telegram-channels/create'
+      path: '/telegram-channels/create'
+      fullPath: '/telegram-channels/create'
+      preLoaderRoute: typeof AuthenticatedTelegramChannelsCreateRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/telegram-destinations/$id': {
+      id: '/_authenticated/telegram-destinations/$id'
+      path: '/telegram-destinations/$id'
+      fullPath: '/telegram-destinations/$id'
+      preLoaderRoute: typeof AuthenticatedTelegramDestinationsIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/agents/$name/edit': {
       id: '/_authenticated/agents/$name/edit'
       path: '/agents/$name/edit'
@@ -1144,12 +1230,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRemoteAgentsIdEditRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/telegram-channels/$id/': {
+      id: '/_authenticated/telegram-channels/$id/'
+      path: '/telegram-channels/$id'
+      fullPath: '/telegram-channels/$id/'
+      preLoaderRoute: typeof AuthenticatedTelegramChannelsIdIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/(auth)/auth/oauth/callback/$provider': {
       id: '/(auth)/auth/oauth/callback/$provider'
       path: '/auth/oauth/callback/$provider'
       fullPath: '/auth/oauth/callback/$provider'
       preLoaderRoute: typeof authAuthOauthCallbackProviderRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/telegram-channels/$id/destinations/create': {
+      id: '/_authenticated/telegram-channels/$id/destinations/create'
+      path: '/telegram-channels/$id/destinations/create'
+      fullPath: '/telegram-channels/$id/destinations/create'
+      preLoaderRoute: typeof AuthenticatedTelegramChannelsIdDestinationsCreateRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
@@ -1199,6 +1299,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNotifyGroupsCreateRoute: typeof AuthenticatedNotifyGroupsCreateRoute
   AuthenticatedRemoteAgentsCreateRoute: typeof AuthenticatedRemoteAgentsCreateRoute
   AuthenticatedSessionsDetailRoute: typeof AuthenticatedSessionsDetailRoute
+  AuthenticatedTelegramChannelsCreateRoute: typeof AuthenticatedTelegramChannelsCreateRoute
+  AuthenticatedTelegramDestinationsIdRoute: typeof AuthenticatedTelegramDestinationsIdRoute
   AuthenticatedAgentsIndexRoute: typeof AuthenticatedAgentsIndexRoute
   AuthenticatedAutomationsIndexRoute: typeof AuthenticatedAutomationsIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
@@ -1209,6 +1311,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNotifyGroupsIndexRoute: typeof AuthenticatedNotifyGroupsIndexRoute
   AuthenticatedRemoteAgentsIndexRoute: typeof AuthenticatedRemoteAgentsIndexRoute
   AuthenticatedSessionsIndexRoute: typeof AuthenticatedSessionsIndexRoute
+  AuthenticatedTelegramChannelsIndexRoute: typeof AuthenticatedTelegramChannelsIndexRoute
   AuthenticatedAgentsNameEditRoute: typeof AuthenticatedAgentsNameEditRoute
   AuthenticatedAutomationsNameEditRoute: typeof AuthenticatedAutomationsNameEditRoute
   AuthenticatedChannelsNameEditRoute: typeof AuthenticatedChannelsNameEditRoute
@@ -1219,6 +1322,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNotifyGroupsNameEditRoute: typeof AuthenticatedNotifyGroupsNameEditRoute
   AuthenticatedRemoteAgentsIdEditRoute: typeof AuthenticatedRemoteAgentsIdEditRoute
   AuthenticatedAutomationsNameIndexRoute: typeof AuthenticatedAutomationsNameIndexRoute
+  AuthenticatedTelegramChannelsIdIndexRoute: typeof AuthenticatedTelegramChannelsIdIndexRoute
+  AuthenticatedTelegramChannelsIdDestinationsCreateRoute: typeof AuthenticatedTelegramChannelsIdDestinationsCreateRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1250,6 +1355,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNotifyGroupsCreateRoute: AuthenticatedNotifyGroupsCreateRoute,
   AuthenticatedRemoteAgentsCreateRoute: AuthenticatedRemoteAgentsCreateRoute,
   AuthenticatedSessionsDetailRoute: AuthenticatedSessionsDetailRoute,
+  AuthenticatedTelegramChannelsCreateRoute:
+    AuthenticatedTelegramChannelsCreateRoute,
+  AuthenticatedTelegramDestinationsIdRoute:
+    AuthenticatedTelegramDestinationsIdRoute,
   AuthenticatedAgentsIndexRoute: AuthenticatedAgentsIndexRoute,
   AuthenticatedAutomationsIndexRoute: AuthenticatedAutomationsIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
@@ -1260,6 +1369,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNotifyGroupsIndexRoute: AuthenticatedNotifyGroupsIndexRoute,
   AuthenticatedRemoteAgentsIndexRoute: AuthenticatedRemoteAgentsIndexRoute,
   AuthenticatedSessionsIndexRoute: AuthenticatedSessionsIndexRoute,
+  AuthenticatedTelegramChannelsIndexRoute:
+    AuthenticatedTelegramChannelsIndexRoute,
   AuthenticatedAgentsNameEditRoute: AuthenticatedAgentsNameEditRoute,
   AuthenticatedAutomationsNameEditRoute: AuthenticatedAutomationsNameEditRoute,
   AuthenticatedChannelsNameEditRoute: AuthenticatedChannelsNameEditRoute,
@@ -1273,6 +1384,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRemoteAgentsIdEditRoute: AuthenticatedRemoteAgentsIdEditRoute,
   AuthenticatedAutomationsNameIndexRoute:
     AuthenticatedAutomationsNameIndexRoute,
+  AuthenticatedTelegramChannelsIdIndexRoute:
+    AuthenticatedTelegramChannelsIdIndexRoute,
+  AuthenticatedTelegramChannelsIdDestinationsCreateRoute:
+    AuthenticatedTelegramChannelsIdDestinationsCreateRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

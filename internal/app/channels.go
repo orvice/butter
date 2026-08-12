@@ -37,6 +37,9 @@ import (
 	forummongo "go.orx.me/apps/butter/internal/repo/forum/mongo"
 	githostrepo "go.orx.me/apps/butter/internal/repo/githost"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
+	cryptokeyrepo "go.orx.me/apps/butter/internal/repo/cryptokey"
+	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
+	cryptokeymongo "go.orx.me/apps/butter/internal/repo/cryptokey/mongo"
 	githostmongo "go.orx.me/apps/butter/internal/repo/githost/mongo"
 	"go.orx.me/apps/butter/internal/repo/inputpart"
 	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
@@ -53,6 +56,9 @@ import (
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
+	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
+	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
+	telegrammongo "go.orx.me/apps/butter/internal/repo/telegram/mongo"
 	"go.orx.me/apps/butter/internal/repo/repocache"
 	repocachememory "go.orx.me/apps/butter/internal/repo/repocache/memory"
 	repocachemongo "go.orx.me/apps/butter/internal/repo/repocache/mongo"
@@ -101,6 +107,8 @@ type BootstrapResult struct {
 	AgentFileMaxBytes     int64
 	GitHostRepo           githostrepo.Repository
 	RepoBindingRepo       repobindingrepo.Repository
+	TelegramRepo          telegramrepo.Repository
+	CryptoKeyRepo         cryptokeyrepo.Repository
 	RepoCacheRepo         repocache.Repository
 	AgentContentRepo      agentcontentrepo.Repository
 	AgentOperationRepo    agentoprepo.Repository
@@ -160,6 +168,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		cacheRepo      repocache.Repository
 		contentRepo    agentcontentrepo.Repository
 		agentOpRepo    agentoprepo.Repository
+		telegramRepo   telegramrepo.Repository
+		cryptoKeyRepo  cryptokeyrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -200,6 +210,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 			return nil, err
 		}
 		agentOpRepo = agentOpMongo
+		telegramRepo = telegrammongo.New(db)
+		cryptoKeyRepo = cryptokeymongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -215,6 +227,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		cacheRepo = repocachememory.New()
 		contentRepo = agentcontentmemory.New()
 		agentOpRepo = agentopmemory.New()
+		telegramRepo = telegrammemory.New()
+		cryptoKeyRepo = cryptokeymemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -262,6 +276,18 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := contentRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create Agent Content snapshot indexes", "err", err)
+		return nil, err
+	}
+	// The Telegram indexes are the enforcement point for global Bot
+	// uniqueness and exact-address uniqueness, so a failure here is fatal
+	// rather than a warning: without them concurrent creates would silently
+	// register two Channels for one Bot.
+	if err := telegramRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create telegram indexes", "err", err)
+		return nil, err
+	}
+	if err := cryptoKeyRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create crypto key indexes", "err", err)
 		return nil, err
 	}
 	if err := applyActiveContent(ctx, cfg.Agents, bindingRepo, contentRepo); err != nil {
@@ -421,6 +447,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		AgentFileRepo:         fileRepo,
 		GitHostRepo:           gitHostRepo,
 		RepoBindingRepo:       bindingRepo,
+		TelegramRepo:          telegramRepo,
+		CryptoKeyRepo:         cryptoKeyRepo,
 		RepoCacheRepo:         cacheRepo,
 		AgentContentRepo:      contentRepo,
 		AgentOperationRepo:    agentOpRepo,

@@ -21,6 +21,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/service"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
@@ -50,6 +51,8 @@ type Handlers struct {
 	workspaceSvcServer     *application.WorkspaceServiceServer
 	gitHostSvcServer       *application.GitHostServiceServer
 	repoBindingSvcServer   *application.RepoBindingServiceServer
+	tgChannelSvcServer     *application.TelegramChannelServiceServer
+	tgDestinationSvcServer *application.TelegramDestinationServiceServer
 	workspaceMCPSvc        *workspacemcp.Service
 	authRepo               atomic.Value // auth.Repository
 	apiTokenRepo           atomic.Value // apitoken.Repository
@@ -295,6 +298,26 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if h.gitHostSvcServer != nil && result.GitHostRepo != nil {
 		h.gitHostSvcServer.SetRepo(result.GitHostRepo)
 	}
+	// Telegram Channels/Destinations (issue #264). The keyring is shared by
+	// both services so a Bot Token encrypted by one is readable by the other.
+	if result.TelegramRepo != nil {
+		keyring := secretbox.NewKeyring(result.CryptoKeyRepo)
+		if h.tgChannelSvcServer != nil {
+			h.tgChannelSvcServer.SetRepo(result.TelegramRepo)
+			h.tgChannelSvcServer.SetKeyring(keyring)
+		}
+		if h.tgDestinationSvcServer != nil {
+			h.tgDestinationSvcServer.SetRepo(result.TelegramRepo)
+		}
+	}
+	if result.WorkspaceRepo != nil {
+		if h.tgChannelSvcServer != nil {
+			h.tgChannelSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
+		if h.tgDestinationSvcServer != nil {
+			h.tgDestinationSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
+	}
 	if h.repoBindingSvcServer != nil && result.RepoBindingRepo != nil && result.GitHostRepo != nil {
 		h.repoBindingSvcServer.SetRepos(result.RepoBindingRepo, result.GitHostRepo)
 	}
@@ -455,6 +478,11 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	})
 	repoBindingSvcServer.SetWebhookBaseURL(func() string { return cfg.Git.WebhookBaseURL })
 	repoBindingConnectPath, repoBindingConnectHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(repoBindingSvcServer, connectOpts...)
+	tgChannelSvcServer := application.NewTelegramChannelServiceServer(nil)
+	tgChannelConnectPath, tgChannelConnectHandler := agentsv1connect.NewTelegramChannelServiceHandler(tgChannelSvcServer, connectOpts...)
+	tgDestinationSvcServer := application.NewTelegramDestinationServiceServer(nil)
+	tgDestinationSvcServer.SetConfigRepos(configStore, configStore)
+	tgDestinationConnectPath, tgDestinationConnectHandler := agentsv1connect.NewTelegramDestinationServiceHandler(tgDestinationSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -480,6 +508,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		workspaceSvcServer:     workspaceSvcServer,
 		gitHostSvcServer:       gitHostSvcServer,
 		repoBindingSvcServer:   repoBindingSvcServer,
+		tgChannelSvcServer:     tgChannelSvcServer,
+		tgDestinationSvcServer: tgDestinationSvcServer,
 		workspaceMCPSvc:        workspaceMCPSvc,
 		configStore:            configStore,
 		configRuntime:          configRuntime,
@@ -546,6 +576,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
 		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
+		r.Any("/api"+tgChannelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgChannelConnectHandler)))
+		r.Any("/api"+tgDestinationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgDestinationConnectHandler)))
 
 		webhookHandler := httpHandler.NewWebhookHandler(repoBindingSvcServer)
 		r.POST("/api/webhooks/repository/:workspace_id", webhookHandler.Handle)
