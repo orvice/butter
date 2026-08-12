@@ -27,6 +27,13 @@ func validateModelProviderBaseURL(mp *agentsv1.ModelProvider) error {
 type ModelProviderServiceServer struct {
 	repo    configrepo.ModelProviderRepository
 	runtime ConfigRuntime
+	// telegramGuard blocks removing a model a Telegram Destination routes to.
+	telegramGuard *TelegramReferenceGuard
+}
+
+// SetTelegramGuard wires the Telegram reference guard after bootstrap.
+func (s *ModelProviderServiceServer) SetTelegramGuard(guard *TelegramReferenceGuard) {
+	s.telegramGuard = guard
 }
 
 func NewModelProviderServiceServer(repo configrepo.ModelProviderRepository) *ModelProviderServiceServer {
@@ -106,6 +113,12 @@ func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, re
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	// Dropping a model from a provider breaks a Destination that references
+	// it just as surely as deleting the provider would (#264).
+	if err := s.telegramGuard.CheckModelsRemovable(ctx, wsID,
+		RemovedAliases(prev, req.Msg.GetModelProvider())); err != nil {
+		return nil, err
+	}
 	logger.Info("updating model provider", "workspace_id", wsID, "name", req.Msg.GetModelProvider().GetName())
 
 	provider, err := mutateWithRuntime(
@@ -139,6 +152,11 @@ func (s *ModelProviderServiceServer) DeleteModelProvider(ctx context.Context, re
 	prev, err := s.repo.GetModelProvider(ctx, wsID, req.Msg.GetName())
 	if err != nil {
 		return nil, toConnectError(err)
+	}
+	// Every alias this provider exposes disappears with it; a Destination
+	// that references one would be left pointing at nothing (#264).
+	if err := s.telegramGuard.CheckModelsRemovable(ctx, wsID, ModelAliasesOf(prev)); err != nil {
+		return nil, err
 	}
 	logger.Info("deleting model provider", "workspace_id", wsID, "name", req.Msg.GetName())
 

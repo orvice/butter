@@ -68,20 +68,48 @@ type Interaction struct {
 	ReplyToMessageID string
 	// DebugDefault carries the Destination's debug preference.
 	DebugDefault bool
+	// Debug is the effective debug state after any stored toggle.
+	Debug bool
+	// StaleSelection reports that a stored Agent or Model choice is no longer
+	// allowed and was dropped, so the caller can clear it.
+	StaleSelection bool
+	// PreferenceKey addresses this subject's stored selection.
+	PreferenceKey string
+	// CallbackID and CallbackData are set when the update is an inline
+	// keyboard press rather than a message.
+	CallbackID   string
+	CallbackData string
 }
 
 // DecideInteraction applies the Destination policy to one accepted update.
 //
-// It is a pure function of the event, the current Destination, and the Bot
-// identity, which is what makes the whole admission/trigger/session surface
-// testable without Redis, Mongo, or a live Bot.
-func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestination, botUsername string) Interaction {
+// It is a pure function of the event, the current Destination, the Bot
+// identity, and any stored selection, which is what makes the whole
+// admission/trigger/selection/session surface testable without Redis, Mongo,
+// or a live Bot.
+func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestination, botUsername string, stored Preferences) Interaction {
 	update, err := telegramapi.ParseUpdate(event.Update)
 	if err != nil {
 		return Interaction{Ignore: IgnoreUnsupportedUpdate}
 	}
 	msg, ok := update.RoutableMessage()
-	if !ok || !isUserInput(update, msg) {
+	if !ok {
+		return Interaction{Ignore: IgnoreUnsupportedUpdate}
+	}
+	// An inline keyboard press carries the Bot's own message as context, so
+	// the sender is the callback's `from`, not the message's.
+	if update.CallbackQuery != nil {
+		if update.CallbackQuery.From == nil || update.CallbackQuery.From.IsBot {
+			return Interaction{Ignore: IgnoreUnsupportedUpdate}
+		}
+		msg = &telegramapi.Message_{
+			MessageID:       msg.MessageID,
+			MessageThreadID: msg.MessageThreadID,
+			IsTopicMessage:  msg.IsTopicMessage,
+			Chat:            msg.Chat,
+			From:            update.CallbackQuery.From,
+		}
+	} else if !isUserInput(update, msg) {
 		return Interaction{Ignore: IgnoreUnsupportedUpdate}
 	}
 
@@ -115,8 +143,12 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 	}
 
 	text, entities := messageTextAndEntities(msg)
+	// A button press is an explicit invocation, so trigger mode does not
+	// apply: requiring a mention to press a button the bot itself rendered
+	// would make its own keyboards unusable.
+	isCallback := update.CallbackQuery != nil
 	mentioned := mentionsBot(msg, botUsername)
-	if !triggered(config.GetTriggerMode(), mentioned, isCommand, msg) {
+	if !isCallback && !triggered(config.GetTriggerMode(), mentioned, isCommand, msg) {
 		return Interaction{Ignore: IgnoreNotTriggered}
 	}
 
@@ -129,7 +161,15 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 		UserID:       userID,
 		MessageID:    telegramapi.FormatID(msg.MessageID),
 		DebugDefault: config.GetDebugDefault(),
+		Debug:        config.GetDebugDefault(),
 		Text:         text,
+	}
+	if stored.Debug != nil {
+		interaction.Debug = *stored.Debug
+	}
+	if isCallback {
+		interaction.CallbackID = update.CallbackQuery.ID
+		interaction.CallbackData = update.CallbackQuery.Data
 	}
 	if isRecognizedCommand(command) {
 		interaction.Command = command
@@ -140,17 +180,23 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 		interaction.Text = strings.TrimSpace(text)
 	}
 
-	interaction.AgentID = config.GetAgentId()
-	interaction.Model = config.GetModel()
+	// A stored selection only applies while current configuration still
+	// allows it; anything else falls back to the Destination default.
+	effective := ResolveEffective(config, stored)
+	interaction.AgentID = effective.AgentID
+	interaction.Model = effective.Model
+	interaction.StaleSelection = effective.StaleAgent || effective.StaleModel
 	interaction.SessionSubject = sessionSubject(config.GetSessionPolicy(), dest.GetId(), userID)
 	interaction.SessionID = SessionID(dest.GetChannelId(), dest.GetId(),
 		interaction.SessionSubject, interaction.AgentID)
+	interaction.PreferenceKey = PreferenceKey(dest.GetId(), interaction.SessionSubject)
 
 	if config.GetReplyMode() == agentsv1.TelegramReplyMode_TELEGRAM_REPLY_MODE_REPLY {
 		interaction.ReplyToMessageID = interaction.MessageID
 	}
 
-	if interaction.Command == "" && interaction.Text == "" && len(msg.Photo) == 0 {
+	if interaction.Command == "" && interaction.Text == "" &&
+		interaction.CallbackData == "" && len(msg.Photo) == 0 {
 		return Interaction{Ignore: IgnoreEmpty}
 	}
 	return interaction

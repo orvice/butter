@@ -59,7 +59,7 @@ func (f *fakeWorkspaceSessionStore) addSession(wsID string, sess session.Session
 // fakeWSSession implements session.Session with workspace identity.
 type fakeWSSession struct {
 	id, appName, userID, wsID, title string
-	lastUpdate                        time.Time
+	lastUpdate                       time.Time
 }
 
 func (s *fakeWSSession) ID() string                { return s.id }

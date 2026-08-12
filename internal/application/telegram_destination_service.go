@@ -36,6 +36,15 @@ type TelegramDestinationServiceServer struct {
 	notifyRepo configrepo.NotifyGroupRepository
 	cronRepo   CronJobLister
 	sender     *telegramsend.Sender
+	// prefs clears runtime selections when a Destination stops accepting
+	// input, so a re-enabled address does not resume a stale choice.
+	prefs TelegramPreferenceCleaner
+}
+
+// TelegramPreferenceCleaner removes stored runtime selections. Declared here
+// so the application layer does not depend on the Telegram runtime package.
+type TelegramPreferenceCleaner interface {
+	DeletePrefix(ctx context.Context, prefix string) error
 }
 
 // CronJobLister is the slice of the cron job repository the deletion guard
@@ -69,6 +78,29 @@ func (s *TelegramDestinationServiceServer) SetReferenceRepos(notify configrepo.N
 
 func (s *TelegramDestinationServiceServer) SetSender(sender *telegramsend.Sender) {
 	s.sender = sender
+}
+
+// SetPreferenceCleaner wires runtime selection cleanup.
+func (s *TelegramDestinationServiceServer) SetPreferenceCleaner(cleaner TelegramPreferenceCleaner) {
+	s.prefs = cleaner
+}
+
+// clearRuntimeSelections drops a Destination's stored Agent/Model/debug
+// choices. It never fails the caller's operation: leftover preference keys
+// are debris, and they are ignored anyway once the Destination is gone.
+func (s *TelegramDestinationServiceServer) clearRuntimeSelections(ctx context.Context, destinationID string) {
+	if s.prefs == nil {
+		return
+	}
+	if err := s.prefs.DeletePrefix(ctx, telegramPreferencePrefix(destinationID)); err != nil {
+		log.FromContext(ctx).Warn("could not clear telegram runtime selections",
+			"destination_id", destinationID, "err", err)
+	}
+}
+
+// telegramPreferencePrefix mirrors the runtime's key layout.
+func telegramPreferencePrefix(destinationID string) string {
+	return "butter:telegram:prefs:" + destinationID + ":"
 }
 
 func (s *TelegramDestinationServiceServer) requireReady() error {
@@ -244,6 +276,11 @@ func (s *TelegramDestinationServiceServer) UpdateTelegramDestination(ctx context
 	if err != nil {
 		return nil, mapTelegramRepoErr(err)
 	}
+	// Disabling inbound ends the conversations that produced the selections;
+	// keeping them would resume a stale choice if the address is re-enabled.
+	if current.GetInboundEnabled() && !updated.GetInboundEnabled() {
+		s.clearRuntimeSelections(ctx, updated.GetId())
+	}
 	log.FromContext(ctx).Info("telegram destination updated",
 		"workspace_id", workspaceID, "destination_id", updated.GetId(), "revision", updated.GetRevision())
 	return connect.NewResponse(&agentsv1.UpdateTelegramDestinationResponse{Destination: updated}), nil
@@ -315,6 +352,7 @@ func (s *TelegramDestinationServiceServer) DeleteTelegramDestination(ctx context
 	if err := s.repo.DeleteDestination(ctx, workspaceID, req.Msg.GetId()); err != nil {
 		return nil, mapTelegramRepoErr(err)
 	}
+	s.clearRuntimeSelections(ctx, req.Msg.GetId())
 	log.FromContext(ctx).Info("telegram destination deleted",
 		"workspace_id", workspaceID, "destination_id", req.Msg.GetId())
 	return connect.NewResponse(&agentsv1.DeleteTelegramDestinationResponse{}), nil

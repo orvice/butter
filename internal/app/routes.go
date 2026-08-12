@@ -380,9 +380,20 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.tgDestinationSvcServer.SetRepo(result.TelegramRepo)
 			h.tgDestinationSvcServer.SetSender(sender)
 			h.tgDestinationSvcServer.SetReferenceRepos(h.notifyGroupRepo, result.CronJobRepo)
+			if store := telegramruntime.NewRedisPreferenceStore(result.Redis); store != nil {
+				h.tgDestinationSvcServer.SetPreferenceCleaner(store)
+			}
 		}
 		if h.notifyGroupSvcServer != nil {
 			h.notifyGroupSvcServer.SetTelegramRepo(result.TelegramRepo)
+		}
+		// Telegram Destinations hold strong references to Agents and Models;
+		// the guard turns "the topic silently stopped working" into a
+		// deliberate decision at delete time (#264).
+		guard := application.NewTelegramReferenceGuard(result.TelegramRepo)
+		h.agentSvcServer.SetTelegramGuard(guard)
+		if h.modelProviderSvcServer != nil {
+			h.modelProviderSvcServer.SetTelegramGuard(guard)
 		}
 		if h.tgAdminSvcServer != nil && result.TelegramSettingRepo != nil {
 			h.tgAdminSvcServer.SetRepo(result.TelegramSettingRepo)
@@ -417,6 +428,10 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 				if result.SessionSvc != nil {
 					orchestrator.SetSessionClearer(result.SessionSvc)
 				}
+				// Selections live in Redis rather than process memory: any Pod
+				// may handle the next message for the same destination, and a
+				// choice must outlive a restart.
+				orchestrator.SetPreferenceStore(telegramruntime.NewRedisPreferenceStore(result.Redis))
 				interactions = orchestrator
 			}
 			h.tgWorker = telegramruntime.NewWorker(queue,

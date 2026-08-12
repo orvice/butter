@@ -63,7 +63,7 @@ func message(from string, text string, extra string) string {
 const realUser = `{"id":7,"is_bot":false,"username":"ops"}`
 
 func TestPlainMessageInvokesTheDestinationAgent(t *testing.T) {
-	decision := DecideInteraction(eventFor(message(realUser, "hello", "")), destination(nil), botUsername)
+	decision := DecideInteraction(eventFor(message(realUser, "hello", "")), destination(nil), botUsername, Preferences{})
 
 	if decision.Ignore != IgnoreNone {
 		t.Fatalf("ignored: %s", decision.Ignore)
@@ -142,7 +142,7 @@ func TestIgnoredUpdateShapes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			decision := DecideInteraction(eventFor(tc.raw), destination(nil), botUsername)
+			decision := DecideInteraction(eventFor(tc.raw), destination(nil), botUsername, Preferences{})
 			if decision.Ignore == IgnoreNone {
 				t.Fatalf("expected the update to be ignored, got %+v", decision)
 			}
@@ -168,7 +168,7 @@ func TestUnavailableDestinationDoesNotInvokeTheAgent(t *testing.T) {
 			} else {
 				tc.mutate(dest)
 			}
-			decision := DecideInteraction(eventFor(message(realUser, "hello", "")), dest, botUsername)
+			decision := DecideInteraction(eventFor(message(realUser, "hello", "")), dest, botUsername, Preferences{})
 			if decision.Ignore != IgnoreDestinationUnavailable {
 				t.Fatalf("ignore = %q, want destination_unavailable", decision.Ignore)
 			}
@@ -183,11 +183,11 @@ func TestAllowedUserIDsGateOrdinaryAccess(t *testing.T) {
 		c.AllowedUserIds = []string{"10", "20"}
 	})
 
-	if got := DecideInteraction(eventFor(message(realUser, "hi", "")), dest, botUsername); got.Ignore != IgnoreNotAdmitted {
+	if got := DecideInteraction(eventFor(message(realUser, "hi", "")), dest, botUsername, Preferences{}); got.Ignore != IgnoreNotAdmitted {
 		t.Fatalf("ignore = %q, want not_admitted", got.Ignore)
 	}
 	admitted := `{"id":10,"is_bot":false}`
-	if got := DecideInteraction(eventFor(message(admitted, "hi", "")), dest, botUsername); got.Ignore != IgnoreNone {
+	if got := DecideInteraction(eventFor(message(admitted, "hi", "")), dest, botUsername, Preferences{}); got.Ignore != IgnoreNone {
 		t.Fatalf("an allowed user was rejected: %q", got.Ignore)
 	}
 }
@@ -195,7 +195,7 @@ func TestAllowedUserIDsGateOrdinaryAccess(t *testing.T) {
 // An empty allow-list admits every real user, so an open topic needs no
 // enumerated membership.
 func TestEmptyAllowListAdmitsEveryRealUser(t *testing.T) {
-	decision := DecideInteraction(eventFor(message(realUser, "hi", "")), destination(nil), botUsername)
+	decision := DecideInteraction(eventFor(message(realUser, "hi", "")), destination(nil), botUsername, Preferences{})
 	if decision.Ignore != IgnoreNone {
 		t.Fatalf("ignore = %q", decision.Ignore)
 	}
@@ -211,7 +211,7 @@ func TestControllersMustAlsoBeAdmitted(t *testing.T) {
 
 	decision := DecideInteraction(
 		eventFor(message(realUser, "/clear", `"entities":[{"type":"bot_command","offset":0,"length":6}]`)),
-		dest, botUsername)
+		dest, botUsername, Preferences{})
 	if decision.Ignore != IgnoreNotAdmitted {
 		t.Fatalf("ignore = %q, want not_admitted", decision.Ignore)
 	}
@@ -224,7 +224,7 @@ func TestControllerIsRecognized(t *testing.T) {
 
 	decision := DecideInteraction(
 		eventFor(message(realUser, "/clear", `"entities":[{"type":"bot_command","offset":0,"length":6}]`)),
-		dest, botUsername)
+		dest, botUsername, Preferences{})
 	if !decision.IsController {
 		t.Fatal("expected the sender to be recognized as a controller")
 	}
@@ -257,7 +257,7 @@ func TestTriggerModes(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			dest := destination(func(c *agentsv1.TelegramDestinationConfig) { c.TriggerMode = tc.mode })
-			got := DecideInteraction(eventFor(tc.raw), dest, botUsername)
+			got := DecideInteraction(eventFor(tc.raw), dest, botUsername, Preferences{})
 			if got.Ignore != tc.expected {
 				t.Fatalf("ignore = %q, want %q", got.Ignore, tc.expected)
 			}
@@ -272,7 +272,7 @@ func TestMentionMatchesTheCurrentBotOnly(t *testing.T) {
 	})
 	raw := message(realUser, "@opsbot2 hello", `"entities":[{"type":"mention","offset":0,"length":8}]`)
 
-	if got := DecideInteraction(eventFor(raw), dest, botUsername); got.Ignore != IgnoreNotTriggered {
+	if got := DecideInteraction(eventFor(raw), dest, botUsername, Preferences{}); got.Ignore != IgnoreNotTriggered {
 		t.Fatalf("ignore = %q, want not_triggered", got.Ignore)
 	}
 }
@@ -295,7 +295,7 @@ func TestOurMentionIsStrippedButOthersRemain(t *testing.T) {
 	raw := message(realUser, "@opsbot please ping @alice",
 		`"entities":[{"type":"mention","offset":0,"length":7},{"type":"mention","offset":20,"length":6}]`)
 
-	decision := DecideInteraction(eventFor(raw), destination(nil), botUsername)
+	decision := DecideInteraction(eventFor(raw), destination(nil), botUsername, Preferences{})
 	if decision.Text != "please ping @alice" {
 		t.Fatalf("text = %q", decision.Text)
 	}
@@ -337,7 +337,7 @@ func TestCaptionMentionStrippingUsesUTF16EntityCoordinates(t *testing.T) {
 func TestUnrecognizedCommandsReachTheAgent(t *testing.T) {
 	raw := message(realUser, "/deploy staging", `"entities":[{"type":"bot_command","offset":0,"length":7}]`)
 
-	decision := DecideInteraction(eventFor(raw), destination(nil), botUsername)
+	decision := DecideInteraction(eventFor(raw), destination(nil), botUsername, Preferences{})
 	if decision.Command != "" {
 		t.Fatalf("command = %q, want the runtime to leave it to the agent", decision.Command)
 	}
@@ -349,7 +349,7 @@ func TestUnrecognizedCommandsReachTheAgent(t *testing.T) {
 func TestCommandsAddressedToAnotherBotAreIgnored(t *testing.T) {
 	raw := message(realUser, "/status@otherbot", `"entities":[{"type":"bot_command","offset":0,"length":16}]`)
 
-	if got := DecideInteraction(eventFor(raw), destination(nil), botUsername); got.Ignore != IgnoreUnsupportedUpdate {
+	if got := DecideInteraction(eventFor(raw), destination(nil), botUsername, Preferences{}); got.Ignore != IgnoreUnsupportedUpdate {
 		t.Fatalf("ignore = %q", got.Ignore)
 	}
 }
@@ -357,7 +357,7 @@ func TestCommandsAddressedToAnotherBotAreIgnored(t *testing.T) {
 func TestCommandsAddressedToUsAreRecognized(t *testing.T) {
 	raw := message(realUser, "/status@opsbot", `"entities":[{"type":"bot_command","offset":0,"length":14}]`)
 
-	decision := DecideInteraction(eventFor(raw), destination(nil), botUsername)
+	decision := DecideInteraction(eventFor(raw), destination(nil), botUsername, Preferences{})
 	if decision.Command != "status" {
 		t.Fatalf("command = %q", decision.Command)
 	}
@@ -367,11 +367,11 @@ func TestCommandsAddressedToUsAreRecognized(t *testing.T) {
 
 // Two topics under one Bot must never share history.
 func TestSessionsAreIsolatedPerDestination(t *testing.T) {
-	first := DecideInteraction(eventFor(message(realUser, "hi", "")), destination(nil), botUsername)
+	first := DecideInteraction(eventFor(message(realUser, "hi", "")), destination(nil), botUsername, Preferences{})
 
 	other := destination(nil)
 	other.Id = "dest-2"
-	second := DecideInteraction(eventFor(message(realUser, "hi", "")), other, botUsername)
+	second := DecideInteraction(eventFor(message(realUser, "hi", "")), other, botUsername, Preferences{})
 
 	if first.SessionID == second.SessionID {
 		t.Fatalf("two destinations shared session %q", first.SessionID)
@@ -380,9 +380,10 @@ func TestSessionsAreIsolatedPerDestination(t *testing.T) {
 
 // Switching Agents must not let one inherit the other's conversation.
 func TestSessionsAreIsolatedPerAgent(t *testing.T) {
-	first := DecideInteraction(eventFor(message(realUser, "hi", "")), destination(nil), botUsername)
+	first := DecideInteraction(eventFor(message(realUser, "hi", "")), destination(nil), botUsername, Preferences{})
 	second := DecideInteraction(eventFor(message(realUser, "hi", "")),
-		destination(func(c *agentsv1.TelegramDestinationConfig) { c.AgentId = "research" }), botUsername)
+		destination(func(c *agentsv1.TelegramDestinationConfig) { c.AgentId = "research" }),
+		botUsername, Preferences{})
 
 	if first.SessionID == second.SessionID {
 		t.Fatalf("two agents shared session %q", first.SessionID)
@@ -390,7 +391,7 @@ func TestSessionsAreIsolatedPerAgent(t *testing.T) {
 }
 
 func TestSessionPolicySelectsTheSubject(t *testing.T) {
-	shared := DecideInteraction(eventFor(message(realUser, "hi", "")), destination(nil), botUsername)
+	shared := DecideInteraction(eventFor(message(realUser, "hi", "")), destination(nil), botUsername, Preferences{})
 	if !strings.Contains(shared.SessionID, "ddest-1") {
 		t.Errorf("DESTINATION policy session = %q, want it keyed by destination", shared.SessionID)
 	}
@@ -398,8 +399,8 @@ func TestSessionPolicySelectsTheSubject(t *testing.T) {
 	perUser := destination(func(c *agentsv1.TelegramDestinationConfig) {
 		c.SessionPolicy = agentsv1.TelegramSessionPolicy_TELEGRAM_SESSION_POLICY_USER
 	})
-	first := DecideInteraction(eventFor(message(realUser, "hi", "")), perUser, botUsername)
-	second := DecideInteraction(eventFor(message(`{"id":11,"is_bot":false}`, "hi", "")), perUser, botUsername)
+	first := DecideInteraction(eventFor(message(realUser, "hi", "")), perUser, botUsername, Preferences{})
+	second := DecideInteraction(eventFor(message(`{"id":11,"is_bot":false}`, "hi", "")), perUser, botUsername, Preferences{})
 	if first.SessionID == second.SessionID {
 		t.Fatalf("USER policy shared session %q between users", first.SessionID)
 	}
@@ -414,7 +415,7 @@ func TestReplyModeIsIndependentOfTopicTargeting(t *testing.T) {
 		c.ReplyMode = agentsv1.TelegramReplyMode_TELEGRAM_REPLY_MODE_NEW_MESSAGE
 	})
 
-	decision := DecideInteraction(eventFor(message(realUser, "hi", "")), dest, botUsername)
+	decision := DecideInteraction(eventFor(message(realUser, "hi", "")), dest, botUsername, Preferences{})
 	if decision.ReplyToMessageID != "" {
 		t.Errorf("NEW_MESSAGE must not quote, got reply_to %q", decision.ReplyToMessageID)
 	}
@@ -426,7 +427,7 @@ func TestReplyModeIsIndependentOfTopicTargeting(t *testing.T) {
 }
 
 func TestEmptyMessagesProduceNoInteraction(t *testing.T) {
-	decision := DecideInteraction(eventFor(message(realUser, "   ", "")), destination(nil), botUsername)
+	decision := DecideInteraction(eventFor(message(realUser, "   ", "")), destination(nil), botUsername, Preferences{})
 	if decision.Ignore != IgnoreEmpty && decision.Ignore != IgnoreNotTriggered {
 		t.Fatalf("ignore = %q, want the empty message to be dropped", decision.Ignore)
 	}

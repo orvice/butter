@@ -128,7 +128,7 @@ func TestStreamAgent_PartsTextAndImageReachRunner(t *testing.T) {
 
 	imgData := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3}
 	final, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "vision-agent",
+		AgentId: "vision-agent",
 		Parts: []*agentsv1.InputPart{
 			textInput("what is in this picture?"),
 			imageInput("image/png", imgData),
@@ -163,8 +163,8 @@ func TestStreamAgent_MessageOnlyBackwardCompat(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	final, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "chat-agent",
-		Message:   "hi there",
+		AgentId: "chat-agent",
+		Message: "hi there",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -182,9 +182,9 @@ func TestStreamAgent_PartsTakePriorityOverMessage(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "chat-agent",
-		Message:   "ignored legacy text",
-		Parts:     []*agentsv1.InputPart{textInput("from parts")},
+		AgentId: "chat-agent",
+		Message: "ignored legacy text",
+		Parts:   []*agentsv1.InputPart{textInput("from parts")},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -199,8 +199,8 @@ func TestStreamAgent_ImageOnlyPartsAccepted(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	final, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "vision-agent",
-		Parts:     []*agentsv1.InputPart{imageInput("image/jpeg", []byte{0xff, 0xd8, 0xff})},
+		AgentId: "vision-agent",
+		Parts:   []*agentsv1.InputPart{imageInput("image/jpeg", []byte{0xff, 0xd8, 0xff})},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -229,8 +229,8 @@ func TestStreamAgent_UnsupportedMimeTypeRejected(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "vision-agent",
-		Parts:     []*agentsv1.InputPart{imageInput("application/pdf", []byte("%PDF-1.7"))},
+		AgentId: "vision-agent",
+		Parts:   []*agentsv1.InputPart{imageInput("application/pdf", []byte("%PDF-1.7"))},
 	})
 	assertInvalidArgument(t, err)
 	if fake.gotParts != nil {
@@ -244,8 +244,8 @@ func TestStreamAgent_OversizedImageRejected(t *testing.T) {
 
 	oversized := make([]byte, 10<<20+1)
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "vision-agent",
-		Parts:     []*agentsv1.InputPart{imageInput("image/png", oversized)},
+		AgentId: "vision-agent",
+		Parts:   []*agentsv1.InputPart{imageInput("image/png", oversized)},
 	})
 	assertInvalidArgument(t, err)
 	if fake.gotParts != nil {
@@ -260,7 +260,7 @@ func TestStreamAgent_TotalPayloadOverLimitRejected(t *testing.T) {
 	// Three 7 MiB images: each under the 10 MiB per-image cap, 21 MiB total.
 	img := make([]byte, 7<<20)
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "vision-agent",
+		AgentId: "vision-agent",
 		Parts: []*agentsv1.InputPart{
 			imageInput("image/png", img),
 			imageInput("image/png", img),
@@ -282,8 +282,8 @@ func TestStreamAgent_TooManyImagesRejected(t *testing.T) {
 		parts = append(parts, imageInput("image/png", []byte{1}))
 	}
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "vision-agent",
-		Parts:     parts,
+		AgentId: "vision-agent",
+		Parts:   parts,
 	})
 	assertInvalidArgument(t, err)
 	if fake.gotParts != nil {
@@ -296,7 +296,7 @@ func TestStreamAgent_EmptyPartsAndMessageRejected(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "chat-agent",
+		AgentId: "chat-agent",
 	})
 	assertInvalidArgument(t, err)
 }
@@ -309,8 +309,8 @@ func TestStreamAgent_OversizedTextPartRejected(t *testing.T) {
 	// `parts` cannot bypass the text input limit.
 	huge := strings.Repeat("a", 1<<20+1)
 	_, err := runStreamAgent(t, client, &agentsv1.StreamAgentRequest{
-		AgentId:   "chat-agent",
-		Parts:     []*agentsv1.InputPart{textInput(huge)},
+		AgentId: "chat-agent",
+		Parts:   []*agentsv1.InputPart{textInput(huge)},
 	})
 	assertInvalidArgument(t, err)
 	if fake.gotParts != nil {
@@ -334,8 +334,8 @@ func TestStreamAgent_EventsStreamAsTextDeltaAndRunEventFrames(t *testing.T) {
 	client := newStreamAgentTestClient(t, fake)
 
 	stream, err := client.StreamAgent(context.Background(), connect.NewRequest(&agentsv1.StreamAgentRequest{
-		AgentId:   "chat-agent",
-		Message:   "hi",
+		AgentId: "chat-agent",
+		Message: "hi",
 	}))
 	if err != nil {
 		t.Fatal(err)

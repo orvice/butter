@@ -13,6 +13,7 @@ import (
 
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/telegramapi"
 	"go.orx.me/apps/butter/internal/telegramqueue"
 	"go.orx.me/apps/butter/internal/telegramsend"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -49,6 +50,7 @@ type Orchestrator struct {
 	sender  *telegramsend.Sender
 	runner  AgentRunner
 	session SessionClearer
+	prefs   PreferenceStore
 	// appName scopes ADK sessions for the Telegram entry point.
 	appName string
 }
@@ -59,6 +61,11 @@ func NewOrchestrator(repo telegramrepo.Repository, sender *telegramsend.Sender, 
 
 // SetSessionClearer wires `/clear`.
 func (o *Orchestrator) SetSessionClearer(clearer SessionClearer) { o.session = clearer }
+
+// SetPreferenceStore wires persisted Agent/Model selection. Without one,
+// selection commands report that switching is unavailable rather than
+// pretending to take effect for a single message.
+func (o *Orchestrator) SetPreferenceStore(store PreferenceStore) { o.prefs = store }
 
 // Handle implements EventHandler for destination-scoped updates.
 func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) error {
@@ -91,7 +98,20 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		return err
 	}
 
-	decision := DecideInteraction(event, dest, channel.GetBotUsername())
+	// Load the stored selection before deciding, so the effective Agent — and
+	// therefore the session — reflects what a controller last chose.
+	stored := Preferences{}
+	if o.prefs != nil {
+		subject := sessionSubject(dest.GetConfig().GetSessionPolicy(), dest.GetId(),
+			senderOf(event))
+		if loaded, prefErr := o.prefs.Get(ctx, PreferenceKey(dest.GetId(), subject)); prefErr != nil {
+			logger.Warn("could not read telegram preferences", "err", prefErr)
+		} else {
+			stored = loaded
+		}
+	}
+
+	decision := DecideInteraction(event, dest, channel.GetBotUsername(), stored)
 	if decision.Ignore != IgnoreNone {
 		logger.Debug("telegram update produced no interaction", "reason", string(decision.Ignore))
 		return nil
@@ -103,6 +123,17 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 			"accepted_revision", event.DestinationRevision, "current_revision", dest.GetRevision())
 	}
 
+	// A stored choice current configuration no longer allows is cleared, not
+	// merely ignored, so the next turn does not pay to re-discover it.
+	if decision.StaleSelection && o.prefs != nil {
+		if err := o.prefs.Delete(ctx, decision.PreferenceKey); err != nil {
+			logger.Warn("could not clear a stale telegram selection", "err", err)
+		}
+	}
+
+	if decision.CallbackData != "" {
+		return o.handleCallback(ctx, event, dest, decision)
+	}
 	if decision.Command != "" {
 		return o.handleCommand(ctx, event, dest, decision)
 	}
@@ -123,13 +154,16 @@ func (o *Orchestrator) handleCommand(ctx context.Context, event *telegramqueue.E
 			return o.reply(ctx, event, decision,
 				"Only a configured controller can run this command at this destination.")
 		}
-		if decision.Command == "clear" {
+		switch decision.Command {
+		case "clear":
 			return o.clearSession(ctx, event, decision)
+		case "agent":
+			return o.handleAgentCommand(ctx, event, dest, decision)
+		case "model":
+			return o.handleModelCommand(ctx, event, dest, decision)
+		default:
+			return o.handleDebugCommand(ctx, event, decision)
 		}
-		// `/debug`, `/agent`, and `/model` gain behavior in a later ticket;
-		// answering explicitly beats silently ignoring a controller.
-		return o.reply(ctx, event, decision,
-			fmt.Sprintf("`/%s` is not available yet at this destination.", decision.Command))
 	default:
 		return nil
 	}
@@ -218,4 +252,186 @@ func (o *Orchestrator) reply(ctx context.Context, event *telegramqueue.Event, de
 		return fmt.Errorf("deliver telegram reply: %w", err)
 	}
 	return nil
+}
+
+// --- Selection ---------------------------------------------------------------
+
+// resetArg is the argument that returns a choice to the Destination default.
+const resetArg = "reset"
+
+// handleAgentCommand switches, resets, or lists the selectable Agents.
+//
+// Selection is a controller action because it changes shared routing: in a
+// DESTINATION-policy topic every admitted user's next message goes to the
+// Agent that was chosen.
+func (o *Orchestrator) handleAgentCommand(ctx context.Context, event *telegramqueue.Event, dest *agentsv1.TelegramDestination, decision Interaction) error {
+	config := dest.GetConfig()
+	if !AgentSelectionEnabled(config) {
+		// An empty selectable list locks routing, which is the default.
+		return o.reply(ctx, event, decision,
+			"Agent selection is locked at this destination. Add selectable agents in the dashboard to enable it.")
+	}
+	if o.prefs == nil {
+		return o.reply(ctx, event, decision, "Selection storage is not available.")
+	}
+
+	arg := strings.TrimSpace(decision.CommandArgs)
+	switch {
+	case arg == "":
+		return o.reply(ctx, event, decision, listChoices("agent",
+			config.GetSelectableAgentIds(), decision.AgentID, config.GetAgentId()))
+	case strings.EqualFold(arg, resetArg):
+		return o.applySelection(ctx, event, decision, func(p *Preferences) { p.AgentID = "" },
+			fmt.Sprintf("Agent reset to the destination default (%s).", config.GetAgentId()))
+	case !agentSelectable(config, arg):
+		return o.reply(ctx, event, decision,
+			fmt.Sprintf("%q is not selectable here. Choose one of: %s",
+				arg, strings.Join(config.GetSelectableAgentIds(), ", ")))
+	default:
+		// Switching Agent moves the session, because the session key includes
+		// the effective Agent — that is what keeps histories separate and lets
+		// switching back resume the earlier conversation.
+		return o.applySelection(ctx, event, decision, func(p *Preferences) { p.AgentID = arg },
+			fmt.Sprintf("Agent set to %s. This agent keeps its own conversation history.", arg))
+	}
+}
+
+// handleModelCommand switches, resets, or lists the selectable Models.
+func (o *Orchestrator) handleModelCommand(ctx context.Context, event *telegramqueue.Event, dest *agentsv1.TelegramDestination, decision Interaction) error {
+	config := dest.GetConfig()
+	if !ModelSelectionEnabled(config) {
+		return o.reply(ctx, event, decision,
+			"Model selection is locked at this destination. Add selectable models in the dashboard to enable it.")
+	}
+	if o.prefs == nil {
+		return o.reply(ctx, event, decision, "Selection storage is not available.")
+	}
+
+	arg := strings.TrimSpace(decision.CommandArgs)
+	switch {
+	case arg == "":
+		return o.reply(ctx, event, decision, listChoices("model",
+			config.GetSelectableModels(), decision.Model, config.GetModel()))
+	case strings.EqualFold(arg, resetArg):
+		return o.applySelection(ctx, event, decision, func(p *Preferences) { p.Model = "" },
+			"Model reset to the destination default.")
+	case !modelSelectable(config, arg):
+		return o.reply(ctx, event, decision,
+			fmt.Sprintf("%q is not selectable here. Choose one of: %s",
+				arg, strings.Join(config.GetSelectableModels(), ", ")))
+	default:
+		// A Model switch deliberately does *not* move the session: changing
+		// model should not silently start a new conversation.
+		return o.applySelection(ctx, event, decision, func(p *Preferences) { p.Model = arg },
+			fmt.Sprintf("Model set to %s. The current conversation continues.", arg))
+	}
+}
+
+// handleDebugCommand toggles per-session debug output.
+func (o *Orchestrator) handleDebugCommand(ctx context.Context, event *telegramqueue.Event, decision Interaction) error {
+	if o.prefs == nil {
+		return o.reply(ctx, event, decision, "Selection storage is not available.")
+	}
+	arg := strings.ToLower(strings.TrimSpace(decision.CommandArgs))
+	enabled := !decision.Debug
+	switch arg {
+	case "on":
+		enabled = true
+	case "off":
+		enabled = false
+	case resetArg:
+		return o.applySelection(ctx, event, decision, func(p *Preferences) { p.Debug = nil },
+			"Debug reset to the destination default.")
+	}
+	state := "off"
+	if enabled {
+		state = "on"
+	}
+	return o.applySelection(ctx, event, decision,
+		func(p *Preferences) { p.Debug = &enabled },
+		fmt.Sprintf("Debug output is now %s for this conversation.", state))
+}
+
+// applySelection reads, mutates, and stores the selection, then confirms.
+func (o *Orchestrator) applySelection(ctx context.Context, event *telegramqueue.Event, decision Interaction, mutate func(*Preferences), confirmation string) error {
+	stored, err := o.prefs.Get(ctx, decision.PreferenceKey)
+	if err != nil {
+		return fmt.Errorf("read telegram preferences: %w", err)
+	}
+	mutate(&stored)
+	if err := o.prefs.Put(ctx, decision.PreferenceKey, stored); err != nil {
+		return fmt.Errorf("store telegram preferences: %w", err)
+	}
+	return o.reply(ctx, event, decision, confirmation)
+}
+
+// handleCallback revalidates an inline keyboard press against *current*
+// policy before changing anything.
+//
+// A button rendered minutes ago encodes what was allowed then. Re-checking
+// controller rights and candidate membership is what stops a stale button
+// from switching routing after an operator revoked the permission.
+func (o *Orchestrator) handleCallback(ctx context.Context, event *telegramqueue.Event, dest *agentsv1.TelegramDestination, decision Interaction) error {
+	kind, value, ok := strings.Cut(decision.CallbackData, ":")
+	if !ok {
+		return nil
+	}
+	if !decision.IsController {
+		return o.reply(ctx, event, decision,
+			"Only a configured controller can change this destination's selection.")
+	}
+	config := dest.GetConfig()
+
+	switch kind {
+	case "agent":
+		if !AgentSelectionEnabled(config) || !agentSelectable(config, value) {
+			return o.reply(ctx, event, decision,
+				"That agent is no longer selectable at this destination.")
+		}
+		return o.applySelection(ctx, event, decision, func(p *Preferences) { p.AgentID = value },
+			fmt.Sprintf("Agent set to %s.", value))
+	case "model":
+		if !ModelSelectionEnabled(config) || !modelSelectable(config, value) {
+			return o.reply(ctx, event, decision,
+				"That model is no longer selectable at this destination.")
+		}
+		return o.applySelection(ctx, event, decision, func(p *Preferences) { p.Model = value },
+			fmt.Sprintf("Model set to %s.", value))
+	default:
+		return nil
+	}
+}
+
+// listChoices renders the available options with the current one marked.
+func listChoices(kind string, choices []string, current, fallback string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Selectable %ss:\n", kind)
+	for _, choice := range choices {
+		marker := "  "
+		if choice == current {
+			marker = "* "
+		}
+		fmt.Fprintf(&b, "%s%s\n", marker, choice)
+	}
+	if fallback != "" {
+		fmt.Fprintf(&b, "\nDefault: %s", fallback)
+	}
+	fmt.Fprintf(&b, "\nUse /%s <name> to switch, or /%s reset.", kind, kind)
+	return b.String()
+}
+
+// senderOf extracts the Telegram sender from a queued update so preferences
+// can be read before the full decision is made.
+func senderOf(event *telegramqueue.Event) string {
+	update, err := telegramapi.ParseUpdate(event.Update)
+	if err != nil {
+		return ""
+	}
+	if update.CallbackQuery != nil && update.CallbackQuery.From != nil {
+		return telegramapi.FormatID(update.CallbackQuery.From.ID)
+	}
+	if msg, ok := update.RoutableMessage(); ok && msg.From != nil {
+		return telegramapi.FormatID(msg.From.ID)
+	}
+	return ""
 }

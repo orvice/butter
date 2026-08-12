@@ -80,6 +80,7 @@ type orchestratorFixture struct {
 	bots         *telegramtest.Fake
 	agents       *fakeAgentRunner
 	sessions     *fakeSessionClearer
+	prefs        *MemoryPreferenceStore
 	dest         *agentsv1.TelegramDestination
 }
 
@@ -110,11 +111,13 @@ func newOrchestratorFixture(t *testing.T, mutate func(*agentsv1.TelegramDestinat
 	agents := &fakeAgentRunner{output: "agent reply", known: map[string]string{"support": "Support Agent"}}
 	sessions := &fakeSessionClearer{}
 
+	prefs := NewMemoryPreferenceStore()
 	orchestrator := NewOrchestrator(repo, sender, agents)
 	orchestrator.SetSessionClearer(sessions)
+	orchestrator.SetPreferenceStore(prefs)
 	return &orchestratorFixture{
 		orchestrator: orchestrator, repo: repo, bots: bots,
-		agents: agents, sessions: sessions, dest: stored,
+		agents: agents, sessions: sessions, dest: stored, prefs: prefs,
 	}
 }
 
