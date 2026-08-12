@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"butterfly.orx.me/core/log"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/channel/pipeline"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -64,17 +64,17 @@ func (p *Poller) SendReply(ctx context.Context, msg pipeline.IncomingMessage, te
 }
 
 // SendProcessing sends a "processing" placeholder message and returns its
-// message ID so it can be edited later with the final response.
-func (p *Poller) SendProcessing(ctx context.Context, msg pipeline.IncomingMessage, agentName string) string {
+// message ID so it can be edited later with debug progress and the final response.
+func (p *Poller) SendProcessing(ctx context.Context, msg pipeline.IncomingMessage, agentName string, debug *pipeline.DebugSummary) string {
 	sendCtx := context.WithoutCancel(ctx)
 	logger := log.FromContext(ctx)
 	chatID := parseChatID(msg.ChatID)
 
 	now := time.Now().Format("15:04:05")
-	text := fmt.Sprintf("🤖 *%s*\n⏳ Processing\\.\\.\\.\n\n🕐 `%s`\n💬 `%s`", agentName, now, msg.SessionID)
+	text := formatProcessingMessage(agentName, now, msg.SessionID, debug)
 	params := &bot.SendMessageParams{
 		ChatID:    chatID,
-		Text:      text,
+		Text:      markdownToTelegramMarkdownV2(text),
 		ParseMode: models.ParseModeMarkdown,
 	}
 	if p.channelCfg.GetDelivery().GetReplyMode() == agentsv1.AgentReplyMode_AGENT_REPLY_MODE_REPLY {
@@ -87,7 +87,7 @@ func (p *Poller) SendProcessing(ctx context.Context, msg pipeline.IncomingMessag
 	if err != nil {
 		logger.Warn("failed to send processing message, falling back to plain text",
 			"channel", p.channelName, "chat_id", chatID, "err", err)
-		params.Text = fmt.Sprintf("🤖 %s\n⏳ Processing...\n\n🕐 %s\n💬 %s", agentName, now, msg.SessionID)
+		params.Text = text
 		params.ParseMode = ""
 		sent, err = p.bot.SendMessage(sendCtx, params)
 		if err != nil {
@@ -102,9 +102,22 @@ func (p *Poller) SendProcessing(ctx context.Context, msg pipeline.IncomingMessag
 	return strconv.Itoa(sent.ID)
 }
 
+// EditDebug refreshes the processing message with aggregate counts and only
+// the latest debug-relevant event.
+func (p *Poller) EditDebug(ctx context.Context, msg pipeline.IncomingMessage, messageID string, agentName string, debug pipeline.DebugSummary) {
+	now := time.Now().Format("15:04:05")
+	p.editMessage(ctx, msg, messageID, formatProcessingMessage(agentName, now, msg.SessionID, &debug), "debug")
+}
+
 // EditReply edits a previously sent message with the final agent response,
 // including agent name, timestamp, and session info.
-func (p *Poller) EditReply(ctx context.Context, msg pipeline.IncomingMessage, messageID string, agentName string, text string) {
+func (p *Poller) EditReply(ctx context.Context, msg pipeline.IncomingMessage, messageID string, agentName string, text string, debug *pipeline.DebugSummary) {
+	now := time.Now().Format("15:04:05")
+	fullText := formatFinalMessage(agentName, text, now, msg.SessionID, debug)
+	p.editMessage(ctx, msg, messageID, fullText, "final")
+}
+
+func (p *Poller) editMessage(ctx context.Context, msg pipeline.IncomingMessage, messageID, text, kind string) {
 	sendCtx := context.WithoutCancel(ctx)
 	logger := log.FromContext(ctx)
 	chatID := parseChatID(msg.ChatID)
@@ -112,24 +125,22 @@ func (p *Poller) EditReply(ctx context.Context, msg pipeline.IncomingMessage, me
 	mid, err := strconv.Atoi(messageID)
 	if err != nil {
 		logger.Error("invalid message ID for edit, falling back to send",
-			"channel", p.channelName, "message_id", messageID, "err", err)
-		p.SendReply(ctx, msg, fmt.Sprintf("🤖 *%s*\n\n%s", agentName, text))
+			"channel", p.channelName, "message_id", messageID, "kind", kind, "err", err)
+		p.SendReply(ctx, msg, text)
 		return
 	}
 
-	now := time.Now().Format("15:04:05")
-	fullText := fmt.Sprintf("🤖 *%s*\n\n%s\n\n─────────\n🕐 `%s` · 💬 `%s`", agentName, text, now, msg.SessionID)
 	editParams := &bot.EditMessageTextParams{
 		ChatID:    chatID,
 		MessageID: mid,
-		Text:      markdownToTelegramMarkdownV2(fullText),
+		Text:      markdownToTelegramMarkdownV2(text),
 		ParseMode: models.ParseModeMarkdown,
 	}
 
 	if _, err := p.bot.EditMessageText(sendCtx, editParams); err != nil {
 		logger.Warn("MarkdownV2 edit failed, falling back to plain text",
-			"channel", p.channelName, "chat_id", chatID, "message_id", mid, "err", err)
-		editParams.Text = fmt.Sprintf("🤖 %s\n\n%s\n\n─────────\n🕐 %s · 💬 %s", agentName, text, now, msg.SessionID)
+			"channel", p.channelName, "chat_id", chatID, "message_id", mid, "kind", kind, "err", err)
+		editParams.Text = text
 		editParams.ParseMode = ""
 		if _, err2 := p.bot.EditMessageText(sendCtx, editParams); err2 != nil {
 			logger.Error("failed to edit telegram message",
@@ -139,7 +150,31 @@ func (p *Poller) EditReply(ctx context.Context, msg pipeline.IncomingMessage, me
 
 	logger.Debug("telegram message edited",
 		"channel", p.channelName, "chat_id", chatID,
-		"message_id", mid, "text_len", len(text))
+		"message_id", mid, "kind", kind, "text_len", len(text))
+}
+
+func formatProcessingMessage(agentName, now, sessionID string, debug *pipeline.DebugSummary) string {
+	if debug == nil {
+		return fmt.Sprintf("🤖 *%s*\n⏳ Processing...\n\n🕐 `%s`\n💬 `%s`", agentName, now, sessionID)
+	}
+
+	sections := []string{fmt.Sprintf("🤖 **%s**\n⏳ Processing...", agentName)}
+	sections = append(sections, formatDebugSummary(*debug))
+	if latest := formatLatestDebug(*debug); latest != "" {
+		sections = append(sections, "**Latest**\n"+latest)
+	}
+	sections = append(sections, fmt.Sprintf("🕐 `%s` · 💬 `%s`", now, sessionID))
+	return strings.Join(sections, "\n\n")
+}
+
+func formatFinalMessage(agentName, text, now, sessionID string, debug *pipeline.DebugSummary) string {
+	body := fmt.Sprintf("🤖 **%s**\n\n%s", agentName, text)
+	footer := make([]string, 0, 2)
+	if debug != nil {
+		footer = append(footer, formatDebugSummary(*debug))
+	}
+	footer = append(footer, fmt.Sprintf("🕐 `%s` · 💬 `%s`", now, sessionID))
+	return body + "\n\n─────────\n" + strings.Join(footer, "\n")
 }
 
 // SendTyping sends a typing chat action.
@@ -151,20 +186,6 @@ func (p *Poller) SendTyping(ctx context.Context, msg pipeline.IncomingMessage) {
 		log.FromContext(ctx).Warn("failed to send typing indicator",
 			"channel", p.channelName, "chat_id", msg.ChatID, "err", err)
 	}
-}
-
-// SendDebugEvent streams a formatted runner event to the chat.
-func (p *Poller) SendDebugEvent(ctx context.Context, msg pipeline.IncomingMessage, evt *session.Event) {
-	text := FormatDebugEvent(evt)
-	if text == "" {
-		return
-	}
-	p.sendDebugMessage(ctx, parseChatID(msg.ChatID), text)
-}
-
-// SendCompaction streams a context-compaction notice to the chat.
-func (p *Poller) SendCompaction(ctx context.Context, msg pipeline.IncomingMessage, agentName string) {
-	p.sendDebugMessage(ctx, parseChatID(msg.ChatID), FormatCompactionEvent(agentName))
 }
 
 // SendDebugStatus sends a debug on/off status message with a toggle button.
@@ -230,23 +251,6 @@ func formatStatusView(view pipeline.StatusView) string {
 	}
 
 	return formatStatusMessage(view.AgentStatus, view.ActiveAgent, modelText, view.SessionID, sess, view.SessionErr, view.Now)
-}
-
-// sendDebugMessage sends a debug event message with MarkdownV2 formatting,
-// falling back to plain text on parse failure. Uses a cancel-detached context
-// like SendReply.
-func (p *Poller) sendDebugMessage(ctx context.Context, chatID int64, text string) {
-	sendCtx := context.WithoutCancel(ctx)
-	logger := log.FromContext(ctx)
-	if _, err := p.bot.SendMessage(sendCtx, &bot.SendMessageParams{
-		ChatID:    chatID,
-		Text:      markdownToTelegramMarkdownV2(text),
-		ParseMode: models.ParseModeMarkdown,
-	}); err != nil {
-		if _, err2 := p.bot.SendMessage(sendCtx, &bot.SendMessageParams{ChatID: chatID, Text: text}); err2 != nil {
-			logger.Warn("failed to send debug message", "channel", p.channelName, "chat_id", chatID, "err", err2)
-		}
-	}
 }
 
 // sendDebugStatus sends (or edits) a message showing debug state with a toggle

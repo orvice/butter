@@ -28,6 +28,7 @@ type fakeRunner struct {
 	runResult *runner.TurnResult
 	runErr    error
 	runCalls  []runCall
+	runHook   func(runCall)
 
 	knownAgents  map[string]bool
 	agentStatus  *runner.AgentStatus
@@ -40,7 +41,11 @@ type fakeRunner struct {
 }
 
 func (f *fakeRunner) RunTurn(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error) {
-	f.runCalls = append(f.runCalls, runCall{agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction})
+	call := runCall{agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction}
+	f.runCalls = append(f.runCalls, call)
+	if f.runHook != nil {
+		f.runHook(call)
+	}
 	return f.runResult, f.runErr
 }
 
@@ -98,42 +103,54 @@ func (d *fakeDebug) Toggle(ctx context.Context, channelName, sessionID string, c
 }
 
 type fakeTransport struct {
-	replies        []string
-	typingCount    int
-	debugEvents    int
-	compactions    []string
-	debugStatus    []bool
-	agentLists     [][]AgentChoice
-	modelLists     [][]ModelChoice
-	statusViews    []StatusView
-	processingMsgs []string
-	editedMsgs     []editedMsg
+	replies         []string
+	typingCount     int
+	debugEvents     int
+	compactions     []string
+	debugStatus     []bool
+	agentLists      [][]AgentChoice
+	modelLists      [][]ModelChoice
+	statusViews     []StatusView
+	processingMsgs  []string
+	processingDebug []*DebugSummary
+	editedMsgs      []editedMsg
+	debugEdits      []debugEdit
 }
 
 type editedMsg struct {
 	messageID string
 	agentName string
 	text      string
+	debug     *DebugSummary
+}
+
+type debugEdit struct {
+	messageID string
+	agentName string
+	debug     DebugSummary
 }
 
 func (t *fakeTransport) SendReply(ctx context.Context, msg IncomingMessage, text string) {
 	t.replies = append(t.replies, text)
 }
-func (t *fakeTransport) SendProcessing(ctx context.Context, msg IncomingMessage, agentName string) string {
+func (t *fakeTransport) SendProcessing(ctx context.Context, msg IncomingMessage, agentName string, debug *DebugSummary) string {
 	id := fmt.Sprintf("proc-%d", len(t.processingMsgs)+1)
 	t.processingMsgs = append(t.processingMsgs, agentName)
+	if debug == nil {
+		t.processingDebug = append(t.processingDebug, nil)
+	} else {
+		copy := cloneDebugSummary(*debug)
+		t.processingDebug = append(t.processingDebug, &copy)
+	}
 	return id
 }
-func (t *fakeTransport) EditReply(ctx context.Context, msg IncomingMessage, messageID string, agentName string, text string) {
-	t.editedMsgs = append(t.editedMsgs, editedMsg{messageID: messageID, agentName: agentName, text: text})
+func (t *fakeTransport) EditDebug(ctx context.Context, msg IncomingMessage, messageID string, agentName string, debug DebugSummary) {
+	t.debugEdits = append(t.debugEdits, debugEdit{messageID: messageID, agentName: agentName, debug: debug})
+}
+func (t *fakeTransport) EditReply(ctx context.Context, msg IncomingMessage, messageID string, agentName string, text string, debug *DebugSummary) {
+	t.editedMsgs = append(t.editedMsgs, editedMsg{messageID: messageID, agentName: agentName, text: text, debug: debug})
 }
 func (t *fakeTransport) SendTyping(ctx context.Context, msg IncomingMessage) { t.typingCount++ }
-func (t *fakeTransport) SendDebugEvent(ctx context.Context, msg IncomingMessage, evt *session.Event) {
-	t.debugEvents++
-}
-func (t *fakeTransport) SendCompaction(ctx context.Context, msg IncomingMessage, agentName string) {
-	t.compactions = append(t.compactions, agentName)
-}
 func (t *fakeTransport) SendDebugStatus(ctx context.Context, msg IncomingMessage, active bool) {
 	t.debugStatus = append(t.debugStatus, active)
 }
