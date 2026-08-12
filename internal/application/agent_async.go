@@ -24,6 +24,7 @@ import (
 type asyncCoordinator interface {
 	Enqueue(inv *agentsv1.Invocation, agentName string, modelOverride string)
 	Cancel(invocationID, workspaceID string) bool
+	CancelAndWait(ctx context.Context, invocationID, workspaceID string) bool
 	Watch(invocationID string) (<-chan asyncrun.Frame, func())
 }
 
@@ -114,6 +115,12 @@ func (s *AgentServiceServer) SubmitAgentInvocation(ctx context.Context, req *con
 
 	sessionID := req.Msg.GetSessionId()
 	sessionCreated := false
+
+	// Reject if the session is being deleted.
+	if sessionID != "" && s.sessionExcluder != nil && s.sessionExcluder.IsSessionDeleting(sessionID) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("session is being deleted"))
+	}
 
 	// Validate an existing private Session before checking its active
 	// Invocation. The authenticated user supplies no user_id in this command,

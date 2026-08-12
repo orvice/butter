@@ -63,17 +63,25 @@ func resolveAgentRunnerRef(r interface {
 	return name, nil
 }
 
+// SessionExcluder reports whether a session is currently being deleted.
+// The submit path uses this to reject new invocations on sessions that
+// are in the process of being deleted.
+type SessionExcluder interface {
+	IsSessionDeleting(sessionID string) bool
+}
+
 type AgentServiceServer struct {
-	repo          configrepo.AgentRepository
-	runtime       ConfigRuntime
-	runnerSvc     agentRunner
-	invRepo       invocation.Repository
-	inputPartRepo inputpart.Repository
-	wsRepo        workspacerepo.Repository
-	opRepo        agentoprepo.Repository
-	content       agentContentCoordinator
-	asyncCoord    asyncCoordinator
-	sessionSvc    adksession.Service
+	repo            configrepo.AgentRepository
+	runtime         ConfigRuntime
+	runnerSvc       agentRunner
+	invRepo         invocation.Repository
+	inputPartRepo   inputpart.Repository
+	wsRepo          workspacerepo.Repository
+	opRepo          agentoprepo.Repository
+	content         agentContentCoordinator
+	asyncCoord      asyncCoordinator
+	sessionSvc      adksession.Service
+	sessionExcluder SessionExcluder
 
 	// asyncSubmitMu serializes the short accept transaction (idempotency
 	// lookup, active-session check, optional Session creation, Invocation
@@ -95,6 +103,12 @@ func (s *AgentServiceServer) SetOperationRepo(repo agentoprepo.Repository) {
 // by *RepoBindingServiceServer) used by the lifecycle Sagas.
 func (s *AgentServiceServer) SetContentCoordinator(c agentContentCoordinator) {
 	s.content = c
+}
+
+// SetSessionExcluder wires the delete-exclusion checker so the submit
+// path rejects new invocations on sessions being deleted.
+func (s *AgentServiceServer) SetSessionExcluder(e SessionExcluder) {
+	s.sessionExcluder = e
 }
 
 // coordinator builds the Saga coordinator from the wired dependencies, or

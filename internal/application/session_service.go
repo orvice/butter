@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -78,6 +79,12 @@ type SessionReadResult struct {
 	WorkspaceID    string
 }
 
+// sessionDeleteCoordinator is the subset of *asyncrun.Coordinator used by
+// DeleteSession to cancel active invocations and wait for quiescence.
+type sessionDeleteCoordinator interface {
+	CancelAndWait(ctx context.Context, invocationID, workspaceID string) bool
+}
+
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
 type SessionServiceServer struct {
 	mu              sync.RWMutex
@@ -87,12 +94,21 @@ type SessionServiceServer struct {
 	wsStore         WorkspaceSessionStore
 	readStore       SessionReadStore
 	invRepo         invocation.Repository
+	inputPartRepo   inputpart.Repository
+	asyncCoord      sessionDeleteCoordinator
 	langfuseHost    string
 	deleteListeners []SessionDeleteListener
 
 	titleResolver       TitleModelResolver
 	titleProviderLister WorkspaceModelProviderLister
 	chatTitleModel      string
+
+	// deletingMu guards the deleting set.
+	deletingMu sync.Mutex
+	// deleting tracks session IDs whose deletion is in progress. The
+	// submit path checks this set to reject new invocations on a session
+	// that is being deleted.
+	deleting map[string]struct{}
 }
 
 // SessionDeleteListener observes successful session deletions with the
@@ -200,6 +216,67 @@ func (s *SessionServiceServer) getInvRepo() invocation.Repository {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.invRepo
+}
+
+// SetInputPartRepo wires the input part repository for cleaning up stored
+// multimodal input parts during session deletion.
+func (s *SessionServiceServer) SetInputPartRepo(repo inputpart.Repository) {
+	if repo == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.inputPartRepo = repo
+}
+
+func (s *SessionServiceServer) getInputPartRepo() inputpart.Repository {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.inputPartRepo
+}
+
+// SetAsyncCoordinator wires the async coordinator for cancelling active
+// invocations during session deletion.
+func (s *SessionServiceServer) SetAsyncCoordinator(c sessionDeleteCoordinator) {
+	if c == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.asyncCoord = c
+}
+
+func (s *SessionServiceServer) getAsyncCoord() sessionDeleteCoordinator {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.asyncCoord
+}
+
+// IsSessionDeleting reports whether a deletion is in progress for the given
+// session. The async submit path uses this to reject new invocations.
+func (s *SessionServiceServer) IsSessionDeleting(sessionID string) bool {
+	s.deletingMu.Lock()
+	defer s.deletingMu.Unlock()
+	if s.deleting == nil {
+		return false
+	}
+	_, ok := s.deleting[sessionID]
+	return ok
+}
+
+func (s *SessionServiceServer) markDeleting(sessionID string) {
+	s.deletingMu.Lock()
+	defer s.deletingMu.Unlock()
+	if s.deleting == nil {
+		s.deleting = make(map[string]struct{})
+	}
+	s.deleting[sessionID] = struct{}{}
+}
+
+func (s *SessionServiceServer) unmarkDeleting(sessionID string) {
+	s.deletingMu.Lock()
+	defer s.deletingMu.Unlock()
+	delete(s.deleting, sessionID)
 }
 
 func (s *SessionServiceServer) getWSStore() WorkspaceSessionStore {
@@ -624,33 +701,86 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
+	sessionID := req.Msg.GetSessionId()
+	appName := req.Msg.GetAppName()
+	userID := req.Msg.GetUserId()
+
 	// Workspace guard: when workspace-scoped, validate the session belongs
 	// to the caller's workspace before allowing deletion.
-	if err := s.enforceWorkspaceAccessByID(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId()); err != nil {
+	if err := s.enforceWorkspaceAccessByID(ctx, appName, userID, sessionID); err != nil {
 		return nil, err
 	}
 
 	logger := log.FromContext(ctx)
+	wsID, _ := workspace.FromContext(ctx)
+
+	// Step 1: Mark the session as deleting so new submissions are rejected.
+	s.markDeleting(sessionID)
+	defer s.unmarkDeleting(sessionID)
+
+	// Step 2: Cancel any active invocation and wait for it to finish writing
+	// session events.
+	invRepo := s.getInvRepo()
+	coord := s.getAsyncCoord()
+	if invRepo != nil && wsID != "" {
+		active, activeErr := invRepo.FindActiveBySession(ctx, wsID, sessionID)
+		if activeErr == nil && active != nil {
+			if coord != nil {
+				coord.CancelAndWait(ctx, active.GetId(), wsID)
+			}
+			logger.Info("cancelled active invocation for session deletion",
+				"invocation_id", active.GetId(),
+				"session_id", sessionID,
+			)
+		}
+	}
+
+	// Step 3: Delete input parts and redact invocation content for all
+	// invocations associated with this session.
+	if invRepo != nil && wsID != "" {
+		invocations, listErr := invRepo.ListBySession(ctx, wsID, sessionID)
+		if listErr != nil {
+			logger.Warn("listing invocations for session deletion failed",
+				"session_id", sessionID, "err", listErr)
+		}
+		ipRepo := s.getInputPartRepo()
+		for _, inv := range invocations {
+			if ipRepo != nil {
+				if delErr := ipRepo.Delete(ctx, inv.GetId()); delErr != nil {
+					logger.Warn("deleting input parts failed",
+						"invocation_id", inv.GetId(), "err", delErr)
+				}
+			}
+			if redactErr := invRepo.RedactContent(ctx, wsID, inv.GetId()); redactErr != nil {
+				logger.Warn("redacting invocation content failed",
+					"invocation_id", inv.GetId(), "err", redactErr)
+			}
+		}
+	}
+
+	// Step 4: Delete the session metadata and events.
 	err := sessionSvc.Delete(ctx, &session.DeleteRequest{
-		AppName:   req.Msg.GetAppName(),
-		UserID:    req.Msg.GetUserId(),
-		SessionID: req.Msg.GetSessionId(),
+		AppName:   appName,
+		UserID:    userID,
+		SessionID: sessionID,
 	})
 	if err != nil {
 		logger.Error("delete session failed",
-			"app_name", req.Msg.GetAppName(),
-			"user_id", req.Msg.GetUserId(),
-			"session_id", req.Msg.GetSessionId(),
+			"app_name", appName,
+			"user_id", userID,
+			"session_id", sessionID,
 			"err", err,
 		)
 		return nil, connectx.InternalWith(err)
 	}
 	logger.Info("session deleted",
-		"app_name", req.Msg.GetAppName(),
-		"user_id", req.Msg.GetUserId(),
-		"session_id", req.Msg.GetSessionId(),
+		"app_name", appName,
+		"user_id", userID,
+		"session_id", sessionID,
 	)
-	s.notifySessionDeleted(req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId())
+
+	// Step 5: Notify delete listeners (cron, automation).
+	s.notifySessionDeleted(appName, userID, sessionID)
 	return connect.NewResponse(&agentsv1.DeleteSessionResponse{}), nil
 }
 

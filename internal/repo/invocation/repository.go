@@ -65,4 +65,13 @@ type Repository interface {
 	// session regardless of status, or ErrNotFound when the session has
 	// none. Drives the inline failed/stopped turn rendering after reload.
 	FindLatestBySession(ctx context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error)
+	// ListBySession returns all invocations for a session, ordered by
+	// started_at descending. Returns an empty slice (not an error) when
+	// the session has no invocations.
+	ListBySession(ctx context.Context, workspaceID, sessionID string) ([]*agentsv1.Invocation, error)
+	// RedactContent clears the content-bearing fields (input, output,
+	// error) on a single invocation while preserving operational metadata
+	// (agent identity, status, timestamps, latency). Used during session
+	// deletion to remove user content from retained audit records.
+	RedactContent(ctx context.Context, workspaceID, id string) error
 }

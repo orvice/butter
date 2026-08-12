@@ -333,6 +333,29 @@ func (s *Store) FindLatestBySession(ctx context.Context, workspaceID, sessionID 
 	return decode(&d)
 }
 
+func (s *Store) ListBySession(ctx context.Context, workspaceID, sessionID string) ([]*agentsv1.Invocation, error) {
+	cursor, err := s.coll.Find(ctx, bson.M{
+		"workspace_id": workspaceID,
+		"session_id":   sessionID,
+	}, options.Find().SetSort(bson.D{{Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}))
+	if err != nil {
+		return nil, fmt.Errorf("list invocations by session: %w", err)
+	}
+	defer cursor.Close(ctx)
+	return drain(ctx, cursor)
+}
+
+func (s *Store) RedactContent(ctx context.Context, workspaceID, id string) error {
+	inv, err := s.Get(ctx, workspaceID, id)
+	if err != nil {
+		return err
+	}
+	inv.Input = ""
+	inv.Output = ""
+	inv.Error = ""
+	return s.Save(ctx, inv)
+}
+
 func drain(ctx context.Context, cursor *mongo.Cursor) ([]*agentsv1.Invocation, error) {
 	var out []*agentsv1.Invocation
 	for cursor.Next(ctx) {

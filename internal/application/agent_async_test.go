@@ -86,6 +86,10 @@ func (c *fakeAsyncCoordinator) Cancel(invocationID, workspaceID string) bool {
 	return c.cancelled
 }
 
+func (c *fakeAsyncCoordinator) CancelAndWait(_ context.Context, invocationID, workspaceID string) bool {
+	return c.Cancel(invocationID, workspaceID)
+}
+
 func (c *fakeAsyncCoordinator) Watch(string) (<-chan asyncrun.Frame, func()) {
 	ch := make(chan asyncrun.Frame)
 	return ch, func() {}
