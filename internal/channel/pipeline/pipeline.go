@@ -77,6 +77,18 @@ type ModelChoice struct {
 	Active bool
 }
 
+// DebugSummary is a snapshot of debug-relevant activity observed during one
+// agent turn. ToolCalls counts function-call attempts, while ToolCounts keeps
+// the per-tool breakdown used by compact channel renderers.
+type DebugSummary struct {
+	ToolCalls        int
+	ToolCounts       map[string]int
+	Transfers        int
+	Compactions      int
+	LatestEvent      *session.Event
+	LatestCompaction string
+}
+
 // StatusView is the assembled, platform-neutral data for a /status reply. The
 // transport adapter renders it (Telegram markdown, Discord plain text, ...).
 type StatusView struct {
@@ -100,17 +112,18 @@ type Transport interface {
 	// acknowledgements). Reply-mode/threading is the adapter's concern.
 	SendReply(ctx context.Context, msg IncomingMessage, text string)
 	// SendProcessing sends an initial "processing" placeholder message and
-	// returns the platform message ID so it can be edited later.
-	SendProcessing(ctx context.Context, msg IncomingMessage, agentName string) string
+	// returns the platform message ID so it can be edited later. When debug is
+	// non-nil, the placeholder includes the initial zero-valued debug summary.
+	SendProcessing(ctx context.Context, msg IncomingMessage, agentName string, debug *DebugSummary) string
+	// EditDebug refreshes a processing message with the latest aggregated debug
+	// snapshot. It must edit messageID rather than append a new message.
+	EditDebug(ctx context.Context, msg IncomingMessage, messageID string, agentName string, debug DebugSummary)
 	// EditReply edits a previously sent message (identified by messageID) with
-	// the final agent response. The agent name is included in the message.
-	EditReply(ctx context.Context, msg IncomingMessage, messageID string, agentName string, text string)
+	// the final agent response. A non-nil debug snapshot is rendered as a compact
+	// summary without the latest-event detail.
+	EditReply(ctx context.Context, msg IncomingMessage, messageID string, agentName string, text string, debug *DebugSummary)
 	// SendTyping signals that the agent is working, if the platform supports it.
 	SendTyping(ctx context.Context, msg IncomingMessage)
-	// SendDebugEvent streams a runner event while debug mode is active.
-	SendDebugEvent(ctx context.Context, msg IncomingMessage, evt *session.Event)
-	// SendCompaction streams a context-compaction notice while debug is active.
-	SendCompaction(ctx context.Context, msg IncomingMessage, agentName string)
 	// SendDebugStatus reports the new debug on/off state (with any platform UI).
 	SendDebugStatus(ctx context.Context, msg IncomingMessage, active bool)
 	// SendAgentList renders the agent selection list with the active one flagged.

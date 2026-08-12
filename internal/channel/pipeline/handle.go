@@ -6,7 +6,6 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"github.com/google/uuid"
-	"google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -69,8 +68,6 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 		h.transport.SendTyping(ctx, msg)
 	}
 
-	onEvent, onCompaction := h.debugCallbacks(ctx, msg)
-
 	ctxInfo := h.buildContextInfo(msg)
 
 	parts, err := msg.BuildParts(ctx)
@@ -84,10 +81,37 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 		return
 	}
 
-	processingMsgID := h.transport.SendProcessing(ctx, msg, agentName)
+	debugActive := h.debugActive(ctx, msg.SessionID)
+	var initialDebug *DebugSummary
+	if debugActive {
+		initialDebug = &DebugSummary{ToolCounts: make(map[string]int)}
+	}
+	processingMsgID := h.transport.SendProcessing(ctx, msg, agentName, initialDebug)
+
+	var (
+		debugRun     *debugTurn
+		onEvent      runner.EventCallback
+		onCompaction runner.CompactionCallback
+	)
+	if debugActive {
+		debugRun = newDebugTurn(ctx, debugEditInterval, func(summary DebugSummary) {
+			if processingMsgID != "" {
+				h.transport.EditDebug(ctx, msg, processingMsgID, agentName, summary)
+			}
+		})
+		onEvent = debugRun.observeEvent
+		onCompaction = debugRun.observeCompaction
+	}
 
 	modelOverride := h.ActiveModel(ctx, msg.SessionID)
 	turn, err := h.runner.RunTurn(ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
+	var finalDebug *DebugSummary
+	if debugRun != nil {
+		summary := debugRun.finish()
+		summary.LatestEvent = nil
+		summary.LatestCompaction = ""
+		finalDebug = &summary
+	}
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", h.cfg.ChannelName,
@@ -97,7 +121,7 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 		)
 		errText := "⚠️ Sorry, something went wrong processing your message."
 		if processingMsgID != "" {
-			h.transport.EditReply(ctx, msg, processingMsgID, agentName, errText)
+			h.transport.EditReply(ctx, msg, processingMsgID, agentName, errText, finalDebug)
 		} else {
 			h.transport.SendReply(ctx, msg, errText)
 		}
@@ -124,25 +148,10 @@ func (h *Handler) handleMessage(ctx context.Context, msg IncomingMessage) {
 		"response_len", len(response),
 	)
 	if processingMsgID != "" {
-		h.transport.EditReply(ctx, msg, processingMsgID, agentName, response)
+		h.transport.EditReply(ctx, msg, processingMsgID, agentName, response, finalDebug)
 	} else {
 		h.transport.SendReply(ctx, msg, response)
 	}
-}
-
-// debugCallbacks returns runner callbacks that stream events/compaction to the
-// transport when debug mode is active for this session, else (nil, nil).
-func (h *Handler) debugCallbacks(ctx context.Context, msg IncomingMessage) (runner.EventCallback, runner.CompactionCallback) {
-	if !h.debugActive(ctx, msg.SessionID) {
-		return nil, nil
-	}
-	onEvent := func(evt *session.Event) {
-		h.transport.SendDebugEvent(ctx, msg, evt)
-	}
-	onCompaction := func(agentName string) {
-		h.transport.SendCompaction(ctx, msg, agentName)
-	}
-	return onEvent, onCompaction
 }
 
 // debugActive resolves whether debug mode is on: a per-session override takes
