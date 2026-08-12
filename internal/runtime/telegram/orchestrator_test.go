@@ -7,6 +7,7 @@ package telegram
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -146,15 +147,23 @@ func TestOneAcceptedUpdateReachesTheAgentOnceAndRepliesInTheTopic(t *testing.T) 
 		t.Errorf("unexpected invocation: %+v", call)
 	}
 
+	// A placeholder acknowledges the message, then becomes the answer: one
+	// send followed by one edit, both inside the topic (#270).
 	sent := fx.bots.Sent()
-	if len(sent) != 1 {
-		t.Fatalf("sent %d messages, want 1", len(sent))
+	if len(sent) != 2 {
+		t.Fatalf("sent %d messages, want a placeholder and its edit", len(sent))
 	}
 	if sent[0].Params.MessageThreadID != "42" {
-		t.Errorf("reply left the topic: thread %q", sent[0].Params.MessageThreadID)
+		t.Errorf("placeholder left the topic: thread %q", sent[0].Params.MessageThreadID)
 	}
 	if sent[0].Params.ReplyToMessageID != "9" {
 		t.Errorf("reply_to = %q, want the inbound message quoted", sent[0].Params.ReplyToMessageID)
+	}
+	if sent[1].Edit == nil {
+		t.Fatal("the answer was sent as a new message instead of replacing the placeholder")
+	}
+	if !strings.Contains(sent[1].Edit.Text, "agent reply") {
+		t.Errorf("edited text = %q, want the agent output", sent[1].Edit.Text)
 	}
 }
 
@@ -169,11 +178,16 @@ func TestAgentFailureIsReportedInTheTopic(t *testing.T) {
 		t.Fatal("expected the failure to surface so the event is retried")
 	}
 	sent := fx.bots.Sent()
-	if len(sent) != 1 {
-		t.Fatalf("sent %d messages, want a failure notice", len(sent))
+	if len(sent) != 2 {
+		t.Fatalf("sent %d messages, want a placeholder and a failure notice", len(sent))
 	}
 	if sent[0].Params.MessageThreadID != "42" {
-		t.Errorf("the failure notice left the topic: %q", sent[0].Params.MessageThreadID)
+		t.Errorf("the placeholder left the topic: %q", sent[0].Params.MessageThreadID)
+	}
+	// The failure replaces the placeholder rather than leaving "working on
+	// it" as the last thing the user sees.
+	if sent[1].Edit == nil || !strings.Contains(sent[1].Edit.Text, "could not complete") {
+		t.Errorf("failure notice = %+v", sent[1])
 	}
 }
 

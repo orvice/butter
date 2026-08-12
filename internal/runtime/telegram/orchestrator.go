@@ -51,6 +51,8 @@ type Orchestrator struct {
 	runner  AgentRunner
 	session SessionClearer
 	prefs   PreferenceStore
+	// files downloads user-uploaded media at invocation time.
+	files func(ctx context.Context, workspaceID, channelID string) (telegramapi.FileClient, error)
 	// appName scopes ADK sessions for the Telegram entry point.
 	appName string
 }
@@ -61,6 +63,12 @@ func NewOrchestrator(repo telegramrepo.Repository, sender *telegramsend.Sender, 
 
 // SetSessionClearer wires `/clear`.
 func (o *Orchestrator) SetSessionClearer(clearer SessionClearer) { o.session = clearer }
+
+// SetFileClientFactory wires media downloads. Without it, photo updates are
+// refused with a clear message rather than reaching the Agent as text alone.
+func (o *Orchestrator) SetFileClientFactory(factory func(ctx context.Context, workspaceID, channelID string) (telegramapi.FileClient, error)) {
+	o.files = factory
+}
 
 // SetPreferenceStore wires persisted Agent/Model selection. Without one,
 // selection commands report that switching is unavailable rather than
@@ -214,6 +222,19 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 		return fmt.Errorf("agent %q is not available in workspace %q", decision.AgentID, event.WorkspaceID)
 	}
 
+	parts, partsErr := o.inputParts(ctx, event, decision)
+	if partsErr != nil {
+		// A photo that cannot be fetched must not reach the Agent as a
+		// caption alone: the Agent would answer confidently about an image it
+		// never saw. Report it in the topic and stop.
+		logger.Warn("could not build telegram agent input", "err", partsErr)
+		_ = o.reply(ctx, event, decision, partsErr.Error())
+		return nil
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+
 	ctxInfo := &agentsv1.ContextInfo{
 		SessionId:   decision.SessionID,
 		UserId:      decision.UserID,
@@ -225,33 +246,37 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 		"agent", agentName, "agent_id", decision.AgentID, "model", decision.Model,
 		"session_id", decision.SessionID, "user_id", decision.UserID)
 
-	turn, err := o.runner.RunTurnSSE(ctx, agentName,
-		[]*genai.Part{{Text: decision.Text}}, decision.Model, ctxInfo, nil, nil)
+	// A placeholder both acknowledges the message and becomes the first
+	// segment of the answer, so a long reply never leaves a stranded
+	// "working on it" above it.
+	placeholder, placeholderErr := o.sender.SendProcessing(ctx, event.WorkspaceID, event.DestinationID,
+		fmt.Sprintf("Working on it with %s…", agentName), decision.ReplyToMessageID)
+	if placeholderErr != nil {
+		logger.Debug("could not send a telegram placeholder", "err", placeholderErr)
+	}
+
+	turn, err := o.runner.RunTurnSSE(ctx, agentName, parts, decision.Model, ctxInfo, nil, nil)
 	if err != nil {
 		// Report the failure in the originating topic rather than leaving the
 		// user waiting on silence.
-		_ = o.reply(ctx, event, decision, "The agent could not complete this request.")
+		_ = o.deliver(ctx, event, decision, placeholder, "The agent could not complete this request.")
 		return fmt.Errorf("run telegram agent turn: %w", err)
 	}
 	output := strings.TrimSpace(turn.Output)
 	if output == "" {
 		output = "(the agent produced no output)"
 	}
-	return o.reply(ctx, event, decision, output)
+	return o.deliver(ctx, event, decision, placeholder, output)
 }
 
 // reply delivers text to the originating Destination. Every response —
 // agent output, command answers, and errors alike — goes through the unified
 // sender, which is what guarantees it stays in the originating Forum Topic.
 func (o *Orchestrator) reply(ctx context.Context, event *telegramqueue.Event, decision Interaction, text string) error {
-	_, err := o.sender.Send(ctx, event.WorkspaceID, event.DestinationID, telegramsend.Message{
-		Text:             text,
-		ReplyToMessageID: decision.ReplyToMessageID,
-	})
-	if err != nil {
-		return fmt.Errorf("deliver telegram reply: %w", err)
-	}
-	return nil
+	// Command answers, status views, and errors take the same segmenting
+	// path as agent output, so any of them exceeding Telegram's limit is
+	// split rather than rejected.
+	return o.deliver(ctx, event, decision, "", text)
 }
 
 // --- Selection ---------------------------------------------------------------
@@ -434,4 +459,58 @@ func senderOf(event *telegramqueue.Event) string {
 		return telegramapi.FormatID(msg.From.ID)
 	}
 	return ""
+}
+
+// --- Media and segmented delivery -------------------------------------------
+
+// inputParts builds the Agent input for a turn, downloading any photo at the
+// last possible moment.
+func (o *Orchestrator) inputParts(ctx context.Context, event *telegramqueue.Event, decision Interaction) ([]*genai.Part, error) {
+	update, err := telegramapi.ParseUpdate(event.Update)
+	if err != nil {
+		return nil, nil
+	}
+	msg, ok := update.RoutableMessage()
+	if !ok || len(msg.Photo) == 0 {
+		if decision.Text == "" {
+			return nil, nil
+		}
+		return []*genai.Part{{Text: decision.Text}}, nil
+	}
+
+	if o.files == nil {
+		return nil, errors.New("Image input is not available on this deployment.")
+	}
+	client, err := o.files(ctx, event.WorkspaceID, event.ChannelID)
+	if err != nil {
+		return nil, fmt.Errorf("Could not reach Telegram to download the image: %w", err)
+	}
+	photo, _ := LargestPhoto(msg.Photo)
+	image, err := DownloadPhoto(ctx, client, photo)
+	if err != nil {
+		if errors.Is(err, ErrUnsupportedImage) {
+			return nil, errors.New("That image type is not supported.")
+		}
+		return nil, fmt.Errorf("Could not download the image: %w", err)
+	}
+	return BuildInputParts(decision.Text, image), nil
+}
+
+// deliver persists nothing itself but splits the response and delivers it in
+// order, editing the placeholder into the first segment.
+//
+// Segmentation lives behind the sender so debug, status, and error responses
+// that happen to exceed Telegram's limit take the same safe path as agent
+// output.
+func (o *Orchestrator) deliver(ctx context.Context, event *telegramqueue.Event, decision Interaction, placeholder, text string) error {
+	delivery := telegramsend.NewDelivery(text, placeholder, decision.ReplyToMessageID)
+	if len(delivery.Segments) == 0 {
+		return nil
+	}
+	if err := o.sender.DeliverSegments(ctx, event.WorkspaceID, event.DestinationID, delivery); err != nil {
+		// Later segments stay pending, so a retry continues rather than
+		// duplicating what already landed.
+		return fmt.Errorf("deliver telegram response: %w", err)
+	}
+	return nil
 }

@@ -21,12 +21,14 @@ import (
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	telegramruntime "go.orx.me/apps/butter/internal/runtime/telegram"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/service"
+	"go.orx.me/apps/butter/internal/telegramapi"
 	"go.orx.me/apps/butter/internal/telegramqueue"
 	"go.orx.me/apps/butter/internal/telegramsend"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -103,6 +105,23 @@ func (h *Handlers) Deliver(ctx *gin.Context, channel telegramruntime.Authenticat
 }
 
 var errTelegramReceiveNotReady = errors.New("telegram receive is not ready")
+
+// telegramFileClientFactory builds a per-request Telegram file client from
+// the Channel's current credential. Like the sender, it caches nothing: a
+// rotated token must take effect on the next download.
+func telegramFileClientFactory(repo telegramrepo.Repository, keyring *secretbox.Keyring) func(context.Context, string, string) (telegramapi.FileClient, error) {
+	return func(ctx context.Context, workspaceID, channelID string) (telegramapi.FileClient, error) {
+		cred, err := repo.GetChannelCredential(ctx, workspaceID, channelID)
+		if err != nil {
+			return nil, err
+		}
+		token, err := keyring.Decrypt(ctx, cred.Ciphertext, cred.KeyID)
+		if err != nil {
+			return nil, err
+		}
+		return telegramapi.New(string(token)), nil
+	}
+}
 
 const (
 	// telegramLeaseTTL bounds how long a crashed leader blocks the fleet.
@@ -432,6 +451,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 				// may handle the next message for the same destination, and a
 				// choice must outlive a restart.
 				orchestrator.SetPreferenceStore(telegramruntime.NewRedisPreferenceStore(result.Redis))
+				// Media is downloaded on the worker immediately before
+				// invocation, so Redis never holds binary data.
+				orchestrator.SetFileClientFactory(telegramFileClientFactory(result.TelegramRepo, keyring))
 				interactions = orchestrator
 			}
 			h.tgWorker = telegramruntime.NewWorker(queue,
