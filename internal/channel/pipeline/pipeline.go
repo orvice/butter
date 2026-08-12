@@ -124,7 +124,7 @@ type Transport interface {
 // RunnerPort is the narrow slice of runner.Service the pipeline depends on.
 // *runner.Service satisfies it structurally.
 type RunnerPort interface {
-	Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error)
+	RunTurn(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error)
 	HasAgentInWorkspace(workspaceID, name string) bool
 	GetAgentStatus(name string) *runner.AgentStatus
 	GetAgentModel(name string) string

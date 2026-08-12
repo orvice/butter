@@ -60,6 +60,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 - **模型别名与 Provider 解析**：通过 `model_providers` 配置把别名（如 `flash`）映射到具体模型。
 - **运行时 Model Override**：渠道/调用方可在调用时指定 `model_override`；Runner 会 clone 配置、替换模型并缓存 override 后的 Agent 实例。
+- **OpenAI 兼容性**：运行时已升级到 ADK Go v2.1.0，但 OpenAI provider 暂时继续使用 `adk-utils-go` 的 Chat Completions adapter。v2.1.0 原生 `openaimodel` 使用 Responses API，存在多轮 assistant history 编码错误，且不支持 Butter 当前的 inline media 输入；待上游修复并完成各自定义 `base_url` 的 Responses API 合约测试后再切换。调查记录见 `docs/research/adk-go-v2.1-openai.md`。
 - **Langfuse Tracing**：运行时初始化 Langfuse plugin 支持模型调用追踪。
 
 ## 3. MCP 工具集

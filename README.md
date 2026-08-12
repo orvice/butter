@@ -23,7 +23,7 @@ dashboard-oriented backend for operating agents across workspaces.
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.26.5+
 - MongoDB
 - Redis
 - [buf CLI](https://buf.build/) when regenerating protobuf code

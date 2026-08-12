@@ -155,6 +155,10 @@ Agent proto
 
 模型通过 `model_providers` 解析。Runner 支持运行时 model override：如果渠道选择了不同模型，`runner.Service` 会 clone proto 配置、替换 model，并缓存 override 后的 agent。
 
+同一 `(channel/app, user, session)` 的 turn 在 Runner 层串行执行，避免 Telegram、Discord、RPC 或 cron 同时写入一个 ADK session；不同 session 仍可并行。每个 turn 返回结构化诊断（event count、finish reason、error code），无可见文本时优先渲染 workflow `Event.Output`。Mongo session store 使用完整 `event_json` 保存 ADK event，并兼容读取旧的 `content_json` 文档，确保 workflow Output、Routes、Human Input 和终止元数据在重启后保留。
+
+ADK 依赖已升级到 v2.1.0。OpenAI provider 暂不切换到该版本新增的原生 `openaimodel`：其 Responses API 多轮 assistant history 编码存在上游缺陷，并且不支持当前 inline media 输入；生产路径继续使用现有 Chat Completions adapter。详见 `docs/research/adk-go-v2.1-openai.md`。
+
 **V2 create 契约（Agent ID）：** `AgentService.CreateAgent` 现在**要求** `agent_id`——不可变、workspace 内唯一的 slug（`^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`，校验见 `internal/agent/agentid.go`），并**拒绝**内联 `sub_agents`；新 agent 以 `lifecycle_status: ACTIVE` 创建，子 agent 通过 `child_agent_ids` 引用独立记录（`ValidateAgentRelationships` 对 workspace 内 agent 池校验）。`UpdateAgent` 拒绝修改 `agent_id`（改用 `AssignAgentID`）与内联 `sub_agents`（未变更的 legacy 记录可原样往返）。Workflow AGENT 节点用 `agent_id` 引用（legacy `agent` 名字保留兼容）。旧的内联/名字型记录在 `MigrateAgentsV2` 展开前仍可读。`AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 提供迁移路径。
 
 ## Runner 执行流

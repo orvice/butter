@@ -97,6 +97,9 @@ type Service struct {
 
 	cancelMu  sync.Mutex
 	cancelers map[string]cancelEntry
+
+	sessionTurnMu    sync.Mutex
+	sessionTurnLocks map[string]*sessionTurnLock
 }
 
 // TurnListener observes the outcome of every agent turn, whatever the entry
@@ -191,6 +194,48 @@ func (s *Service) deregisterCancel(id string) {
 	s.cancelMu.Lock()
 	delete(s.cancelers, id)
 	s.cancelMu.Unlock()
+}
+
+type sessionTurnLock struct {
+	token chan struct{}
+	refs  int
+}
+
+func (s *Service) acquireSessionTurn(ctx context.Context, appName, userID, sessionID string) (func(), error) {
+	key := appName + "\x00" + userID + "\x00" + sessionID
+
+	s.sessionTurnMu.Lock()
+	if s.sessionTurnLocks == nil {
+		s.sessionTurnLocks = make(map[string]*sessionTurnLock)
+	}
+	entry := s.sessionTurnLocks[key]
+	if entry == nil {
+		entry = &sessionTurnLock{token: make(chan struct{}, 1)}
+		entry.token <- struct{}{}
+		s.sessionTurnLocks[key] = entry
+	}
+	entry.refs++
+	s.sessionTurnMu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		s.releaseSessionTurnRef(key, entry)
+		return nil, ctx.Err()
+	case <-entry.token:
+		return func() {
+			entry.token <- struct{}{}
+			s.releaseSessionTurnRef(key, entry)
+		}, nil
+	}
+}
+
+func (s *Service) releaseSessionTurnRef(key string, entry *sessionTurnLock) {
+	s.sessionTurnMu.Lock()
+	defer s.sessionTurnMu.Unlock()
+	entry.refs--
+	if entry.refs == 0 && s.sessionTurnLocks[key] == entry {
+		delete(s.sessionTurnLocks, key)
+	}
 }
 
 // NewService builds the agent registry from proto configs.
@@ -833,6 +878,16 @@ type TurnResult struct {
 	// Human Input node, the node's question is part of the output, so every
 	// entry point delivers it as the turn's normal reply.
 	Output string
+	// EventCount is the number of events emitted by ADK for this turn.
+	EventCount int
+	// FinishReason and error fields retain the latest terminal model
+	// diagnostics even when the model produced no user-visible text.
+	FinishReason genai.FinishReason
+	ErrorCode    string
+	ErrorMessage string
+	// OutputFromEvent reports that Output was rendered from Event.Output
+	// because no final event contained user-visible text.
+	OutputFromEvent bool
 	// Pending lists the Interrupts this turn left unanswered, oldest first.
 	// Empty for a turn that ran to completion.
 	Pending []PendingInput
@@ -889,6 +944,11 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	channelName := ctxInfo.GetChannelName()
 	sessionID := ctxInfo.GetSessionId()
 	userID := ctxInfo.GetUserId()
+	unlockSession, err := s.acquireSessionTurn(ctx, channelName, userID, sessionID)
+	if err != nil {
+		return turn, fmt.Errorf("waiting for session turn: %w", err)
+	}
+	defer unlockSession()
 
 	var inv *agentsv1.Invocation
 	if !invocationRecordingDisabled(ctx) {
@@ -1030,6 +1090,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	msg := &genai.Content{Parts: parts, Role: genai.RoleUser}
 
 	var result strings.Builder
+	var latestEventOutput any
 	var asked []PendingInput
 	eventCount := 0
 	for evt, err := range r.Run(ctx, userID, sessionID, msg, runConfig) {
@@ -1042,6 +1103,19 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			return turn, fmt.Errorf("runner error: %w", err)
 		}
 		eventCount++
+		turn.EventCount = eventCount
+		if evt.FinishReason != "" && evt.FinishReason != genai.FinishReasonUnspecified {
+			turn.FinishReason = evt.FinishReason
+		}
+		if evt.ErrorCode != "" {
+			turn.ErrorCode = evt.ErrorCode
+		}
+		if evt.ErrorMessage != "" {
+			turn.ErrorMessage = evt.ErrorMessage
+		}
+		if evt.Output != nil {
+			latestEventOutput = evt.Output
+		}
 		summary := summarizeEvent(evt)
 		logger.Info("agent run event",
 			"event_count", eventCount,
@@ -1060,6 +1134,9 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			"escalate", evt.Actions.Escalate,
 			"state_delta_keys", summary.stateDeltaKeys,
 			"artifact_delta_keys", summary.artifactDeltaKeys,
+			"finish_reason", evt.FinishReason,
+			"error_code", evt.ErrorCode,
+			"has_output", evt.Output != nil,
 		)
 		// Request-input events count as final responses (they end the agent
 		// loop) but must still reach the callback: the dashboard chat stream
@@ -1080,7 +1157,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		}
 		if evt.IsFinalResponse() && evt.Content != nil {
 			for _, part := range evt.Content.Parts {
-				if part.Text != "" {
+				if part.Text != "" && !part.Thought {
 					result.WriteString(part.Text)
 				}
 			}
@@ -1088,6 +1165,10 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	}
 
 	turn.Output = result.String()
+	if turn.Output == "" && latestEventOutput != nil {
+		turn.Output = renderEventOutput(latestEventOutput)
+		turn.OutputFromEvent = turn.Output != ""
+	}
 	for _, p := range asked {
 		if turn.Output != "" && !strings.HasSuffix(turn.Output, "\n") {
 			turn.Output += "\n"
@@ -1117,6 +1198,9 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		"event_count", eventCount,
 		"pending_interrupts", len(turn.Pending),
 		"response_len", len(turn.Output),
+		"output_from_event", turn.OutputFromEvent,
+		"finish_reason", turn.FinishReason,
+		"error_code", turn.ErrorCode,
 		"duration", time.Since(startedAt),
 	)
 

@@ -25,9 +25,9 @@ type runCall struct {
 }
 
 type fakeRunner struct {
-	runResponse string
-	runErr      error
-	runCalls    []runCall
+	runResult *runner.TurnResult
+	runErr    error
+	runCalls  []runCall
 
 	knownAgents  map[string]bool
 	agentStatus  *runner.AgentStatus
@@ -39,9 +39,9 @@ type fakeRunner struct {
 	clearedCalls int
 }
 
-func (f *fakeRunner) Run(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error) {
+func (f *fakeRunner) RunTurn(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error) {
 	f.runCalls = append(f.runCalls, runCall{agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction})
-	return f.runResponse, f.runErr
+	return f.runResult, f.runErr
 }
 
 func (f *fakeRunner) HasAgentInWorkspace(workspaceID, name string) bool { return f.knownAgents[name] }
@@ -190,7 +190,7 @@ func TestHandle_PlainMessage_RunsAgentAndReplies(t *testing.T) {
 		DefaultModel: "gpt",
 		ChannelType:  "telegram",
 	})
-	r.runResponse = "hi there"
+	r.runResult = &runner.TurnResult{Output: "hi there"}
 
 	h.Handle(context.Background(), baseMsg())
 
@@ -243,12 +243,34 @@ func TestHandle_PlainMessage_RunnerErrorReplies(t *testing.T) {
 
 func TestHandle_PlainMessage_EmptyResponseFallback(t *testing.T) {
 	h, r, _, _, _, tr := newHarness(Config{ChannelName: "tg", DefaultAgent: "assistant"})
-	r.runResponse = ""
+	r.runResult = &runner.TurnResult{}
 
 	h.Handle(context.Background(), baseMsg())
 
-	if len(tr.editedMsgs) != 1 || tr.editedMsgs[0].text != "(no response)" {
-		t.Errorf("editedMsgs = %v, want text=(no response)", tr.editedMsgs)
+	if len(tr.editedMsgs) != 1 || tr.editedMsgs[0].text != emptyTurnResponse {
+		t.Errorf("editedMsgs = %v, want text=%q", tr.editedMsgs, emptyTurnResponse)
+	}
+}
+
+func TestHandle_PlainMessage_MaxTokensResponse(t *testing.T) {
+	h, r, _, _, _, tr := newHarness(Config{ChannelName: "tg", DefaultAgent: "assistant"})
+	r.runResult = &runner.TurnResult{FinishReason: genai.FinishReasonMaxTokens}
+
+	h.Handle(context.Background(), baseMsg())
+
+	if len(tr.editedMsgs) != 1 || tr.editedMsgs[0].text != "The agent reached its response limit before producing a reply. Please try a shorter request." {
+		t.Errorf("editedMsgs = %v", tr.editedMsgs)
+	}
+}
+
+func TestHandle_PlainMessage_WhitespaceSafetyResponse(t *testing.T) {
+	h, r, _, _, _, tr := newHarness(Config{ChannelName: "tg", DefaultAgent: "assistant"})
+	r.runResult = &runner.TurnResult{Output: "  \n", ErrorCode: "SAFETY"}
+
+	h.Handle(context.Background(), baseMsg())
+
+	if len(tr.editedMsgs) != 1 || tr.editedMsgs[0].text != "The agent could not provide a response because it was blocked by the model's safety checks. Please revise your message and try again." {
+		t.Errorf("editedMsgs = %v", tr.editedMsgs)
 	}
 }
 

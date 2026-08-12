@@ -10,7 +10,9 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 	"google.golang.org/adk/v2/session"
+	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/channel/pipeline"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -404,7 +406,7 @@ func (p *Poller) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate)
 		"context_uuid", ctxInfo.GetUuid(),
 		"metadata_keys", len(ctxInfo.GetMetadata()),
 	)
-	response, err := p.runner.Run(p.ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
+	turn, err := p.runner.RunTurn(p.ctx, agentName, parts, modelOverride, ctxInfo, onEvent, onCompaction)
 	if err != nil {
 		logger.Error("agent run failed",
 			"channel", p.channelName,
@@ -416,8 +418,25 @@ func (p *Poller) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate)
 		return
 	}
 
-	if response == "" {
-		response = "(no response)"
+	response := pipeline.TurnResponseText(turn)
+	if !pipeline.TurnHasVisibleText(turn) {
+		eventCount := 0
+		finishReason := genai.FinishReason("")
+		errorCode := ""
+		if turn != nil {
+			eventCount = turn.EventCount
+			finishReason = turn.FinishReason
+			errorCode = turn.ErrorCode
+		}
+		logger.Warn("agent turn completed without visible text",
+			"channel", p.channelName,
+			"agent", agentName,
+			"session_id", sessionID,
+			"invocation_id", ctxInfo.GetUuid(),
+			"event_count", eventCount,
+			"finish_reason", finishReason,
+			"error_code", errorCode,
+		)
 	}
 
 	logger.Info("agent response ready",
