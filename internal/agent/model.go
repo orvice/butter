@@ -138,7 +138,8 @@ func createModelFromProvider(ctx context.Context, modelName string, p *agentsv1.
 		return gemini.NewModel(ctx, modelName, cfg)
 	case "openai":
 		// ADK v2.1.0's native openaimodel is not production-safe for Butter yet:
-		// it breaks multi-turn assistant history and lacks inline media support.
+		// it breaks multi-turn assistant history and does not map genai media
+		// parts to the Responses API's supported input_image/input_file types.
 		// See docs/research/adk-go-v2.1-openai.md before changing this adapter.
 		return adkopenai.New(adkopenai.Config{
 			APIKey:    p.GetApiKey(),

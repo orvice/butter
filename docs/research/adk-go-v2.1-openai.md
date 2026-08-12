@@ -148,16 +148,51 @@ text, streaming, and tool-call request before switching it.
 Sources: [OpenAI constructor], [official example README], [current adapter
 source].
 
-### Input modalities
+### Image input: API capability versus ADK conversion
 
-The Google request converter accepts text, `FunctionCall`, and
-`FunctionResponse` parts. Other content parts return an `unsupported content
-part` error. In particular, v2.1.0 does not convert inline image, audio, or file
-data. Butter's current adapter does convert those media types, so routing an
-attachment to an OpenAI-backed agent would regress unless Butter keeps a
-compatibility path or blocks unsupported inputs clearly.
+The OpenAI Responses API itself supports image input for models with image
+understanding. Its official example sends an `input_image` content item
+alongside `input_text`, and the image guide demonstrates an image URL, a base64
+data URL, and a file ID. The `openai-go` v3.8.1 SDK used by ADK v2.1.0 also
+exposes this capability through `ResponseInputImageParam` and the `OfInputImage`
+arm of `ResponseInputContentUnionParam`. The SDK likewise has an `OfInputFile`
+arm. Therefore, this is not a limitation of the Responses API or the underlying
+Go SDK.
 
-Source: [request conversion]; comparison: [current adapter source].
+The missing layer is ADK Go v2.1.0's `genai.Part` converter. Its
+`convertContents` switch handles only:
+
+- non-empty `Part.Text`
+- `Part.FunctionCall`
+- `Part.FunctionResponse`
+
+Every other `genai.Part` shape returns `openai: unsupported content part`. This
+includes both `Part.InlineData` (raw bytes plus MIME type) and `Part.FileData`
+(URI-based data). The v2.1.0 tests explicitly assert that an `InlineData` part
+must fail. The OpenAI example is text-and-tool-only and does not demonstrate an
+ADK image part.
+
+This gap remains in the published v2.2.0 converter and in the repository's
+`main` branch as of the research date. Their converters still have no
+`InlineData` or `FileData` case, and the test that expects `InlineData` to fail
+is still present. No later published ADK Go version provides a counterexample.
+
+Butter's current third-party adapter differs in a narrower, important way: it
+converts `Part.InlineData` images (JPEG, PNG, GIF, WebP) to Chat Completions
+image content. It also converts inline WAV/MP3 audio and inline PDF/text bytes.
+It does **not** handle `Part.FileData`, so the earlier shorthand "supports file
+data" should not be read as support for the `genai.Part.FileData` field.
+
+This distinction is operationally relevant: Butter's Telegram and Discord
+image paths download images and construct `genai.Part.InlineData`. Switching
+those agents to ADK v2.1.0 `openaimodel` would reject the image before any
+Responses API request is sent, even though OpenAI itself supports image input.
+
+Sources: [OpenAI image input guide], [OpenAI OpenAPI image example], [openai-go
+v3.8.1 response input types], [v2.1.0 request conversion], [v2.1.0 request
+tests], [v2.2.0 request conversion], [v2.2.0 request tests], [main request
+conversion], [main request tests], and [current adapter source]. Butter paths:
+`internal/channel/telegram/photo.go` and `internal/channel/discord/photo.go`.
 
 ### Tools and generation settings
 
@@ -231,8 +266,10 @@ Sources: [v2.1.0 release], [v2.0.0...v2.1.0 comparison], [v2.0.0 go.mod],
    URL for non-streaming text, streaming text, and function calling.
 6. Include a mandatory two-turn session test that inspects the real API outcome
    or request wire format, so assistant history cannot regress to `input_text`.
-7. Decide explicitly how OpenAI-backed agents handle inline media before making
-   the native adapter the only path.
+7. Add an ADK-side `InlineData` image conversion or retain a compatibility
+   adapter before making the native adapter the only path. Testing the Responses
+   API directly is insufficient because the current failure is in ADK's local
+   `genai.Part` conversion.
 8. Keep Butter's runner-side empty-output fallback and diagnostics work; the
    native adapter improves failure signaling but does not render workflow
    `Event.Output` or serialize Telegram turns for Butter.
@@ -243,8 +280,12 @@ Sources: [v2.1.0 release], [v2.0.0...v2.1.0 comparison], [v2.0.0 go.mod],
 [package documentation]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/doc.go
 [OpenAI constructor]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/openai.go
 [request conversion]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/request.go
-[v2.1.0 request conversion]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/request.go
-[v2.2.0 request conversion]: https://github.com/google/adk-go/blob/v2.2.0/model/openaimodel/request.go
+[v2.1.0 request conversion]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/request.go#L86-L143
+[v2.1.0 request tests]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/request_test.go#L123-L137
+[v2.2.0 request conversion]: https://github.com/google/adk-go/blob/v2.2.0/model/openaimodel/request.go#L86-L143
+[v2.2.0 request tests]: https://github.com/google/adk-go/blob/v2.2.0/model/openaimodel/request_test.go#L123-L137
+[main request conversion]: https://github.com/google/adk-go/blob/main/model/openaimodel/request.go#L86-L143
+[main request tests]: https://github.com/google/adk-go/blob/main/model/openaimodel/request_test.go#L123-L137
 [response conversion]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/response.go
 [stream conversion]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/stream.go
 [tool conversion]: https://github.com/google/adk-go/blob/v2.1.0/model/openaimodel/tools.go
@@ -257,4 +298,7 @@ Sources: [v2.1.0 release], [v2.0.0...v2.1.0 comparison], [v2.0.0 go.mod],
 [issue #1197]: https://github.com/google/adk-go/issues/1197
 [PR #1205]: https://github.com/google/adk-go/pull/1205
 [PR #1291]: https://github.com/google/adk-go/pull/1291
-[current adapter source]: https://github.com/achetronic/adk-utils-go/blob/v0.22.0/genai/openai/openai.go
+[OpenAI image input guide]: https://platform.openai.com/docs/guides/images-vision?api-mode=responses
+[OpenAI OpenAPI image example]: https://github.com/openai/openai-openapi/blob/main/openapi.yaml#L17242-L17263
+[openai-go v3.8.1 response input types]: https://github.com/openai/openai-go/blob/v3.8.1/responses/response.go#L5863-L5887
+[current adapter source]: https://github.com/achetronic/adk-utils-go/blob/v0.22.0/genai/openai/openai.go#L407-L428
