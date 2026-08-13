@@ -98,6 +98,7 @@ export const CRON_DELIVERY_LABELS: Record<string, string> = {
   CRON_DELIVERY_TYPE_WEBHOOK: "Webhook",
   CRON_DELIVERY_TYPE_CHANNEL: "Channel",
   CRON_DELIVERY_TYPE_NOTIFY_GROUP: "Notify Group",
+  CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION: "Telegram Destination",
 };
 
 export const CRON_STATUS_LABELS: Record<string, string> = {

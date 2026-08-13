@@ -170,50 +170,6 @@ func (r *testNotifyGroupRepo) ListNotifyGroupsAcrossWorkspaces(context.Context) 
 	return []*agentsv1.NotifyGroup{r.group}, nil
 }
 
-type testChannelRepo struct {
-	channel *agentsv1.AgentChannel
-}
-
-func (r *testChannelRepo) ListChannels(context.Context, string) ([]*agentsv1.AgentChannel, error) {
-	return []*agentsv1.AgentChannel{r.channel}, nil
-}
-
-func (r *testChannelRepo) GetChannel(_ context.Context, workspaceID, name string) (*agentsv1.AgentChannel, error) {
-	if r.channel == nil || r.channel.GetWorkspaceId() != workspaceID || r.channel.GetName() != name {
-		return nil, configrepo.ErrNotFound
-	}
-	return r.channel, nil
-}
-
-func (r *testChannelRepo) CreateChannel(context.Context, string, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (r *testChannelRepo) UpdateChannel(context.Context, string, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (r *testChannelRepo) DeleteChannel(context.Context, string, string) error {
-	return errors.New("not implemented")
-}
-
-func (r *testChannelRepo) ListChannelsAcrossWorkspaces(context.Context) ([]*agentsv1.AgentChannel, error) {
-	return []*agentsv1.AgentChannel{r.channel}, nil
-}
-
-type testChannelSender struct {
-	channel *agentsv1.AgentChannel
-	chatID  string
-	text    string
-}
-
-func (s *testChannelSender) Send(_ context.Context, channel *agentsv1.AgentChannel, chatID, text string) error {
-	s.channel = channel
-	s.chatID = chatID
-	s.text = text
-	return nil
-}
-
 type testCronRunner struct {
 	output   string
 	pending  []runner.PendingInput
@@ -367,23 +323,20 @@ func TestExecuteJobPausedWorkflowRecordsWaitingInput(t *testing.T) {
 	}
 }
 
+// A paused workflow's question must reach the operator with everything
+// needed to answer it through ReplySession (ADR-0003). The delivery vehicle
+// moved to Telegram Destinations in #273; the contract did not.
 func TestPausedWorkflowDeliversQuestionWithSessionCoordinates(t *testing.T) {
-	sender := &testChannelSender{}
+	delivery := &fakeTelegramDelivery{}
 	s := &Scheduler{
 		ctx: context.Background(),
 		runner: &testCronRunner{
 			output:  "Deploy v2 to production?",
 			pending: []runner.PendingInput{{InterruptID: "int-1", Question: "Deploy v2 to production?"}},
 		},
-		execRepo: &testExecutionRepo{},
-		notifier: notify.NewSender(nil),
-		channelRepo: &testChannelRepo{channel: &agentsv1.AgentChannel{
-			Name:        "ops-chat",
-			WorkspaceId: "ws1",
-			Enabled:     true,
-			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD,
-		}},
-		channelSender: sender,
+		execRepo:       &testExecutionRepo{},
+		notifier:       notify.NewSender(nil),
+		telegramSender: delivery,
 	}
 
 	exec := s.executeJob(&agentsv1.CronJob{
@@ -393,14 +346,16 @@ func TestPausedWorkflowDeliversQuestionWithSessionCoordinates(t *testing.T) {
 		AgentName:   "release-flow",
 		Schedule:    "@daily",
 		Delivery: &agentsv1.CronDelivery{
-			Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
-			ChannelName: "ops-chat",
-			ChatId:      "chan-123",
+			Type:                  agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION,
+			TelegramDestinationId: "dest-1",
 		},
 	})
 
-	if sender.text == "" {
+	if delivery.text == "" {
 		t.Fatal("expected a delivery for the paused execution")
+	}
+	if delivery.destinationID != "dest-1" {
+		t.Errorf("delivered to destination %q", delivery.destinationID)
 	}
 	for _, want := range []string{
 		"Deploy v2 to production?", // the node's question
@@ -412,10 +367,25 @@ func TestPausedWorkflowDeliversQuestionWithSessionCoordinates(t *testing.T) {
 		// to a truncated ID would land on the wrong session.
 		"session_id=cron:approve-deploy:" + exec.GetId(),
 	} {
-		if !strings.Contains(sender.text, want) {
-			t.Fatalf("delivery message missing %q:\n%s", want, sender.text)
+		if !strings.Contains(delivery.text, want) {
+			t.Errorf("delivery missing %q; got:\n%s", want, delivery.text)
 		}
 	}
+}
+
+// fakeTelegramDelivery records what the scheduler handed to the unified
+// Telegram sender.
+type fakeTelegramDelivery struct {
+	workspaceID   string
+	destinationID string
+	text          string
+}
+
+func (d *fakeTelegramDelivery) SendToDestination(_ context.Context, workspaceID, destinationID, text string) error {
+	d.workspaceID = workspaceID
+	d.destinationID = destinationID
+	d.text = text
+	return nil
 }
 
 func TestDeliverWebhookWaitingInputCarriesSessionCoordinates(t *testing.T) {
@@ -668,7 +638,7 @@ func TestHandleTurnDeletesSessionAfterCompletingWaitingExecution(t *testing.T) {
 // the cancellation delivered through the job's target, instead of waiting
 // forever on a session that no longer exists.
 func TestHandleSessionDeletedCancelsWaitingExecution(t *testing.T) {
-	sender := &testChannelSender{}
+	delivery := &fakeTelegramDelivery{}
 	execRepo := &testExecutionRepo{}
 	if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
 		t.Fatal(err)
@@ -683,19 +653,12 @@ func TestHandleSessionDeletedCancelsWaitingExecution(t *testing.T) {
 			AgentName:   "release-flow",
 			Schedule:    "@daily",
 			Delivery: &agentsv1.CronDelivery{
-				Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
-				ChannelName: "ops-chat",
-				ChatId:      "chan-123",
+				Type:                  agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION,
+				TelegramDestinationId: "dest-1",
 			},
 		}},
-		channelRepo: &testChannelRepo{channel: &agentsv1.AgentChannel{
-			Name:        "ops-chat",
-			WorkspaceId: "ws1",
-			Enabled:     true,
-			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD,
-		}},
-		channelSender: sender,
-		notifier:      notify.NewSender(nil),
+		notifier:       notify.NewSender(nil),
+		telegramSender: delivery,
 	}
 
 	s.HandleSessionDeleted("cron:approve-deploy", "cron:approve-deploy", "cron:approve-deploy:exec-1")
@@ -713,8 +676,8 @@ func TestHandleSessionDeletedCancelsWaitingExecution(t *testing.T) {
 	if got.GetDurationMs() <= 0 {
 		t.Fatalf("duration_ms = %d, want the wall time since the run started", got.GetDurationMs())
 	}
-	if !strings.Contains(sender.text, "cancelled") {
-		t.Fatalf("cancellation was not delivered: %q", sender.text)
+	if !strings.Contains(delivery.text, "cancelled") {
+		t.Fatalf("cancellation was not delivered: %q", delivery.text)
 	}
 }
 
@@ -750,17 +713,16 @@ func TestHandleSessionDeletedIgnoresUnrelatedSessions(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			sender := &testChannelSender{}
+			delivery := &fakeTelegramDelivery{}
 			execRepo := &testExecutionRepo{}
 			if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
 				t.Fatal(err)
 			}
 			s := &Scheduler{
-				ctx:           context.Background(),
-				execRepo:      execRepo,
-				jobRepo:       &testJobRepo{},
-				channelSender: sender,
-				notifier:      notify.NewSender(nil),
+				ctx:      context.Background(),
+				execRepo: execRepo,
+				jobRepo:  &testJobRepo{},
+				notifier: notify.NewSender(nil),
 			}
 
 			s.HandleSessionDeleted(tc.appName, tc.userID, tc.sessionID)
@@ -769,8 +731,8 @@ func TestHandleSessionDeletedIgnoresUnrelatedSessions(t *testing.T) {
 			if got.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
 				t.Fatalf("status = %s, want still waiting_input", got.GetStatus())
 			}
-			if sender.text != "" {
-				t.Fatalf("unexpected delivery: %q", sender.text)
+			if delivery.text != "" {
+				t.Fatalf("unexpected delivery: %q", delivery.text)
 			}
 		})
 	}
@@ -875,7 +837,7 @@ func TestExecuteJobDeletesSessionOnTerminalState(t *testing.T) {
 // pending Interrupt, the waiting execution reaches its terminal state and
 // the final output is delivered through the job's configured target.
 func TestHandleTurnCompletesWaitingExecution(t *testing.T) {
-	sender := &testChannelSender{}
+	delivery := &fakeTelegramDelivery{}
 	execRepo := &testExecutionRepo{}
 	if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
 		t.Fatal(err)
@@ -890,19 +852,12 @@ func TestHandleTurnCompletesWaitingExecution(t *testing.T) {
 			AgentName:   "release-flow",
 			Schedule:    "@daily",
 			Delivery: &agentsv1.CronDelivery{
-				Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
-				ChannelName: "ops-chat",
-				ChatId:      "chan-123",
+				Type:                  agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION,
+				TelegramDestinationId: "dest-1",
 			},
 		}},
-		channelRepo: &testChannelRepo{channel: &agentsv1.AgentChannel{
-			Name:        "ops-chat",
-			WorkspaceId: "ws1",
-			Enabled:     true,
-			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD,
-		}},
-		channelSender: sender,
-		notifier:      notify.NewSender(nil),
+		notifier:       notify.NewSender(nil),
+		telegramSender: delivery,
 	}
 
 	s.HandleTurn(cronSessionCtxInfo(), &runner.TurnResult{Output: "deployed v2"}, nil)
@@ -920,8 +875,8 @@ func TestHandleTurnCompletesWaitingExecution(t *testing.T) {
 	if got.GetDurationMs() <= 0 {
 		t.Fatalf("duration_ms = %d, want the wall time since the run started", got.GetDurationMs())
 	}
-	if !strings.Contains(sender.text, "deployed v2") || !strings.Contains(sender.text, "success") {
-		t.Fatalf("final result was not delivered: %q", sender.text)
+	if !strings.Contains(delivery.text, "deployed v2") || !strings.Contains(delivery.text, "success") {
+		t.Fatalf("final result was not delivered: %q", delivery.text)
 	}
 }
 
@@ -962,17 +917,16 @@ func TestHandleTurnIgnoresUnfinishedAndUnrelatedTurns(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			sender := &testChannelSender{}
+			delivery := &fakeTelegramDelivery{}
 			execRepo := &testExecutionRepo{}
 			if err := execRepo.Save(context.Background(), waitingExecFixture()); err != nil {
 				t.Fatal(err)
 			}
 			s := &Scheduler{
-				ctx:           context.Background(),
-				execRepo:      execRepo,
-				jobRepo:       &testJobRepo{},
-				channelSender: sender,
-				notifier:      notify.NewSender(nil),
+				ctx:      context.Background(),
+				execRepo: execRepo,
+				jobRepo:  &testJobRepo{},
+				notifier: notify.NewSender(nil),
 			}
 
 			s.HandleTurn(tc.ctxInfo, tc.turn, tc.err)
@@ -981,8 +935,8 @@ func TestHandleTurnIgnoresUnfinishedAndUnrelatedTurns(t *testing.T) {
 			if got.GetStatus() != agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_WAITING_INPUT {
 				t.Fatalf("status = %s, want still waiting_input", got.GetStatus())
 			}
-			if sender.text != "" {
-				t.Fatalf("unexpected delivery: %q", sender.text)
+			if delivery.text != "" {
+				t.Fatalf("unexpected delivery: %q", delivery.text)
 			}
 		})
 	}
@@ -1463,47 +1417,6 @@ func TestDeliverNotifyGroupTimeoutFailureContinuesFanout(t *testing.T) {
 	}
 }
 
-func TestDeliverChannelSendsThroughConfiguredAgentChannel(t *testing.T) {
-	sender := &testChannelSender{}
-	s := &Scheduler{
-		ctx: context.Background(),
-		channelRepo: &testChannelRepo{channel: &agentsv1.AgentChannel{
-			Name:        "ops-chat",
-			WorkspaceId: "ws1",
-			Enabled:     true,
-			Platform:    agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD,
-		}},
-		channelSender: sender,
-	}
-
-	s.deliverChannel(&agentsv1.CronJob{
-		Name:        "job1",
-		WorkspaceId: "ws1",
-		Delivery: &agentsv1.CronDelivery{
-			Type:        agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL,
-			ChannelName: "ops-chat",
-			ChatId:      "chan-123",
-		},
-	}, &agentsv1.CronExecution{
-		Id:      "exec-1",
-		JobName: "job1",
-		Status:  agentsv1.CronExecutionStatus_CRON_EXECUTION_STATUS_SUCCESS,
-		Output:  "done",
-	})
-
-	if sender.channel == nil || sender.channel.GetName() != "ops-chat" {
-		t.Fatalf("sender channel = %v, want ops-chat", sender.channel)
-	}
-	if sender.chatID != "chan-123" {
-		t.Fatalf("chatID = %q, want chan-123", sender.chatID)
-	}
-	if sender.text == "" {
-		t.Fatal("expected non-empty delivery message")
-	}
-}
-
-// resolvingCronRunner is a testCronRunner with an explicit agent_id → name
-// table, for tests that exercise agent_id resolution end to end.
 type resolvingCronRunner struct {
 	testCronRunner
 	idToName map[string]string

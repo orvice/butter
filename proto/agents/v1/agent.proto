@@ -631,15 +631,30 @@ enum NotifyTargetType {
   NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK = 3;
 }
 
+// TelegramNotifyTarget addresses one Telegram Destination (issue #264).
+//
+// Fields 1–4 held a raw Bot Token, chat ID, parse mode, and thread ID. They
+// remain reserved-but-declared so historical records still decode, but new
+// create/update calls reject any value in them: a Bot Token duplicated into
+// every notify group is exactly the fragmentation `destination_id` removes.
 message TelegramNotifyTarget {
+  // Deprecated: rejected on write. Use destination_id.
   // @gotags: json:"bot_token,omitempty" yaml:"bot_token,omitempty"
-  string bot_token = 1;
+  string bot_token = 1 [deprecated = true];
+  // Deprecated: rejected on write. Use destination_id.
   // @gotags: json:"chat_id,omitempty" yaml:"chat_id,omitempty"
-  string chat_id = 2;
+  string chat_id = 2 [deprecated = true];
+  // Deprecated: rejected on write. Markdown handling is now central.
   // @gotags: json:"parse_mode,omitempty" yaml:"parse_mode,omitempty"
-  string parse_mode = 3;
+  string parse_mode = 3 [deprecated = true];
+  // Deprecated: rejected on write. The Destination owns the Forum Topic.
   // @gotags: json:"message_thread_id,omitempty" yaml:"message_thread_id,omitempty"
-  int64 message_thread_id = 4;
+  int64 message_thread_id = 4 [deprecated = true];
+
+  // The Telegram Destination this target delivers to. The Destination owns
+  // the chat, the optional Forum Topic, and the credential used to reach it.
+  // @gotags: json:"destination_id,omitempty" yaml:"destination_id,omitempty" bson:"destination_id,omitempty"
+  string destination_id = 5;
 }
 
 message LarkNotifyTarget {

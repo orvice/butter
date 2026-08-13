@@ -48,138 +48,6 @@ func TestNewSenderUsesDefaultTimeout(t *testing.T) {
 	}
 }
 
-func TestSendTelegramRejectsMalformedBotToken(t *testing.T) {
-	cases := []struct {
-		name  string
-		token string
-	}{
-		{"missing colon", "abcdefgh"},
-		{"newline injection", "123:abc\nHost: evil"},
-		{"slash injection", "123:abc/extra"},
-		{"empty bot id", ":abc"},
-		{"empty secret", "123:"},
-		{"space in secret", "123:abc def"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			transport := &captureTransport{}
-			sender := NewSender(&http.Client{Transport: transport})
-			err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
-				Enabled: true,
-				Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
-				Telegram: &agentsv1.TelegramNotifyTarget{
-					BotToken: tc.token,
-					ChatId:   "chat-1",
-				},
-			}, Message{Text: "hi"})
-			if err == nil {
-				t.Fatalf("expected error for token %q, got nil", tc.token)
-			}
-			if len(transport.reqs) != 0 {
-				t.Fatalf("expected no HTTP requests for malformed token, got %d", len(transport.reqs))
-			}
-		})
-	}
-}
-
-func TestSendTelegramPayload(t *testing.T) {
-	var payload map[string]any
-	transport := &captureTransport{}
-	sender := NewSender(&http.Client{Transport: transport})
-	err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
-		Enabled: true,
-		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
-		Telegram: &agentsv1.TelegramNotifyTarget{
-			BotToken:        "123456:secret-token",
-			ChatId:          "chat-1",
-			ParseMode:       "Markdown",
-			MessageThreadId: 7,
-		},
-	}, Message{Title: "Cron job job1: success", Text: "done"})
-	if err != nil {
-		t.Fatalf("send telegram: %v", err)
-	}
-	if len(transport.reqs) != 2 {
-		t.Fatalf("expected 2 telegram requests, got %d", len(transport.reqs))
-	}
-	if transport.reqs[0].Method != http.MethodPost {
-		t.Fatalf("expected POST, got %s", transport.reqs[0].Method)
-	}
-	if transport.reqs[0].URL.String() != "https://api.telegram.org/bot123456:secret-token/sendChatAction" {
-		t.Fatalf("unexpected telegram typing URL %s", transport.reqs[0].URL.String())
-	}
-	if got := transport.reqs[0].Header.Get("Content-Type"); got != "application/json" {
-		t.Fatalf("expected JSON content type, got %q", got)
-	}
-	if err := json.Unmarshal(transport.reqBodies[0], &payload); err != nil {
-		t.Fatalf("decode typing payload: %v", err)
-	}
-	if payload["chat_id"] != "chat-1" {
-		t.Fatalf("unexpected typing chat_id %#v", payload["chat_id"])
-	}
-	if payload["action"] != "typing" {
-		t.Fatalf("unexpected typing action %#v", payload["action"])
-	}
-	if payload["message_thread_id"] != float64(7) {
-		t.Fatalf("unexpected typing message_thread_id %#v", payload["message_thread_id"])
-	}
-
-	if transport.reqs[1].URL.String() != "https://api.telegram.org/bot123456:secret-token/sendMessage" {
-		t.Fatalf("unexpected telegram message URL %s", transport.reqs[1].URL.String())
-	}
-	if got := transport.reqs[1].Header.Get("Content-Type"); got != "application/json" {
-		t.Fatalf("expected JSON content type, got %q", got)
-	}
-	if err := json.Unmarshal(transport.reqBodies[1], &payload); err != nil {
-		t.Fatalf("decode payload: %v", err)
-	}
-	if payload["chat_id"] != "chat-1" {
-		t.Fatalf("unexpected chat_id %#v", payload["chat_id"])
-	}
-	if payload["text"] != "Cron job job1: success\ndone" {
-		t.Fatalf("unexpected text %#v", payload["text"])
-	}
-	if payload["parse_mode"] != "Markdown" {
-		t.Fatalf("unexpected parse_mode %#v", payload["parse_mode"])
-	}
-	if payload["message_thread_id"] != float64(7) {
-		t.Fatalf("unexpected message_thread_id %#v", payload["message_thread_id"])
-	}
-}
-
-func TestSendTelegramEscapesMarkdownV2Payload(t *testing.T) {
-	var payload map[string]any
-	transport := &captureTransport{}
-	sender := NewSender(&http.Client{Transport: transport})
-	err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
-		Enabled: true,
-		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
-		Telegram: &agentsv1.TelegramNotifyTarget{
-			BotToken:  "123456:secret-token",
-			ChatId:    "chat-1",
-			ParseMode: "MarkdownV2",
-		},
-	}, Message{
-		Title: "Cron job daily-ticket: success",
-		Text:  "workspace=prod-1 status=ok.",
-	})
-	if err != nil {
-		t.Fatalf("send telegram: %v", err)
-	}
-	if len(transport.reqBodies) != 2 {
-		t.Fatalf("expected 2 telegram requests, got %d", len(transport.reqBodies))
-	}
-	if err := json.Unmarshal(transport.reqBodies[1], &payload); err != nil {
-		t.Fatalf("decode payload: %v", err)
-	}
-	if payload["text"] != `Cron job daily\-ticket: success`+"\n"+`workspace\=prod\-1 status\=ok\.` {
-		t.Fatalf("unexpected text %#v", payload["text"])
-	}
-	if payload["parse_mode"] != "MarkdownV2" {
-		t.Fatalf("unexpected parse_mode %#v", payload["parse_mode"])
-	}
-}
-
 func TestSendLarkPayload(t *testing.T) {
 	var payload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +58,7 @@ func TestSendLarkPayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := NewSender(server.Client()).Send(context.Background(), &agentsv1.NotifyTarget{
+	err := NewSender(server.Client()).Send(context.Background(), "ws-test", &agentsv1.NotifyTarget{
 		Enabled: true,
 		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_LARK_WEBHOOK,
 		Lark:    &agentsv1.LarkNotifyTarget{WebhookUrl: server.URL},
@@ -222,7 +90,7 @@ func TestSendDiscordPayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := NewSender(server.Client()).Send(context.Background(), &agentsv1.NotifyTarget{
+	err := NewSender(server.Client()).Send(context.Background(), "ws-test", &agentsv1.NotifyTarget{
 		Enabled: true,
 		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK,
 		Discord: &agentsv1.DiscordNotifyTarget{
@@ -249,38 +117,6 @@ func TestSendDiscordPayload(t *testing.T) {
 	}
 }
 
-func TestTelegramMessageTruncation(t *testing.T) {
-	transport := &captureTransport{}
-	sender := NewSender(&http.Client{Transport: transport})
-
-	longText := strings.Repeat("a", telegramMaxTextBytes+100)
-	err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
-		Enabled: true,
-		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
-		Telegram: &agentsv1.TelegramNotifyTarget{
-			BotToken: "123:tok",
-			ChatId:   "chat",
-		},
-	}, Message{Text: longText})
-	if err != nil {
-		t.Fatalf("send: %v", err)
-	}
-	var payload map[string]any
-	if len(transport.reqBodies) != 2 {
-		t.Fatalf("expected 2 telegram requests, got %d", len(transport.reqBodies))
-	}
-	if err := json.Unmarshal(transport.reqBodies[1], &payload); err != nil {
-		t.Fatalf("decode payload: %v", err)
-	}
-	text, _ := payload["text"].(string)
-	if len([]rune(text)) > telegramMaxTextBytes {
-		t.Fatalf("text length %d exceeds Telegram limit %d", len([]rune(text)), telegramMaxTextBytes)
-	}
-	if !strings.HasSuffix(text, "[truncated]") {
-		t.Fatalf("expected truncated suffix, got: %q", text[max(0, len(text)-30):])
-	}
-}
-
 func TestPostJSONIncludesResponseBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -289,7 +125,7 @@ func TestPostJSONIncludesResponseBody(t *testing.T) {
 	defer server.Close()
 
 	sender := NewSender(server.Client())
-	err := sender.Send(context.Background(), &agentsv1.NotifyTarget{
+	err := sender.Send(context.Background(), "ws-test", &agentsv1.NotifyTarget{
 		Enabled: true,
 		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_LARK_WEBHOOK,
 		Lark:    &agentsv1.LarkNotifyTarget{WebhookUrl: server.URL},
@@ -305,19 +141,12 @@ func TestPostJSONIncludesResponseBody(t *testing.T) {
 	}
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func TestSendHonorsContextTimeout(t *testing.T) {
 	sender := NewSender(&http.Client{Transport: blockingTransport{}})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 
-	err := sender.Send(ctx, &agentsv1.NotifyTarget{
+	err := sender.Send(ctx, "ws-test", &agentsv1.NotifyTarget{
 		Enabled: true,
 		Type:    agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_LARK_WEBHOOK,
 		Lark:    &agentsv1.LarkNotifyTarget{WebhookUrl: "https://example.invalid/hook"},
@@ -327,5 +156,93 @@ func TestSendHonorsContextTimeout(t *testing.T) {
 	}
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected DeadlineExceeded, got %v", err)
+	}
+}
+
+// --- Telegram delegation (issue #264) --------------------------------------
+
+// fakeTelegramDelivery records what the notifier handed to the unified sender.
+type fakeTelegramDelivery struct {
+	calls []struct{ workspaceID, destinationID, text string }
+	err   error
+}
+
+func (f *fakeTelegramDelivery) SendToDestination(_ context.Context, workspaceID, destinationID, text string) error {
+	f.calls = append(f.calls, struct{ workspaceID, destinationID, text string }{workspaceID, destinationID, text})
+	return f.err
+}
+
+// A Telegram target now carries only a Destination ID; the notifier resolves
+// nothing itself and issues no HTTP request of its own.
+func TestSendTelegramDelegatesToTheUnifiedSender(t *testing.T) {
+	transport := &captureTransport{}
+	delivery := &fakeTelegramDelivery{}
+	sender := NewSender(&http.Client{Transport: transport})
+	sender.SetTelegramDelivery(delivery)
+
+	err := sender.Send(context.Background(), "ws-test", &agentsv1.NotifyTarget{
+		Enabled:  true,
+		Type:     agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
+		Telegram: &agentsv1.TelegramNotifyTarget{DestinationId: "dest-1"},
+	}, Message{Title: "Cron job job1: success", Text: "done"})
+	if err != nil {
+		t.Fatalf("send telegram: %v", err)
+	}
+	if len(transport.reqs) != 0 {
+		t.Fatalf("notifier issued %d telegram HTTP requests itself", len(transport.reqs))
+	}
+	if len(delivery.calls) != 1 {
+		t.Fatalf("expected one delivery, got %d", len(delivery.calls))
+	}
+	call := delivery.calls[0]
+	if call.workspaceID != "ws-test" || call.destinationID != "dest-1" {
+		t.Errorf("delivered to workspace %q destination %q", call.workspaceID, call.destinationID)
+	}
+	if call.text != "Cron job job1: success\ndone" {
+		t.Errorf("text = %q", call.text)
+	}
+}
+
+func TestSendTelegramRequiresADestination(t *testing.T) {
+	sender := NewSender(&http.Client{Transport: &captureTransport{}})
+	sender.SetTelegramDelivery(&fakeTelegramDelivery{})
+
+	err := sender.Send(context.Background(), "ws-test", &agentsv1.NotifyTarget{
+		Enabled:  true,
+		Type:     agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
+		Telegram: &agentsv1.TelegramNotifyTarget{},
+	}, Message{Text: "hi"})
+	if err == nil {
+		t.Fatal("expected a target without destination_id to fail")
+	}
+}
+
+// An unconfigured delivery fails loudly. Skipping would turn a misconfigured
+// deployment into alerts that silently go nowhere.
+func TestSendTelegramFailsWhenDeliveryIsUnconfigured(t *testing.T) {
+	sender := NewSender(&http.Client{Transport: &captureTransport{}})
+
+	err := sender.Send(context.Background(), "ws-test", &agentsv1.NotifyTarget{
+		Enabled:  true,
+		Type:     agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
+		Telegram: &agentsv1.TelegramNotifyTarget{DestinationId: "dest-1"},
+	}, Message{Text: "hi"})
+	if err == nil {
+		t.Fatal("expected an unconfigured telegram delivery to fail")
+	}
+}
+
+func TestSendTelegramSurfacesDeliveryFailure(t *testing.T) {
+	delivery := &fakeTelegramDelivery{err: errors.New("destination is disabled")}
+	sender := NewSender(&http.Client{Transport: &captureTransport{}})
+	sender.SetTelegramDelivery(delivery)
+
+	err := sender.Send(context.Background(), "ws-test", &agentsv1.NotifyTarget{
+		Enabled:  true,
+		Type:     agentsv1.NotifyTargetType_NOTIFY_TARGET_TYPE_TELEGRAM,
+		Telegram: &agentsv1.TelegramNotifyTarget{DestinationId: "dest-1"},
+	}, Message{Text: "hi"})
+	if err == nil || !strings.Contains(err.Error(), "destination is disabled") {
+		t.Fatalf("err = %v, want the delivery failure surfaced", err)
 	}
 }

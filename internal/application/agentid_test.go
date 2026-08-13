@@ -43,7 +43,7 @@ func (f *fakeWSRepo) GetMember(_ context.Context, wsID, userID string) (*agentsv
 	return nil, workspacerepo.ErrNotFound
 }
 
-func (f *fakeWSRepo) EnsureIndexes(context.Context) error                   { return nil }
+func (f *fakeWSRepo) EnsureIndexes(context.Context) error { return nil }
 func (f *fakeWSRepo) ListWorkspaces(context.Context) ([]*agentsv1.Workspace, error) {
 	return nil, nil
 }

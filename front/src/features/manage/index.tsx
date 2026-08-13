@@ -22,8 +22,8 @@ import {
   Moon,
   Palette,
   Plug,
-  Radio,
   Satellite,
+  Send,
   Server,
   Settings2,
   ShieldCheck,
@@ -97,11 +97,25 @@ const CONNECTION_SECTIONS: ManageSection[] = [
       'Configure inbound channels and outbound notification targets.',
     items: [
       {
-        title: 'Channels',
+        title: 'Telegram Platform Settings',
         description:
-          'Connect Telegram, Discord, and other conversation channels.',
-        to: '/channels',
-        icon: Radio,
+          'Set the public webhook base URL Telegram delivers callbacks to.',
+        to: '/admin/telegram',
+        icon: ShieldCheck,
+      },
+      {
+        title: 'Telegram Channels',
+        description:
+          'Register Telegram bots and bind chats, groups, and forum topics.',
+        to: '/telegram-channels',
+        icon: Send,
+      },
+      {
+        title: 'Telegram Updates',
+        description:
+          'Inspect processing history and resend replies that never landed.',
+        to: '/telegram-updates',
+        icon: ListTree,
       },
       {
         title: 'Notify Groups',

@@ -326,119 +326,82 @@ func TestRemoteAgentServiceServer_DaemonValidation(t *testing.T) {
 	}
 }
 
-func TestChannelServiceServer_ReloadsRuntime(t *testing.T) {
-	store := memory.New()
-	svc := NewChannelServiceServer(store)
-	runtime := &reloadTracker{}
-	svc.SetRuntime(runtime)
+// Legacy generic channels are read-only after the Telegram cutover (#273):
+// accepting a write would store configuration that looks live and runs
+// nothing, which is exactly the failure the cutover ends.
+func TestChannelServiceServer_RefusesLegacyMutations(t *testing.T) {
+	svc := NewChannelServiceServer(memory.New())
 	ctx := testCtx()
 
-	_, err := svc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
-		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if runtime.calls != 1 {
-		t.Fatalf("expected 1 reload call, got %d", runtime.calls)
-	}
-
-	_, err = svc.UpdateChannel(ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
-		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent2"},
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if runtime.calls != 2 {
-		t.Fatalf("expected 2 reload calls, got %d", runtime.calls)
-	}
-
-	_, err = svc.DeleteChannel(ctx, connect.NewRequest(&agentsv1.DeleteChannelRequest{Name: "ch1"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if runtime.calls != 3 {
-		t.Fatalf("expected 3 reload calls, got %d", runtime.calls)
+	for name, call := range map[string]func() error{
+		"create": func() error {
+			_, err := svc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
+				Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
+			}))
+			return err
+		},
+		"update": func() error {
+			_, err := svc.UpdateChannel(ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
+				Channel: &agentsv1.AgentChannel{Name: "ch1"},
+			}))
+			return err
+		},
+		"restart": func() error {
+			_, err := svc.RestartChannel(ctx, connect.NewRequest(&agentsv1.RestartChannelRequest{Name: "ch1"}))
+			return err
+		},
+		"pause": func() error {
+			_, err := svc.PauseChannel(ctx, connect.NewRequest(&agentsv1.PauseChannelRequest{Name: "ch1"}))
+			return err
+		},
+		"resume": func() error {
+			_, err := svc.ResumeChannel(ctx, connect.NewRequest(&agentsv1.ResumeChannelRequest{Name: "ch1"}))
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := call()
+			if connect.CodeOf(err) != connect.CodeUnimplemented {
+				t.Fatalf("code = %v, want Unimplemented", connect.CodeOf(err))
+			}
+			if !strings.Contains(err.Error(), "Telegram") {
+				t.Errorf("error should point at the telegram replacement, got %q", err.Error())
+			}
+		})
 	}
 }
 
-func TestChannelServiceServer_ValidatesTriggers(t *testing.T) {
+// Reads and deletes stay available so an operator can see what remains and
+// clean it up after migrating.
+func TestChannelServiceServer_StillReadsAndDeletesLegacyRecords(t *testing.T) {
+	store := memory.New()
+	if _, err := store.CreateChannel(testCtx(), "ws-test", &agentsv1.AgentChannel{
+		Name: "legacy", AgentName: "agent1", Enabled: true,
+	}); err != nil {
+		t.Fatalf("seed legacy channel: %v", err)
+	}
+	svc := NewChannelServiceServer(store)
 	ctx := testCtx()
 
-	t.Run("rejects unspecified on create", func(t *testing.T) {
-		store := memory.New()
-		svc := NewChannelServiceServer(store)
-
-		_, err := svc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
-			Channel: &agentsv1.AgentChannel{
-				Name:      "ch1",
-				AgentName: "agent1",
-				Triggers: []*agentsv1.AgentTrigger{{
-					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_UNSPECIFIED,
-				}},
-			},
-		}))
-		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
-			t.Fatalf("expected InvalidArgument, got %v", err)
-		}
-		if _, err := store.GetChannel(ctx, wsTest, "ch1"); !errors.Is(err, configrepo.ErrNotFound) {
-			t.Fatalf("expected invalid channel not to be persisted, got %v", err)
-		}
-	})
-
-	t.Run("rejects unimplemented mention on update", func(t *testing.T) {
-		store := memory.New()
-		if _, err := store.CreateChannel(ctx, wsTest, &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"}); err != nil {
-			t.Fatalf("seed channel: %v", err)
-		}
-		svc := NewChannelServiceServer(store)
-
-		_, err := svc.UpdateChannel(ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
-			Channel: &agentsv1.AgentChannel{
-				Name:      "ch1",
-				AgentName: "agent1",
-				Triggers: []*agentsv1.AgentTrigger{{
-					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_MENTION,
-				}},
-			},
-		}))
-		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
-			t.Fatalf("expected InvalidArgument, got %v", err)
-		}
-	})
-
-	t.Run("accepts supported trigger", func(t *testing.T) {
-		store := memory.New()
-		svc := NewChannelServiceServer(store)
-
-		_, err := svc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
-			Channel: &agentsv1.AgentChannel{
-				Name:      "ch1",
-				AgentName: "agent1",
-				Triggers: []*agentsv1.AgentTrigger{{
-					Type: agentsv1.AgentTriggerType_AGENT_TRIGGER_TYPE_MESSAGE,
-				}},
-			},
-		}))
-		if err != nil {
-			t.Fatalf("expected supported trigger to pass, got %v", err)
-		}
-	})
-}
-
-func TestChannelServiceServer_ReloadError(t *testing.T) {
-	store := memory.New()
-	svc := NewChannelServiceServer(store)
-	svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
-
-	_, err := svc.CreateChannel(testCtx(), connect.NewRequest(&agentsv1.CreateChannelRequest{
-		Channel: &agentsv1.AgentChannel{Name: "ch1", AgentName: "agent1"},
-	}))
-	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
-		t.Fatalf("expected Internal, got %v", err)
+	list, err := svc.ListChannels(ctx, connect.NewRequest(&agentsv1.ListChannelsRequest{}))
+	if err != nil || len(list.Msg.GetChannels()) != 1 {
+		t.Fatalf("list: %v, %d channels", err, len(list.Msg.GetChannels()))
 	}
-	if _, err := store.GetChannel(context.Background(), wsTest, "ch1"); !errors.Is(err, configrepo.ErrNotFound) {
-		t.Fatalf("expected rollback to remove channel, got %v", err)
+
+	// Status must say plainly that it does not run.
+	status, err := svc.GetChannelStatus(ctx, connect.NewRequest(&agentsv1.GetChannelStatusRequest{Name: "legacy"}))
+	if err != nil {
+		t.Fatalf("GetChannelStatus: %v", err)
+	}
+	if status.Msg.GetStatus().GetState() != agentsv1.ChannelStatus_STATE_ERROR {
+		t.Errorf("state = %v, want ERROR", status.Msg.GetStatus().GetState())
+	}
+	if !strings.Contains(status.Msg.GetStatus().GetDetail(), "not started") {
+		t.Errorf("detail = %q", status.Msg.GetStatus().GetDetail())
+	}
+
+	if _, err := svc.DeleteChannel(ctx, connect.NewRequest(&agentsv1.DeleteChannelRequest{Name: "legacy"})); err != nil {
+		t.Fatalf("DeleteChannel: %v", err)
 	}
 }
 

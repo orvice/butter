@@ -115,7 +115,8 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 - `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。dashboard chat 提交后由后台 coordinator 独立执行；同一 Session 只允许一个 QUEUED/RUNNING Invocation，不同 Session 可并发。Stop 是唯一普通取消动作，终态为 CANCELLED；导航和 observer 断开不取消。Get/Cancel 校验 Workspace 与 private Session owner。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name）。
 - `MCPServerService`：共享 MCP Server CRUD + `GetMCPServerStatus`（live 探活）+ `ListMCPTools`（聚合工具列表）+ `StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`（MCP OAuth2 授权流程）。
 - `RemoteAgentService`：远程 Agent CRUD + `GetRemoteAgentStatus`（A2A `/.well-known/agent.json` 探测 / Daemon 注册表查找）。
-- `ChannelService`：渠道配置 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
+- `TelegramChannelService` / `TelegramDestinationService` / `TelegramAdminService` / `TelegramProcessingService`：Telegram 的配置、状态、投递与恢复。
+- `ChannelService`：**已废弃**的通用渠道 API，仅保留读取与删除；创建/更新/重启/暂停/恢复返回 `Unimplemented`。
 - `AutomationService`：自动化工作流 CRUD + `RunAutomationNow` + `ListAutomationRuns` / `GetAutomationRun` / `ListAutomationStepRuns`。
 - `CronJobService`：定时任务 CRUD + `ListCronExecutions`（分页）+ `RunCronJobNow`。
 - `SessionService`：`Create` / `Get`（含 duration / event trace_url）/ `List`（channel/user/date 过滤 + 分页 + total）/ `Delete` / `Reply` / `UpdateSessionTitle` / `GenerateSessionTitle`（first-class title，有效标题优先级：first-class title → legacy state["title"] → agent name → 缩短 session ID；首轮后可 LLM 自动生成，见 §8）。
@@ -139,13 +140,45 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 - `DaemonConnectorService.Connect`：daemon 双向流接入。
 
-### 即时消息渠道
+### Telegram（issue #264）
 
-- **Telegram**：长轮询 poller，支持文本/图片，按 USER/CHAT scope 派生 session id。
-- **Discord**：长轮询 poller。
-- **触发与白名单**：Channel 配置中可定义 trigger 与 allowlist。
-- **回复能力**：reply、status、debug、clear 多种响应类型。Workflow Agent 在 HUMAN_INPUT 节点暂停时，question 作为普通回复送达；用户的下一条消息自动作为 resume 答案。
-- **活跃选择存 Redis**：渠道内用户/会话维度的活跃 agent 与 model 选择走 Redis。
+Telegram 由 **Telegram Channel**（一个 Bot 传输通道）和 **Telegram Destination**
+（一个精确地址：chat + 可选 Forum Topic）两级描述。全部在 Dashboard 配置，YAML
+不再承载任何 Telegram 业务配置或 Bot Token。
+
+**建立流程**
+
+1. 全局管理员在「Telegram 平台设置」填写公网 Webhook base URL（必须 https、不带
+   路径）。每个 Channel 的回调地址由它和不可变的 Channel ID 派生。
+2. Workspace owner 提交 Bot Token 创建 Channel。Token 先经 `getMe` 校验才落库，
+   Bot 身份从此**钉死**；轮换只接受同一个 Bot 的新 Token。Token 加密存储、只写不
+   读，Dashboard 与 API 都不会再返回它。
+3. 在目标 chat / Topic 里发 `/where`，Bot 回复 `channel_id` / `chat_id` /
+   `message_thread_id` / `user_id`，据此创建 Destination。`/where` 不受权限限制、
+   不调用 Agent、不创建任何东西，是唯一允许回复未配置地址的路径。
+4. 发一条**测试消息**验证地址可达。创建 Destination 本身不会发任何消息。
+5. 打开 Channel 的收发开关。启用前会做严格预检；未通过的原因以 blockers 列出。
+
+**每个 Destination 独立配置**：默认 Agent、可选 Model、可切换的 Agent/Model 候选
+列表（留空即锁定）、触发方式（ALL / MENTION / COMMAND / MENTION_OR_COMMAND）、
+准入用户（留空即放行该地址上所有真实用户）、controller 用户（必须同时在准入列表
+内）、会话策略（DESTINATION 共享 / USER 每人独立）、回复方式（引用 / 新消息）、
+debug 默认值。
+
+**Forum Topic 是独立地址**：群的普通会话与每个 Topic 是不同的 Destination，各自
+有独立会话与策略；所有响应都留在消息来源的 Topic 内。
+
+**运行期命令**：`/status`（任何被准入的用户可用）、`/agent`、`/model`、`/debug`、
+`/clear`（仅 controller）。`/agent <name>` 与 `/agent reset` 切换或复位；切换 Agent
+会切到该 Agent 自己的历史（切回可恢复），切换 Model 则保留当前对话。选择存在
+Redis，重启后仍然有效；候选列表被改动后失效的选择会自动回落到默认值。
+
+**已知降级**：BotFather 的 Group Privacy 打开时，Bot 在群里只能收到命令和回复，
+`ALL` 触发模式看不到普通消息。Butter 只能诊断并提示，无法代为关闭——请在 BotFather
+中用 `/setprivacy` 关闭。
+
+**Discord**：本次发布不支持，等待重新设计。遗留的 `AgentChannel` 记录不会启动，也
+不会被自动迁移。
 
 ### Cron 调度
 
@@ -177,8 +210,9 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 - **结果投递（CronDelivery）**：
   - `CRON_DELIVERY_TYPE_LOG`：写日志。
   - `CRON_DELIVERY_TYPE_WEBHOOK`：HTTP webhook 推送。
-  - `CRON_DELIVERY_TYPE_CHANNEL`：转发到指定 `AgentChannel` 的 `chat_id`。
-  - `CRON_DELIVERY_TYPE_NOTIFY_GROUP`：按名称加载 `NotifyGroup`，向其中启用的 Telegram、Lark webhook、Discord webhook 目标发送通知。
+  - `CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION`：投递到一个 Telegram Destination。
+  - `CRON_DELIVERY_TYPE_NOTIFY_GROUP`：按名称加载 `NotifyGroup`，向其中启用的 Telegram Destination、Lark webhook、Discord webhook 目标发送通知。
+  - `CRON_DELIVERY_TYPE_CHANNEL`：**已废弃**。新建/更新会被拒绝，存量记录不会执行。
 - **可靠性策略**：每次执行可设置超时、失败重试、重试 backoff、并发处理（默认 skip 保持旧行为）、投递通知时机和输出预览上限。手动 `RunCronJobNow` 与定时触发使用同一执行路径。
 - **Workflow 审批暂停（ADR 0003）**：当 cron 执行的 Workflow Agent 在 HUMAN_INPUT 节点暂停时，执行记录状态变为 `WAITING_INPUT`，question 通过 job 配置的 delivery 目标（channel / webhook / notify group）投递，并附带 session 坐标（`session_app_name` / `session_user_id` / `session_id`）与暂停 agent 的 `agent_id`（渲染为 `agent_id=<id>`；webhook 同时带 `agent_id` 与显示用 `agent_name`）。人类通过 `SessionService.ReplySession` 用该 `agent_id` 加 session 坐标回答后执行变为终态。删除 session 则执行变为 `CANCELLED`。暂停中的 job 在 SKIP/QUEUE 并发策略下跳过新触发。每次执行使用独立 session（`cron:<job>:<exec-id>`），避免重跑覆盖待回答的 Interrupt。
 - **执行记录（CronExecution）**：每次开始或被并发策略跳过的执行写入 MongoDB，包含 input/output preview、status（success/error/skipped/cancelled/waiting_input）、error、attempt_count、trigger_type、skipped_reason、truncated、起止时间和 duration，支持分页查询。
@@ -266,6 +300,38 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 page 层 boundary。Chat 流式走 `AgentService.StreamAgent`（`chat.ts`）；头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
 - 一级页（`front/src/pages/`）：Login / Chat / Forum / Dashboard(Overview) / Agents / MCP Servers / Remote Agents / Daemons / Channels / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Users / Profile / Integrations / Admin。
 - 全部页面消费上面 12-16 节描述的 RPC；细节见 `docs/api.md`。
+
+## 18.5 Telegram 运维前提
+
+- **Redis 是基础设施，不是缓存**。启用 Telegram 入站要求 Redis 配置持久化
+  （AOF/RDB）、足够存储、**不设驱逐策略**。Stream 里是尚未处理的用户消息，被驱逐
+  即等于丢失。预检会拦住未配置 Redis 的启用。
+- **Webhook 需要负载均衡器**：`POST /api/telegram/webhook/{channel_id}` 必须在所有
+  Pod 上公网可达并终结 TLS（Telegram 只投递到 https）。该路径绕过 workspace 鉴权，
+  改用 Telegram 回传的 per-Channel secret 做常量时间校验。
+- **Long Polling 供本地开发**：由 Redis 租约选出单一消费者。切换接收模式是显式运维
+  动作，本版本**不保证**切换过程无丢失、无重复；`(channel_id, update_id)` 幂等仍然
+  生效。
+- **加密密钥的威胁模型**：Bot Token 与 Webhook secret 用数据库内的主密钥加密。该
+  密钥与密文同库，因此**不能抵御数据库被完整攻破**。这是过渡方案，待 Secret
+  Manager / KMS 支持替换；密文已记录 `key_id` 以便迁移。
+- **保留期**：处理记录、Agent 输出与分段状态 30 天后由 Mongo TTL 清除。
+
+### 刻意的破坏性变更
+
+- YAML 不再配置 Telegram/Discord 渠道；`channels:` 条目被忽略。
+- 遗留 `AgentChannel`（含 Discord）不启动、不迁移，仅在启动日志中被报告。
+- Notify Group 的 Telegram target 只接受 `destination_id`；原始 bot_token /
+  chat_id / parse_mode / message_thread_id 在写入时被拒绝。
+- Cron 的 `CHANNEL` 投递在新建/更新时被拒绝，存量记录不再执行。
+
+### 已知延后项
+
+- **Telegram 直接回复无法恢复 cron `WAITING_INPUT`**：仍须通过 Dashboard 或
+  `SessionService.ReplySession`（ADR-0003）。把 Topic 内的回复映射到某一条待答执行
+  需要解决授权、超时、多条待答记录的选择与问题歧义，留待后续设计。
+- **相册（`media_group_id`）不做聚合**：每条 update 都是独立的一次交互。跨 Pod 的
+  聚合需要一个有界收集窗口，并对图片数量与合计 20 MiB 上限做约束，留待后续设计。
 
 ## 19. 部署形态
 

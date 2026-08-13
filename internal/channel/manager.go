@@ -1,310 +1,100 @@
+// Package channel holds what remains of the legacy generic AgentChannel
+// runtime after the Telegram cutover (issue #264/#273).
+//
+// Nothing here starts a transport any more. Telegram runs on Telegram
+// Channels and Destinations (`internal/runtime/telegram`), and Discord is
+// unsupported in this release pending a redesign. The Manager survives only
+// to make that visible: on start and on every reload it reports the legacy
+// records still in the database, so an operator can see what will not run
+// rather than discovering it when a bot goes quiet.
+//
+// Legacy records are deliberately not migrated. A generic AgentChannel has no
+// exact address — it has a chat allowlist — so there is no honest way to
+// derive the Destination it should become, and guessing would send an agent's
+// replies somewhere nobody chose.
 package channel
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"butterfly.orx.me/core/log"
-	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 
-	"go.orx.me/apps/butter/internal/channel/discord"
-	"go.orx.me/apps/butter/internal/channel/telegram"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
-	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-// ChannelPoller is the common interface for platform-specific pollers.
-type ChannelPoller interface {
-	Start(ctx context.Context)
-}
-
-type pollerFactory func(
-	channelCfg *agentsv1.AgentChannel,
-	runnerSvc *runner.Service,
-	rdb *redis.Client,
-	agentNames []string,
-	modelNames []string,
-) (ChannelPoller, error)
-
-// Manager manages all channel pollers.
+// Manager reports legacy AgentChannel records. It starts nothing.
 type Manager struct {
-	repo            configrepo.ChannelRepository
-	runnerSvc       *runner.Service
-	rdb             *redis.Client
-	modelNames      []string
-	telegramFactory pollerFactory
-	discordFactory  pollerFactory
+	repo configrepo.ChannelRepository
 
-	mu        sync.Mutex
-	parentCtx context.Context
-	runCancel context.CancelFunc
-	runWG     sync.WaitGroup
-	started   bool
+	mu      sync.Mutex
+	started bool
 }
 
-// NewManager creates a reloadable channel manager backed by the config repository.
-func NewManager(
-	ctx context.Context,
-	repo configrepo.ChannelRepository,
-	runnerSvc *runner.Service,
-	rdb *redis.Client,
-	modelNames []string,
-) (*Manager, error) {
-	m := &Manager{
-		repo:       repo,
-		runnerSvc:  runnerSvc,
-		rdb:        rdb,
-		modelNames: modelNames,
-		telegramFactory: func(channelCfg *agentsv1.AgentChannel, runnerSvc *runner.Service, rdb *redis.Client, agentNames []string, modelNames []string) (ChannelPoller, error) {
-			return telegram.NewPoller(channelCfg, runnerSvc, telegram.NewAgentSelector(rdb), telegram.NewModelSelector(rdb), telegram.NewDebugToggle(rdb), agentNames, modelNames)
-		},
-		discordFactory: func(channelCfg *agentsv1.AgentChannel, runnerSvc *runner.Service, rdb *redis.Client, agentNames []string, modelNames []string) (ChannelPoller, error) {
-			return discord.NewPoller(channelCfg, runnerSvc, discord.NewAgentSelector(rdb), discord.NewModelSelector(rdb), discord.NewDebugToggle(rdb), agentNames, modelNames)
-		},
-	}
-
-	if _, err := m.buildPollers(ctx); err != nil {
-		return nil, err
-	}
+// NewManager creates the legacy channel reporter.
+func NewManager(ctx context.Context, repo configrepo.ChannelRepository) (*Manager, error) {
+	m := &Manager{repo: repo}
+	m.report(ctx)
 	return m, nil
 }
 
-func (m *Manager) buildPollers(ctx context.Context) ([]ChannelPoller, error) {
-	logger := log.FromContext(ctx)
-	channels, err := m.repo.ListChannelsAcrossWorkspaces(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list channels: %w", err)
-	}
-
-	var pollers []ChannelPoller
-
-	logger.Info("initializing channel manager", "total_channels", len(channels))
-
-	for _, ch := range channels {
-		if !ch.GetEnabled() {
-			logger.Info("skipping disabled channel",
-				"channel", ch.GetName(),
-				"workspace", ch.GetWorkspaceId(),
-				"platform", ch.GetPlatform().String(),
-			)
-			continue
-		}
-
-		// Resolve the channel's agent by its agent_id. The poller pipeline
-		// dispatches by runtime name, so the config handed to it carries the
-		// resolved name.
-		if name, ok := m.runnerSvc.ResolveAgentRef(ch.GetWorkspaceId(), ch.GetAgentId()); ok {
-			if name != ch.GetAgentName() {
-				ch = proto.Clone(ch).(*agentsv1.AgentChannel)
-				ch.AgentName = name
-			}
-		} else {
-			logger.Warn("channel references unknown agent; messages will fail until fixed",
-				"channel", ch.GetName(),
-				"workspace", ch.GetWorkspaceId(),
-				"agent_id", ch.GetAgentId(),
-			)
-		}
-
-		// Each channel only sees agents from its own workspace; passing the
-		// global list here would let workspace A's bot offer (and route to)
-		// workspace B's agents.
-		agentNames := m.runnerSvc.AgentNamesForWorkspace(ch.GetWorkspaceId())
-
-		switch ch.GetPlatform() {
-		case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM:
-			if ch.GetTelegram().GetBotToken() == "" {
-				logger.Warn("skipping telegram channel with empty bot token",
-					"channel", ch.GetName(),
-					"workspace", ch.GetWorkspaceId(),
-				)
-				continue
-			}
-
-			logger.Info("creating telegram poller",
-				"channel", ch.GetName(),
-				"workspace", ch.GetWorkspaceId(),
-				"default_agent", ch.GetAgentName(),
-				"default_model", ch.GetModel(),
-				"trigger_count", len(ch.GetTriggers()),
-				"available_agents", agentNames,
-				"available_agent_count", len(agentNames),
-			)
-			p, err := m.telegramFactory(ch, m.runnerSvc, m.rdb, agentNames, m.modelNames)
-			if err != nil {
-				return nil, fmt.Errorf("creating telegram poller for channel %q: %w", ch.GetName(), err)
-			}
-			pollers = append(pollers, p)
-
-		case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD:
-			if ch.GetDiscord().GetBotToken() == "" {
-				logger.Warn("skipping discord channel with empty bot token",
-					"channel", ch.GetName(),
-					"workspace", ch.GetWorkspaceId(),
-				)
-				continue
-			}
-
-			logger.Info("creating discord poller",
-				"channel", ch.GetName(),
-				"workspace", ch.GetWorkspaceId(),
-				"default_agent", ch.GetAgentName(),
-				"default_model", ch.GetModel(),
-				"trigger_count", len(ch.GetTriggers()),
-				"available_agents", agentNames,
-				"available_agent_count", len(agentNames),
-			)
-			p, err := m.discordFactory(ch, m.runnerSvc, m.rdb, agentNames, m.modelNames)
-			if err != nil {
-				return nil, fmt.Errorf("creating discord poller for channel %q: %w", ch.GetName(), err)
-			}
-			pollers = append(pollers, p)
-
-		default:
-			logger.Debug("skipping channel with unsupported platform",
-				"channel", ch.GetName(),
-				"workspace", ch.GetWorkspaceId(),
-				"platform", ch.GetPlatform().String(),
-			)
-		}
-	}
-
-	logger.Info("channel manager initialized", "active_pollers", len(pollers))
-	return pollers, nil
-}
-
-// Start launches all pollers in goroutines. Blocks until ctx is cancelled.
+// Start blocks until ctx is cancelled. It launches no transports.
 func (m *Manager) Start(ctx context.Context) {
-	if err := m.start(ctx); err != nil {
-		log.FromContext(ctx).Error("failed to start channel manager", "err", err)
-		return
-	}
-
-	<-ctx.Done()
-	m.stop()
-}
-
-// Reload refreshes the running pollers from the current config repository state.
-func (m *Manager) Reload(ctx context.Context) error {
-	pollers, err := m.buildPollers(ctx)
-	if err != nil {
-		return err
-	}
-
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if !m.started {
-		return nil
-	}
-
-	if m.runCancel != nil {
-		m.runCancel()
-		m.runWG.Wait()
-	}
-
-	m.startPollersLocked(pollers)
-	log.FromContext(ctx).Info("channel manager reloaded", "active_pollers", len(pollers))
-	return nil
-}
-
-func (m *Manager) start(ctx context.Context) error {
-	pollers, err := m.buildPollers(ctx)
-	if err != nil {
-		return err
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.started {
-		return nil
-	}
-
-	m.parentCtx = ctx
 	m.started = true
-	m.startPollersLocked(pollers)
+	m.mu.Unlock()
+	<-ctx.Done()
+}
 
-	logger := log.FromContext(ctx)
-	if len(pollers) == 0 {
-		logger.Info("no channels configured, channel manager idle")
-	} else {
-		logger.Info("all channel pollers started", "count", len(pollers))
-	}
+// Reload re-reports legacy records after a configuration change.
+func (m *Manager) Reload(ctx context.Context) error {
+	m.report(ctx)
 	return nil
 }
 
-func (m *Manager) startPollersLocked(pollers []ChannelPoller) {
-	runCtx, cancel := context.WithCancel(m.parentCtx)
-	m.runCancel = cancel
-	for _, poller := range pollers {
-		m.runWG.Add(1)
-		go func(p ChannelPoller) {
-			defer m.runWG.Done()
-			p.Start(runCtx)
-		}(poller)
-	}
-}
-
-// RuntimeState describes the running state of a configured channel.
-type RuntimeState int
-
-const (
-	RuntimeStateUnknown RuntimeState = iota
-	RuntimeStateLive
-	RuntimeStateDisabled
-	RuntimeStateUnsupported
-	RuntimeStateNotFound
-)
-
-// ChannelStatus returns the runtime state and a human-readable detail for the
-// channel with the given name. Phase 1 only distinguishes live vs disabled vs
-// not-configured; per-poller heartbeats arrive in a later phase.
-func (m *Manager) ChannelStatus(ctx context.Context, name string) (RuntimeState, string, error) {
+// report logs every enabled legacy record as unsupported.
+//
+// It logs rather than failing startup on purpose: a deployment upgrading with
+// legacy rows still in its database must come up healthy, serve the Dashboard,
+// and let an operator migrate deliberately — refusing to boot would take the
+// whole service down over configuration nobody is using yet.
+func (m *Manager) report(ctx context.Context) {
+	logger := log.FromContext(ctx)
 	channels, err := m.repo.ListChannelsAcrossWorkspaces(ctx)
 	if err != nil {
-		return RuntimeStateUnknown, "", err
-	}
-	for _, ch := range channels {
-		if ch.GetName() != name {
-			continue
-		}
-		if !ch.GetEnabled() {
-			return RuntimeStateDisabled, "channel disabled in config", nil
-		}
-		switch ch.GetPlatform() {
-		case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
-			agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD:
-			m.mu.Lock()
-			started := m.started
-			m.mu.Unlock()
-			if !started {
-				return RuntimeStateDisabled, "channel manager not started", nil
-			}
-			return RuntimeStateLive, "", nil
-		default:
-			return RuntimeStateUnsupported, "platform not supported by manager", nil
-		}
-	}
-	return RuntimeStateNotFound, "channel not found", nil
-}
-
-func (m *Manager) stop() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if !m.started {
+		logger.Warn("could not list legacy agent channels", "err", err)
 		return
 	}
 
-	if m.runCancel != nil {
-		m.runCancel()
-		m.runWG.Wait()
+	unsupported := 0
+	for _, ch := range channels {
+		if !ch.GetEnabled() {
+			continue
+		}
+		unsupported++
+		logger.Warn("legacy agent channel is not started; it is unsupported in this release",
+			"channel", ch.GetName(),
+			"workspace_id", ch.GetWorkspaceId(),
+			"platform", ch.GetPlatform().String(),
+			"migrate_to", migrationHint(ch.GetPlatform()),
+		)
 	}
-	m.started = false
-	m.runCancel = nil
-	log.FromContext(m.parentCtx).Info("all channel pollers stopped")
+	if unsupported > 0 {
+		logger.Warn("legacy agent channels remain in the database and will not run",
+			"count", unsupported,
+			"action", "recreate them as telegram channels and destinations in the dashboard")
+	}
+}
+
+// migrationHint tells an operator where the capability went.
+func migrationHint(platform agentsv1.AgentChannelPlatform) string {
+	switch platform {
+	case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM:
+		return "telegram channel + destination"
+	case agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_DISCORD:
+		return "unsupported in this release"
+	default:
+		return "unsupported"
+	}
 }

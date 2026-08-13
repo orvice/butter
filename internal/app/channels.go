@@ -32,6 +32,9 @@ import (
 	authmongo "go.orx.me/apps/butter/internal/repo/auth/mongo"
 	authredis "go.orx.me/apps/butter/internal/repo/auth/redis"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	cryptokeyrepo "go.orx.me/apps/butter/internal/repo/cryptokey"
+	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
+	cryptokeymongo "go.orx.me/apps/butter/internal/repo/cryptokey/mongo"
 	"go.orx.me/apps/butter/internal/repo/forum"
 	forummemory "go.orx.me/apps/butter/internal/repo/forum/memory"
 	forummongo "go.orx.me/apps/butter/internal/repo/forum/mongo"
@@ -59,6 +62,15 @@ import (
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	skillmongo "go.orx.me/apps/butter/internal/repo/skill/mongo"
+	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
+	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
+	telegrammongo "go.orx.me/apps/butter/internal/repo/telegram/mongo"
+	telegramprocessingrepo "go.orx.me/apps/butter/internal/repo/telegramprocessing"
+	telegramprocessingmemory "go.orx.me/apps/butter/internal/repo/telegramprocessing/memory"
+	telegramprocessingmongo "go.orx.me/apps/butter/internal/repo/telegramprocessing/mongo"
+	telegramsettingrepo "go.orx.me/apps/butter/internal/repo/telegramsetting"
+	telegramsettingmemory "go.orx.me/apps/butter/internal/repo/telegramsetting/memory"
+	telegramsettingmongo "go.orx.me/apps/butter/internal/repo/telegramsetting/mongo"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
@@ -73,47 +85,51 @@ import (
 
 // BootstrapResult holds the services created during bootstrap.
 type BootstrapResult struct {
-	RunnerSvc             *runner.Service
-	SessionSvc            session.Service
-	CronScheduler         *internalcron.Scheduler
-	CronRepo              internalcron.ExecutionRepo
-	CronJobRepo           internalcron.JobRepo
-	AutomationEngine      *internalautomation.Engine
-	AutomationScheduler   *internalautomation.Scheduler
-	AutomationDefRepo     internalautomation.DefinitionRepo
-	AutomationRunRepo     internalautomation.RunRepo
-	AutomationStepRepo    internalautomation.StepRunRepo
-	ChannelMgr            *channel.Manager
-	MongoDB               *mongo.Database
-	Redis                 *redis.Client
-	AuthRepo              auth.Repository
-	OAuthStateRepo        oauthstate.Repository
-	OAuthProviders        *provider.Registry
-	APITokenRepo          apitoken.Repository
-	InvocationRepo        invocation.Repository
-	InputPartRepo         inputpart.Repository
-	ForumRepo             forum.Repository
-	WorkspaceRepo         workspacerepo.Repository
-	MCPOAuthRepo          mcpoauthrepo.Repository
-	MCPOAuthSvc           *mcpoauth.Service
-	MCPAuthResolver       *mcpoauth.Resolver
-	AgentFileRepo         agentfile.Repository
-	AgentFileMaxBytes     int64
-	GitHostRepo           githostrepo.Repository
-	RepoBindingRepo       repobindingrepo.Repository
-	RepoCacheRepo         repocache.Repository
-	AgentContentRepo      agentcontentrepo.Repository
-	AgentOperationRepo    agentoprepo.Repository
-	SkillRepo             skillrepo.Repository
-	SkillMDMaxBytes       int64
-	SkillResourceMaxCount int
-	LangfuseHost          string
-	SessionCounter        func(ctx context.Context) (int64, error)
-	SessionTitleStore     application.SessionTitleStore
-	SessionWSStore        application.WorkspaceSessionStore
-	SessionReadStore      application.SessionReadStore
-	ChatTitleModel        string
-	AsyncCoordinator     *asyncrun.Coordinator
+	RunnerSvc              *runner.Service
+	SessionSvc             session.Service
+	CronScheduler          *internalcron.Scheduler
+	CronRepo               internalcron.ExecutionRepo
+	CronJobRepo            internalcron.JobRepo
+	AutomationEngine       *internalautomation.Engine
+	AutomationScheduler    *internalautomation.Scheduler
+	AutomationDefRepo      internalautomation.DefinitionRepo
+	AutomationRunRepo      internalautomation.RunRepo
+	AutomationStepRepo     internalautomation.StepRunRepo
+	ChannelMgr             *channel.Manager
+	MongoDB                *mongo.Database
+	Redis                  *redis.Client
+	AuthRepo               auth.Repository
+	OAuthStateRepo         oauthstate.Repository
+	OAuthProviders         *provider.Registry
+	APITokenRepo           apitoken.Repository
+	InvocationRepo         invocation.Repository
+	InputPartRepo          inputpart.Repository
+	ForumRepo              forum.Repository
+	WorkspaceRepo          workspacerepo.Repository
+	MCPOAuthRepo           mcpoauthrepo.Repository
+	MCPOAuthSvc            *mcpoauth.Service
+	MCPAuthResolver        *mcpoauth.Resolver
+	AgentFileRepo          agentfile.Repository
+	AgentFileMaxBytes      int64
+	GitHostRepo            githostrepo.Repository
+	RepoBindingRepo        repobindingrepo.Repository
+	TelegramRepo           telegramrepo.Repository
+	TelegramSettingRepo    telegramsettingrepo.Repository
+	TelegramProcessingRepo telegramprocessingrepo.Repository
+	CryptoKeyRepo          cryptokeyrepo.Repository
+	RepoCacheRepo          repocache.Repository
+	AgentContentRepo       agentcontentrepo.Repository
+	AgentOperationRepo     agentoprepo.Repository
+	SkillRepo              skillrepo.Repository
+	SkillMDMaxBytes        int64
+	SkillResourceMaxCount  int
+	LangfuseHost           string
+	SessionCounter         func(ctx context.Context) (int64, error)
+	SessionTitleStore      application.SessionTitleStore
+	SessionWSStore         application.WorkspaceSessionStore
+	SessionReadStore       application.SessionReadStore
+	ChatTitleModel         string
+	AsyncCoordinator       *asyncrun.Coordinator
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -145,21 +161,25 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 
 	// Pick auth, API token + invocation repository backends.
 	var (
-		authRepo       auth.Repository
-		tokenRepo      apitoken.Repository
-		invRepo        invocation.Repository
-		inputPartRepo  inputpart.Repository
-		forumRepo      forum.Repository
-		wsRepo         workspacerepo.Repository
-		oauthRepo      mcpoauthrepo.Repository
-		fileRepo       agentfile.Repository
-		skillRepo      skillrepo.Repository
-		oauthStateRepo oauthstate.Repository
-		gitHostRepo    githostrepo.Repository
-		bindingRepo    repobindingrepo.Repository
-		cacheRepo      repocache.Repository
-		contentRepo    agentcontentrepo.Repository
-		agentOpRepo    agentoprepo.Repository
+		authRepo               auth.Repository
+		tokenRepo              apitoken.Repository
+		invRepo                invocation.Repository
+		inputPartRepo          inputpart.Repository
+		forumRepo              forum.Repository
+		wsRepo                 workspacerepo.Repository
+		oauthRepo              mcpoauthrepo.Repository
+		fileRepo               agentfile.Repository
+		skillRepo              skillrepo.Repository
+		oauthStateRepo         oauthstate.Repository
+		gitHostRepo            githostrepo.Repository
+		bindingRepo            repobindingrepo.Repository
+		cacheRepo              repocache.Repository
+		contentRepo            agentcontentrepo.Repository
+		agentOpRepo            agentoprepo.Repository
+		telegramRepo           telegramrepo.Repository
+		cryptoKeyRepo          cryptokeyrepo.Repository
+		telegramSettingRepo    telegramsettingrepo.Repository
+		telegramProcessingRepo telegramprocessingrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -200,6 +220,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 			return nil, err
 		}
 		agentOpRepo = agentOpMongo
+		telegramRepo = telegrammongo.New(db)
+		cryptoKeyRepo = cryptokeymongo.New(db)
+		telegramSettingRepo = telegramsettingmongo.New(db)
+		telegramProcessingRepo = telegramprocessingmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -215,6 +239,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		cacheRepo = repocachememory.New()
 		contentRepo = agentcontentmemory.New()
 		agentOpRepo = agentopmemory.New()
+		telegramRepo = telegrammemory.New()
+		cryptoKeyRepo = cryptokeymemory.New()
+		telegramSettingRepo = telegramsettingmemory.New()
+		telegramProcessingRepo = telegramprocessingmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -262,6 +290,28 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := contentRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create Agent Content snapshot indexes", "err", err)
+		return nil, err
+	}
+	// The Telegram indexes are the enforcement point for global Bot
+	// uniqueness and exact-address uniqueness, so a failure here is fatal
+	// rather than a warning: without them concurrent creates would silently
+	// register two Channels for one Bot.
+	if err := telegramRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create telegram indexes", "err", err)
+		return nil, err
+	}
+	if err := cryptoKeyRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create crypto key indexes", "err", err)
+		return nil, err
+	}
+	if err := telegramSettingRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create telegram settings indexes", "err", err)
+		return nil, err
+	}
+	// The (channel, update) unique index is the dedupe guarantee and the TTL
+	// index is what bounds Telegram content retention; both are fatal.
+	if err := telegramProcessingRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create telegram processing indexes", "err", err)
 		return nil, err
 	}
 	if err := applyActiveContent(ctx, cfg.Agents, bindingRepo, contentRepo); err != nil {
@@ -369,13 +419,13 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		modelNames[i] = m.Alias
 	}
 
-	mgr, err := channel.NewManager(ctx, channelRepo, runnerSvc, rdb, modelNames)
+	// The legacy channel manager starts nothing after the Telegram cutover
+	// (#273); it only reports records that will not run.
+	mgr, err := channel.NewManager(ctx, channelRepo)
 	if err != nil {
 		logger.Error("failed to create channel manager", "err", err)
 		return nil, err
 	}
-
-	logger.Info("starting channel manager in background")
 	go mgr.Start(ctx)
 
 	// Create async coordinator for dashboard background execution.
@@ -391,46 +441,50 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 
 	return &BootstrapResult{
-		RunnerSvc:             runnerSvc,
-		SessionSvc:            sessionSvc,
-		SessionTitleStore:     newMongoTitleStore(sessionSvc),
-		SessionWSStore:        sessionSvc,
-		SessionReadStore:      newMongoReadStore(sessionSvc),
-		CronScheduler:         cronScheduler,
-		CronRepo:              cronExecRepo,
-		CronJobRepo:           cronJobRepo,
-		AutomationEngine:      automationEngine,
-		AutomationScheduler:   automationScheduler,
-		AutomationDefRepo:     automationDefRepo,
-		AutomationRunRepo:     automationRunRepo,
-		AutomationStepRepo:    automationStepRepo,
-		ChannelMgr:            mgr,
-		MongoDB:               db,
-		Redis:                 rdb,
-		AuthRepo:              authRepo,
-		OAuthStateRepo:        oauthStateRepo,
-		OAuthProviders:        oauthProviders,
-		APITokenRepo:          tokenRepo,
-		InvocationRepo:        invRepo,
-		InputPartRepo:         inputPartRepo,
-		ForumRepo:             forumRepo,
-		WorkspaceRepo:         wsRepo,
-		MCPOAuthRepo:          oauthRepo,
-		MCPOAuthSvc:           oauthSvc,
-		MCPAuthResolver:       mcpAuthResolver,
-		AgentFileRepo:         fileRepo,
-		GitHostRepo:           gitHostRepo,
-		RepoBindingRepo:       bindingRepo,
-		RepoCacheRepo:         cacheRepo,
-		AgentContentRepo:      contentRepo,
-		AgentOperationRepo:    agentOpRepo,
-		SkillRepo:             skillRepo,
-		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
-		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),
-		AgentFileMaxBytes:     cfg.AgentFiles.EffectiveMaxFileBytes(),
-		LangfuseHost:          cfg.Langfuse.Host,
-		SessionCounter:        sessionSvc.CountSessions,
-		ChatTitleModel:        cfg.ChatTitleModel,
-		AsyncCoordinator:     asyncCoord,
+		RunnerSvc:              runnerSvc,
+		SessionSvc:             sessionSvc,
+		SessionTitleStore:      newMongoTitleStore(sessionSvc),
+		SessionWSStore:         sessionSvc,
+		SessionReadStore:       newMongoReadStore(sessionSvc),
+		CronScheduler:          cronScheduler,
+		CronRepo:               cronExecRepo,
+		CronJobRepo:            cronJobRepo,
+		AutomationEngine:       automationEngine,
+		AutomationScheduler:    automationScheduler,
+		AutomationDefRepo:      automationDefRepo,
+		AutomationRunRepo:      automationRunRepo,
+		AutomationStepRepo:     automationStepRepo,
+		ChannelMgr:             mgr,
+		MongoDB:                db,
+		Redis:                  rdb,
+		AuthRepo:               authRepo,
+		OAuthStateRepo:         oauthStateRepo,
+		OAuthProviders:         oauthProviders,
+		APITokenRepo:           tokenRepo,
+		InvocationRepo:         invRepo,
+		InputPartRepo:          inputPartRepo,
+		ForumRepo:              forumRepo,
+		WorkspaceRepo:          wsRepo,
+		MCPOAuthRepo:           oauthRepo,
+		MCPOAuthSvc:            oauthSvc,
+		MCPAuthResolver:        mcpAuthResolver,
+		AgentFileRepo:          fileRepo,
+		GitHostRepo:            gitHostRepo,
+		RepoBindingRepo:        bindingRepo,
+		TelegramRepo:           telegramRepo,
+		TelegramSettingRepo:    telegramSettingRepo,
+		TelegramProcessingRepo: telegramProcessingRepo,
+		CryptoKeyRepo:          cryptoKeyRepo,
+		RepoCacheRepo:          cacheRepo,
+		AgentContentRepo:       contentRepo,
+		AgentOperationRepo:     agentOpRepo,
+		SkillRepo:              skillRepo,
+		SkillMDMaxBytes:        cfg.Skills.EffectiveMaxSkillMDBytes(),
+		SkillResourceMaxCount:  cfg.Skills.EffectiveMaxResourcesPerSkill(),
+		AgentFileMaxBytes:      cfg.AgentFiles.EffectiveMaxFileBytes(),
+		LangfuseHost:           cfg.Langfuse.Host,
+		SessionCounter:         sessionSvc.CountSessions,
+		ChatTitleModel:         cfg.ChatTitleModel,
+		AsyncCoordinator:       asyncCoord,
 	}, nil
 }

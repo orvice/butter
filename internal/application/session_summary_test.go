@@ -46,9 +46,9 @@ func (f *fakeReadStore) MarkRead(_ context.Context, appName, userID, sessionID s
 // fakeReadableSession implements session.Session with LastReadAt support.
 type fakeReadableSession struct {
 	id, appName, userID, wsID, title string
-	lastUpdate                        time.Time
-	lastReadAt                        *time.Time
-	events                            []*session.Event
+	lastUpdate                       time.Time
+	lastReadAt                       *time.Time
+	events                           []*session.Event
 }
 
 func (s *fakeReadableSession) ID() string                { return s.id }

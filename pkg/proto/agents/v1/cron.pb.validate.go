@@ -425,6 +425,8 @@ func (m *CronDelivery) validate(all bool) error {
 
 	// no validation rules for NotifyGroupName
 
+	// no validation rules for TelegramDestinationId
+
 	if len(errors) > 0 {
 		return CronDeliveryMultiError(errors)
 	}

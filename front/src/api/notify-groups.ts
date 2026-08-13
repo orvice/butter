@@ -40,6 +40,9 @@ function targetFromProto(t: PbNotifyTarget): NotifyTarget {
     type: typeFromProto(t.type),
     telegram: t.telegram
       ? {
+          destination_id: t.telegram.destinationId,
+          // Legacy fields are surfaced read-only so an old record still
+          // renders; the form never sends them back (issue #264).
           bot_token: t.telegram.botToken,
           chat_id: t.telegram.chatId,
           parse_mode: t.telegram.parseMode,
@@ -68,10 +71,10 @@ function targetToProto(t: NotifyTarget): PbNotifyTarget {
     type: typeToProto(t.type),
     telegram: t.telegram
       ? create(TelegramNotifyTargetSchema, {
-          botToken: t.telegram.bot_token ?? "",
-          chatId: t.telegram.chat_id ?? "",
-          parseMode: t.telegram.parse_mode ?? "",
-          messageThreadId: BigInt(t.telegram.message_thread_id ?? 0),
+          // Only the destination reference is written. The raw address fields
+          // are rejected by the API, so sending them would turn every save
+          // into a validation error (issue #264).
+          destinationId: t.telegram.destination_id ?? "",
         })
       : undefined,
     lark: t.lark

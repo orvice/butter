@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"google.golang.org/genai"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/session"
+	"google.golang.org/genai"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -28,8 +28,10 @@ func makeEvent(author string, parts ...*genai.Part) *session.Event {
 	}
 }
 
-func textPart(s string) *genai.Part       { return &genai.Part{Text: s} }
-func funcCallPart(name string) *genai.Part { return &genai.Part{FunctionCall: &genai.FunctionCall{Name: name}} }
+func textPart(s string) *genai.Part { return &genai.Part{Text: s} }
+func funcCallPart(name string) *genai.Part {
+	return &genai.Part{FunctionCall: &genai.FunctionCall{Name: name}}
+}
 func funcRespPart(name string) *genai.Part {
 	return &genai.Part{FunctionResponse: &genai.FunctionResponse{Name: name}}
 }
@@ -59,7 +61,7 @@ func (e *fakeEventsImpl) All() iter.Seq[*session.Event] {
 	}
 }
 
-func (e *fakeEventsImpl) Len() int              { return len(e.events) }
+func (e *fakeEventsImpl) Len() int                { return len(e.events) }
 func (e *fakeEventsImpl) At(i int) *session.Event { return e.events[i] }
 
 func (s *fakeSessionWithEvents) LastUpdateTime() time.Time { return time.Now() }

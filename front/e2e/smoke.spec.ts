@@ -11,8 +11,6 @@ const mockUser = {
   },
 }
 
-const emptyList = { items: [], total: 0 }
-
 async function setupAuth(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('butter_token', 'fake-test-token')
@@ -122,8 +120,10 @@ async function checkPageLoads(page: Page, path: string, name: string) {
   expect(body.length, `${name}: page has content`).toBeGreaterThan(0)
 
   if (errors.length > 0) {
-    console.warn(`  ⚠️  JS errors on ${name} (${path}):`)
-    errors.forEach((e) => console.warn(`    - ${e}`))
+    await test.info().attach(`${name} JS errors`, {
+      body: [`Path: ${path}`, ...errors].join('\n'),
+      contentType: 'text/plain',
+    })
   }
 
   return { path, name, jsErrors: errors, consoleErrors }
@@ -181,8 +181,9 @@ test.describe('Authenticated pages smoke test', () => {
     { path: '/model-providers/create', name: 'Create Model Provider' },
     { path: '/remote-agents', name: 'Remote Agents' },
     { path: '/remote-agents/create', name: 'Create Remote Agent' },
-    { path: '/channels', name: 'Channels' },
-    { path: '/channels/create', name: 'Create Channel' },
+    { path: '/telegram-channels', name: 'Telegram Channels' },
+    { path: '/telegram-channels/create', name: 'Add Telegram Bot' },
+    { path: '/telegram-updates', name: 'Telegram Updates' },
     { path: '/notify-groups', name: 'Notify Groups' },
     { path: '/notify-groups/create', name: 'Create Notify Group' },
     { path: '/agent-files', name: 'Agent Files' },

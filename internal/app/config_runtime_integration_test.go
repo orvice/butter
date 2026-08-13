@@ -14,7 +14,6 @@ import (
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
-	configmongo "go.orx.me/apps/butter/internal/repo/config/mongo"
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
@@ -76,7 +75,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 		_ = rdb.Close()
 	})
 
-	channelMgr, err := channel.NewManager(ctx, configStore, runnerSvc, rdb, nil)
+	channelMgr, err := channel.NewManager(ctx, configStore)
 	if err != nil {
 		t.Fatalf("new channel manager: %v", err)
 	}
@@ -91,8 +90,6 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 	remoteSvc.SetRuntime(configRuntime)
 	agentSvc := application.NewAgentServiceServer(configStore)
 	agentSvc.SetRuntime(configRuntime)
-	channelSvc := application.NewChannelServiceServer(configStore)
-	channelSvc.SetRuntime(configRuntime)
 
 	_, err = mcpSvc.CreateMCPServer(ctx, connect.NewRequest(&agentsv1.CreateMCPServerRequest{
 		McpServer: &agentsv1.MCPServer{
@@ -148,31 +145,6 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 	}
 	if len(status.MCPServers) != 1 || status.MCPServers[0] != "primary-mcp" {
 		t.Fatalf("expected resolved MCP server in agent status, got %+v", status.MCPServers)
-	}
-
-	_, err = channelSvc.CreateChannel(ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
-		Channel: &agentsv1.AgentChannel{
-			Name:      "telegram-main",
-			AgentName: "workflow-agent",
-			Platform:  agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
-			Enabled:   false,
-			Telegram:  &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
-		},
-	}))
-	if err != nil {
-		t.Fatalf("create channel: %v", err)
-	}
-	if len(cfg.Channels) != 1 {
-		t.Fatalf("expected 1 channel config, got %d", len(cfg.Channels))
-	}
-
-	channelStore := configmongo.New(db)
-	channels, err := channelStore.ListChannels(ctx, "ws-test")
-	if err != nil {
-		t.Fatalf("list persisted channels: %v", err)
-	}
-	if len(channels) != 1 || channels[0].GetName() != "telegram-main" {
-		t.Fatalf("expected persisted channel telegram-main, got %+v", channels)
 	}
 
 	_, err = agentSvc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "workflow-agent"}))

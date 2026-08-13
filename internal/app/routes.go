@@ -2,12 +2,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/config"
@@ -18,10 +21,16 @@ import (
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	telegramruntime "go.orx.me/apps/butter/internal/runtime/telegram"
+	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/service"
+	"go.orx.me/apps/butter/internal/telegramapi"
+	"go.orx.me/apps/butter/internal/telegramqueue"
+	"go.orx.me/apps/butter/internal/telegramsend"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
@@ -50,6 +59,14 @@ type Handlers struct {
 	workspaceSvcServer     *application.WorkspaceServiceServer
 	gitHostSvcServer       *application.GitHostServiceServer
 	repoBindingSvcServer   *application.RepoBindingServiceServer
+	tgChannelSvcServer     *application.TelegramChannelServiceServer
+	tgDestinationSvcServer *application.TelegramDestinationServiceServer
+	tgAdminSvcServer       *application.TelegramAdminServiceServer
+	tgProcessingSvcServer  *application.TelegramProcessingServiceServer
+	tgReceiver             atomic.Value // *telegram.Receiver
+	tgReconciler           *telegramruntime.Reconciler
+	tgWorker               *telegramruntime.Worker
+	tgPoller               *telegramruntime.Poller
 	workspaceMCPSvc        *workspacemcp.Service
 	authRepo               atomic.Value // auth.Repository
 	apiTokenRepo           atomic.Value // apitoken.Repository
@@ -66,6 +83,83 @@ type Handlers struct {
 	cfg                    *config.AppConfig
 	reconciler             *Reconciler
 	asyncCoordinator       *asyncrun.Coordinator
+}
+
+// Authenticate implements httpHandler.TelegramReceiver. The public callback
+// route is registered before bootstrap wires the receiver, so the lookup is
+// atomic and a request that arrives too early is told to retry rather than
+// panicking.
+func (h *Handlers) Authenticate(ctx *gin.Context, channelID, secret string) (telegramruntime.AuthenticatedChannel, error) {
+	receiver := h.telegramReceiver()
+	if receiver == nil {
+		return telegramruntime.AuthenticatedChannel{}, errTelegramReceiveNotReady
+	}
+	return receiver.Authenticate(ctx.Request.Context(), channelID, secret)
+}
+
+// Deliver implements httpHandler.TelegramReceiver.
+func (h *Handlers) Deliver(ctx *gin.Context, channel telegramruntime.AuthenticatedChannel, raw []byte) (telegramruntime.Decision, error) {
+	receiver := h.telegramReceiver()
+	if receiver == nil {
+		return telegramruntime.DecisionIgnored, errTelegramReceiveNotReady
+	}
+	return receiver.Deliver(ctx.Request.Context(), channel, raw)
+}
+
+var errTelegramReceiveNotReady = errors.New("telegram receive is not ready")
+
+// telegramFileClientFactory builds a per-request Telegram file client from
+// the Channel's current credential. Like the sender, it caches nothing: a
+// rotated token must take effect on the next download.
+func telegramFileClientFactory(repo telegramrepo.Repository, keyring *secretbox.Keyring) func(context.Context, string, string) (telegramapi.FileClient, error) {
+	return func(ctx context.Context, workspaceID, channelID string) (telegramapi.FileClient, error) {
+		cred, err := repo.GetChannelCredential(ctx, workspaceID, channelID)
+		if err != nil {
+			return nil, err
+		}
+		token, err := keyring.Decrypt(ctx, cred.Ciphertext, cred.KeyID)
+		if err != nil {
+			return nil, err
+		}
+		return telegramapi.New(string(token)), nil
+	}
+}
+
+const (
+	// telegramLeaseTTL bounds how long a crashed leader blocks the fleet.
+	telegramLeaseTTL = 30 * time.Second
+	// telegramReconcileInterval is how often the leader compares desired and
+	// observed Webhook registration. Reconciliation is a read unless they
+	// differ, so a short interval costs little.
+	telegramReconcileInterval = 30 * time.Second
+)
+
+func (h *Handlers) telegramReceiver() *telegramruntime.Receiver {
+	if h == nil {
+		return nil
+	}
+	v := h.tgReceiver.Load()
+	if v == nil {
+		return nil
+	}
+	receiver, _ := v.(*telegramruntime.Receiver)
+	return receiver
+}
+
+// StopTelegramRuntime halts the reconciler and worker for a graceful exit.
+func (h *Handlers) StopTelegramRuntime() {
+	if h == nil {
+		return
+	}
+	if h.tgPoller != nil {
+		h.tgPoller.Stop()
+	}
+	if h.tgWorker != nil {
+		h.tgWorker.Stop()
+	}
+	if h.tgReconciler != nil {
+		h.tgReconciler.Stop()
+	}
 }
 
 // ShutdownAsync stops process-owned async dashboard work for a graceful
@@ -245,10 +339,6 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.mcpSvcServer.SetRuntime(h.configRuntime)
 		h.modelProviderSvcServer.SetRuntime(h.configRuntime)
 		h.remoteSvcServer.SetRuntime(h.configRuntime)
-		h.channelSvcServer.SetRuntime(h.configRuntime)
-	}
-	if result.ChannelMgr != nil {
-		h.channelSvcServer.SetChannelManager(result.ChannelMgr)
 	}
 	if result.APITokenRepo != nil {
 		h.apiTokenRepo.Store(result.APITokenRepo)
@@ -294,6 +384,126 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if h.gitHostSvcServer != nil && result.GitHostRepo != nil {
 		h.gitHostSvcServer.SetRepo(result.GitHostRepo)
+	}
+	// Telegram Channels/Destinations (issue #264). The keyring is shared by
+	// both services so a Bot Token encrypted by one is readable by the other.
+	if result.TelegramRepo != nil {
+		keyring := secretbox.NewKeyring(result.CryptoKeyRepo)
+		if h.tgChannelSvcServer != nil {
+			h.tgChannelSvcServer.SetRepo(result.TelegramRepo)
+			h.tgChannelSvcServer.SetKeyring(keyring)
+		}
+		// One sender instance backs every outbound Telegram path: Dashboard
+		// test messages, Notify Groups, and Cron delivery.
+		sender := telegramsend.New(result.TelegramRepo, keyring, nil)
+		if h.tgDestinationSvcServer != nil {
+			h.tgDestinationSvcServer.SetRepo(result.TelegramRepo)
+			h.tgDestinationSvcServer.SetSender(sender)
+			h.tgDestinationSvcServer.SetReferenceRepos(h.notifyGroupRepo, result.CronJobRepo)
+			if store := telegramruntime.NewRedisPreferenceStore(result.Redis); store != nil {
+				h.tgDestinationSvcServer.SetPreferenceCleaner(store)
+			}
+		}
+		if h.notifyGroupSvcServer != nil {
+			h.notifyGroupSvcServer.SetTelegramRepo(result.TelegramRepo)
+		}
+		// Telegram Destinations hold strong references to Agents and Models;
+		// the guard turns "the topic silently stopped working" into a
+		// deliberate decision at delete time (#264).
+		guard := application.NewTelegramReferenceGuard(result.TelegramRepo)
+		h.agentSvcServer.SetTelegramGuard(guard)
+		if h.modelProviderSvcServer != nil {
+			h.modelProviderSvcServer.SetTelegramGuard(guard)
+		}
+		if h.tgProcessingSvcServer != nil && result.TelegramProcessingRepo != nil {
+			h.tgProcessingSvcServer.SetRepo(result.TelegramProcessingRepo)
+			h.tgProcessingSvcServer.SetSender(sender)
+		}
+		if h.tgAdminSvcServer != nil && result.TelegramSettingRepo != nil {
+			h.tgAdminSvcServer.SetRepo(result.TelegramSettingRepo)
+		}
+		if h.tgChannelSvcServer != nil && result.TelegramSettingRepo != nil {
+			h.tgChannelSvcServer.SetSettingsRepo(result.TelegramSettingRepo)
+		}
+
+		// The receive runtime only exists when Redis is available: Webhook
+		// mode treats Redis as durable queue infrastructure, not a cache, so
+		// standing it up without one would accept updates nothing can hold.
+		queue := telegramqueue.New(result.Redis)
+		if queue.Available() {
+			h.tgChannelSvcServer.SetQueueProbe(queue)
+			router := telegramruntime.NewRouter(result.TelegramRepo, queue)
+			h.tgReceiver.Store(telegramruntime.NewReceiver(result.TelegramRepo, keyring, router))
+
+			instanceID := uuid.NewString()
+			lease := telegramqueue.NewLease(result.Redis,
+				telegramqueue.WebhookReconcilerLeaseKey, instanceID, telegramLeaseTTL)
+			h.tgReconciler = telegramruntime.NewReconciler(
+				result.TelegramRepo, result.TelegramSettingRepo, keyring, nil, lease,
+				telegramReconcileInterval)
+			h.tgReconciler.Start(context.Background())
+			h.tgChannelSvcServer.SetWebhookStatusSource(h.tgReconciler)
+
+			// `/where` is answered by the transport-level handler; everything
+			// else falls through to the Destination-scoped orchestrator.
+			var interactions telegramruntime.EventHandler
+			if result.RunnerSvc != nil {
+				orchestrator := telegramruntime.NewOrchestrator(result.TelegramRepo, sender, result.RunnerSvc)
+				if result.SessionSvc != nil {
+					orchestrator.SetSessionClearer(result.SessionSvc)
+				}
+				// Selections live in Redis rather than process memory: any Pod
+				// may handle the next message for the same destination, and a
+				// choice must outlive a restart.
+				orchestrator.SetPreferenceStore(telegramruntime.NewRedisPreferenceStore(result.Redis))
+				// Media is downloaded on the worker immediately before
+				// invocation, so Redis never holds binary data.
+				orchestrator.SetFileClientFactory(telegramFileClientFactory(result.TelegramRepo, keyring))
+				// The durable state machine and the session lease are what
+				// make a crashed worker's work reclaimable without repeating
+				// agent side effects.
+				if result.TelegramProcessingRepo != nil {
+					orchestrator.SetProcessingRepo(result.TelegramProcessingRepo)
+				}
+				orchestrator.SetSessionGuard(telegramruntime.NewRedisSessionGuard(result.Redis, instanceID))
+				interactions = orchestrator
+			}
+			h.tgWorker = telegramruntime.NewWorker(queue,
+				telegramruntime.NewWhereHandler(sender, interactions), instanceID)
+			if err := h.tgWorker.Start(context.Background()); err != nil {
+				h.tgWorker = nil
+			}
+
+			// Long Polling is an alternative transport, not an alternative
+			// pipeline: it feeds the same router, queue, and workers.
+			h.tgPoller = telegramruntime.NewPoller(
+				result.TelegramRepo, keyring, router,
+				telegramruntime.NewRedisOffsetStore(result.Redis), nil,
+				telegramruntime.RedisPollingLeaseFactory(result.Redis, instanceID),
+				instanceID)
+			h.tgPoller.Start(context.Background())
+			h.tgChannelSvcServer.SetPollingStatusSource(h.tgPoller)
+		}
+		if h.cronSvcServer != nil {
+			h.cronSvcServer.SetTelegramRepo(result.TelegramRepo)
+		}
+		if result.CronScheduler != nil {
+			result.CronScheduler.SetTelegramDelivery(sender)
+		}
+		if result.AutomationEngine != nil {
+			result.AutomationEngine.SetTelegramDelivery(sender)
+		}
+	}
+	if result.WorkspaceRepo != nil {
+		if h.tgChannelSvcServer != nil {
+			h.tgChannelSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
+		if h.tgDestinationSvcServer != nil {
+			h.tgDestinationSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
+		if h.tgProcessingSvcServer != nil {
+			h.tgProcessingSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
 	}
 	if h.repoBindingSvcServer != nil && result.RepoBindingRepo != nil && result.GitHostRepo != nil {
 		h.repoBindingSvcServer.SetRepos(result.RepoBindingRepo, result.GitHostRepo)
@@ -455,6 +665,15 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	})
 	repoBindingSvcServer.SetWebhookBaseURL(func() string { return cfg.Git.WebhookBaseURL })
 	repoBindingConnectPath, repoBindingConnectHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(repoBindingSvcServer, connectOpts...)
+	tgChannelSvcServer := application.NewTelegramChannelServiceServer(nil)
+	tgChannelConnectPath, tgChannelConnectHandler := agentsv1connect.NewTelegramChannelServiceHandler(tgChannelSvcServer, connectOpts...)
+	tgDestinationSvcServer := application.NewTelegramDestinationServiceServer(nil)
+	tgDestinationSvcServer.SetConfigRepos(configStore, configStore)
+	tgDestinationConnectPath, tgDestinationConnectHandler := agentsv1connect.NewTelegramDestinationServiceHandler(tgDestinationSvcServer, connectOpts...)
+	tgAdminSvcServer := application.NewTelegramAdminServiceServer(nil)
+	tgAdminConnectPath, tgAdminConnectHandler := agentsv1connect.NewTelegramAdminServiceHandler(tgAdminSvcServer, connectOpts...)
+	tgProcessingSvcServer := application.NewTelegramProcessingServiceServer(nil)
+	tgProcessingConnectPath, tgProcessingConnectHandler := agentsv1connect.NewTelegramProcessingServiceHandler(tgProcessingSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -480,6 +699,10 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		workspaceSvcServer:     workspaceSvcServer,
 		gitHostSvcServer:       gitHostSvcServer,
 		repoBindingSvcServer:   repoBindingSvcServer,
+		tgChannelSvcServer:     tgChannelSvcServer,
+		tgDestinationSvcServer: tgDestinationSvcServer,
+		tgAdminSvcServer:       tgAdminSvcServer,
+		tgProcessingSvcServer:  tgProcessingSvcServer,
 		workspaceMCPSvc:        workspaceMCPSvc,
 		configStore:            configStore,
 		configRuntime:          configRuntime,
@@ -546,6 +769,15 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
 		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
+		r.Any("/api"+tgChannelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgChannelConnectHandler)))
+		r.Any("/api"+tgDestinationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgDestinationConnectHandler)))
+		r.Any("/api"+tgAdminConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgAdminConnectHandler)))
+		r.Any("/api"+tgProcessingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgProcessingConnectHandler)))
+
+		// The Telegram callback is public: it authenticates with the
+		// per-Channel secret Telegram echoes, not with a Butter session, and
+		// it must be reachable on every Pod behind the load balancer.
+		httpHandler.NewTelegramWebhookHandler(handlers).Register(r)
 
 		webhookHandler := httpHandler.NewWebhookHandler(repoBindingSvcServer)
 		r.POST("/api/webhooks/repository/:workspace_id", webhookHandler.Handle)

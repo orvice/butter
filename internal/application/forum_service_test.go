@@ -84,9 +84,9 @@ func TestForumServiceInvokeAgentInThreadRejectsConcurrentProcessing(t *testing.T
 			defer wg.Done()
 			<-start
 			_, err := svc.InvokeAgentInThread(ctx, connect.NewRequest(&agentsv1.InvokeAgentInThreadRequest{
-				ThreadId:  "thread-1",
-				AgentId:   "agent-1",
-				Message:   "please help",
+				ThreadId: "thread-1",
+				AgentId:  "agent-1",
+				Message:  "please help",
 			}))
 			errs <- err
 		}()
@@ -159,9 +159,9 @@ func TestForumServiceInvokeAgentInThreadRecentPostsFailureDoesNotMarkProcessing(
 	svc.runnerSvc = newBlockingForumRunner()
 
 	_, err := svc.InvokeAgentInThread(ctx, connect.NewRequest(&agentsv1.InvokeAgentInThreadRequest{
-		ThreadId:  "thread-1",
-		AgentId:   "agent-1",
-		Message:   "please help",
+		ThreadId: "thread-1",
+		AgentId:  "agent-1",
+		Message:  "please help",
 	}))
 	var twerr *connect.Error
 	if !errors.As(err, &twerr) || twerr.Code() != connect.CodeInternal {

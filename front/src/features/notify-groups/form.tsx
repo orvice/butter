@@ -4,12 +4,13 @@ import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2 } from 'lucide-react'
+import { useTelegramDestinations } from '@/api/telegram'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PageActions } from '@/components/butter/page-parts'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { NotifyGroup, NotifyTarget, NotifyTargetType } from '@/types/api'
 
@@ -25,21 +26,12 @@ const TARGET_TYPE_LABELS: Record<(typeof TARGET_TYPES)[number], string> = {
   NOTIFY_TARGET_TYPE_DISCORD_WEBHOOK: 'Discord Webhook',
 }
 
-const PARSE_MODE_LABELS: Record<string, string> = {
-  NONE: 'None',
-  Markdown: 'Markdown',
-  MarkdownV2: 'MarkdownV2',
-  HTML: 'HTML',
-}
 
 const targetSchema = z.object({
   name: z.string().optional(),
   enabled: z.boolean(),
   type: z.enum(TARGET_TYPES),
-  telegram_bot_token: z.string().optional(),
-  telegram_chat_id: z.string().optional(),
-  telegram_parse_mode: z.string().optional(),
-  telegram_message_thread_id: z.string().regex(/^\d*$/, 'Thread ID must be a non-negative integer').optional(),
+  telegram_destination_id: z.string().optional(),
   lark_webhook_url: z.string().optional(),
   lark_secret: z.string().optional(),
   discord_webhook_url: z.string().optional(),
@@ -48,13 +40,12 @@ const targetSchema = z.object({
   discord_thread_id: z.string().optional(),
   metadata: z.record(z.string(), z.string()).optional(),
 }).superRefine((target, ctx) => {
-  if (target.type === 'NOTIFY_TARGET_TYPE_TELEGRAM') {
-    if (!target.telegram_bot_token?.trim()) {
-      ctx.addIssue({ code: 'custom', path: ['telegram_bot_token'], message: 'Bot token is required' })
-    }
-    if (!target.telegram_chat_id?.trim()) {
-      ctx.addIssue({ code: 'custom', path: ['telegram_chat_id'], message: 'Chat ID is required' })
-    }
+  if (target.type === 'NOTIFY_TARGET_TYPE_TELEGRAM' && !target.telegram_destination_id?.trim()) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['telegram_destination_id'],
+      message: 'Select a Telegram destination',
+    })
   }
 
   if (target.type === 'NOTIFY_TARGET_TYPE_LARK_WEBHOOK' && !target.lark_webhook_url?.trim()) {
@@ -84,6 +75,9 @@ type NotifyGroupFormProps = {
 
 export function NotifyGroupForm({ initialValue, submitting, submitLabel, onSubmit }: NotifyGroupFormProps) {
   const navigate = useNavigate()
+  // Outbound Telegram addressing is destination-only; the form offers the
+  // workspace's destinations instead of raw credentials (issue #264).
+  const { data: telegramDestinations = [] } = useTelegramDestinations()
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: groupToFormValues(initialValue),
@@ -190,51 +184,33 @@ export function NotifyGroupForm({ initialValue, submitting, submitLabel, onSubmi
                     </div>
 
                     {targetType === 'NOTIFY_TARGET_TYPE_TELEGRAM' && (
-                      <div className='grid gap-4 md:grid-cols-2'>
-                        <FormField control={form.control} name={`targets.${index}.telegram_bot_token`} render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Bot Token</FormLabel>
-                            <FormControl><Input type='password' placeholder='Telegram bot token' {...field} /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name={`targets.${index}.telegram_chat_id`} render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Chat ID</FormLabel>
-                            <FormControl><Input placeholder='-1001234567890' {...field} /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name={`targets.${index}.telegram_parse_mode`} render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Parse Mode</FormLabel>
-                            <Select
-                              onValueChange={(value) => field.onChange(value === 'NONE' ? '' : value)}
-                              value={field.value || 'NONE'}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <span className='truncate'>{PARSE_MODE_LABELS[field.value || 'NONE']}</span>
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value='NONE'>None</SelectItem>
-                                <SelectItem value='Markdown'>Markdown</SelectItem>
-                                <SelectItem value='MarkdownV2'>MarkdownV2</SelectItem>
-                                <SelectItem value='HTML'>HTML</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name={`targets.${index}.telegram_message_thread_id`} render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Message Thread ID</FormLabel>
-                            <FormControl><Input inputMode='numeric' placeholder='Optional topic ID' {...field} /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                      </div>
+                      <FormField control={form.control} name={`targets.${index}.telegram_destination_id`} render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Telegram destination</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger aria-label='Telegram destination'>
+                                <SelectValue placeholder='Select a destination' />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {telegramDestinations.map((destination) => (
+                                <SelectItem key={destination.id} value={destination.id}>
+                                  {destination.name || destination.key}
+                                  {destination.messageThreadId
+                                    ? ` \u00b7 topic ${destination.messageThreadId}`
+                                    : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            The destination owns the chat, the optional forum topic, and the bot
+                            credential. Manage them under Telegram Channels.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
                     )}
 
                     {targetType === 'NOTIFY_TARGET_TYPE_LARK_WEBHOOK' && (
@@ -309,10 +285,7 @@ function blankTarget(): TargetFormValue {
     name: '',
     enabled: true,
     type: 'NOTIFY_TARGET_TYPE_TELEGRAM',
-    telegram_bot_token: '',
-    telegram_chat_id: '',
-    telegram_parse_mode: '',
-    telegram_message_thread_id: '',
+    telegram_destination_id: '',
     lark_webhook_url: '',
     lark_secret: '',
     discord_webhook_url: '',
@@ -337,10 +310,7 @@ function notifyTargetToFormTarget(target: NotifyTarget): TargetFormValue {
     name: target.name ?? '',
     enabled: target.enabled ?? true,
     type: isSupportedTargetType(target.type) ? target.type : 'NOTIFY_TARGET_TYPE_TELEGRAM',
-    telegram_bot_token: target.telegram?.bot_token ?? '',
-    telegram_chat_id: target.telegram?.chat_id ?? '',
-    telegram_parse_mode: target.telegram?.parse_mode ?? '',
-    telegram_message_thread_id: target.telegram?.message_thread_id ? String(target.telegram.message_thread_id) : '',
+    telegram_destination_id: target.telegram?.destination_id ?? '',
     lark_webhook_url: target.lark?.webhook_url ?? '',
     lark_secret: target.lark?.secret ?? '',
     discord_webhook_url: target.discord?.webhook_url ?? '',
@@ -360,15 +330,11 @@ function formTargetToNotifyTarget(target: TargetFormValue): NotifyTarget {
   }
 
   if (target.type === 'NOTIFY_TARGET_TYPE_TELEGRAM') {
-    const threadId = Number(target.telegram_message_thread_id || 0)
+    // Only the destination reference is sent: the raw bot token, chat ID,
+    // parse mode, and thread ID are rejected by the API (issue #264).
     return {
       ...base,
-      telegram: {
-        bot_token: target.telegram_bot_token?.trim() || undefined,
-        chat_id: target.telegram_chat_id?.trim() || undefined,
-        parse_mode: target.telegram_parse_mode || undefined,
-        message_thread_id: threadId > 0 ? threadId : undefined,
-      },
+      telegram: { destination_id: target.telegram_destination_id?.trim() || undefined },
     }
   }
 

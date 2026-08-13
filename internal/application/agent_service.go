@@ -71,6 +71,9 @@ type SessionExcluder interface {
 }
 
 type AgentServiceServer struct {
+	// telegramGuard blocks removing an agent a Telegram Destination routes to.
+	telegramGuard *TelegramReferenceGuard
+
 	repo            configrepo.AgentRepository
 	runtime         ConfigRuntime
 	runnerSvc       agentRunner
@@ -149,6 +152,11 @@ func (s *AgentServiceServer) SetInputPartRepo(repo inputpart.Repository) {
 
 // SetWorkspaceRepo wires the workspace repository used by
 // AssignAgentID for role-based authorization.
+// SetTelegramGuard wires the Telegram reference guard after bootstrap.
+func (s *AgentServiceServer) SetTelegramGuard(guard *TelegramReferenceGuard) {
+	s.telegramGuard = guard
+}
+
 func (s *AgentServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
 	s.wsRepo = repo
 }
@@ -534,6 +542,11 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 		return nil, toConnectError(err)
 	}
 	agentName := prev.GetName()
+	// A Telegram Destination that routes to this agent would silently stop
+	// working; block the delete and name the destinations instead (#264).
+	if err := s.telegramGuard.CheckAgentRemovable(ctx, wsID, prev.GetAgentId()); err != nil {
+		return nil, err
+	}
 	coord := s.coordinator()
 	if coord != nil && req.Msg.GetOperationId() != "" {
 		reqJSON, jsonErr := deleteOperationRequestJSON(prev)
