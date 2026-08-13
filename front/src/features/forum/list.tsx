@@ -30,7 +30,7 @@ export function ForumListPage() {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  // Opaque agent ref: the immutable agent_id when the agent has one, else the name.
+  // The immutable agent_id of the optional default agent.
   const [agentRef, setAgentRef] = useState('')
   const [labelsInput, setLabelsInput] = useState('')
 
@@ -42,11 +42,10 @@ export function ForumListPage() {
       return
     }
     try {
-      const selectedAgent = agents.find((a) => (a.agent_id || a.name) === agentRef)
       const resp = await createMutation.mutateAsync({
         title: cleanTitle,
         body: cleanBody,
-        agent_ids: agentRef ? [selectedAgent?.agent_id || agentRef] : [],
+        agent_ids: agentRef ? [agentRef] : [],
         labels: parseLabels(labelsInput),
       })
       toast.success('Thread created')
@@ -173,7 +172,7 @@ export function ForumListPage() {
                 <SelectContent>
                   <SelectItem value='none'>No default agent</SelectItem>
                   {agents.map((agent) => (
-                    <SelectItem key={agent.agent_id || agent.name} value={agent.agent_id || agent.name}>{agent.name}</SelectItem>
+                    <SelectItem key={agent.agent_id} value={agent.agent_id ?? ''}>{agent.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

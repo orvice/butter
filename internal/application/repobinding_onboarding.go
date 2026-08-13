@@ -267,7 +267,7 @@ func (s *RepoBindingServiceServer) materializeActiveContent(ctx context.Context,
 	}
 	count := 0
 	for agentID, content := range snapshot.Entries {
-		agent, err := s.agentRepo.GetAgentByID(ctx, ws, agentID)
+		agent, err := s.agentRepo.GetAgent(ctx, ws, agentID)
 		if err != nil {
 			if errors.Is(err, configrepo.ErrNotFound) {
 				// The snapshot references an agent that no longer exists; there

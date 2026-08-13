@@ -17,6 +17,7 @@ import (
 type listAgentsArgs struct{}
 
 type agentInfo struct {
+	AgentID     string `json:"agent_id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Type        string `json:"type"`
@@ -29,7 +30,7 @@ type listAgentsResult struct {
 func newListAgentsTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "list_agents",
-		Description: "List all registered agents across every workspace with their names, types, and descriptions.",
+		Description: "List all registered agents across every workspace with their agent IDs, names, types, and descriptions.",
 	}, func(tc agent.Context, _ listAgentsArgs) (listAgentsResult, error) {
 		agents, err := agentRepo.ListAgentsAcrossWorkspaces(tc)
 		if err != nil {
@@ -38,6 +39,7 @@ func newListAgentsTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) 
 		infos := make([]agentInfo, 0, len(agents))
 		for _, a := range agents {
 			infos = append(infos, agentInfo{
+				AgentID:     a.GetAgentId(),
 				Name:        a.GetName(),
 				Description: a.GetDescription(),
 				Type:        a.GetType().String(),
@@ -48,57 +50,55 @@ func newListAgentsTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) 
 }
 
 type getAgentArgs struct {
-	Name        string `json:"name" jsonschema:"the name of the agent to retrieve"`
+	AgentID     string `json:"agent_id" jsonschema:"the immutable agent_id of the agent to retrieve"`
 	WorkspaceID string `json:"workspace_id,omitempty" jsonschema:"optional workspace id; if empty, scans every workspace and returns the first match"`
 }
 
 type getAgentResult struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Type        string   `json:"type"`
-	Model       string   `json:"model,omitempty"`
-	Instruction string   `json:"instruction,omitempty"`
-	SubAgents   []string `json:"sub_agents,omitempty"`
+	AgentID       string   `json:"agent_id"`
+	Name          string   `json:"name"`
+	Description   string   `json:"description"`
+	Type          string   `json:"type"`
+	Model         string   `json:"model,omitempty"`
+	Instruction   string   `json:"instruction,omitempty"`
+	ChildAgentIDs []string `json:"child_agent_ids,omitempty"`
 }
 
 func newGetAgentTool(agentRepo configrepo.AgentRepository) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "get_agent",
-		Description: "Get detailed configuration of a specific agent by name. Provide workspace_id to disambiguate; otherwise the first match across workspaces is returned.",
+		Description: "Get detailed configuration of a specific agent by its immutable agent_id. Provide workspace_id to disambiguate; otherwise the first match across workspaces is returned.",
 	}, func(tc agent.Context, args getAgentArgs) (getAgentResult, error) {
 		var a *agentsv1.Agent
-		var err error
 		if args.WorkspaceID != "" {
-			a, err = agentRepo.GetAgent(tc, args.WorkspaceID, args.Name)
+			found, err := agentRepo.GetAgent(tc, args.WorkspaceID, args.AgentID)
+			if err != nil {
+				return getAgentResult{}, fmt.Errorf("agent %q not found", args.AgentID)
+			}
+			a = found
 		} else {
 			all, listErr := agentRepo.ListAgentsAcrossWorkspaces(tc)
 			if listErr != nil {
 				return getAgentResult{}, listErr
 			}
 			for _, candidate := range all {
-				if candidate.GetName() == args.Name {
+				if candidate.GetAgentId() == args.AgentID {
 					a = candidate
 					break
 				}
 			}
 			if a == nil {
-				err = fmt.Errorf("not found")
+				return getAgentResult{}, fmt.Errorf("agent %q not found", args.AgentID)
 			}
 		}
-		if err != nil {
-			return getAgentResult{}, fmt.Errorf("agent %q not found", args.Name)
-		}
-		var subAgents []string
-		for _, sub := range a.GetSubAgents() {
-			subAgents = append(subAgents, sub.GetName())
-		}
 		return getAgentResult{
-			Name:        a.GetName(),
-			Description: a.GetDescription(),
-			Type:        a.GetType().String(),
-			Model:       a.GetConfig().GetModel(),
-			Instruction: a.GetConfig().GetInstruction(),
-			SubAgents:   subAgents,
+			AgentID:       a.GetAgentId(),
+			Name:          a.GetName(),
+			Description:   a.GetDescription(),
+			Type:          a.GetType().String(),
+			Model:         a.GetConfig().GetModel(),
+			Instruction:   a.GetConfig().GetInstruction(),
+			ChildAgentIDs: a.GetChildAgentIds(),
 		}, nil
 	})
 }

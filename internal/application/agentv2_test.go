@@ -127,7 +127,7 @@ func TestV2_DeleteBlockedByReference(t *testing.T) {
 		ChildAgentIds: []string{"child"},
 	})
 
-	_, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "child"}))
+	_, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "child"}))
 	if err == nil {
 		t.Fatal("expected error when deleting referenced child")
 	}
@@ -144,7 +144,7 @@ func TestV2_DeleteUnreferencedSucceeds(t *testing.T) {
 
 	seedAgentWithID(t, store, wsTest, "leaf", "leaf")
 
-	if _, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "leaf"})); err != nil {
+	if _, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "leaf"})); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -162,7 +162,7 @@ func TestV2_UpdatePreservesImmutableFields(t *testing.T) {
 	})
 
 	resp, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "a1", DisplayName: "New Display"},
+		Agent: &agentsv1.Agent{AgentId: "a1", DisplayName: "New Display"},
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -193,7 +193,7 @@ func TestV2_UpdateValidatesRelationships(t *testing.T) {
 
 	_, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
 		Agent: &agentsv1.Agent{
-			Name:          "parent",
+			AgentId:       "parent",
 			ChildAgentIds: []string{"nonexistent"},
 		},
 	}))
@@ -221,7 +221,7 @@ func TestV2_UpdateDetectsMutualCycle(t *testing.T) {
 
 	_, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
 		Agent: &agentsv1.Agent{
-			Name:          "beta",
+			AgentId:       "beta",
 			ChildAgentIds: []string{"alpha"},
 		},
 	}))
@@ -233,7 +233,7 @@ func TestV2_UpdateDetectsMutualCycle(t *testing.T) {
 	}
 }
 
-func TestV2_GetAgentByID(t *testing.T) {
+func TestV2_GetAgent(t *testing.T) {
 	store := memory.New()
 	svc := NewAgentServiceServer(store)
 	ctx := testCtx()

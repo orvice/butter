@@ -50,20 +50,32 @@ service AgentService {
   // gets typed cancellation / failed-precondition codes instead of an
   // ad-hoc string payload.
   rpc StreamAgent(StreamAgentRequest) returns (stream StreamAgentResponse);
-  // AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
-  // existing Agent identified by name. Only workspace owners and
-  // administrators may call this; ordinary members receive PermissionDenied.
-  // Rejects invalid slugs, reserved values, duplicates, and attempts to
-  // reassign an already-set ID.
-  rpc AssignAgentID(AssignAgentIDRequest) returns (AssignAgentIDResponse);
-  // GetMigrationReadiness reports whether each Agent in the workspace is
-  // ready for the identity migration (has a valid Agent ID, all entry-point
-  // dependencies resolved, etc.).
-  rpc GetMigrationReadiness(GetMigrationReadinessRequest) returns (GetMigrationReadinessResponse);
-  // MigrateAgentsV2 expands eligible legacy Agent trees into independent
-  // Agent records with ID-based composition. Supports dry-run, apply, and
-  // verify modes.
-  rpc MigrateAgentsV2(MigrateAgentsV2Request) returns (MigrateAgentsV2Response);
+  // AssignAgentID is retired (issue #241): the Agent ID rollout is complete,
+  // every Agent carries an immutable agent_id assigned at creation, and the
+  // repository no longer resolves Agents by name. Always returns
+  // Unimplemented.
+  rpc AssignAgentID(AssignAgentIDRequest) returns (AssignAgentIDResponse) {
+    option deprecated = true;
+  }
+  // GetMigrationReadiness is retired (issue #241). Use VerifyAgentIDCutover
+  // for post-cutover diagnostics. Always returns Unimplemented.
+  rpc GetMigrationReadiness(GetMigrationReadinessRequest) returns (GetMigrationReadinessResponse) {
+    option deprecated = true;
+  }
+  // MigrateAgentsV2 is retired (issue #241): the V2 migration observation
+  // window is closed. Use VerifyAgentIDCutover for post-cutover diagnostics.
+  // Always returns Unimplemented.
+  rpc MigrateAgentsV2(MigrateAgentsV2Request) returns (MigrateAgentsV2Response) {
+    option deprecated = true;
+  }
+  // VerifyAgentIDCutover runs the read-only final cutover verifier (issue
+  // #241) across every workspace: it confirms all Agents carry valid,
+  // workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
+  // workflow references remain, all child/workflow references resolve, no
+  // Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
+  // jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+  // conflict violates the runner's naming constraints. Global admins only.
+  rpc VerifyAgentIDCutover(VerifyAgentIDCutoverRequest) returns (VerifyAgentIDCutoverResponse);
 
   // UpdateAgentConfiguration is the composite-save command: it coordinates an
   // Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
@@ -224,9 +236,10 @@ message AgentRuntimeStatus {
 }
 
 message GetAgentRuntimeStatusRequest {
-  // Legacy name lookup. Deprecated: use agent_id.
-  string name = 1;
-  // Immutable agent_id of the agent. Preferred over name.
+  // Legacy name lookup. Deprecated (issue #241): names never select an
+  // Agent; requests without agent_id are rejected.
+  string name = 1 [deprecated = true];
+  // Immutable agent_id of the agent. Required.
   string agent_id = 2;
 }
 
@@ -235,9 +248,10 @@ message GetAgentRuntimeStatusResponse {
 }
 
 message ListAgentRuntimeStatusesRequest {
-  // Legacy name filter. Deprecated: use agent_ids.
-  repeated string names = 1;
-  // Filter by immutable agent_ids. Preferred over names.
+  // Legacy name filter. Deprecated (issue #241): names never select Agents;
+  // requests carrying names are rejected.
+  repeated string names = 1 [deprecated = true];
+  // Filter by immutable agent_ids. Empty returns statuses for all agents.
   repeated string agent_ids = 2;
 }
 
@@ -257,8 +271,9 @@ message CancelAgentInvocationResponse {
 // --- StreamAgent messages ---
 
 message StreamAgentRequest {
-  // Legacy agent name. Deprecated: use agent_id.
-  string agent_name = 1;
+  // Legacy agent name. Deprecated (issue #241): never resolved as an input;
+  // agent_id is the sole agent reference.
+  string agent_name = 1 [deprecated = true];
   // User prompt to send to the agent. Required, non-empty.
   string message = 2;
   // ADK app name. Defaults to "api" when empty.
@@ -343,9 +358,10 @@ message StreamAgentFinal {
 }
 
 message GetAgentRequest {
-  string name = 1;
-  // Optional: look up by immutable agent_id instead of name.
-  // When set, name is ignored.
+  // Legacy name lookup key. Deprecated (issue #241): names never select an
+  // Agent; requests without agent_id are rejected.
+  string name = 1 [deprecated = true];
+  // Immutable agent_id of the Agent. Required.
   string agent_id = 2;
 }
 
@@ -456,6 +472,8 @@ message RetryAgentOperationResponse {
 }
 
 message UpdateAgentRequest {
+  // The agent to update, located by its immutable agent.agent_id (required).
+  // agent.name is server-controlled and never selects the record.
   Agent agent = 1;
 }
 
@@ -464,9 +482,10 @@ message UpdateAgentResponse {
 }
 
 message DeleteAgentRequest {
-  string name = 1;
-  // Optional: identify by immutable agent_id instead of name.
-  // When set, name is ignored.
+  // Legacy name lookup key. Deprecated (issue #241): names never select an
+  // Agent; requests without agent_id are rejected.
+  string name = 1 [deprecated = true];
+  // Immutable agent_id of the Agent. Required.
   string agent_id = 2;
 
   // Optional caller-supplied operation ID for idempotent retries.
@@ -479,10 +498,12 @@ message DeleteAgentResponse {
   AgentOperation operation = 1;
 }
 
-// --- AssignAgentID messages ---
+// --- AssignAgentID messages (retired, issue #241) ---
 
 message AssignAgentIDRequest {
-  // Name of the existing agent (the current lookup key).
+  option deprecated = true;
+
+  // Name of the existing agent (the former lookup key).
   string name = 1;
   // The slug to assign as the Agent ID.
   string agent_id = 2;
@@ -559,9 +580,44 @@ message MigrateAgentsV2Response {
   int32 errors = 6;
 }
 
+// --- VerifyAgentIDCutover messages (issue #241) ---
+
+message VerifyAgentIDCutoverRequest {}
+
+// AgentIDCutoverFinding is one actionable diagnostic from the final cutover
+// verifier: exactly which entity in which workspace still violates the
+// agent_id contract, and why.
+message AgentIDCutoverFinding {
+  // Workspace the offending entity belongs to.
+  string workspace_id = 1;
+  // Machine-readable check name: "agent_id_missing", "agent_id_invalid",
+  // "agent_id_duplicate", "embedded_sub_agents", "workflow_legacy_agent_ref",
+  // "child_agent_id_unresolved", "workflow_agent_id_unresolved",
+  // "lifecycle_migration_required", "channel_agent_id_missing",
+  // "cron_agent_id_missing", "automation_agent_id_missing",
+  // "forum_agent_id_missing", or "runtime_name_conflict".
+  string check = 2;
+  // Kind of the offending entity: "agent", "channel", "cron_job",
+  // "automation", or "forum_thread".
+  string entity_kind = 3;
+  // Identifier of the offending entity (agent_id or name for agents, record
+  // ID for consumer records).
+  string entity = 4;
+  // Human-readable diagnostic with enough context to fix the record.
+  string detail = 5;
+}
+
+message VerifyAgentIDCutoverResponse {
+  // True when every check passed and the legacy compatibility paths are safe
+  // to retire in this deployment.
+  bool passed = 1;
+  repeated AgentIDCutoverFinding findings = 2;
+}
+
 message InvokeAgentRequest {
-  // Legacy agent name. Deprecated: use agent_id.
-  string agent_name = 1;
+  // Legacy agent name. Deprecated (issue #241): never resolved as an input;
+  // agent_id is the sole agent reference.
+  string agent_name = 1 [deprecated = true];
   // Input message text (required).
   string input = 2;
   // App / channel name for the invocation context. Defaults to "api" if empty.
@@ -1162,8 +1218,9 @@ message DeleteSessionRequest {
 message DeleteSessionResponse {}
 
 message ReplySessionRequest {
-  // Legacy agent name. Deprecated: use agent_id.
-  string agent_name = 1;
+  // Legacy agent name. Deprecated (issue #241): never resolved as an input;
+  // agent_id is the sole agent reference.
+  string agent_name = 1 [deprecated = true];
   // App name (channel name) for session lookup.
   string app_name = 2;
   string user_id = 3;

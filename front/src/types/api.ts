@@ -193,20 +193,6 @@ export interface Agent {
   version?: number | string;
 }
 
-export type MigrationReadiness =
-  | "MIGRATION_READINESS_UNSPECIFIED"
-  | "MIGRATION_READINESS_READY"
-  | "MIGRATION_READINESS_MISSING_ID"
-  | "MIGRATION_READINESS_CONFLICT"
-  | "MIGRATION_READINESS_INCOMPLETE_DEPS";
-
-export interface AgentMigrationStatus {
-  name: string;
-  agent_id?: string;
-  readiness?: MigrationReadiness;
-  detail?: string;
-}
-
 export interface AgentFileSpace {
   id?: string;
   name: string;

@@ -26,9 +26,17 @@ const (
 	notifyGroupsCollection   = "config_notifygroups"
 )
 
-// configDoc is the generic MongoDB document for a config entity. The _id is
-// a composite of "workspace_id:name" (or "workspace_id:entity_id" depending
-// on the entity); workspace_id and name are duplicated as queryable fields.
+// configDoc is the generic MongoDB document for a config entity. For most
+// entities the _id is a composite of "workspace_id:name" (or
+// "workspace_id:entity_id"); workspace_id and name are duplicated as
+// queryable fields.
+//
+// Agent documents are the exception: their logical primary key is
+// (workspace_id, agent_id), enforced by a unique index, and application code
+// never queries agents by _id. Legacy agent documents keep their historical
+// "workspace_id:name" _id as an opaque physical identifier; new agent
+// documents get a random ObjectID-hex _id so legacy name-shaped values can
+// never collide with them.
 type configDoc struct {
 	ID          string `bson:"_id"`
 	WorkspaceID string `bson:"workspace_id"`
@@ -81,9 +89,11 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 		}
 	}
 
-	// Partial unique index on (workspace_id, agent_id) for agents that have
-	// been assigned an ID. Guards workspace-level uniqueness at the DB layer
-	// and closes the check-then-set race in AssignAgentID.
+	// Unique index on (workspace_id, agent_id): the logical primary key for
+	// all Agent CRUD and CAS operations. Kept partial so historical documents
+	// that never carried an agent_id cannot block index creation; the
+	// repository rejects empty agent IDs, so every document it writes is
+	// covered.
 	_, err := s.agents.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "agent_id", Value: 1}},
 		Options: options.Index().
@@ -94,6 +104,24 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 	})
 	if err != nil {
 		return fmt.Errorf("create agents agent_id unique index: %w", err)
+	}
+
+	// Partial unique index preserving per-workspace runtime-name uniqueness.
+	// The legacy _id scheme (workspace_id:name) used to enforce this
+	// implicitly; new agent documents carry a random _id, so the invariant
+	// moves to an explicit index. Partial (name non-empty) so it registers as
+	// a distinct index signature next to the non-unique (workspace_id, name)
+	// listing index above.
+	_, err = s.agents.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "name", Value: 1}},
+		Options: options.Index().
+			SetUnique(true).
+			SetPartialFilterExpression(bson.M{
+				"name": bson.M{"$exists": true, "$gt": ""},
+			}),
+	})
+	if err != nil {
+		return fmt.Errorf("create agents name unique index: %w", err)
 	}
 
 	return nil
@@ -192,57 +220,90 @@ func (s *Store) ListAgentsAcrossWorkspaces(ctx context.Context) ([]*agentsv1.Age
 	return out, nil
 }
 
-func (s *Store) GetAgent(ctx context.Context, workspaceID, name string) (*agentsv1.Agent, error) {
+// agentFilter is the logical-primary-key filter for agent documents. It never
+// touches _id, so legacy "workspace_id:name" identifiers survive every
+// operation untouched.
+func agentFilter(workspaceID, agentID string) bson.M {
+	return bson.M{"workspace_id": workspaceID, "agent_id": agentID}
+}
+
+func (s *Store) GetAgent(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
+	if agentID == "" {
+		return nil, configrepo.ErrMissingAgentID
+	}
 	var doc configDoc
-	err := s.agents.FindOne(ctx, bson.M{"_id": compositeID(workspaceID, name)}).Decode(&doc)
+	err := s.agents.FindOne(ctx, agentFilter(workspaceID, agentID)).Decode(&doc)
 	if err != nil {
-		return nil, mapError("agent", workspaceID, name, err)
+		return nil, mapError("agent", workspaceID, agentID, err)
 	}
 	a := &agentsv1.Agent{}
 	if err := unmarshal(doc.Spec, a); err != nil {
-		return nil, fmt.Errorf("unmarshal agent %q: %w", name, err)
+		return nil, fmt.Errorf("unmarshal agent %q: %w", agentID, err)
 	}
 	return a, nil
 }
 
 func (s *Store) CreateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+	if agent.GetAgentId() == "" {
+		return nil, configrepo.ErrMissingAgentID
+	}
 	clone := proto.Clone(agent).(*agentsv1.Agent)
 	clone.WorkspaceId = workspaceID
 	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId(), Version: clone.GetVersion()}
+	// New documents get a physical _id independent of the runtime name so a
+	// legacy name-shaped _id can never collide with them. Uniqueness of both
+	// agent_id and name is enforced by the indexes, closing create races.
+	doc := configDoc{ID: bson.NewObjectID().Hex(), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId(), Version: clone.GetVersion()}
 	if _, err := s.agents.InsertOne(ctx, doc); err != nil {
-		return nil, mapError("agent", workspaceID, clone.GetName(), err)
+		return nil, mapError("agent", workspaceID, clone.GetAgentId(), err)
 	}
 	return clone, nil
 }
 
+// agentSet builds the $set update that rewrites everything about an agent
+// document except its physical _id and its immutable logical key.
+func agentSet(workspaceID string, clone *agentsv1.Agent, spec string) bson.M {
+	return bson.M{"$set": bson.M{
+		"workspace_id": workspaceID,
+		"name":         clone.GetName(),
+		"spec":         spec,
+		"version":      clone.GetVersion(),
+	}}
+}
+
 func (s *Store) UpdateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+	if agent.GetAgentId() == "" {
+		return nil, configrepo.ErrMissingAgentID
+	}
 	clone := proto.Clone(agent).(*agentsv1.Agent)
 	clone.WorkspaceId = workspaceID
 	spec, err := marshal(clone)
 	if err != nil {
 		return nil, err
 	}
-	doc := configDoc{ID: compositeID(workspaceID, clone.GetName()), WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId(), Version: clone.GetVersion()}
-	res, err := s.agents.ReplaceOne(ctx, bson.M{"_id": doc.ID}, doc)
+	res, err := s.agents.UpdateOne(ctx, agentFilter(workspaceID, clone.GetAgentId()), agentSet(workspaceID, clone, spec))
 	if err != nil {
-		return nil, mapError("agent", workspaceID, clone.GetName(), err)
+		return nil, mapError("agent", workspaceID, clone.GetAgentId(), err)
 	}
 	if res.MatchedCount == 0 {
-		return nil, mapError("agent", workspaceID, clone.GetName(), mongo.ErrNoDocuments)
+		return nil, mapError("agent", workspaceID, clone.GetAgentId(), mongo.ErrNoDocuments)
 	}
 	return clone, nil
 }
 
 // UpdateAgentCAS replaces the agent only when the stored version equals
 // expectedVersion, then bumps the version by one. The CAS is atomic: the
-// filter matches the composite ID and the expected version (treating a missing
-// version field as 0 for legacy rows). A miss is disambiguated into
-// ErrVersionConflict vs ErrNotFound by a follow-up existence check.
+// filter matches the logical key (workspace_id, agent_id) and the expected
+// version (treating a missing version field as 0 for legacy rows). A miss is
+// disambiguated into ErrVersionConflict vs ErrNotFound by a follow-up
+// existence check.
 func (s *Store) UpdateAgentCAS(ctx context.Context, workspaceID string, agent *agentsv1.Agent, expectedVersion int64) (*agentsv1.Agent, error) {
+	if agent.GetAgentId() == "" {
+		return nil, configrepo.ErrMissingAgentID
+	}
 	clone := proto.Clone(agent).(*agentsv1.Agent)
 	clone.WorkspaceId = workspaceID
 	clone.Version = expectedVersion + 1
@@ -250,27 +311,24 @@ func (s *Store) UpdateAgentCAS(ctx context.Context, workspaceID string, agent *a
 	if err != nil {
 		return nil, err
 	}
-	id := compositeID(workspaceID, clone.GetName())
-	doc := configDoc{ID: id, WorkspaceID: workspaceID, Name: clone.GetName(), Spec: spec, AgentID: clone.GetAgentId(), Version: clone.GetVersion()}
 
-	versionMatch := bson.M{"version": expectedVersion}
-	filter := bson.M{"_id": id}
+	filter := agentFilter(workspaceID, clone.GetAgentId())
 	if expectedVersion == 0 {
 		// Legacy rows created before the promoted version field carry no
 		// "version" key; treat absent as 0.
-		filter["$or"] = bson.A{versionMatch, bson.M{"version": bson.M{"$exists": false}}}
+		filter["$or"] = bson.A{bson.M{"version": expectedVersion}, bson.M{"version": bson.M{"$exists": false}}}
 	} else {
 		filter["version"] = expectedVersion
 	}
 
-	res, err := s.agents.ReplaceOne(ctx, filter, doc)
+	res, err := s.agents.UpdateOne(ctx, filter, agentSet(workspaceID, clone, spec))
 	if err != nil {
-		return nil, mapError("agent", workspaceID, clone.GetName(), err)
+		return nil, mapError("agent", workspaceID, clone.GetAgentId(), err)
 	}
 	if res.MatchedCount == 0 {
-		n, cErr := s.agents.CountDocuments(ctx, bson.M{"_id": id})
+		n, cErr := s.agents.CountDocuments(ctx, agentFilter(workspaceID, clone.GetAgentId()))
 		if cErr != nil {
-			return nil, mapError("agent", workspaceID, clone.GetName(), cErr)
+			return nil, mapError("agent", workspaceID, clone.GetAgentId(), cErr)
 		}
 		if n == 0 {
 			return nil, configrepo.ErrNotFound
@@ -280,40 +338,16 @@ func (s *Store) UpdateAgentCAS(ctx context.Context, workspaceID string, agent *a
 	return clone, nil
 }
 
-func (s *Store) GetAgentByID(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
-	var doc configDoc
-	err := s.agents.FindOne(ctx, bson.M{
-		"workspace_id": workspaceID,
-		"agent_id":     agentID,
-	}).Decode(&doc)
-	if err != nil {
-		return nil, mapError("agent", workspaceID, agentID, err)
+func (s *Store) DeleteAgent(ctx context.Context, workspaceID, agentID string) error {
+	if agentID == "" {
+		return configrepo.ErrMissingAgentID
 	}
-	a := &agentsv1.Agent{}
-	if err := unmarshal(doc.Spec, a); err != nil {
-		return nil, fmt.Errorf("unmarshal agent by id %q: %w", agentID, err)
-	}
-	return a, nil
-}
-
-func (s *Store) AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error) {
-	n, err := s.agents.CountDocuments(ctx, bson.M{
-		"workspace_id": workspaceID,
-		"agent_id":     agentID,
-	})
+	res, err := s.agents.DeleteOne(ctx, agentFilter(workspaceID, agentID))
 	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
-func (s *Store) DeleteAgent(ctx context.Context, workspaceID, name string) error {
-	res, err := s.agents.DeleteOne(ctx, bson.M{"_id": compositeID(workspaceID, name)})
-	if err != nil {
-		return mapError("agent", workspaceID, name, err)
+		return mapError("agent", workspaceID, agentID, err)
 	}
 	if res.DeletedCount == 0 {
-		return mapError("agent", workspaceID, name, mongo.ErrNoDocuments)
+		return mapError("agent", workspaceID, agentID, mongo.ErrNoDocuments)
 	}
 	return nil
 }

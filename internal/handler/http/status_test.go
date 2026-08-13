@@ -28,7 +28,7 @@ func (s *statusStore) ActiveBackendName() string {
 func seedStatusStore(t *testing.T, store *statusStore) {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "assistant"}); err != nil {
+	if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "assistant", AgentId: "assistant"}); err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}
 	if _, err := store.CreateMCPServer(ctx, wsTest, &agentsv1.MCPServer{Id: "mcp-primary"}); err != nil {

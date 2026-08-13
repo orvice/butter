@@ -157,6 +157,7 @@ type listAgentsInput struct {
 }
 
 type agentSummary struct {
+	AgentID     string            `json:"agent_id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description,omitempty"`
 	Type        string            `json:"type,omitempty"`
@@ -188,6 +189,7 @@ func (s *Service) listAgents(ctx context.Context, _ *mcp.CallToolRequest, in lis
 			break
 		}
 		out.Agents = append(out.Agents, agentSummary{
+			AgentID:     agent.GetAgentId(),
 			Name:        agent.GetName(),
 			Description: agent.GetDescription(),
 			Type:        agent.GetType().String(),
@@ -199,7 +201,7 @@ func (s *Service) listAgents(ctx context.Context, _ *mcp.CallToolRequest, in lis
 }
 
 type getAgentInput struct {
-	Name string `json:"name" jsonschema:"the agent name"`
+	AgentID string `json:"agent_id" jsonschema:"the immutable agent_id"`
 }
 
 type getAgentOutput struct {
@@ -207,8 +209,8 @@ type getAgentOutput struct {
 }
 
 func (s *Service) getAgent(ctx context.Context, _ *mcp.CallToolRequest, in getAgentInput) (*mcp.CallToolResult, getAgentOutput, error) {
-	if strings.TrimSpace(in.Name) == "" {
-		return nil, getAgentOutput{}, errors.New("name is required")
+	if strings.TrimSpace(in.AgentID) == "" {
+		return nil, getAgentOutput{}, errors.New("agent_id is required")
 	}
 	repo, err := requireConfigRepo(s.configRepo)
 	if err != nil {
@@ -218,7 +220,7 @@ func (s *Service) getAgent(ctx context.Context, _ *mcp.CallToolRequest, in getAg
 	if err != nil {
 		return nil, getAgentOutput{}, err
 	}
-	agent, err := repo.GetAgent(ctx, wsID, in.Name)
+	agent, err := repo.GetAgent(ctx, wsID, in.AgentID)
 	if err != nil {
 		return nil, getAgentOutput{}, fmt.Errorf("get agent: %w", err)
 	}

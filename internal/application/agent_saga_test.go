@@ -169,7 +169,7 @@ func TestSagaCreate_ContentValidationLeavesErrored(t *testing.T) {
 		t.Fatalf("want op FAILED, got %v", op.GetStatus())
 	}
 	// The DB row is retained (not runnable) so retry can recover it.
-	stored, err := fx.agents.GetAgentByID(ctx, wsA, "a")
+	stored, err := fx.agents.GetAgent(ctx, wsA, "a")
 	if err != nil {
 		t.Fatalf("agent should remain in DB after a failed create: %v", err)
 	}
@@ -488,9 +488,9 @@ func seedActive(t *testing.T, fx *sagaFixture, id string) {
 
 func mustGet(t *testing.T, fx *sagaFixture, id string) *agentsv1.Agent {
 	t.Helper()
-	a, err := fx.agents.GetAgentByID(context.Background(), wsA, id)
+	a, err := fx.agents.GetAgent(context.Background(), wsA, id)
 	if err != nil {
-		t.Fatalf("GetAgentByID %q: %v", id, err)
+		t.Fatalf("GetAgent %q: %v", id, err)
 	}
 	return a
 }

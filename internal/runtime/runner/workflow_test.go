@@ -187,19 +187,17 @@ func TestRun_WorkflowLinearChain(t *testing.T) {
 	backend := newFakeBackend(t)
 
 	out, err := runWorkflowAgent(t, backend, []agentsv1.Agent{{
-		Name:        "wf",
-		Description: "linear workflow",
-		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		WorkspaceId: "ws-a",
-		SubAgents: []*agentsv1.Agent{
-			{Name: "step_a", Config: &agentsv1.AgentConfig{Model: "model-a"}},
-			{Name: "step_b", Config: &agentsv1.AgentConfig{Model: "model-b"}},
-		},
+		Name:          "wf",
+		AgentId:       "wf",
+		Description:   "linear workflow",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		WorkspaceId:   "ws-a",
+		ChildAgentIds: []string{"step_a", "step_b"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "step_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "step_a"},
-					{Name: "step_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "step_b"},
+					{Name: "step_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "step_a"},
+					{Name: "step_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "step_b"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "step_a"},
@@ -207,7 +205,10 @@ func TestRun_WorkflowLinearChain(t *testing.T) {
 				},
 			},
 		},
-	}}, []string{"model-a", "model-b"}, "hello")
+	},
+		{Name: "step_a", AgentId: "step_a", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "model-a"}},
+		{Name: "step_b", AgentId: "step_b", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "model-b"}},
+	}, []string{"model-a", "model-b"}, "hello")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -224,21 +225,18 @@ func TestRun_WorkflowLinearChain(t *testing.T) {
 // everything else down the default branch.
 func approveRejectAgents() []agentsv1.Agent {
 	return []agentsv1.Agent{{
-		Name:        "review",
-		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		WorkspaceId: "ws-a",
-		SubAgents: []*agentsv1.Agent{
-			{Name: "classify", Config: &agentsv1.AgentConfig{Model: "classifier"}},
-			{Name: "approver", Config: &agentsv1.AgentConfig{Model: "approver"}},
-			{Name: "rejecter", Config: &agentsv1.AgentConfig{Model: "rejecter"}},
-		},
+		Name:          "review",
+		AgentId:       "review",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		WorkspaceId:   "ws-a",
+		ChildAgentIds: []string{"classify", "approver", "rejecter"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "classify", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "classify"},
+					{Name: "classify", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "classify"},
 					{Name: "decide", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER},
-					{Name: "approver", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "approver"},
-					{Name: "rejecter", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "rejecter"},
+					{Name: "approver", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "approver"},
+					{Name: "rejecter", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "rejecter"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "classify"},
@@ -248,7 +246,11 @@ func approveRejectAgents() []agentsv1.Agent {
 				},
 			},
 		},
-	}}
+	},
+		{Name: "classify", AgentId: "classify", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "classifier"}},
+		{Name: "approver", AgentId: "approver", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "approver"}},
+		{Name: "rejecter", AgentId: "rejecter", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "rejecter"}},
+	}
 }
 
 // TestRun_WorkflowRouterMatchesLabel: the classifier answers " APPROVE "
@@ -301,23 +303,19 @@ func TestRun_WorkflowFanOutJoin(t *testing.T) {
 	backend := newFakeBackend(t)
 
 	agents := []agentsv1.Agent{{
-		Name:        "fanout",
-		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		WorkspaceId: "ws-a",
-		SubAgents: []*agentsv1.Agent{
-			{Name: "seed", Config: &agentsv1.AgentConfig{Model: "seeder"}},
-			{Name: "b1", Config: &agentsv1.AgentConfig{Model: "left"}},
-			{Name: "b2", Config: &agentsv1.AgentConfig{Model: "right"}},
-			{Name: "summarize", Config: &agentsv1.AgentConfig{Model: "summarizer"}},
-		},
+		Name:          "fanout",
+		AgentId:       "fanout",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		WorkspaceId:   "ws-a",
+		ChildAgentIds: []string{"seed", "b1", "b2", "summarize"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "seed"},
-					{Name: "b1", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "b1"},
-					{Name: "b2", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "b2"},
+					{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "seed"},
+					{Name: "b1", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "b1"},
+					{Name: "b2", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "b2"},
 					{Name: "gather", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN},
-					{Name: "summarize", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "summarize"},
+					{Name: "summarize", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "summarize"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "seed"},
@@ -329,7 +327,12 @@ func TestRun_WorkflowFanOutJoin(t *testing.T) {
 				},
 			},
 		},
-	}}
+	},
+		{Name: "seed", AgentId: "seed", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "seeder"}},
+		{Name: "b1", AgentId: "b1", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "left"}},
+		{Name: "b2", AgentId: "b2", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "right"}},
+		{Name: "summarize", AgentId: "summarize", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "summarizer"}},
+	}
 
 	out, err := runWorkflowAgent(t, backend, agents,
 		[]string{"seeder", "left", "right", "summarizer"}, "topic")
@@ -360,22 +363,18 @@ func TestRun_WorkflowFanOutInputSnapshotIgnoresSiblingEvent(t *testing.T) {
 	sessions := newFanOutInjectionService()
 
 	agents := []agentsv1.Agent{{
-		Name:        "fanout",
-		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		WorkspaceId: "ws-a",
-		SubAgents: []*agentsv1.Agent{
-			{Name: "seed", Config: &agentsv1.AgentConfig{Model: "seeder"}},
-			{Name: "b1", Config: &agentsv1.AgentConfig{Model: "left"}},
-			{Name: "b2", Config: &agentsv1.AgentConfig{Model: "right"}},
-			{Name: "summarize", Config: &agentsv1.AgentConfig{Model: "summarizer"}},
-		},
+		Name:          "fanout",
+		AgentId:       "fanout",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		WorkspaceId:   "ws-a",
+		ChildAgentIds: []string{"seed", "b1", "b2", "summarize"},
 		Config: &agentsv1.AgentConfig{Workflow: &agentsv1.WorkflowConfig{
 			Nodes: []*agentsv1.WorkflowNode{
-				{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "seed"},
-				{Name: "b1", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "b1"},
-				{Name: "b2", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "b2"},
+				{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "seed"},
+				{Name: "b1", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "b1"},
+				{Name: "b2", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "b2"},
 				{Name: "gather", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN},
-				{Name: "summarize", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "summarize"},
+				{Name: "summarize", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "summarize"},
 			},
 			Edges: []*agentsv1.WorkflowEdge{
 				{From: "START", To: "seed"},
@@ -386,7 +385,12 @@ func TestRun_WorkflowFanOutInputSnapshotIgnoresSiblingEvent(t *testing.T) {
 				{From: "gather", To: "summarize"},
 			},
 		}},
-	}}
+	},
+		{Name: "seed", AgentId: "seed", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "seeder"}},
+		{Name: "b1", AgentId: "b1", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "left"}},
+		{Name: "b2", AgentId: "b2", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "right"}},
+		{Name: "summarize", AgentId: "summarize", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "summarizer"}},
+	}
 
 	svc := buildWorkflowService(t, backend, agents,
 		[]string{"seeder", "left", "right", "summarizer"}, sessions)
@@ -499,27 +503,24 @@ func parallelWorkerAgents(mutateWork func(n *agentsv1.WorkflowNode)) []agentsv1.
 	work := &agentsv1.WorkflowNode{
 		Name:           "work",
 		Kind:           agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT,
-		Agent:          "work",
+		AgentId:        "work",
 		ParallelWorker: true,
 	}
 	if mutateWork != nil {
 		mutateWork(work)
 	}
 	return []agentsv1.Agent{{
-		Name:        "batch",
-		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		WorkspaceId: "ws-a",
-		SubAgents: []*agentsv1.Agent{
-			{Name: "list", Config: &agentsv1.AgentConfig{Model: "lister"}},
-			{Name: "work", Config: &agentsv1.AgentConfig{Model: "worker"}},
-			{Name: "collect", Config: &agentsv1.AgentConfig{Model: "collector"}},
-		},
+		Name:          "batch",
+		AgentId:       "batch",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		WorkspaceId:   "ws-a",
+		ChildAgentIds: []string{"list", "work", "collect"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "list", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "list"},
+					{Name: "list", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "list"},
 					work,
-					{Name: "collect", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "collect"},
+					{Name: "collect", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "collect"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "list"},
@@ -528,7 +529,11 @@ func parallelWorkerAgents(mutateWork func(n *agentsv1.WorkflowNode)) []agentsv1.
 				},
 			},
 		},
-	}}
+	},
+		{Name: "list", AgentId: "list", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "lister"}},
+		{Name: "work", AgentId: "work", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "worker"}},
+		{Name: "collect", AgentId: "collect", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "collector"}},
+	}
 }
 
 // TestRun_WorkflowParallelWorker: a Parallel Worker node runs once per item
@@ -623,19 +628,17 @@ func TestRun_WorkflowParallelWorkerTimeout(t *testing.T) {
 // input (handoff resume).
 func approvalAgents() []agentsv1.Agent {
 	return []agentsv1.Agent{{
-		Name:        "approval",
-		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		WorkspaceId: "ws-a",
-		SubAgents: []*agentsv1.Agent{
-			{Name: "draft", Config: &agentsv1.AgentConfig{Model: "drafter"}},
-			{Name: "publish", Config: &agentsv1.AgentConfig{Model: "publisher"}},
-		},
+		Name:          "approval",
+		AgentId:       "approval",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		WorkspaceId:   "ws-a",
+		ChildAgentIds: []string{"draft", "publish"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "draft", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "draft"},
+					{Name: "draft", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "draft"},
 					{Name: "ask", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT, Question: "Approve this draft?"},
-					{Name: "publish", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "publish"},
+					{Name: "publish", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "publish"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "draft"},
@@ -644,7 +647,10 @@ func approvalAgents() []agentsv1.Agent {
 				},
 			},
 		},
-	}}
+	},
+		{Name: "draft", AgentId: "draft", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "drafter"}},
+		{Name: "publish", AgentId: "publish", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "publisher"}},
+	}
 }
 
 // TestRun_WorkflowHumanInputPausesWithQuestion: a workflow reaching a Human
@@ -758,22 +764,19 @@ func TestRun_TurnListenerObservesPauseAndResume(t *testing.T) {
 func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 	backend := newFakeBackend(t)
 	agents := []agentsv1.Agent{{
-		Name:        "double",
-		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		WorkspaceId: "ws-a",
-		SubAgents: []*agentsv1.Agent{
-			{Name: "seed", Config: &agentsv1.AgentConfig{Model: "seeder"}},
-			{Name: "handle_a", Config: &agentsv1.AgentConfig{Model: "handler-a"}},
-			{Name: "handle_b", Config: &agentsv1.AgentConfig{Model: "handler-b"}},
-		},
+		Name:          "double",
+		AgentId:       "double",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		WorkspaceId:   "ws-a",
+		ChildAgentIds: []string{"seed", "handle_a", "handle_b"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "seed"},
+					{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "seed"},
 					{Name: "ask_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT, Question: "Question A?"},
 					{Name: "ask_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT, Question: "Question B?"},
-					{Name: "handle_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "handle_a"},
-					{Name: "handle_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "handle_b"},
+					{Name: "handle_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "handle_a"},
+					{Name: "handle_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "handle_b"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "seed"},
@@ -784,7 +787,11 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 				},
 			},
 		},
-	}}
+	},
+		{Name: "seed", AgentId: "seed", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "seeder"}},
+		{Name: "handle_a", AgentId: "handle_a", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "handler-a"}},
+		{Name: "handle_b", AgentId: "handle_b", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "handler-b"}},
+	}
 	svc := buildWorkflowService(t, backend, agents,
 		[]string{"seeder", "handler-a", "handler-b"}, session.InMemoryService())
 	ctxInfo := turnCtxInfo(&agents[0])
@@ -942,6 +949,7 @@ func TestRun_WorkflowResumeDoesNotHijackOtherAgents(t *testing.T) {
 	backend := newFakeBackend(t)
 	agents := append(approvalAgents(), agentsv1.Agent{
 		Name:        "chatbot",
+		AgentId:     "chatbot",
 		Type:        agentsv1.AgentType_AGENT_TYPE_LLM,
 		WorkspaceId: "ws-a",
 		Config:      &agentsv1.AgentConfig{Model: "chat-model"},

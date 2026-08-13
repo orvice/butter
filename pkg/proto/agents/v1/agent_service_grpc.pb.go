@@ -34,6 +34,7 @@ const (
 	AgentService_AssignAgentID_FullMethodName            = "/agents.v1.AgentService/AssignAgentID"
 	AgentService_GetMigrationReadiness_FullMethodName    = "/agents.v1.AgentService/GetMigrationReadiness"
 	AgentService_MigrateAgentsV2_FullMethodName          = "/agents.v1.AgentService/MigrateAgentsV2"
+	AgentService_VerifyAgentIDCutover_FullMethodName     = "/agents.v1.AgentService/VerifyAgentIDCutover"
 	AgentService_UpdateAgentConfiguration_FullMethodName = "/agents.v1.AgentService/UpdateAgentConfiguration"
 	AgentService_RestoreAgent_FullMethodName             = "/agents.v1.AgentService/RestoreAgent"
 	AgentService_SubmitAgentInvocation_FullMethodName    = "/agents.v1.AgentService/SubmitAgentInvocation"
@@ -84,20 +85,29 @@ type AgentServiceClient interface {
 	// gets typed cancellation / failed-precondition codes instead of an
 	// ad-hoc string payload.
 	StreamAgent(ctx context.Context, in *StreamAgentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamAgentResponse], error)
-	// AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
-	// existing Agent identified by name. Only workspace owners and
-	// administrators may call this; ordinary members receive PermissionDenied.
-	// Rejects invalid slugs, reserved values, duplicates, and attempts to
-	// reassign an already-set ID.
+	// Deprecated: Do not use.
+	// AssignAgentID is retired (issue #241): the Agent ID rollout is complete,
+	// every Agent carries an immutable agent_id assigned at creation, and the
+	// repository no longer resolves Agents by name. Always returns
+	// Unimplemented.
 	AssignAgentID(ctx context.Context, in *AssignAgentIDRequest, opts ...grpc.CallOption) (*AssignAgentIDResponse, error)
-	// GetMigrationReadiness reports whether each Agent in the workspace is
-	// ready for the identity migration (has a valid Agent ID, all entry-point
-	// dependencies resolved, etc.).
+	// Deprecated: Do not use.
+	// GetMigrationReadiness is retired (issue #241). Use VerifyAgentIDCutover
+	// for post-cutover diagnostics. Always returns Unimplemented.
 	GetMigrationReadiness(ctx context.Context, in *GetMigrationReadinessRequest, opts ...grpc.CallOption) (*GetMigrationReadinessResponse, error)
-	// MigrateAgentsV2 expands eligible legacy Agent trees into independent
-	// Agent records with ID-based composition. Supports dry-run, apply, and
-	// verify modes.
+	// Deprecated: Do not use.
+	// MigrateAgentsV2 is retired (issue #241): the V2 migration observation
+	// window is closed. Use VerifyAgentIDCutover for post-cutover diagnostics.
+	// Always returns Unimplemented.
 	MigrateAgentsV2(ctx context.Context, in *MigrateAgentsV2Request, opts ...grpc.CallOption) (*MigrateAgentsV2Response, error)
+	// VerifyAgentIDCutover runs the read-only final cutover verifier (issue
+	// #241) across every workspace: it confirms all Agents carry valid,
+	// workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
+	// workflow references remain, all child/workflow references resolve, no
+	// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
+	// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+	// conflict violates the runner's naming constraints. Global admins only.
+	VerifyAgentIDCutover(ctx context.Context, in *VerifyAgentIDCutoverRequest, opts ...grpc.CallOption) (*VerifyAgentIDCutoverResponse, error)
 	// UpdateAgentConfiguration is the composite-save command: it coordinates an
 	// Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
 	// under a single durable operation while keeping ownership separate. The
@@ -273,6 +283,7 @@ func (c *agentServiceClient) StreamAgent(ctx context.Context, in *StreamAgentReq
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_StreamAgentClient = grpc.ServerStreamingClient[StreamAgentResponse]
 
+// Deprecated: Do not use.
 func (c *agentServiceClient) AssignAgentID(ctx context.Context, in *AssignAgentIDRequest, opts ...grpc.CallOption) (*AssignAgentIDResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AssignAgentIDResponse)
@@ -283,6 +294,7 @@ func (c *agentServiceClient) AssignAgentID(ctx context.Context, in *AssignAgentI
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *agentServiceClient) GetMigrationReadiness(ctx context.Context, in *GetMigrationReadinessRequest, opts ...grpc.CallOption) (*GetMigrationReadinessResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetMigrationReadinessResponse)
@@ -293,10 +305,21 @@ func (c *agentServiceClient) GetMigrationReadiness(ctx context.Context, in *GetM
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *agentServiceClient) MigrateAgentsV2(ctx context.Context, in *MigrateAgentsV2Request, opts ...grpc.CallOption) (*MigrateAgentsV2Response, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MigrateAgentsV2Response)
 	err := c.cc.Invoke(ctx, AgentService_MigrateAgentsV2_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) VerifyAgentIDCutover(ctx context.Context, in *VerifyAgentIDCutoverRequest, opts ...grpc.CallOption) (*VerifyAgentIDCutoverResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyAgentIDCutoverResponse)
+	err := c.cc.Invoke(ctx, AgentService_VerifyAgentIDCutover_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -432,20 +455,29 @@ type AgentServiceServer interface {
 	// gets typed cancellation / failed-precondition codes instead of an
 	// ad-hoc string payload.
 	StreamAgent(*StreamAgentRequest, grpc.ServerStreamingServer[StreamAgentResponse]) error
-	// AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
-	// existing Agent identified by name. Only workspace owners and
-	// administrators may call this; ordinary members receive PermissionDenied.
-	// Rejects invalid slugs, reserved values, duplicates, and attempts to
-	// reassign an already-set ID.
+	// Deprecated: Do not use.
+	// AssignAgentID is retired (issue #241): the Agent ID rollout is complete,
+	// every Agent carries an immutable agent_id assigned at creation, and the
+	// repository no longer resolves Agents by name. Always returns
+	// Unimplemented.
 	AssignAgentID(context.Context, *AssignAgentIDRequest) (*AssignAgentIDResponse, error)
-	// GetMigrationReadiness reports whether each Agent in the workspace is
-	// ready for the identity migration (has a valid Agent ID, all entry-point
-	// dependencies resolved, etc.).
+	// Deprecated: Do not use.
+	// GetMigrationReadiness is retired (issue #241). Use VerifyAgentIDCutover
+	// for post-cutover diagnostics. Always returns Unimplemented.
 	GetMigrationReadiness(context.Context, *GetMigrationReadinessRequest) (*GetMigrationReadinessResponse, error)
-	// MigrateAgentsV2 expands eligible legacy Agent trees into independent
-	// Agent records with ID-based composition. Supports dry-run, apply, and
-	// verify modes.
+	// Deprecated: Do not use.
+	// MigrateAgentsV2 is retired (issue #241): the V2 migration observation
+	// window is closed. Use VerifyAgentIDCutover for post-cutover diagnostics.
+	// Always returns Unimplemented.
 	MigrateAgentsV2(context.Context, *MigrateAgentsV2Request) (*MigrateAgentsV2Response, error)
+	// VerifyAgentIDCutover runs the read-only final cutover verifier (issue
+	// #241) across every workspace: it confirms all Agents carry valid,
+	// workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
+	// workflow references remain, all child/workflow references resolve, no
+	// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
+	// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+	// conflict violates the runner's naming constraints. Global admins only.
+	VerifyAgentIDCutover(context.Context, *VerifyAgentIDCutoverRequest) (*VerifyAgentIDCutoverResponse, error)
 	// UpdateAgentConfiguration is the composite-save command: it coordinates an
 	// Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
 	// under a single durable operation while keeping ownership separate. The
@@ -536,6 +568,9 @@ func (UnimplementedAgentServiceServer) GetMigrationReadiness(context.Context, *G
 }
 func (UnimplementedAgentServiceServer) MigrateAgentsV2(context.Context, *MigrateAgentsV2Request) (*MigrateAgentsV2Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method MigrateAgentsV2 not implemented")
+}
+func (UnimplementedAgentServiceServer) VerifyAgentIDCutover(context.Context, *VerifyAgentIDCutoverRequest) (*VerifyAgentIDCutoverResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyAgentIDCutover not implemented")
 }
 func (UnimplementedAgentServiceServer) UpdateAgentConfiguration(context.Context, *UpdateAgentConfigurationRequest) (*UpdateAgentConfigurationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateAgentConfiguration not implemented")
@@ -845,6 +880,24 @@ func _AgentService_MigrateAgentsV2_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_VerifyAgentIDCutover_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyAgentIDCutoverRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).VerifyAgentIDCutover(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_VerifyAgentIDCutover_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).VerifyAgentIDCutover(ctx, req.(*VerifyAgentIDCutoverRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_UpdateAgentConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateAgentConfigurationRequest)
 	if err := dec(in); err != nil {
@@ -1044,6 +1097,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MigrateAgentsV2",
 			Handler:    _AgentService_MigrateAgentsV2_Handler,
+		},
+		{
+			MethodName: "VerifyAgentIDCutover",
+			Handler:    _AgentService_VerifyAgentIDCutover_Handler,
 		},
 		{
 			MethodName: "UpdateAgentConfiguration",

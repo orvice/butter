@@ -21,9 +21,11 @@ message Agent {
   // @gotags: json:"description,omitempty" yaml:"description,omitempty"
   string description = 2;
 
-  // Nested sub-agents that this agent can delegate to.
+  // Legacy embedded sub-agent tree. Deprecated (issue #241): not writable,
+  // never used for construction — children are referenced via
+  // child_agent_ids. Retained only so historical records decode.
   // @gotags: json:"sub_agents,omitempty" yaml:"sub_agents,omitempty"
-  repeated Agent sub_agents = 3;
+  repeated Agent sub_agents = 3 [deprecated = true];
 
   // Labels are intended for indexing, routing, or coarse-grained filtering.
   // @gotags: json:"labels,omitempty" yaml:"labels,omitempty"
@@ -49,8 +51,10 @@ message Agent {
   // @gotags: json:"enable_openai_api,omitempty" yaml:"enable_openai_api,omitempty"
   bool enable_openai_api = 22;
 
-  // Immutable, workspace-unique slug identifier. Empty until explicitly
-  // assigned via AssignAgentID. Once set it cannot be changed or reused.
+  // Immutable, workspace-unique slug identifier assigned at creation.
+  // (workspace_id, agent_id) is the Agent's logical primary key everywhere:
+  // persistence, APIs, and relationships. Once set it cannot be changed or
+  // reused.
   // @gotags: json:"agent_id,omitempty" yaml:"agent_id,omitempty" bson:"agent_id,omitempty"
   string agent_id = 23;
 
@@ -219,10 +223,11 @@ message WorkflowNode {
   // @gotags: json:"kind,omitempty" yaml:"kind,omitempty"
   WorkflowNodeKind kind = 2;
 
-  // AGENT nodes: name of one of the workflow agent's sub-agents to run.
-  // Deprecated in V2; use agent_id instead. Retained for migration compat.
+  // Legacy AGENT node reference by runtime name. Deprecated (issue #241):
+  // never resolved — AGENT nodes must reference their target via agent_id.
+  // Retained only so historical records decode.
   // @gotags: json:"agent,omitempty" yaml:"agent,omitempty"
-  string agent = 3;
+  string agent = 3 [deprecated = true];
 
   // HUMAN_INPUT nodes: the question presented to the human.
   // @gotags: json:"question,omitempty" yaml:"question,omitempty"

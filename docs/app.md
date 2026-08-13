@@ -12,19 +12,19 @@ Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入�
 - **API token 自带 workspace**：`CreateAPIToken` 时记录创建上下文的 workspace；用 API token 鉴权时直接绑定到 token 的 workspace，忽略 header。
 - **DaemonRuntime 自带 workspace**：daemon 执行面是配置仓库中的 `DaemonRuntime` 资源，runtime token 绑定 workspace + daemon_runtime_id；daemon-backed RemoteAgent 在 runtime 上选择 `opencode` / `codex` 这类 ACP runtime。
 - **默认 workspace 自举**：进程启动时若 `workspaces` 集合为空，会自动创建 slug 为 `default` 的 workspace，并把现有所有 user 加为 `owner`。
-- **运行时行为**：runner / channel manager / cron scheduler / automation scheduler 跨 workspace 拉平所有配置作为全局视图运行（agent 运行时名字目前需全局唯一，但引用统一以 `agent_id` 解析，agent_id-only）；`ContextInfo.workspace_id` 把所属 workspace 沿调用链透传，写 invocation / cron execution / automation run 时回填 workspace 与 `agent_id`。迁移前只按 legacy name 引用 agent 的 channel / cron / automation 旧记录，由启动时的一次性回填（`backfillConsumerAgentIDs`）补上 `agent_id`。
+- **运行时行为**：runner / channel manager / cron scheduler / automation scheduler 跨 workspace 拉平所有配置作为全局视图运行（agent 运行时名字目前需全局唯一，但引用统一以 `agent_id` 解析，agent_id-only）；`ContextInfo.workspace_id` 把所属 workspace 沿调用链透传，写 invocation / cron execution / automation run 时回填 workspace 与 `agent_id`。启动时运行只读的 Agent-ID cutover 校验器（`application.RunAgentIDCutoverVerifier`，替代已退役的 #213 启动回填）：仍按 legacy name 引用 agent 的 channel / cron / automation / forum 旧记录会被逐条 warning 日志报告（不再自动修补，也不阻断启动），并可通过 `VerifyAgentIDCutover` RPC 按需诊断。
 - **System agent**：仍为全局注册，其 `list_agents` / `list_cron_jobs` 等读工具跨 workspace，写工具（`create/update/delete_cron_job` 等）要求显式传入 `workspace_id` 参数。
 
 ## 1. Agent 编排
 
-- **Agent ID 身份**：每个 Agent 由不可变、workspace 内唯一的 **Agent ID**（`agent_id`，slug 形如 `assistant`；规则 `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`）标识，是所有引用（interactive 调用、channel/cron/automation/forum 绑定、A2A、OpenAI 兼容 API）的**唯一键**（agent_id-only）：调用/绑定时 `agent_id` 必填，缺失 → `InvalidArgument`，未知 → `NotFound`，绝不回退 name。`display_name` 是可变的 UI 显示名，不参与解析。旧的 `agent_name`（运行时名字）不再作为输入，仅保留为服务端回写的显示名与历史记录字段。`CreateAgent` 要求 `agent_id`，`AssignAgentID` 为 legacy agent 赋 ID，`GetMigrationReadiness` / `MigrateAgentsV2` 提供迁移路径。
+- **Agent ID 身份**：每个 Agent 由不可变、workspace 内唯一的 **Agent ID**（`agent_id`，slug 形如 `assistant`；规则 `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`）标识，是所有引用（interactive 调用、channel/cron/automation/forum 绑定、A2A、OpenAI 兼容 API）的**唯一键**（agent_id-only）：调用/绑定时 `agent_id` 必填，缺失 → `InvalidArgument`，未知 → `NotFound`，绝不回退 name。`display_name` 是可变的 UI 显示名，不参与解析。旧的 `agent_name`（运行时名字）不再作为输入，仅保留为服务端回写的显示名与历史记录字段。`CreateAgent` 要求 `agent_id`；`(workspace_id, agent_id)` 也是持久层的逻辑主键（Get/Update/Delete/CAS 一律按 ID 定位，ADR-0010）。迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役（恒返回 `Unimplemented`）；`VerifyAgentIDCutover`（全局管理员）提供只读的 cutover 校验诊断。
 - **多类型 Agent 构建**：通过 `agents.v1.Agent` 配置统一生成 ADK Agent，支持五种类型：
   - `AGENT_TYPE_LLM`：LLM Agent，支持 instruction、global instruction、input/output JSON schema、`output_key`、`context_guard`、`include_contents` 等参数。
   - `AGENT_TYPE_LOOP`：Loop workflow，支持 `max_iterations`。
   - `AGENT_TYPE_SEQUENTIAL`：顺序 workflow。
   - `AGENT_TYPE_PARALLEL`：并行 workflow。
   - `AGENT_TYPE_WORKFLOW`：图 workflow（见下方 §1.1）。
-- **子 Agent 与委派（V2 ID 组合）**：新 Agent 通过 `child_agent_ids` 按 Agent ID 引用独立的子 Agent 记录，结合 `description` 用于 LLM 子 Agent 委派；`CreateAgent` 拒绝内联 `sub_agents`，`UpdateAgent` 也拒绝修改内联 `sub_agents`（未变更的 legacy 记录可原样往返，须经 `MigrateAgentsV2` 展开为独立记录）。
+- **子 Agent 与委派（V2 ID 组合）**：新 Agent 通过 `child_agent_ids` 按 Agent ID 引用独立的子 Agent 记录，结合 `description` 用于 LLM 子 Agent 委派；`CreateAgent` 拒绝内联 `sub_agents`，`UpdateAgent` 也拒绝修改内联 `sub_agents`（未变更的历史记录可原样往返，但构建时从不消费内联树——子 Agent 只来自 `child_agent_ids`）。
 - **Labels / Metadata**：每个 Agent 可携带 `labels`、`metadata`，用于路由与索引。
 - **内置系统 Agent**：进程启动时注册 built-in system agent，便于诊断和管理类操作。
 
@@ -112,7 +112,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 配置类：
 
-- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。dashboard chat 提交后由后台 coordinator 独立执行；同一 Session 只允许一个 QUEUED/RUNNING Invocation，不同 Session 可并发。Stop 是唯一普通取消动作，终态为 CANCELLED；导航和 observer 断开不取消。Get/Cancel 校验 Workspace 与 private Session owner。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name）。
+- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役，恒返回 `Unimplemented`）。dashboard chat 提交后由后台 coordinator 独立执行；同一 Session 只允许一个 QUEUED/RUNNING Invocation，不同 Session 可并发。Stop 是唯一普通取消动作，终态为 CANCELLED；导航和 observer 断开不取消。Get/Cancel 校验 Workspace 与 private Session owner。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name）。
 - `MCPServerService`：共享 MCP Server CRUD + `GetMCPServerStatus`（live 探活）+ `ListMCPTools`（聚合工具列表）+ `StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`（MCP OAuth2 授权流程）。
 - `RemoteAgentService`：远程 Agent CRUD + `GetRemoteAgentStatus`（A2A `/.well-known/agent.json` 探测 / Daemon 注册表查找）。
 - `TelegramChannelService` / `TelegramDestinationService` / `TelegramAdminService` / `TelegramProcessingService`：Telegram 的配置、状态、投递与恢复。

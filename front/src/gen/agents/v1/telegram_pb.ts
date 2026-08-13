@@ -1274,7 +1274,8 @@ export type TelegramDeliverySegment = Message<"agents.v1.TelegramDeliverySegment
   text: string;
 
   /**
-   * One of "pending", "sent", "failed".
+   * One of "pending", "sending", "sent", "failed". "sending" is persisted
+   * before the Telegram request and requires operator review after a crash.
    * @gotags: json:"status,omitempty" bson:"status,omitempty"
    *
    * @generated from field: string status = 3;

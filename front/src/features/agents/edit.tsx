@@ -86,9 +86,7 @@ function mergeAgentIconMetadata(metadata: Agent['metadata'] | undefined, iconUrl
 }
 
 export function AgentEdit() {
-  // The $name param is an opaque ref: an immutable agent_id, or a plain name
-  // for agents without one (and old bookmarked URLs). useAgent tries the
-  // agent_id lookup first and falls back to the name.
+  // The $name param is the agent's immutable agent_id.
   const { name: agentRef } = useParams({ from: '/_authenticated/agents/$name/edit' })
   const navigate = useNavigate()
   const { resolvedTheme } = useTheme()

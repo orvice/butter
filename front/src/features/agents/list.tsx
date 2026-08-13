@@ -12,7 +12,6 @@ import {
   CircleCheck,
   CircleDashed,
   Fingerprint,
-  ListChecks,
   ListTodo,
   LoaderCircle,
   MessageSquarePlus,
@@ -62,9 +61,7 @@ import {
   type RunStatus,
 } from '@/components/butter/primitives'
 import { DeleteDialog } from '@/components/delete-dialog'
-import { AssignAgentIDDialog } from './assign-id-dialog'
 import { agentIconUrl } from './icon-utils'
-import { MigrationReadinessDialog } from './migration-readiness-dialog'
 
 type RuntimeState = 'running' | 'idle' | 'failed'
 type RuntimeFilter = 'all' | RuntimeState
@@ -174,7 +171,6 @@ function AgentCard({
   runtime,
   onDelete,
   onRun,
-  onAssignId,
   onRestore,
   restoring,
 }: {
@@ -182,7 +178,6 @@ function AgentCard({
   runtime?: AgentRuntimeStatus
   onDelete: () => void
   onRun: () => void
-  onAssignId: () => void
   onRestore: () => void
   restoring: boolean
 }) {
@@ -223,7 +218,7 @@ function AgentCard({
                   onClick={() =>
                     navigate({
                       to: '/agents/$name/edit',
-                      params: { name: agent.agent_id || agent.name },
+                      params: { name: agent.agent_id ?? '' },
                     })
                   }
                 >
@@ -244,11 +239,6 @@ function AgentCard({
                 <Link to='/operations'>
                   <ListTodo /> View operations
                 </Link>
-              </DropdownMenuItem>
-            )}
-            {!agent.agent_id && (
-              <DropdownMenuItem onClick={onAssignId}>
-                <Fingerprint /> Assign Agent ID
               </DropdownMenuItem>
             )}
             {canDelete && <DropdownMenuSeparator />}
@@ -275,22 +265,10 @@ function AgentCard({
         <span className='rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.7rem] text-muted-foreground'>
           {AGENT_TYPE_LABELS[agent.type ?? 'AGENT_TYPE_UNSPECIFIED']}
         </span>
-        {agent.agent_id ? (
-          <span className='inline-flex items-center gap-1 rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.7rem] text-muted-foreground'>
-            <Fingerprint className='size-3' />
-            {agent.agent_id}
-          </span>
-        ) : (
-          <button
-            type='button'
-            onClick={onAssignId}
-            className='inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[0.7rem] text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-400'
-            title='This agent has no Agent ID yet. Assign one to prepare for the identity migration.'
-          >
-            <Fingerprint className='size-3' />
-            No Agent ID
-          </button>
-        )}
+        <span className='inline-flex items-center gap-1 rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.7rem] text-muted-foreground'>
+          <Fingerprint className='size-3' />
+          {agent.agent_id}
+        </span>
         {agent.enable_a2a && (
           <span className='rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[0.7rem] text-muted-foreground'>
             A2A
@@ -317,7 +295,7 @@ function AgentCard({
           <Button size='sm' asChild>
             <Link
               to='/chat'
-              search={{ agent: agent.agent_id || agent.name }}
+              search={{ agent: agent.agent_id }}
             >
               <MessageSquarePlus />
               Start chat
@@ -345,12 +323,10 @@ function AgentCard({
 export function AgentList() {
   const { data, isLoading } = useAgents()
   const agents = useMemo(() => data?.agents ?? [], [data?.agents])
-  // Query by immutable agent_id when assigned; fall back to name for agents
-  // that have not been migrated yet.
+  // Query runtime status by immutable agent_id.
   const statusParams = useMemo(
     () => ({
-      agent_ids: agents.filter((a) => a.agent_id).map((a) => a.agent_id!),
-      names: agents.filter((a) => !a.agent_id).map((a) => a.name),
+      agent_ids: agents.flatMap((a) => (a.agent_id ? [a.agent_id] : [])),
     }),
     [agents]
   )
@@ -360,7 +336,6 @@ export function AgentList() {
     const m = new Map<string, AgentRuntimeStatus>()
     for (const s of runtimeData?.statuses ?? []) {
       if (s.agent_id) m.set(s.agent_id, s)
-      if (s.name) m.set(s.name, s)
     }
     return m
   }, [runtimeData])
@@ -373,8 +348,6 @@ export function AgentList() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<RuntimeFilter>('all')
   const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null)
-  const [assignTarget, setAssignTarget] = useState<string | null>(null)
-  const [readinessOpen, setReadinessOpen] = useState(false)
   const [invokeTarget, setInvokeTarget] = useState<Agent | null>(null)
   const [invokeInput, setInvokeInput] = useState('')
   const [invokeResult, setInvokeResult] = useState<{
@@ -387,7 +360,7 @@ export function AgentList() {
       agents.filter(
         (a) =>
           (filter === 'all' ||
-            runtimeStatusOf(runtimeMap.get(a.agent_id || a.name)) === filter) &&
+            runtimeStatusOf(runtimeMap.get(a.agent_id ?? '')) === filter) &&
           (a.name.toLowerCase().includes(query.toLowerCase()) ||
             (a.description ?? '').toLowerCase().includes(query.toLowerCase()))
       ),
@@ -408,14 +381,6 @@ export function AgentList() {
         subtitle='Browse agents and start a conversation, or configure how they work.'
         actions={
           <>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() => setReadinessOpen(true)}
-            >
-              <ListChecks className='size-4' />
-              Agent IDs
-            </Button>
             <Button
               variant='outline'
               size='sm'
@@ -507,16 +472,15 @@ export function AgentList() {
               <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
                 {filtered.map((a) => (
                   <AgentCard
-                    key={a.agent_id || a.name}
+                    key={a.agent_id}
                     agent={a}
-                    runtime={runtimeMap.get(a.agent_id || a.name)}
+                    runtime={runtimeMap.get(a.agent_id ?? '')}
                     onDelete={() => setDeleteTarget(a)}
                     onRun={() => {
                       setInvokeTarget(a)
                       setInvokeResult(null)
                       setInvokeInput('')
                     }}
-                    onAssignId={() => setAssignTarget(a.name)}
                     onRestore={() => {
                       if (!a.agent_id) return
                       restoreMutation.mutate(a.agent_id, {
@@ -536,19 +500,6 @@ export function AgentList() {
         )}
       </PageScroll>
 
-      <AssignAgentIDDialog
-        key={assignTarget ?? ''}
-        agentName={assignTarget}
-        open={!!assignTarget}
-        onOpenChange={(open) => !open && setAssignTarget(null)}
-      />
-
-      <MigrationReadinessDialog
-        open={readinessOpen}
-        onOpenChange={setReadinessOpen}
-        onAssign={(name) => setAssignTarget(name)}
-      />
-
       <DeleteDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
@@ -560,7 +511,6 @@ export function AgentList() {
           if (deleteTarget) {
             deleteMutation.mutate(
               {
-                name: deleteTarget.name,
                 agent_id: deleteTarget.agent_id,
                 operation_id: crypto.randomUUID(),
               },
@@ -636,10 +586,7 @@ export function AgentList() {
                     invokeTarget &&
                     invokeMutation.mutate(
                       {
-                        agent_name: invokeTarget.agent_id
-                          ? undefined
-                          : invokeTarget.name,
-                        agent_id: invokeTarget.agent_id,
+                        agent_id: invokeTarget.agent_id ?? '',
                         input: invokeInput.trim(),
                       },
                       {

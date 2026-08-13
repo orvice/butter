@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { ArrowLeft, Bot, ChevronRight, Loader2, Pencil, Send, Tag, Trash2, User } from 'lucide-react'
@@ -48,7 +48,7 @@ export function ForumThreadPage() {
   const invokeAgent = useInvokeAgentInThread()
   const [body, setBody] = useState('')
   const [agentMessage, setAgentMessage] = useState('')
-  // Opaque agent ref: the immutable agent_id when the agent has one, else the name.
+  // The immutable agent_id of the agent to ask.
   const [agentRef, setAgentRef] = useState('')
   const [editOpen, setEditOpen] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -61,24 +61,13 @@ export function ForumThreadPage() {
   const posts = data?.posts ?? []
   const agents = useMemo(() => agentsData?.agents ?? [], [agentsData?.agents])
 
-  // Normalizes a stored ref (agent_id or legacy agent_name) to the matching
-  // agent's stable ref so the select finds its option once agents load.
-  const resolveAgentRef = useCallback(
-    (ref: string): string => {
-      const match = agents.find((a) => a.agent_id === ref || a.name === ref)
-      return match ? match.agent_id || match.name : ref
-    },
-    [agents],
-  )
-
   const defaultAgentRef = useMemo(() => {
-    const stored = thread?.agent_ids?.[0] || thread?.agent_names?.[0]
-    if (stored) return resolveAgentRef(stored)
-    const first = agents[0]
-    return first ? first.agent_id || first.name : ''
-  }, [thread, agents, resolveAgentRef])
+    const stored = thread?.agent_ids?.[0]
+    if (stored) return stored
+    return agents[0]?.agent_id ?? ''
+  }, [thread, agents])
   const selectedRef = agentRef || defaultAgentRef
-  const selectedAgent = agents.find((a) => (a.agent_id || a.name) === resolveAgentRef(selectedRef))
+  const selectedAgent = agents.find((a) => a.agent_id === selectedRef)
   const selectedAgentName = selectedAgent?.name ?? selectedRef
   const isProcessing = thread?.status === 'processing'
   const processingAgent = thread?.metadata?.processing_agent
@@ -100,13 +89,10 @@ export function ForumThreadPage() {
       toast.error('Select an agent first')
       return
     }
-    // The backend requires an immutable agent_id; fall back to the ref only if
-    // the agent genuinely has no id (every agent has one after the migration).
-    const agentId = selectedAgent?.agent_id || selectedRef
     try {
       await invokeAgent.mutateAsync({
         thread_id: id,
-        agent_id: agentId,
+        agent_id: selectedRef,
         message: agentMessage.trim(),
         recent_post_limit: 30,
       })
@@ -140,10 +126,14 @@ export function ForumThreadPage() {
         body: cleanBody,
         status: thread.status,
         // Preserve participants as agent_ids (backend ignores agent_names now);
-        // resolve legacy name-only threads to ids where possible.
+        // resolve legacy name-only threads to ids where possible, dropping
+        // names that no longer match a known agent.
         agent_ids: thread.agent_ids?.length
           ? thread.agent_ids
-          : (thread.agent_names ?? []).map((n) => resolveAgentRef(n)),
+          : (thread.agent_names ?? []).flatMap((n) => {
+              const id = agents.find((a) => a.name === n)?.agent_id
+              return id ? [id] : []
+            }),
         labels: parseLabels(editLabels),
         metadata: thread.metadata ?? {},
       })
@@ -298,13 +288,13 @@ export function ForumThreadPage() {
                 <CardTitle className='flex items-center gap-2 text-base'><Bot className='h-4 w-4' /> Ask agent</CardTitle>
               </CardHeader>
               <CardContent className='space-y-3'>
-                <Select value={resolveAgentRef(selectedRef) || undefined} onValueChange={(v) => setAgentRef(v ?? '')}>
+                <Select value={selectedRef || undefined} onValueChange={(v) => setAgentRef(v ?? '')}>
                   <SelectTrigger>
                     <SelectValue placeholder='Select an agent' />
                   </SelectTrigger>
                   <SelectContent>
                     {agents.map((agent) => (
-                      <SelectItem key={agent.agent_id || agent.name} value={agent.agent_id || agent.name}>{agent.name}</SelectItem>
+                      <SelectItem key={agent.agent_id} value={agent.agent_id ?? ''}>{agent.name}</SelectItem>
                     ))}
                     {agents.length === 0 ? <div className='px-3 py-2 text-xs text-muted-foreground'>No agents configured.</div> : null}
                   </SelectContent>
