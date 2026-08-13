@@ -102,8 +102,8 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 	// therefore the session — reflects what a controller last chose.
 	stored := Preferences{}
 	if o.prefs != nil {
-		subject := sessionSubject(dest.GetConfig().GetSessionPolicy(), dest.GetId(),
-			senderOf(event))
+		acceptedConfig := acceptedPolicyConfig(event.Policy, dest.GetConfig())
+		subject := sessionSubject(acceptedConfig.GetSessionPolicy(), dest.GetId(), senderOf(event))
 		if loaded, prefErr := o.prefs.Get(ctx, PreferenceKey(dest.GetId(), subject)); prefErr != nil {
 			logger.Warn("could not read telegram preferences", "err", prefErr)
 		} else {

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -248,6 +250,40 @@ func TestPerUserSelectionIsIsolated(t *testing.T) {
 	}
 	if theirs.AgentID != "" {
 		t.Fatalf("another user inherited the selection: %q", theirs.AgentID)
+	}
+}
+
+// Preference lookup follows the accepted session policy, so editing a
+// Destination while an event waits in Redis cannot make that event inherit a
+// different user's selection.
+func TestQueuedInteractionLoadsPreferencesForTheAcceptedSessionPolicy(t *testing.T) {
+	fx := newSelectionFixture(t, func(c *agentsv1.TelegramDestinationConfig) {
+		c.SessionPolicy = agentsv1.TelegramSessionPolicy_TELEGRAM_SESSION_POLICY_DESTINATION
+	})
+	event := fx.eventForStored(message(realUser, "hello", ""))
+
+	current := proto.Clone(fx.dest).(*agentsv1.TelegramDestination)
+	current.Config.SessionPolicy = agentsv1.TelegramSessionPolicy_TELEGRAM_SESSION_POLICY_USER
+	updated, err := fx.repo.UpdateDestination(t.Context(), "ws-a", current, fx.dest.GetRevision())
+	if err != nil {
+		t.Fatalf("change current session policy: %v", err)
+	}
+	fx.dest = updated
+
+	acceptedKey := PreferenceKey(fx.dest.GetId(), "d"+fx.dest.GetId())
+	currentKey := PreferenceKey(fx.dest.GetId(), "u7")
+	if err := fx.prefs.Put(t.Context(), acceptedKey, Preferences{AgentID: "research"}); err != nil {
+		t.Fatalf("seed accepted-policy preference: %v", err)
+	}
+	if err := fx.prefs.Put(t.Context(), currentKey, Preferences{AgentID: "support"}); err != nil {
+		t.Fatalf("seed current-policy preference: %v", err)
+	}
+
+	if err := fx.orchestrator.Handle(t.Context(), event); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	if len(fx.agents.calls) != 1 || fx.agents.calls[0].agentName != "Research Agent" {
+		t.Fatalf("agent calls = %+v, want the accepted-policy selection", fx.agents.calls)
 	}
 }
 
