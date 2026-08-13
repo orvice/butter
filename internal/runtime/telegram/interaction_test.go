@@ -300,7 +300,7 @@ func TestMentionUsesTelegramUTF16EntityCoordinates(t *testing.T) {
 	raw := message(realUser, "🙂 @opsbot hello",
 		`"entities":[{"type":"mention","offset":3,"length":7}]`)
 
-	if got := DecideInteraction(eventFor(raw), dest, botUsername); got.Ignore != IgnoreNone {
+	if got := DecideInteraction(eventFor(raw), dest, botUsername, Preferences{}); got.Ignore != IgnoreNone {
 		t.Fatalf("ignore = %q, want accepted", got.Ignore)
 	}
 }
