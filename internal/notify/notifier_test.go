@@ -141,13 +141,6 @@ func TestPostJSONIncludesResponseBody(t *testing.T) {
 	}
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func TestSendHonorsContextTimeout(t *testing.T) {
 	sender := NewSender(&http.Client{Transport: blockingTransport{}})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
