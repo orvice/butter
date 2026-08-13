@@ -169,10 +169,11 @@ func (r *Reconciler) HoldsLease() bool {
 func (r *Reconciler) reconcileChannel(ctx context.Context, channel *agentsv1.TelegramChannel, baseURL string) {
 	logger := log.FromContext(ctx)
 	if channel.GetReceiveMode() != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
-		r.record(channel.GetId(), ReconcileState{
-			State:        agentsv1.TelegramWebhookState_TELEGRAM_WEBHOOK_STATE_NOT_APPLICABLE,
-			ReconciledAt: time.Now().UTC(),
-		})
+		// A Long Polling Channel is not reconciled as an active Webhook, but
+		// a *stale* registration still has to go: Telegram refuses getUpdates
+		// with a 409 while a webhook is set, so leaving one behind would make
+		// a freshly switched Channel silently receive nothing.
+		r.clearStaleWebhook(ctx, channel)
 		return
 	}
 
@@ -227,6 +228,40 @@ func (r *Reconciler) reconcileChannel(ctx context.Context, channel *agentsv1.Tel
 		Error:        info.LastErrorMessage,
 		ReconciledAt: time.Now().UTC(),
 	})
+}
+
+// clearStaleWebhook removes a registration left over from Webhook mode.
+func (r *Reconciler) clearStaleWebhook(ctx context.Context, channel *agentsv1.TelegramChannel) {
+	state := ReconcileState{
+		State:        agentsv1.TelegramWebhookState_TELEGRAM_WEBHOOK_STATE_NOT_APPLICABLE,
+		ReconciledAt: time.Now().UTC(),
+	}
+	client, _, err := r.clientFor(ctx, channel)
+	if err != nil {
+		// Without a usable credential there is nothing to clear and nothing
+		// to poll either; the enablement preflight reports that separately.
+		r.record(channel.GetId(), state)
+		return
+	}
+	info, err := client.GetWebhookInfo(ctx)
+	if err != nil {
+		state.Error = err.Error()
+		r.record(channel.GetId(), state)
+		return
+	}
+	if info.URL == "" {
+		r.record(channel.GetId(), state)
+		return
+	}
+	if err := client.DeleteWebhook(ctx, false); err != nil {
+		state.State = agentsv1.TelegramWebhookState_TELEGRAM_WEBHOOK_STATE_FAILED
+		state.Error = err.Error()
+		r.record(channel.GetId(), state)
+		return
+	}
+	log.FromContext(ctx).Info("removed a stale telegram webhook so long polling can run",
+		"channel_id", channel.GetId())
+	r.record(channel.GetId(), state)
 }
 
 // clientFor decrypts the Channel's Bot Token and Webhook secret.

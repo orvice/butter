@@ -2917,6 +2917,41 @@ func (m *TelegramChannelStatus) validate(all bool) error {
 
 	// no validation rules for QueueReady
 
+	// no validation rules for LastFetchedUpdateId
+
+	// no validation rules for LastAcceptedUpdateId
+
+	if all {
+		switch v := interface{}(m.GetLastPolledAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TelegramChannelStatusValidationError{
+					field:  "LastPolledAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TelegramChannelStatusValidationError{
+					field:  "LastPolledAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetLastPolledAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TelegramChannelStatusValidationError{
+				field:  "LastPolledAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for LastReceiveError
+
 	if len(errors) > 0 {
 		return TelegramChannelStatusMultiError(errors)
 	}

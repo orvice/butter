@@ -468,6 +468,15 @@ message TelegramChannelStatus {
   bool polling_leader = 15;
   // Whether the durable queue is reachable and correctly configured.
   bool queue_ready = 16;
+
+  // Long Polling observations from the Pod answering this request. Empty on
+  // a Pod that does not hold the Channel's lease.
+  int64 last_fetched_update_id = 17;
+  int64 last_accepted_update_id = 18;
+  google.protobuf.Timestamp last_polled_at = 19;
+  // Sanitized failure summary from the receive path. Never contains
+  // credential material.
+  string last_receive_error = 20;
 }
 
 message GetTelegramChannelStatusResponse {

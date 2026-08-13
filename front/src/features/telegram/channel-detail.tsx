@@ -160,15 +160,32 @@ export function TelegramChannelDetail() {
                 <Badge variant='outline'>
                   {status?.outboundDestinationCount ?? 0} outbound destinations
                 </Badge>
-                {channel.receiveMode === TelegramReceiveMode.WEBHOOK && (
+                {channel.receiveMode === TelegramReceiveMode.WEBHOOK ? (
                   <Badge variant='outline' data-testid='webhook-state'>
                     {WEBHOOK_STATE_LABELS[status?.webhookState ?? 0] ?? 'Unknown'}
+                  </Badge>
+                ) : (
+                  <Badge variant='outline' data-testid='polling-state'>
+                    {status?.pollingLeader
+                      ? 'Polling on this pod'
+                      : 'Polling led by another pod'}
                   </Badge>
                 )}
               </div>
               {status?.webhookUrl && (
                 <p className='font-mono text-xs break-all text-muted-foreground'>
                   Callback: {status.webhookUrl}
+                </p>
+              )}
+              {channel.receiveMode === TelegramReceiveMode.LONG_POLLING && (
+                <p className='font-mono text-xs text-muted-foreground' data-testid='polling-progress'>
+                  fetched {String(status?.lastFetchedUpdateId ?? 0n)} · accepted{' '}
+                  {String(status?.lastAcceptedUpdateId ?? 0n)}
+                </p>
+              )}
+              {status?.lastReceiveError && (
+                <p className='text-destructive' data-testid='receive-error'>
+                  {status.lastReceiveError}
                 </p>
               )}
               {status?.lastWebhookError && (
@@ -262,6 +279,14 @@ export function TelegramChannelDetail() {
                   </SelectContent>
                 </Select>
               </div>
+              {receiveMode !== channel.receiveMode && (
+                <p className='text-sm text-destructive' data-testid='mode-switch-warning'>
+                  Switching receive mode is an explicit operational action. This release
+                  does not guarantee a lossless or duplicate-free transition — updates in
+                  flight may be delivered again, though the same update ID is never
+                  processed twice.
+                </p>
+              )}
               <div className='flex justify-end'>
                 <Button onClick={saveSettings} disabled={update.isPending}>
                   Save

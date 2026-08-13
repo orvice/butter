@@ -25,11 +25,18 @@ type fakeQueue struct {
 	accepted []*telegramqueue.Event
 	seen     map[string]bool
 	failWith error
+	// acceptHook lets a test fail a specific call rather than all of them.
+	acceptHook func() error
 }
 
 func newFakeQueue() *fakeQueue { return &fakeQueue{seen: map[string]bool{}} }
 
 func (q *fakeQueue) Accept(_ context.Context, event *telegramqueue.Event) (string, error) {
+	if q.acceptHook != nil {
+		if err := q.acceptHook(); err != nil {
+			return "", err
+		}
+	}
 	if q.failWith != nil {
 		return "", q.failWith
 	}

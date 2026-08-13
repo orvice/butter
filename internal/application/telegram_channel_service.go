@@ -48,6 +48,13 @@ type TelegramChannelServiceServer struct {
 	queue QueueProbe
 	// webhookStatus supplies the reconciler's observed registration state.
 	webhookStatus WebhookStatusSource
+	// pollingStatus supplies this Pod's long-poll observations.
+	pollingStatus PollingStatusSource
+}
+
+// PollingStatusSource exposes this Pod's long-poll state for a Channel.
+type PollingStatusSource interface {
+	Status(channelID string) (telegramruntime.PollingStatus, bool)
 }
 
 // QueueProbe reports whether the durable update queue is usable.
@@ -87,6 +94,11 @@ func (s *TelegramChannelServiceServer) SetQueueProbe(probe QueueProbe) { s.queue
 // SetWebhookStatusSource wires the reconciler's observed state.
 func (s *TelegramChannelServiceServer) SetWebhookStatusSource(source WebhookStatusSource) {
 	s.webhookStatus = source
+}
+
+// SetPollingStatusSource wires the long-poll supervisor's observations.
+func (s *TelegramChannelServiceServer) SetPollingStatusSource(source PollingStatusSource) {
+	s.pollingStatus = source
 }
 
 // SetBotFactory overrides how Telegram clients are built. Used by tests.
@@ -506,6 +518,17 @@ func (s *TelegramChannelServiceServer) evaluate(ctx context.Context, workspaceID
 	if channel.GetCredentialState() == agentsv1.TelegramCredentialState_TELEGRAM_CREDENTIAL_STATE_INVALID {
 		blockers = append(blockers, "the stored bot token was rejected by Telegram")
 	}
+	if inbound && channel.GetReceiveMode() == agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_LONG_POLLING {
+		// Long Polling needs the same durable queue as Webhook mode — a
+		// fetched update is only confirmed to Telegram once it is safely
+		// enqueued — plus a lease store to elect the single consumer.
+		if s.queue == nil || !s.queue.Available() {
+			blockers = append(blockers,
+				"redis is not configured, which long polling requires for the update queue and the consumer lease")
+		} else if pingErr := s.queue.Ping(ctx); pingErr != nil {
+			blockers = append(blockers, "the update queue is unreachable")
+		}
+	}
 	if inbound && channel.GetReceiveMode() == agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
 		// Webhook mode has infrastructure prerequisites that Long Polling
 		// does not: Telegram must have somewhere to deliver to, and the
@@ -601,6 +624,21 @@ func (s *TelegramChannelServiceServer) GetTelegramChannelStatus(ctx context.Cont
 		Warnings:                 warnings,
 		LastCredentialError:      channel.GetLastCredentialError(),
 		QueueReady:               s.queue != nil && s.queue.Available(),
+	}
+	// Long Polling leadership is per Pod, so this reports what *this* Pod
+	// currently holds rather than a global fact.
+	if s.pollingStatus != nil {
+		if observed, ok := s.pollingStatus.Status(channel.GetId()); ok {
+			status.PollingLeader = observed.Leader
+			status.LastFetchedUpdateId = observed.LastFetchedUpdateID
+			status.LastAcceptedUpdateId = observed.LastAcceptedUpdateID
+			if observed.LastError != "" {
+				status.LastReceiveError = observed.LastError
+			}
+			if !observed.LastPolledAt.IsZero() {
+				status.LastPolledAt = timestamppb.New(observed.LastPolledAt)
+			}
+		}
 	}
 	// Registration state is observed by the reconciler, never persisted:
 	// availability is a runtime fact, not configuration.

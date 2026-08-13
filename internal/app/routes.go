@@ -66,6 +66,7 @@ type Handlers struct {
 	tgReceiver             atomic.Value // *telegram.Receiver
 	tgReconciler           *telegramruntime.Reconciler
 	tgWorker               *telegramruntime.Worker
+	tgPoller               *telegramruntime.Poller
 	workspaceMCPSvc        *workspacemcp.Service
 	authRepo               atomic.Value // auth.Repository
 	apiTokenRepo           atomic.Value // apitoken.Repository
@@ -149,6 +150,9 @@ func (h *Handlers) telegramReceiver() *telegramruntime.Receiver {
 func (h *Handlers) StopTelegramRuntime() {
 	if h == nil {
 		return
+	}
+	if h.tgPoller != nil {
+		h.tgPoller.Stop()
 	}
 	if h.tgWorker != nil {
 		h.tgWorker.Stop()
@@ -473,6 +477,16 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			if err := h.tgWorker.Start(context.Background()); err != nil {
 				h.tgWorker = nil
 			}
+
+			// Long Polling is an alternative transport, not an alternative
+			// pipeline: it feeds the same router, queue, and workers.
+			h.tgPoller = telegramruntime.NewPoller(
+				result.TelegramRepo, keyring, router,
+				telegramruntime.NewRedisOffsetStore(result.Redis), nil,
+				telegramruntime.RedisPollingLeaseFactory(result.Redis, instanceID),
+				instanceID)
+			h.tgPoller.Start(context.Background())
+			h.tgChannelSvcServer.SetPollingStatusSource(h.tgPoller)
 		}
 		if h.cronSvcServer != nil {
 			h.cronSvcServer.SetTelegramRepo(result.TelegramRepo)
