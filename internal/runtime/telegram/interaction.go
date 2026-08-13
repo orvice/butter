@@ -90,15 +90,22 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 	if dest == nil || !dest.GetInboundEnabled() || !dest.GetOutboundEnabled() {
 		return Interaction{Ignore: IgnoreDestinationUnavailable}
 	}
-	config := dest.GetConfig()
+	currentConfig := dest.GetConfig()
+	config := acceptedPolicyConfig(event.Policy, currentConfig)
 
 	userID := telegramapi.FormatID(msg.From.ID)
-	if !admits(config.GetAllowedUserIds(), userID) {
+	// Acceptance policy is frozen, but revocation is immediate: a user must
+	// have been admitted when the event entered the queue and still be admitted
+	// when it runs. Adding a user later never grants an already queued update.
+	if !admits(config.GetAllowedUserIds(), userID) ||
+		!admits(currentConfig.GetAllowedUserIds(), userID) {
 		return Interaction{Ignore: IgnoreNotAdmitted}
 	}
 	// A controller must also satisfy ordinary admission, so management
-	// commands can never bypass the Destination's user policy.
-	isController := slices.Contains(config.GetControllerUserIds(), userID)
+	// commands can never bypass the Destination's user policy. Controller
+	// authority also requires both the accepted and current policy.
+	isController := slices.Contains(config.GetControllerUserIds(), userID) &&
+		slices.Contains(currentConfig.GetControllerUserIds(), userID)
 
 	command, args, isCommand := telegramapi.Command(msg)
 	if isCommand && !telegramapi.CommandTargetsBot(msg, botUsername) {
@@ -149,6 +156,36 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 		return Interaction{Ignore: IgnoreEmpty}
 	}
 	return interaction
+}
+
+func acceptedPolicyConfig(policy *telegramqueue.DestinationPolicy, fallback *agentsv1.TelegramDestinationConfig) *agentsv1.TelegramDestinationConfig {
+	if policy == nil {
+		return fallback
+	}
+	return &agentsv1.TelegramDestinationConfig{
+		AgentId:            policy.AgentID,
+		Model:              policy.Model,
+		SelectableAgentIds: slices.Clone(policy.SelectableAgentIDs),
+		SelectableModels:   slices.Clone(policy.SelectableModels),
+		TriggerMode:        triggerModeFromName(policy.TriggerMode),
+		SessionPolicy:      sessionPolicyFromName(policy.SessionPolicy),
+		AllowedUserIds:     slices.Clone(policy.AllowedUserIDs),
+		ControllerUserIds:  slices.Clone(policy.ControllerUserIDs),
+		ReplyMode:          replyModeFromName(policy.ReplyMode),
+		DebugDefault:       policy.DebugDefault,
+	}
+}
+
+func triggerModeFromName(name string) agentsv1.TelegramTriggerMode {
+	return agentsv1.TelegramTriggerMode(agentsv1.TelegramTriggerMode_value[name])
+}
+
+func sessionPolicyFromName(name string) agentsv1.TelegramSessionPolicy {
+	return agentsv1.TelegramSessionPolicy(agentsv1.TelegramSessionPolicy_value[name])
+}
+
+func replyModeFromName(name string) agentsv1.TelegramReplyMode {
+	return agentsv1.TelegramReplyMode(agentsv1.TelegramReplyMode_value[name])
 }
 
 // isUserInput rejects every update shape that is addressable but is not a

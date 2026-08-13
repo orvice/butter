@@ -121,6 +121,7 @@ func (fx *orchestratorFixture) eventForStored(raw string) *telegramqueue.Event {
 	event := eventFor(raw)
 	event.DestinationID = fx.dest.GetId()
 	event.DestinationRevision = fx.dest.GetRevision()
+	event.Policy = snapshotPolicy(fx.dest.GetConfig())
 	return event
 }
 

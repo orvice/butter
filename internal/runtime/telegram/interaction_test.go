@@ -80,6 +80,47 @@ func TestPlainMessageInvokesTheDestinationAgent(t *testing.T) {
 	}
 }
 
+func TestInteractionUsesTheAcceptedPolicySnapshot(t *testing.T) {
+	accepted := destination(nil)
+	event := eventFor(message(realUser, "hello", ""))
+	event.Policy = snapshotPolicy(accepted.GetConfig())
+
+	current := destination(func(config *agentsv1.TelegramDestinationConfig) {
+		config.AgentId = "research"
+		config.Model = "new-model"
+		config.TriggerMode = agentsv1.TelegramTriggerMode_TELEGRAM_TRIGGER_MODE_COMMAND
+		config.SessionPolicy = agentsv1.TelegramSessionPolicy_TELEGRAM_SESSION_POLICY_USER
+		config.ReplyMode = agentsv1.TelegramReplyMode_TELEGRAM_REPLY_MODE_NEW_MESSAGE
+	})
+	decision := DecideInteraction(event, current, botUsername)
+
+	if decision.Ignore != IgnoreNone {
+		t.Fatalf("accepted ALL policy was replaced by current policy: %s", decision.Ignore)
+	}
+	if decision.AgentID != "support" || decision.Model != "" {
+		t.Fatalf("routing = %q/%q, want accepted support/default", decision.AgentID, decision.Model)
+	}
+	if !strings.Contains(decision.SessionID, "ddest-1") {
+		t.Fatalf("session = %q, want accepted destination policy", decision.SessionID)
+	}
+	if decision.ReplyToMessageID != "9" {
+		t.Fatalf("reply_to = %q, want accepted reply mode", decision.ReplyToMessageID)
+	}
+}
+
+func TestInteractionHonorsCurrentAdmissionRevocation(t *testing.T) {
+	accepted := destination(nil)
+	event := eventFor(message(realUser, "hello", ""))
+	event.Policy = snapshotPolicy(accepted.GetConfig())
+	current := destination(func(config *agentsv1.TelegramDestinationConfig) {
+		config.AllowedUserIds = []string{"10"}
+	})
+
+	if got := DecideInteraction(event, current, botUsername); got.Ignore != IgnoreNotAdmitted {
+		t.Fatalf("ignore = %q, want current revocation to win", got.Ignore)
+	}
+}
+
 // Only ordinary messages from real users invoke an Agent.
 func TestIgnoredUpdateShapes(t *testing.T) {
 	cases := []struct {
