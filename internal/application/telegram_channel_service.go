@@ -332,6 +332,13 @@ func (s *TelegramChannelServiceServer) UpdateTelegramChannel(ctx context.Context
 	if mode := input.GetReceiveMode(); mode != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_UNSPECIFIED {
 		next.ReceiveMode = mode
 	}
+	if next.GetReceiveMode() != current.GetReceiveMode() &&
+		(current.GetInboundEnabled() || current.GetOutboundEnabled()) {
+		if _, err := s.preflight(ctx, workspaceID, next,
+			current.GetInboundEnabled(), current.GetOutboundEnabled()); err != nil {
+			return nil, err
+		}
+	}
 	// Provision the Webhook secret before publishing Webhook mode. If the mode
 	// CAS later fails, the Channel merely has an unused secret; the reverse
 	// order could publish a Webhook Channel that rejects every callback.

@@ -685,6 +685,73 @@ func TestEnableLongPollingRequiresLeaseCapability(t *testing.T) {
 	}
 }
 
+func TestEnabledChannelCannotSwitchToUnreadyLongPolling(t *testing.T) {
+	fx := newTelegramFixture(t)
+	created := fx.createChannel(t, "main", mainBotToken)
+	fx.createDestination(t, &agentsv1.TelegramDestination{
+		Key:             "ops",
+		ChannelId:       created.GetId(),
+		ChatId:          "-1001234567890",
+		InboundEnabled:  true,
+		OutboundEnabled: true,
+		Config:          &agentsv1.TelegramDestinationConfig{AgentId: "support"},
+	})
+	enabled, err := fx.channels.SetTelegramChannelEnabled(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.SetTelegramChannelEnabledRequest{
+			ChannelId: created.GetId(), Revision: created.GetRevision(),
+			InboundEnabled: true, OutboundEnabled: true,
+		}))
+	if err != nil {
+		t.Fatalf("enable webhook channel: %v", err)
+	}
+	fx.queue.leaseErr = errors.New("EVAL is not permitted")
+
+	_, err = fx.channels.UpdateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.UpdateTelegramChannelRequest{Channel: &agentsv1.TelegramChannel{
+			Id: enabled.Msg.GetChannel().GetId(), Name: enabled.Msg.GetChannel().GetName(),
+			Revision:    enabled.Msg.GetChannel().GetRevision(),
+			ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_LONG_POLLING,
+		}}))
+	if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
+		t.Fatalf("code = %v, want FailedPrecondition", code)
+	}
+	stored, getErr := fx.repo.GetChannel(t.Context(), "ws-a", created.GetId())
+	if getErr != nil {
+		t.Fatalf("read channel: %v", getErr)
+	}
+	if stored.GetReceiveMode() != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
+		t.Fatalf("receive mode changed despite failed preflight: %v", stored.GetReceiveMode())
+	}
+}
+
+func TestEnabledChannelCannotSwitchToWebhookWithoutBaseURL(t *testing.T) {
+	fx, longPolling := longPollingChannelFixture(t)
+	enabled, err := fx.channels.SetTelegramChannelEnabled(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.SetTelegramChannelEnabledRequest{
+			ChannelId: longPolling.GetId(), Revision: longPolling.GetRevision(),
+			InboundEnabled: true, OutboundEnabled: true,
+		}))
+	if err != nil {
+		t.Fatalf("enable long polling channel: %v", err)
+	}
+	if _, err := fx.settings.Put(t.Context(), &agentsv1.TelegramSettings{}); err != nil {
+		t.Fatalf("clear webhook base URL: %v", err)
+	}
+
+	_, err = fx.channels.UpdateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.UpdateTelegramChannelRequest{Channel: &agentsv1.TelegramChannel{
+			Id: enabled.Msg.GetChannel().GetId(), Name: enabled.Msg.GetChannel().GetName(),
+			Revision:    enabled.Msg.GetChannel().GetRevision(),
+			ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK,
+		}}))
+	if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
+		t.Fatalf("code = %v, want FailedPrecondition", code)
+	}
+	if !strings.Contains(err.Error(), "no public webhook base URL") {
+		t.Fatalf("err = %v, want webhook base URL blocker", err)
+	}
+}
+
 func longPollingChannelFixture(t *testing.T) (*telegramFixture, *agentsv1.TelegramChannel) {
 	t.Helper()
 	fx := newTelegramFixture(t)

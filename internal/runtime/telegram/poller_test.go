@@ -84,7 +84,9 @@ func newPollerFixture(t *testing.T) *pollerFixture {
 		Id: "ch-1", Key: "main", BotId: "111111", BotUsername: "opsbot",
 		InboundEnabled: true, OutboundEnabled: true,
 		ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_LONG_POLLING,
-	}, telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID}); err != nil {
+	}, telegramrepo.ChannelCredentials{
+		BotToken: telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID},
+	}); err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
 	if _, err := repo.CreateDestination(t.Context(), "ws-a", &agentsv1.TelegramDestination{
