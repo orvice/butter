@@ -170,37 +170,6 @@ func (r *testNotifyGroupRepo) ListNotifyGroupsAcrossWorkspaces(context.Context) 
 	return []*agentsv1.NotifyGroup{r.group}, nil
 }
 
-type testChannelRepo struct {
-	channel *agentsv1.AgentChannel
-}
-
-func (r *testChannelRepo) ListChannels(context.Context, string) ([]*agentsv1.AgentChannel, error) {
-	return []*agentsv1.AgentChannel{r.channel}, nil
-}
-
-func (r *testChannelRepo) GetChannel(_ context.Context, workspaceID, name string) (*agentsv1.AgentChannel, error) {
-	if r.channel == nil || r.channel.GetWorkspaceId() != workspaceID || r.channel.GetName() != name {
-		return nil, configrepo.ErrNotFound
-	}
-	return r.channel, nil
-}
-
-func (r *testChannelRepo) CreateChannel(context.Context, string, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (r *testChannelRepo) UpdateChannel(context.Context, string, *agentsv1.AgentChannel) (*agentsv1.AgentChannel, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (r *testChannelRepo) DeleteChannel(context.Context, string, string) error {
-	return errors.New("not implemented")
-}
-
-func (r *testChannelRepo) ListChannelsAcrossWorkspaces(context.Context) ([]*agentsv1.AgentChannel, error) {
-	return []*agentsv1.AgentChannel{r.channel}, nil
-}
-
 type testCronRunner struct {
 	output   string
 	pending  []runner.PendingInput
