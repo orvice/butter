@@ -142,6 +142,35 @@ func TestUpdateChannelPreservesImmutableFields(t *testing.T) {
 	}
 }
 
+func TestRotateChannelCredentialIsAtomicWithTheRevision(t *testing.T) {
+	store := New()
+	created := seedChannel(t, store, "ws", "ch-1", "main-bot", "42")
+	before, err := store.GetChannelCredential(t.Context(), "ws", "ch-1")
+	if err != nil {
+		t.Fatalf("GetChannelCredential: %v", err)
+	}
+
+	created.BotUsername = "renamed"
+	if _, err := store.RotateChannelCredential(t.Context(), "ws", created,
+		telegramrepo.Credential{Ciphertext: "new-cipher", KeyID: "key-2"}, 0); !errors.Is(err, telegramrepo.ErrRevisionConflict) {
+		t.Fatalf("err = %v, want ErrRevisionConflict", err)
+	}
+	after, err := store.GetChannelCredential(t.Context(), "ws", "ch-1")
+	if err != nil {
+		t.Fatalf("GetChannelCredential after conflict: %v", err)
+	}
+	if after != before {
+		t.Fatalf("credential changed after failed rotation: before=%+v after=%+v", before, after)
+	}
+	current, err := store.GetChannel(t.Context(), "ws", "ch-1")
+	if err != nil {
+		t.Fatalf("GetChannel: %v", err)
+	}
+	if current.GetBotUsername() == "renamed" {
+		t.Fatal("channel metadata changed after failed rotation")
+	}
+}
+
 func TestDeleteChannelIsBlockedWhileADestinationReferencesIt(t *testing.T) {
 	store := New()
 	seedChannel(t, store, "ws", "ch-1", "main-bot", "42")

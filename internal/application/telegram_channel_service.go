@@ -311,18 +311,13 @@ func (s *TelegramChannelServiceServer) RotateTelegramChannelCredential(ctx conte
 	if err != nil {
 		return nil, connectx.InternalWith(fmt.Errorf("encrypt bot token: %w", err))
 	}
-	// The prior credential stays active until this write lands.
-	if err := s.repo.SetChannelCredential(ctx, workspaceID, current.GetId(),
-		telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID}); err != nil {
-		return nil, mapTelegramRepoErr(err)
-	}
-
 	next := cloneChannelForUpdate(current)
 	next.BotUsername = identity.Username
 	next.BotCapabilities = capabilitiesOf(identity)
 	next.CredentialState = agentsv1.TelegramCredentialState_TELEGRAM_CREDENTIAL_STATE_VALID
 	next.LastCredentialError = ""
-	updated, err := s.repo.UpdateChannel(ctx, workspaceID, next, current.GetRevision())
+	updated, err := s.repo.RotateChannelCredential(ctx, workspaceID, next,
+		telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID}, current.GetRevision())
 	if err != nil {
 		return nil, mapTelegramRepoErr(err)
 	}

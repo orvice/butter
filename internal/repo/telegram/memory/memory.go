@@ -127,6 +127,16 @@ func (s *Store) CreateChannel(_ context.Context, workspaceID string, channel *ag
 func (s *Store) UpdateChannel(_ context.Context, workspaceID string, channel *agentsv1.TelegramChannel, expectedRevision int64) (*agentsv1.TelegramChannel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.updateChannelLocked(workspaceID, channel, expectedRevision, nil)
+}
+
+func (s *Store) RotateChannelCredential(_ context.Context, workspaceID string, channel *agentsv1.TelegramChannel, cred telegramrepo.Credential, expectedRevision int64) (*agentsv1.TelegramChannel, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.updateChannelLocked(workspaceID, channel, expectedRevision, &cred)
+}
+
+func (s *Store) updateChannelLocked(workspaceID string, channel *agentsv1.TelegramChannel, expectedRevision int64, cred *telegramrepo.Credential) (*agentsv1.TelegramChannel, error) {
 	rec, ok := s.channels[channel.GetId()]
 	if !ok || rec.spec.GetWorkspaceId() != workspaceID {
 		return nil, channelNotFound(channel.GetId())
@@ -145,6 +155,14 @@ func (s *Store) UpdateChannel(_ context.Context, workspaceID string, channel *ag
 	stored.UpdatedAt = timestamppb.New(time.Now().UTC())
 	stored.Revision = expectedRevision + 1
 	rec.spec = stored
+	if cred != nil {
+		rec.cred = *cred
+		if cred.Set() {
+			rec.credUpdatedAt = time.Now().UTC()
+		} else {
+			rec.credUpdatedAt = time.Time{}
+		}
+	}
 	return s.decodeChannel(rec), nil
 }
 

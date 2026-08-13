@@ -73,6 +73,10 @@ type Repository interface {
 	// returns ErrRevisionConflict without writing otherwise. The stored key
 	// and Bot identity are preserved regardless of what the caller passes.
 	UpdateChannel(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, expectedRevision int64) (*agentsv1.TelegramChannel, error)
+	// RotateChannelCredential atomically replaces the mutable Channel metadata
+	// and encrypted Bot Token under the same optimistic revision check. A
+	// revision conflict or persistence failure leaves both unchanged.
+	RotateChannelCredential(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, cred Credential, expectedRevision int64) (*agentsv1.TelegramChannel, error)
 
 	// DeleteChannel removes a Channel and its stored credentials. It returns
 	// ErrChannelInUse while any Destination still references it.

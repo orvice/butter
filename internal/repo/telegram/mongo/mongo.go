@@ -234,6 +234,14 @@ func (s *Store) CreateChannel(ctx context.Context, workspaceID string, channel *
 }
 
 func (s *Store) UpdateChannel(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, expectedRevision int64) (*agentsv1.TelegramChannel, error) {
+	return s.updateChannel(ctx, workspaceID, channel, nil, expectedRevision)
+}
+
+func (s *Store) RotateChannelCredential(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, cred telegramrepo.Credential, expectedRevision int64) (*agentsv1.TelegramChannel, error) {
+	return s.updateChannel(ctx, workspaceID, channel, &cred, expectedRevision)
+}
+
+func (s *Store) updateChannel(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, cred *telegramrepo.Credential, expectedRevision int64) (*agentsv1.TelegramChannel, error) {
 	current, err := s.channelDoc(ctx, bson.M{"_id": channel.GetId(), "workspace_id": workspaceID}, channel.GetId())
 	if err != nil {
 		return nil, err
@@ -256,9 +264,19 @@ func (s *Store) UpdateChannel(ctx context.Context, workspaceID string, channel *
 	if err != nil {
 		return nil, err
 	}
+	set := bson.M{"spec": spec, "revision": stored.GetRevision()}
+	if cred != nil {
+		set["credential"] = cred.Ciphertext
+		set["credential_key_id"] = cred.KeyID
+		if cred.Set() {
+			set["credential_updated_at"] = time.Now().UTC()
+		} else {
+			set["credential_updated_at"] = time.Time{}
+		}
+	}
 	res, err := s.channels.UpdateOne(ctx,
 		bson.M{"_id": channel.GetId(), "workspace_id": workspaceID, "revision": expectedRevision},
-		bson.M{"$set": bson.M{"spec": spec, "revision": stored.GetRevision()}},
+		bson.M{"$set": set},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update telegram channel %q: %w", channel.GetId(), err)
@@ -270,6 +288,15 @@ func (s *Store) UpdateChannel(ctx context.Context, workspaceID string, channel *
 
 	current.Spec = spec
 	current.Revision = stored.GetRevision()
+	if cred != nil {
+		current.Credential = cred.Ciphertext
+		current.CredentialKeyID = cred.KeyID
+		if cred.Set() {
+			current.CredentialUpdated = set["credential_updated_at"].(time.Time)
+		} else {
+			current.CredentialUpdated = time.Time{}
+		}
+	}
 	return decodeChannel(current)
 }
 
