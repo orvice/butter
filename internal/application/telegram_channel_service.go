@@ -62,6 +62,7 @@ type QueueProbe interface {
 	Available() bool
 	Ping(ctx context.Context) error
 	CheckReady(ctx context.Context) error
+	CheckLeaseReady(ctx context.Context) error
 }
 
 // WebhookStatusSource exposes the reconciler's last observation for a Channel.
@@ -528,6 +529,10 @@ func (s *TelegramChannelServiceServer) evaluate(ctx context.Context, workspaceID
 				"redis is not configured, which long polling requires for the update queue and the consumer lease")
 		} else if pingErr := s.queue.Ping(ctx); pingErr != nil {
 			blockers = append(blockers, "the update queue is unreachable")
+		} else if readyErr := s.queue.CheckReady(ctx); readyErr != nil {
+			blockers = append(blockers, "the update queue is not durable: "+readyErr.Error())
+		} else if leaseErr := s.queue.CheckLeaseReady(ctx); leaseErr != nil {
+			blockers = append(blockers, "the long polling consumer lease is unavailable: "+leaseErr.Error())
 		}
 	}
 	if inbound && channel.GetReceiveMode() == agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {

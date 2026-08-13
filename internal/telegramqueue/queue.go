@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -272,6 +273,42 @@ func (q *Queue) CheckReady(ctx context.Context) error {
 		return fmt.Errorf("read save schedule: %w", err)
 	}
 	return validateDurabilityConfig(policy, persistence, snapshot)
+}
+
+// CheckLeaseReady verifies the Redis commands and Lua execution used by the
+// renewable leadership lease. Long Polling must reject enablement if the queue
+// is durable but the configured Redis ACL cannot acquire, renew, or release a
+// consumer lease.
+func (q *Queue) CheckLeaseReady(ctx context.Context) error {
+	if !q.Available() {
+		return errors.New("telegram queue is not configured")
+	}
+	probeID := uuid.NewString()
+	lease := NewLease(q.rdb, "butter:telegram:lease:preflight:"+probeID, probeID, 10*time.Second)
+	acquired, err := lease.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire probe lease: %w", err)
+	}
+	if !acquired {
+		return errors.New("acquire probe lease: lease was not acquired")
+	}
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = lease.Release(releaseCtx)
+	}()
+
+	renewed, err := lease.Renew(ctx)
+	if err != nil {
+		return fmt.Errorf("renew probe lease: %w", err)
+	}
+	if !renewed {
+		return errors.New("renew probe lease: lease ownership was lost")
+	}
+	if err := lease.Release(ctx); err != nil {
+		return fmt.Errorf("release probe lease: %w", err)
+	}
+	return nil
 }
 
 func validateDurabilityConfig(policy, persistence, snapshot map[string]string) error {

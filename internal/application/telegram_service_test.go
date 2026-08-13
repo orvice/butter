@@ -47,11 +47,13 @@ type stubQueueProbe struct {
 	available bool
 	pingErr   error
 	readyErr  error
+	leaseErr  error
 }
 
-func (q *stubQueueProbe) Available() bool                  { return q.available }
-func (q *stubQueueProbe) Ping(context.Context) error       { return q.pingErr }
-func (q *stubQueueProbe) CheckReady(context.Context) error { return q.readyErr }
+func (q *stubQueueProbe) Available() bool                       { return q.available }
+func (q *stubQueueProbe) Ping(context.Context) error            { return q.pingErr }
+func (q *stubQueueProbe) CheckReady(context.Context) error      { return q.readyErr }
+func (q *stubQueueProbe) CheckLeaseReady(context.Context) error { return q.leaseErr }
 
 func newTelegramFixture(t *testing.T) *telegramFixture {
 	t.Helper()
@@ -630,6 +632,61 @@ func TestEnableInboundRequiresDurableRedis(t *testing.T) {
 }
 
 func TestEnableLongPollingRequiresReachableRedis(t *testing.T) {
+	fx, updated := longPollingChannelFixture(t)
+	fx.queue.pingErr = errors.New("redis unavailable")
+
+	_, err := fx.channels.SetTelegramChannelEnabled(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.SetTelegramChannelEnabledRequest{
+			ChannelId:      updated.GetId(),
+			Revision:       updated.GetRevision(),
+			InboundEnabled: true, OutboundEnabled: true,
+		}))
+	if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
+		t.Fatalf("code = %v, want FailedPrecondition", code)
+	}
+	if !strings.Contains(err.Error(), "unreachable") {
+		t.Fatalf("err = %v, want queue reachability blocker", err)
+	}
+}
+
+func TestEnableLongPollingRequiresDurableRedis(t *testing.T) {
+	fx, updated := longPollingChannelFixture(t)
+	fx.queue.readyErr = errors.New("maxmemory-policy must be noeviction")
+
+	_, err := fx.channels.SetTelegramChannelEnabled(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.SetTelegramChannelEnabledRequest{
+			ChannelId:      updated.GetId(),
+			Revision:       updated.GetRevision(),
+			InboundEnabled: true, OutboundEnabled: true,
+		}))
+	if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
+		t.Fatalf("code = %v, want FailedPrecondition", code)
+	}
+	if !strings.Contains(err.Error(), "maxmemory-policy must be noeviction") {
+		t.Fatalf("err = %v, want durability blocker", err)
+	}
+}
+
+func TestEnableLongPollingRequiresLeaseCapability(t *testing.T) {
+	fx, updated := longPollingChannelFixture(t)
+	fx.queue.leaseErr = errors.New("EVAL is not permitted")
+
+	_, err := fx.channels.SetTelegramChannelEnabled(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.SetTelegramChannelEnabledRequest{
+			ChannelId:      updated.GetId(),
+			Revision:       updated.GetRevision(),
+			InboundEnabled: true, OutboundEnabled: true,
+		}))
+	if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
+		t.Fatalf("code = %v, want FailedPrecondition", code)
+	}
+	if !strings.Contains(err.Error(), "consumer lease is unavailable") {
+		t.Fatalf("err = %v, want lease-capability blocker", err)
+	}
+}
+
+func longPollingChannelFixture(t *testing.T) (*telegramFixture, *agentsv1.TelegramChannel) {
+	t.Helper()
 	fx := newTelegramFixture(t)
 	created := fx.createChannel(t, "main", mainBotToken)
 	fx.createDestination(t, &agentsv1.TelegramDestination{
@@ -640,7 +697,6 @@ func TestEnableLongPollingRequiresReachableRedis(t *testing.T) {
 		OutboundEnabled: true,
 		Config:          &agentsv1.TelegramDestinationConfig{AgentId: "support"},
 	})
-
 	updated, err := fx.channels.UpdateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
 		connect.NewRequest(&agentsv1.UpdateTelegramChannelRequest{Channel: &agentsv1.TelegramChannel{
 			Id: created.GetId(), Name: created.GetName(), Revision: created.GetRevision(),
@@ -649,20 +705,7 @@ func TestEnableLongPollingRequiresReachableRedis(t *testing.T) {
 	if err != nil {
 		t.Fatalf("switch receive mode: %v", err)
 	}
-	fx.queue.pingErr = errors.New("redis unavailable")
-
-	_, err = fx.channels.SetTelegramChannelEnabled(ctxAs("owner", "owner", "ws-a"),
-		connect.NewRequest(&agentsv1.SetTelegramChannelEnabledRequest{
-			ChannelId:      updated.Msg.GetChannel().GetId(),
-			Revision:       updated.Msg.GetChannel().GetRevision(),
-			InboundEnabled: true, OutboundEnabled: true,
-		}))
-	if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
-		t.Fatalf("code = %v, want FailedPrecondition", code)
-	}
-	if !strings.Contains(err.Error(), "unreachable") {
-		t.Fatalf("err = %v, want queue reachability blocker", err)
-	}
+	return fx, updated.Msg.GetChannel()
 }
 
 func TestGroupPrivacyIsReportedAsAWarningNotABlocker(t *testing.T) {
