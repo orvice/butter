@@ -3,19 +3,23 @@
 Butter is a workspace-aware AI agent orchestration service built on the
 [Butterfly](https://butterfly.orx.me) framework and powered by
 [Google ADK](https://google.golang.org/adk). It runs configurable agent
-workflows, exposes them through HTTP/RPC and chat channels, and provides a
-dashboard-oriented backend for operating agents across workspaces.
+workflows, exposes them through ConnectRPC/HTTP and Telegram destinations, and
+provides a dashboard-oriented backend for operating agents across workspaces.
 
 ## What It Does
 
-- Orchestrates LLM, sequential, parallel, and loop-style agent workflows.
-- Scopes agents, model providers, channels, cron jobs, tokens, sessions, and
-  execution history by workspace.
-- Connects agents to MCP servers, remote agents, chat channels, and daemon
-  workers.
+- Orchestrates LLM, sequential, parallel, loop, and graph Workflow agents
+  (including human-input pauses).
+- Scopes agents, model providers, Telegram channels/destinations, cron jobs,
+  tokens, sessions, skills, and execution history by workspace.
+- Connects agents to MCP servers, remote agents, Telegram destinations, and
+  daemon workers.
+- Supports agentskills.io skill bundles and optional Git-backed workspace
+  content via repository bindings.
 - Persists sessions, memory, auth, workspace data, cron jobs, and invocation
   history with MongoDB.
-- Uses Redis for dashboard auth sessions and runtime channel selections.
+- Uses Redis for dashboard auth sessions, Telegram inbound queues/leases, and
+  runtime preference state.
 - Supports streaming chat, scheduled runs, object storage, tracing, and optional
   Langfuse integration.
 
@@ -43,7 +47,7 @@ existing file such as `./config.yaml`.
 
 Most service settings live in the YAML config, including auth bootstrap,
 storage, tracing, and the optional root `apiToken`. Workspace-scoped agent,
-MCP, remote agent, channel, model provider, cron, API token, and daemon
+MCP, remote agent, Telegram, model provider, cron, API token, and daemon
 configuration is stored through the runtime config repository.
 
 ### Run
@@ -184,8 +188,11 @@ make buf
 - [docs/app.md](docs/app.md) - product and capability overview
 - [docs/architecture.md](docs/architecture.md) - system architecture
 - [docs/api.md](docs/api.md) - API reference
+- [docs/daemon.md](docs/daemon.md) - daemon worker setup and deployment
 - [docs/storage.md](docs/storage.md) - object storage, static assets, and artifacts
+- [docs/repo-binding-migration.md](docs/repo-binding-migration.md) - Git-backed workspace content
 - [docs/project-structure.md](docs/project-structure.md) - repository layout
+- [docs/adr/](docs/adr/) - architecture decision records
 
 ## License
 
