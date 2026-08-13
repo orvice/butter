@@ -60,6 +60,7 @@ type PollingStatusSource interface {
 // QueueProbe reports whether the durable update queue is usable.
 type QueueProbe interface {
 	Available() bool
+	Ping(ctx context.Context) error
 	CheckReady(ctx context.Context) error
 }
 

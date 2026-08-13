@@ -45,10 +45,12 @@ type telegramFixture struct {
 // stubQueueProbe stands in for the Redis Streams queue in service tests.
 type stubQueueProbe struct {
 	available bool
+	pingErr   error
 	readyErr  error
 }
 
 func (q *stubQueueProbe) Available() bool                  { return q.available }
+func (q *stubQueueProbe) Ping(context.Context) error       { return q.pingErr }
 func (q *stubQueueProbe) CheckReady(context.Context) error { return q.readyErr }
 
 func newTelegramFixture(t *testing.T) *telegramFixture {
@@ -624,6 +626,42 @@ func TestEnableInboundRequiresDurableRedis(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "maxmemory-policy must be noeviction") {
 		t.Fatalf("err = %v, want the durability blocker", err)
+	}
+}
+
+func TestEnableLongPollingRequiresReachableRedis(t *testing.T) {
+	fx := newTelegramFixture(t)
+	created := fx.createChannel(t, "main", mainBotToken)
+	fx.createDestination(t, &agentsv1.TelegramDestination{
+		Key:             "ops",
+		ChannelId:       created.GetId(),
+		ChatId:          "-1001234567890",
+		InboundEnabled:  true,
+		OutboundEnabled: true,
+		Config:          &agentsv1.TelegramDestinationConfig{AgentId: "support"},
+	})
+
+	updated, err := fx.channels.UpdateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.UpdateTelegramChannelRequest{Channel: &agentsv1.TelegramChannel{
+			Id: created.GetId(), Name: created.GetName(), Revision: created.GetRevision(),
+			ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_LONG_POLLING,
+		}}))
+	if err != nil {
+		t.Fatalf("switch receive mode: %v", err)
+	}
+	fx.queue.pingErr = errors.New("redis unavailable")
+
+	_, err = fx.channels.SetTelegramChannelEnabled(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.SetTelegramChannelEnabledRequest{
+			ChannelId:      updated.Msg.GetChannel().GetId(),
+			Revision:       updated.Msg.GetChannel().GetRevision(),
+			InboundEnabled: true, OutboundEnabled: true,
+		}))
+	if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
+		t.Fatalf("code = %v, want FailedPrecondition", code)
+	}
+	if !strings.Contains(err.Error(), "unreachable") {
+		t.Fatalf("err = %v, want queue reachability blocker", err)
 	}
 }
 

@@ -72,6 +72,15 @@ func New(rdb *redis.Client) *Queue {
 // to block enablement rather than discovering the gap at the first update.
 func (q *Queue) Available() bool { return q != nil && q.rdb != nil }
 
+// Ping verifies that the queue backend is reachable without imposing the
+// persistence-policy checks required before accepting webhook deliveries.
+func (q *Queue) Ping(ctx context.Context) error {
+	if !q.Available() {
+		return errors.New("telegram queue is not configured")
+	}
+	return q.rdb.Ping(ctx).Err()
+}
+
 // Accept durably records an event, returning ErrDuplicate when this
 // (channel, update) pair was already taken. The returned ID is the Stream
 // entry ID.
@@ -247,7 +256,7 @@ func (q *Queue) CheckReady(ctx context.Context) error {
 	if !q.Available() {
 		return errors.New("telegram queue is not configured")
 	}
-	if err := q.rdb.Ping(ctx).Err(); err != nil {
+	if err := q.Ping(ctx); err != nil {
 		return fmt.Errorf("redis is unreachable: %w", err)
 	}
 	policy, err := q.rdb.ConfigGet(ctx, "maxmemory-policy").Result()
