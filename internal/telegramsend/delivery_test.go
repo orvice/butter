@@ -5,6 +5,7 @@ package telegramsend
 // delivery, and resumable partial failure.
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -199,6 +200,36 @@ func TestPartialFailureLeavesLaterSegmentsResumable(t *testing.T) {
 	}
 	if resent := len(fx.bots.Sent()); resent >= len(delivery.Segments)+delivered {
 		t.Errorf("the retry resent %d messages; already-delivered segments were duplicated", resent)
+	}
+}
+
+func TestDeliveryReportsSendingBeforeEachTelegramRequest(t *testing.T) {
+	fx := newFixture(t)
+	delivery := NewDelivery("hello", "", "")
+	var statuses []SegmentStatus
+
+	err := fx.sender.DeliverSegments(t.Context(), workspace, "dest-1", delivery, func(current *Delivery) error {
+		statuses = append(statuses, current.Segments[0].Status)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("DeliverSegments: %v", err)
+	}
+	if len(statuses) != 2 || statuses[0] != SegmentSending || statuses[1] != SegmentSent {
+		t.Fatalf("progress = %v, want [sending sent]", statuses)
+	}
+}
+
+func TestSendingSegmentIsNotAutomaticallyDeliveredAgain(t *testing.T) {
+	fx := newFixture(t)
+	delivery := NewDelivery("hello", "", "")
+	delivery.Segments[0].Status = SegmentSending
+
+	if err := fx.sender.DeliverSegments(t.Context(), workspace, "dest-1", delivery); !errors.Is(err, ErrDeliveryUncertain) {
+		t.Fatalf("err = %v, want ErrDeliveryUncertain", err)
+	}
+	if len(fx.bots.Sent()) != 0 {
+		t.Fatal("an uncertain segment was sent again")
 	}
 }
 

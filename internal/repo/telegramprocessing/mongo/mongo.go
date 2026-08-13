@@ -34,6 +34,8 @@ type recordDoc struct {
 	Status        int32     `bson:"status"`
 	CreatedAt     time.Time `bson:"created_at"`
 	ExpiresAt     time.Time `bson:"expires_at"`
+	LeaseToken    string    `bson:"lease_token,omitempty"`
+	LeaseExpiry   time.Time `bson:"lease_expires_at,omitempty"`
 	Spec          string    `bson:"spec"`
 }
 
@@ -98,33 +100,58 @@ func encode(record *agentsv1.TelegramProcessingRecord) (recordDoc, error) {
 	}, nil
 }
 
-func (s *Store) Claim(ctx context.Context, record *agentsv1.TelegramProcessingRecord) (*agentsv1.TelegramProcessingRecord, bool, error) {
+func (s *Store) Claim(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string, claimedAt, leaseExpiresAt time.Time) (*agentsv1.TelegramProcessingRecord, telegramprocessing.ClaimAction, error) {
 	filter := bson.M{"channel_id": record.GetChannelId(), "update_id": record.GetUpdateId()}
-	var existing recordDoc
-	err := s.records.FindOne(ctx, filter).Decode(&existing)
-	switch {
-	case err == nil:
-		decoded, decErr := decode(existing)
-		if decErr != nil {
-			return nil, false, decErr
+	for attempt := 0; attempt < 5; attempt++ {
+		var existing recordDoc
+		err := s.records.FindOne(ctx, filter).Decode(&existing)
+		switch {
+		case err == nil:
+			if existing.LeaseToken != "" && existing.LeaseExpiry.After(claimedAt) {
+				decoded, decErr := decode(existing)
+				if decErr != nil {
+					return nil, telegramprocessing.ClaimAcknowledge, decErr
+				}
+				return decoded, telegramprocessing.ClaimAcknowledge, telegramprocessing.ErrInProgress
+			}
+			decoded, decErr := decode(existing)
+			if decErr != nil {
+				return nil, telegramprocessing.ClaimAcknowledge, decErr
+			}
+			action := telegramprocessing.RecoveryAction(decoded)
+			telegramprocessing.MarkInterruptedUncertain(decoded)
+			if action != telegramprocessing.ClaimAcknowledge {
+				decoded.Attempts++
+			}
+			decoded.UpdatedAt = timestamppb.New(claimedAt)
+			next, encErr := encode(decoded)
+			if encErr != nil {
+				return nil, telegramprocessing.ClaimAcknowledge, encErr
+			}
+			if action != telegramprocessing.ClaimAcknowledge {
+				next.LeaseToken = leaseToken
+				next.LeaseExpiry = leaseExpiresAt
+			}
+			claimFilter := bson.M{"_id": existing.ID, "spec": existing.Spec}
+			if existing.LeaseToken != "" {
+				claimFilter["lease_token"] = existing.LeaseToken
+				claimFilter["lease_expires_at"] = existing.LeaseExpiry
+			}
+			res, replaceErr := s.records.ReplaceOne(ctx, claimFilter, next)
+			if replaceErr != nil {
+				return nil, telegramprocessing.ClaimAcknowledge, fmt.Errorf("claim telegram processing record: %w", replaceErr)
+			}
+			if res.MatchedCount == 1 {
+				return decoded, action, nil
+			}
+			continue
+		case errors.Is(err, mongo.ErrNoDocuments):
+			attempt = 5
+		default:
+			return nil, telegramprocessing.ClaimAcknowledge, fmt.Errorf("read telegram processing record: %w", err)
 		}
-		if decoded.GetStatus() == agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED {
-			// A completed duplicate is acknowledged without another run.
-			return decoded, false, nil
-		}
-		decoded.Attempts++
-		decoded.UpdatedAt = timestamppb.New(time.Now().UTC())
-		updated, updErr := s.Update(ctx, decoded)
-		if updErr != nil {
-			return nil, false, updErr
-		}
-		return updated, true, nil
-	case errors.Is(err, mongo.ErrNoDocuments):
-	default:
-		return nil, false, fmt.Errorf("read telegram processing record: %w", err)
 	}
 
-	now := time.Now().UTC()
 	stored := proto.Clone(record).(*agentsv1.TelegramProcessingRecord)
 	if stored.GetId() == "" {
 		stored.Id = uuid.NewString()
@@ -133,22 +160,112 @@ func (s *Store) Claim(ctx context.Context, record *agentsv1.TelegramProcessingRe
 		stored.InvocationId = uuid.NewString()
 	}
 	stored.Attempts = 1
-	stored.CreatedAt = timestamppb.New(now)
-	stored.UpdatedAt = timestamppb.New(now)
-	stored.ExpiresAt = timestamppb.New(now.Add(telegramprocessing.RetentionPeriod))
+	stored.CreatedAt = timestamppb.New(claimedAt)
+	stored.UpdatedAt = timestamppb.New(claimedAt)
+	stored.ExpiresAt = timestamppb.New(claimedAt.Add(telegramprocessing.RetentionPeriod))
 
 	doc, err := encode(stored)
 	if err != nil {
-		return nil, false, err
+		return nil, telegramprocessing.ClaimAcknowledge, err
 	}
+	doc.LeaseToken = leaseToken
+	doc.LeaseExpiry = leaseExpiresAt
 	if _, err := s.records.InsertOne(ctx, doc); err != nil {
 		if mongo.IsDuplicateKeyError(err) {
 			// Another worker won the race; re-read and claim that record.
-			return s.Claim(ctx, record)
+			return s.Claim(ctx, record, leaseToken, claimedAt, leaseExpiresAt)
 		}
-		return nil, false, fmt.Errorf("create telegram processing record: %w", err)
+		return nil, telegramprocessing.ClaimAcknowledge, fmt.Errorf("create telegram processing record: %w", err)
 	}
-	return stored, true, nil
+	return stored, telegramprocessing.ClaimRunAgent, nil
+}
+
+func (s *Store) ClaimDelivery(ctx context.Context, workspaceID, id, leaseToken string, claimedAt, leaseExpiresAt time.Time) (*agentsv1.TelegramProcessingRecord, error) {
+	for attempt := 0; attempt < 5; attempt++ {
+		var existing recordDoc
+		if err := s.records.FindOne(ctx, bson.M{"_id": id, "workspace_id": workspaceID}).Decode(&existing); err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				return nil, telegramprocessing.ErrNotFound
+			}
+			return nil, fmt.Errorf("read telegram processing record for delivery claim: %w", err)
+		}
+		if existing.LeaseToken != "" && existing.LeaseExpiry.After(claimedAt) {
+			return nil, telegramprocessing.ErrInProgress
+		}
+		record, err := decode(existing)
+		if err != nil {
+			return nil, err
+		}
+		record.Attempts++
+		record.UpdatedAt = timestamppb.New(claimedAt)
+		next, err := encode(record)
+		if err != nil {
+			return nil, err
+		}
+		next.LeaseToken = leaseToken
+		next.LeaseExpiry = leaseExpiresAt
+		claimFilter := bson.M{"_id": existing.ID, "spec": existing.Spec}
+		if existing.LeaseToken != "" {
+			claimFilter["lease_token"] = existing.LeaseToken
+			claimFilter["lease_expires_at"] = existing.LeaseExpiry
+		}
+		res, err := s.records.ReplaceOne(ctx, claimFilter, next)
+		if err != nil {
+			return nil, fmt.Errorf("claim telegram delivery: %w", err)
+		}
+		if res.MatchedCount == 1 {
+			return record, nil
+		}
+	}
+	return nil, telegramprocessing.ErrInProgress
+}
+
+func (s *Store) UpdateClaimed(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string) (*agentsv1.TelegramProcessingRecord, error) {
+	stored := proto.Clone(record).(*agentsv1.TelegramProcessingRecord)
+	stored.UpdatedAt = timestamppb.New(time.Now().UTC())
+	doc, err := encode(stored)
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.records.UpdateOne(ctx, bson.M{"_id": stored.GetId(), "lease_token": leaseToken},
+		bson.M{"$set": bson.M{"spec": doc.Spec, "status": doc.Status}})
+	if err != nil {
+		return nil, fmt.Errorf("update claimed telegram processing record %q: %w", stored.GetId(), err)
+	}
+	if res.MatchedCount == 0 {
+		return nil, telegramprocessing.ErrLeaseLost
+	}
+	return stored, nil
+}
+
+func (s *Store) RenewClaim(ctx context.Context, workspaceID, id, leaseToken string, leaseExpiresAt time.Time) error {
+	res, err := s.records.UpdateOne(ctx, bson.M{
+		"_id":          id,
+		"workspace_id": workspaceID,
+		"lease_token":  leaseToken,
+	}, bson.M{"$set": bson.M{"lease_expires_at": leaseExpiresAt}})
+	if err != nil {
+		return fmt.Errorf("renew telegram processing claim %q: %w", id, err)
+	}
+	if res.MatchedCount == 0 {
+		return telegramprocessing.ErrLeaseLost
+	}
+	return nil
+}
+
+func (s *Store) ReleaseClaim(ctx context.Context, workspaceID, id, leaseToken string) error {
+	res, err := s.records.UpdateOne(ctx, bson.M{
+		"_id":          id,
+		"workspace_id": workspaceID,
+		"lease_token":  leaseToken,
+	}, bson.M{"$unset": bson.M{"lease_token": "", "lease_expires_at": ""}})
+	if err != nil {
+		return fmt.Errorf("release telegram processing claim %q: %w", id, err)
+	}
+	if res.MatchedCount == 0 {
+		return telegramprocessing.ErrLeaseLost
+	}
+	return nil
 }
 
 func (s *Store) Update(ctx context.Context, record *agentsv1.TelegramProcessingRecord) (*agentsv1.TelegramProcessingRecord, error) {

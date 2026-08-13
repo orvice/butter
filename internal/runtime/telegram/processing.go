@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"butterfly.orx.me/core/log"
+	"github.com/google/uuid"
 
+	"go.orx.me/apps/butter/internal/repo/telegramprocessing"
 	"go.orx.me/apps/butter/internal/telegramqueue"
 	"go.orx.me/apps/butter/internal/telegramsend"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -17,8 +20,10 @@ import (
 type SessionGuard interface {
 	// Acquire takes the session lease, returning false when another worker
 	// holds it. The caller leaves the event unacknowledged so it is retried
-	// rather than interleaved.
-	Acquire(ctx context.Context, sessionID string) (release func(), ok bool, err error)
+	// rather than interleaved. leaseCtx is cancelled if renewal fails or the
+	// lease is lost, stopping the turn before it writes history as a stale
+	// owner.
+	Acquire(ctx context.Context, sessionID string) (leaseCtx context.Context, release func(), ok bool, err error)
 }
 
 // preAgentAttempts bounds retries of transient failures that happen *before*
@@ -29,17 +34,22 @@ const preAgentAttempts = 3
 // preAgentBackoff is the base delay between pre-Agent retries.
 const preAgentBackoff = 500 * time.Millisecond
 
-// recordProgress advances the processing record, tolerating write failures:
-// losing the bookkeeping is strictly better than failing work that succeeded.
-func (o *Orchestrator) recordProgress(ctx context.Context, record *agentsv1.TelegramProcessingRecord, status agentsv1.TelegramProcessingStatus) {
+// processingLeaseTTL prevents a concurrent queue delivery or operator resend
+// from entering the same processing record while one owner is active.
+const processingLeaseTTL = 5 * time.Minute
+
+// recordProgress advances the durable state machine. The caller must stop if
+// this write fails: crossing a side-effect boundary without recording it can
+// make a later retry repeat Agent or Telegram work.
+func (o *Orchestrator) recordProgress(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string, status agentsv1.TelegramProcessingStatus) error {
 	if o.processing == nil || record == nil {
-		return
+		return nil
 	}
 	record.Status = status
-	if _, err := o.processing.Update(ctx, record); err != nil {
-		log.FromContext(ctx).Warn("could not record telegram processing state",
-			"record_id", record.GetId(), "status", status.String(), "err", err)
+	if _, err := o.updateProcessing(ctx, record, leaseToken); err != nil {
+		return fmt.Errorf("record telegram processing state %s: %w", status.String(), err)
 	}
+	return nil
 }
 
 // recordFailure marks a record failed, choosing between the safely-retryable
@@ -48,9 +58,9 @@ func (o *Orchestrator) recordProgress(ctx context.Context, record *agentsv1.Tele
 // The distinction is the whole point of the state machine: before Agent work
 // starts, a retry is free; once it may have run tools, a retry could repeat
 // side effects, so the record is dead-lettered for an operator instead.
-func (o *Orchestrator) recordFailure(ctx context.Context, record *agentsv1.TelegramProcessingRecord, err error, agentMayHaveRun bool) {
+func (o *Orchestrator) recordFailure(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string, err error, agentMayHaveRun bool) error {
 	if o.processing == nil || record == nil {
-		return
+		return nil
 	}
 	record.Error = sanitizeProcessingError(err)
 	if agentMayHaveRun {
@@ -59,10 +69,10 @@ func (o *Orchestrator) recordFailure(ctx context.Context, record *agentsv1.Teleg
 	} else {
 		record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_FAILED
 	}
-	if _, updateErr := o.processing.Update(ctx, record); updateErr != nil {
-		log.FromContext(ctx).Warn("could not record telegram processing failure",
-			"record_id", record.GetId(), "err", updateErr)
+	if _, updateErr := o.updateProcessing(ctx, record, leaseToken); updateErr != nil {
+		return fmt.Errorf("record telegram processing failure: %w", updateErr)
 	}
+	return nil
 }
 
 // persistOutput stores the complete Agent response and its delivery plan
@@ -70,14 +80,14 @@ func (o *Orchestrator) recordFailure(ctx context.Context, record *agentsv1.Teleg
 //
 // This is what makes a delivery failure recoverable without another Agent
 // run: the text already exists, so a retry is a send, not a re-computation.
-func (o *Orchestrator) persistOutput(ctx context.Context, record *agentsv1.TelegramProcessingRecord, delivery *telegramsend.Delivery) error {
+func (o *Orchestrator) persistOutput(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string, delivery *telegramsend.Delivery) error {
 	if o.processing == nil || record == nil {
 		return nil
 	}
 	record.Output = joinSegments(delivery)
 	record.Segments = SegmentsToProto(delivery)
 	record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_READY_TO_DELIVER
-	if _, err := o.processing.Update(ctx, record); err != nil {
+	if _, err := o.updateProcessing(ctx, record, leaseToken); err != nil {
 		return fmt.Errorf("persist telegram agent output: %w", err)
 	}
 	return nil
@@ -85,25 +95,60 @@ func (o *Orchestrator) persistOutput(ctx context.Context, record *agentsv1.Teleg
 
 // syncDelivery writes back per-segment progress so a resend knows exactly
 // what still needs to go out.
-func (o *Orchestrator) syncDelivery(ctx context.Context, record *agentsv1.TelegramProcessingRecord, delivery *telegramsend.Delivery, deliverErr error) {
+func (o *Orchestrator) syncDelivery(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string, delivery *telegramsend.Delivery, deliverErr error) error {
 	if o.processing == nil || record == nil {
-		return
+		return nil
 	}
 	record.Segments = SegmentsToProto(delivery)
 	switch {
 	case deliverErr == nil:
 		record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED
 		record.Error = ""
+		record.DeadLettered = false
+	case deliveryUncertain(delivery):
+		record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_FAILED_UNCERTAIN
+		record.Error = sanitizeProcessingError(deliverErr)
+		record.DeadLettered = true
 	default:
 		// Delivery failed but the output survives, so this is retryable
 		// without touching the Agent.
 		record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_FAILED
 		record.Error = sanitizeProcessingError(deliverErr)
 	}
-	if _, err := o.processing.Update(ctx, record); err != nil {
-		log.FromContext(ctx).Warn("could not record telegram delivery state",
-			"record_id", record.GetId(), "err", err)
+	if _, err := o.updateProcessing(ctx, record, leaseToken); err != nil {
+		return fmt.Errorf("record telegram delivery state: %w", err)
 	}
+	return nil
+}
+
+func (o *Orchestrator) persistDeliveryProgress(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string, delivery *telegramsend.Delivery) error {
+	if o.processing == nil || record == nil {
+		return nil
+	}
+	record.Segments = SegmentsToProto(delivery)
+	if _, err := o.updateProcessing(ctx, record, leaseToken); err != nil {
+		return fmt.Errorf("persist telegram delivery progress: %w", err)
+	}
+	return nil
+}
+
+func (o *Orchestrator) updateProcessing(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string) (*agentsv1.TelegramProcessingRecord, error) {
+	if leaseToken == "" {
+		return o.processing.Update(ctx, record)
+	}
+	return o.processing.UpdateClaimed(ctx, record, leaseToken)
+}
+
+func deliveryUncertain(delivery *telegramsend.Delivery) bool {
+	if delivery == nil {
+		return false
+	}
+	for _, segment := range delivery.Segments {
+		if segment.Status == telegramsend.SegmentSending {
+			return true
+		}
+	}
+	return false
 }
 
 // SegmentsToProto exports per-segment delivery state for persistence and for
@@ -184,18 +229,92 @@ func newProcessingRecord(event *telegramqueue.Event) *agentsv1.TelegramProcessin
 
 // claimRecord creates or re-claims the record for an event.
 //
-// The `claimed` result is false for an update that already succeeded, which
-// is how a duplicate Telegram delivery is acknowledged without a second Agent
-// run or a second message.
-func (o *Orchestrator) claimRecord(ctx context.Context, event *telegramqueue.Event) (*agentsv1.TelegramProcessingRecord, bool, error) {
+// The returned action distinguishes fresh Agent work from resumable delivery
+// and terminal acknowledgement.
+func (o *Orchestrator) claimRecord(ctx context.Context, event *telegramqueue.Event) (*agentsv1.TelegramProcessingRecord, telegramprocessing.ClaimAction, string, error) {
 	if o.processing == nil {
-		return nil, true, nil
+		return nil, telegramprocessing.ClaimRunAgent, "", nil
 	}
-	record, claimed, err := o.processing.Claim(ctx, newProcessingRecord(event))
+	now := time.Now().UTC()
+	leaseToken := uuid.NewString()
+	ttl := o.processingLeaseTTL
+	if ttl <= 0 {
+		ttl = processingLeaseTTL
+	}
+	record, action, err := o.processing.Claim(ctx, newProcessingRecord(event), leaseToken, now, now.Add(ttl))
 	if err != nil {
-		return nil, false, fmt.Errorf("claim telegram processing record: %w", err)
+		return nil, telegramprocessing.ClaimAcknowledge, "", fmt.Errorf("claim telegram processing record: %w", err)
 	}
-	return record, claimed, nil
+	if action == telegramprocessing.ClaimAcknowledge {
+		leaseToken = ""
+	}
+	return record, action, leaseToken, nil
+}
+
+func (o *Orchestrator) withProcessingHeartbeat(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string) (context.Context, func()) {
+	if o.processing == nil || record == nil || leaseToken == "" {
+		return ctx, func() {}
+	}
+	ttl := o.processingLeaseTTL
+	if ttl <= 0 {
+		ttl = processingLeaseTTL
+	}
+	leaseCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(ttl / 3)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-leaseCtx.Done():
+				return
+			case <-ticker.C:
+				expiresAt := time.Now().UTC().Add(ttl)
+				if err := o.processing.RenewClaim(leaseCtx, record.GetWorkspaceId(), record.GetId(), leaseToken, expiresAt); err != nil {
+					log.FromContext(ctx).Error("telegram processing claim lost", "record_id", record.GetId(), "err", err)
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	var once sync.Once
+	return leaseCtx, func() {
+		once.Do(func() {
+			cancel()
+			<-done
+		})
+	}
+}
+
+func (o *Orchestrator) releaseProcessingClaim(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string) {
+	if o.processing == nil || record == nil || leaseToken == "" {
+		return
+	}
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := o.processing.ReleaseClaim(releaseCtx, record.GetWorkspaceId(), record.GetId(), leaseToken); err != nil && !errors.Is(err, telegramprocessing.ErrLeaseLost) {
+		log.FromContext(ctx).Warn("could not release telegram processing claim", "record_id", record.GetId(), "err", err)
+	}
+}
+
+func (o *Orchestrator) resumeDelivery(ctx context.Context, event *telegramqueue.Event, record *agentsv1.TelegramProcessingRecord, leaseToken string) error {
+	delivery := DeliveryFromRecord(record)
+	if !delivery.Pending() {
+		return o.syncDelivery(ctx, record, leaseToken, delivery, nil)
+	}
+	deliverErr := o.sender.DeliverSegments(ctx, event.WorkspaceID, record.GetDestinationId(), delivery,
+		func(current *telegramsend.Delivery) error {
+			return o.persistDeliveryProgress(ctx, record, leaseToken, current)
+		})
+	if syncErr := o.syncDelivery(ctx, record, leaseToken, delivery, deliverErr); syncErr != nil {
+		return syncErr
+	}
+	if deliverErr != nil {
+		return fmt.Errorf("resume telegram response delivery: %w", deliverErr)
+	}
+	return nil
 }
 
 // retryPreAgent runs a transient pre-Agent step with bounded backoff.

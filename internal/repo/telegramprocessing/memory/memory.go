@@ -19,17 +19,23 @@ import (
 // Store implements telegramprocessing.Repository in memory.
 type Store struct {
 	mu      sync.RWMutex
-	records map[string]*agentsv1.TelegramProcessingRecord
+	records map[string]*entry
 	// byUpdate indexes (channel, update) so a duplicate delivery finds the
 	// existing record rather than creating a second one.
 	byUpdate map[string]string
+}
+
+type entry struct {
+	record         *agentsv1.TelegramProcessingRecord
+	leaseToken     string
+	leaseExpiresAt time.Time
 }
 
 var _ telegramprocessing.Repository = (*Store)(nil)
 
 func New() *Store {
 	return &Store{
-		records:  make(map[string]*agentsv1.TelegramProcessingRecord),
+		records:  make(map[string]*entry),
 		byUpdate: make(map[string]string),
 	}
 }
@@ -40,21 +46,29 @@ func updateKey(channelID string, updateID int64) string {
 	return fmt.Sprintf("%s:%d", channelID, updateID)
 }
 
-func (s *Store) Claim(_ context.Context, record *agentsv1.TelegramProcessingRecord) (*agentsv1.TelegramProcessingRecord, bool, error) {
+func (s *Store) Claim(_ context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string, claimedAt, leaseExpiresAt time.Time) (*agentsv1.TelegramProcessingRecord, telegramprocessing.ClaimAction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	now := time.Now().UTC()
 	key := updateKey(record.GetChannelId(), record.GetUpdateId())
 
 	if id, ok := s.byUpdate[key]; ok {
-		existing := s.records[id]
-		if existing.GetStatus() == agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED {
-			// Already completed: the caller acknowledges without re-running.
-			return proto.Clone(existing).(*agentsv1.TelegramProcessingRecord), false, nil
+		stored := s.records[id]
+		if stored.leaseToken != "" && stored.leaseExpiresAt.After(claimedAt) {
+			return proto.Clone(stored.record).(*agentsv1.TelegramProcessingRecord), telegramprocessing.ClaimAcknowledge, telegramprocessing.ErrInProgress
 		}
-		existing.Attempts++
-		existing.UpdatedAt = timestamppb.New(now)
-		return proto.Clone(existing).(*agentsv1.TelegramProcessingRecord), true, nil
+		existing := stored.record
+		action := telegramprocessing.RecoveryAction(existing)
+		telegramprocessing.MarkInterruptedUncertain(existing)
+		if action != telegramprocessing.ClaimAcknowledge {
+			existing.Attempts++
+			stored.leaseToken = leaseToken
+			stored.leaseExpiresAt = leaseExpiresAt
+		} else {
+			stored.leaseToken = ""
+			stored.leaseExpiresAt = time.Time{}
+		}
+		existing.UpdatedAt = timestamppb.New(claimedAt)
+		return proto.Clone(existing).(*agentsv1.TelegramProcessingRecord), action, nil
 	}
 
 	stored := proto.Clone(record).(*agentsv1.TelegramProcessingRecord)
@@ -65,12 +79,73 @@ func (s *Store) Claim(_ context.Context, record *agentsv1.TelegramProcessingReco
 		stored.InvocationId = uuid.NewString()
 	}
 	stored.Attempts = 1
-	stored.CreatedAt = timestamppb.New(now)
-	stored.UpdatedAt = timestamppb.New(now)
-	stored.ExpiresAt = timestamppb.New(now.Add(telegramprocessing.RetentionPeriod))
-	s.records[stored.GetId()] = stored
+	stored.CreatedAt = timestamppb.New(claimedAt)
+	stored.UpdatedAt = timestamppb.New(claimedAt)
+	stored.ExpiresAt = timestamppb.New(claimedAt.Add(telegramprocessing.RetentionPeriod))
+	s.records[stored.GetId()] = &entry{record: stored, leaseToken: leaseToken, leaseExpiresAt: leaseExpiresAt}
 	s.byUpdate[key] = stored.GetId()
-	return proto.Clone(stored).(*agentsv1.TelegramProcessingRecord), true, nil
+	return proto.Clone(stored).(*agentsv1.TelegramProcessingRecord), telegramprocessing.ClaimRunAgent, nil
+}
+
+func (s *Store) ClaimDelivery(_ context.Context, workspaceID, id, leaseToken string, claimedAt, leaseExpiresAt time.Time) (*agentsv1.TelegramProcessingRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored, ok := s.records[id]
+	if !ok || stored.record.GetWorkspaceId() != workspaceID {
+		return nil, fmt.Errorf("telegram processing record %q: %w", id, telegramprocessing.ErrNotFound)
+	}
+	if stored.leaseToken != "" && stored.leaseExpiresAt.After(claimedAt) {
+		return proto.Clone(stored.record).(*agentsv1.TelegramProcessingRecord), telegramprocessing.ErrInProgress
+	}
+	stored.record.Attempts++
+	stored.record.UpdatedAt = timestamppb.New(claimedAt)
+	stored.leaseToken = leaseToken
+	stored.leaseExpiresAt = leaseExpiresAt
+	return proto.Clone(stored.record).(*agentsv1.TelegramProcessingRecord), nil
+}
+
+func (s *Store) UpdateClaimed(_ context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string) (*agentsv1.TelegramProcessingRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, ok := s.records[record.GetId()]
+	if !ok {
+		return nil, fmt.Errorf("telegram processing record %q: %w", record.GetId(), telegramprocessing.ErrNotFound)
+	}
+	if existing.leaseToken != leaseToken {
+		return nil, telegramprocessing.ErrLeaseLost
+	}
+	stored := cloneForUpdate(record, existing.record)
+	existing.record = stored
+	return proto.Clone(stored).(*agentsv1.TelegramProcessingRecord), nil
+}
+
+func (s *Store) RenewClaim(_ context.Context, workspaceID, id, leaseToken string, leaseExpiresAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored, ok := s.records[id]
+	if !ok || stored.record.GetWorkspaceId() != workspaceID {
+		return telegramprocessing.ErrNotFound
+	}
+	if stored.leaseToken != leaseToken {
+		return telegramprocessing.ErrLeaseLost
+	}
+	stored.leaseExpiresAt = leaseExpiresAt
+	return nil
+}
+
+func (s *Store) ReleaseClaim(_ context.Context, workspaceID, id, leaseToken string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored, ok := s.records[id]
+	if !ok || stored.record.GetWorkspaceId() != workspaceID {
+		return telegramprocessing.ErrNotFound
+	}
+	if stored.leaseToken != leaseToken {
+		return telegramprocessing.ErrLeaseLost
+	}
+	stored.leaseToken = ""
+	stored.leaseExpiresAt = time.Time{}
+	return nil
 }
 
 func (s *Store) Update(_ context.Context, record *agentsv1.TelegramProcessingRecord) (*agentsv1.TelegramProcessingRecord, error) {
@@ -80,29 +155,35 @@ func (s *Store) Update(_ context.Context, record *agentsv1.TelegramProcessingRec
 	if !ok {
 		return nil, fmt.Errorf("telegram processing record %q: %w", record.GetId(), telegramprocessing.ErrNotFound)
 	}
+	stored := cloneForUpdate(record, existing.record)
+	existing.record = stored
+	return proto.Clone(stored).(*agentsv1.TelegramProcessingRecord), nil
+}
+
+func cloneForUpdate(record, existing *agentsv1.TelegramProcessingRecord) *agentsv1.TelegramProcessingRecord {
 	stored := proto.Clone(record).(*agentsv1.TelegramProcessingRecord)
 	stored.CreatedAt = existing.GetCreatedAt()
 	stored.ExpiresAt = existing.GetExpiresAt()
 	stored.UpdatedAt = timestamppb.New(time.Now().UTC())
-	s.records[stored.GetId()] = stored
-	return proto.Clone(stored).(*agentsv1.TelegramProcessingRecord), nil
+	return stored
 }
 
 func (s *Store) Get(_ context.Context, workspaceID, id string) (*agentsv1.TelegramProcessingRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	record, ok := s.records[id]
-	if !ok || record.GetWorkspaceId() != workspaceID {
+	stored, ok := s.records[id]
+	if !ok || stored.record.GetWorkspaceId() != workspaceID {
 		return nil, fmt.Errorf("telegram processing record %q: %w", id, telegramprocessing.ErrNotFound)
 	}
-	return proto.Clone(record).(*agentsv1.TelegramProcessingRecord), nil
+	return proto.Clone(stored.record).(*agentsv1.TelegramProcessingRecord), nil
 }
 
 func (s *Store) List(_ context.Context, filter telegramprocessing.Filter) ([]*agentsv1.TelegramProcessingRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var out []*agentsv1.TelegramProcessingRecord
-	for _, record := range s.records {
+	for _, stored := range s.records {
+		record := stored.record
 		if record.GetWorkspaceId() != filter.WorkspaceID {
 			continue
 		}

@@ -44,6 +44,18 @@ end
 return redis.call('XADD', KEYS[2], '*', 'event', ARGV[2])
 `)
 
+// touchScript refreshes a pending entry only while it still belongs to the
+// expected consumer. XPENDING and XCLAIM run atomically inside the script so
+// a stale heartbeat cannot steal work back from a new owner.
+var touchScript = redis.NewScript(`
+local pending = redis.call('XPENDING', KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
+if #pending == 0 or pending[1][2] ~= ARGV[2] then
+  return 0
+end
+redis.call('XCLAIM', KEYS[1], ARGV[1], ARGV[2], 0, ARGV[3], 'JUSTID')
+return 1
+`)
+
 // Queue is the Redis Streams implementation of the receive hand-off.
 type Queue struct {
 	rdb *redis.Client
@@ -173,6 +185,23 @@ func (q *Queue) Ack(ctx context.Context, ids ...string) error {
 	}
 	if err := q.rdb.XAck(ctx, StreamKey, ConsumerGroup, ids...).Err(); err != nil {
 		return fmt.Errorf("ack telegram updates: %w", err)
+	}
+	return nil
+}
+
+// Touch resets one pending entry's idle time while its consumer is still
+// handling it. Without this heartbeat, XAUTOCLAIM can steal a healthy long
+// Agent turn merely because it exceeded reclaimIdle.
+func (q *Queue) Touch(ctx context.Context, consumer, id string) error {
+	if !q.Available() {
+		return errors.New("telegram queue is not configured")
+	}
+	result, err := touchScript.Run(ctx, q.rdb, []string{StreamKey}, ConsumerGroup, consumer, id).Int64()
+	if err != nil {
+		return fmt.Errorf("touch telegram update %s: %w", id, err)
+	}
+	if result != 1 {
+		return fmt.Errorf("touch telegram update %s: pending entry is no longer owned", id)
 	}
 	return nil
 }

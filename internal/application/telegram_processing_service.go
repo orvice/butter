@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 
 	"butterfly.orx.me/core/log"
 	"go.orx.me/apps/butter/internal/repo/telegramprocessing"
@@ -123,8 +125,7 @@ func (s *TelegramProcessingServiceServer) load(ctx context.Context, id string) (
 // unsent and failed segments rather than restarting — so an operator
 // recovering a partial delivery does not double-post the half that worked.
 func (s *TelegramProcessingServiceServer) ResendTelegramReply(ctx context.Context, req *connect.Request[agentsv1.ResendTelegramReplyRequest]) (*connect.Response[agentsv1.ResendTelegramReplyResponse], error) {
-	record, err := s.load(ctx, req.Msg.GetId())
-	if err != nil {
+	if err := s.requireReady(); err != nil {
 		return nil, err
 	}
 	workspaceID, err := telegramWorkspace(ctx)
@@ -138,6 +139,27 @@ func (s *TelegramProcessingServiceServer) ResendTelegramReply(ctx context.Contex
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("telegram sender is not configured"))
 	}
+	if strings.TrimSpace(req.Msg.GetId()) == "" {
+		return nil, connectx.RequiredArgument("id")
+	}
+	now := time.Now().UTC()
+	leaseToken := uuid.NewString()
+	record, err := s.repo.ClaimDelivery(ctx, workspaceID, req.Msg.GetId(), leaseToken, now, now.Add(5*time.Minute))
+	if err != nil {
+		switch {
+		case errors.Is(err, telegramprocessing.ErrNotFound):
+			return nil, connectx.NotFound(err.Error())
+		case errors.Is(err, telegramprocessing.ErrInProgress):
+			return nil, connect.NewError(connect.CodeAborted, errors.New("this reply is already being delivered"))
+		default:
+			return nil, connectx.InternalWith(err)
+		}
+	}
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = s.repo.ReleaseClaim(releaseCtx, workspaceID, record.GetId(), leaseToken)
+	}()
 
 	if len(record.GetSegments()) == 0 || strings.TrimSpace(record.GetOutput()) == "" {
 		// Without persisted output there is nothing to resend, and producing
@@ -152,17 +174,26 @@ func (s *TelegramProcessingServiceServer) ResendTelegramReply(ctx context.Contex
 			errors.New("every segment of this response was already delivered"))
 	}
 
-	deliverErr := s.sender.DeliverSegments(ctx, workspaceID, record.GetDestinationId(), delivery)
+	deliverErr := s.sender.DeliverSegments(ctx, workspaceID, record.GetDestinationId(), delivery,
+		func(current *telegramsend.Delivery) error {
+			record.Segments = telegramruntime.SegmentsToProto(current)
+			_, progressErr := s.repo.UpdateClaimed(ctx, record, leaseToken)
+			return progressErr
+		})
 	record.Segments = telegramruntime.SegmentsToProto(delivery)
 	if deliverErr == nil {
 		record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED
 		record.Error = ""
 		record.DeadLettered = false
+	} else if errors.Is(deliverErr, telegramsend.ErrDeliveryUncertain) || hasUncertainTelegramSegment(delivery) {
+		record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_FAILED_UNCERTAIN
+		record.Error = deliverErr.Error()
+		record.DeadLettered = true
 	} else {
 		record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_FAILED
 		record.Error = deliverErr.Error()
 	}
-	updated, updateErr := s.repo.Update(ctx, record)
+	updated, updateErr := s.repo.UpdateClaimed(ctx, record, leaseToken)
 	if updateErr != nil {
 		return nil, connectx.InternalWith(updateErr)
 	}
@@ -177,4 +208,13 @@ func (s *TelegramProcessingServiceServer) ResendTelegramReply(ctx context.Contex
 		Record:     updated,
 		MessageIds: delivery.MessageIDs(),
 	}), nil
+}
+
+func hasUncertainTelegramSegment(delivery *telegramsend.Delivery) bool {
+	for _, segment := range delivery.Segments {
+		if segment.Status == telegramsend.SegmentSending {
+			return true
+		}
+	}
+	return false
 }

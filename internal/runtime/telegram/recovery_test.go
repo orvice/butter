@@ -12,6 +12,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/telegramprocessing"
 	telegramprocessingmemory "go.orx.me/apps/butter/internal/repo/telegramprocessing/memory"
 	"go.orx.me/apps/butter/internal/telegramapi"
+	"go.orx.me/apps/butter/internal/telegramsend"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -130,6 +131,29 @@ func TestFailureAfterAgentStartIsUncertainAndDeadLettered(t *testing.T) {
 	}
 }
 
+func TestUncertainFailureIsAcknowledgedWithoutRerunningTheAgent(t *testing.T) {
+	fx, records := newRecoveryFixture(t)
+	fx.agents.failErr = errors.New("agent failed after a tool may have run")
+	event := fx.eventForStored(message(realUser, "hello", ""))
+
+	if err := fx.orchestrator.Handle(t.Context(), event); err == nil {
+		t.Fatal("expected the initial Agent failure")
+	}
+	if len(fx.agents.calls) != 1 {
+		t.Fatalf("initial Agent calls = %d, want 1", len(fx.agents.calls))
+	}
+	fx.agents.failErr = nil
+	if err := fx.orchestrator.Handle(t.Context(), event); err != nil {
+		t.Fatalf("reclaimed uncertain event: %v", err)
+	}
+	if len(fx.agents.calls) != 1 {
+		t.Fatalf("uncertain event reran the Agent: calls = %d", len(fx.agents.calls))
+	}
+	if got := onlyRecord(t, records).GetStatus(); got != agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_FAILED_UNCERTAIN {
+		t.Fatalf("status = %s, want FAILED_UNCERTAIN", got)
+	}
+}
+
 // Once output is safely persisted, a delivery failure is retryable *as a
 // send*: the text exists, so nothing has to be recomputed.
 func TestDeliveryFailureKeepsTheOutputAndStaysRetryable(t *testing.T) {
@@ -157,6 +181,67 @@ func TestDeliveryFailureKeepsTheOutputAndStaysRetryable(t *testing.T) {
 	}
 	if len(record.GetSegments()) == 0 {
 		t.Error("expected per-segment state for a resend to continue from")
+	}
+}
+
+func TestReclaimedDeliveryFailureResumesWithoutRerunningTheAgent(t *testing.T) {
+	fx, records := newRecoveryFixture(t)
+	fx.agents.output = strings.Repeat("word ", 2000)
+	failing := true
+	fx.bots.OnSend(func(attempt int, _ telegramapi.SendMessageParams) error {
+		if failing && attempt > 1 {
+			return &telegramapi.APIError{Code: 500, Description: "Internal Server Error"}
+		}
+		return nil
+	})
+	event := fx.eventForStored(message(realUser, "hello", ""))
+
+	if err := fx.orchestrator.Handle(t.Context(), event); err == nil {
+		t.Fatal("expected the initial delivery failure")
+	}
+	agentCalls := len(fx.agents.calls)
+	failing = false
+	if err := fx.orchestrator.Handle(t.Context(), event); err != nil {
+		t.Fatalf("resume delivery: %v", err)
+	}
+	if len(fx.agents.calls) != agentCalls {
+		t.Fatalf("delivery recovery reran the Agent: before=%d after=%d", agentCalls, len(fx.agents.calls))
+	}
+	if got := onlyRecord(t, records).GetStatus(); got != agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED {
+		t.Fatalf("status = %s, want SUCCEEDED", got)
+	}
+}
+
+func TestReclaimedSendingSegmentIsDeadLetteredWithoutDuplicateDelivery(t *testing.T) {
+	fx, records := newRecoveryFixture(t)
+	fx.agents.output = "already accepted by telegram"
+	event := fx.eventForStored(message(realUser, "hello", ""))
+
+	if err := fx.orchestrator.Handle(t.Context(), event); err != nil {
+		t.Fatalf("initial delivery: %v", err)
+	}
+	record := onlyRecord(t, records)
+	record.Status = agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_READY_TO_DELIVER
+	record.Segments[0].Status = string(telegramsend.SegmentSending)
+	record.Segments[0].MessageId = ""
+	if _, err := records.Update(t.Context(), record); err != nil {
+		t.Fatalf("seed sending segment: %v", err)
+	}
+	sendsBefore := len(fx.bots.Sent())
+	agentCallsBefore := len(fx.agents.calls)
+
+	if err := fx.orchestrator.Handle(t.Context(), event); err != nil {
+		t.Fatalf("reclaim uncertain delivery: %v", err)
+	}
+	if len(fx.bots.Sent()) != sendsBefore {
+		t.Fatal("the uncertain segment was sent a second time")
+	}
+	if len(fx.agents.calls) != agentCallsBefore {
+		t.Fatal("the uncertain delivery reran the Agent")
+	}
+	record = onlyRecord(t, records)
+	if record.GetStatus() != agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_FAILED_UNCERTAIN || !record.GetDeadLettered() {
+		t.Fatalf("record = status %s dead_lettered=%v, want uncertain dead letter", record.GetStatus(), record.GetDeadLettered())
 	}
 }
 
@@ -203,7 +288,7 @@ func TestSessionLeaseSerializesOneConversation(t *testing.T) {
 	fx.orchestrator.SetSessionGuard(guard)
 
 	sessionID := SessionID("ch-1", fx.dest.GetId(), "d"+fx.dest.GetId(), "support")
-	release, ok, err := guard.Acquire(t.Context(), sessionID)
+	_, release, ok, err := guard.Acquire(t.Context(), sessionID)
 	if err != nil || !ok {
 		t.Fatalf("seed lease: ok=%v err=%v", ok, err)
 	}
@@ -217,7 +302,7 @@ func TestSessionLeaseSerializesOneConversation(t *testing.T) {
 	}
 
 	// An unrelated session is unaffected.
-	if _, otherOK, otherErr := guard.Acquire(t.Context(), "tg:ch-1:dest-2:d-other:support"); !otherOK || otherErr != nil {
+	if _, _, otherOK, otherErr := guard.Acquire(t.Context(), "tg:ch-1:dest-2:d-other:support"); !otherOK || otherErr != nil {
 		t.Fatalf("an unrelated session was blocked: ok=%v err=%v", otherOK, otherErr)
 	}
 
@@ -251,7 +336,7 @@ func TestCommandsDoNotHoldTheSessionLease(t *testing.T) {
 	guard := NewMemorySessionGuard()
 	fx.orchestrator.SetSessionGuard(guard)
 	sessionID := SessionID("ch-1", fx.dest.GetId(), "d"+fx.dest.GetId(), "support")
-	if _, ok, err := guard.Acquire(t.Context(), sessionID); !ok || err != nil {
+	if _, _, ok, err := guard.Acquire(t.Context(), sessionID); !ok || err != nil {
 		t.Fatalf("seed lease: %v", err)
 	}
 

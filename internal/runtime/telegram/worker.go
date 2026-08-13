@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -33,27 +34,39 @@ type EventHandler interface {
 	Handle(ctx context.Context, event *telegramqueue.Event) error
 }
 
+type workerQueue interface {
+	Available() bool
+	EnsureGroup(ctx context.Context) error
+	ReadPending(ctx context.Context, consumer string, count int64) ([]telegramqueue.Delivery, error)
+	Claim(ctx context.Context, consumer string, minIdle time.Duration, count int64) ([]telegramqueue.Delivery, error)
+	Read(ctx context.Context, consumer string, count int64, block time.Duration) ([]telegramqueue.Delivery, error)
+	Touch(ctx context.Context, consumer, id string) error
+	Ack(ctx context.Context, ids ...string) error
+}
+
 // Worker consumes accepted updates from the durable queue.
 //
 // Any Pod can claim any Channel's work: that is what makes the fleet
 // horizontally scalable, and it is why the event carries a frozen routing
 // snapshot rather than a pointer into one Pod's memory.
 type Worker struct {
-	queue    *telegramqueue.Queue
-	handler  EventHandler
-	consumer string
-	stop     chan struct{}
-	stopped  chan struct{}
-	stopOnce sync.Once
+	queue             workerQueue
+	handler           EventHandler
+	consumer          string
+	stop              chan struct{}
+	stopped           chan struct{}
+	stopOnce          sync.Once
+	heartbeatInterval time.Duration
 }
 
-func NewWorker(queue *telegramqueue.Queue, handler EventHandler, consumer string) *Worker {
+func NewWorker(queue workerQueue, handler EventHandler, consumer string) *Worker {
 	return &Worker{
-		queue:    queue,
-		handler:  handler,
-		consumer: consumer,
-		stop:     make(chan struct{}),
-		stopped:  make(chan struct{}),
+		queue:             queue,
+		handler:           handler,
+		consumer:          consumer,
+		stop:              make(chan struct{}),
+		stopped:           make(chan struct{}),
+		heartbeatInterval: reclaimIdle / 3,
 	}
 }
 
@@ -117,19 +130,60 @@ func (w *Worker) run(ctx context.Context) {
 }
 
 func (w *Worker) process(ctx context.Context, deliveries []telegramqueue.Delivery) {
-	logger := log.FromContext(ctx)
+	var wg sync.WaitGroup
 	for _, delivery := range deliveries {
-		if err := w.handler.Handle(ctx, delivery.Event); err != nil {
-			// Leave it unacknowledged: it stays in the pending list and is
-			// reclaimed after reclaimIdle, by this Pod or another.
-			logger.Error("telegram event handling failed",
-				"stream_id", delivery.ID, "channel_id", delivery.Event.ChannelID,
-				"update_id", delivery.Event.UpdateID, "err", err)
-			continue
+		delivery := delivery
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			w.processOne(ctx, delivery)
+		}()
+	}
+	wg.Wait()
+}
+
+func (w *Worker) processOne(ctx context.Context, delivery telegramqueue.Delivery) {
+	logger := log.FromContext(ctx)
+	handleCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	var leaseLost atomic.Bool
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(w.heartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-handleCtx.Done():
+				return
+			case <-ticker.C:
+				if err := w.queue.Touch(handleCtx, w.consumer, delivery.ID); err != nil {
+					logger.Error("telegram queue delivery lease lost", "stream_id", delivery.ID, "err", err)
+					leaseLost.Store(true)
+					cancel()
+					return
+				}
+			}
 		}
-		if err := w.queue.Ack(ctx, delivery.ID); err != nil {
-			logger.Warn("could not acknowledge telegram event", "stream_id", delivery.ID, "err", err)
-		}
+	}()
+
+	err := w.handler.Handle(handleCtx, delivery.Event)
+	cancel()
+	<-done
+	if err != nil {
+		// Leave it unacknowledged: it stays in the pending list and is
+		// reclaimed after reclaimIdle, by this Pod or another.
+		logger.Error("telegram event handling failed",
+			"stream_id", delivery.ID, "channel_id", delivery.Event.ChannelID,
+			"update_id", delivery.Event.UpdateID, "err", err)
+		return
+	}
+	if leaseLost.Load() {
+		// A heartbeat cancelled the handler because the pending entry is no
+		// longer ours. Never acknowledge work another consumer may be running.
+		return
+	}
+	if err := w.queue.Ack(ctx, delivery.ID); err != nil {
+		logger.Warn("could not acknowledge telegram event", "stream_id", delivery.ID, "err", err)
 	}
 }
 

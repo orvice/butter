@@ -637,7 +637,8 @@ message TelegramDeliverySegment {
   int32 index = 1;
   // @gotags: json:"text,omitempty" bson:"text,omitempty"
   string text = 2;
-  // One of "pending", "sent", "failed".
+  // One of "pending", "sending", "sent", "failed". "sending" is persisted
+  // before the Telegram request and requires operator review after a crash.
   // @gotags: json:"status,omitempty" bson:"status,omitempty"
   string status = 3;
   // Telegram message ID once sent.

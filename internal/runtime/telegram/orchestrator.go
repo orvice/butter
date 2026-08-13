@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
@@ -59,11 +60,15 @@ type Orchestrator struct {
 	// files downloads user-uploaded media at invocation time.
 	files func(ctx context.Context, workspaceID, channelID string) (telegramapi.FileClient, error)
 	// appName scopes ADK sessions for the Telegram entry point.
-	appName string
+	appName            string
+	processingLeaseTTL time.Duration
 }
 
 func NewOrchestrator(repo telegramrepo.Repository, sender *telegramsend.Sender, agents AgentRunner) *Orchestrator {
-	return &Orchestrator{repo: repo, sender: sender, runner: agents, appName: "telegram"}
+	return &Orchestrator{
+		repo: repo, sender: sender, runner: agents, appName: "telegram",
+		processingLeaseTTL: processingLeaseTTL,
+	}
 }
 
 // SetSessionClearer wires `/clear`.
@@ -136,17 +141,20 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		return nil
 	}
 
-	// Claiming records the attempt and, for an update that already
-	// succeeded, tells us to acknowledge without running anything again.
-	record, claimed, err := o.claimRecord(ctx, event)
+	// Claiming derives the only safe recovery action from persisted state.
+	record, action, leaseToken, err := o.claimRecord(ctx, event)
 	if err != nil {
 		return err
 	}
-	if !claimed {
-		logger.Info("acknowledging a completed duplicate telegram update",
+	if action == telegramprocessing.ClaimAcknowledge {
+		logger.Info("acknowledging telegram update without repeating completed or uncertain work",
 			"record_id", record.GetId())
 		return nil
 	}
+	defer o.releaseProcessingClaim(ctx, record, leaseToken)
+	processingCtx, stopProcessingHeartbeat := o.withProcessingHeartbeat(ctx, record, leaseToken)
+	defer stopProcessingHeartbeat()
+	ctx = processingCtx
 	if record != nil {
 		logger = logger.With("record_id", record.GetId(), "invocation_id", record.GetInvocationId())
 	}
@@ -155,6 +163,9 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		// worth correlating when behavior surprises an operator.
 		logger.Info("telegram destination changed after acceptance",
 			"accepted_revision", event.DestinationRevision, "current_revision", dest.GetRevision())
+	}
+	if action == telegramprocessing.ClaimResumeDelivery {
+		return o.resumeDelivery(ctx, event, record, leaseToken)
 	}
 
 	// A stored choice current configuration no longer allows is cleared, not
@@ -170,19 +181,17 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 	// stall an unrelated conversation for no benefit.
 	if decision.CallbackData != "" {
 		err := o.handleCallback(ctx, event, dest, decision)
-		o.finishNonAgent(ctx, record, err)
-		return err
+		return o.finishNonAgent(ctx, record, leaseToken, err)
 	}
 	if decision.Command != "" {
 		err := o.handleCommand(ctx, event, dest, decision)
-		o.finishNonAgent(ctx, record, err)
-		return err
+		return o.finishNonAgent(ctx, record, leaseToken, err)
 	}
 
 	if o.sessions != nil {
-		release, ok, leaseErr := o.sessions.Acquire(ctx, decision.SessionID)
+		leaseCtx, release, ok, leaseErr := o.sessions.Acquire(ctx, decision.SessionID)
 		if leaseErr != nil {
-			o.recordFailure(ctx, record, leaseErr, false)
+			_ = o.recordFailure(ctx, record, leaseToken, leaseErr, false)
 			return leaseErr
 		}
 		if !ok {
@@ -192,8 +201,9 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 			return ErrSessionBusy
 		}
 		defer release()
+		ctx = leaseCtx
 	}
-	return o.runAgent(ctx, event, dest, decision, record)
+	return o.runAgent(ctx, event, dest, decision, record, leaseToken)
 }
 
 // handleCommand answers a management command.
@@ -258,7 +268,7 @@ func (o *Orchestrator) formatStatus(dest *agentsv1.TelegramDestination, decision
 }
 
 // runAgent invokes the Destination's Agent and delivers the reply.
-func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event, dest *agentsv1.TelegramDestination, decision Interaction, record *agentsv1.TelegramProcessingRecord) error {
+func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event, dest *agentsv1.TelegramDestination, decision Interaction, record *agentsv1.TelegramProcessingRecord, leaseToken string) error {
 	logger := log.FromContext(ctx)
 	if o.runner == nil {
 		return errors.New("agent runner is not configured")
@@ -286,7 +296,9 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 		// caption alone: the Agent would answer confidently about an image it
 		// never saw. Report it in the topic and stop.
 		logger.Warn("could not build telegram agent input", "err", partsErr)
-		o.recordFailure(ctx, record, partsErr, false)
+		if recordErr := o.recordFailure(ctx, record, leaseToken, partsErr, false); recordErr != nil {
+			return recordErr
+		}
 		_ = o.reply(ctx, event, decision, partsErr.Error())
 		return nil
 	}
@@ -316,14 +328,16 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 
 	// From here the Agent may run tools with external side effects, so a
 	// crash is no longer safely retryable.
-	o.recordProgress(ctx, record, agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_PROCESSING)
+	if err := o.recordProgress(ctx, record, leaseToken, agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_PROCESSING); err != nil {
+		return err
+	}
 
 	turn, err := o.runner.RunTurnSSE(ctx, agentName, parts, decision.Model, ctxInfo, nil, nil)
 	if err != nil {
 		// Report the failure in the originating topic rather than leaving the
 		// user waiting on silence, and mark the record uncertain: an
 		// automatic rerun could repeat whatever the agent already did.
-		o.recordFailure(ctx, record, err, true)
+		_ = o.recordFailure(ctx, record, leaseToken, err, true)
 		_ = o.deliver(ctx, event, decision, placeholder, "The agent could not complete this request.")
 		return fmt.Errorf("run telegram agent turn: %w", err)
 	}
@@ -337,16 +351,20 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 	// the agent to reproduce it.
 	delivery := telegramsend.NewDelivery(output, placeholder, decision.ReplyToMessageID)
 	if len(delivery.Segments) == 0 {
-		o.recordProgress(ctx, record, agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED)
-		return nil
+		return o.recordProgress(ctx, record, leaseToken, agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED)
 	}
-	if err := o.persistOutput(ctx, record, delivery); err != nil {
-		o.recordFailure(ctx, record, err, true)
+	if err := o.persistOutput(ctx, record, leaseToken, delivery); err != nil {
+		_ = o.recordFailure(ctx, record, leaseToken, err, true)
 		return err
 	}
 
-	deliverErr := o.sender.DeliverSegments(ctx, event.WorkspaceID, event.DestinationID, delivery)
-	o.syncDelivery(ctx, record, delivery, deliverErr)
+	deliverErr := o.sender.DeliverSegments(ctx, event.WorkspaceID, event.DestinationID, delivery,
+		func(current *telegramsend.Delivery) error {
+			return o.persistDeliveryProgress(ctx, record, leaseToken, current)
+		})
+	if syncErr := o.syncDelivery(ctx, record, leaseToken, delivery, deliverErr); syncErr != nil {
+		return syncErr
+	}
 	if deliverErr != nil {
 		return fmt.Errorf("deliver telegram response: %w", deliverErr)
 	}
@@ -601,10 +619,12 @@ func (o *Orchestrator) deliver(ctx context.Context, event *telegramqueue.Event, 
 
 // finishNonAgent closes out a command or callback, which never runs an Agent
 // and therefore is always safely retryable on failure.
-func (o *Orchestrator) finishNonAgent(ctx context.Context, record *agentsv1.TelegramProcessingRecord, err error) {
+func (o *Orchestrator) finishNonAgent(ctx context.Context, record *agentsv1.TelegramProcessingRecord, leaseToken string, err error) error {
 	if err != nil {
-		o.recordFailure(ctx, record, err, false)
-		return
+		if recordErr := o.recordFailure(ctx, record, leaseToken, err, false); recordErr != nil {
+			return recordErr
+		}
+		return err
 	}
-	o.recordProgress(ctx, record, agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED)
+	return o.recordProgress(ctx, record, leaseToken, agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED)
 }

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	"go.orx.me/apps/butter/internal/telegramqueue"
@@ -23,31 +24,67 @@ const sessionLeaseTTL = 5 * time.Minute
 type RedisSessionGuard struct {
 	rdb    *redis.Client
 	holder string
+	ttl    time.Duration
+	lease  func(sessionID, leaseHolder string) renewableLease
+}
+
+type renewableLease interface {
+	Acquire(ctx context.Context) (bool, error)
+	Renew(ctx context.Context) (bool, error)
+	Release(ctx context.Context) error
 }
 
 func NewRedisSessionGuard(rdb *redis.Client, holder string) *RedisSessionGuard {
 	if rdb == nil {
 		return nil
 	}
-	return &RedisSessionGuard{rdb: rdb, holder: holder}
+	g := &RedisSessionGuard{rdb: rdb, holder: holder, ttl: sessionLeaseTTL}
+	g.lease = func(sessionID, leaseHolder string) renewableLease {
+		return telegramqueue.NewLease(g.rdb, telegramqueue.SessionLeaseKey(sessionID),
+			leaseHolder, g.ttl)
+	}
+	return g
 }
 
 var _ SessionGuard = (*RedisSessionGuard)(nil)
 
-func (g *RedisSessionGuard) Acquire(ctx context.Context, sessionID string) (func(), bool, error) {
-	lease := telegramqueue.NewLease(g.rdb, telegramqueue.SessionLeaseKey(sessionID),
-		g.holder+":"+sessionID, sessionLeaseTTL)
+func (g *RedisSessionGuard) Acquire(ctx context.Context, sessionID string) (context.Context, func(), bool, error) {
+	lease := g.lease(sessionID, g.holder+":"+sessionID+":"+uuid.NewString())
 	ok, err := lease.Acquire(ctx)
 	if err != nil || !ok {
-		return func() {}, ok, err
+		return ctx, func() {}, ok, err
 	}
-	return func() {
-		// Release on a detached context: the turn's context may already be
-		// cancelled, and holding the lease until it expires would stall the
-		// next message in this conversation.
-		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_ = lease.Release(releaseCtx)
+	leaseCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(g.ttl / 3)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-leaseCtx.Done():
+				return
+			case <-ticker.C:
+				renewed, renewErr := lease.Renew(leaseCtx)
+				if renewErr != nil || !renewed {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	var once sync.Once
+	return leaseCtx, func() {
+		once.Do(func() {
+			cancel()
+			<-done
+			// Release on a detached context: the turn's context may already be
+			// cancelled, and holding the lease until it expires would stall the
+			// next message in this conversation.
+			releaseCtx, releaseCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer releaseCancel()
+			_ = lease.Release(releaseCtx)
+		})
 	}, true, nil
 }
 
@@ -64,14 +101,14 @@ func NewMemorySessionGuard() *MemorySessionGuard {
 
 var _ SessionGuard = (*MemorySessionGuard)(nil)
 
-func (g *MemorySessionGuard) Acquire(_ context.Context, sessionID string) (func(), bool, error) {
+func (g *MemorySessionGuard) Acquire(ctx context.Context, sessionID string) (context.Context, func(), bool, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.active[sessionID] {
-		return func() {}, false, nil
+		return ctx, func() {}, false, nil
 	}
 	g.active[sessionID] = true
-	return func() {
+	return ctx, func() {
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		delete(g.active, sessionID)

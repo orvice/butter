@@ -17,6 +17,10 @@ type SegmentStatus string
 const (
 	// SegmentPending has not been attempted yet.
 	SegmentPending SegmentStatus = "pending"
+	// SegmentSending was persisted immediately before the Telegram request.
+	// If a worker dies in this state, Telegram may have accepted the request
+	// and recovery must not blindly send it again.
+	SegmentSending SegmentStatus = "sending"
 	// SegmentSent reached Telegram.
 	SegmentSent SegmentStatus = "sent"
 	// SegmentFailed was attempted and rejected.
@@ -54,6 +58,11 @@ type Delivery struct {
 	// ReplyToMessageID quotes the inbound message on the first segment only.
 	ReplyToMessageID string
 }
+
+// ProgressFunc persists the delivery after each segment state transition.
+// Returning an error stops delivery so the caller never sends a segment whose
+// pre-send state could not be recorded.
+type ProgressFunc func(*Delivery) error
 
 // NewDelivery splits text into a deliverable, ordered plan.
 func NewDelivery(text, placeholderMessageID, replyToMessageID string) *Delivery {
@@ -97,7 +106,7 @@ func (d *Delivery) MessageIDs() []string {
 // segments would arrive out of order otherwise — but leaves them pending, so
 // a retry continues from where it stopped instead of duplicating what already
 // landed.
-func (s *Sender) DeliverSegments(ctx context.Context, workspaceID, destinationID string, delivery *Delivery) error {
+func (s *Sender) DeliverSegments(ctx context.Context, workspaceID, destinationID string, delivery *Delivery, progress ...ProgressFunc) error {
 	resolved, err := s.Resolve(ctx, workspaceID, destinationID)
 	if err != nil {
 		return err
@@ -109,26 +118,57 @@ func (s *Sender) DeliverSegments(ctx context.Context, workspaceID, destinationID
 		if segment.Status == SegmentSent {
 			continue
 		}
+		if segment.Status == SegmentSending {
+			return fmt.Errorf("deliver segment %d: %w", segment.Index, ErrDeliveryUncertain)
+		}
+
+		previousStatus := segment.Status
+		segment.Status = SegmentSending
+		segment.Error = ""
+		if err := reportProgress(delivery, progress); err != nil {
+			segment.Status = previousStatus
+			return fmt.Errorf("persist segment %d before delivery: %w", segment.Index, err)
+		}
 
 		// The processing placeholder becomes the first segment rather than
 		// lingering above the answer. Only the first segment can be an edit;
 		// the rest are new messages so ordering is Telegram's to keep.
 		if i == 0 && delivery.PlaceholderMessageID != "" {
 			if err := s.editSegment(ctx, resolved, delivery, segment); err != nil {
+				_ = reportProgress(delivery, progress)
 				s.recordOutcome(ctx, workspaceID, resolved.Destination, err)
 				return err
+			}
+			if err := reportProgress(delivery, progress); err != nil {
+				return fmt.Errorf("persist segment %d after delivery: %w", segment.Index, err)
 			}
 			continue
 		}
 		if err := s.sendSegment(ctx, resolved, delivery, segment, i == 0); err != nil {
+			_ = reportProgress(delivery, progress)
 			s.recordOutcome(ctx, workspaceID, resolved.Destination, err)
 			return err
+		}
+		if err := reportProgress(delivery, progress); err != nil {
+			return fmt.Errorf("persist segment %d after delivery: %w", segment.Index, err)
 		}
 	}
 
 	s.recordOutcome(ctx, workspaceID, resolved.Destination, nil)
 	logger.Debug("telegram response delivered",
 		"destination_id", destinationID, "segments", len(delivery.Segments))
+	return nil
+}
+
+func reportProgress(delivery *Delivery, callbacks []ProgressFunc) error {
+	for _, callback := range callbacks {
+		if callback == nil {
+			continue
+		}
+		if err := callback(delivery); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -217,6 +257,11 @@ func (s *Sender) SendProcessing(ctx context.Context, workspaceID, destinationID,
 
 // ErrNoSegments reports that there was nothing to deliver.
 var ErrNoSegments = errors.New("response produced no segments")
+
+// ErrDeliveryUncertain means a prior worker may have reached Telegram but
+// crashed before recording the response. Telegram offers no idempotency key,
+// so an automatic retry could duplicate a message.
+var ErrDeliveryUncertain = errors.New("segment delivery outcome is uncertain")
 
 // DeliverText is the convenience path for a response with no placeholder: it
 // splits, delivers, and returns the resulting message IDs.
