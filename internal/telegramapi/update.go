@@ -151,18 +151,24 @@ func Command(msg *Message_) (command, args string, ok bool) {
 	if text == "" {
 		return "", "", false
 	}
-	runes := []rune(text)
 	for _, entity := range entities {
 		if entity.Type != "bot_command" || entity.Offset != 0 {
 			continue
 		}
-		end := min(entity.Offset+entity.Length, len(runes))
-		raw := strings.TrimPrefix(string(runes[entity.Offset:end]), "/")
+		rawEntity, valid := SliceUTF16(text, entity.Offset, entity.Length)
+		if !valid {
+			continue
+		}
+		raw := strings.TrimPrefix(rawEntity, "/")
 		// `/command@botname` addresses one bot in a multi-bot group.
 		if name, _, hasSuffix := strings.Cut(raw, "@"); hasSuffix {
 			raw = name
 		}
-		return strings.ToLower(raw), strings.TrimSpace(string(runes[end:])), true
+		prefix, valid := SliceUTF16(text, 0, entity.Offset+entity.Length)
+		if !valid {
+			continue
+		}
+		return strings.ToLower(raw), strings.TrimSpace(text[len(prefix):]), true
 	}
 	return "", "", false
 }
@@ -178,13 +184,15 @@ func CommandTargetsBot(msg *Message_, botUsername string) bool {
 	if text == "" {
 		text, entities = msg.Caption, msg.CaptionEntities
 	}
-	runes := []rune(text)
 	for _, entity := range entities {
 		if entity.Type != "bot_command" || entity.Offset != 0 {
 			continue
 		}
-		end := min(entity.Offset+entity.Length, len(runes))
-		_, target, hasSuffix := strings.Cut(string(runes[entity.Offset:end]), "@")
+		raw, valid := SliceUTF16(text, entity.Offset, entity.Length)
+		if !valid {
+			continue
+		}
+		_, target, hasSuffix := strings.Cut(raw, "@")
 		if !hasSuffix {
 			// A bare command addresses every bot in the chat.
 			return true
