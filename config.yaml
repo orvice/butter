@@ -154,126 +154,26 @@ langfuse:
 #   # Default: 30m.
 #   max_run_duration: 30m
 
-# Model provider mappings
-# Maps model names to provider backends. If a model isn't listed here, Gemini is used as default.
-model_providers:
-  - name: gemini
-    type: gemini
-    # api_key: ""  # Uses GOOGLE_API_KEY env var by default
-    models:
-      - name: "gemini-2.5-flash"
-        alias: "flash"
-      - name: "gemini-2.5-pro"
-        alias: "pro"
-
-  - name: openai
-    type: openai
-    api_key: ""  # Set via env var or config
-    base_url: "https://api.openai.com/v1"
-    models:
-      - name: "gpt-4o"
-        alias: "4o"
-      - name: "gpt-4o-mini"
-        alias: "4o-mini"
-
-  # Example: Ollama (OpenAI-compatible)
-  # - name: ollama
-  #   type: openai
-  #   base_url: "http://localhost:11434/v1"
-  #   models:
-  #     - name: "qwen3:8b"
-  #       alias: "qwen"
-
-# Shared MCP server definitions
-# Define MCP servers here and reference them by ID in agent configs via mcp_server_ids.
-mcp_server_configs: []
-  # Streamable HTTP transport example
-  # - id: "search-api"
-  #   name: "Search API"
-  #   transport: 2  # MCP_SERVER_TRANSPORT_STREAMABLE_HTTP
-  #   url: "https://mcp.example.com/search"
-  #   headers:
-  #     Authorization: "Bearer YOUR_TOKEN"
-  #   tool_filter: ["web_search", "image_search"]
-
-  # SSE transport example
-  # - id: "sse-tools"
-  #   name: "SSE Tools"
-  #   transport: 3  # MCP_SERVER_TRANSPORT_SSE
-  #   url: "https://mcp.example.com/sse"
-
-# Remote agent definitions (A2A / DAEMON / OPENCODE_HTTP protocols)
-# Define remote agents here and reference them by ID in agent configs via remote_agent_ids.
-remote_agents: []
-  # - id: "summarizer-remote"
-  #   name: "Remote Summarizer"
-  #   url: "https://agents.example.com/summarizer"
-  #   protocol: 1  # REMOTE_AGENT_PROTOCOL_A2A
-
-  # Direct HTTP connection to a running `opencode serve` instance.
-  # Start opencode with: opencode serve --port 4096
-  # - id: "opencode-local"
-  #   name: "OpenCode Local"
-  #   url: "http://127.0.0.1:4096"
-  #   protocol: 3  # REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP
-  #   opencode_agent: "review"                          # optional
-  #   opencode_model: "anthropic/claude-3-5-sonnet"     # optional
-  #   username: "opencode"                              # optional (defaults to "opencode" when password set)
-  #   password: "${OPENCODE_SERVER_PASSWORD}"           # optional
-
-# Cron jobs are managed via API (stored in MongoDB).
-# Use the CronJobService API to create/update/delete cron jobs:
+# Runtime resources are NOT configured here.
+#
+# Agents, Model Providers, MCP Servers, Remote Agents, and Cron Jobs live in the
+# database and are managed through the Dashboard or the RPC services. On startup
+# the config store rebuilds these fields from the persisted state, discarding
+# whatever the YAML held (app.ConfigStore.SyncToConfig), so `agents:`,
+# `model_providers:`, `mcp_server_configs:`, `remote_agents:`, and `channels:`
+# keys here have no effect whatsoever — no reader ever observes them.
+#
+# A fresh installation therefore starts with no Agents and no Model Providers.
+# Create them in the Dashboard, or over RPC:
+#   POST /api/agents.v1.ModelProviderService/CreateModelProvider
+#   POST /api/agents.v1.AgentService/CreateAgent
+#   POST /api/agents.v1.MCPServerService/CreateMCPServer
+#   POST /api/agents.v1.RemoteAgentService/CreateRemoteAgent
 #   POST /api/agents.v1.CronJobService/CreateCronJob
-#   POST /api/agents.v1.CronJobService/ListCronJobs
-#   POST /api/agents.v1.CronJobService/ListCronExecutions
-
-# Agent definitions
-agents:
-  - name: assistant
-    description: "A general-purpose assistant powered by Gemini"
-    type: 1  # AGENT_TYPE_LLM
-    config:
-      model: "flash"  # alias for gemini-2.5-flash
-      instruction: "You are a helpful assistant. Answer questions clearly and concisely."
-      include_contents: 1  # LLM_INCLUDE_CONTENTS_DEFAULT
-      # Reference shared MCP servers by ID:
-      # mcp_server_ids: ["search-api", "sse-tools"]
-      # Mount Agent File spaces by ID:
-      # file_mounts:
-      #   - space_id: "product-docs"
-      #     mount_path: "/docs"
-      #     permission: 1  # AGENT_FILE_MOUNT_PERMISSION_READ
-      # Or define inline MCP servers:
-      # mcp_servers:
-      #   - name: "My MCP Server"
-      #     transport: 2  # MCP_SERVER_TRANSPORT_STREAMABLE_HTTP
-      #     url: "https://mcp.example.com/tools"
-
-  - name: translator
-    description: "Translates text between languages"
-    type: 1  # AGENT_TYPE_LLM
-    config:
-      model: "flash"  # alias for gemini-2.5-flash
-      instruction: |
-        You are a translator. When the user sends text, detect the language
-        and translate it to English if it's not English, or to Chinese if it is English.
-        Only output the translation, no explanation.
-
-  - name: summarizer
-    description: "Summarizes long text into key points"
-    type: 1  # AGENT_TYPE_LLM
-    config:
-      model: "flash"  # alias for gemini-2.5-flash
-      instruction: |
-        You are a summarizer. When the user sends text, extract the key points
-        and return a concise bullet-point summary. Keep it under 5 bullet points.
-
-# Telegram channels are NOT configured here.
 #
-# Bot Tokens, chats, and Forum Topics are managed in the Dashboard under
-# Telegram Channels, and stored encrypted in the database (issue #264). A Bot
-# Token in YAML would sit in plaintext in source control and in every config
-# map that ships it.
-#
-# Legacy `channels:` entries are ignored: nothing starts them. Recreate them
-# as a Telegram Channel plus one Destination per chat or topic.
+# Telegram is a deliberate case rather than an incidental one: Bot Tokens, chats,
+# and Forum Topics are managed under Telegram Channels and stored encrypted in
+# the database (issue #264), because a Bot Token in YAML would sit in plaintext
+# in source control and in every config map that ships it. Legacy `channels:`
+# records are not started either (#273) — recreate them as a Telegram Channel
+# plus one Destination per chat or topic.

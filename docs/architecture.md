@@ -9,7 +9,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 核心能力：
 
 - 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Notify Group / Agent File / Forum / Cron / Automation / API Token / Invocation / Cron Execution / Automation Run 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
-- Agent 配置化：从 YAML 或配置仓库加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel、Workflow agent。
+- Agent 配置化：从配置仓库（MongoDB）加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel、Workflow agent。YAML 不是 Agent 的配置入口。
 - 多入口接入：Gin HTTP、ConnectRPC（同 endpoint 同时支持 Connect/gRPC-Web/gRPC）、Telegram、Discord、Cron、Automation schedule、A2A、daemon connector 与 opencode HTTP server 直连。
 - 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload；`AgentService.ReloadAgents` 公开触发。
 - 多执行面：本地 ADK agent、A2A 远程 agent、daemon 反向连接 agent、opencode HTTP server 直连 agent；A2A、opencode HTTP、MCP 都提供 live probing。
