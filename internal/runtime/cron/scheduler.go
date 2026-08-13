@@ -19,7 +19,6 @@ import (
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/notify"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -38,21 +37,20 @@ var ErrAgentNotInWorkspace = errors.New("cron job agent not found in workspace")
 
 // Scheduler manages cron-based agent execution.
 type Scheduler struct {
-	cron          *robfigcron.Cron
-	runner        runnerService
-	execRepo      ExecutionRepo
-	jobRepo       JobRepo
-	groupRepo     configrepo.NotifyGroupRepository
-	channelRepo   configrepo.ChannelRepository
-	notifier      *notify.Sender
-	channelSender channelSender
+	cron        *robfigcron.Cron
+	runner      runnerService
+	execRepo    ExecutionRepo
+	jobRepo     JobRepo
+	groupRepo   configrepo.NotifyGroupRepository
+	channelRepo configrepo.ChannelRepository
+	notifier    *notify.Sender
 	// telegramSender delivers TELEGRAM_DESTINATION results. Held as the
 	// notify seam so the scheduler does not depend on the Telegram
 	// repository or credential handling.
 	telegramSender notify.TelegramDelivery
-	sessionSvc    sessionDeleter
-	ctx           context.Context
-	cancelFn      context.CancelFunc
+	sessionSvc     sessionDeleter
+	ctx            context.Context
+	cancelFn       context.CancelFunc
 
 	mu       sync.Mutex
 	entryIDs map[string]robfigcron.EntryID // composite "workspace_id:name" -> cron entry ID
@@ -62,10 +60,6 @@ type Scheduler struct {
 type runnerService interface {
 	ResolveAgentRef(workspaceID, agentID string) (string, bool)
 	RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error)
-}
-
-type channelSender interface {
-	Send(ctx context.Context, channel *agentsv1.AgentChannel, chatID, text string) error
 }
 
 // sessionDeleter is the slice of the ADK session.Service the scheduler needs
@@ -224,18 +218,17 @@ func NewScheduler(ctx context.Context, runnerSvc *runner.Service, jobRepo JobRep
 	c := robfigcron.New()
 
 	s := &Scheduler{
-		cron:          c,
-		runner:        runnerSvc,
-		execRepo:      execRepo,
-		jobRepo:       jobRepo,
-		groupRepo:     groupRepo,
-		channelRepo:   channelRepo,
-		notifier:      notify.NewSender(nil),
-		channelSender: channel.NewSender(),
-		ctx:           schedCtx,
-		cancelFn:      cancel,
-		entryIDs:      make(map[string]robfigcron.EntryID),
-		running:       make(map[string]*runningJob),
+		cron:        c,
+		runner:      runnerSvc,
+		execRepo:    execRepo,
+		jobRepo:     jobRepo,
+		groupRepo:   groupRepo,
+		channelRepo: channelRepo,
+		notifier:    notify.NewSender(nil),
+		ctx:         schedCtx,
+		cancelFn:    cancel,
+		entryIDs:    make(map[string]robfigcron.EntryID),
+		running:     make(map[string]*runningJob),
 	}
 
 	// Close the ADR 0003 loop: the scheduler observes every runner turn so a
@@ -868,7 +861,15 @@ func (s *Scheduler) deliver(job *agentsv1.CronJob, exec *agentsv1.CronExecution)
 	case agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_WEBHOOK:
 		s.deliverWebhook(job, exec)
 	case agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_CHANNEL:
-		s.deliverChannel(job, exec)
+		// Legacy channel delivery is not executed after the Telegram cutover
+		// (#273). It is reported, not silently migrated: a generic channel
+		// has no exact address, so guessing a Destination would send results
+		// somewhere nobody chose.
+		log.FromContext(s.ctx).Warn("cron channel delivery is unsupported; result not delivered",
+			"job", job.GetName(), "workspace_id", job.GetWorkspaceId(),
+			"exec_id", exec.GetId(),
+			"action", "switch this job to TELEGRAM_DESTINATION delivery")
+		s.deliverLog(job, exec)
 	case agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_NOTIFY_GROUP:
 		s.deliverNotifyGroup(job, exec)
 	case agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION:
@@ -983,71 +984,6 @@ func (s *Scheduler) deliverWebhook(job *agentsv1.CronJob, exec *agentsv1.CronExe
 		"workspace_id", job.GetWorkspaceId(),
 		"exec_id", exec.GetId(),
 		"status_code", resp.StatusCode,
-	)
-}
-
-func (s *Scheduler) deliverChannel(job *agentsv1.CronJob, exec *agentsv1.CronExecution) {
-	logger := log.FromContext(s.ctx)
-	delivery := job.GetDelivery()
-	if delivery.GetChannelName() == "" || delivery.GetChatId() == "" {
-		logger.Error("channel delivery configured but channel_name or chat_id is empty",
-			"job", job.GetName(),
-			"workspace_id", job.GetWorkspaceId(),
-			"exec_id", exec.GetId(),
-		)
-		return
-	}
-	if s.channelRepo == nil || s.channelSender == nil {
-		logger.Error("channel delivery configured but channel sender is not available",
-			"job", job.GetName(),
-			"workspace_id", job.GetWorkspaceId(),
-			"exec_id", exec.GetId(),
-			"channel", delivery.GetChannelName(),
-		)
-		return
-	}
-
-	ch, err := s.channelRepo.GetChannel(s.ctx, job.GetWorkspaceId(), delivery.GetChannelName())
-	if err != nil {
-		logger.Error("failed to load channel for cron delivery",
-			"job", job.GetName(),
-			"workspace_id", job.GetWorkspaceId(),
-			"exec_id", exec.GetId(),
-			"channel", delivery.GetChannelName(),
-			"err", err,
-		)
-		return
-	}
-	if !ch.GetEnabled() {
-		logger.Info("skipping disabled channel delivery",
-			"job", job.GetName(),
-			"workspace_id", job.GetWorkspaceId(),
-			"exec_id", exec.GetId(),
-			"channel", ch.GetName(),
-		)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(s.ctx, channelDeliveryTimeout)
-	err = s.channelSender.Send(ctx, ch, delivery.GetChatId(), cronDeliveryMessage(exec))
-	cancel()
-	if err != nil {
-		logger.Error("channel delivery failed",
-			"job", job.GetName(),
-			"workspace_id", job.GetWorkspaceId(),
-			"exec_id", exec.GetId(),
-			"channel", ch.GetName(),
-			"chat_id", delivery.GetChatId(),
-			"err", err,
-		)
-		return
-	}
-	logger.Info("channel delivery succeeded",
-		"job", job.GetName(),
-		"workspace_id", job.GetWorkspaceId(),
-		"exec_id", exec.GetId(),
-		"channel", ch.GetName(),
-		"chat_id", delivery.GetChatId(),
 	)
 }
 

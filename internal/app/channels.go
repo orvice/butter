@@ -419,13 +419,13 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		modelNames[i] = m.Alias
 	}
 
-	mgr, err := channel.NewManager(ctx, channelRepo, runnerSvc, rdb, modelNames)
+	// The legacy channel manager starts nothing after the Telegram cutover
+	// (#273); it only reports records that will not run.
+	mgr, err := channel.NewManager(ctx, channelRepo)
 	if err != nil {
 		logger.Error("failed to create channel manager", "err", err)
 		return nil, err
 	}
-
-	logger.Info("starting channel manager in background")
 	go mgr.Start(ctx)
 
 	// Create async coordinator for dashboard background execution.

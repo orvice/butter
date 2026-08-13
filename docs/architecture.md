@@ -304,23 +304,88 @@ Engine 使用 automation definition/run/step-run repositories 按 workspace 写�
 
 恢复走 runner 的 TurnListener（与 cron 相同的机制）：`automation.Engine.HandleTurn` 注册为 turn listener，人通过 `ReplySession`（或任意入口）向该 session 发消息，runner 的隐式 resume 完成 workflow；当某个 automation session 上的 turn 结束且无 pending Interrupt 时，Engine 通过 `RunRepo.ListWaitingBySession` 找到等待中的 run，将其 finalize 为 `SUCCEEDED`，把恢复后的输出写回暂停 step，并清理该 session。删除暂停 session（ADR-0002 的放弃语义）由 `HandleSessionDeleted` 监听，将 run 置为 `CANCELLED`。Automation 没有顶层 delivery/notify 配置，因此 node 的问题仅记录在暂停 step 的输出中。
 
-## Channel 执行流
+## Telegram 执行流（issue #264）
 
-Telegram 和 Discord 都由 `channel.Manager` 管理。Channel manager 从 `ChannelRepository` 加载渠道配置，启动对应平台 poller，并在配置变更时 reload。
+Telegram 由两个资源描述：**Telegram Channel** 是一个 Bot 传输通道，**Telegram
+Destination** 是它下面的一个精确地址（`chat_id` 加可选的
+`message_thread_id`）。Channel 只持有凭据与生命周期，不持有地址；Destination
+持有地址与入站策略，并且是 Cron / Notify Group 唯一引用的对象（ADR-0008）。
 
-典型消息流：
+### 接收：两种传输，一条管道
+
+Webhook 与 Long Polling 是两种**传输**，不是两条管道。两者都进入同一个
+`Router`：同样的地址匹配、同样的策略快照、同样的 Redis Stream、同样的 worker。
 
 ```text
-platform update
-  -> poller checks allowlist/triggers
-  -> derive session id by USER or CHAT scope
-  -> read active agent/model from Redis or channel defaults
-  -> convert text/photo to genai parts
-  -> runner.Run(...)
-  -> send reply/status/debug/clear response
+webhook callback  ─┐
+                   ├─> Router ─> 策略快照 ─> Lua(去重 + XADD) ─> Redis Stream
+getUpdates batch  ─┘                                                  │
+                                                                      v
+                                              consumer group ─> worker ─> Agent ─> 统一发送器
 ```
 
-Redis 保存 dashboard auth sessions，以及用户或会话维度的活跃 agent/model 选择；MongoDB 保存长期 ADK session/memory。
+**Webhook**：`POST /api/telegram/webhook/{channel_id}` 在每个 Pod 上可达，绕过
+workspace 鉴权，先用常量时间比较校验 per-Channel secret，再解析 body。HTTP
+`200` 的含义被严格定义为「事件已持久化进 Redis Stream」——在此之前返回 200
+会让 Telegram 认为已处理，而事件只存在于某个 Pod 的内存里。去重与入队由**一段
+Lua 脚本**原子完成：分成两条命令会让两个 Pod 同时通过 SETNX 检查，或者留下一个
+永远不会被消费的去重标记。
+
+**Long Polling**：由 Redis 租约选出每个 Channel 唯一的消费者。offset 是对
+Telegram 的**承诺**而不是游标——带 offset N 的请求即确认 N 以下全部已处理。因此
+offset 只越过「已持久化」或「已明确忽略」的 update；入队失败则停在原地，Telegram
+会重发，`(channel_id, update_id)` 幂等抑制重复。offset 提交由 Lua 脚本按租约
+持有者围栏（fencing）：暂停后苏醒的旧 leader 不能确认新 leader 仍在处理的 update。
+
+Webhook 与 Long Polling 互斥。reconciler 会为 `LONG_POLLING` Channel 删除残留的
+webhook 注册——Telegram 在已注册 webhook 时对 `getUpdates` 返回 409。
+
+### Redis 是基础设施，不是缓存
+
+启用入站要求 Redis 已配置**持久化、足够存储、无驱逐**。Stream 承载的是尚未处理
+的用户消息，被驱逐即等于丢失。这一点在启用前检查（preflight blocker），而不是在
+第一条消息到达时才发现。
+
+### Forum Topic 精确路由
+
+匹配以 `(channel_id, chat_id, message_thread_id)` 精确进行；未配置的地址被忽略
+（`/where` 除外）。**缺省的 thread id 是一个地址，不是通配符**：群的普通会话与
+每个 Topic 是不同的 Destination，拥有各自的 session 与策略。所有出站消息——回复、
+处理中占位、命令回执、debug、分段的后续片段——都带上该 thread id，因此响应不会
+漏到群的 general。
+
+### 会话隔离
+
+session key 为 `tg:{channel}:{destination}:{subject}:{agent}`。四段都有理由：两个
+Topic 不能共享历史；切换 Agent 不能继承另一个 Agent 的上下文（切回则恢复）；
+`USER` 策略下每个用户各自独立。切换 Model 刻意**不**移动 session。
+
+一个派生 session 内的处理由 Redis 租约串行化：同一会话的两条消息并发执行会交错
+写入历史。租约是**按会话**的，不相关的会话保持并行。
+
+### 处理记录与重试边界（ADR-0009）
+
+每条被接受的 update 有一条 Mongo 处理记录，其状态回答唯一一个问题：**Agent 可能
+已经跑过了吗？** 边界之前自动重试；边界之后（`FAILED_UNCERTAIN`）进入死信，等待
+人工判断，绝不自动重跑——Butter 无法保证 Agent 工具的幂等性。
+
+完整回复在投递**之前**持久化，因此投递失败的重试是「发送已有文本」，而不是「重新
+运行 Agent」。记录、输出与分段状态 30 天 TTL 过期。
+
+### 统一出站
+
+所有出站都经过 `internal/telegramsend`，入参是 Destination ID：Cron 投递、Notify
+Group、Dashboard 测试消息、Agent 回复。它统一做 Markdown → MarkdownV2 转换与纯文
+本回退、遵守 Telegram 的 `retry_after`、按 rune 边界分段（优先段落/换行/词边界）、
+把「处理中」占位编辑成第一段。唯一被允许的原始地址出口是
+`Sender.SendRaw`，只服务于传输层的 `/where` 命令。
+
+### 遗留 Channel
+
+`channel.Manager` 不再启动任何传输。它只在启动与 reload 时报告数据库中残留的
+遗留 `AgentChannel` 记录，让运维看见「哪些不会运行」。遗留记录**不会被自动迁移**：
+通用 Channel 只有 chat 白名单而没有精确地址，推断不出应该变成哪个 Destination，
+猜测会把回复发到没人选择的地方。
 
 ## HTTP 与 RPC
 

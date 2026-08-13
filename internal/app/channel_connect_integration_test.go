@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,7 +93,6 @@ func newConnectIntegrationFixture(t *testing.T) *connectIntegrationFixture {
 	handlers.agentSvcServer.SetRuntime(tracker)
 	handlers.mcpSvcServer.SetRuntime(tracker)
 	handlers.remoteSvcServer.SetRuntime(tracker)
-	handlers.channelSvcServer.SetRuntime(tracker)
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -117,94 +117,49 @@ func newConnectIntegrationFixture(t *testing.T) *connectIntegrationFixture {
 	}
 }
 
+// The legacy generic Channel API is read-only after the Telegram cutover
+// (#273): creating one would persist configuration that runs nothing.
 func TestChannelService_ConnectIntegration(t *testing.T) {
 	fx := newConnectIntegrationFixture(t)
-
-	// A channel binds to an agent by agent_id, so seed the agents first.
-	agentClient := agentsv1connect.NewAgentServiceClient(fx.httpClient(), fx.baseURL(), fx.clientOptions()...)
-	for _, id := range []string{"agent-alpha", "agent-beta"} {
-		if _, err := agentClient.CreateAgent(fx.ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
-			Agent: &agentsv1.Agent{Name: id, AgentId: id},
-		})); err != nil {
-			t.Fatalf("seed agent %q: %v", id, err)
-		}
-	}
-
 	client := agentsv1connect.NewChannelServiceClient(fx.httpClient(), fx.baseURL(), fx.clientOptions()...)
 
-	createResp, err := client.CreateChannel(fx.ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
+	_, err := client.CreateChannel(fx.ctx, connect.NewRequest(&agentsv1.CreateChannelRequest{
 		Channel: &agentsv1.AgentChannel{
 			Name:     "telegram-main",
-			AgentId:  "agent-alpha",
 			Platform: agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
 			Enabled:  true,
-			Telegram: &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
 		},
 	}))
-	if err != nil {
-		t.Fatalf("create channel: %v", err)
+	if connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("create: code = %v, want Unimplemented", connect.CodeOf(err))
 	}
-	if createResp.Msg.GetChannel().GetName() != "telegram-main" {
-		t.Fatalf("expected created channel telegram-main, got %q", createResp.Msg.GetChannel().GetName())
-	}
-	if fx.tracker.channelReloads != 1 {
-		t.Fatalf("expected 1 channel reload, got %d", fx.tracker.channelReloads)
+	if !strings.Contains(err.Error(), "Telegram") {
+		t.Errorf("error should point at the telegram replacement, got %q", err.Error())
 	}
 
-	updateResp, err := client.UpdateChannel(fx.ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
-		Channel: &agentsv1.AgentChannel{
-			Name:     "telegram-main",
-			AgentId:  "agent-beta",
-			Platform: agentsv1.AgentChannelPlatform_AGENT_CHANNEL_PLATFORM_TELEGRAM,
-			Enabled:  true,
-			Telegram: &agentsv1.TelegramChannelConfig{BotToken: "123456:integration-token"},
-		},
+	_, err = client.UpdateChannel(fx.ctx, connect.NewRequest(&agentsv1.UpdateChannelRequest{
+		Channel: &agentsv1.AgentChannel{Name: "telegram-main"},
 	}))
-	if err != nil {
-		t.Fatalf("update channel: %v", err)
-	}
-	if updateResp.Msg.GetChannel().GetAgentName() != "agent-beta" {
-		t.Fatalf("expected updated agent-beta, got %q", updateResp.Msg.GetChannel().GetAgentName())
-	}
-	if fx.tracker.channelReloads != 2 {
-		t.Fatalf("expected 2 channel reloads, got %d", fx.tracker.channelReloads)
+	if connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("update: code = %v, want Unimplemented", connect.CodeOf(err))
 	}
 
-	getResp, err := client.GetChannel(fx.ctx, connect.NewRequest(&agentsv1.GetChannelRequest{Name: "telegram-main"}))
-	if err != nil {
-		t.Fatalf("get channel: %v", err)
-	}
-	if getResp.Msg.GetChannel().GetAgentName() != "agent-beta" {
-		t.Fatalf("expected persisted agent-beta, got %q", getResp.Msg.GetChannel().GetAgentName())
-	}
-
+	// Nothing was persisted, and no runtime reload was triggered.
 	repo := configmongo.New(fx.db)
 	channels, err := repo.ListChannels(fx.ctx, "ws-test")
 	if err != nil {
 		t.Fatalf("list persisted channels: %v", err)
 	}
-	if len(channels) != 1 || channels[0].GetAgentName() != "agent-beta" {
-		t.Fatalf("expected persisted updated channel, got %+v", channels)
-	}
-
-	if _, err := client.DeleteChannel(fx.ctx, connect.NewRequest(&agentsv1.DeleteChannelRequest{Name: "telegram-main"})); err != nil {
-		t.Fatalf("delete channel: %v", err)
-	}
-	if fx.tracker.channelReloads != 3 {
-		t.Fatalf("expected 3 channel reloads, got %d", fx.tracker.channelReloads)
-	}
-
-	_, err = client.GetChannel(fx.ctx, connect.NewRequest(&agentsv1.GetChannelRequest{Name: "telegram-main"}))
-	if cerr, ok := err.(*connect.Error); !ok || cerr.Code() != connect.CodeNotFound {
-		t.Fatalf("expected NotFound after delete, got %v", err)
-	}
-
-	channels, err = repo.ListChannels(fx.ctx, "ws-test")
-	if err != nil {
-		t.Fatalf("list channels after delete: %v", err)
-	}
 	if len(channels) != 0 {
-		t.Fatalf("expected 0 persisted channels after delete, got %d", len(channels))
+		t.Fatalf("a refused create persisted %d channels", len(channels))
+	}
+	if fx.tracker.channelReloads != 0 {
+		t.Fatalf("a refused mutation triggered %d reloads", fx.tracker.channelReloads)
+	}
+
+	// Reads still work so an operator can find and clean up legacy records.
+	if _, err := client.ListChannels(fx.ctx, connect.NewRequest(&agentsv1.ListChannelsRequest{})); err != nil {
+		t.Fatalf("list channels: %v", err)
 	}
 }
 

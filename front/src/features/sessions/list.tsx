@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import { useChannels } from '@/api/channels'
+import { useTelegramDestinations } from '@/api/telegram'
 import { useSessions, useDeleteSession } from '@/api/sessions'
 import { sessionDetailSearch } from '@/lib/session-paths'
 import { DataTable, type Column } from '@/components/data-table'
@@ -38,8 +38,8 @@ export function SessionListPage() {
   const [pageIndex, setPageIndex] = useState(0)
   const PAGE_SIZE = 20
 
-  const { data: channels } = useChannels()
-  const channelNames = (channels?.channels ?? []).map((c) => c.name)
+  const { data: destinations } = useTelegramDestinations()
+  const channelNames = (destinations ?? []).map((d) => d.key)
 
   const params = {
     app_name: filters.app_name === '__all__' ? '' : filters.app_name || undefined,

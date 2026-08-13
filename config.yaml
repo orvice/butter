@@ -268,27 +268,12 @@ agents:
         You are a summarizer. When the user sends text, extract the key points
         and return a concise bullet-point summary. Keep it under 5 bullet points.
 
-# Channel bindings
-channels:
-  - name: my-telegram-bot
-    agent_name: assistant  # default agent for this channel
-    platform: 1  # AGENT_CHANNEL_PLATFORM_TELEGRAM
-    enabled: true
-    # model: "pro"  # optional: override agent's model (by alias or name)
-
-    triggers:
-      - type: 1  # AGENT_TRIGGER_TYPE_MESSAGE (all text messages)
-      - type: 4  # AGENT_TRIGGER_TYPE_PRIVATE_CHAT
-
-    delivery:
-      reply_mode: 1  # AGENT_REPLY_MODE_REPLY
-      send_typing: true
-
-    session:
-      scope: 2  # AGENT_SESSION_SCOPE_CHAT
-
-    telegram:
-      bot_token: "YOUR_BOT_TOKEN_HERE"
-      # Restrict to specific chats/users (empty = allow all)
-      allowed_chat_ids: []
-      allowed_user_ids: []
+# Telegram channels are NOT configured here.
+#
+# Bot Tokens, chats, and Forum Topics are managed in the Dashboard under
+# Telegram Channels, and stored encrypted in the database (issue #264). A Bot
+# Token in YAML would sit in plaintext in source control and in every config
+# map that ships it.
+#
+# Legacy `channels:` entries are ignored: nothing starts them. Recreate them
+# as a Telegram Channel plus one Destination per chat or topic.

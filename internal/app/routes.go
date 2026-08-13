@@ -339,10 +339,6 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.mcpSvcServer.SetRuntime(h.configRuntime)
 		h.modelProviderSvcServer.SetRuntime(h.configRuntime)
 		h.remoteSvcServer.SetRuntime(h.configRuntime)
-		h.channelSvcServer.SetRuntime(h.configRuntime)
-	}
-	if result.ChannelMgr != nil {
-		h.channelSvcServer.SetChannelManager(result.ChannelMgr)
 	}
 	if result.APITokenRepo != nil {
 		h.apiTokenRepo.Store(result.APITokenRepo)

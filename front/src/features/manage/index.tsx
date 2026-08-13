@@ -22,7 +22,6 @@ import {
   Moon,
   Palette,
   Plug,
-  Radio,
   Satellite,
   Send,
   Server,
@@ -117,13 +116,6 @@ const CONNECTION_SECTIONS: ManageSection[] = [
           'Inspect processing history and resend replies that never landed.',
         to: '/telegram-updates',
         icon: ListTree,
-      },
-      {
-        title: 'Channels',
-        description:
-          'Connect Telegram, Discord, and other conversation channels.',
-        to: '/channels',
-        icon: Radio,
       },
       {
         title: 'Notify Groups',
