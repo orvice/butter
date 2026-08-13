@@ -8,15 +8,23 @@ import (
 )
 
 type AppConfig struct {
-	Agents           []agentsv1.Agent         `yaml:"agents"`
-	Channels         []agentsv1.AgentChannel  `yaml:"channels"`
-	ModelProviders   []agentsv1.ModelProvider `yaml:"model_providers"`
-	MCPServerConfigs []agentsv1.MCPServer     `yaml:"mcp_server_configs"`
-	RemoteAgents     []agentsv1.RemoteAgent   `yaml:"remote_agents"`
-	APIToken         string                   `yaml:"apiToken"`
-	Auth             AuthConfig               `yaml:"auth"`
-	SystemAgentModel string                   `yaml:"system_agent_model"`
-	ChatTitleModel   string                   `yaml:"chat_title_model"`
+	// Agents, Channels, ModelProviders, MCPServerConfigs, and RemoteAgents are
+	// NOT configuration inputs — they are the flattened runtime snapshot of the
+	// persisted configs, rebuilt from the config store on every reload (see
+	// app.ConfigStore.SyncToConfig). Anything YAML supplied here would be
+	// discarded before the first reader sees it, so the fields are explicitly
+	// excluded from unmarshalling. These resources are managed through the
+	// Dashboard / RPC services and live in the database.
+	Agents           []agentsv1.Agent         `yaml:"-"`
+	Channels         []agentsv1.AgentChannel  `yaml:"-"`
+	ModelProviders   []agentsv1.ModelProvider `yaml:"-"`
+	MCPServerConfigs []agentsv1.MCPServer     `yaml:"-"`
+	RemoteAgents     []agentsv1.RemoteAgent   `yaml:"-"`
+
+	APIToken         string     `yaml:"apiToken"`
+	Auth             AuthConfig `yaml:"auth"`
+	SystemAgentModel string     `yaml:"system_agent_model"`
+	ChatTitleModel   string     `yaml:"chat_title_model"`
 
 	Langfuse langfuse.Config `yaml:"langfuse"`
 
