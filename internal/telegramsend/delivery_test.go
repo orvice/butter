@@ -20,11 +20,10 @@ func TestShortTextIsOneSegment(t *testing.T) {
 	}
 }
 
-// Every cut must land on a rune boundary: half a multi-byte character is
-// bytes Telegram rejects outright, turning a long reply into no reply.
-func TestSplittingIsUTF8Safe(t *testing.T) {
-	// Emoji are 4 bytes each, so a byte-based cut would split one.
-	text := strings.Repeat("🙂", MaxSegmentRunes*2)
+// Telegram counts UTF-16 code units, where an emoji consumes two units. Every
+// cut must also preserve valid UTF-8.
+func TestSplittingRespectsTelegramUTF16Limit(t *testing.T) {
+	text := strings.Repeat("🙂", MaxSegmentUTF16Units)
 
 	segments := SplitMessage(text)
 	if len(segments) < 2 {
@@ -34,9 +33,8 @@ func TestSplittingIsUTF8Safe(t *testing.T) {
 		if !utf8.ValidString(segment) {
 			t.Fatalf("segment %d is not valid UTF-8", i)
 		}
-		if utf8.RuneCountInString(segment) > MaxSegmentRunes {
-			t.Fatalf("segment %d has %d runes, over the limit",
-				i, utf8.RuneCountInString(segment))
+		if units := telegramapi.UTF16Len(segment); units > MaxSegmentUTF16Units {
+			t.Fatalf("segment %d has %d UTF-16 units, over the limit", i, units)
 		}
 	}
 	if joined := strings.Join(segments, ""); joined != text {
@@ -63,7 +61,7 @@ func TestSplittingPrefersParagraphBoundaries(t *testing.T) {
 
 // One unbroken token longer than a whole message still has to be delivered.
 func TestUnbreakableTokenIsHardCut(t *testing.T) {
-	text := strings.Repeat("x", MaxSegmentRunes+500)
+	text := strings.Repeat("x", MaxSegmentUTF16Units+500)
 
 	segments := SplitMessage(text)
 	if len(segments) != 2 {

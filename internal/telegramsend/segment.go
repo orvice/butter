@@ -2,13 +2,14 @@ package telegramsend
 
 import (
 	"strings"
-	"unicode/utf8"
+
+	"go.orx.me/apps/butter/internal/telegramapi"
 )
 
-// MaxSegmentRunes is the per-message budget. Telegram's hard limit is 4096
-// units for `text`; the margin absorbs the MarkdownV2 escaping the converter
-// adds, which can only ever grow the string.
-const MaxSegmentRunes = 3800
+// MaxSegmentUTF16Units is the per-message budget. Telegram counts UTF-16 code
+// units for its 4096-unit text limit; the margin absorbs the MarkdownV2
+// escaping the converter adds, which can only ever grow the string.
+const MaxSegmentUTF16Units = 3800
 
 // SplitMessage breaks text into ordered segments that each fit one Telegram
 // message.
@@ -29,14 +30,14 @@ func SplitMessage(text string) []string {
 		return nil
 	}
 	trimmed := strings.TrimRight(text, "\n")
-	if utf8.RuneCountInString(trimmed) <= MaxSegmentRunes {
+	if telegramapi.UTF16Len(trimmed) <= MaxSegmentUTF16Units {
 		return []string{trimmed}
 	}
 
 	var segments []string
 	remaining := trimmed
-	for utf8.RuneCountInString(remaining) > MaxSegmentRunes {
-		head, tail := splitOnce(remaining, MaxSegmentRunes)
+	for telegramapi.UTF16Len(remaining) > MaxSegmentUTF16Units {
+		head, tail := splitOnce(remaining, MaxSegmentUTF16Units)
 		segments = append(segments, head)
 		remaining = tail
 	}
@@ -46,11 +47,10 @@ func SplitMessage(text string) []string {
 	return segments
 }
 
-// splitOnce takes at most limit runes off the front, preferring a natural
-// boundary.
+// splitOnce takes at most limit UTF-16 units off the front, preferring a
+// natural boundary.
 func splitOnce(text string, limit int) (head, tail string) {
-	runes := []rune(text)
-	window := string(runes[:limit])
+	window, remainder := telegramapi.SplitUTF16(text, limit)
 
 	for _, separator := range []string{"\n\n", "\n", " "} {
 		if at := strings.LastIndex(window, separator); at > 0 {
@@ -58,7 +58,7 @@ func splitOnce(text string, limit int) (head, tail string) {
 				strings.TrimLeft(text[at+len(separator):], "\n ")
 		}
 	}
-	// One unbroken token longer than a whole message: cut on the rune
-	// boundary rather than dropping it.
-	return window, string(runes[limit:])
+	// One unbroken token longer than a whole message: cut on a Unicode code
+	// point boundary rather than dropping it.
+	return window, remainder
 }
