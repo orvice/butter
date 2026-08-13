@@ -5,9 +5,11 @@ package telegram
 // nothing.
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"go.orx.me/apps/butter/internal/repo/telegramprocessing"
@@ -376,5 +378,72 @@ func TestCallbacksWaitForTheSessionLease(t *testing.T) {
 	}
 	if len(fx.bots.Sent()) != 0 {
 		t.Fatal("callback ran while another interaction held the session lease")
+	}
+}
+
+type pausingSessionGuard struct {
+	inner   *MemorySessionGuard
+	target  string
+	entered chan struct{}
+	resume  chan struct{}
+	once    sync.Once
+}
+
+func (g *pausingSessionGuard) Acquire(ctx context.Context, sessionID string) (context.Context, func(), bool, error) {
+	if sessionID == g.target {
+		g.once.Do(func() {
+			close(g.entered)
+			select {
+			case <-g.resume:
+			case <-ctx.Done():
+			}
+		})
+	}
+	return g.inner.Acquire(ctx, sessionID)
+}
+
+func TestAgentSwitchCannotOvertakePreferenceResolution(t *testing.T) {
+	fx := newSelectionFixture(t, nil)
+	guard := &pausingSessionGuard{
+		inner:   NewMemorySessionGuard(),
+		target:  SessionID("ch-1", fx.dest.GetId(), "d"+fx.dest.GetId(), "support"),
+		entered: make(chan struct{}),
+		resume:  make(chan struct{}),
+	}
+	fx.orchestrator.SetSessionGuard(guard)
+
+	messageDone := make(chan error, 1)
+	go func() {
+		messageDone <- fx.orchestrator.Handle(t.Context(),
+			fx.eventForStored(message(realUser, "before switch", "")))
+	}()
+	<-guard.entered
+
+	switchEvent := fx.eventForStored(command(realUser, "/agent research"))
+	if err := fx.orchestrator.Handle(t.Context(), switchEvent); !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("switch overtook preference resolution: err = %v", err)
+	}
+	stored, _ := fx.prefs.Get(t.Context(), PreferenceKey(fx.dest.GetId(), "d"+fx.dest.GetId()))
+	if stored.AgentID != "" {
+		t.Fatalf("busy switch changed the preference to %q", stored.AgentID)
+	}
+
+	close(guard.resume)
+	if err := <-messageDone; err != nil {
+		t.Fatalf("message before switch: %v", err)
+	}
+	if len(fx.agents.calls) != 1 || fx.agents.calls[0].agentName != "Support Agent" {
+		t.Fatalf("calls before switch = %+v", fx.agents.calls)
+	}
+
+	if err := fx.orchestrator.Handle(t.Context(), switchEvent); err != nil {
+		t.Fatalf("switch after prior turn: %v", err)
+	}
+	if err := fx.orchestrator.Handle(t.Context(),
+		fx.eventForStored(message(realUser, "after switch", ""))); err != nil {
+		t.Fatalf("message after switch: %v", err)
+	}
+	if len(fx.agents.calls) != 2 || fx.agents.calls[1].agentName != "Research Agent" {
+		t.Fatalf("calls after switch = %+v", fx.agents.calls)
 	}
 }

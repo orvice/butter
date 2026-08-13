@@ -390,3 +390,10 @@ func sessionSubject(policy agentsv1.TelegramSessionPolicy, destinationID, userID
 func SessionID(channelID, destinationID, subject, agentID string) string {
 	return fmt.Sprintf("tg:%s:%s:%s:%s", channelID, destinationID, subject, agentID)
 }
+
+// RoutingLeaseID serializes preference resolution for one session subject.
+// It is separate from the Agent session lease because changing Agent changes
+// the session ID itself; the short routing lease closes that handoff window.
+func RoutingLeaseID(channelID, destinationID, subject string) string {
+	return fmt.Sprintf("tg-routing:%s:%s:%s", channelID, destinationID, subject)
+}

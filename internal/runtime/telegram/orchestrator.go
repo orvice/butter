@@ -122,27 +122,56 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		return err
 	}
 
-	// Load the stored selection before deciding, so the effective Agent — and
-	// therefore the session — reflects what a controller last chose.
+	// Admission, trigger, and the accepted session subject do not depend on a
+	// stored Agent/Model selection. Resolve them first so ignored updates never
+	// contend on a session lease.
+	decision := DecideInteraction(event, dest, channel.GetBotUsername(), Preferences{})
+	if decision.Ignore != IgnoreNone {
+		logger.Debug("telegram update produced no interaction", "reason", string(decision.Ignore))
+		return nil
+	}
+
+	// Preference resolution needs its own short lease because changing Agent
+	// changes the final session ID. Without this handoff lease, a message could
+	// read the old preference, pause, let /agent complete, and then run the old
+	// Agent after the switch had already been acknowledged.
+	routingCtx := ctx
+	releaseRouting := func() {}
+	if o.sessions != nil {
+		leaseCtx, release, ok, leaseErr := o.sessions.Acquire(ctx,
+			RoutingLeaseID(event.ChannelID, dest.GetId(), decision.SessionSubject))
+		if leaseErr != nil {
+			return leaseErr
+		}
+		if !ok {
+			logger.Debug("telegram session routing is busy; deferring",
+				"session_subject", decision.SessionSubject)
+			return ErrSessionBusy
+		}
+		routingCtx = leaseCtx
+		releaseRouting = release
+		defer releaseRouting()
+	}
+
+	// Load the stored selection while routing is serialized, so the effective
+	// Agent and the final session lease are one coherent decision.
 	stored := Preferences{}
 	if o.prefs != nil {
-		acceptedConfig := acceptedPolicyConfig(event.Policy, dest.GetConfig())
-		subject := sessionSubject(acceptedConfig.GetSessionPolicy(), dest.GetId(), senderOf(event))
-		if loaded, prefErr := o.prefs.Get(ctx, PreferenceKey(dest.GetId(), subject)); prefErr != nil {
+		if loaded, prefErr := o.prefs.Get(routingCtx, decision.PreferenceKey); prefErr != nil {
 			logger.Warn("could not read telegram preferences", "err", prefErr)
 		} else {
 			stored = loaded
 		}
 	}
 
-	decision := DecideInteraction(event, dest, channel.GetBotUsername(), stored)
+	decision = DecideInteraction(event, dest, channel.GetBotUsername(), stored)
 	if decision.Ignore != IgnoreNone {
 		logger.Debug("telegram update produced no interaction", "reason", string(decision.Ignore))
 		return nil
 	}
 
 	// Claiming derives the only safe recovery action from persisted state.
-	record, action, leaseToken, err := o.claimRecord(ctx, event)
+	record, action, leaseToken, err := o.claimRecord(routingCtx, event)
 	if err != nil {
 		return err
 	}
@@ -196,15 +225,35 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		ctx = leaseCtx
 	}
 	if decision.CallbackData != "" {
+		ctx, stop := contextWithPeerCancellation(ctx, routingCtx)
+		defer stop()
 		err := o.handleCallback(ctx, event, dest, decision)
 		return o.finishNonAgent(ctx, record, leaseToken, err)
 	}
 	if decision.Command != "" {
+		ctx, stop := contextWithPeerCancellation(ctx, routingCtx)
+		defer stop()
 		err := o.handleCommand(ctx, event, dest, decision)
 		return o.finishNonAgent(ctx, record, leaseToken, err)
 	}
 
+	if err := routingCtx.Err(); err != nil {
+		return err
+	}
+	// The final Agent session lease now fences the resolved preference. Release
+	// the short routing lease so a different Agent session can proceed in
+	// parallel while this turn runs.
+	releaseRouting()
 	return o.runAgent(ctx, event, dest, decision, record, leaseToken)
+}
+
+func contextWithPeerCancellation(ctx, peer context.Context) (context.Context, func()) {
+	merged, cancel := context.WithCancel(ctx)
+	stopPeer := context.AfterFunc(peer, cancel)
+	return merged, func() {
+		stopPeer()
+		cancel()
+	}
 }
 
 // handleCommand answers a management command.
@@ -546,22 +595,6 @@ func listChoices(kind string, choices []string, current, fallback string) string
 	}
 	fmt.Fprintf(&b, "\nUse /%s <name> to switch, or /%s reset.", kind, kind)
 	return b.String()
-}
-
-// senderOf extracts the Telegram sender from a queued update so preferences
-// can be read before the full decision is made.
-func senderOf(event *telegramqueue.Event) string {
-	update, err := telegramapi.ParseUpdate(event.Update)
-	if err != nil {
-		return ""
-	}
-	if update.CallbackQuery != nil && update.CallbackQuery.From != nil {
-		return telegramapi.FormatID(update.CallbackQuery.From.ID)
-	}
-	if msg, ok := update.RoutableMessage(); ok && msg.From != nil {
-		return telegramapi.FormatID(msg.From.ID)
-	}
-	return ""
 }
 
 // --- Media and segmented delivery -------------------------------------------
