@@ -180,12 +180,23 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 		interaction.Text = strings.TrimSpace(text)
 	}
 
-	// A stored selection only applies while current configuration still
-	// allows it; anything else falls back to the Destination default.
-	effective := ResolveEffective(config, stored)
+	// A stored selection must be allowed by both the accepted snapshot and the
+	// current configuration. The snapshot prevents later additions from
+	// changing queued work; the current check makes removals immediate.
+	acceptedStored := stored
+	if stored.AgentID != "" && stored.AgentID != currentConfig.GetAgentId() &&
+		!agentSelectable(currentConfig, stored.AgentID) {
+		acceptedStored.AgentID = ""
+	}
+	if stored.Model != "" && stored.Model != currentConfig.GetModel() &&
+		!modelSelectable(currentConfig, stored.Model) {
+		acceptedStored.Model = ""
+	}
+	effective := ResolveEffective(config, acceptedStored)
 	interaction.AgentID = effective.AgentID
 	interaction.Model = effective.Model
-	interaction.StaleSelection = effective.StaleAgent || effective.StaleModel
+	interaction.StaleSelection = effective.StaleAgent || effective.StaleModel ||
+		acceptedStored.AgentID != stored.AgentID || acceptedStored.Model != stored.Model
 	interaction.SessionSubject = sessionSubject(config.GetSessionPolicy(), dest.GetId(), userID)
 	interaction.SessionID = SessionID(dest.GetChannelId(), dest.GetId(),
 		interaction.SessionSubject, interaction.AgentID)

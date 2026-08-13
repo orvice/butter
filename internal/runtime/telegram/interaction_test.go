@@ -92,7 +92,7 @@ func TestInteractionUsesTheAcceptedPolicySnapshot(t *testing.T) {
 		config.SessionPolicy = agentsv1.TelegramSessionPolicy_TELEGRAM_SESSION_POLICY_USER
 		config.ReplyMode = agentsv1.TelegramReplyMode_TELEGRAM_REPLY_MODE_NEW_MESSAGE
 	})
-	decision := DecideInteraction(event, current, botUsername)
+	decision := DecideInteraction(event, current, botUsername, Preferences{})
 
 	if decision.Ignore != IgnoreNone {
 		t.Fatalf("accepted ALL policy was replaced by current policy: %s", decision.Ignore)
@@ -116,8 +116,24 @@ func TestInteractionHonorsCurrentAdmissionRevocation(t *testing.T) {
 		config.AllowedUserIds = []string{"10"}
 	})
 
-	if got := DecideInteraction(event, current, botUsername); got.Ignore != IgnoreNotAdmitted {
+	if got := DecideInteraction(event, current, botUsername, Preferences{}); got.Ignore != IgnoreNotAdmitted {
 		t.Fatalf("ignore = %q, want current revocation to win", got.Ignore)
+	}
+}
+
+func TestInteractionHonorsCurrentCandidateRevocation(t *testing.T) {
+	accepted := destination(func(config *agentsv1.TelegramDestinationConfig) {
+		config.SelectableAgentIds = []string{"support", "research"}
+	})
+	event := eventFor(message(realUser, "hello", ""))
+	event.Policy = snapshotPolicy(accepted.GetConfig())
+	current := destination(func(config *agentsv1.TelegramDestinationConfig) {
+		config.SelectableAgentIds = []string{"support"}
+	})
+
+	got := DecideInteraction(event, current, botUsername, Preferences{AgentID: "research"})
+	if got.AgentID != "support" || !got.StaleSelection {
+		t.Fatalf("agent = %q stale = %v, want revoked selection to fall back", got.AgentID, got.StaleSelection)
 	}
 }
 
