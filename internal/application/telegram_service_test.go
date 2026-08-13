@@ -7,6 +7,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -43,11 +44,11 @@ type telegramFixture struct {
 // stubQueueProbe stands in for the Redis Streams queue in service tests.
 type stubQueueProbe struct {
 	available bool
-	pingErr   error
+	readyErr  error
 }
 
-func (q *stubQueueProbe) Available() bool            { return q.available }
-func (q *stubQueueProbe) Ping(context.Context) error { return q.pingErr }
+func (q *stubQueueProbe) Available() bool                  { return q.available }
+func (q *stubQueueProbe) CheckReady(context.Context) error { return q.readyErr }
 
 func newTelegramFixture(t *testing.T) *telegramFixture {
 	t.Helper()
@@ -430,6 +431,31 @@ func TestEnableOutboundOnlyNeedsNoInboundDestination(t *testing.T) {
 			ChannelId: created.GetId(), Revision: 1, InboundEnabled: false, OutboundEnabled: true,
 		})); err != nil {
 		t.Fatalf("enable outbound only: %v", err)
+	}
+}
+
+func TestEnableInboundRequiresDurableRedis(t *testing.T) {
+	fx := newTelegramFixture(t)
+	created := fx.createChannel(t, "main", mainBotToken)
+	fx.createDestination(t, &agentsv1.TelegramDestination{
+		Key:             "ops",
+		ChannelId:       created.GetId(),
+		ChatId:          "-1001234567890",
+		InboundEnabled:  true,
+		OutboundEnabled: true,
+		Config:          &agentsv1.TelegramDestinationConfig{AgentId: "support"},
+	})
+	fx.queue.readyErr = errors.New("maxmemory-policy must be noeviction")
+
+	_, err := fx.channels.SetTelegramChannelEnabled(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.SetTelegramChannelEnabledRequest{
+			ChannelId: created.GetId(), Revision: 1, InboundEnabled: true, OutboundEnabled: true,
+		}))
+	if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
+		t.Fatalf("code = %v, want FailedPrecondition", code)
+	}
+	if !strings.Contains(err.Error(), "maxmemory-policy must be noeviction") {
+		t.Fatalf("err = %v, want the durability blocker", err)
 	}
 }
 

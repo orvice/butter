@@ -53,7 +53,7 @@ type TelegramChannelServiceServer struct {
 // QueueProbe reports whether the durable update queue is usable.
 type QueueProbe interface {
 	Available() bool
-	Ping(ctx context.Context) error
+	CheckReady(ctx context.Context) error
 }
 
 // WebhookStatusSource exposes the reconciler's last observation for a Channel.
@@ -518,8 +518,8 @@ func (s *TelegramChannelServiceServer) evaluate(ctx context.Context, workspaceID
 		if s.queue == nil || !s.queue.Available() {
 			blockers = append(blockers,
 				"redis is not configured as a durable update queue, which webhook mode requires")
-		} else if pingErr := s.queue.Ping(ctx); pingErr != nil {
-			blockers = append(blockers, "the update queue is unreachable")
+		} else if readyErr := s.queue.CheckReady(ctx); readyErr != nil {
+			blockers = append(blockers, "the update queue is not durable: "+readyErr.Error())
 		}
 	}
 	if inbound {

@@ -24,10 +24,6 @@ const (
 	// dedupeTTL bounds how long a duplicate is recognized. Telegram retries
 	// an undelivered update for far less than this.
 	dedupeTTL = 24 * time.Hour
-	// maxStreamLen caps the stream so a stalled worker fleet degrades into
-	// dropped *oldest* work rather than unbounded memory growth. Trimming is
-	// approximate, which is what makes it cheap.
-	maxStreamLen = 100_000
 )
 
 // ErrDuplicate reports that this (channel, update) pair was already accepted.
@@ -45,7 +41,7 @@ local seen = redis.call('SET', KEYS[1], '1', 'NX', 'PX', ARGV[1])
 if not seen then
   return nil
 end
-return redis.call('XADD', KEYS[2], 'MAXLEN', '~', ARGV[2], '*', 'event', ARGV[3])
+return redis.call('XADD', KEYS[2], '*', 'event', ARGV[2])
 `)
 
 // Queue is the Redis Streams implementation of the receive hand-off.
@@ -83,7 +79,7 @@ func (q *Queue) Accept(ctx context.Context, event *Event) (string, error) {
 
 	result, err := acceptScript.Run(ctx, q.rdb,
 		[]string{dedupeKey, StreamKey},
-		dedupeTTL.Milliseconds(), maxStreamLen, payload,
+		dedupeTTL.Milliseconds(), payload,
 	).Result()
 	if errors.Is(err, redis.Nil) {
 		return "", ErrDuplicate
@@ -215,10 +211,37 @@ func (q *Queue) Claim(ctx context.Context, consumer string, minIdle time.Duratio
 	return out, nil
 }
 
-// Ping reports whether the queue is reachable.
-func (q *Queue) Ping(ctx context.Context) error {
+// CheckReady verifies that Redis can be used as a durable queue. Reachability
+// alone is insufficient: evicting or non-persistent Redis can acknowledge a
+// Telegram update and then discard the only authoritative copy.
+func (q *Queue) CheckReady(ctx context.Context) error {
 	if !q.Available() {
 		return errors.New("telegram queue is not configured")
 	}
-	return q.rdb.Ping(ctx).Err()
+	if err := q.rdb.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("redis is unreachable: %w", err)
+	}
+	policy, err := q.rdb.ConfigGet(ctx, "maxmemory-policy").Result()
+	if err != nil {
+		return fmt.Errorf("read maxmemory-policy: %w", err)
+	}
+	persistence, err := q.rdb.ConfigGet(ctx, "appendonly").Result()
+	if err != nil {
+		return fmt.Errorf("read appendonly: %w", err)
+	}
+	snapshot, err := q.rdb.ConfigGet(ctx, "save").Result()
+	if err != nil {
+		return fmt.Errorf("read save schedule: %w", err)
+	}
+	return validateDurabilityConfig(policy, persistence, snapshot)
+}
+
+func validateDurabilityConfig(policy, persistence, snapshot map[string]string) error {
+	if policy["maxmemory-policy"] != "noeviction" {
+		return errors.New("maxmemory-policy must be noeviction")
+	}
+	if persistence["appendonly"] == "yes" || strings.TrimSpace(snapshot["save"]) != "" {
+		return nil
+	}
+	return errors.New("Redis persistence is disabled; enable AOF or RDB snapshots")
 }
