@@ -3,6 +3,7 @@ package telegram
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	"go.orx.me/apps/butter/internal/telegramapi"
@@ -113,10 +114,7 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 		return Interaction{Ignore: IgnoreUnsupportedUpdate}
 	}
 
-	text := msg.Text
-	if text == "" {
-		text = msg.Caption
-	}
+	text, entities := messageTextAndEntities(msg)
 	mentioned := mentionsBot(msg, botUsername)
 	if !triggered(config.GetTriggerMode(), mentioned, isCommand, msg) {
 		return Interaction{Ignore: IgnoreNotTriggered}
@@ -124,7 +122,7 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 
 	// Strip our own mention so the Agent receives the intended prompt.
 	// Mentions of other users stay: they are part of what was said.
-	text = strings.TrimSpace(stripBotMention(text, botUsername))
+	text = strings.TrimSpace(stripBotMentions(text, entities, botUsername))
 
 	interaction := Interaction{
 		IsController: isController,
@@ -242,10 +240,7 @@ func mentionsBot(msg *telegramapi.Message_, botUsername string) bool {
 	if botUsername == "" {
 		return false
 	}
-	text, entities := msg.Text, msg.Entities
-	if text == "" {
-		text, entities = msg.Caption, msg.CaptionEntities
-	}
+	text, entities := messageTextAndEntities(msg)
 	for _, entity := range entities {
 		if entity.Type != "mention" {
 			continue
@@ -261,22 +256,55 @@ func mentionsBot(msg *telegramapi.Message_, botUsername string) bool {
 	return false
 }
 
-// stripBotMention removes "@botname" and the whitespace around it.
-func stripBotMention(text, botUsername string) string {
+func messageTextAndEntities(msg *telegramapi.Message_) (string, []telegramapi.MessageEntity) {
+	if msg.Text != "" {
+		return msg.Text, msg.Entities
+	}
+	return msg.Caption, msg.CaptionEntities
+}
+
+// stripBotMentions removes only Telegram entities that exactly name this Bot.
+// Entity offsets are UTF-16 units, while Go string indexes are bytes.
+func stripBotMentions(text string, entities []telegramapi.MessageEntity, botUsername string) string {
 	if botUsername == "" {
 		return text
 	}
-	mention := "@" + botUsername
-	lower := strings.ToLower(text)
-	target := strings.ToLower(mention)
-	for {
-		at := strings.Index(lower, target)
-		if at < 0 {
-			return text
-		}
-		text = text[:at] + " " + text[at+len(mention):]
-		lower = strings.ToLower(text)
+	type byteRange struct {
+		start int
+		end   int
 	}
+	ranges := make([]byteRange, 0, len(entities))
+	seen := make(map[byteRange]struct{}, len(entities))
+	for _, entity := range entities {
+		if entity.Type != "mention" {
+			continue
+		}
+		mention, ok := telegramapi.SliceUTF16(text, entity.Offset, entity.Length)
+		if !ok || !strings.EqualFold(strings.TrimPrefix(mention, "@"), botUsername) {
+			continue
+		}
+		prefix, prefixOK := telegramapi.SliceUTF16(text, 0, entity.Offset)
+		through, throughOK := telegramapi.SliceUTF16(text, 0, entity.Offset+entity.Length)
+		if !prefixOK || !throughOK {
+			continue
+		}
+		span := byteRange{start: len(prefix), end: len(through)}
+		if _, duplicate := seen[span]; duplicate {
+			continue
+		}
+		seen[span] = struct{}{}
+		ranges = append(ranges, span)
+	}
+	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start > ranges[j].start })
+	rightBoundary := len(text)
+	for _, span := range ranges {
+		if span.end > rightBoundary {
+			continue
+		}
+		text = text[:span.start] + text[span.end:]
+		rightBoundary = span.start
+	}
+	return text
 }
 
 // recognizedCommands are the management commands the runtime owns. Anything

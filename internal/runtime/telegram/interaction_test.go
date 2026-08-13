@@ -301,6 +301,37 @@ func TestOurMentionIsStrippedButOthersRemain(t *testing.T) {
 	}
 }
 
+func TestMentionStrippingUsesExactTelegramEntitySpans(t *testing.T) {
+	raw := message(realUser, "🙂 @opsbot2 ping @opsbot",
+		`"entities":[{"type":"mention","offset":3,"length":8},{"type":"mention","offset":17,"length":7}]`)
+
+	decision := DecideInteraction(eventFor(raw), destination(nil), botUsername)
+	if decision.Text != "🙂 @opsbot2 ping" {
+		t.Fatalf("text = %q, want similarly named mention preserved", decision.Text)
+	}
+}
+
+func TestRawMentionTextWithoutEntityIsNotStripped(t *testing.T) {
+	decision := DecideInteraction(
+		eventFor(message(realUser, "quote @opsbot", "")),
+		destination(nil),
+		botUsername,
+	)
+
+	if decision.Text != "quote @opsbot" {
+		t.Fatalf("text = %q, want non-entity text preserved", decision.Text)
+	}
+}
+
+func TestCaptionMentionStrippingUsesUTF16EntityCoordinates(t *testing.T) {
+	raw := message(realUser, "", `"caption":"🙂 @opsbot inspect","caption_entities":[{"type":"mention","offset":3,"length":7}],"photo":[{"file_id":"photo-1","file_unique_id":"unique-1","width":1,"height":1}]`)
+
+	decision := DecideInteraction(eventFor(raw), destination(nil), botUsername)
+	if decision.Text != "🙂  inspect" {
+		t.Fatalf("text = %q, want only the caption mention entity removed", decision.Text)
+	}
+}
+
 // --- Commands --------------------------------------------------------------
 
 func TestUnrecognizedCommandsReachTheAgent(t *testing.T) {
