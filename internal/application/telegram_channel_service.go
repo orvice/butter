@@ -251,11 +251,6 @@ func (s *TelegramChannelServiceServer) ensureWebhookSecret(ctx context.Context, 
 	if channel.GetReceiveMode() != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
 		return nil
 	}
-	if _, err := s.repo.GetWebhookSecret(ctx, workspaceID, channel.GetId()); err == nil {
-		return nil
-	} else if !errors.Is(err, telegramrepo.ErrNoCredential) {
-		return mapTelegramRepoErr(err)
-	}
 
 	secret, err := generateWebhookSecret()
 	if err != nil {
@@ -265,7 +260,7 @@ func (s *TelegramChannelServiceServer) ensureWebhookSecret(ctx context.Context, 
 	if err != nil {
 		return connectx.InternalWith(fmt.Errorf("encrypt webhook secret: %w", err))
 	}
-	if err := s.repo.SetWebhookSecret(ctx, workspaceID, channel.GetId(),
+	if _, err := s.repo.SetWebhookSecretIfAbsent(ctx, workspaceID, channel.GetId(),
 		telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID}); err != nil {
 		return mapTelegramRepoErr(err)
 	}

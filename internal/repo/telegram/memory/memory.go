@@ -227,6 +227,20 @@ func (s *Store) SetWebhookSecret(_ context.Context, workspaceID, id string, cred
 	return nil
 }
 
+func (s *Store) SetWebhookSecretIfAbsent(_ context.Context, workspaceID, id string, cred telegramrepo.Credential) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.channels[id]
+	if !ok || rec.spec.GetWorkspaceId() != workspaceID {
+		return false, channelNotFound(id)
+	}
+	if rec.webhookSecret.Set() {
+		return false, nil
+	}
+	rec.webhookSecret = cred
+	return true, nil
+}
+
 func (s *Store) GetWebhookSecret(_ context.Context, workspaceID, id string) (telegramrepo.Credential, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -101,6 +101,11 @@ type Repository interface {
 	// SetWebhookSecret replaces the per-Channel Telegram secret token used to
 	// authenticate callback requests. An empty ciphertext clears it.
 	SetWebhookSecret(ctx context.Context, workspaceID, id string, cred Credential) error
+	// SetWebhookSecretIfAbsent stores the callback secret only when the Channel
+	// does not already have one. It returns true when this call stored the
+	// credential. Concurrent automatic provisioning must never rotate a secret
+	// that Telegram may already have registered.
+	SetWebhookSecretIfAbsent(ctx context.Context, workspaceID, id string, cred Credential) (bool, error)
 	// GetWebhookSecret returns the stored Webhook secret ciphertext.
 	GetWebhookSecret(ctx context.Context, workspaceID, id string) (Credential, error)
 

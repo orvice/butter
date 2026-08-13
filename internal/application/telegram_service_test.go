@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -407,6 +408,118 @@ func TestStaleWebhookModeSwitchProvisionsSecretWithoutPublishingMode(t *testing.
 	}
 	if _, err := fx.repo.GetWebhookSecret(t.Context(), "ws-a", created.GetId()); err != nil {
 		t.Fatalf("GetWebhookSecret: %v", err)
+	}
+}
+
+type webhookSecretAttempt struct {
+	credential telegramrepo.Credential
+	stored     bool
+}
+
+type synchronizedWebhookSecretRepo struct {
+	telegramrepo.Repository
+
+	arrived chan struct{}
+	release chan struct{}
+
+	mu       sync.Mutex
+	attempts []webhookSecretAttempt
+}
+
+func (r *synchronizedWebhookSecretRepo) SetWebhookSecretIfAbsent(ctx context.Context, workspaceID, id string, credential telegramrepo.Credential) (bool, error) {
+	r.arrived <- struct{}{}
+	select {
+	case <-r.release:
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+	stored, err := r.Repository.SetWebhookSecretIfAbsent(ctx, workspaceID, id, credential)
+	r.mu.Lock()
+	r.attempts = append(r.attempts, webhookSecretAttempt{credential: credential, stored: stored})
+	r.mu.Unlock()
+	return stored, err
+}
+
+func TestConcurrentWebhookModeSwitchCannotRotateProvisionedSecret(t *testing.T) {
+	fx := newTelegramFixture(t)
+	createdResp, err := fx.channels.CreateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.CreateTelegramChannelRequest{
+			Channel: &agentsv1.TelegramChannel{
+				Key:         "main",
+				ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_LONG_POLLING,
+			},
+			BotToken: mainBotToken,
+		}))
+	if err != nil {
+		t.Fatalf("CreateTelegramChannel: %v", err)
+	}
+	created := createdResp.Msg.GetChannel()
+	repo := &synchronizedWebhookSecretRepo{
+		Repository: fx.repo,
+		arrived:    make(chan struct{}, 2),
+		release:    make(chan struct{}),
+	}
+	fx.channels.SetRepo(repo)
+
+	type result struct {
+		response *connect.Response[agentsv1.UpdateTelegramChannelResponse]
+		err      error
+	}
+	results := make(chan result, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			response, err := fx.channels.UpdateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
+				connect.NewRequest(&agentsv1.UpdateTelegramChannelRequest{Channel: &agentsv1.TelegramChannel{
+					Id:          created.GetId(),
+					Revision:    created.GetRevision(),
+					ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK,
+				}}))
+			results <- result{response: response, err: err}
+		}()
+	}
+	<-repo.arrived
+	<-repo.arrived
+	close(repo.release)
+
+	successes, conflicts := 0, 0
+	for i := 0; i < 2; i++ {
+		got := <-results
+		switch {
+		case got.err == nil:
+			successes++
+			if got.response.Msg.GetChannel().GetReceiveMode() != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
+				t.Fatalf("winning mode = %v", got.response.Msg.GetChannel().GetReceiveMode())
+			}
+		case connect.CodeOf(got.err) == connect.CodeAborted:
+			conflicts++
+		default:
+			t.Fatalf("UpdateTelegramChannel: %v", got.err)
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("successes = %d, conflicts = %d", successes, conflicts)
+	}
+
+	repo.mu.Lock()
+	attempts := append([]webhookSecretAttempt(nil), repo.attempts...)
+	repo.mu.Unlock()
+	storedAttempts := 0
+	var first telegramrepo.Credential
+	for _, attempt := range attempts {
+		if attempt.stored {
+			storedAttempts++
+			first = attempt.credential
+		}
+	}
+	if storedAttempts != 1 {
+		t.Fatalf("stored attempts = %d, want 1", storedAttempts)
+	}
+	stored, err := fx.repo.GetWebhookSecret(t.Context(), "ws-a", created.GetId())
+	if err != nil {
+		t.Fatalf("GetWebhookSecret: %v", err)
+	}
+	if stored != first {
+		t.Fatalf("stored secret = %+v, first provisioned = %+v", stored, first)
 	}
 }
 

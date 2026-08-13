@@ -341,6 +341,30 @@ func (s *Store) SetWebhookSecret(ctx context.Context, workspaceID, id string, cr
 	return s.setSecret(ctx, workspaceID, id, "webhook_secret", "webhook_secret_key_id", "", cred)
 }
 
+func (s *Store) SetWebhookSecretIfAbsent(ctx context.Context, workspaceID, id string, cred telegramrepo.Credential) (bool, error) {
+	result, err := s.channels.UpdateOne(ctx, bson.M{
+		"_id":          id,
+		"workspace_id": workspaceID,
+		"$or": bson.A{
+			bson.M{"webhook_secret": ""},
+			bson.M{"webhook_secret": bson.M{"$exists": false}},
+		},
+	}, bson.M{"$set": bson.M{
+		"webhook_secret":        cred.Ciphertext,
+		"webhook_secret_key_id": cred.KeyID,
+	}})
+	if err != nil {
+		return false, fmt.Errorf("set telegram channel %q webhook secret if absent: %w", id, err)
+	}
+	if result.MatchedCount == 1 {
+		return true, nil
+	}
+	if _, err := s.channelDoc(ctx, bson.M{"_id": id, "workspace_id": workspaceID}, id); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
 func (s *Store) GetWebhookSecret(ctx context.Context, workspaceID, id string) (telegramrepo.Credential, error) {
 	doc, err := s.channelDoc(ctx, bson.M{"_id": id, "workspace_id": workspaceID}, id)
 	if err != nil {

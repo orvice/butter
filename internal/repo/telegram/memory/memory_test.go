@@ -70,6 +70,35 @@ func TestCreateChannelStoresWebhookSecretAtomically(t *testing.T) {
 	}
 }
 
+func TestSetWebhookSecretIfAbsentNeverOverwrites(t *testing.T) {
+	store := New()
+	seedChannel(t, store, "ws", "ch-1", "main-bot", "42")
+
+	first := telegramrepo.Credential{Ciphertext: "first", KeyID: "key-1"}
+	stored, err := store.SetWebhookSecretIfAbsent(t.Context(), "ws", "ch-1", first)
+	if err != nil {
+		t.Fatalf("first SetWebhookSecretIfAbsent: %v", err)
+	}
+	if !stored {
+		t.Fatal("first secret was not stored")
+	}
+	stored, err = store.SetWebhookSecretIfAbsent(t.Context(), "ws", "ch-1",
+		telegramrepo.Credential{Ciphertext: "second", KeyID: "key-2"})
+	if err != nil {
+		t.Fatalf("second SetWebhookSecretIfAbsent: %v", err)
+	}
+	if stored {
+		t.Fatal("second secret overwrote the first")
+	}
+	got, err := store.GetWebhookSecret(t.Context(), "ws", "ch-1")
+	if err != nil {
+		t.Fatalf("GetWebhookSecret: %v", err)
+	}
+	if got != first {
+		t.Fatalf("secret = %+v, want %+v", got, first)
+	}
+}
+
 // A Channel read must never carry credential material, and a Channel with no
 // stored token must report MISSING regardless of what the spec said.
 func TestChannelReadsNeverExposeCredentials(t *testing.T) {
