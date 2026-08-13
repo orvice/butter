@@ -3,11 +3,13 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"iter"
 	"strings"
 	"time"
 
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/workflowagent"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/workflow"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -181,7 +183,7 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent, pool AgentPoo
 				// The engine's parallel-worker mechanism is a wrapper node;
 				// retry/timeout options live on the wrapper (the wrapped node
 				// must not carry a retry policy).
-				inner, err := workflow.NewAgentNode(sa, workflow.NodeConfig{})
+				inner, err := newWorkflowAgentNode(sa, workflow.NodeConfig{})
 				if err != nil {
 					return nil, fmt.Errorf("workflow node %q: %w", n.GetName(), err)
 				}
@@ -192,7 +194,7 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent, pool AgentPoo
 				nodes[n.GetName()] = node
 				continue
 			}
-			node, err := workflow.NewAgentNode(sa, workflowNodeConfig(n))
+			node, err := newWorkflowAgentNode(sa, workflowNodeConfig(n))
 			if err != nil {
 				return nil, fmt.Errorf("workflow node %q: %w", n.GetName(), err)
 			}
@@ -236,6 +238,31 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent, pool AgentPoo
 		SubAgents:   subAgents,
 		Edges:       edges,
 	})
+}
+
+// scopedWorkflowAgentNode isolates one workflow agent activation from peer
+// node events that are appended to the shared session concurrently.
+type scopedWorkflowAgentNode struct {
+	workflow.Node
+}
+
+func newWorkflowAgentNode(a agent.Agent, cfg workflow.NodeConfig) (workflow.Node, error) {
+	node, err := workflow.NewAgentNode(a, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &scopedWorkflowAgentNode{Node: node}, nil
+}
+
+func (n *scopedWorkflowAgentNode) Run(ctx agent.Context, input any) iter.Seq2[*session.Event, error] {
+	if ctx.IsolationScope() != "" || ctx.Branch() == "" {
+		return n.Node.Run(ctx, input)
+	}
+	scope := "workflow-node:" + ctx.Path() + ":branch:" + ctx.Branch()
+	ctx = ctx.WithDelta(&agent.CommonContextDelta{
+		InvocationContextDelta: &agent.InvocationContextDelta{IsolationScope: &scope},
+	})
+	return n.Node.Run(ctx, input)
 }
 
 // resolveWorkflowAgentNode looks up the built ADK agent for a workflow AGENT

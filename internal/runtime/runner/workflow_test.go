@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/adk/v2/model"
 	adkrunner "google.golang.org/adk/v2/runner"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
@@ -82,7 +83,6 @@ func newFakeBackend(t *testing.T) *fakeBackend {
 		b.calls[req.Model] = append(b.calls[req.Model], lastUser)
 		handler := b.scripted[req.Model]
 		b.mu.Unlock()
-
 		if handler != nil {
 			handler(w, r)
 			return
@@ -348,6 +348,148 @@ func TestRun_WorkflowFanOutJoin(t *testing.T) {
 			t.Errorf("summarizer input %q missing joined branch output %q", summarizerInput, branchOut)
 		}
 	}
+}
+
+// TestRun_WorkflowFanOutInputSnapshotIgnoresSiblingEvent pins an ADK v2.1.0
+// ordering bug: after a single-turn node snapshots the session length for its
+// synthetic input, a faster sibling may append a response before the request
+// processor reads history. Without per-activation isolation, that sibling
+// becomes the latest turn pivot and the node drops its own input.
+func TestRun_WorkflowFanOutInputSnapshotIgnoresSiblingEvent(t *testing.T) {
+	backend := newFakeBackend(t)
+	sessions := newFanOutInjectionService()
+
+	agents := []agentsv1.Agent{{
+		Name:        "fanout",
+		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		WorkspaceId: "ws-a",
+		SubAgents: []*agentsv1.Agent{
+			{Name: "seed", Config: &agentsv1.AgentConfig{Model: "seeder"}},
+			{Name: "b1", Config: &agentsv1.AgentConfig{Model: "left"}},
+			{Name: "b2", Config: &agentsv1.AgentConfig{Model: "right"}},
+			{Name: "summarize", Config: &agentsv1.AgentConfig{Model: "summarizer"}},
+		},
+		Config: &agentsv1.AgentConfig{Workflow: &agentsv1.WorkflowConfig{
+			Nodes: []*agentsv1.WorkflowNode{
+				{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "seed"},
+				{Name: "b1", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "b1"},
+				{Name: "b2", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "b2"},
+				{Name: "gather", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN},
+				{Name: "summarize", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "summarize"},
+			},
+			Edges: []*agentsv1.WorkflowEdge{
+				{From: "START", To: "seed"},
+				{From: "seed", To: "b1"},
+				{From: "seed", To: "b2"},
+				{From: "b1", To: "gather"},
+				{From: "b2", To: "gather"},
+				{From: "gather", To: "summarize"},
+			},
+		}},
+	}}
+
+	svc := buildWorkflowService(t, backend, agents,
+		[]string{"seeder", "left", "right", "summarizer"}, sessions)
+	_, err := svc.Run(context.Background(), "fanout", []*genai.Part{{Text: "topic"}}, "", turnCtxInfo(&agents[0]), nil, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	for _, model := range []string{"left", "right"} {
+		if got, want := backend.lastInput(model), "seeder(topic)"; got != want {
+			t.Errorf("%s input = %q, want %q", model, got, want)
+		}
+	}
+}
+
+type fanOutInjectionService struct {
+	session.Service
+
+	mu        sync.Mutex
+	stored    session.Session
+	injected  bool
+	seedReady bool
+}
+
+func newFanOutInjectionService() *fanOutInjectionService {
+	return &fanOutInjectionService{Service: session.InMemoryService()}
+}
+
+func (s *fanOutInjectionService) Create(ctx context.Context, req *session.CreateRequest) (*session.CreateResponse, error) {
+	resp, err := s.Service.Create(ctx, req)
+	if err == nil {
+		s.mu.Lock()
+		s.stored = resp.Session
+		s.mu.Unlock()
+		resp.Session = &fanOutInjectionSession{Session: resp.Session, service: s}
+	}
+	return resp, err
+}
+
+func (s *fanOutInjectionService) Get(ctx context.Context, req *session.GetRequest) (*session.GetResponse, error) {
+	resp, err := s.Service.Get(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	s.stored = resp.Session
+	s.mu.Unlock()
+	resp.Session = &fanOutInjectionSession{Session: resp.Session, service: s}
+	return resp, nil
+}
+
+func (s *fanOutInjectionService) AppendEvent(ctx context.Context, sess session.Session, event *session.Event) error {
+	base := sess
+	if wrapped, ok := sess.(*fanOutInjectionSession); ok {
+		base = wrapped.Session
+	}
+	if err := s.Service.AppendEvent(ctx, base, event); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.stored = base
+	if event.Author == "seed" {
+		s.seedReady = true
+	}
+	s.mu.Unlock()
+	return nil
+}
+
+type fanOutInjectionSession struct {
+	session.Session
+	service *fanOutInjectionService
+}
+
+func (s *fanOutInjectionSession) Events() session.Events {
+	return &fanOutInjectionEvents{Events: s.Session.Events(), service: s.service}
+}
+
+type fanOutInjectionEvents struct {
+	session.Events
+	service *fanOutInjectionService
+}
+
+func (e *fanOutInjectionEvents) Len() int {
+	n := e.Events.Len()
+	e.service.mu.Lock()
+	if !e.service.injected && e.service.seedReady {
+		e.service.injected = true
+		peer := &session.Event{
+			Author: "peer",
+			Branch: "peer@1",
+			LLMResponse: model.LLMResponse{
+				Content: genai.NewContentFromText("peer output", genai.RoleModel),
+			},
+		}
+		base := e.service.stored
+		e.service.mu.Unlock()
+		if err := e.service.Service.AppendEvent(context.Background(), base, peer); err != nil {
+			panic(err)
+		}
+		return n
+	}
+	e.service.mu.Unlock()
+	return n
 }
 
 // parallelWorkerAgents returns a graph where "work" is marked as a Parallel
