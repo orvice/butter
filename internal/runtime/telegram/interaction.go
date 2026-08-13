@@ -246,16 +246,15 @@ func mentionsBot(msg *telegramapi.Message_, botUsername string) bool {
 	if text == "" {
 		text, entities = msg.Caption, msg.CaptionEntities
 	}
-	runes := []rune(text)
 	for _, entity := range entities {
 		if entity.Type != "mention" {
 			continue
 		}
-		end := min(entity.Offset+entity.Length, len(runes))
-		if entity.Offset < 0 || entity.Offset > end {
+		mention, ok := telegramapi.SliceUTF16(text, entity.Offset, entity.Length)
+		if !ok {
 			continue
 		}
-		if strings.EqualFold(strings.TrimPrefix(string(runes[entity.Offset:end]), "@"), botUsername) {
+		if strings.EqualFold(strings.TrimPrefix(mention, "@"), botUsername) {
 			return true
 		}
 	}

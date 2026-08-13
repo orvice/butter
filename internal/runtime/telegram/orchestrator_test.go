@@ -94,7 +94,9 @@ func newOrchestratorFixture(t *testing.T, mutate func(*agentsv1.TelegramDestinat
 	if _, err := repo.CreateChannel(t.Context(), "ws-a", &agentsv1.TelegramChannel{
 		Id: "ch-1", Key: "main", BotId: "111111", BotUsername: botUsername,
 		InboundEnabled: true, OutboundEnabled: true,
-	}, telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID}); err != nil {
+	}, telegramrepo.ChannelCredentials{
+		BotToken: telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID},
+	}); err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
 	seed := destination(mutate)

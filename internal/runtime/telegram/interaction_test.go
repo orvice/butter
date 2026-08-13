@@ -277,6 +277,18 @@ func TestMentionMatchesTheCurrentBotOnly(t *testing.T) {
 	}
 }
 
+func TestMentionUsesTelegramUTF16EntityCoordinates(t *testing.T) {
+	dest := destination(func(c *agentsv1.TelegramDestinationConfig) {
+		c.TriggerMode = agentsv1.TelegramTriggerMode_TELEGRAM_TRIGGER_MODE_MENTION
+	})
+	raw := message(realUser, "🙂 @opsbot hello",
+		`"entities":[{"type":"mention","offset":3,"length":7}]`)
+
+	if got := DecideInteraction(eventFor(raw), dest, botUsername); got.Ignore != IgnoreNone {
+		t.Fatalf("ignore = %q, want accepted", got.Ignore)
+	}
+}
+
 // The bot's own mention is removed; other users' mentions stay, because they
 // are part of what was said.
 func TestOurMentionIsStrippedButOthersRemain(t *testing.T) {
