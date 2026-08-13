@@ -6,6 +6,7 @@ package telegram
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -329,22 +330,51 @@ func TestRecordedFailuresAreSanitized(t *testing.T) {
 	}
 }
 
-// A command answers without ever taking the session lease, so a management
-// command never stalls behind a long-running turn.
-func TestCommandsDoNotHoldTheSessionLease(t *testing.T) {
+// Management commands share the session lease with Agent turns so they cannot
+// clear history or change routing while that turn is still using it.
+func TestCommandsWaitForTheSessionLease(t *testing.T) {
 	fx, _ := newRecoveryFixture(t)
 	guard := NewMemorySessionGuard()
 	fx.orchestrator.SetSessionGuard(guard)
 	sessionID := SessionID("ch-1", fx.dest.GetId(), "d"+fx.dest.GetId(), "support")
-	if _, _, ok, err := guard.Acquire(t.Context(), sessionID); !ok || err != nil {
+	_, release, ok, err := guard.Acquire(t.Context(), sessionID)
+	if !ok || err != nil {
 		t.Fatalf("seed lease: %v", err)
 	}
 
 	raw := message(realUser, "/status", `"entities":[{"type":"bot_command","offset":0,"length":7}]`)
-	if err := fx.orchestrator.Handle(t.Context(), fx.eventForStored(raw)); err != nil {
-		t.Fatalf("Handle: %v", err)
+	if err := fx.orchestrator.Handle(t.Context(), fx.eventForStored(raw)); !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("Handle while busy = %v, want ErrSessionBusy", err)
 	}
-	if len(fx.bots.Sent()) == 0 {
-		t.Fatal("/status was blocked by an unrelated session lease")
+	if len(fx.bots.Sent()) != 0 {
+		t.Fatal("/status ran while another interaction held the session lease")
+	}
+
+	release()
+	if err := fx.orchestrator.Handle(t.Context(), fx.eventForStored(raw)); err != nil {
+		t.Fatalf("Handle after release: %v", err)
+	}
+	if len(fx.bots.Sent()) != 1 {
+		t.Fatalf("sent %d messages after release, want 1", len(fx.bots.Sent()))
+	}
+}
+
+func TestCallbacksWaitForTheSessionLease(t *testing.T) {
+	fx, _ := newRecoveryFixture(t)
+	guard := NewMemorySessionGuard()
+	fx.orchestrator.SetSessionGuard(guard)
+	sessionID := SessionID("ch-1", fx.dest.GetId(), "d"+fx.dest.GetId(), "support")
+	_, release, ok, err := guard.Acquire(t.Context(), sessionID)
+	if !ok || err != nil {
+		t.Fatalf("seed lease: %v", err)
+	}
+	defer release()
+
+	raw := fmt.Sprintf(`{"update_id":1,"callback_query":{"id":"cb-1","from":%s,"data":"debug:on","message":{"message_id":9,"message_thread_id":42,"is_topic_message":true,"chat":{"id":-100,"type":"supergroup"},"from":{"id":111111,"is_bot":true}}}}`, realUser)
+	if err := fx.orchestrator.Handle(t.Context(), fx.eventForStored(raw)); !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("Handle callback while busy = %v, want ErrSessionBusy", err)
+	}
+	if len(fx.bots.Sent()) != 0 {
+		t.Fatal("callback ran while another interaction held the session lease")
 	}
 }

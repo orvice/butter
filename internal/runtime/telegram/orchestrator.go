@@ -176,9 +176,25 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		}
 	}
 
-	// Serialize the session only around work that touches its history.
-	// Commands and callbacks do not, and holding the lease for them would
-	// stall an unrelated conversation for no benefit.
+	// Serialize every interaction for the derived session. Management commands
+	// and callbacks can clear history or change routing while an Agent turn is
+	// active, so letting them bypass this lease would race the conversation they
+	// are intended to manage.
+	if o.sessions != nil {
+		leaseCtx, release, ok, leaseErr := o.sessions.Acquire(ctx, decision.SessionID)
+		if leaseErr != nil {
+			_ = o.recordFailure(ctx, record, leaseToken, leaseErr, false)
+			return leaseErr
+		}
+		if !ok {
+			// Leave it unacknowledged: it is reclaimed once the other worker
+			// finishes, rather than interleaving two actions in one session.
+			logger.Debug("telegram session is busy; deferring", "session_id", decision.SessionID)
+			return ErrSessionBusy
+		}
+		defer release()
+		ctx = leaseCtx
+	}
 	if decision.CallbackData != "" {
 		err := o.handleCallback(ctx, event, dest, decision)
 		return o.finishNonAgent(ctx, record, leaseToken, err)
@@ -188,21 +204,6 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		return o.finishNonAgent(ctx, record, leaseToken, err)
 	}
 
-	if o.sessions != nil {
-		leaseCtx, release, ok, leaseErr := o.sessions.Acquire(ctx, decision.SessionID)
-		if leaseErr != nil {
-			_ = o.recordFailure(ctx, record, leaseToken, leaseErr, false)
-			return leaseErr
-		}
-		if !ok {
-			// Leave it unacknowledged: it is reclaimed once the other worker
-			// finishes, rather than interleaving two turns in one history.
-			logger.Debug("telegram session is busy; deferring", "session_id", decision.SessionID)
-			return ErrSessionBusy
-		}
-		defer release()
-		ctx = leaseCtx
-	}
 	return o.runAgent(ctx, event, dest, decision, record, leaseToken)
 }
 
