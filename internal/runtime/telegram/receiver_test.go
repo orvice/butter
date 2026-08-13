@@ -32,7 +32,9 @@ func newReceiverFixture(t *testing.T) *receiverFixture {
 		Id: "ch-1", Key: "main", BotId: "111111", BotUsername: "opsbot",
 		InboundEnabled: true, OutboundEnabled: true,
 		ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK,
-	}, telegramrepo.Credential{Ciphertext: "cipher", KeyID: "k1"}); err != nil {
+	}, telegramrepo.ChannelCredentials{
+		BotToken: telegramrepo.Credential{Ciphertext: "cipher", KeyID: "k1"},
+	}); err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
 	if _, err := repo.CreateDestination(t.Context(), "ws-a", &agentsv1.TelegramDestination{

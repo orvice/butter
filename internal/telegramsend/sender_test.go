@@ -44,7 +44,9 @@ func newFixture(t *testing.T) *fixture {
 	}
 	if _, err := repo.CreateChannel(t.Context(), workspace, &agentsv1.TelegramChannel{
 		Id: "ch-1", Key: "main", BotId: "111111", OutboundEnabled: true,
-	}, telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID}); err != nil {
+	}, telegramrepo.ChannelCredentials{
+		BotToken: telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID},
+	}); err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
 	if _, err := repo.CreateDestination(t.Context(), workspace, &agentsv1.TelegramDestination{
@@ -237,7 +239,7 @@ func TestUnavailableDestinationsFailExplicitly(t *testing.T) {
 		setup func(t *testing.T, fx *fixture) string
 	}{
 		{
-			name: "missing",
+			name:  "missing",
 			setup: func(*testing.T, *fixture) string { return "no-such-destination" },
 		},
 		{

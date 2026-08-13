@@ -53,6 +53,14 @@ type Credential struct {
 // Set reports whether a credential is actually present.
 func (c Credential) Set() bool { return c.Ciphertext != "" }
 
+// ChannelCredentials groups the write-only secrets that must be committed
+// atomically with a new Channel. A Webhook Channel is never observable without
+// its callback secret, even when persistence fails.
+type ChannelCredentials struct {
+	BotToken      Credential
+	WebhookSecret Credential
+}
+
 // Repository persists Telegram Channels and Destinations.
 type Repository interface {
 	EnsureIndexes(ctx context.Context) error
@@ -62,11 +70,11 @@ type Repository interface {
 	ListChannels(ctx context.Context, workspaceID string) ([]*agentsv1.TelegramChannel, error)
 	GetChannel(ctx context.Context, workspaceID, id string) (*agentsv1.TelegramChannel, error)
 
-	// CreateChannel stores a new Channel together with its Bot Token in one
+	// CreateChannel stores a new Channel together with its credentials in one
 	// operation. It returns ErrKeyExists on a workspace key collision and
 	// ErrBotExists when any workspace already owns that Bot ID — the check
 	// that stops two Channels from consuming the same Bot's updates.
-	CreateChannel(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, cred Credential) (*agentsv1.TelegramChannel, error)
+	CreateChannel(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, credentials ChannelCredentials) (*agentsv1.TelegramChannel, error)
 
 	// UpdateChannel replaces the mutable fields of an existing Channel. It
 	// applies only when the stored revision equals expectedRevision, and

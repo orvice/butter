@@ -202,7 +202,7 @@ func (s *Store) channelDoc(ctx context.Context, filter bson.M, id string) (chann
 	return doc, nil
 }
 
-func (s *Store) CreateChannel(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, cred telegramrepo.Credential) (*agentsv1.TelegramChannel, error) {
+func (s *Store) CreateChannel(ctx context.Context, workspaceID string, channel *agentsv1.TelegramChannel, credentials telegramrepo.ChannelCredentials) (*agentsv1.TelegramChannel, error) {
 	stored := proto.Clone(channel).(*agentsv1.TelegramChannel)
 	stored.WorkspaceId = workspaceID
 	now := time.Now().UTC()
@@ -215,16 +215,18 @@ func (s *Store) CreateChannel(ctx context.Context, workspaceID string, channel *
 		return nil, err
 	}
 	doc := channelDoc{
-		ID:          stored.GetId(),
-		WorkspaceID: workspaceID,
-		Key:         stored.GetKey(),
-		BotID:       stored.GetBotId(),
-		Revision:    1,
-		Spec:        spec,
-		Credential:  cred.Ciphertext,
+		ID:                 stored.GetId(),
+		WorkspaceID:        workspaceID,
+		Key:                stored.GetKey(),
+		BotID:              stored.GetBotId(),
+		Revision:           1,
+		Spec:               spec,
+		Credential:         credentials.BotToken.Ciphertext,
+		WebhookSecret:      credentials.WebhookSecret.Ciphertext,
+		WebhookSecretKeyID: credentials.WebhookSecret.KeyID,
 	}
-	if cred.Set() {
-		doc.CredentialKeyID = cred.KeyID
+	if credentials.BotToken.Set() {
+		doc.CredentialKeyID = credentials.BotToken.KeyID
 		doc.CredentialUpdated = now
 	}
 	if _, err := s.channels.InsertOne(ctx, doc); err != nil {

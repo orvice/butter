@@ -21,7 +21,9 @@ func newDestination(id, key, channelID, chatID, threadID string) *agentsv1.Teleg
 func seedChannel(t *testing.T, store *Store, workspaceID, id, key, botID string) *agentsv1.TelegramChannel {
 	t.Helper()
 	created, err := store.CreateChannel(t.Context(), workspaceID, newChannel(id, key, botID),
-		telegramrepo.Credential{Ciphertext: "cipher-" + id, KeyID: "key-1"})
+		telegramrepo.ChannelCredentials{
+			BotToken: telegramrepo.Credential{Ciphertext: "cipher-" + id, KeyID: "key-1"},
+		})
 	if err != nil {
 		t.Fatalf("CreateChannel(%s): %v", id, err)
 	}
@@ -43,6 +45,28 @@ func TestCreateChannelStampsRevisionAndCredentialState(t *testing.T) {
 	}
 	if created.GetWorkspaceId() != "ws" {
 		t.Errorf("workspace_id = %q", created.GetWorkspaceId())
+	}
+}
+
+func TestCreateChannelStoresWebhookSecretAtomically(t *testing.T) {
+	store := New()
+	created, err := store.CreateChannel(t.Context(), "ws", newChannel("ch-1", "main-bot", "42"),
+		telegramrepo.ChannelCredentials{
+			BotToken:      telegramrepo.Credential{Ciphertext: "token-cipher", KeyID: "key-1"},
+			WebhookSecret: telegramrepo.Credential{Ciphertext: "secret-cipher", KeyID: "key-1"},
+		})
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+	if !created.GetWebhookSecretSet() {
+		t.Fatal("created Webhook Channel does not report its stored secret")
+	}
+	secret, err := store.GetWebhookSecret(t.Context(), "ws", created.GetId())
+	if err != nil {
+		t.Fatalf("GetWebhookSecret: %v", err)
+	}
+	if secret.Ciphertext != "secret-cipher" || secret.KeyID != "key-1" {
+		t.Fatalf("secret = %+v", secret)
 	}
 }
 
@@ -74,12 +98,12 @@ func TestChannelKeyIsUniquePerWorkspace(t *testing.T) {
 	store := New()
 	seedChannel(t, store, "ws", "ch-1", "main-bot", "42")
 
-	_, err := store.CreateChannel(t.Context(), "ws", newChannel("ch-2", "main-bot", "43"), telegramrepo.Credential{})
+	_, err := store.CreateChannel(t.Context(), "ws", newChannel("ch-2", "main-bot", "43"), telegramrepo.ChannelCredentials{})
 	if !errors.Is(err, telegramrepo.ErrKeyExists) {
 		t.Fatalf("err = %v, want ErrKeyExists", err)
 	}
 	// The same key in another workspace is fine — keys are workspace-scoped.
-	if _, err := store.CreateChannel(t.Context(), "other", newChannel("ch-3", "main-bot", "44"), telegramrepo.Credential{}); err != nil {
+	if _, err := store.CreateChannel(t.Context(), "other", newChannel("ch-3", "main-bot", "44"), telegramrepo.ChannelCredentials{}); err != nil {
 		t.Fatalf("CreateChannel in other workspace: %v", err)
 	}
 }
@@ -90,7 +114,7 @@ func TestBotIDIsUniqueAcrossWorkspaces(t *testing.T) {
 	store := New()
 	seedChannel(t, store, "ws", "ch-1", "main-bot", "42")
 
-	_, err := store.CreateChannel(t.Context(), "other", newChannel("ch-2", "other-bot", "42"), telegramrepo.Credential{})
+	_, err := store.CreateChannel(t.Context(), "other", newChannel("ch-2", "other-bot", "42"), telegramrepo.ChannelCredentials{})
 	if !errors.Is(err, telegramrepo.ErrBotExists) {
 		t.Fatalf("err = %v, want ErrBotExists", err)
 	}

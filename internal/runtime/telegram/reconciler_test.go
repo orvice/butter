@@ -85,7 +85,9 @@ func newReconcilerFixture(t *testing.T, inbound bool, baseURL string) *reconcile
 		Id: "ch-1", Key: "main", BotId: "111111",
 		InboundEnabled: inbound, OutboundEnabled: true,
 		ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK,
-	}, telegramrepo.Credential{Ciphertext: tokenCipher, KeyID: tokenKey}); err != nil {
+	}, telegramrepo.ChannelCredentials{
+		BotToken: telegramrepo.Credential{Ciphertext: tokenCipher, KeyID: tokenKey},
+	}); err != nil {
 		t.Fatalf("create channel: %v", err)
 	}
 	secretCipher, secretKey, err := keyring.Encrypt(t.Context(), []byte(webhookSecret))

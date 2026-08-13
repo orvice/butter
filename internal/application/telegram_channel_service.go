@@ -211,17 +211,28 @@ func (s *TelegramChannelServiceServer) CreateTelegramChannel(ctx context.Context
 		WorkspaceId:     workspaceID,
 	}
 
-	created, err := s.repo.CreateChannel(ctx, workspaceID, channel,
-		telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID})
+	credentials := telegramrepo.ChannelCredentials{
+		BotToken: telegramrepo.Credential{Ciphertext: ciphertext, KeyID: keyID},
+	}
+	if receiveMode == agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
+		secret, err := generateWebhookSecret()
+		if err != nil {
+			return nil, connectx.InternalWith(err)
+		}
+		secretCiphertext, secretKeyID, err := s.keyring.Encrypt(ctx, []byte(secret))
+		if err != nil {
+			return nil, connectx.InternalWith(fmt.Errorf("encrypt webhook secret: %w", err))
+		}
+		credentials.WebhookSecret = telegramrepo.Credential{
+			Ciphertext: secretCiphertext,
+			KeyID:      secretKeyID,
+		}
+	}
+
+	created, err := s.repo.CreateChannel(ctx, workspaceID, channel, credentials)
 	if err != nil {
 		return nil, mapTelegramRepoErr(err)
 	}
-	// A Webhook Channel needs its callback secret before it can ever be
-	// enabled; generating it here means no operator step can be forgotten.
-	if err := s.ensureWebhookSecret(ctx, workspaceID, created); err != nil {
-		return nil, err
-	}
-	created.WebhookSecretSet = true
 	log.FromContext(ctx).Info("telegram channel created",
 		"workspace_id", workspaceID, "channel_id", created.GetId(),
 		"channel_key", created.GetKey(), "bot_id", created.GetBotId(),
@@ -312,19 +323,20 @@ func (s *TelegramChannelServiceServer) UpdateTelegramChannel(ctx context.Context
 	if mode := input.GetReceiveMode(); mode != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_UNSPECIFIED {
 		next.ReceiveMode = mode
 	}
+	// Provision the Webhook secret before publishing Webhook mode. If the mode
+	// CAS later fails, the Channel merely has an unused secret; the reverse
+	// order could publish a Webhook Channel that rejects every callback.
+	if next.GetReceiveMode() == agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK &&
+		!current.GetWebhookSecretSet() {
+		if err := s.ensureWebhookSecret(ctx, workspaceID, next); err != nil {
+			return nil, err
+		}
+		next.WebhookSecretSet = true
+	}
 
 	updated, err := s.repo.UpdateChannel(ctx, workspaceID, next, input.GetRevision())
 	if err != nil {
 		return nil, mapTelegramRepoErr(err)
-	}
-	// Switching into Webhook mode needs a secret just as much as creating in
-	// it does.
-	if updated.GetReceiveMode() == agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK &&
-		!updated.GetWebhookSecretSet() {
-		if err := s.ensureWebhookSecret(ctx, workspaceID, updated); err != nil {
-			return nil, err
-		}
-		updated.WebhookSecretSet = true
 	}
 	log.FromContext(ctx).Info("telegram channel updated",
 		"workspace_id", workspaceID, "channel_id", updated.GetId(), "revision", updated.GetRevision())

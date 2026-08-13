@@ -185,6 +185,9 @@ func TestCreateChannelPinsTheValidatedBotIdentity(t *testing.T) {
 	if channel.GetReceiveMode() != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK {
 		t.Errorf("receive_mode = %v, want WEBHOOK by default", channel.GetReceiveMode())
 	}
+	if !channel.GetWebhookSecretSet() {
+		t.Error("Webhook Channel was committed without its callback secret")
+	}
 	if channel.GetInboundEnabled() || channel.GetOutboundEnabled() {
 		t.Error("channels must be created disabled")
 	}
@@ -352,6 +355,58 @@ func TestUpdateChannelRejectsAStaleRevision(t *testing.T) {
 	}
 	if current.GetRevision() != first.Msg.GetChannel().GetRevision() {
 		t.Errorf("revision moved to %d", current.GetRevision())
+	}
+}
+
+func TestStaleWebhookModeSwitchProvisionsSecretWithoutPublishingMode(t *testing.T) {
+	fx := newTelegramFixture(t)
+	createdResp, err := fx.channels.CreateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.CreateTelegramChannelRequest{
+			Channel: &agentsv1.TelegramChannel{
+				Key:         "main",
+				ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_LONG_POLLING,
+			},
+			BotToken: mainBotToken,
+		}))
+	if err != nil {
+		t.Fatalf("CreateTelegramChannel: %v", err)
+	}
+	created := createdResp.Msg.GetChannel()
+	if created.GetWebhookSecretSet() {
+		t.Fatal("Long Polling Channel unexpectedly started with a Webhook secret")
+	}
+
+	if _, err := fx.channels.UpdateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.UpdateTelegramChannelRequest{
+			Channel: &agentsv1.TelegramChannel{Id: created.GetId(), Name: "Newer", Revision: 1},
+		})); err != nil {
+		t.Fatalf("winning update: %v", err)
+	}
+
+	_, err = fx.channels.UpdateTelegramChannel(ctxAs("owner", "owner", "ws-a"),
+		connect.NewRequest(&agentsv1.UpdateTelegramChannelRequest{
+			Channel: &agentsv1.TelegramChannel{
+				Id:          created.GetId(),
+				Revision:    1,
+				ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK,
+			},
+		}))
+	if code := connectCode(t, err); code != connect.CodeAborted {
+		t.Fatalf("code = %v, want Aborted", code)
+	}
+
+	current, err := fx.repo.GetChannel(t.Context(), "ws-a", created.GetId())
+	if err != nil {
+		t.Fatalf("GetChannel: %v", err)
+	}
+	if current.GetReceiveMode() != agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_LONG_POLLING {
+		t.Fatalf("receive_mode = %v; stale write published Webhook mode", current.GetReceiveMode())
+	}
+	if !current.GetWebhookSecretSet() {
+		t.Fatal("Webhook secret was not provisioned before the failed mode CAS")
+	}
+	if _, err := fx.repo.GetWebhookSecret(t.Context(), "ws-a", created.GetId()); err != nil {
+		t.Fatalf("GetWebhookSecret: %v", err)
 	}
 }
 

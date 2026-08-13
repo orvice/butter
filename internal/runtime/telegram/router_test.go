@@ -57,7 +57,9 @@ func newRouterFixture(t *testing.T) *routerFixture {
 		Id: "ch-1", Key: "main", BotId: "111111", BotUsername: "opsbot",
 		InboundEnabled: true, OutboundEnabled: true,
 		ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK,
-	}, telegramrepo.Credential{Ciphertext: "cipher", KeyID: "k1"})
+	}, telegramrepo.ChannelCredentials{
+		BotToken: telegramrepo.Credential{Ciphertext: "cipher", KeyID: "k1"},
+	})
 	if err != nil {
 		t.Fatalf("create channel: %v", err)
 	}

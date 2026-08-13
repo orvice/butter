@@ -96,7 +96,7 @@ func (s *Store) FindChannel(_ context.Context, id string) (*agentsv1.TelegramCha
 	return s.decodeChannel(rec), nil
 }
 
-func (s *Store) CreateChannel(_ context.Context, workspaceID string, channel *agentsv1.TelegramChannel, cred telegramrepo.Credential) (*agentsv1.TelegramChannel, error) {
+func (s *Store) CreateChannel(_ context.Context, workspaceID string, channel *agentsv1.TelegramChannel, credentials telegramrepo.ChannelCredentials) (*agentsv1.TelegramChannel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -116,8 +116,12 @@ func (s *Store) CreateChannel(_ context.Context, workspaceID string, channel *ag
 	stored.UpdatedAt = now
 	stored.Revision = 1
 
-	rec := &channelRecord{spec: stored, cred: cred}
-	if cred.Set() {
+	rec := &channelRecord{
+		spec:          stored,
+		cred:          credentials.BotToken,
+		webhookSecret: credentials.WebhookSecret,
+	}
+	if credentials.BotToken.Set() {
 		rec.credUpdatedAt = time.Now().UTC()
 	}
 	s.channels[stored.GetId()] = rec
