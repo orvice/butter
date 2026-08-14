@@ -111,10 +111,12 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 	// implicitly; new agent documents carry a random _id, so the invariant
 	// moves to an explicit index. Partial (name non-empty) so it registers as
 	// a distinct index signature next to the non-unique (workspace_id, name)
-	// listing index above.
+	// listing index above, and explicitly named because the auto-generated
+	// name would collide with that index.
 	_, err = s.agents.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "name", Value: 1}},
 		Options: options.Index().
+			SetName("agents_workspace_name_unique").
 			SetUnique(true).
 			SetPartialFilterExpression(bson.M{
 				"name": bson.M{"$exists": true, "$gt": ""},
