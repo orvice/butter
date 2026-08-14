@@ -10,7 +10,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 - 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Notify Group / Agent File / Forum / Cron / Automation / API Token / Invocation / Cron Execution / Automation Run 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
 - Agent 配置化：从配置仓库（MongoDB）加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel、Workflow agent。YAML 不是 Agent 的配置入口。
-- 多入口接入：Gin HTTP、ConnectRPC（同 endpoint 同时支持 Connect/gRPC-Web/gRPC）、Telegram、Discord、Cron、Automation schedule、A2A、daemon connector 与 opencode HTTP server 直连。
+- 多入口接入：Gin HTTP、ConnectRPC（同 endpoint 同时支持 Connect/gRPC-Web/gRPC）、Telegram、Cron、Automation schedule、A2A、daemon connector 与 opencode HTTP server 直连。
 - 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload；`AgentService.ReloadAgents` 公开触发。
 - 多执行面：本地 ADK agent、A2A 远程 agent、daemon 反向连接 agent、opencode HTTP server 直连 agent；A2A、opencode HTTP、MCP 都提供 live probing。
 - 持久化运行时：MongoDB 保存 ADK session/memory、配置、cron 执行记录、automation run/step-run、invocation 历史、API tokens、workspaces 与 workspace_members；Redis 保存渠道内活跃 agent/model 选择。
@@ -18,7 +18,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 ## Workspace 多租户模型
 
-所有配置实体（`Agent` / `AgentChannel` / `MCPServer` / `RemoteAgent` / `ModelProvider` / `NotifyGroup` / `CronJob` / `Automation` / `APIToken`）、内容实体（`AgentFileSpace` / `AgentFile` / `ForumThread` / `ForumPost`）以及运行时记录（`Invocation` / `CronExecution` / `AutomationRun` / `AutomationStepRun`）都归属于一个 workspace。`Workspace` 自身和 `WorkspaceMember` 由 `WorkspaceService` 管理，持久化为 MongoDB 的 `workspaces` 和 `workspace_members` 集合（`(workspace_id, user_id)` 唯一索引）。
+所有配置实体（`Agent` / `TelegramChannel` / `TelegramDestination` / legacy `AgentChannel` / `MCPServer` / `RemoteAgent` / `ModelProvider` / `NotifyGroup` / `CronJob` / `Automation` / `APIToken`）、内容实体（`AgentFileSpace` / `AgentFile` / `ForumThread` / `ForumPost`）以及运行时记录（`Invocation` / `CronExecution` / `AutomationRun` / `AutomationStepRun`）都归属于一个 workspace。`Workspace` 自身和 `WorkspaceMember` 由 `WorkspaceService` 管理，持久化为 MongoDB 的 `workspaces` 和 `workspace_members` 集合（`(workspace_id, user_id)` 唯一索引）。
 
 请求流：
 
@@ -54,7 +54,6 @@ Access Layer
 ├── Gin HTTP handlers: /ping, /a2a/:agent_ref/..., /api/v1/* (OpenAI 兼容)
 ├── ConnectRPC: /api/agents.v1.*Service/*    # dashboard API + daemon connector
 ├── Telegram poller
-├── Discord poller
 ├── Cron scheduler
 └── Automation scheduler
 
@@ -155,7 +154,7 @@ Agent proto
 
 模型通过 `model_providers` 解析。Runner 支持运行时 model override：如果渠道选择了不同模型，`runner.Service` 会 clone proto 配置、替换 model，并缓存 override 后的 agent。
 
-同一 `(channel/app, user, session)` 的 turn 在 Runner 层串行执行，避免 Telegram、Discord、RPC 或 cron 同时写入一个 ADK session；不同 session 仍可并行。每个 turn 返回结构化诊断（event count、finish reason、error code），无可见文本时优先渲染 workflow `Event.Output`。Mongo session store 使用完整 `event_json` 保存 ADK event，并兼容读取旧的 `content_json` 文档，确保 workflow Output、Routes、Human Input 和终止元数据在重启后保留。
+同一 `(channel/app, user, session)` 的 turn 在 Runner 层串行执行，避免 Telegram、RPC 或 cron 同时写入一个 ADK session；不同 session 仍可并行。每个 turn 返回结构化诊断（event count、finish reason、error code），无可见文本时优先渲染 workflow `Event.Output`。Mongo session store 使用完整 `event_json` 保存 ADK event，并兼容读取旧的 `content_json` 文档，确保 workflow Output、Routes、Human Input 和终止元数据在重启后保留。
 
 ADK 依赖已升级到 v2.1.0。OpenAI provider 暂不切换到该版本新增的原生 `openaimodel`：OpenAI Responses API 本身支持 `input_image`，但该 ADK adapter 尚未把 `genai.InlineData` / `FileData` 转换为 Responses 的 `input_image` / `input_file`，同时其多轮 assistant history 编码仍存在上游缺陷。生产路径继续使用现有 Chat Completions adapter。详见 `docs/research/adk-go-v2.1-openai.md`。
 
@@ -404,10 +403,10 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 
 配置 / 执行：
 
-- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，外加只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC 已退役，恒返回 `Unimplemented`）。dashboard async chat 的短提交事务在单实例内串行化，保证每个 Session 最多一个 QUEUED/RUNNING Invocation；不同 Session 的 runner 并发执行。Get/Cancel 同时校验 Workspace 与 private Session owner，显式 Stop 终态为 CANCELLED，导航和观察者断开只停止本地 polling。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status 查询仅接受 `agent_id`（携带 legacy `names` 过滤会被拒绝）；invocation 查询以 `agent_id` 为主，仅历史记录过滤仍兼容 `agent_name` 快照。
+- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `WatchAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，Agent lifecycle 的 `UpdateAgentConfiguration` / `RestoreAgent` / `GetAgentOperation` / `ListAgentOperations` / `RetryAgentOperation`，以及只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC 已退役，恒返回 `Unimplemented`）。dashboard async chat 的短提交事务在单实例内串行化，保证每个 Session 最多一个 QUEUED/RUNNING Invocation；不同 Session 的 runner 并发执行。Get/Cancel 同时校验 Workspace 与 private Session owner，显式 Stop 终态为 CANCELLED，导航和观察者断开只停止本地 observer，不影响服务端执行。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status 查询仅接受 `agent_id`（携带 legacy `names` 过滤会被拒绝）；invocation 查询以 `agent_id` 为主，仅历史记录过滤仍兼容 `agent_name` 快照。
 - `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools` + MCP OAuth2 流程（`StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`）。
-- `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
-- `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。
+- `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`（A2A / Daemon / OpenCode HTTP live probing）。
+- `ChannelService`：**已废弃**的 generic `AgentChannel` 兼容 API，仅保留读取、状态查看和删除；创建/更新/重启/暂停/恢复均返回 `Unimplemented`。当前 Telegram 使用 `TelegramChannelService`、`TelegramDestinationService`、`TelegramAdminService` 与 `TelegramProcessingService`。
 - `SessionService`：`Create` / `Get`（含 duration + trace_url）/ `List`（filter + page）/ `Delete` / `Reply` / `UpdateSessionTitle` / `GenerateSessionTitle`。Title 存为 Butter-owned 元数据（`adk_sessions.title`），不经由 ADK state；有效标题优先级：first-class title → legacy `state["title"]` → agent name → shortened session ID。`GenerateSessionTitle` 在首轮对话后尝试 LLM 标题（可选 YAML `chat_title_model`，按 agent workspace 解析 provider），失败则确定性截断；见上文 Session 标题生成。重命名与自动生成均不影响 `last_update_time` 和排序。
 - `AutomationService`：自动化工作流 CRUD + `RunAutomationNow` + run/step-run history 查询。
 - `CronJobService`：定时任务 CRUD + `ListCronExecutions` + `RunCronJobNow`，含 timeout/retry/concurrency/notify/output reliability policy。
@@ -418,14 +417,15 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 
 运维：
 
-- `DashboardService`：`GetOverview` / `GetActivityFeed` / `GetCronExecutionTimeseries`。
+- `DashboardService`：`GetOverview` / `GetActivityFeed` / `GetCronExecutionTimeseries` / `GetActivityMetrics`。
 - `DaemonService`：workspace daemon config CRUD、daemon credential 签发、`ListDaemons` / `GetDaemon` / `ListDaemonTasks` / `CancelDaemonTask` / `GetBridgeDiagnostics`。
 - `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
 - `GlobalMCPServerService`：admin 管理的 workspace-agnostic MCP server 预设；`InstallGlobalMCPServer` 把预设克隆到目标 workspace（admin 可跨 workspace 安装，审计日志记录）。
 - `WorkspaceService`：workspace 与成员 CRUD（无需 `X-Workspace-ID`）。
 - `AuthService`：登录、OAuth 登录、当前用户、用户管理、资料更新与 `ChangePassword`。
+- `GitHostService` / `WorkspaceRepoBindingService`：Git endpoint allowlist、workspace repository binding、Agent Content onboarding/sync/publish/commit/rollback 和安全 detach。
 
-除 `/ping`、OPTIONS 预检、MCP OAuth 回调以及 `AuthService.Login` / `ListOAuthProviders` / `BeginOAuthFlow` / `CompleteOAuthFlow` 之外，所有 HTTP/RPC 请求经过 `AuthMiddleware`：
+除 `/ping`、OPTIONS 预检、MCP OAuth 回调、Telegram webhook、daemon connector 方法以及 `AuthService.Login` / `ListOAuthProviders` / `BeginOAuthFlow` / `CompleteOAuthFlow` 之外，所有 HTTP/RPC 请求经过 `AuthMiddleware`。Telegram webhook 和 daemon connector 会在各自 handler 内执行专用鉴权：
 
 1. 优先解析 `Authorization: Bearer <token>` 中的 user session（Redis `butter:auth:session:<sha256(token)>`，命中后异步 `TouchSession`）。
 2. 不匹配则用 `subtle.ConstantTimeCompare` 比对配置的 root token (`cfg.apiToken`)。
@@ -497,7 +497,7 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 
 - ADK sessions（`adk_sessions` / `adk_events`）。`session/mongo.Service.CountSessions` 给 dashboard overview 用。
 - ADK memories。
-- 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemons` / `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键，并对 `(workspace_id, name)` 建索引。
+- 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemon_runtimes` / legacy `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键，并对 `(workspace_id, name)` 建索引。
 - Agent Files：`agent_file_spaces` / `agent_files` / `agent_file_versions`。
 - Skills：`skills`（元数据 + 内容 key，`(workspace_id, name)` 唯一索引）与 `skill_resources`（资源路径索引，`(workspace_id, skill_name, path)` 索引）；`SKILL.md` 正文与资源内容走 `skill.ContentStore`（S3，未配置 bucket 时回退内存）。
 - Forum：`forum_threads` / `forum_posts`。
@@ -508,6 +508,8 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 - Automations / runs / step runs（`automations` / `automation_runs` / `automation_step_runs`，definition 按 workspace + name 唯一；run 列表按 workspace + automation_name + started_at 倒序；step-run 按 workspace + run_id + order 查询）。
 - `invocations`：runner 持久化的每次 ADK 调用（runner → `InvocationRecorder.Save`，RUNNING 起记，defer 写终态，附带 `workspace_id`，并记录 `agent_id` 与 `agent_display_name` 快照；历史记录只保留 `agent_name`）。驱动 ActivityFeed + AgentRuntimeStatus + ListAgentInvocations。
 - `api_tokens`：DB-stored API tokens（带 `workspace_id` + `secret_hash` + `prefix` + `kind` + `scopes` + optional `expires_at` / `daemon_runtime_id` + `last_used_at` + `revoked`）。
+- Telegram：`telegram_channels` / `telegram_destinations` / `telegram_processing_records`、平台设置和数据库主密钥集合；Bot credential 不进入 proto 响应。
+- Repository binding：Git host、workspace binding、缓存、Agent Content snapshot 与 Agent lifecycle operation 集合。
 
 后端选择：`storage_backend` 为空或等于 `"mongo"` 时全部走 mongo；显式设置为 `"memory"` 时用内存仓库（`api_tokens` / `invocations` 也支持 memory 实现，方便测试）。
 
@@ -524,7 +526,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 
 ## 前端 Dashboard 与镜像
 
-- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。一级页包含：Login、Chat、Forum、Dashboard(Overview)、Agents、MCP Servers、Remote Agents、Daemons、Channels、Sessions、Automations、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Admin 等（见 `front/src/pages/`）。
+- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。TanStack Router 路由位于 `front/src/routes/`，资源实现位于 `front/src/features/`；一级页包含 Login、Chat、Forum、Dashboard、Agents、MCP Servers、Remote Agents、Daemons、Telegram Channels/Destinations、Sessions、Automations、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Admin 等。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）生成到 `front/src/gen/`，运行时类型走 `@bufbuild/protobuf`。
 - 后端镜像：`ghcr.io/<owner>/<repo>`（根 `Dockerfile`，distroless static + cosign 签名）。
 - 前端镜像：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行 + SPA fallback + `/healthz`）。
@@ -547,6 +549,6 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 - `runner.Service.Run` 当前仍以同步返回最终文本为主，长时间 daemon 任务会占用调用链。
 - MCP toolset 当前支持 streamable HTTP 和 SSE transport。
 - A2A remote agent 需要 `url`；daemon remote agent 需要 `daemon_runtime_id`、`acp_runtime` 和在线 daemon runtime 连接。
-- 跨 workspace 共享同一个 runner / channel manager / cron scheduler / automation scheduler，**agent 运行时名字需在所有 workspace 内全局唯一**；引用 agent 的 channel、cron job 与 automation step 通过 `ResolveAgentRef` **仅按 `agent_id`** 解析（无 legacy name 解析路径；迁移前只按 name 引用的旧记录由启动时的一次性回填补上 `agent_id`）。
+- 跨 workspace 共享同一个 runner / channel manager / cron scheduler / automation scheduler，**agent 运行时名字需在所有 workspace 内全局唯一**；引用 agent 的 channel、cron job 与 automation step 通过 `ResolveAgentRef` **仅按 `agent_id`** 解析（无 legacy name 解析路径）。启动时的 Agent-ID verifier 只读检查违规记录并记录 warning，不自动回填或修复；全局管理员可通过 `VerifyAgentIDCutover` 手动运行同一诊断。
 - Automation v1 是线性有序 step，不包含 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 已在 proto 中预留，但当前运行时只执行 manual 和 schedule trigger。
 - 内置 system agent 仍为全局注册，其管理类工具读跨 workspace、写则要求显式传入 `workspace_id`。

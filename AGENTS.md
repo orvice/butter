@@ -80,15 +80,16 @@ Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plug
 Docs directory layout:
 
 - `docs/api.md` — App developer API reference and handoff doc: auth, workspace headers, ConnectRPC URL/field conventions, TypeScript Connect-Web examples, REST uploads (`/api/uploads/*`), `AgentService.StreamAgent` chat stream, and errors.
-- `docs/migration-connectrpc.md` — Twirp → ConnectRPC migration plan + status (phases 0–3.5, chat `StreamAgent` complete).
-- `docs/connectrpc-followups.md` — Post-migration follow-ups (runtime smoke test, wire-format notes).
 - `docs/app.md` — Product/function overview in Chinese, including workspace multi-tenancy, agent orchestration (LLM/Loop/Sequential/Parallel/Workflow), Workflow Agent graph nodes and human-in-the-loop pauses, model management, MCP tools, remote agents, daemon execution, cron WAITING_INPUT, and channel entry points.
 - `docs/architecture.md` — System architecture overview covering multi-tenancy, process entry, layered structure, startup wiring, agent construction (including Workflow Agent graph building and validation), runner execution flow with implicit workflow interrupt resume, and cron WAITING_INPUT handling.
 - `docs/dashboard-api-gap.md` — Dashboard backend API gap analysis, including current coverage, recommended API extensions, persistence additions, phased implementation, and compatibility notes.
 - `docs/design-daemon-agent.md` — Daemon Agent design proposal with background, goals, architecture analysis, core challenges, incremental implementation plan, end-to-end flow, and file change list.
+- `docs/design-dashboard-chat-async.md` — Dashboard asynchronous chat design and invocation observer contract.
 - `docs/project-structure.md` — Project directory structure documentation and maintenance guidance.
 - `docs/storage.md` — S3 object storage + static asset / avatar upload configuration and HTTP endpoints.
-- `docs/structure-review.md` — Directory structure review with strengths, issues, and refactoring recommendations such as renaming, bootstrap split, and runtime organization.
+- `docs/postgres-migration-analysis.md` — PostgreSQL migration analysis and storage-shape notes.
+- `docs/prd-workspace-agent-git-content.md` — Draft PRD for workspace Git-backed Agent Content.
+- `docs/research/adk-go-v2.1-openai.md` — ADK Go v2.1 OpenAI compatibility research.
 - `docs/adr/0001-workflow-graph-as-nodes-and-edges-proto.md` — ADR: Workflow graphs as explicit nodes + edges in proto; phase-1 node kinds.
 - `docs/adr/0002-interrupt-state-derived-from-session-events.md` — ADR: Pending interrupts derived from session events, FIFO implicit resume.
 - `docs/adr/0003-cron-workflow-pause-notify-and-wait.md` — ADR: Cron + Human Input → WAITING_INPUT, notify question, resume via ReplySession.

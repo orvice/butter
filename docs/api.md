@@ -252,9 +252,11 @@ If you received a `started.invocation_id`, you can also call
 ## Authentication
 
 All endpoints require Bearer token authentication except `GET /ping`,
-`OPTIONS` preflights, the MCP OAuth callback, and the public
-`AuthService.Login` / `AuthService.ListOAuthProviders` /
-`AuthService.BeginOAuthFlow` / `AuthService.CompleteOAuthFlow` RPCs.
+`OPTIONS` preflights, the MCP OAuth callback, the Telegram webhook callback,
+the daemon connector methods (which authenticate daemon credentials inside the
+connector), and the public `AuthService.Login` /
+`AuthService.ListOAuthProviders` / `AuthService.BeginOAuthFlow` /
+`AuthService.CompleteOAuthFlow` RPCs.
 
 ```
 Authorization: Bearer <token>
@@ -264,7 +266,7 @@ Three token sources are accepted by `AuthMiddleware` (tried in order):
 
 1. **Dashboard user session** — issued by `AuthService.Login`. The middleware looks up the hashed token in **Redis** (key `butter:auth:session:<sha256(token)>`) and asynchronously updates `last_used_at`.
 2. **Root token** — the single value of `apiToken` in `config.yaml`. Compared with constant-time. Intended for ops / CLI.
-3. **DB-stored API tokens** — managed at runtime via `APITokenService` and daemon credential issuance. Stored as `sha256` hashes; only the prefix is visible. User API tokens are `kind=API_TOKEN_KIND_USER` with `api:*` scope and are bound to one workspace. Daemon credentials are `kind=API_TOKEN_KIND_DAEMON` with `daemon:connect` scope and are only accepted by `DaemonConnectorService.Connect`. Successful auth updates `last_used_at` asynchronously.
+3. **DB-stored API tokens** — managed at runtime via `APITokenService` and daemon credential issuance. Stored as `sha256` hashes; only the prefix is visible. User API tokens are `kind=API_TOKEN_KIND_USER` with `api:*` scope and are bound to one workspace. Daemon credentials are `kind=API_TOKEN_KIND_DAEMON` with `daemon:connect` scope and are accepted only by the `DaemonConnectorService` methods. Successful auth updates `last_used_at` asynchronously.
 
 `401 Unauthorized` on failure.
 
@@ -283,7 +285,9 @@ The header is required for most methods on these app-facing services:
 |---------|-------|
 | `AgentService` | Agent config, invocation, runtime status, chat stream |
 | `AgentFileService` | Agent file spaces and files |
+| `SkillService` | Workspace Skills and Skill resources |
 | `MCPServerService` | Workspace MCP server config, status, OAuth, tool listing |
+| `GlobalMCPServerService` | Global MCP presets and workspace installation |
 | `ModelProviderService` | Workspace model provider config |
 | `NotifyGroupService` | Workspace notification groups |
 | `RemoteAgentService` | Workspace remote agent config/status |
@@ -297,6 +301,8 @@ The header is required for most methods on these app-facing services:
 | `ForumService` | Workspace forum threads/posts and agent replies |
 | `APITokenService` | Tokens are created/listed/revoked within the selected workspace |
 | `DaemonService` | Workspace daemon configs, credentials, online daemon/task views |
+| `GitHostService` | Platform Git endpoint allowlist |
+| `WorkspaceRepoBindingService` | Workspace Git repository binding and Agent Content |
 
 The header is not required for `AuthService`, `WorkspaceService`,
 or `DashboardService`. `SessionService` creates, reads, lists,
@@ -865,7 +871,7 @@ POST /api/agents.v1.AgentService/DeleteAgent
 | Field | Type | Description |
 |-------|------|-------------|
 | `agent_id` | string | Identify by immutable Agent ID. **Required** — a request without it fails with `invalid_argument` |
-| `name` | string | Legacy name lookup. Deprecated: use `agent_id` |
+| `name` | string | Deprecated legacy field. Never selects an Agent; use `agent_id` |
 
 **Response:** `{}`
 
@@ -906,8 +912,8 @@ POST /api/agents.v1.AgentService/StreamAgent
 `POST /api/chat/stream` SSE endpoint. The client opens a Connect server stream,
 sends one `StreamAgentRequest`, then reads `StreamAgentResponse` messages until
 the server closes the stream after `final` or aborts with a `connect.Error`.
-Dashboard chat text turns use `SubmitAgentInvocation` plus authoritative
-`GetAgentInvocation` polling so navigation and observer disconnects do not own
+Dashboard chat text turns use `SubmitAgentInvocation` plus the read-only
+`WatchAgentInvocation` stream. Navigation and observer disconnects do not own
 execution lifetime.
 
 Requires the same Bearer token as other `/api` RPCs. Non-admin callers must set
@@ -964,39 +970,6 @@ error payload.
 Existing synchronous clients may call this via
 `front/src/api/chat.ts::streamChat`. Aborting that request retains its legacy
 request-scoped cancellation behavior.
-
-#### SubmitAgentInvocation
-
-```
-POST /api/agents.v1.AgentService/SubmitAgentInvocation
-```
-
-Durably accepts one private dashboard chat turn and returns immediately. An
-empty `session_id` creates a Workspace-owned, Agent-bound Session. The complete
-validated input and QUEUED Invocation are persisted before success is returned;
-execution then continues independently of the browser request.
-
-At most one QUEUED or RUNNING Invocation is accepted per Session. A concurrent
-submit returns `failed_precondition`; the error message and
-`active-invocation-id` metadata contain the active Invocation ID. Different
-Sessions may execute concurrently.
-
-**Request:** `request_id` (required idempotency key), `agent_id` (required),
-optional `session_id`, `message` or `parts`, and optional `model_override`.
-
-**Response:** `session_id`, `invocation_id`, current `status`, and
-`session_created`.
-
-#### GetAgentInvocation
-
-```
-POST /api/agents.v1.AgentService/GetAgentInvocation
-```
-
-Returns the authoritative Invocation record for `invocation_id`. Non-admin
-callers must select the owning Workspace and may read only their own private
-`web-chat` Invocations. Wrong-Workspace and wrong-owner requests return
-`not_found`.
 
 #### CancelAgentInvocation
 
@@ -1251,6 +1224,23 @@ each finding carries `workspace_id`, a machine-readable `check`,
 The migration-era RPCs `AssignAgentID`, `GetMigrationReadiness`, and
 `MigrateAgentsV2` are retired and always return `unimplemented`.
 
+#### Agent lifecycle operations
+
+Agent lifecycle changes that span database configuration and Git-owned Agent
+Content use durable, retryable operations. They require a workspace owner/admin
+when they mutate state:
+
+| RPC | Path | Notes |
+|-----|------|-------|
+| `UpdateAgentConfiguration` | `POST /api/agents.v1.AgentService/UpdateAgentConfiguration` | Composite operational/content save; requires `expected_agent_version` |
+| `RestoreAgent` | `POST /api/agents.v1.AgentService/RestoreAgent` | Reactivates a tombstoned Agent |
+| `GetAgentOperation` | `POST /api/agents.v1.AgentService/GetAgentOperation` | Reads one durable operation |
+| `ListAgentOperations` | `POST /api/agents.v1.AgentService/ListAgentOperations` | Lists operations in the current workspace |
+| `RetryAgentOperation` | `POST /api/agents.v1.AgentService/RetryAgentOperation` | Resumes a failed operation from its first unfinished step |
+
+The operation ID is the idempotency key. A failed operation is not silently
+replayed; clients must call `RetryAgentOperation` explicitly.
+
 #### Agent Object
 
 | Field | Type | Description |
@@ -1262,7 +1252,7 @@ The migration-era RPCs `AssignAgentID`, `GetMigrationReadiness`, and
 | `sub_agents` | Agent[] | Deprecated legacy nested sub-agents. Read-only: rejected on create, immutable on update, never used for construction |
 | `child_agent_ids` | string[] | Ordered child Agent ID references for LLM/Loop/Sequential/Parallel composition (replaces embedded `sub_agents` for V2 agents) |
 | `lifecycle_status` | enum | Whether the agent is runnable; new agents are created `ACTIVE` |
-| `legacy_name` | string | Original name preserved during the V2 migration observation period |
+| `legacy_name` | string | Original name retained on historical records for display/audit; never used for lookup |
 | `labels` | map\<string,string\> | Routing/indexing labels |
 | `metadata` | map\<string,string\> | Custom annotations |
 | `config` | AgentConfig | Execution settings (see below) |
@@ -1343,18 +1333,15 @@ Declares a Workflow Agent's directed graph. See [ADR 0001](adr/0001-workflow-gra
 ```json
 {
   "agent": {
+    "agent_id": "approval",
     "name": "approval",
     "type": "AGENT_TYPE_WORKFLOW",
-    "sub_agents": [
-      {"name": "draft", "config": {"model": "flash", "instruction": "Draft content."}},
-      {"name": "publish", "config": {"model": "flash", "instruction": "Publish content."}}
-    ],
     "config": {
       "workflow": {
         "nodes": [
-          {"name": "draft", "kind": "WORKFLOW_NODE_KIND_AGENT", "agent": "draft"},
+          {"name": "draft", "kind": "WORKFLOW_NODE_KIND_AGENT", "agent_id": "draft"},
           {"name": "ask", "kind": "WORKFLOW_NODE_KIND_HUMAN_INPUT", "question": "Approve this draft?"},
-          {"name": "publish", "kind": "WORKFLOW_NODE_KIND_AGENT", "agent": "publish"}
+          {"name": "publish", "kind": "WORKFLOW_NODE_KIND_AGENT", "agent_id": "publish"}
         ],
         "edges": [
           {"from": "START", "to": "draft"},
@@ -1366,6 +1353,11 @@ Declares a Workflow Agent's directed graph. See [ADR 0001](adr/0001-workflow-gra
   }
 }
 ```
+
+Create the independent `draft` and `publish` Agents first, then create
+`approval` with those `agent_id` references. Embedded `sub_agents` and the
+legacy workflow `agent` name field are retained only for decoding historical
+records and are never resolved.
 
 **Workflow pause/resume:** when a workflow reaches a HUMAN_INPUT node, the turn ends with the question as the reply text. The next plain-text message on the same session is automatically taken as the answer (implicit FIFO resume, [ADR 0002](adr/0002-interrupt-state-derived-from-session-events.md)). This works identically via `StreamAgent`, `ReplySession`, or channel messages. Delete the session to abandon a paused workflow.
 
@@ -2023,7 +2015,8 @@ Endpoints:
 
 ### RemoteAgentService
 
-Manages remote agent configurations (A2A protocol).
+Manages remote agent configurations for A2A, Daemon, and OpenCode HTTP
+protocols.
 
 #### ListRemoteAgents
 
@@ -2117,6 +2110,7 @@ Probes the endpoint and reports liveness.
 
 * `REMOTE_AGENT_PROTOCOL_A2A`: HTTP GET `<url>/.well-known/agent.json` (5-second timeout).
 * `REMOTE_AGENT_PROTOCOL_DAEMON`: resolves `daemon_runtime_id` against the daemon registry and dispatches with `acp_runtime`.
+* `REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP`: probes `GET /global/health` on the configured OpenCode server (5-second timeout).
 
 **Request:** `{ "id": "<id>" }`
 
@@ -2138,10 +2132,13 @@ Probes the endpoint and reports liveness.
 |-------|------|-------------|
 | `id` | string | Unique identifier within a workspace (required) |
 | `name` | string | Human-readable name (required) |
-| `url` | string | Endpoint URL (required for A2A) |
-| `protocol` | enum | `REMOTE_AGENT_PROTOCOL_A2A`, `REMOTE_AGENT_PROTOCOL_DAEMON` |
+| `url` | string | Endpoint URL (required for A2A and OPENCODE_HTTP) |
+| `protocol` | enum | `REMOTE_AGENT_PROTOCOL_A2A`, `REMOTE_AGENT_PROTOCOL_DAEMON`, or `REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP` |
 | `daemon_runtime_id` | string | Required for DAEMON protocol |
 | `acp_runtime` | string | Required for DAEMON protocol; v1 supports `opencode` and `codex` |
+| `opencode_agent` | string | Optional remote agent override for OPENCODE_HTTP |
+| `opencode_model` | string | Optional remote model override for OPENCODE_HTTP |
+| `username` / `password` | string | Optional HTTP Basic Auth for OPENCODE_HTTP |
 | `workspace_id` | string | Owning workspace |
 
 ---
@@ -2983,11 +2980,15 @@ POST /api/agents.v1.CronJobService/ListCronExecutions
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | enum | `CRON_DELIVERY_TYPE_LOG`, `CRON_DELIVERY_TYPE_WEBHOOK`, `CRON_DELIVERY_TYPE_CHANNEL`, `CRON_DELIVERY_TYPE_NOTIFY_GROUP` |
+| `type` | enum | `CRON_DELIVERY_TYPE_LOG`, `CRON_DELIVERY_TYPE_WEBHOOK`, `CRON_DELIVERY_TYPE_NOTIFY_GROUP`, or `CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION` |
 | `webhook_url` | string | URL for WEBHOOK type |
-| `channel_name` | string | AgentChannel name for CHANNEL type |
-| `chat_id` | string | Target chat ID for CHANNEL type |
 | `notify_group_name` | string | NotifyGroup name for NOTIFY_GROUP type |
+| `telegram_destination_id` | string | Telegram Destination ID for TELEGRAM_DESTINATION type |
+
+`CRON_DELIVERY_TYPE_CHANNEL`, `channel_name`, and `chat_id` remain in the wire
+schema only so historical jobs decode. New or updated jobs reject that delivery
+type; legacy jobs are still scheduled, but the scheduler records a warning and
+uses log delivery instead of sending through the retired generic Channel runtime.
 
 #### CronRetryPolicy Object
 
@@ -3352,6 +3353,16 @@ The client must include `authorization: Bearer <daemon-runtime-token>`. The serv
 | `task` | DaemonTask | Task assignment, including agent name, input, session/user ids, metadata, daemon runtime id, acp runtime, and work dir |
 | `cancel` | CancelTask | Cancellation request by `task_id` |
 
+The same service also exposes unary connector methods for clients that use the
+long-poll transport instead of `Connect`:
+
+| RPC | Path | Notes |
+|-----|------|-------|
+| `Register` | `POST /api/agents.v1.DaemonConnectorService/Register` | Registers a daemon runtime |
+| `Poll` | `POST /api/agents.v1.DaemonConnectorService/Poll` | Waits for queued task/cancel messages |
+| `ReportTaskUpdate` | `POST /api/agents.v1.DaemonConnectorService/ReportTaskUpdate` | Reports task progress or completion |
+| `Unregister` | `POST /api/agents.v1.DaemonConnectorService/Unregister` | Marks a runtime offline |
+
 ---
 
 ### WorkspaceService
@@ -3589,8 +3600,19 @@ Manages the current workspace's repository binding (zero or one per workspace). 
 | `GetWorkspaceRepoBinding` | `POST /api/agents.v1.WorkspaceRepoBindingService/GetWorkspaceRepoBinding` | `{ "binding": WorkspaceRepoBinding?, "overlaps": RepoBindingOverlap[] }`; `binding` is unset when none exists |
 | `PutWorkspaceRepoBinding` | `POST /api/agents.v1.WorkspaceRepoBindingService/PutWorkspaceRepoBinding` | Creates or replaces the binding; server-owned fields on input are ignored and the status resets to `UNVALIDATED` |
 | `DeleteWorkspaceRepoBinding` | `POST /api/agents.v1.WorkspaceRepoBindingService/DeleteWorkspaceRepoBinding` | Removes the binding and its stored credential |
+| `OnboardWorkspaceRepository` | `POST /api/agents.v1.WorkspaceRepoBindingService/OnboardWorkspaceRepository` | `EXPORT_CURRENT` or `IMPORT_REPOSITORY`; publishes only after validation |
 | `SetWorkspaceRepoBindingCredential` | `POST /api/agents.v1.WorkspaceRepoBindingService/SetWorkspaceRepoBindingCredential` | `{ "pat": "..." }` — write-only; resets status to `UNVALIDATED` |
 | `ValidateWorkspaceRepoBinding` | `POST /api/agents.v1.WorkspaceRepoBindingService/ValidateWorkspaceRepoBinding` | Probes the repository with the stored credential and persists the outcome |
+| `SyncWorkspaceRepository` | `POST /api/agents.v1.WorkspaceRepoBindingService/SyncWorkspaceRepository` | Reads the managed tree into the workspace cache |
+| `GetRepositorySyncStatus` | `POST /api/agents.v1.WorkspaceRepoBindingService/GetRepositorySyncStatus` | Reads sync state without triggering sync |
+| `ListRepositoryEntries` | `POST /api/agents.v1.WorkspaceRepoBindingService/ListRepositoryEntries` | Lists cached managed-tree entries |
+| `GetRepositoryFile` | `POST /api/agents.v1.WorkspaceRepoBindingService/GetRepositoryFile` | Reads one cached Markdown file |
+| `PublishWorkspaceRepository` | `POST /api/agents.v1.WorkspaceRepoBindingService/PublishWorkspaceRepository` | Validates and advances the Active Revision |
+| `ConfigureWebhookSecret` | `POST /api/agents.v1.WorkspaceRepoBindingService/ConfigureWebhookSecret` | Generates a repository webhook secret, shown once |
+| `AcceptRepositoryBaseline` | `POST /api/agents.v1.WorkspaceRepoBindingService/AcceptRepositoryBaseline` | Accepts a force-pushed HEAD as the new baseline |
+| `CommitAgentContent` | `POST /api/agents.v1.WorkspaceRepoBindingService/CommitAgentContent` | Commits a validated Agent Content changeset |
+| `RollbackAgentContent` | `POST /api/agents.v1.WorkspaceRepoBindingService/RollbackAgentContent` | Restores content from a published revision |
+| `PurgeAgentContent` | `POST /api/agents.v1.WorkspaceRepoBindingService/PurgeAgentContent` | Permanently removes an Agent's managed files |
 
 `WorkspaceRepoBinding` fields:
 
@@ -3607,6 +3629,11 @@ Manages the current workspace's repository binding (zero or one per workspace). 
 | `status` | RepoBindingStatus | Last validation outcome (server-owned) |
 
 `RepoBindingStatus.state` is `UNVALIDATED` / `OK` / `FAILED`; `checks[]` reports the individual probes (`repository_read`, `branch_exists`, `write_capability`, `change_request_capability`) with `ok`, `required`, and a credential-free `detail`. Validation requirements follow the write mode: read, branch, and write capability always gate; change-request capability gates only in `CHANGE_REQUEST` mode.
+
+`DeleteWorkspaceRepoBinding` is a safe detach, not a raw delete: it first
+materializes the Active Revision into database-managed Agent fields and reloads
+the runtime. Without a valid snapshot it refuses by default; callers may choose
+`KEEP_DATABASE` explicitly. Remote Git history is never changed by detaching.
 
 `overlaps[]` lists other workspaces bound to the same effective location (same host, repository, branch, and root path). Overlap is allowed and means those workspaces intentionally share Agent Content.
 

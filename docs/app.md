@@ -36,7 +36,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 | Kind | 行为 |
 |------|------|
-| `AGENT` | 运行一个 agent，V2 用 `agent_id` 引用独立 agent（legacy `agent` 名字兜底兼容） |
+| `AGENT` | 运行一个 agent，必须用 `agent_id` 引用独立 Agent；legacy `agent` 名字字段不再解析 |
 | `HUMAN_INPUT` | 暂停 workflow（Interrupt），向人类提出 `question`，收到回复后恢复 |
 | `ROUTER` | 按 input text 与 outgoing edge route label 的修剪、大小写不敏感精确匹配选择分支 |
 | `JOIN` | 扇入屏障，等待所有前驱完成后聚合输出 |
@@ -49,7 +49,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 **Parallel Worker：** AGENT 节点可标记 `parallel_worker: true`，对 list 类型输入并发扇出执行，支持 retry 和 timeout。
 
 **人工审批暂停/恢复（ADR 0002）：**
-- HUMAN_INPUT 节点暂停 workflow，question 作为回复文本通过当前入口（chat channel / dashboard StreamAgent / cron 的 delivery 目标）投递给人类。
+- HUMAN_INPUT 节点暂停 workflow，question 作为回复文本通过当前入口（chat channel / dashboard StreamAgent / cron 的 delivery 目标，包括 Telegram Destination）投递给人类。
 - 同一 session 上的下一条纯文本消息自动作为最老 pending Interrupt 的回复（隐式 FIFO 恢复）。
 - 删除 session 可放弃暂停中的 workflow。
 - 暂停状态存储在 session events 中（ADK 把 workflow run state 写在 session state），进程重启后可恢复。
@@ -112,9 +112,9 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 
 配置类：
 
-- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役，恒返回 `Unimplemented`）。dashboard chat 提交后由后台 coordinator 独立执行；同一 Session 只允许一个 QUEUED/RUNNING Invocation，不同 Session 可并发。Stop 是唯一普通取消动作，终态为 CANCELLED；导航和 observer 断开不取消。Get/Cancel 校验 Workspace 与 private Session owner。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name）。
+- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `WatchAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent lifecycle 的 `UpdateAgentConfiguration` / `RestoreAgent` / `GetAgentOperation` / `ListAgentOperations` / `RetryAgentOperation` 和只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役，恒返回 `Unimplemented`）。dashboard chat 提交后由后台 coordinator 独立执行；同一 Session 只允许一个 QUEUED/RUNNING Invocation，不同 Session 可并发。Stop 是唯一普通取消动作，终态为 CANCELLED；导航和 observer 断开不取消。Get/Cancel 校验 Workspace 与 private Session owner。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name）。
 - `MCPServerService`：共享 MCP Server CRUD + `GetMCPServerStatus`（live 探活）+ `ListMCPTools`（聚合工具列表）+ `StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`（MCP OAuth2 授权流程）。
-- `RemoteAgentService`：远程 Agent CRUD + `GetRemoteAgentStatus`（A2A `/.well-known/agent.json` 探测 / Daemon 注册表查找）。
+- `RemoteAgentService`：远程 Agent CRUD + `GetRemoteAgentStatus`（A2A `/.well-known/agent.json` 探测 / Daemon 注册表查找 / OpenCode HTTP `/global/health` 探测）。
 - `TelegramChannelService` / `TelegramDestinationService` / `TelegramAdminService` / `TelegramProcessingService`：Telegram 的配置、状态、投递与恢复。
 - `ChannelService`：**已废弃**的通用渠道 API，仅保留读取与删除；创建/更新/重启/暂停/恢复返回 `Unimplemented`。
 - `AutomationService`：自动化工作流 CRUD + `RunAutomationNow` + `ListAutomationRuns` / `GetAutomationRun` / `ListAutomationStepRuns`。
@@ -169,7 +169,7 @@ debug 默认值。
 有独立会话与策略；所有响应都留在消息来源的 Topic 内。
 
 **运行期命令**：`/status`（任何被准入的用户可用）、`/agent`、`/model`、`/debug`、
-`/clear`（仅 controller）。`/agent <name>` 与 `/agent reset` 切换或复位；切换 Agent
+`/clear`（仅 controller）。`/agent <agent_id>` 与 `/agent reset` 切换或复位；切换 Agent
 会切到该 Agent 自己的历史（切回可恢复），切换 Model 则保留当前对话。选择存在
 Redis，重启后仍然有效；候选列表被改动后失效的选择会自动回落到默认值。
 
@@ -177,8 +177,9 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 `ALL` 触发模式看不到普通消息。Butter 只能诊断并提示，无法代为关闭——请在 BotFather
 中用 `/setprivacy` 关闭。
 
-**Discord**：本次发布不支持，等待重新设计。遗留的 `AgentChannel` 记录不会启动，也
-不会被自动迁移。
+**Discord 入站 Channel**：本次发布不支持，等待重新设计。遗留的 `AgentChannel`
+记录不会启动，也不会被自动迁移；Notify Group 的 Discord webhook 出站 target
+仍是独立能力。
 
 ### Cron 调度
 
@@ -212,9 +213,9 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
   - `CRON_DELIVERY_TYPE_WEBHOOK`：HTTP webhook 推送。
   - `CRON_DELIVERY_TYPE_TELEGRAM_DESTINATION`：投递到一个 Telegram Destination。
   - `CRON_DELIVERY_TYPE_NOTIFY_GROUP`：按名称加载 `NotifyGroup`，向其中启用的 Telegram Destination、Lark webhook、Discord webhook 目标发送通知。
-  - `CRON_DELIVERY_TYPE_CHANNEL`：**已废弃**。新建/更新会被拒绝，存量记录不会执行。
+  - `CRON_DELIVERY_TYPE_CHANNEL`：**已废弃**。新建/更新会被拒绝；存量记录仍进入 scheduler，但不会发送到 generic Channel，而是记录 warning 并按日志 delivery 处理。
 - **可靠性策略**：每次执行可设置超时、失败重试、重试 backoff、并发处理（默认 skip 保持旧行为）、投递通知时机和输出预览上限。手动 `RunCronJobNow` 与定时触发使用同一执行路径。
-- **Workflow 审批暂停（ADR 0003）**：当 cron 执行的 Workflow Agent 在 HUMAN_INPUT 节点暂停时，执行记录状态变为 `WAITING_INPUT`，question 通过 job 配置的 delivery 目标（channel / webhook / notify group）投递，并附带 session 坐标（`session_app_name` / `session_user_id` / `session_id`）与暂停 agent 的 `agent_id`（渲染为 `agent_id=<id>`；webhook 同时带 `agent_id` 与显示用 `agent_name`）。人类通过 `SessionService.ReplySession` 用该 `agent_id` 加 session 坐标回答后执行变为终态。删除 session 则执行变为 `CANCELLED`。暂停中的 job 在 SKIP/QUEUE 并发策略下跳过新触发。每次执行使用独立 session（`cron:<job>:<exec-id>`），避免重跑覆盖待回答的 Interrupt。
+- **Workflow 审批暂停（ADR 0003）**：当 cron 执行的 Workflow Agent 在 HUMAN_INPUT 节点暂停时，执行记录状态变为 `WAITING_INPUT`，question 通过 job 配置的 delivery 目标（webhook / Telegram Destination / notify group）投递，并附带 session 坐标（`session_app_name` / `session_user_id` / `session_id`）与暂停 agent 的 `agent_id`（渲染为 `agent_id=<id>`；webhook 同时带 `agent_id` 与显示用 `agent_name`）。人类通过 `SessionService.ReplySession` 用该 `agent_id` 加 session 坐标回答后执行变为终态。删除 session 则执行变为 `CANCELLED`。暂停中的 job 在 SKIP/QUEUE 并发策略下跳过新触发。每次执行使用独立 session（`cron:<job>:<exec-id>`），避免重跑覆盖待回答的 Interrupt。
 - **执行记录（CronExecution）**：每次开始或被并发策略跳过的执行写入 MongoDB，包含 input/output preview、status（success/error/skipped/cancelled/waiting_input）、error、attempt_count、trigger_type、skipped_reason、truncated、起止时间和 duration，支持分页查询。
 
 ## 11. 配置与热更新
@@ -226,7 +227,7 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 - **运行时热更新**：
   - Agent / MCP / RemoteAgent 变更触发 `ReloadRunner`，重建 agent registry，清空 runner 与 model override 缓存，并 reload channels。
   - Channel 变更触发 `ReloadChannels`。
-- **持久化对象**：agents、mcp_servers、remote_agents、channels、cron_jobs、cron_executions、automations、automation_runs、automation_step_runs。
+- **持久化对象**：agents、mcp_servers、remote_agents、daemon_runtimes、legacy channels、Telegram Channels/Destinations/processing records、cron_jobs、cron_executions、automations、automation_runs、automation_step_runs、skills、Agent Files、Git bindings、Agent Content snapshots、Agent lifecycle operations。
 
 ## 12. 持久化
 
@@ -236,14 +237,15 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
   - `workspaces`：workspace 元数据，`slug` 唯一索引
   - `workspace_members`：用户—workspace 多对多关系，`(workspace_id, user_id)` 唯一索引 + `user_id` 普通索引
   - `users`：dashboard 用户
-  - 运行时配置：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemons` / `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键
+  - 运行时配置：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemon_runtimes` / legacy `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键
+  - Telegram：`telegram_channels` / `telegram_destinations` / `telegram_processing_records`、Telegram 设置和数据库主密钥
   - Agent Files：`agent_file_spaces` / `agent_files` / `agent_file_versions`
   - Forum：`forum_threads` / `forum_posts`
   - `cron_jobs` / `cron_executions`，`_id` 为 `"{workspace_id}:{name}"`（job）或随机 uuid（execution，带 `workspace_id` 字段）
   - `automations` / `automation_runs` / `automation_step_runs`，分别保存 workflow 定义、run 历史和 step-run 历史；definition `name` 在 workspace 内唯一，run/step-run 按 workspace + automation/run 建索引。
   - `invocations`：runner 持久化的每次调用记录（`agent_id` + `agent_display_name` 快照 / legacy `agent_name` / app / user / session / status / input / output / latency / workspace_id；历史记录只保留 `agent_name`）
   - `api_tokens`：DB-stored API tokens（哈希 + prefix + workspace_id + kind + scopes + optional expires_at / daemon_runtime_id）
-- **Redis**（默认 `localhost:6379`）：dashboard auth sessions（key `butter:auth:session:<hash>`）、渠道内活跃 agent/model 选择。
+- **Redis**（默认 `localhost:6379`）：dashboard auth sessions（key `butter:auth:session:<hash>`）、Telegram Destination/session subject 维度的 Agent/Model/Debug 选择、Telegram Streams、租约和 Long Polling offsets。
 
 ## 13. 鉴权与多 Token
 
@@ -275,7 +277,7 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 - `MCPServerService.GetMCPServerStatus`：实跑 MCP handshake（streamable HTTP / SSE）+ `ListTools`，应用 `tool_filter`，返回 `STATE_CONNECTED` + tool_count 或 `STATE_DISCONNECTED` + 错误 detail。
 - `MCPServerService.ListMCPTools`：聚合所有 MCP 工具到一个视图，per-tool `allowed` 反映白名单；server 探测失败放进 `errors` map。
 - `RemoteAgentService.GetRemoteAgentStatus`：A2A 拉 `/.well-known/agent.json`；DAEMON 协议在当前 workspace 查注册表，返回 ACTIVE / IDLE / UNREACHABLE + `serving_daemon_runtime_id`。
-- `ChannelService.GetChannelStatus`：返回 LIVE / PAUSED / ERROR；`channel.Manager.ChannelStatus()` 当前主要看 `enabled` + manager started。
+- `ChannelService.GetChannelStatus`：仅报告 legacy `AgentChannel` 记录为 `ERROR`；当前 Telegram 使用 `TelegramChannelService.GetTelegramChannelStatus`，返回 desired state、preflight blockers、Webhook/Long Polling 和 queue readiness。
 - `DaemonService.ListDaemonRuntimes` / `CreateDaemonRuntimeToken`：管理 workspace daemon runtime 与 worker token。
 - `DaemonService.ListDaemons` / `GetDaemon`：暴露当前 workspace daemon 注册表中 version / os / executors / remote_addr / uptime / active task 数。
 - `DaemonService.ListDaemonTasks`：每个在飞任务带 `current_step` / `progress` / `elapsed`（progress 从 daemon 的 `DaemonTaskUpdate` 上报）。
@@ -297,8 +299,8 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 ## 18. 前端 Dashboard
 
 - `front/` 是 Vite + React 19 + shadcn/ui 应用，TanStack Query 做数据层。
-- Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 page 层 boundary。Chat 流式走 `AgentService.StreamAgent`（`chat.ts`）；头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
-- 一级页（`front/src/pages/`）：Login / Chat / Forum / Dashboard(Overview) / Agents / MCP Servers / Remote Agents / Daemons / Channels / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Users / Profile / Integrations / Admin。
+- Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 route/feature 层 boundary。Chat 通过 `SubmitAgentInvocation` + `WatchAgentInvocation` 观察异步执行；同步兼容入口仍可使用 `AgentService.StreamAgent`。头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
+- 一级路由（`front/src/routes/`）和资源实现（`front/src/features/`）包含 Login / Chat / Forum / Dashboard / Agents / MCP Servers / Remote Agents / Daemons / Telegram Channels/Destinations / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Users / Profile / Integrations / Admin。
 - 全部页面消费上面 12-16 节描述的 RPC；细节见 `docs/api.md`。
 
 ## 18.5 Telegram 运维前提
@@ -323,7 +325,7 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 - 遗留 `AgentChannel`（含 Discord）不启动、不迁移，仅在启动日志中被报告。
 - Notify Group 的 Telegram target 只接受 `destination_id`；原始 bot_token /
   chat_id / parse_mode / message_thread_id 在写入时被拒绝。
-- Cron 的 `CHANNEL` 投递在新建/更新时被拒绝，存量记录不再执行。
+- Cron 的 `CHANNEL` 投递在新建/更新时被拒绝；存量记录仍执行 Agent，但结果不发送到 generic Channel，而是记录 warning 并写入日志。
 
 ### 已知延后项
 
@@ -346,7 +348,7 @@ cmd/butter (服务端)
   ├── HTTP / ConnectRPC / A2A     (:8080)
   ├── h2c ConnectRPC              (:8081 /api)
   ├── DaemonConnectorService      (:8081 /api)
-  ├── Telegram / Discord poller
+  ├── Telegram receiver / poller / worker
   ├── Cron scheduler
   ├── Automation scheduler
   └── Runner + Invocation recorder

@@ -1,6 +1,6 @@
 # 项目目录结构文档
 
-更新时间：2026-06-03
+更新时间：2026-08-14
 
 ```text
 butter/
@@ -16,16 +16,16 @@ butter/
 │   ├── api.md
 │   ├── app.md
 │   ├── architecture.md
-│   ├── connectrpc-followups.md
 │   ├── dashboard-api-gap.md
 │   ├── design-daemon-agent.md
-│   ├── frontend-required-apis.md
-│   ├── migration-connectrpc.md
+│   ├── design-dashboard-chat-async.md
 │   ├── postgres-migration-analysis.md
+│   ├── prd-workspace-agent-git-content.md
 │   ├── project-structure.md
-│   ├── security-review.md
+│   ├── repo-binding-migration.md
+│   ├── research/
 │   ├── storage.md
-│   └── structure-review.md
+│   └── adr/
 ├── front/
 │   ├── Dockerfile
 │   ├── nginx.conf
@@ -39,31 +39,13 @@ butter/
 │       ├── gen/                 # protoc-gen-es output (@bufbuild/protobuf)
 │       │   ├── agents/v1/
 │       │   └── validate/
-│       ├── hooks/
-│       ├── layouts/
+│       ├── routes/                # TanStack Router file-based routes
+│       ├── features/              # Resource and page implementations
+│       ├── components/
+│       ├── context/
+│       ├── stores/
 │       ├── lib/
-│       ├── pages/
-│       │   ├── admin/
-│       │   ├── agent-files/
-│       │   ├── agents/
-│       │   ├── api-tokens/
-│       │   ├── channels/
-│       │   ├── chat/
-│       │   ├── cron/
-│       │   ├── daemons/
-│       │   ├── forum/
-│       │   ├── mcp-servers/
-│       │   ├── model-providers/
-│       │   ├── notify-groups/
-│       │   ├── remote-agents/
-│       │   ├── sessions/
-│       │   ├── users/
-│       │   ├── auth-oauth-callback.tsx
-│       │   ├── dashboard.tsx
-│       │   ├── integrations.tsx
-│       │   ├── login.tsx
-│       │   ├── profile.tsx
-│       │   └── workspaces.tsx
+│       ├── styles/
 │       └── types/
 ├── internal/
 │   ├── agent/
@@ -76,7 +58,8 @@ butter/
 │   │   ├── config_runtime.go
 │   │   ├── config_store.go
 │   │   ├── cron.go
-│   │   ├── grpc.go
+│   │   ├── h2c.go
+│   │   ├── reconciler.go
 │   │   ├── routes.go            # ConnectRPC + HTTP + auth wiring
 │   │   ├── runtime.go
 │   │   └── system_agent.go
@@ -108,9 +91,7 @@ butter/
 │   │                            # /NotFound/InternalWith/…) + snake_case
 │   │                            # JSON codec (HandlerOptions)
 │   ├── channel/
-│   │   ├── manager.go           # ChannelStatus + RuntimeState
-│   │   ├── discord/
-│   │   └── telegram/
+│   │   └── manager.go           # Legacy AgentChannel reporter; starts no transport
 │   ├── config/
 │   │   └── config.go
 │   ├── handler/
@@ -154,12 +135,18 @@ butter/
 │   │   │   └── repository.go
 │   │   └── health.go
 │   ├── runtime/
+│   │   ├── asyncrun/              # Dashboard async invocation coordinator
+│   │   ├── automation/            # Automation engine, scheduler and repositories
 │   │   ├── cron/                # scheduler + repo (job + execution, workspace-scoped) + ListByTimeRange
 │   │   ├── daemon/              # registry, connection (snapshots/cancel),
 │   │   │                        # bridge, grpc_handler, metrics
+│   │   ├── interrupt/            # Pending/Resume workflow interrupt seam
 │   │   ├── memory/mongo/
+│   │   ├── opencode/             # OpenCode HTTP RemoteAgent bridge
 │   │   ├── runner/              # Service.Run, InvocationRecorder, CancelInvocation
-│   │   └── session/mongo/       # CountSessions
+│   │   ├── session/mongo/        # CountSessions and ADK event persistence
+│   │   ├── streamorch/            # Shared streaming orchestration
+│   │   └── telegram/             # Telegram receiver, poller, worker and router
 │   ├── service/
 │   │   ├── health.go
 │   │   └── status.go
@@ -174,6 +161,7 @@ butter/
 ├── proto/
 │   └── agents/v1/
 │       ├── agent.proto
+│       ├── agent_operation.proto
 │       ├── agent_file.proto
 │       ├── agent_service.proto
 │       ├── agentchannel.proto
@@ -183,12 +171,19 @@ butter/
 │       ├── cron.proto
 │       ├── daemon.proto
 │       ├── dashboard.proto
+│       ├── automation.proto
+│       ├── content.proto
+│       ├── githost.proto
 │       ├── forum.proto
+│       ├── repobinding.proto
+│       ├── skill.proto
+│       ├── telegram.proto
 │       └── workspace.proto
 ├── .github/
 │   └── workflows/
 │       ├── buf.yml
 │       ├── docker-publish.yml   # backend image → ghcr.io/<owner>/<repo>
+│       ├── daemon-publish.yml   # daemon image → ghcr.io/<owner>/<repo>-daemon
 │       ├── front-publish.yml    # frontend image → ghcr.io/<owner>/<repo>-front
 │       └── go.yml
 ├── .claude/
@@ -213,15 +208,15 @@ butter/
 
 - `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 `/api` ConnectRPC 反连服务端的 daemon client（自报 version / os / executors）。
 - `internal/app/`：应用装配与初始化（路由、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
-- `internal/application/`：RPC 服务实现（Agent / AgentFile / MCPServer / GlobalMCPServer / ModelProvider / NotifyGroup / RemoteAgent / Channel / Session / Cron / Dashboard / Daemon / APIToken / Auth / Forum / Workspace）。每个服务一个 `*_service.go`，方法签名是原生 ConnectRPC 形式 `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，直接满足 `agentsv1connect.XxxServiceHandler` 接口，由 `routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载。错误用 `connect.NewError` 或 `connectx` helper 构造。
+- `internal/application/`：RPC 服务实现（Agent/lifecycle、AgentFile、Skill、MCPServer、GlobalMCPServer、ModelProvider、NotifyGroup、RemoteAgent、legacy Channel、Telegram、Session、Cron、Automation、Dashboard、Daemon、APIToken、Auth、Forum、Workspace、GitHost、WorkspaceRepoBinding）。每个服务一个 `*_service.go`，方法签名是原生 ConnectRPC 形式 `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，直接满足 `agentsv1connect.XxxServiceHandler` 接口，由 `routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载。错误用 `connect.NewError` 或 `connectx` helper 构造。
 - `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` / `InternalWith` 是 `connect.Error` 的常用构造短手；`HandlerOptions()` 含 snake_case JSON codec（`UseProtoNames=true`）供 curl/非浏览器调用；dashboard 浏览器默认 binary protobuf（`front/src/api/transport.ts`）。
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
 - `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
-- `internal/channel/`：渠道适配与渠道管理（Telegram、Discord），含 `RuntimeState` 探活。
+- `internal/channel/`：只保留 legacy `AgentChannel` 报告器；Telegram 适配与运行时位于 `internal/runtime/telegram/`。
 - `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`memory`。
-- `internal/repo/`：仓库层。`config/` 是配置仓库（memory + mongo）；新增 `apitoken/` 与 `invocation/`，同样 memory + mongo 双实现。
-- `front/`：Vite + React 19 dashboard。`src/api/` 是类型化的 ConnectRPC 客户端（`@connectrpc/connect-web`，一服务一文件）；`uploads.ts` 是唯一仍用裸 `fetch` + multipart 的 API 模块。`src/api/transport.ts` 提供共享 transport（binary protobuf）+ Authorization / X-Workspace-ID interceptor；`chat.ts` 调用 `StreamAgent` server-stream。`src/gen/` 是 buf 生成的 TS proto 类型；`src/pages/` 一目录一屏。
-- `proto/`：Proto 定义源文件（agent + cron + daemon + dashboard + api_token + agentchannel + context）。
+- `internal/repo/`：仓库层。除 `config/`、`apitoken/`、`invocation/` 外，还包含 Agent Content/lifecycle operation、Agent Files、Skills、Telegram resources/processing/settings、Git hosts/repo bindings/cache、input parts、OAuth、forum、workspace、auth、cryptokey 等 memory/mongo 实现。
+- `front/`：Vite + React 19 dashboard。TanStack Router 路由在 `src/routes/`，资源实现位于 `src/features/`；`src/api/` 是类型化的 ConnectRPC 客户端，`uploads.ts` 是唯一仍用裸 `fetch` + multipart 的 API 模块。`src/gen/` 是 buf 生成的 TS proto 类型。
+- `proto/`：Proto 定义源文件，包含 Agent/lifecycle、Telegram、Automation、Skills、Git binding、Daemon、Dashboard、Workspace、Forum、Cron、Content 等服务和消息。
 - `pkg/proto/`：Proto 生成代码（Go + Connect + grpc + grpc-gateway + validate）；不要手改。Twirp 生成产物已在 ConnectRPC Phase 3 移除。
 - `.github/workflows/`：CI。后端走 `docker-publish.yml`，前端独立 `front-publish.yml`（`paths: front/**` 过滤），均推 ghcr 并 cosign 签名。
 - `docs/`：项目文档。系统架构见 `architecture.md`；API 契约与外部 App 开发接入说明见 `api.md`；功能总览见 `app.md`。
