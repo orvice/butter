@@ -121,6 +121,7 @@ func TestWorkspaceMCPServerExposesReadOnlyWorkspaceTools(t *testing.T) {
 		t.Fatalf("write file: %v", err)
 	}
 	if _, err := handlers.configStore.CreateAgent(ctx, "ws-a", &agentsv1.Agent{
+		AgentId:     "planner",
 		Name:        "planner",
 		Description: "Plans work",
 		Metadata:    map[string]string{"secret": "hide-me", "public": "ok"},

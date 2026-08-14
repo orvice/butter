@@ -23,9 +23,9 @@ func TestOnboardExportCurrent(t *testing.T) {
 	ctx := ownerCtx()
 
 	// Give the DB agent content to export.
-	ag, err := fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	ag, err := fx.agentRepo.GetAgent(ctx, "ws-a", "my-agent")
 	if err != nil {
-		t.Fatalf("GetAgentByID: %v", err)
+		t.Fatalf("GetAgent: %v", err)
 	}
 	ag.Description = "Database description."
 	ag.Config = &agentsv1.AgentConfig{Instruction: "Database prompt instruction."}
@@ -106,11 +106,11 @@ func TestOnboardExportGatesContentEditingViaAPI(t *testing.T) {
 		t.Fatal("workspace must not be Git-owned before onboarding")
 	}
 	if _, err := agentSvc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "My Agent", Config: &agentsv1.AgentConfig{Instruction: "V1 prompt."}},
+		Agent: &agentsv1.Agent{AgentId: "my-agent", Config: &agentsv1.AgentConfig{Instruction: "V1 prompt."}},
 	})); err != nil {
 		t.Fatalf("pre-onboard UpdateAgent: %v", err)
 	}
-	got, _ := fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	got, _ := fx.agentRepo.GetAgent(ctx, "ws-a", "my-agent")
 	if got.GetConfig().GetInstruction() != "V1 prompt." {
 		t.Fatalf("pre-onboard edit not applied: %q", got.GetConfig().GetInstruction())
 	}
@@ -132,11 +132,11 @@ func TestOnboardExportGatesContentEditingViaAPI(t *testing.T) {
 	// After onboarding: content edits through the Agent API are ignored; the DB
 	// field is preserved because content is now Git-owned.
 	if _, err := agentSvc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "My Agent", Config: &agentsv1.AgentConfig{Instruction: "V2 via API"}},
+		Agent: &agentsv1.Agent{AgentId: "my-agent", Config: &agentsv1.AgentConfig{Instruction: "V2 via API"}},
 	})); err != nil {
 		t.Fatalf("post-onboard UpdateAgent: %v", err)
 	}
-	got, _ = fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	got, _ = fx.agentRepo.GetAgent(ctx, "ws-a", "my-agent")
 	if got.GetConfig().GetInstruction() != "V1 prompt." {
 		t.Fatalf("Git-owned content must be preserved, got %q", got.GetConfig().GetInstruction())
 	}
@@ -329,9 +329,9 @@ func TestDetachMaterializesActiveContent(t *testing.T) {
 	}
 
 	// DB content now carries the previously Git-owned instruction.
-	ag, err := fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	ag, err := fx.agentRepo.GetAgent(ctx, "ws-a", "my-agent")
 	if err != nil {
-		t.Fatalf("GetAgentByID: %v", err)
+		t.Fatalf("GetAgent: %v", err)
 	}
 	if ag.GetConfig().GetInstruction() != wantInstruction {
 		t.Fatalf("materialized instruction = %q, want %q", ag.GetConfig().GetInstruction(), wantInstruction)
@@ -360,7 +360,7 @@ func TestDetachRefusesWithoutSnapshotThenRecovers(t *testing.T) {
 	ctx := ownerCtx()
 
 	// Seed a DB agent with content that must survive a KEEP_DATABASE detach.
-	ag, _ := fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	ag, _ := fx.agentRepo.GetAgent(ctx, "ws-a", "my-agent")
 	ag.Config = &agentsv1.AgentConfig{Instruction: "Untouched DB instruction."}
 	if _, err := fx.agentRepo.UpdateAgent(ctx, "ws-a", ag); err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
@@ -386,7 +386,7 @@ func TestDetachRefusesWithoutSnapshotThenRecovers(t *testing.T) {
 	if _, err := fx.bindingRepo.Get(ctx, "ws-a"); !errors.Is(err, repobindingrepo.ErrNotFound) {
 		t.Fatalf("binding should be removed after KEEP_DATABASE detach: %v", err)
 	}
-	got, _ := fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	got, _ := fx.agentRepo.GetAgent(ctx, "ws-a", "my-agent")
 	if got.GetConfig().GetInstruction() != "Untouched DB instruction." {
 		t.Fatalf("KEEP_DATABASE must not alter DB content, got %q", got.GetConfig().GetInstruction())
 	}
@@ -415,7 +415,7 @@ func TestRepositoryMigrationEndToEnd(t *testing.T) {
 
 	// Root agent has a prompt; a second LLM agent has a description but no
 	// prompt — an invalid Effective Agent that must block the export.
-	root, _ := fx.agentRepo.GetAgentByID(ctx, "ws-a", "my-agent")
+	root, _ := fx.agentRepo.GetAgent(ctx, "ws-a", "my-agent")
 	root.Config = &agentsv1.AgentConfig{Instruction: "Root prompt."}
 	if _, err := fx.agentRepo.UpdateAgent(ctx, "ws-a", root); err != nil {
 		t.Fatalf("update root: %v", err)
@@ -447,7 +447,7 @@ func TestRepositoryMigrationEndToEnd(t *testing.T) {
 	}
 
 	// 2) Recover: give the planner a prompt, re-export succeeds and publishes.
-	planner, _ := fx.agentRepo.GetAgentByID(ctx, "ws-a", "planner")
+	planner, _ := fx.agentRepo.GetAgent(ctx, "ws-a", "planner")
 	planner.Config = &agentsv1.AgentConfig{Instruction: "Plan carefully."}
 	if _, err := fx.agentRepo.UpdateAgent(ctx, "ws-a", planner); err != nil {
 		t.Fatalf("fix planner: %v", err)

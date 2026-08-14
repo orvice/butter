@@ -2961,7 +2961,8 @@ type TelegramDeliverySegment struct {
 	Index int32 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty" bson:"index,omitempty"`
 	// @gotags: json:"text,omitempty" bson:"text,omitempty"
 	Text string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty" bson:"text,omitempty"`
-	// One of "pending", "sent", "failed".
+	// One of "pending", "sending", "sent", "failed". "sending" is persisted
+	// before the Telegram request and requires operator review after a crash.
 	// @gotags: json:"status,omitempty" bson:"status,omitempty"
 	Status string `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty" bson:"status,omitempty"`
 	// Telegram message ID once sent.

@@ -5709,6 +5709,360 @@ var _ interface {
 	ErrorName() string
 } = MigrateAgentsV2ResponseValidationError{}
 
+// Validate checks the field values on VerifyAgentIDCutoverRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *VerifyAgentIDCutoverRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on VerifyAgentIDCutoverRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// VerifyAgentIDCutoverRequestMultiError, or nil if none found.
+func (m *VerifyAgentIDCutoverRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *VerifyAgentIDCutoverRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return VerifyAgentIDCutoverRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// VerifyAgentIDCutoverRequestMultiError is an error wrapping multiple
+// validation errors returned by VerifyAgentIDCutoverRequest.ValidateAll() if
+// the designated constraints aren't met.
+type VerifyAgentIDCutoverRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m VerifyAgentIDCutoverRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m VerifyAgentIDCutoverRequestMultiError) AllErrors() []error { return m }
+
+// VerifyAgentIDCutoverRequestValidationError is the validation error returned
+// by VerifyAgentIDCutoverRequest.Validate if the designated constraints
+// aren't met.
+type VerifyAgentIDCutoverRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e VerifyAgentIDCutoverRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e VerifyAgentIDCutoverRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e VerifyAgentIDCutoverRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e VerifyAgentIDCutoverRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e VerifyAgentIDCutoverRequestValidationError) ErrorName() string {
+	return "VerifyAgentIDCutoverRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e VerifyAgentIDCutoverRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sVerifyAgentIDCutoverRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = VerifyAgentIDCutoverRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = VerifyAgentIDCutoverRequestValidationError{}
+
+// Validate checks the field values on AgentIDCutoverFinding with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *AgentIDCutoverFinding) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AgentIDCutoverFinding with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// AgentIDCutoverFindingMultiError, or nil if none found.
+func (m *AgentIDCutoverFinding) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AgentIDCutoverFinding) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for WorkspaceId
+
+	// no validation rules for Check
+
+	// no validation rules for EntityKind
+
+	// no validation rules for Entity
+
+	// no validation rules for Detail
+
+	if len(errors) > 0 {
+		return AgentIDCutoverFindingMultiError(errors)
+	}
+
+	return nil
+}
+
+// AgentIDCutoverFindingMultiError is an error wrapping multiple validation
+// errors returned by AgentIDCutoverFinding.ValidateAll() if the designated
+// constraints aren't met.
+type AgentIDCutoverFindingMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AgentIDCutoverFindingMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AgentIDCutoverFindingMultiError) AllErrors() []error { return m }
+
+// AgentIDCutoverFindingValidationError is the validation error returned by
+// AgentIDCutoverFinding.Validate if the designated constraints aren't met.
+type AgentIDCutoverFindingValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AgentIDCutoverFindingValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AgentIDCutoverFindingValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AgentIDCutoverFindingValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AgentIDCutoverFindingValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AgentIDCutoverFindingValidationError) ErrorName() string {
+	return "AgentIDCutoverFindingValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e AgentIDCutoverFindingValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAgentIDCutoverFinding.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AgentIDCutoverFindingValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AgentIDCutoverFindingValidationError{}
+
+// Validate checks the field values on VerifyAgentIDCutoverResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *VerifyAgentIDCutoverResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on VerifyAgentIDCutoverResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// VerifyAgentIDCutoverResponseMultiError, or nil if none found.
+func (m *VerifyAgentIDCutoverResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *VerifyAgentIDCutoverResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Passed
+
+	for idx, item := range m.GetFindings() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, VerifyAgentIDCutoverResponseValidationError{
+						field:  fmt.Sprintf("Findings[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, VerifyAgentIDCutoverResponseValidationError{
+						field:  fmt.Sprintf("Findings[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return VerifyAgentIDCutoverResponseValidationError{
+					field:  fmt.Sprintf("Findings[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return VerifyAgentIDCutoverResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// VerifyAgentIDCutoverResponseMultiError is an error wrapping multiple
+// validation errors returned by VerifyAgentIDCutoverResponse.ValidateAll() if
+// the designated constraints aren't met.
+type VerifyAgentIDCutoverResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m VerifyAgentIDCutoverResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m VerifyAgentIDCutoverResponseMultiError) AllErrors() []error { return m }
+
+// VerifyAgentIDCutoverResponseValidationError is the validation error returned
+// by VerifyAgentIDCutoverResponse.Validate if the designated constraints
+// aren't met.
+type VerifyAgentIDCutoverResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e VerifyAgentIDCutoverResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e VerifyAgentIDCutoverResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e VerifyAgentIDCutoverResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e VerifyAgentIDCutoverResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e VerifyAgentIDCutoverResponseValidationError) ErrorName() string {
+	return "VerifyAgentIDCutoverResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e VerifyAgentIDCutoverResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sVerifyAgentIDCutoverResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = VerifyAgentIDCutoverResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = VerifyAgentIDCutoverResponseValidationError{}
+
 // Validate checks the field values on InvokeAgentRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.

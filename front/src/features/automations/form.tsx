@@ -18,7 +18,7 @@ import type { CronConcurrencyPolicy, CronDeliveryType, CronJob, CronNotifyOn } f
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   schedule: z.string().min(1, 'Schedule is required'),
-  // Opaque agent ref: the immutable agent_id when the agent has one, else the name.
+  // The immutable agent_id of the target agent.
   agent_ref: z.string().min(1, 'Agent is required'),
   input: z.string().optional(),
   timezone: z.string().optional(),
@@ -60,13 +60,6 @@ export function AutomationForm({
   const { data: notifyGroupsData } = useNotifyGroups()
   const agents = agentsData?.agents ?? []
 
-  // Normalizes a stored ref (agent_id or legacy agent_name) to the matching
-  // agent's stable ref so the select finds its option once agents load.
-  function resolveAgentRef(ref: string): string | undefined {
-    const match = agents.find((a) => a.agent_id === ref || a.name === ref)
-    return match ? match.agent_id || match.name : undefined
-  }
-
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: formValuesFromJob(initialValue),
@@ -78,17 +71,14 @@ export function AutomationForm({
   const isEdit = mode === 'edit'
 
   function handleSubmit(values: FormValues) {
-    const selectedAgent = agents.find(
-      (a) => (a.agent_id || a.name) === resolveAgentRef(values.agent_ref),
-    )
+    const selectedAgent = agents.find((a) => a.agent_id === values.agent_ref)
     onSubmit({
       name: values.name,
       schedule: values.schedule,
-      // Submit the immutable agent_id when the agent has one; agent_name is
-      // kept alongside as the human-readable label (the backend normalizes
-      // and backfills both fields).
-      agent_name: selectedAgent?.name ?? values.agent_ref,
-      agent_id: selectedAgent?.agent_id || undefined,
+      // agent_id is the reference; agent_name rides along as the
+      // human-readable display snapshot (the backend backfills it anyway).
+      agent_name: selectedAgent?.name ?? '',
+      agent_id: values.agent_ref,
       input: values.input,
       timezone: values.timezone,
       enabled: values.enabled,
@@ -138,12 +128,12 @@ export function AutomationForm({
                   onValueChange={(value) => {
                     if (value) field.onChange(value)
                   }}
-                  value={resolveAgentRef(field.value)}
+                  value={field.value || undefined}
                 >
                   <FormControl><SelectTrigger><SelectValue placeholder='Select agent' /></SelectTrigger></FormControl>
                   <SelectContent>
                     {agents.map((a) => (
-                      <SelectItem key={a.agent_id || a.name} value={a.agent_id || a.name}>{a.name}</SelectItem>
+                      <SelectItem key={a.agent_id} value={a.agent_id ?? ''}>{a.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -300,7 +290,7 @@ function formValuesFromJob(job?: CronJob): FormValues {
   return {
     name: job?.name ?? '',
     schedule: job?.schedule ?? '',
-    agent_ref: job?.agent_id || job?.agent_name || '',
+    agent_ref: job?.agent_id ?? '',
     input: job?.input ?? '',
     timezone: job?.timezone ?? 'UTC',
     enabled: job?.enabled ?? true,

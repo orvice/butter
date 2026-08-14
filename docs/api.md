@@ -83,19 +83,18 @@ the OpenAI-compatible API. A missing `agent_id` fails with `invalid_argument`
 there is never a fallback to the name.
 
 The legacy `agent_name` request fields still exist on the wire for backward
-compatibility but are **ignored as an input** on these interfaces. They survive
-only as read-only output — invocation and execution history written before the
-migration carries `agent_name`, and services stamp the resolved runtime name
-into `agent_name` as a display label. Read/observability queries that filter
-historical records (`ListAgentInvocations`, the runtime-status lookups) still
-accept a legacy name for those pre-migration rows.
+compatibility but **never select an agent**. On lookup interfaces
+(`GetAgent`, `DeleteAgent`, the runtime-status RPCs) a request without
+`agent_id` — or carrying a legacy `names` filter — is rejected with
+`invalid_argument`. Names survive only as read-only output: invocation and
+execution history carries `agent_name` as a display snapshot, and
+`ListAgentInvocations` still accepts a legacy name filter for those
+historical rows.
 
-Pre-existing channel, cron, and automation records that referenced an agent
-only by legacy name are migrated to `agent_id` by a **one-time startup
-backfill**: on boot the server resolves each name-only record to the agent's
-assigned `agent_id` and rewrites it, so those records keep resolving after the
-upgrade. Records whose name no longer maps to an assigned `agent_id` are logged
-and left untouched rather than failing startup.
+Consumer records (channels, cron jobs, automations, forum threads) must carry
+an `agent_id`; the read-only cutover verifier (`VerifyAgentIDCutover`, also
+run non-fatally at startup) reports any record that still references an agent
+only by legacy name instead of silently rewriting it.
 
 ### Plain JSON examples
 
@@ -792,8 +791,8 @@ POST /api/agents.v1.AgentService/GetAgent
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_id` | string | Look up by immutable Agent ID (preferred). When set, `name` is ignored |
-| `name` | string | Legacy name lookup. Deprecated: use `agent_id` |
+| `agent_id` | string | Look up by immutable Agent ID. **Required** — a request without it fails with `invalid_argument` |
+| `name` | string | Deprecated legacy field. Never selects an agent |
 
 **Response:**
 
@@ -842,7 +841,7 @@ POST /api/agents.v1.AgentService/UpdateAgent
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent` | Agent | Agent to update (matched by name) |
+| `agent` | Agent | Agent to update, located by `agent.agent_id` (**required**). `agent.name` is server-controlled and never selects the record |
 
 **Response:**
 
@@ -850,12 +849,10 @@ POST /api/agents.v1.AgentService/UpdateAgent
 |-------|------|-------------|
 | `agent` | Agent | Updated agent |
 
-`agent_id` and `lifecycle_status` cannot be changed here — setting a
-different `agent_id` fails with `invalid_argument` (use `AssignAgentID`).
-Embedded `sub_agents` are read-only legacy state: any change to them is
-rejected, while unchanged round-trips of legacy records are allowed. To
-restructure a legacy tree, run `MigrateAgentsV2` and compose via
-`child_agent_ids`.
+`lifecycle_status` cannot be changed here, and `agent.name` is preserved by
+the server. Embedded `sub_agents` are read-only legacy state: any change to
+them is rejected, while unchanged round-trips of historical records are
+allowed. Composition is expressed via `child_agent_ids`.
 
 #### DeleteAgent
 
@@ -867,7 +864,7 @@ POST /api/agents.v1.AgentService/DeleteAgent
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_id` | string | Identify by immutable Agent ID (preferred). When set, `name` is ignored |
+| `agent_id` | string | Identify by immutable Agent ID. **Required** — a request without it fails with `invalid_argument` |
 | `name` | string | Legacy name lookup. Deprecated: use `agent_id` |
 
 **Response:** `{}`
@@ -1177,8 +1174,8 @@ Returns the latest invocation state for an agent.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_id` | string | Immutable Agent ID (preferred over `name`) |
-| `name` | string | Legacy name lookup. Deprecated: use `agent_id` |
+| `agent_id` | string | Immutable Agent ID. **Required** — a request without it fails with `invalid_argument` |
+| `name` | string | Deprecated legacy field. Never selects an agent |
 
 **Response:** `{ "status": AgentRuntimeStatus }` (see below).
 
@@ -1188,14 +1185,14 @@ Returns the latest invocation state for an agent.
 POST /api/agents.v1.AgentService/ListAgentRuntimeStatuses
 ```
 
-Batched variant; if both filter lists are empty, returns statuses for all configured agents.
+Batched variant; if `agent_ids` is empty, returns statuses for all configured agents.
 
 **Request:**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_ids` | string[] | Filter by immutable Agent IDs (preferred over `names`) |
-| `names` | string[] | Legacy name filter. Deprecated: use `agent_ids` |
+| `agent_ids` | string[] | Filter by immutable Agent IDs |
+| `names` | string[] | Deprecated legacy filter. A non-empty value is rejected with `invalid_argument` |
 
 **Response:**
 
@@ -1229,60 +1226,40 @@ Returns persisted invocation records, optionally filtered.
 | `next_page_token` | string | Empty if last page |
 | `total` | int32 | Total matching records |
 
-#### AssignAgentID
+#### VerifyAgentIDCutover
 
 ```
-POST /api/agents.v1.AgentService/AssignAgentID
+POST /api/agents.v1.AgentService/VerifyAgentIDCutover
 ```
 
-Assigns the immutable, workspace-unique slug Agent ID to an existing (legacy)
-agent identified by name. Workspace owners/admins only. Rejects invalid
-slugs, reserved values, duplicates, and reassignment of an already-set ID.
-
-**Request:** `{ "name": "<agent-name>", "agent_id": "<slug>" }`
-
-**Response:** `{ "agent": Agent }`
-
-#### GetMigrationReadiness
-
-```
-POST /api/agents.v1.AgentService/GetMigrationReadiness
-```
-
-Reports each agent's readiness for the identity migration.
+Runs the read-only final Agent-ID cutover verifier (issue #241) across every
+workspace. Global admins only; no workspace header required. Reports each
+record that still violates the agent_id contract: missing/invalid/duplicate
+Agent IDs, embedded `sub_agents`, legacy name-based workflow node refs,
+unresolved `child_agent_ids`/workflow refs, `MIGRATION_REQUIRED` lifecycle,
+consumer records (channels, cron jobs, automations, forum threads) without
+Agent IDs, and runtime-name conflicts.
 
 **Request:** `{}`
 
-**Response:** `{ "statuses": AgentMigrationStatus[] }` — each with `name`,
-`agent_id`, `readiness` (`READY`, `MISSING_ID`, `CONFLICT`,
-`INCOMPLETE_DEPS`), and a human-readable `detail`.
+**Response:** `{ "passed": bool, "findings": AgentIDCutoverFinding[] }` —
+each finding carries `workspace_id`, a machine-readable `check`,
+`entity_kind` (`agent`, `channel`, `cron_job`, `automation`,
+`forum_thread`), the offending `entity` identifier, and a human-readable
+`detail`.
 
-#### MigrateAgentsV2
-
-```
-POST /api/agents.v1.AgentService/MigrateAgentsV2
-```
-
-Expands eligible legacy embedded `sub_agents` trees into independent Agent
-records with ID-based composition (`child_agent_ids` / workflow node
-`agent_id`). Legacy records stay readable until this migration runs.
-
-**Request:** `{ "mode": "MIGRATE_MODE_DRY_RUN" | "MIGRATE_MODE_APPLY" | "MIGRATE_MODE_VERIFY" }`
-
-**Response:** `{ "mode", "results": MigrateAgentResult[], "total", "migrated", "skipped", "errors" }` —
-each result carries `name`, `agent_id`, an `action` string (`expanded`,
-`skipped`, `already_independent`, `missing_id`, `error`, `ok`,
-`migration_required`), and `detail`.
+The migration-era RPCs `AssignAgentID`, `GetMigrationReadiness`, and
+`MigrateAgentsV2` are retired and always return `unimplemented`.
 
 #### Agent Object
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_id` | string | Immutable, workspace-unique slug identifier — the primary reference for every consumer. Required on `CreateAgent`; assigned to legacy agents via `AssignAgentID`; cannot be changed or reused once set |
+| `agent_id` | string | Immutable, workspace-unique slug identifier — the logical primary key for persistence and the sole reference for every consumer. Required on `CreateAgent`; cannot be changed or reused once set |
 | `name` | string | Legacy runtime name (required, cannot be "user"; must be globally unique across workspaces while the runtime keeps a flat view). Deprecated as a reference — use `agent_id` |
 | `display_name` | string | Mutable human-readable UI label; never participates in lookup |
 | `description` | string | Description for LLM delegation |
-| `sub_agents` | Agent[] | Legacy nested sub-agents. Read-only: rejected on create, immutable on update; migrated to independent records by `MigrateAgentsV2` |
+| `sub_agents` | Agent[] | Deprecated legacy nested sub-agents. Read-only: rejected on create, immutable on update, never used for construction |
 | `child_agent_ids` | string[] | Ordered child Agent ID references for LLM/Loop/Sequential/Parallel composition (replaces embedded `sub_agents` for V2 agents) |
 | `lifecycle_status` | enum | Whether the agent is runnable; new agents are created `ACTIVE` |
 | `legacy_name` | string | Original name preserved during the V2 migration observation period |
@@ -1336,8 +1313,8 @@ Declares a Workflow Agent's directed graph. See [ADR 0001](adr/0001-workflow-gra
 |-------|------|-------------|
 | `name` | string | Unique node name within the graph |
 | `kind` | enum | `WORKFLOW_NODE_KIND_AGENT`, `WORKFLOW_NODE_KIND_HUMAN_INPUT`, `WORKFLOW_NODE_KIND_ROUTER`, `WORKFLOW_NODE_KIND_JOIN` |
-| `agent_id` | string | AGENT nodes (V2): Agent ID of an independent agent to run. Preferred over `agent` |
-| `agent` | string | AGENT nodes: legacy sub-agent name. Deprecated: use `agent_id`; retained for migration compat |
+| `agent_id` | string | AGENT nodes: Agent ID of the independent agent to run. **Required** |
+| `agent` | string | Deprecated legacy name reference. Never resolved; retained only so historical records decode |
 | `question` | string | HUMAN_INPUT nodes: the question presented to the human |
 | `parallel_worker` | bool | AGENT nodes only: fan-out concurrently over list-typed input |
 | `retry` | WorkflowRetryConfig | Retry policy for failed activations |
@@ -1392,7 +1369,7 @@ Declares a Workflow Agent's directed graph. See [ADR 0001](adr/0001-workflow-gra
 
 **Workflow pause/resume:** when a workflow reaches a HUMAN_INPUT node, the turn ends with the question as the reply text. The next plain-text message on the same session is automatically taken as the answer (implicit FIFO resume, [ADR 0002](adr/0002-interrupt-state-derived-from-session-events.md)). This works identically via `StreamAgent`, `ReplySession`, or channel messages. Delete the session to abandon a paused workflow.
 
-**Validation rules:** `CreateAgent`/`UpdateAgent` reject graphs with unknown node references, duplicate node names, AGENT nodes referencing undeclared sub-agents, HUMAN_INPUT nodes without a question, Router nodes without a default outgoing edge, routed/default edges targeting JOIN nodes, and graphs without a START entry edge.
+**Validation rules:** `CreateAgent`/`UpdateAgent` reject graphs with unknown node references, duplicate node names, AGENT nodes without an `agent_id` reference (the legacy `agent` name field is never resolved), HUMAN_INPUT nodes without a question, Router nodes without a default outgoing edge, routed/default edges targeting JOIN nodes, and graphs without a START entry edge.
 
 ---
 

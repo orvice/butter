@@ -382,6 +382,20 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.repoBindingSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 		}
 	}
+	// Consumer-record sources for the read-only VerifyAgentIDCutover RPC
+	// (issue #241).
+	cutoverSources := application.AgentCutoverSources{
+		Agents:      h.configStore,
+		Channels:    h.configStore,
+		CronJobs:    result.CronJobRepo,
+		Automations: result.AutomationDefRepo,
+		Forum:       result.ForumRepo,
+		Workspaces:  result.WorkspaceRepo,
+	}
+	if result.RunnerSvc != nil {
+		cutoverSources.ReservedName = result.RunnerSvc.IsReservedAgentName
+	}
+	h.agentSvcServer.SetCutoverSources(cutoverSources)
 	if h.gitHostSvcServer != nil && result.GitHostRepo != nil {
 		h.gitHostSvcServer.SetRepo(result.GitHostRepo)
 	}

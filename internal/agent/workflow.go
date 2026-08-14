@@ -19,10 +19,10 @@ import (
 // to mark the graph's entry point. It maps onto workflow.Start.
 const WorkflowStartNodeName = "START"
 
-// ValidateWorkflowAgent checks the workflow graphs in an agent config tree.
+// ValidateWorkflowAgent checks the workflow graphs in an agent config.
 // It is pure proto validation — no models or toolsets are constructed — so
 // the service layer can reject a bad graph at save time. Non-workflow agents
-// pass through; sub-agents are validated recursively.
+// pass through.
 func ValidateWorkflowAgent(pb *agentsv1.Agent) error {
 	if pb == nil {
 		return nil
@@ -32,27 +32,17 @@ func ValidateWorkflowAgent(pb *agentsv1.Agent) error {
 			return fmt.Errorf("agent %q: %w", pb.GetName(), err)
 		}
 	}
-	for _, sub := range pb.GetSubAgents() {
-		if err := ValidateWorkflowAgent(sub); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 // validateWorkflowGraph checks a single WORKFLOW-type agent's graph: node
 // names are unique and not reserved, kinds are known, AGENT nodes reference
-// declared sub-agents, edges reference declared nodes, and the graph has an
-// entry edge from START.
+// their target via agent_id, edges reference declared nodes, and the graph
+// has an entry edge from START.
 func validateWorkflowGraph(pb *agentsv1.Agent) error {
 	wf := pb.GetConfig().GetWorkflow()
 	if len(wf.GetNodes()) == 0 {
 		return fmt.Errorf("a workflow agent requires a workflow config with at least one node")
-	}
-
-	subAgentNames := make(map[string]struct{}, len(pb.GetSubAgents()))
-	for _, sub := range pb.GetSubAgents() {
-		subAgentNames[sub.GetName()] = struct{}{}
 	}
 
 	nodeKinds := make(map[string]agentsv1.WorkflowNodeKind, len(wf.GetNodes()))
@@ -71,15 +61,8 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 
 		switch n.GetKind() {
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT:
-			hasAgentRef := n.GetAgent() != ""
-			hasAgentIDRef := n.GetAgentId() != ""
-			if !hasAgentRef && !hasAgentIDRef {
-				return fmt.Errorf("workflow node %q: an AGENT node requires an agent or agent_id reference", name)
-			}
-			if hasAgentRef {
-				if _, ok := subAgentNames[n.GetAgent()]; !ok && !hasAgentIDRef {
-					return fmt.Errorf("workflow node %q references sub-agent %q, which is not declared in sub_agents", name, n.GetAgent())
-				}
+			if n.GetAgentId() == "" {
+				return fmt.Errorf("workflow node %q: an AGENT node requires an agent_id reference", name)
 			}
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT:
 			if strings.TrimSpace(n.GetQuestion()) == "" {
@@ -148,7 +131,7 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 
 // newWorkflowAgent builds an ADK workflow agent from a WORKFLOW-type proto
 // config. subAgents are the already-built sub-agents of pb (including
-// resolved remote agents); AGENT nodes reference them by name or agent_id.
+// resolved remote agents); AGENT nodes reference them by agent_id.
 func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent, pool AgentPool) (agent.Agent, error) {
 	if err := validateWorkflowGraph(pb); err != nil {
 		return nil, err
@@ -173,11 +156,7 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent, pool AgentPoo
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT:
 			sa := resolveWorkflowAgentNode(n, built, pool)
 			if sa == nil {
-				ref := n.GetAgent()
-				if ref == "" {
-					ref = n.GetAgentId()
-				}
-				return nil, fmt.Errorf("workflow node %q: agent %q not found", n.GetName(), ref)
+				return nil, fmt.Errorf("workflow node %q: agent %q not found", n.GetName(), n.GetAgentId())
 			}
 			if n.GetParallelWorker() {
 				// The engine's parallel-worker mechanism is a wrapper node;
@@ -266,22 +245,19 @@ func (n *scopedWorkflowAgentNode) Run(ctx agent.Context, input any) iter.Seq2[*s
 }
 
 // resolveWorkflowAgentNode looks up the built ADK agent for a workflow AGENT
-// node. V2 agents prefer agent_id (resolved from the built map by finding
-// the pool entry's name); legacy agents fall back to the name-based lookup.
+// node by its agent_id: the pool maps the id to the proto, whose runtime name
+// keys the built map. The legacy name-based `agent` field is never resolved
+// (issue #241).
 func resolveWorkflowAgentNode(n *agentsv1.WorkflowNode, built map[string]agent.Agent, pool AgentPool) agent.Agent {
-	if aid := n.GetAgentId(); aid != "" && pool != nil {
-		if pb, ok := pool[aid]; ok {
-			if sa, ok := built[pb.GetName()]; ok {
-				return sa
-			}
-		}
+	aid := n.GetAgentId()
+	if aid == "" || pool == nil {
+		return nil
 	}
-	if name := n.GetAgent(); name != "" {
-		if sa, ok := built[name]; ok {
-			return sa
-		}
+	pb, ok := pool[aid]
+	if !ok {
+		return nil
 	}
-	return nil
+	return built[pb.GetName()]
 }
 
 // parallelWorkerNode wraps the engine's ParallelWorker to coerce text input:

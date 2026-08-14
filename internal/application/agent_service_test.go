@@ -99,8 +99,8 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 		t.Fatalf("expected AlreadyExists, got %v", err)
 	}
 
-	// Get
-	getResp, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "a1"}))
+	// Get (agent_id is the only lookup key)
+	getResp, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "a1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,15 +108,21 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 		t.Fatalf("expected test, got %s", getResp.Msg.GetAgent().GetDescription())
 	}
 
+	// Get without agent_id is rejected — names never select an agent.
+	_, err = svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "a1"}))
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument for name-only get, got %v", err)
+	}
+
 	// Get not found
-	_, err = svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "nope"}))
+	_, err = svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "nope"}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
 
-	// Update
+	// Update (located by agent_id; name is server-controlled)
 	updateResp, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
-		Agent: &agentsv1.Agent{Name: "a1", Description: "updated"},
+		Agent: &agentsv1.Agent{AgentId: "a1", Description: "updated"},
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -124,14 +130,25 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 	if updateResp.Msg.GetAgent().GetDescription() != "updated" {
 		t.Fatalf("expected updated, got %s", updateResp.Msg.GetAgent().GetDescription())
 	}
+	if updateResp.Msg.GetAgent().GetName() != "a1" {
+		t.Fatalf("expected server-preserved name a1, got %s", updateResp.Msg.GetAgent().GetName())
+	}
+
+	// Update without agent_id is rejected.
+	_, err = svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
+		Agent: &agentsv1.Agent{Name: "a1", Description: "nope"},
+	}))
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument for id-less update, got %v", err)
+	}
 
 	// Delete (soft delete / tombstone, issue #218): the agent transitions to
 	// DELETED but the record — and its Agent ID — are retained.
-	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
+	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "a1"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	tombstoned, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "a1"}))
+	tombstoned, err := svc.GetAgent(ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "a1"}))
 	if err != nil {
 		t.Fatalf("tombstoned agent should still be readable: %v", err)
 	}
@@ -140,12 +157,18 @@ func TestAgentServiceServer_CRUD(t *testing.T) {
 	}
 
 	// Deleting again is an idempotent no-op (already a tombstone).
-	if _, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"})); err != nil {
+	if _, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "a1"})); err != nil {
 		t.Fatalf("re-delete should be a no-op, got %v", err)
 	}
 
+	// Delete without agent_id is rejected.
+	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInvalidArgument {
+		t.Fatalf("expected InvalidArgument for name-only delete, got %v", err)
+	}
+
 	// Deleting a never-existing agent is NotFound.
-	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "never"}))
+	_, err = svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "never"}))
 	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
@@ -443,7 +466,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 
 	t.Run("update", func(t *testing.T) {
 		store := memory.New()
-		if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "a1", Description: "before"}); err != nil {
+		if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "a1", AgentId: "a1", Description: "before"}); err != nil {
 			t.Fatalf("seed agent: %v", err)
 		}
 
@@ -451,7 +474,7 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 		svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
 		_, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
-			Agent: &agentsv1.Agent{Name: "a1", Description: "after"},
+			Agent: &agentsv1.Agent{AgentId: "a1", Description: "after"},
 		}))
 		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
@@ -468,14 +491,14 @@ func TestAgentServiceServer_ReloadErrorRollsBackCreateUpdateDelete(t *testing.T)
 
 	t.Run("delete", func(t *testing.T) {
 		store := memory.New()
-		if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "a1", Description: "before"}); err != nil {
+		if _, err := store.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "a1", AgentId: "a1", Description: "before"}); err != nil {
 			t.Fatalf("seed agent: %v", err)
 		}
 
 		svc := NewAgentServiceServer(store)
 		svc.SetRuntime(&reloadTracker{err: errors.New("boom")})
 
-		_, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "a1"}))
+		_, err := svc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "a1"}))
 		if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeInternal {
 			t.Fatalf("expected Internal, got %v", err)
 		}
@@ -508,7 +531,7 @@ func TestAgentServiceUpdateAgent_RejectsConcurrentWrite(t *testing.T) {
 	errCh := make(chan error, 1)
 	go func() {
 		_, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{
-			Agent: &agentsv1.Agent{Name: "a1", DisplayName: "legacy-update"},
+			Agent: &agentsv1.Agent{AgentId: "a1", DisplayName: "stale-update"},
 		}))
 		errCh <- err
 	}()
@@ -525,7 +548,7 @@ func TestAgentServiceUpdateAgent_RejectsConcurrentWrite(t *testing.T) {
 	close(repo.releaseRead)
 
 	if err := <-errCh; connect.CodeOf(err) != connect.CodeAborted {
-		t.Fatalf("want Aborted for stale legacy update, got %v", err)
+		t.Fatalf("want Aborted for stale update, got %v", err)
 	}
 	stored, err := base.GetAgent(ctx, wsTest, "a1")
 	if err != nil {

@@ -142,14 +142,12 @@ export function AgentSelector({
             ) : (
               filtered.map((a) => {
                 const isSelected =
-                  selected &&
-                  ((a.agent_id && a.agent_id === selected.agent_id) ||
-                    a.name === selected.name)
+                  selected && a.agent_id === selected.agent_id
                 return (
                   <button
-                    key={a.agent_id || a.name}
+                    key={a.agent_id}
                     type="button"
-                    data-testid={`agent-option-${a.agent_id || a.name}`}
+                    data-testid={`agent-option-${a.agent_id}`}
                     onClick={() => handleSelect(a)}
                     className={cn(
                       'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50',

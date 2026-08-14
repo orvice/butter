@@ -231,8 +231,8 @@ func (s *ConfigStore) ListAgentsAcrossWorkspaces(ctx context.Context) ([]*agents
 	return s.current().ListAgentsAcrossWorkspaces(ctx)
 }
 
-func (s *ConfigStore) GetAgent(ctx context.Context, workspaceID, name string) (*agentsv1.Agent, error) {
-	return s.current().GetAgent(ctx, workspaceID, name)
+func (s *ConfigStore) GetAgent(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
+	return s.current().GetAgent(ctx, workspaceID, agentID)
 }
 
 func (s *ConfigStore) CreateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
@@ -247,16 +247,8 @@ func (s *ConfigStore) UpdateAgentCAS(ctx context.Context, workspaceID string, ag
 	return s.current().UpdateAgentCAS(ctx, workspaceID, agent, expectedVersion)
 }
 
-func (s *ConfigStore) DeleteAgent(ctx context.Context, workspaceID, name string) error {
-	return s.current().DeleteAgent(ctx, workspaceID, name)
-}
-
-func (s *ConfigStore) GetAgentByID(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
-	return s.current().GetAgentByID(ctx, workspaceID, agentID)
-}
-
-func (s *ConfigStore) AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error) {
-	return s.current().AgentIDExists(ctx, workspaceID, agentID)
+func (s *ConfigStore) DeleteAgent(ctx context.Context, workspaceID, agentID string) error {
+	return s.current().DeleteAgent(ctx, workspaceID, agentID)
 }
 
 // --- MCP Servers ---

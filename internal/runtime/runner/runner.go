@@ -696,15 +696,9 @@ func buildAgentStatusWithPool(pb *agentsv1.Agent, mcpNamesByID map[string]string
 		st.MCPServers = append(st.MCPServers, name)
 		seen[name] = struct{}{}
 	}
-	if len(pb.GetChildAgentIds()) > 0 && pool != nil {
-		for _, cid := range pb.GetChildAgentIds() {
-			if child, ok := pool[cid]; ok {
-				st.SubAgents = append(st.SubAgents, buildAgentStatusWithPool(child, mcpNamesByID, pool))
-			}
-		}
-	} else {
-		for _, sub := range pb.GetSubAgents() {
-			st.SubAgents = append(st.SubAgents, buildAgentStatusWithPool(sub, mcpNamesByID, pool))
+	for _, cid := range pb.GetChildAgentIds() {
+		if child, ok := pool[cid]; ok {
+			st.SubAgents = append(st.SubAgents, buildAgentStatusWithPool(child, mcpNamesByID, pool))
 		}
 	}
 	return st

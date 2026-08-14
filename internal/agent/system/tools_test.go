@@ -27,8 +27,8 @@ func seedAgents(t *testing.T, store *memory.Store, agents ...*agentsv1.Agent) {
 func TestNewListAgentsTool(t *testing.T) {
 	store := memory.New()
 	seedAgents(t, store,
-		&agentsv1.Agent{Name: "agent-a", Description: "First agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM},
-		&agentsv1.Agent{Name: "agent-b", Description: "Second agent", Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL},
+		&agentsv1.Agent{AgentId: "agent-a", Name: "agent-a", Description: "First agent", Type: agentsv1.AgentType_AGENT_TYPE_LLM},
+		&agentsv1.Agent{AgentId: "agent-b", Name: "agent-b", Description: "Second agent", Type: agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL},
 	)
 
 	tool, err := newListAgentsTool(store)
@@ -43,7 +43,7 @@ func TestNewListAgentsTool(t *testing.T) {
 func TestNewGetAgentTool(t *testing.T) {
 	store := memory.New()
 	seedAgents(t, store,
-		&agentsv1.Agent{Name: "test-agent", Description: "A test agent"},
+		&agentsv1.Agent{AgentId: "test-agent", Name: "test-agent", Description: "A test agent"},
 	)
 
 	tool, err := newGetAgentTool(store)

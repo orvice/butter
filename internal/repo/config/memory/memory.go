@@ -13,7 +13,10 @@ import (
 // Store provides thread-safe in-memory CRUD for all config entities,
 // scoped per-workspace.
 type Store struct {
-	mu             sync.RWMutex
+	mu sync.RWMutex
+	// agents is keyed workspace_id -> agent_id; ID lookup is O(1).
+	// Per-workspace runtime-name (Agent.name) uniqueness is enforced
+	// explicitly on create/update because the map key no longer implies it.
 	agents         map[string]map[string]*agentsv1.Agent
 	globalMCP      map[string]*agentsv1.MCPServer
 	mcpServers     map[string]map[string]*agentsv1.MCPServer
@@ -90,21 +93,34 @@ func (s *Store) ListAgentsAcrossWorkspaces(_ context.Context) ([]*agentsv1.Agent
 	return out, nil
 }
 
-func (s *Store) GetAgent(_ context.Context, workspaceID, name string) (*agentsv1.Agent, error) {
+func (s *Store) GetAgent(_ context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
+	if agentID == "" {
+		return nil, configrepo.ErrMissingAgentID
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	bucket, ok := s.agents[workspaceID]
+	a, ok := s.agents[workspaceID][agentID]
 	if !ok {
-		return nil, notFound("agent", workspaceID, name)
-	}
-	a, ok := bucket[name]
-	if !ok {
-		return nil, notFound("agent", workspaceID, name)
+		return nil, notFound("agent", workspaceID, agentID)
 	}
 	return cloneAgent(a), nil
 }
 
+// runtimeNameTaken reports whether another agent (a different agent_id) in
+// the workspace already uses the runtime name. Callers must hold s.mu.
+func (s *Store) runtimeNameTaken(workspaceID, agentID, name string) bool {
+	for id, a := range s.agents[workspaceID] {
+		if id != agentID && a.GetName() == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Store) CreateAgent(_ context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+	if agent.GetAgentId() == "" {
+		return nil, configrepo.ErrMissingAgentID
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bucket := s.agents[workspaceID]
@@ -112,85 +128,81 @@ func (s *Store) CreateAgent(_ context.Context, workspaceID string, agent *agents
 		bucket = make(map[string]*agentsv1.Agent)
 		s.agents[workspaceID] = bucket
 	}
-	if _, ok := bucket[agent.GetName()]; ok {
+	if _, ok := bucket[agent.GetAgentId()]; ok {
+		return nil, alreadyExists("agent", workspaceID, agent.GetAgentId())
+	}
+	if s.runtimeNameTaken(workspaceID, agent.GetAgentId(), agent.GetName()) {
 		return nil, alreadyExists("agent", workspaceID, agent.GetName())
 	}
 	stored := cloneAgent(agent)
 	stored.WorkspaceId = workspaceID
-	bucket[agent.GetName()] = stored
+	bucket[agent.GetAgentId()] = stored
 	return cloneAgent(stored), nil
 }
 
 func (s *Store) UpdateAgent(_ context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error) {
+	if agent.GetAgentId() == "" {
+		return nil, configrepo.ErrMissingAgentID
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bucket, ok := s.agents[workspaceID]
 	if !ok {
-		return nil, notFound("agent", workspaceID, agent.GetName())
+		return nil, notFound("agent", workspaceID, agent.GetAgentId())
 	}
-	if _, ok := bucket[agent.GetName()]; !ok {
-		return nil, notFound("agent", workspaceID, agent.GetName())
+	if _, ok := bucket[agent.GetAgentId()]; !ok {
+		return nil, notFound("agent", workspaceID, agent.GetAgentId())
+	}
+	if s.runtimeNameTaken(workspaceID, agent.GetAgentId(), agent.GetName()) {
+		return nil, alreadyExists("agent", workspaceID, agent.GetName())
 	}
 	stored := cloneAgent(agent)
 	stored.WorkspaceId = workspaceID
-	bucket[agent.GetName()] = stored
+	bucket[agent.GetAgentId()] = stored
 	return cloneAgent(stored), nil
 }
 
 func (s *Store) UpdateAgentCAS(_ context.Context, workspaceID string, agent *agentsv1.Agent, expectedVersion int64) (*agentsv1.Agent, error) {
+	if agent.GetAgentId() == "" {
+		return nil, configrepo.ErrMissingAgentID
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bucket, ok := s.agents[workspaceID]
 	if !ok {
 		return nil, configrepo.ErrNotFound
 	}
-	current, ok := bucket[agent.GetName()]
+	current, ok := bucket[agent.GetAgentId()]
 	if !ok {
 		return nil, configrepo.ErrNotFound
 	}
 	if current.GetVersion() != expectedVersion {
 		return nil, configrepo.ErrVersionConflict
 	}
+	if s.runtimeNameTaken(workspaceID, agent.GetAgentId(), agent.GetName()) {
+		return nil, alreadyExists("agent", workspaceID, agent.GetName())
+	}
 	stored := cloneAgent(agent)
 	stored.WorkspaceId = workspaceID
 	stored.Version = expectedVersion + 1
-	bucket[agent.GetName()] = stored
+	bucket[agent.GetAgentId()] = stored
 	return cloneAgent(stored), nil
 }
 
-func (s *Store) GetAgentByID(_ context.Context, workspaceID, agentID string) (*agentsv1.Agent, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, a := range s.agents[workspaceID] {
-		if a.GetAgentId() == agentID {
-			return cloneAgent(a), nil
-		}
+func (s *Store) DeleteAgent(_ context.Context, workspaceID, agentID string) error {
+	if agentID == "" {
+		return configrepo.ErrMissingAgentID
 	}
-	return nil, notFound("agent", workspaceID, agentID)
-}
-
-func (s *Store) AgentIDExists(_ context.Context, workspaceID, agentID string) (bool, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, a := range s.agents[workspaceID] {
-		if a.GetAgentId() == agentID {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (s *Store) DeleteAgent(_ context.Context, workspaceID, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bucket, ok := s.agents[workspaceID]
 	if !ok {
-		return notFound("agent", workspaceID, name)
+		return notFound("agent", workspaceID, agentID)
 	}
-	if _, ok := bucket[name]; !ok {
-		return notFound("agent", workspaceID, name)
+	if _, ok := bucket[agentID]; !ok {
+		return notFound("agent", workspaceID, agentID)
 	}
-	delete(bucket, name)
+	delete(bucket, agentID)
 	return nil
 }
 

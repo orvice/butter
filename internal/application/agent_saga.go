@@ -328,7 +328,7 @@ func (c *agentOperationCoordinator) resumeExisting(ctx context.Context, ws, opID
 	}
 	if op.GetStatus() == agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_RUNNING ||
 		op.GetStatus() == agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED {
-		agent, _ := c.agents.GetAgentByID(ctx, ws, op.GetAgentId())
+		agent, _ := c.agents.GetAgent(ctx, ws, op.GetAgentId())
 		return agent, op, nil, true, nil
 	}
 	agent, op, vErrs, err := c.Retry(ctx, ws, opID)
@@ -337,10 +337,11 @@ func (c *agentOperationCoordinator) resumeExisting(ctx context.Context, ws, opID
 
 // setLifecycle flips an agent's lifecycle_status via the mutateWithRuntime seam
 // (#183): write then reload, rolling the write back if the reload fails. It is
-// idempotent (a no-op when the agent is already at target).
-func (c *agentOperationCoordinator) setLifecycle(ctx context.Context, ws, name string, target agentsv1.AgentLifecycleStatus) error {
+// idempotent (a no-op when the agent is already at target). The agent is
+// located by its immutable agent_id.
+func (c *agentOperationCoordinator) setLifecycle(ctx context.Context, ws, agentID string, target agentsv1.AgentLifecycleStatus) error {
 	for attempt := 0; attempt < 5; attempt++ {
-		prev, err := c.agents.GetAgent(ctx, ws, name)
+		prev, err := c.agents.GetAgent(ctx, ws, agentID)
 		if err != nil {
 			return err
 		}
@@ -422,7 +423,7 @@ func (c *agentOperationCoordinator) RunCreate(ctx context.Context, ws string, ag
 		if errors.Is(err, agentoprepo.ErrLeaseLost) {
 			return nil, op, vErrs, err
 		}
-		if markErr := c.markProvisioningErrored(ctx, ws, agent.GetName()); markErr != nil {
+		if markErr := c.markProvisioningErrored(ctx, ws, agent.GetAgentId()); markErr != nil {
 			if err != nil {
 				return nil, op, vErrs, connectx.InternalWith(fmt.Errorf("create failed: %v; mark agent ERROR: %w", err, markErr))
 			}
@@ -430,7 +431,7 @@ func (c *agentOperationCoordinator) RunCreate(ctx context.Context, ws string, ag
 		}
 		return nil, op, vErrs, err
 	}
-	final, _ := c.agents.GetAgentByID(ctx, ws, agent.GetAgentId())
+	final, _ := c.agents.GetAgent(ctx, ws, agent.GetAgentId())
 	return final, op, nil, nil
 }
 
@@ -438,8 +439,8 @@ func (c *agentOperationCoordinator) RunCreate(ctx context.Context, ws string, ag
 // a create Saga fails, so the agent reflects the documented "Saga left it in a
 // partial state, not runnable" contract (PRD §11.1). A later
 // RetryAgentOperation moves it to ACTIVE.
-func (c *agentOperationCoordinator) markProvisioningErrored(ctx context.Context, ws, name string) error {
-	agent, err := c.agents.GetAgent(ctx, ws, name)
+func (c *agentOperationCoordinator) markProvisioningErrored(ctx context.Context, ws, agentID string) error {
+	agent, err := c.agents.GetAgent(ctx, ws, agentID)
 	if err != nil {
 		if errors.Is(err, configrepo.ErrNotFound) {
 			return nil // create rolled the row back, or it never existed
@@ -449,7 +450,7 @@ func (c *agentOperationCoordinator) markProvisioningErrored(ctx context.Context,
 	if agent.GetLifecycleStatus() != agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_PROVISIONING {
 		return nil
 	}
-	return c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ERROR)
+	return c.setLifecycle(ctx, ws, agentID, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ERROR)
 }
 
 func (c *agentOperationCoordinator) createSteps(ws string, agent *agentsv1.Agent, actions []*agentsv1.ContentFileAction) []sagaStep {
@@ -467,7 +468,7 @@ func (c *agentOperationCoordinator) createSteps(ws string, agent *agentsv1.Agent
 					func() (*agentsv1.Agent, error) { return c.agents.CreateAgent(ctx, ws, toCreate) },
 					func() error { return c.reload(ctx) },
 					func() error {
-						if e := c.agents.DeleteAgent(ctx, ws, toCreate.GetName()); e != nil {
+						if e := c.agents.DeleteAgent(ctx, ws, toCreate.GetAgentId()); e != nil {
 							return e
 						}
 						return c.reload(ctx)
@@ -505,7 +506,7 @@ func (c *agentOperationCoordinator) createSteps(ws string, agent *agentsv1.Agent
 		{
 			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_ACTIVATE,
 			fn: func(ctx context.Context, op *agentsv1.AgentOperation) ([]string, error) {
-				return nil, c.setLifecycle(ctx, ws, agent.GetName(), agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE)
+				return nil, c.setLifecycle(ctx, ws, agent.GetAgentId(), agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE)
 			},
 		},
 	}
@@ -530,7 +531,7 @@ func (c *agentOperationCoordinator) RunUpdateConfiguration(ctx context.Context, 
 	if err != nil || len(vErrs) > 0 {
 		return nil, op, vErrs, err
 	}
-	final, _ := c.agents.GetAgent(ctx, ws, prev.GetName())
+	final, _ := c.agents.GetAgent(ctx, ws, prev.GetAgentId())
 	return final, op, nil, nil
 }
 
@@ -565,7 +566,7 @@ func (c *agentOperationCoordinator) updateSteps(ws string, prev, patch *agentsv1
 		{
 			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_DB_PATCH,
 			fn: func(ctx context.Context, op *agentsv1.AgentOperation) ([]string, error) {
-				current, err := c.agents.GetAgentByID(ctx, ws, prev.GetAgentId())
+				current, err := c.agents.GetAgent(ctx, ws, prev.GetAgentId())
 				if err != nil {
 					return nil, err
 				}
@@ -638,19 +639,19 @@ func (c *agentOperationCoordinator) RunDelete(ctx context.Context, ws string, ag
 	if err != nil {
 		return nil, err
 	}
-	_, err = c.execute(ctx, op, c.deleteSteps(ws, agent.GetName()))
+	_, err = c.execute(ctx, op, c.deleteSteps(ws, agent.GetAgentId()))
 	return op, err
 }
 
-func (c *agentOperationCoordinator) deleteSteps(ws, name string) []sagaStep {
+func (c *agentOperationCoordinator) deleteSteps(ws, agentID string) []sagaStep {
 	return []sagaStep{
 		{
 			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_TOMBSTONE,
 			fn: func(ctx context.Context, _ *agentsv1.AgentOperation) ([]string, error) {
-				if err := c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETING); err != nil {
+				if err := c.setLifecycle(ctx, ws, agentID, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETING); err != nil {
 					return nil, err
 				}
-				return nil, c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED)
+				return nil, c.setLifecycle(ctx, ws, agentID, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_DELETED)
 			},
 		},
 	}
@@ -669,15 +670,15 @@ func (c *agentOperationCoordinator) RunRestore(ctx context.Context, ws string, a
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	vErrs, err := c.execute(ctx, op, c.restoreSteps(ws, agent.GetName()))
+	vErrs, err := c.execute(ctx, op, c.restoreSteps(ws, agent.GetAgentId()))
 	if err != nil || len(vErrs) > 0 {
 		return nil, op, vErrs, err
 	}
-	final, _ := c.agents.GetAgentByID(ctx, ws, agent.GetAgentId())
+	final, _ := c.agents.GetAgent(ctx, ws, agent.GetAgentId())
 	return final, op, nil, nil
 }
 
-func (c *agentOperationCoordinator) restoreSteps(ws, name string) []sagaStep {
+func (c *agentOperationCoordinator) restoreSteps(ws, agentID string) []sagaStep {
 	return []sagaStep{
 		{
 			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_SYNC_PUBLISH,
@@ -692,7 +693,7 @@ func (c *agentOperationCoordinator) restoreSteps(ws, name string) []sagaStep {
 		{
 			kind: agentsv1.AgentOperationStepKind_AGENT_OPERATION_STEP_KIND_RESTORE_DB,
 			fn: func(ctx context.Context, _ *agentsv1.AgentOperation) ([]string, error) {
-				return nil, c.setLifecycle(ctx, ws, name, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE)
+				return nil, c.setLifecycle(ctx, ws, agentID, agentsv1.AgentLifecycleStatus_AGENT_LIFECYCLE_STATUS_ACTIVE)
 			},
 		},
 	}
@@ -711,7 +712,7 @@ func (c *agentOperationCoordinator) Retry(ctx context.Context, ws, opID string) 
 		return nil, nil, nil, connectx.InternalWith(err)
 	}
 	if op.GetStatus() == agentsv1.AgentOperationStatus_AGENT_OPERATION_STATUS_SUCCEEDED {
-		agent, _ := c.agents.GetAgentByID(ctx, ws, op.GetAgentId())
+		agent, _ := c.agents.GetAgent(ctx, ws, op.GetAgentId())
 		return agent, op, nil, nil
 	}
 
@@ -723,7 +724,7 @@ func (c *agentOperationCoordinator) Retry(ctx context.Context, ws, opID string) 
 	if err != nil || len(vErrs) > 0 {
 		return nil, op, vErrs, err
 	}
-	agent, _ := c.agents.GetAgentByID(ctx, ws, op.GetAgentId())
+	agent, _ := c.agents.GetAgent(ctx, ws, op.GetAgentId())
 	return agent, op, nil, nil
 }
 
@@ -741,15 +742,15 @@ func (c *agentOperationCoordinator) rebuildSteps(ctx context.Context, ws string,
 		if err := protojson.Unmarshal([]byte(op.GetRequestJson()), &req); err != nil {
 			return nil, connectx.InternalWith(fmt.Errorf("decode update request: %w", err))
 		}
-		prev, err := c.agents.GetAgentByID(ctx, ws, op.GetAgentId())
+		prev, err := c.agents.GetAgent(ctx, ws, op.GetAgentId())
 		if err != nil {
 			return nil, toConnectError(err)
 		}
 		return c.updateSteps(ws, prev, req.GetAgentPatch(), req.GetContentChanges(), op.GetExpectedAgentVersion()), nil
 	case agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_DELETE:
-		return c.deleteSteps(ws, op.GetAgentName()), nil
+		return c.deleteSteps(ws, op.GetAgentId()), nil
 	case agentsv1.AgentOperationType_AGENT_OPERATION_TYPE_RESTORE:
-		return c.restoreSteps(ws, op.GetAgentName()), nil
+		return c.restoreSteps(ws, op.GetAgentId()), nil
 	default:
 		return nil, connectx.InvalidArgument("operation", "is not retryable")
 	}

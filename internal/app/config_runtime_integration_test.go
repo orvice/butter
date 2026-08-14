@@ -147,7 +147,7 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 		t.Fatalf("expected resolved MCP server in agent status, got %+v", status.MCPServers)
 	}
 
-	_, err = agentSvc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "workflow-agent"}))
+	_, err = agentSvc.DeleteAgent(ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "workflow-agent"}))
 	if err != nil {
 		t.Fatalf("delete agent: %v", err)
 	}

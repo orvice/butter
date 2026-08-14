@@ -7,6 +7,13 @@ migration, and cross-provider acceptance. It is the operational companion to
 [ADR-0007](adr/0007-workspace-repo-onboarding-and-safe-detachment.md) and the
 epic in issue #210.
 
+> **Historical note (issue #241):** the Agent-ID rollout steps below
+> (AssignAgentID, migration readiness, MigrateAgentsV2) describe a completed
+> migration. Those RPCs are retired and return `Unimplemented`; use
+> `VerifyAgentIDCutover` for post-cutover diagnostics
+> ([ADR-0010](adr/0010-agent-id-as-logical-persistence-key.md)). The
+> onboarding/offboarding procedures remain current.
+
 ## Rollout order (release guidance)
 
 Git-backed Agent Content depends on every Agent having a stable, immutable

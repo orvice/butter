@@ -119,7 +119,7 @@ Persistence
 
 启动时先创建 HTTP/ConnectRPC handler，再初始化配置仓库。配置仓库 seed 完成后，`StartChannels` 用当前配置构建 runner、cron 和渠道管理器。最后 `Handlers.Wire` 把 runner、session、cron、config runtime 等运行时依赖注入到已创建的 RPC/HTTP handler。
 
-启动时还会执行一次性的 Agent ID 回填（`internal/app/backfill.go: backfillConsumerAgentIDs`）：迁移前只按 legacy `agent_name` 引用 agent 的 channel、cron job 与 automation invoke-agent step，在 agent_id-only 解析下将无法命中，因此这一步按（workspace, name）把它们解析到当前 agent 的 `agent_id` 并写回。它是幂等的——已带 `agent_id` 的记录跳过；name 已无法解析到已分配 `agent_id` 的记录仅记 warning 并跳过，不阻断启动。
+启动时还会执行只读的 Agent-ID cutover 校验（`application.RunAgentIDCutoverVerifier`，替代已退役的一次性回填 `backfillConsumerAgentIDs`，ADR-0010）：逐条检查所有 workspace 的 agent（agent_id 缺失/非法/重复、内联 `sub_agents`、legacy workflow 名字引用、`child_agent_ids`/workflow 引用不可解析、`MIGRATION_REQUIRED`、运行时名字冲突）与 consumer 记录（channel / cron / automation / forum 是否携带 `agent_id`），违规仅记 warning 日志、不自动修补、不阻断启动；`VerifyAgentIDCutover` RPC（全局管理员）提供同一诊断的按需版本。
 
 ## Agent 构建模型
 
@@ -159,7 +159,7 @@ Agent proto
 
 ADK 依赖已升级到 v2.1.0。OpenAI provider 暂不切换到该版本新增的原生 `openaimodel`：OpenAI Responses API 本身支持 `input_image`，但该 ADK adapter 尚未把 `genai.InlineData` / `FileData` 转换为 Responses 的 `input_image` / `input_file`，同时其多轮 assistant history 编码仍存在上游缺陷。生产路径继续使用现有 Chat Completions adapter。详见 `docs/research/adk-go-v2.1-openai.md`。
 
-**V2 create 契约（Agent ID）：** `AgentService.CreateAgent` 现在**要求** `agent_id`——不可变、workspace 内唯一的 slug（`^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`，校验见 `internal/agent/agentid.go`），并**拒绝**内联 `sub_agents`；新 agent 以 `lifecycle_status: ACTIVE` 创建，子 agent 通过 `child_agent_ids` 引用独立记录（`ValidateAgentRelationships` 对 workspace 内 agent 池校验）。`UpdateAgent` 拒绝修改 `agent_id`（改用 `AssignAgentID`）与内联 `sub_agents`（未变更的 legacy 记录可原样往返）。Workflow AGENT 节点用 `agent_id` 引用（legacy `agent` 名字保留兼容）。旧的内联/名字型记录在 `MigrateAgentsV2` 展开前仍可读。`AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 提供迁移路径。
+**V2 create 契约（Agent ID）：** `AgentService.CreateAgent` 现在**要求** `agent_id`——不可变、workspace 内唯一的 slug（`^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`，校验见 `internal/agent/agentid.go`），并**拒绝**内联 `sub_agents`；新 agent 以 `lifecycle_status: ACTIVE` 创建，子 agent 通过 `child_agent_ids` 引用独立记录（`ValidateAgentRelationships` 对 workspace 内 agent 池校验）。`UpdateAgent` 以 `agent.agent_id` 定位记录（必填；`name` 由服务端保留、从不选取记录），并拒绝修改内联 `sub_agents`（未变更的历史记录可原样往返，但构建时从不消费）。Workflow AGENT 节点必须用 `agent_id` 引用（legacy `agent` 名字字段已弃用、从不解析）。持久层以 `(workspace_id, agent_id)` 为逻辑主键，历史 Mongo `_id` 原样保留为不透明物理标识（ADR-0010）。迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役；`VerifyAgentIDCutover` 提供只读 cutover 校验。
 
 ## Runner 执行流
 
@@ -404,7 +404,7 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 
 配置 / 执行：
 
-- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，外加 Agent ID 迁移 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2`。dashboard async chat 的短提交事务在单实例内串行化，保证每个 Session 最多一个 QUEUED/RUNNING Invocation；不同 Session 的 runner 并发执行。Get/Cancel 同时校验 Workspace 与 private Session owner，显式 Stop 终态为 CANCELLED，导航和观察者断开只停止本地 polling。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status/invocation 查询以 `agent_id` 为主，并对历史记录兼容 legacy name 过滤。
+- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，外加只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC 已退役，恒返回 `Unimplemented`）。dashboard async chat 的短提交事务在单实例内串行化，保证每个 Session 最多一个 QUEUED/RUNNING Invocation；不同 Session 的 runner 并发执行。Get/Cancel 同时校验 Workspace 与 private Session owner，显式 Stop 终态为 CANCELLED，导航和观察者断开只停止本地 polling。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status 查询仅接受 `agent_id`（携带 legacy `names` 过滤会被拒绝）；invocation 查询以 `agent_id` 为主，仅历史记录过滤仍兼容 `agent_name` 快照。
 - `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools` + MCP OAuth2 流程（`StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`）。
 - `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`。
 - `ChannelService`：渠道 CRUD + `GetChannelStatus` + `RestartChannel` / `PauseChannel` / `ResumeChannel`。

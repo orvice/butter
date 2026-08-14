@@ -89,17 +89,13 @@ export function ChatPage() {
   // Resolve the selected draft agent from URL, localStorage, or default.
   const resolveInitialAgent = useCallback((): Agent | null => {
     if (requestedAgent && allAgents.length > 0) {
-      const match =
-        allAgents.find((a) => a.agent_id === requestedAgent) ??
-        allAgents.find((a) => a.name === requestedAgent)
+      const match = allAgents.find((a) => a.agent_id === requestedAgent)
       if (match) return match
     }
     if (selectedWorkspaceId) {
       const saved = localStorage.getItem(lastAgentKey(selectedWorkspaceId))
       if (saved) {
-        const match =
-          allAgents.find((a) => a.agent_id === saved) ??
-          allAgents.find((a) => a.name === saved)
+        const match = allAgents.find((a) => a.agent_id === saved)
         if (match) return match
         localStorage.removeItem(lastAgentKey(selectedWorkspaceId))
       }
@@ -122,9 +118,7 @@ export function ChatPage() {
     if (requestedAgent !== prevRequestedAgent.current) {
       prevRequestedAgent.current = requestedAgent
       if (requestedAgent && allAgents.length > 0) {
-        const match =
-          allAgents.find((a) => a.agent_id === requestedAgent) ??
-          allAgents.find((a) => a.name === requestedAgent)
+        const match = allAgents.find((a) => a.agent_id === requestedAgent)
         if (match) {
           const frame = globalThis.requestAnimationFrame(() => setDraftAgent(match))
           return () => globalThis.cancelAnimationFrame(frame)
@@ -135,11 +129,8 @@ export function ChatPage() {
 
   function handlePickAgent(agent: Agent) {
     setDraftAgent(agent)
-    if (selectedWorkspaceId) {
-      localStorage.setItem(
-        lastAgentKey(selectedWorkspaceId),
-        agent.agent_id || agent.name,
-      )
+    if (selectedWorkspaceId && agent.agent_id) {
+      localStorage.setItem(lastAgentKey(selectedWorkspaceId), agent.agent_id)
     }
   }
 
@@ -168,13 +159,9 @@ export function ChatPage() {
     if (draftSubmitting) return
     setDraftSubmitting(true)
     try {
-      if (!agent.agent_id) {
-        toast.error('This Agent is missing an immutable ID and cannot be invoked.')
-        return
-      }
       const resp = await submitAgentInvocation({
         request_id: newClientID(),
-        agent_id: agent.agent_id,
+        agent_id: agent.agent_id ?? '',
         message,
       })
       await sessionsQuery.refetch()

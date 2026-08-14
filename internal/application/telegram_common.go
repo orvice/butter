@@ -190,7 +190,7 @@ func resolveActiveAgent(ctx context.Context, repo configrepo.AgentRepository, wo
 	if repo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("agent repository not configured"))
 	}
-	agent, err := repo.GetAgentByID(ctx, workspaceID, agentID)
+	agent, err := repo.GetAgent(ctx, workspaceID, agentID)
 	if err != nil {
 		if errors.Is(err, configrepo.ErrNotFound) {
 			return nil, connectx.InvalidArgument(field, fmt.Sprintf("references unknown agent %q", agentID))

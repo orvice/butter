@@ -41,7 +41,7 @@ func TestConfigStoreRuntimeConfigComesFromStoreNotYAML(t *testing.T) {
 			len(cfg.Agents), len(cfg.MCPServerConfigs), len(cfg.RemoteAgents), len(cfg.Channels), len(cfg.ModelProviders))
 	}
 
-	if _, err := store.CreateAgent(ctx, "ws-test", &agentsv1.Agent{Name: "db-agent"}); err != nil {
+	if _, err := store.CreateAgent(ctx, "ws-test", &agentsv1.Agent{AgentId: "db-agent", Name: "db-agent"}); err != nil {
 		t.Fatalf("create agent: %v", err)
 	}
 	if _, err := store.CreateMCPServer(ctx, "ws-test", &agentsv1.MCPServer{Id: "db-mcp", Name: "db-mcp"}); err != nil {

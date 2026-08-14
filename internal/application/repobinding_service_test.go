@@ -1989,7 +1989,7 @@ func TestCommitAgentContentPermissions(t *testing.T) {
 
 func tombstone(t *testing.T, fx *bindingFixture, ws, agentID string) {
 	t.Helper()
-	a, err := fx.agentRepo.GetAgentByID(context.Background(), ws, agentID)
+	a, err := fx.agentRepo.GetAgent(context.Background(), ws, agentID)
 	if err != nil {
 		t.Fatalf("get agent %q: %v", agentID, err)
 	}

@@ -13,29 +13,41 @@ var (
 	// ErrVersionConflict is returned by UpdateAgentCAS when the stored agent's
 	// version no longer matches the caller's expected version.
 	ErrVersionConflict = errors.New("agent version conflict")
+	// ErrMissingAgentID is returned by Agent operations when the required
+	// agent_id is empty. (workspace_id, agent_id) is the Agent repository's
+	// logical primary key; every adapter rejects empty IDs at the seam.
+	ErrMissingAgentID = errors.New("agent id required")
 )
 
 // AgentRepository defines CRUD operations for Agent configurations.
-// All methods are scoped to a single workspace.
+// All methods are scoped to a single workspace and address Agents by their
+// immutable, workspace-unique agent_id — (workspace_id, agent_id) is the
+// logical primary key. Agent.name remains an internal ADK runtime name whose
+// per-workspace uniqueness the adapters preserve, but it never selects a
+// record.
 type AgentRepository interface {
 	ListAgents(ctx context.Context, workspaceID string) ([]*agentsv1.Agent, error)
-	GetAgent(ctx context.Context, workspaceID, name string) (*agentsv1.Agent, error)
+
+	// GetAgent returns the agent with the given workspace-scoped agent_id.
+	GetAgent(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error)
+
+	// CreateAgent inserts a new agent. The agent must carry a non-empty
+	// agent_id; a duplicate agent_id or runtime name within the workspace
+	// returns ErrAlreadyExists.
 	CreateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error)
+
+	// UpdateAgent replaces the agent identified by agent.agent_id.
 	UpdateAgent(ctx context.Context, workspaceID string, agent *agentsv1.Agent) (*agentsv1.Agent, error)
-	DeleteAgent(ctx context.Context, workspaceID, name string) error
 
-	// UpdateAgentCAS replaces the agent only when the stored version equals
-	// expectedVersion, then bumps the stored version by one. It returns
-	// ErrVersionConflict on a mismatch and ErrNotFound when the agent is
-	// absent. The returned agent carries the bumped version.
+	// DeleteAgent removes the agent with the given workspace-scoped agent_id.
+	DeleteAgent(ctx context.Context, workspaceID, agentID string) error
+
+	// UpdateAgentCAS replaces the agent identified by agent.agent_id only
+	// when the stored version equals expectedVersion, then bumps the stored
+	// version by one. It returns ErrVersionConflict on a mismatch and
+	// ErrNotFound when the agent is absent. The returned agent carries the
+	// bumped version.
 	UpdateAgentCAS(ctx context.Context, workspaceID string, agent *agentsv1.Agent, expectedVersion int64) (*agentsv1.Agent, error)
-
-	// GetAgentByID returns the agent with the given workspace-scoped agent_id.
-	GetAgentByID(ctx context.Context, workspaceID, agentID string) (*agentsv1.Agent, error)
-
-	// AgentIDExists reports whether the given agent_id is already taken
-	// within the workspace.
-	AgentIDExists(ctx context.Context, workspaceID, agentID string) (bool, error)
 
 	// ListAgentsAcrossWorkspaces returns agents from every workspace, used by
 	// the runtime to (re)build runners across all configured tenants.

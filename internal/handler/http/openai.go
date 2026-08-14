@@ -180,7 +180,7 @@ func (h *OpenAIHandler) validateAndPrepare(c *gin.Context) (*chatRunContext, boo
 
 	// The request's model field is the agent's immutable agent_id — the sole
 	// agent reference on the OpenAI-compatible interface (issue #213).
-	agent, err := h.agentRepo.GetAgentByID(c.Request.Context(), workspaceID, req.Model)
+	agent, err := h.agentRepo.GetAgent(c.Request.Context(), workspaceID, req.Model)
 	if err != nil || agent == nil || !agent.GetEnableOpenaiApi() {
 		c.JSON(http.StatusNotFound, openaiError("model not found: "+req.Model, "invalid_request_error"))
 		return nil, false

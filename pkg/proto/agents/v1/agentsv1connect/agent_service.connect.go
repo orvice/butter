@@ -90,6 +90,9 @@ const (
 	// AgentServiceMigrateAgentsV2Procedure is the fully-qualified name of the AgentService's
 	// MigrateAgentsV2 RPC.
 	AgentServiceMigrateAgentsV2Procedure = "/agents.v1.AgentService/MigrateAgentsV2"
+	// AgentServiceVerifyAgentIDCutoverProcedure is the fully-qualified name of the AgentService's
+	// VerifyAgentIDCutover RPC.
+	AgentServiceVerifyAgentIDCutoverProcedure = "/agents.v1.AgentService/VerifyAgentIDCutover"
 	// AgentServiceUpdateAgentConfigurationProcedure is the fully-qualified name of the AgentService's
 	// UpdateAgentConfiguration RPC.
 	AgentServiceUpdateAgentConfigurationProcedure = "/agents.v1.AgentService/UpdateAgentConfiguration"
@@ -299,20 +302,32 @@ type AgentServiceClient interface {
 	// gets typed cancellation / failed-precondition codes instead of an
 	// ad-hoc string payload.
 	StreamAgent(context.Context, *connect.Request[v1.StreamAgentRequest]) (*connect.ServerStreamForClient[v1.StreamAgentResponse], error)
-	// AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
-	// existing Agent identified by name. Only workspace owners and
-	// administrators may call this; ordinary members receive PermissionDenied.
-	// Rejects invalid slugs, reserved values, duplicates, and attempts to
-	// reassign an already-set ID.
+	// AssignAgentID is retired (issue #241): the Agent ID rollout is complete,
+	// every Agent carries an immutable agent_id assigned at creation, and the
+	// repository no longer resolves Agents by name. Always returns
+	// Unimplemented.
+	//
+	// Deprecated: do not use.
 	AssignAgentID(context.Context, *connect.Request[v1.AssignAgentIDRequest]) (*connect.Response[v1.AssignAgentIDResponse], error)
-	// GetMigrationReadiness reports whether each Agent in the workspace is
-	// ready for the identity migration (has a valid Agent ID, all entry-point
-	// dependencies resolved, etc.).
+	// GetMigrationReadiness is retired (issue #241). Use VerifyAgentIDCutover
+	// for post-cutover diagnostics. Always returns Unimplemented.
+	//
+	// Deprecated: do not use.
 	GetMigrationReadiness(context.Context, *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error)
-	// MigrateAgentsV2 expands eligible legacy Agent trees into independent
-	// Agent records with ID-based composition. Supports dry-run, apply, and
-	// verify modes.
+	// MigrateAgentsV2 is retired (issue #241): the V2 migration observation
+	// window is closed. Use VerifyAgentIDCutover for post-cutover diagnostics.
+	// Always returns Unimplemented.
+	//
+	// Deprecated: do not use.
 	MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error)
+	// VerifyAgentIDCutover runs the read-only final cutover verifier (issue
+	// #241) across every workspace: it confirms all Agents carry valid,
+	// workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
+	// workflow references remain, all child/workflow references resolve, no
+	// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
+	// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+	// conflict violates the runner's naming constraints. Global admins only.
+	VerifyAgentIDCutover(context.Context, *connect.Request[v1.VerifyAgentIDCutoverRequest]) (*connect.Response[v1.VerifyAgentIDCutoverResponse], error)
 	// UpdateAgentConfiguration is the composite-save command: it coordinates an
 	// Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
 	// under a single durable operation while keeping ownership separate. The
@@ -452,6 +467,12 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("MigrateAgentsV2")),
 			connect.WithClientOptions(opts...),
 		),
+		verifyAgentIDCutover: connect.NewClient[v1.VerifyAgentIDCutoverRequest, v1.VerifyAgentIDCutoverResponse](
+			httpClient,
+			baseURL+AgentServiceVerifyAgentIDCutoverProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("VerifyAgentIDCutover")),
+			connect.WithClientOptions(opts...),
+		),
 		updateAgentConfiguration: connect.NewClient[v1.UpdateAgentConfigurationRequest, v1.UpdateAgentConfigurationResponse](
 			httpClient,
 			baseURL+AgentServiceUpdateAgentConfigurationProcedure,
@@ -520,6 +541,7 @@ type agentServiceClient struct {
 	assignAgentID            *connect.Client[v1.AssignAgentIDRequest, v1.AssignAgentIDResponse]
 	getMigrationReadiness    *connect.Client[v1.GetMigrationReadinessRequest, v1.GetMigrationReadinessResponse]
 	migrateAgentsV2          *connect.Client[v1.MigrateAgentsV2Request, v1.MigrateAgentsV2Response]
+	verifyAgentIDCutover     *connect.Client[v1.VerifyAgentIDCutoverRequest, v1.VerifyAgentIDCutoverResponse]
 	updateAgentConfiguration *connect.Client[v1.UpdateAgentConfigurationRequest, v1.UpdateAgentConfigurationResponse]
 	restoreAgent             *connect.Client[v1.RestoreAgentRequest, v1.RestoreAgentResponse]
 	submitAgentInvocation    *connect.Client[v1.SubmitAgentInvocationRequest, v1.SubmitAgentInvocationResponse]
@@ -591,18 +613,29 @@ func (c *agentServiceClient) StreamAgent(ctx context.Context, req *connect.Reque
 }
 
 // AssignAgentID calls agents.v1.AgentService.AssignAgentID.
+//
+// Deprecated: do not use.
 func (c *agentServiceClient) AssignAgentID(ctx context.Context, req *connect.Request[v1.AssignAgentIDRequest]) (*connect.Response[v1.AssignAgentIDResponse], error) {
 	return c.assignAgentID.CallUnary(ctx, req)
 }
 
 // GetMigrationReadiness calls agents.v1.AgentService.GetMigrationReadiness.
+//
+// Deprecated: do not use.
 func (c *agentServiceClient) GetMigrationReadiness(ctx context.Context, req *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error) {
 	return c.getMigrationReadiness.CallUnary(ctx, req)
 }
 
 // MigrateAgentsV2 calls agents.v1.AgentService.MigrateAgentsV2.
+//
+// Deprecated: do not use.
 func (c *agentServiceClient) MigrateAgentsV2(ctx context.Context, req *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error) {
 	return c.migrateAgentsV2.CallUnary(ctx, req)
+}
+
+// VerifyAgentIDCutover calls agents.v1.AgentService.VerifyAgentIDCutover.
+func (c *agentServiceClient) VerifyAgentIDCutover(ctx context.Context, req *connect.Request[v1.VerifyAgentIDCutoverRequest]) (*connect.Response[v1.VerifyAgentIDCutoverResponse], error) {
+	return c.verifyAgentIDCutover.CallUnary(ctx, req)
 }
 
 // UpdateAgentConfiguration calls agents.v1.AgentService.UpdateAgentConfiguration.
@@ -681,20 +714,32 @@ type AgentServiceHandler interface {
 	// gets typed cancellation / failed-precondition codes instead of an
 	// ad-hoc string payload.
 	StreamAgent(context.Context, *connect.Request[v1.StreamAgentRequest], *connect.ServerStream[v1.StreamAgentResponse]) error
-	// AssignAgentID sets the immutable, workspace-unique slug Agent ID on an
-	// existing Agent identified by name. Only workspace owners and
-	// administrators may call this; ordinary members receive PermissionDenied.
-	// Rejects invalid slugs, reserved values, duplicates, and attempts to
-	// reassign an already-set ID.
+	// AssignAgentID is retired (issue #241): the Agent ID rollout is complete,
+	// every Agent carries an immutable agent_id assigned at creation, and the
+	// repository no longer resolves Agents by name. Always returns
+	// Unimplemented.
+	//
+	// Deprecated: do not use.
 	AssignAgentID(context.Context, *connect.Request[v1.AssignAgentIDRequest]) (*connect.Response[v1.AssignAgentIDResponse], error)
-	// GetMigrationReadiness reports whether each Agent in the workspace is
-	// ready for the identity migration (has a valid Agent ID, all entry-point
-	// dependencies resolved, etc.).
+	// GetMigrationReadiness is retired (issue #241). Use VerifyAgentIDCutover
+	// for post-cutover diagnostics. Always returns Unimplemented.
+	//
+	// Deprecated: do not use.
 	GetMigrationReadiness(context.Context, *connect.Request[v1.GetMigrationReadinessRequest]) (*connect.Response[v1.GetMigrationReadinessResponse], error)
-	// MigrateAgentsV2 expands eligible legacy Agent trees into independent
-	// Agent records with ID-based composition. Supports dry-run, apply, and
-	// verify modes.
+	// MigrateAgentsV2 is retired (issue #241): the V2 migration observation
+	// window is closed. Use VerifyAgentIDCutover for post-cutover diagnostics.
+	// Always returns Unimplemented.
+	//
+	// Deprecated: do not use.
 	MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error)
+	// VerifyAgentIDCutover runs the read-only final cutover verifier (issue
+	// #241) across every workspace: it confirms all Agents carry valid,
+	// workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
+	// workflow references remain, all child/workflow references resolve, no
+	// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
+	// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+	// conflict violates the runner's naming constraints. Global admins only.
+	VerifyAgentIDCutover(context.Context, *connect.Request[v1.VerifyAgentIDCutoverRequest]) (*connect.Response[v1.VerifyAgentIDCutoverResponse], error)
 	// UpdateAgentConfiguration is the composite-save command: it coordinates an
 	// Agent operational patch (DB-owned) with Agent Content changes (Git-owned)
 	// under a single durable operation while keeping ownership separate. The
@@ -830,6 +875,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("MigrateAgentsV2")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceVerifyAgentIDCutoverHandler := connect.NewUnaryHandler(
+		AgentServiceVerifyAgentIDCutoverProcedure,
+		svc.VerifyAgentIDCutover,
+		connect.WithSchema(agentServiceMethods.ByName("VerifyAgentIDCutover")),
+		connect.WithHandlerOptions(opts...),
+	)
 	agentServiceUpdateAgentConfigurationHandler := connect.NewUnaryHandler(
 		AgentServiceUpdateAgentConfigurationProcedure,
 		svc.UpdateAgentConfiguration,
@@ -910,6 +961,8 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceGetMigrationReadinessHandler.ServeHTTP(w, r)
 		case AgentServiceMigrateAgentsV2Procedure:
 			agentServiceMigrateAgentsV2Handler.ServeHTTP(w, r)
+		case AgentServiceVerifyAgentIDCutoverProcedure:
+			agentServiceVerifyAgentIDCutoverHandler.ServeHTTP(w, r)
 		case AgentServiceUpdateAgentConfigurationProcedure:
 			agentServiceUpdateAgentConfigurationHandler.ServeHTTP(w, r)
 		case AgentServiceRestoreAgentProcedure:
@@ -993,6 +1046,10 @@ func (UnimplementedAgentServiceHandler) GetMigrationReadiness(context.Context, *
 
 func (UnimplementedAgentServiceHandler) MigrateAgentsV2(context.Context, *connect.Request[v1.MigrateAgentsV2Request]) (*connect.Response[v1.MigrateAgentsV2Response], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.MigrateAgentsV2 is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) VerifyAgentIDCutover(context.Context, *connect.Request[v1.VerifyAgentIDCutoverRequest]) (*connect.Response[v1.VerifyAgentIDCutoverResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AgentService.VerifyAgentIDCutover is not implemented"))
 }
 
 func (UnimplementedAgentServiceHandler) UpdateAgentConfiguration(context.Context, *connect.Request[v1.UpdateAgentConfigurationRequest]) (*connect.Response[v1.UpdateAgentConfigurationResponse], error) {

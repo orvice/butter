@@ -220,7 +220,7 @@ func TestConfigServices_ConnectIntegration(t *testing.T) {
 		t.Fatalf("expected 3 runner reloads after agent create, got %d", fx.tracker.runnerReloads)
 	}
 
-	getResp, err := agentClient.GetAgent(fx.ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "workflow-agent"}))
+	getResp, err := agentClient.GetAgent(fx.ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "workflow-agent"}))
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
@@ -237,14 +237,14 @@ func TestConfigServices_ConnectIntegration(t *testing.T) {
 		t.Fatalf("expected persisted workflow-agent, got %+v", agents)
 	}
 
-	if _, err := agentClient.DeleteAgent(fx.ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{Name: "workflow-agent"})); err != nil {
+	if _, err := agentClient.DeleteAgent(fx.ctx, connect.NewRequest(&agentsv1.DeleteAgentRequest{AgentId: "workflow-agent"})); err != nil {
 		t.Fatalf("delete agent: %v", err)
 	}
 	if fx.tracker.runnerReloads != 4 {
 		t.Fatalf("expected 4 runner reloads after agent delete, got %d", fx.tracker.runnerReloads)
 	}
 
-	_, err = agentClient.GetAgent(fx.ctx, connect.NewRequest(&agentsv1.GetAgentRequest{Name: "workflow-agent"}))
+	_, err = agentClient.GetAgent(fx.ctx, connect.NewRequest(&agentsv1.GetAgentRequest{AgentId: "workflow-agent"}))
 	if err != nil {
 		t.Fatalf("expected tombstoned agent to remain readable, got %v", err)
 	}

@@ -38,8 +38,9 @@ type MCPHTTPClientFactory interface {
 // ToolsetFactory creates built-in, per-agent toolsets such as agent_files.
 type ToolsetFactory func(ctx context.Context, pb *agentsv1.Agent) ([]tool.Toolset, error)
 
-// AgentPool maps agent_id → proto for ID-based child resolution.
-// Nil or empty means only legacy embedded sub_agents are used.
+// AgentPool maps agent_id → proto for ID-based child resolution. Agents that
+// declare child_agent_ids require a pool; an agent without children needs
+// none.
 type AgentPool map[string]*agentsv1.Agent
 
 // NewFromProto creates an ADK agent from an agentsv1.Agent proto config.
@@ -57,9 +58,8 @@ func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agen
 }
 
 // NewFromProtoWithToolsetFactory creates an ADK agent with custom MCP HTTP and
-// built-in toolset factories. When pool is non-nil and the agent declares
-// child_agent_ids, children are resolved from the pool instead of embedded
-// sub_agents. Legacy agents with only sub_agents continue to work as before.
+// built-in toolset factories. Children are declared via child_agent_ids and
+// resolved from the pool; embedded sub_agents are never consumed (issue #241).
 func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, pool ...AgentPool) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
@@ -75,30 +75,17 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
 	}
 
-	var subAgents []agent.Agent
-
-	if len(pb.GetChildAgentIds()) > 0 && agentPool != nil {
-		subAgents = make([]agent.Agent, 0, len(pb.GetChildAgentIds()))
-		for _, childID := range pb.GetChildAgentIds() {
-			childPb, ok := agentPool[childID]
-			if !ok {
-				return nil, fmt.Errorf("agent %q: child_agent_id %q not found in agent pool", pb.GetName(), childID)
-			}
-			sa, err := NewFromProtoWithToolsetFactory(ctx, childPb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, agentPool)
-			if err != nil {
-				return nil, fmt.Errorf("building child agent %q (id=%s): %w", childPb.GetName(), childID, err)
-			}
-			subAgents = append(subAgents, sa)
+	subAgents := make([]agent.Agent, 0, len(pb.GetChildAgentIds()))
+	for _, childID := range pb.GetChildAgentIds() {
+		childPb, ok := agentPool[childID]
+		if !ok {
+			return nil, fmt.Errorf("agent %q: child_agent_id %q not found in agent pool", pb.GetName(), childID)
 		}
-	} else {
-		subAgents = make([]agent.Agent, 0, len(pb.GetSubAgents()))
-		for _, sub := range pb.GetSubAgents() {
-			sa, err := NewFromProtoWithToolsetFactory(ctx, sub, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, agentPool)
-			if err != nil {
-				return nil, fmt.Errorf("building sub-agent %q: %w", sub.GetName(), err)
-			}
-			subAgents = append(subAgents, sa)
+		sa, err := NewFromProtoWithToolsetFactory(ctx, childPb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, agentPool)
+		if err != nil {
+			return nil, fmt.Errorf("building child agent %q (id=%s): %w", childPb.GetName(), childID, err)
 		}
+		subAgents = append(subAgents, sa)
 	}
 
 	remoteSubAgents, err := resolveRemoteAgents(pb, remoteAgentRegistry, daemonRegistry)

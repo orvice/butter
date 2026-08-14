@@ -20,22 +20,35 @@ func workflowProviders() []agentsv1.ModelProvider {
 	}
 }
 
+// childAgent returns an independent LLM agent usable as a workflow child.
+func childAgent(id string) *agentsv1.Agent {
+	return &agentsv1.Agent{AgentId: id, Name: id, Config: &agentsv1.AgentConfig{Model: "m1"}}
+}
+
+// poolOf indexes children by agent_id, mirroring the runner's per-workspace
+// pool construction.
+func poolOf(children ...*agentsv1.Agent) AgentPool {
+	pool := make(AgentPool, len(children))
+	for _, c := range children {
+		pool[c.GetAgentId()] = c
+	}
+	return pool
+}
+
 // linearWorkflowProto returns a WORKFLOW agent whose graph is a linear chain
-// of two AGENT nodes referencing the agent's sub-agents by name.
-func linearWorkflowProto() *agentsv1.Agent {
-	return &agentsv1.Agent{
-		Name:        "wf",
-		Description: "linear two-step workflow",
-		Type:        agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		SubAgents: []*agentsv1.Agent{
-			{Name: "step_a", Config: &agentsv1.AgentConfig{Model: "m1"}},
-			{Name: "step_b", Config: &agentsv1.AgentConfig{Model: "m1"}},
-		},
+// of two AGENT nodes referencing independent children by agent_id.
+func linearWorkflowProto() (*agentsv1.Agent, AgentPool) {
+	pb := &agentsv1.Agent{
+		AgentId:       "wf",
+		Name:          "wf",
+		Description:   "linear two-step workflow",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		ChildAgentIds: []string{"step-a", "step-b"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "step_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "step_a"},
-					{Name: "step_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "step_b"},
+					{Name: "step_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "step-a"},
+					{Name: "step_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "step-b"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "step_a"},
@@ -44,6 +57,7 @@ func linearWorkflowProto() *agentsv1.Agent {
 			},
 		},
 	}
+	return pb, poolOf(childAgent("step-a"), childAgent("step-b"))
 }
 
 // branchingWorkflowProto returns a WORKFLOW agent with an approve/reject
@@ -51,22 +65,19 @@ func linearWorkflowProto() *agentsv1.Agent {
 // branch and everything else down the default branch. Conditional branches
 // deliberately do not converge into a Join: the barrier waits for every
 // declared predecessor, and a route-skipped predecessor never fires.
-func branchingWorkflowProto() *agentsv1.Agent {
-	return &agentsv1.Agent{
-		Name: "review",
-		Type: agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		SubAgents: []*agentsv1.Agent{
-			{Name: "classify", Config: &agentsv1.AgentConfig{Model: "m1"}},
-			{Name: "approver", Config: &agentsv1.AgentConfig{Model: "m1"}},
-			{Name: "rejecter", Config: &agentsv1.AgentConfig{Model: "m1"}},
-		},
+func branchingWorkflowProto() (*agentsv1.Agent, AgentPool) {
+	pb := &agentsv1.Agent{
+		AgentId:       "review",
+		Name:          "review",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		ChildAgentIds: []string{"classify", "approver", "rejecter"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "classify", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "classify"},
+					{Name: "classify", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "classify"},
 					{Name: "decide", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER},
-					{Name: "approver", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "approver"},
-					{Name: "rejecter", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "rejecter"},
+					{Name: "approver", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "approver"},
+					{Name: "rejecter", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "rejecter"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "classify"},
@@ -77,29 +88,26 @@ func branchingWorkflowProto() *agentsv1.Agent {
 			},
 		},
 	}
+	return pb, poolOf(childAgent("classify"), childAgent("approver"), childAgent("rejecter"))
 }
 
 // fanOutJoinWorkflowProto returns a WORKFLOW agent that fans out from one
 // node to two branches over unconditional edges and re-converges through a
 // Join node.
-func fanOutJoinWorkflowProto() *agentsv1.Agent {
-	return &agentsv1.Agent{
-		Name: "fanout",
-		Type: agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		SubAgents: []*agentsv1.Agent{
-			{Name: "seed", Config: &agentsv1.AgentConfig{Model: "m1"}},
-			{Name: "b1", Config: &agentsv1.AgentConfig{Model: "m1"}},
-			{Name: "b2", Config: &agentsv1.AgentConfig{Model: "m1"}},
-			{Name: "summarize", Config: &agentsv1.AgentConfig{Model: "m1"}},
-		},
+func fanOutJoinWorkflowProto() (*agentsv1.Agent, AgentPool) {
+	pb := &agentsv1.Agent{
+		AgentId:       "fanout",
+		Name:          "fanout",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		ChildAgentIds: []string{"seed", "b1", "b2", "summarize"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "seed"},
-					{Name: "b1", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "b1"},
-					{Name: "b2", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "b2"},
+					{Name: "seed", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "seed"},
+					{Name: "b1", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "b1"},
+					{Name: "b2", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "b2"},
 					{Name: "gather", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN},
-					{Name: "summarize", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "summarize"},
+					{Name: "summarize", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "summarize"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "seed"},
@@ -112,24 +120,23 @@ func fanOutJoinWorkflowProto() *agentsv1.Agent {
 			},
 		},
 	}
+	return pb, poolOf(childAgent("seed"), childAgent("b1"), childAgent("b2"), childAgent("summarize"))
 }
 
 // humanInputWorkflowProto returns a WORKFLOW agent that pauses on a Human
 // Input node between two agent steps: draft -> ask (human) -> publish.
-func humanInputWorkflowProto() *agentsv1.Agent {
-	return &agentsv1.Agent{
-		Name: "approval",
-		Type: agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
-		SubAgents: []*agentsv1.Agent{
-			{Name: "draft", Config: &agentsv1.AgentConfig{Model: "m1"}},
-			{Name: "publish", Config: &agentsv1.AgentConfig{Model: "m1"}},
-		},
+func humanInputWorkflowProto() (*agentsv1.Agent, AgentPool) {
+	pb := &agentsv1.Agent{
+		AgentId:       "approval",
+		Name:          "approval",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		ChildAgentIds: []string{"draft", "publish"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
-					{Name: "draft", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "draft"},
+					{Name: "draft", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "draft"},
 					{Name: "ask", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT, Question: "Approve this draft?"},
-					{Name: "publish", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, Agent: "publish"},
+					{Name: "publish", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "publish"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "draft"},
@@ -139,10 +146,12 @@ func humanInputWorkflowProto() *agentsv1.Agent {
 			},
 		},
 	}
+	return pb, poolOf(childAgent("draft"), childAgent("publish"))
 }
 
 func TestNewFromProto_WorkflowHumanInput(t *testing.T) {
-	a, err := NewFromProto(context.Background(), humanInputWorkflowProto(), workflowProviders(), nil, nil, nil)
+	pb, pool := humanInputWorkflowProto()
+	a, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, pool)
 	if err != nil {
 		t.Fatalf("NewFromProto: %v", err)
 	}
@@ -154,19 +163,24 @@ func TestNewFromProto_WorkflowHumanInput(t *testing.T) {
 // TestValidateWorkflowAgent_HumanInputRequiresQuestion: a Human Input node
 // without a question would pause the workflow with an empty prompt.
 func TestValidateWorkflowAgent_HumanInputRequiresQuestion(t *testing.T) {
-	pb := humanInputWorkflowProto()
+	pb, pool := humanInputWorkflowProto()
 	pb.Config.Workflow.Nodes[1].Question = ""
-	assertGraphRejected(t, pb, "question")
+	assertGraphRejected(t, pb, pool, "question")
 }
 
 func TestNewFromProto_WorkflowRouterAndJoin(t *testing.T) {
-	for _, pb := range []*agentsv1.Agent{branchingWorkflowProto(), fanOutJoinWorkflowProto()} {
-		a, err := NewFromProto(context.Background(), pb, workflowProviders(), nil, nil, nil)
+	branching, branchingPool := branchingWorkflowProto()
+	fanOut, fanOutPool := fanOutJoinWorkflowProto()
+	for _, tc := range []struct {
+		pb   *agentsv1.Agent
+		pool AgentPool
+	}{{branching, branchingPool}, {fanOut, fanOutPool}} {
+		a, err := NewFromProtoWithToolsetFactory(context.Background(), tc.pb, workflowProviders(), nil, nil, nil, nil, nil, tc.pool)
 		if err != nil {
-			t.Fatalf("NewFromProto(%q): %v", pb.GetName(), err)
+			t.Fatalf("NewFromProto(%q): %v", tc.pb.GetName(), err)
 		}
-		if a.Name() != pb.GetName() {
-			t.Errorf("agent name = %q, want %q", a.Name(), pb.GetName())
+		if a.Name() != tc.pb.GetName() {
+			t.Errorf("agent name = %q, want %q", a.Name(), tc.pb.GetName())
 		}
 	}
 }
@@ -192,11 +206,12 @@ func TestValidateWorkflowAgent_RejectsInvalidGraphs(t *testing.T) {
 			wantErr: "unknown node",
 		},
 		{
-			name: "agent node references missing sub-agent",
+			name: "agent node without an agent_id reference",
 			mutate: func(pb *agentsv1.Agent) {
-				pb.Config.Workflow.Nodes[0].Agent = "no_such_agent"
+				pb.Config.Workflow.Nodes[0].AgentId = ""
+				pb.Config.Workflow.Nodes[0].Agent = "step_a" // legacy name ref is never resolved
 			},
-			wantErr: "no_such_agent",
+			wantErr: "agent_id",
 		},
 		{
 			name: "no entry edge from START",
@@ -243,10 +258,22 @@ func TestValidateWorkflowAgent_RejectsInvalidGraphs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pb := linearWorkflowProto()
+			pb, pool := linearWorkflowProto()
 			tt.mutate(pb)
-			assertGraphRejected(t, pb, tt.wantErr)
+			assertGraphRejected(t, pb, pool, tt.wantErr)
 		})
+	}
+}
+
+// TestNewFromProto_RejectsUnresolvedWorkflowNodeID: an AGENT node whose
+// agent_id does not resolve in the pool must fail at build time.
+func TestNewFromProto_RejectsUnresolvedWorkflowNodeID(t *testing.T) {
+	pb, pool := linearWorkflowProto()
+	pb.Config.Workflow.Nodes[0].AgentId = "no-such-agent"
+	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, pool); err == nil {
+		t.Fatal("NewFromProto accepted a workflow node with an unresolved agent_id")
+	} else if !strings.Contains(err.Error(), "no-such-agent") {
+		t.Errorf("error %q does not mention the unresolved id", err.Error())
 	}
 }
 
@@ -256,14 +283,14 @@ func TestValidateWorkflowAgent_RejectsInvalidGraphs(t *testing.T) {
 // that hangs at runtime, so validation must reject it at save time.
 func TestValidateWorkflowAgent_RejectsConditionalEdgeIntoJoin(t *testing.T) {
 	t.Run("routed edge into join", func(t *testing.T) {
-		pb := fanOutJoinWorkflowProto()
+		pb, pool := fanOutJoinWorkflowProto()
 		pb.Config.Workflow.Edges[3].Route = "left" // b1 -> gather
-		assertGraphRejected(t, pb, "gather")
+		assertGraphRejected(t, pb, pool, "gather")
 	})
 	t.Run("default edge into join", func(t *testing.T) {
-		pb := fanOutJoinWorkflowProto()
+		pb, pool := fanOutJoinWorkflowProto()
 		pb.Config.Workflow.Edges[4].IsDefault = true // b2 -> gather
-		assertGraphRejected(t, pb, "gather")
+		assertGraphRejected(t, pb, pool, "gather")
 	})
 }
 
@@ -272,17 +299,17 @@ func TestValidateWorkflowAgent_RejectsConditionalEdgeIntoJoin(t *testing.T) {
 // by case or whitespace can never both be reachable — only the first would
 // ever fire. Validation must reject the ambiguity.
 func TestValidateWorkflowAgent_RejectsNearDuplicateRouteLabels(t *testing.T) {
-	pb := branchingWorkflowProto()
+	pb, pool := branchingWorkflowProto()
 	pb.Config.Workflow.Edges = append(pb.Config.Workflow.Edges,
 		&agentsv1.WorkflowEdge{From: "decide", To: "rejecter", Route: " Approve "})
-	assertGraphRejected(t, pb, "approve")
+	assertGraphRejected(t, pb, pool, "approve")
 }
 
 // TestValidateWorkflowAgent_RouterRequiresDefaultEdge: an unmatched Router
 // with no default edge dead-ends silently in the ADK engine, so validation
 // must require one.
 func TestValidateWorkflowAgent_RouterRequiresDefaultEdge(t *testing.T) {
-	pb := branchingWorkflowProto()
+	pb, pool := branchingWorkflowProto()
 	// Drop the default edge, keeping the router reachable and the graph
 	// otherwise valid.
 	pb.Config.Workflow.Edges = []*agentsv1.WorkflowEdge{
@@ -291,10 +318,10 @@ func TestValidateWorkflowAgent_RouterRequiresDefaultEdge(t *testing.T) {
 		{From: "decide", To: "approver", Route: "approve"},
 		{From: "decide", To: "rejecter", Route: "reject"},
 	}
-	assertGraphRejected(t, pb, "default")
+	assertGraphRejected(t, pb, pool, "default")
 }
 
-func assertGraphRejected(t *testing.T, pb *agentsv1.Agent, wantErr string) {
+func assertGraphRejected(t *testing.T, pb *agentsv1.Agent, pool AgentPool, wantErr string) {
 	t.Helper()
 
 	err := ValidateWorkflowAgent(pb)
@@ -306,33 +333,15 @@ func assertGraphRejected(t *testing.T, pb *agentsv1.Agent, wantErr string) {
 	}
 
 	// The factory must reject the same graph.
-	if _, err := NewFromProto(context.Background(), pb, workflowProviders(), nil, nil, nil); err == nil {
+	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, pool); err == nil {
 		t.Error("NewFromProto accepted an invalid graph")
 	}
 }
 
 func TestValidateWorkflowAgent_AcceptsValidGraph(t *testing.T) {
-	if err := ValidateWorkflowAgent(linearWorkflowProto()); err != nil {
+	pb, _ := linearWorkflowProto()
+	if err := ValidateWorkflowAgent(pb); err != nil {
 		t.Fatalf("valid graph rejected: %v", err)
-	}
-}
-
-func TestValidateWorkflowAgent_RecursesIntoSubAgents(t *testing.T) {
-	// A non-workflow root with an invalid workflow sub-agent must be rejected.
-	inner := linearWorkflowProto()
-	inner.Config.Workflow.Nodes[1].Name = "step_a" // duplicate
-	root := &agentsv1.Agent{
-		Name:      "root",
-		Config:    &agentsv1.AgentConfig{Model: "m1"},
-		SubAgents: []*agentsv1.Agent{inner},
-	}
-
-	err := ValidateWorkflowAgent(root)
-	if err == nil {
-		t.Fatal("expected validation error from nested workflow sub-agent")
-	}
-	if !strings.Contains(err.Error(), "duplicate node name") {
-		t.Errorf("error %q does not mention the duplicate node", err.Error())
 	}
 }
 
@@ -369,9 +378,9 @@ func TestMatchRouteLabel(t *testing.T) {
 }
 
 func TestNewFromProto_WorkflowLinearChain(t *testing.T) {
-	pb := linearWorkflowProto()
+	pb, pool := linearWorkflowProto()
 
-	a, err := NewFromProto(context.Background(), pb, workflowProviders(), nil, nil, nil)
+	a, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, pool)
 	if err != nil {
 		t.Fatalf("NewFromProto: %v", err)
 	}

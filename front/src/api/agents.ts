@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Code, ConnectError } from "@connectrpc/connect";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { AgentSchema } from "@/gen/agents/v1/agent_pb";
 import { AgentOperationStatus, type AgentOperation } from "@/gen/agents/v1/agent_operation_pb";
@@ -9,13 +8,11 @@ import {
   type ContentFileAction,
 } from "@/gen/agents/v1/repobinding_pb";
 import {
-  AgentMigrationStatusSchema,
   AgentRuntimeStatusSchema,
   AgentService,
   InvocationSchema,
-  MigrateMode,
 } from "@/gen/agents/v1/agent_service_pb";
-import type { Agent, AgentMigrationStatus, AgentRuntimeStatus, Invocation } from "@/types/api";
+import type { Agent, AgentRuntimeStatus, Invocation } from "@/types/api";
 import { tsToISO } from "./_proto-bridge";
 import { makeClient } from "./transport";
 
@@ -74,33 +71,20 @@ async function listAgents(params: ListAgentsParams = {}): Promise<ListAgentsResp
 }
 
 interface AgentRef {
-  name?: string;
   agent_id?: string;
   operation_id?: string;
 }
 
-// agentRefKey is the stable cache-key segment for an agent: the immutable
-// agent_id when assigned, else the (mutable) name.
+// agentRefKey is the stable cache-key segment for an agent: its immutable
+// agent_id.
 export function agentRefKey(ref: AgentRef): string {
-  return ref.agent_id || ref.name || "";
+  return ref.agent_id ?? "";
 }
 
-async function getAgent(ref: AgentRef): Promise<{ agent: Agent }> {
-  const res = await client.getAgent({ name: ref.name ?? "", agentId: ref.agent_id ?? "" });
+async function getAgent(agentId: string): Promise<{ agent: Agent }> {
+  const res = await client.getAgent({ agentId });
   if (!res.agent) throw new Error("not found");
   return { agent: agentFromProto(res.agent) };
-}
-
-// getAgentByRef resolves an opaque ref (agent_id or legacy name, e.g. a URL
-// param) by trying the immutable agent_id first, then falling back to the
-// name so old bookmarked name URLs keep working.
-async function getAgentByRef(ref: string): Promise<{ agent: Agent }> {
-  try {
-    return await getAgent({ agent_id: ref });
-  } catch (err) {
-    if (err instanceof ConnectError && err.code !== Code.NotFound) throw err;
-    return getAgent({ name: ref });
-  }
 }
 
 export interface CreateAgentParams {
@@ -181,16 +165,8 @@ async function updateAgent(params: UpdateAgentParams): Promise<{ agent: Agent }>
 }
 
 async function deleteAgent(ref: AgentRef): Promise<void> {
-  if (ref.agent_id) {
-    await client.deleteAgent({
-      name: "",
-      agentId: ref.agent_id,
-      operationId: ref.operation_id ?? "",
-    });
-    return;
-  }
   await client.deleteAgent({
-    name: ref.name ?? "",
+    agentId: ref.agent_id ?? "",
     operationId: ref.operation_id ?? "",
   });
 }
@@ -238,67 +214,9 @@ async function retryAgentOperation(operationId: string): Promise<AgentOperation>
   return res.operation;
 }
 
-interface AssignAgentIDParams {
-  name: string;
-  agent_id: string;
-}
-
-async function assignAgentID(params: AssignAgentIDParams): Promise<{ agent: Agent }> {
-  const res = await client.assignAgentID({ name: params.name, agentId: params.agent_id });
-  if (!res.agent) throw new Error("assign returned nothing");
-  return { agent: agentFromProto(res.agent) };
-}
-
-export { MigrateMode };
-
-export interface MigrateResultRow {
-  name: string;
-  agent_id: string;
-  /** "expanded" | "skipped" | "already_independent" | "missing_id" | "error" | "ok" | "migration_required" */
-  action: string;
-  detail: string;
-}
-
-export interface MigrateSummary {
-  mode: MigrateMode;
-  results: MigrateResultRow[];
-  total: number;
-  migrated: number;
-  skipped: number;
-  errors: number;
-}
-
-async function migrateAgentsV2(mode: MigrateMode): Promise<MigrateSummary> {
-  const res = await client.migrateAgentsV2({ mode });
-  return {
-    mode: res.mode,
-    results: res.results.map((r) => ({
-      name: r.name,
-      agent_id: r.agentId,
-      action: r.action,
-      detail: r.detail,
-    })),
-    total: res.total,
-    migrated: res.migrated,
-    skipped: res.skipped,
-    errors: res.errors,
-  };
-}
-
-async function getMigrationReadiness(): Promise<{ statuses: AgentMigrationStatus[] }> {
-  const res = await client.getMigrationReadiness({});
-  return {
-    statuses: res.statuses.map(
-      (s) => toJson(AgentMigrationStatusSchema, s, { useProtoFieldName: true }) as unknown as AgentMigrationStatus,
-    ),
-  };
-}
-
 interface InvokeAgentParams {
-  /** Legacy agent name; fallback for agents without an agent_id. */
-  agent_name?: string;
-  /** Immutable agent_id of the agent to invoke. Preferred over agent_name. */
-  agent_id?: string;
+  /** Immutable agent_id of the agent to invoke. */
+  agent_id: string;
   input: string;
   app_name?: string;
   user_id?: string;
@@ -308,8 +226,7 @@ interface InvokeAgentParams {
 
 async function invokeAgent(params: InvokeAgentParams): Promise<{ session_id: string; response: string }> {
   const res = await client.invokeAgent({
-    agentName: params.agent_name ?? "",
-    agentId: params.agent_id ?? "",
+    agentId: params.agent_id,
     input: params.input,
     appName: params.app_name ?? "",
     userId: params.user_id ?? "",
@@ -335,7 +252,6 @@ function runtimeStatusFromProto(s: Parameters<typeof toJson<typeof AgentRuntimeS
 
 async function getAgentRuntimeStatus(ref: AgentRef): Promise<{ status: AgentRuntimeStatus }> {
   const res = await client.getAgentRuntimeStatus({
-    name: ref.agent_id ? "" : (ref.name ?? ""),
     agentId: ref.agent_id ?? "",
   });
   if (!res.status) throw new Error("status not found");
@@ -343,9 +259,7 @@ async function getAgentRuntimeStatus(ref: AgentRef): Promise<{ status: AgentRunt
 }
 
 interface ListRuntimeStatusesParams {
-  /** Legacy name filter; for agents without an agent_id. */
-  names?: string[];
-  /** Filter by immutable agent_ids. Preferred over names. */
+  /** Filter by immutable agent_ids (empty = all). */
   agent_ids?: string[];
 }
 
@@ -353,7 +267,6 @@ async function listAgentRuntimeStatuses(
   params: ListRuntimeStatusesParams = {},
 ): Promise<{ statuses?: AgentRuntimeStatus[] }> {
   const res = await client.listAgentRuntimeStatuses({
-    names: params.names ?? [],
     agentIds: params.agent_ids ?? [],
   });
   return { statuses: res.statuses.map(runtimeStatusFromProto) };
@@ -402,9 +315,9 @@ export function useAgents(params: ListAgentsParams = {}, options: { enabled?: bo
   });
 }
 
-// useAgent resolves an opaque ref (agent_id or legacy name) — see getAgentByRef.
-export function useAgent(ref: string) {
-  return useQuery({ queryKey: ["agents", ref], queryFn: () => getAgentByRef(ref), enabled: !!ref });
+// useAgent looks up an agent by its immutable agent_id.
+export function useAgent(agentId: string) {
+  return useQuery({ queryKey: ["agents", agentId], queryFn: () => getAgent(agentId), enabled: !!agentId });
 }
 
 export function useCreateAgent() {
@@ -480,43 +393,6 @@ export function useRetryAgentOperation() {
       qc.setQueryData(["agent-operations", operation.id], operation);
       qc.invalidateQueries({ queryKey: ["agent-operations"] });
       qc.invalidateQueries({ queryKey: ["agents"] });
-    },
-  });
-}
-
-export function useAssignAgentID() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: assignAgentID,
-    onSuccess: (_data, params) => {
-      qc.invalidateQueries({ queryKey: ["agents"] });
-      qc.invalidateQueries({ queryKey: ["agents", params.name] });
-      qc.invalidateQueries({ queryKey: ["agent-migration-readiness"] });
-    },
-  });
-}
-
-export function useMigrationReadiness(enabled = true) {
-  return useQuery({
-    queryKey: ["agent-migration-readiness"],
-    queryFn: getMigrationReadiness,
-    enabled,
-  });
-}
-
-// useMigrateAgentsV2 runs the V2 identity migration. DRY_RUN and VERIFY are
-// read-only; only APPLY mutates data, so the cache is invalidated for that mode
-// alone (a dry run must not make the list look migrated).
-export function useMigrateAgentsV2() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: migrateAgentsV2,
-    onSuccess: (data) => {
-      if (data.mode === MigrateMode.APPLY) {
-        qc.invalidateQueries({ queryKey: ["agents"] });
-        qc.invalidateQueries({ queryKey: ["agent-migration-readiness"] });
-        qc.invalidateQueries({ queryKey: ["agent-operations"] });
-      }
     },
   });
 }

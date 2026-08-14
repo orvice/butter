@@ -352,14 +352,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		return nil, err
 	}
 
-	// One-time Agent ID cutover reconciliation (issue #213): fill agent_id on
-	// channels, cron jobs, and automations still referencing agents by the
-	// legacy name. This MUST run before the cron and automation schedulers
-	// load their jobs — those now reject records without an agent_id, and a
-	// legacy job rejected at registration would stay unscheduled until the
-	// next restart.
-	backfillConsumerAgentIDs(ctx, agentRepo, channelRepo, internalcron.NewMongoJobRepo(db), internalautomation.NewMongoDefinitionRepo(db))
-
 	// Initialize cron scheduler.
 	cronScheduler, cronExecRepo, cronJobRepo, err := startCron(ctx, db, runnerSvc, notifyGroupRepo, channelRepo)
 	if err != nil {
@@ -438,6 +430,34 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		logger.Warn("async reconciliation failed", "err", staleErr)
 	} else if stale > 0 {
 		logger.Info("reconciled stale async invocations", "count", stale)
+	}
+
+	// Final Agent-ID cutover verifier (issue #241, replaces the retired #213
+	// startup backfill): read-only, logs each record that still violates the
+	// agent_id contract so operators can fix it. Never blocks startup.
+	if findings, vErr := application.RunAgentIDCutoverVerifier(ctx, application.AgentCutoverSources{
+		Agents:       agentRepo,
+		Channels:     channelRepo,
+		CronJobs:     cronJobRepo,
+		Automations:  automationDefRepo,
+		Forum:        forumRepo,
+		Workspaces:   wsRepo,
+		ReservedName: runnerSvc.IsReservedAgentName,
+	}); vErr != nil {
+		logger.Warn("agent-id cutover verifier failed", "err", vErr)
+	} else if len(findings) > 0 {
+		for _, f := range findings {
+			logger.Warn("agent-id cutover finding",
+				"workspace_id", f.GetWorkspaceId(),
+				"check", f.GetCheck(),
+				"entity_kind", f.GetEntityKind(),
+				"entity", f.GetEntity(),
+				"detail", f.GetDetail(),
+			)
+		}
+		logger.Warn("agent-id cutover verifier found violations", "count", len(findings))
+	} else {
+		logger.Info("agent-id cutover verifier passed")
 	}
 
 	return &BootstrapResult{

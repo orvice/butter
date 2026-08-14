@@ -32,16 +32,7 @@ func (s *stubAgentRepo) ListAgents(_ context.Context, _ string) ([]*agentsv1.Age
 	return s.agents, nil
 }
 
-func (s *stubAgentRepo) GetAgent(_ context.Context, _ string, name string) (*agentsv1.Agent, error) {
-	for _, ag := range s.agents {
-		if ag.GetName() == name {
-			return ag, nil
-		}
-	}
-	return nil, configrepo.ErrNotFound
-}
-
-func (s *stubAgentRepo) GetAgentByID(_ context.Context, _ string, agentID string) (*agentsv1.Agent, error) {
+func (s *stubAgentRepo) GetAgent(_ context.Context, _ string, agentID string) (*agentsv1.Agent, error) {
 	for _, ag := range s.agents {
 		if ag.GetAgentId() != "" && ag.GetAgentId() == agentID {
 			return ag, nil

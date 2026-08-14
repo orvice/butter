@@ -6,140 +6,16 @@ import (
 	"testing"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/config/repotest"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 const wsTest = "ws-test"
 
-func TestAgentCRUD(t *testing.T) {
-	s := New()
-	ctx := context.Background()
-
-	// List empty
-	agents, err := s.ListAgents(ctx, wsTest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(agents) != 0 {
-		t.Fatalf("expected 0 agents, got %d", len(agents))
-	}
-
-	// Create
-	a := &agentsv1.Agent{Name: "test-agent", Description: "desc"}
-	created, err := s.CreateAgent(ctx, wsTest, a)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created.GetName() != "test-agent" {
-		t.Fatalf("expected name test-agent, got %s", created.GetName())
-	}
-
-	// Duplicate create
-	_, err = s.CreateAgent(ctx, wsTest, a)
-	if !errors.Is(err, configrepo.ErrAlreadyExists) {
-		t.Fatalf("expected ErrAlreadyExists, got %v", err)
-	}
-
-	// Get
-	got, err := s.GetAgent(ctx, wsTest, "test-agent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.GetDescription() != "desc" {
-		t.Fatalf("expected desc, got %s", got.GetDescription())
-	}
-
-	// Get not found
-	_, err = s.GetAgent(ctx, wsTest, "nope")
-	if !errors.Is(err, configrepo.ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-
-	// Update
-	a.Description = "updated"
-	updated, err := s.UpdateAgent(ctx, wsTest, a)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.GetDescription() != "updated" {
-		t.Fatalf("expected updated, got %s", updated.GetDescription())
-	}
-
-	// Update not found
-	_, err = s.UpdateAgent(ctx, wsTest, &agentsv1.Agent{Name: "nope"})
-	if !errors.Is(err, configrepo.ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-
-	// List
-	agents, err = s.ListAgents(ctx, wsTest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(agents) != 1 {
-		t.Fatalf("expected 1 agent, got %d", len(agents))
-	}
-
-	// Delete
-	if err := s.DeleteAgent(ctx, wsTest, "test-agent"); err != nil {
-		t.Fatal(err)
-	}
-	agents, _ = s.ListAgents(ctx, wsTest)
-	if len(agents) != 0 {
-		t.Fatalf("expected 0 agents after delete, got %d", len(agents))
-	}
-
-	// Delete not found
-	if err := s.DeleteAgent(ctx, wsTest, "nope"); !errors.Is(err, configrepo.ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-}
-
-func TestUpdateAgentCAS(t *testing.T) {
-	s := New()
-	ctx := context.Background()
-
-	// Legacy agent created without a version behaves as version 0.
-	if _, err := s.CreateAgent(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a", Description: "v0"}); err != nil {
-		t.Fatal(err)
-	}
-
-	// Wrong expected version conflicts.
-	_, err := s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a", Description: "x"}, 5)
-	if !errors.Is(err, configrepo.ErrVersionConflict) {
-		t.Fatalf("expected ErrVersionConflict, got %v", err)
-	}
-
-	// Correct expected version (0) succeeds and bumps to 1.
-	got, err := s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a", Description: "v1"}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.GetVersion() != 1 {
-		t.Fatalf("expected version 1, got %d", got.GetVersion())
-	}
-	if got.GetDescription() != "v1" {
-		t.Fatalf("expected desc v1, got %s", got.GetDescription())
-	}
-
-	// Reusing the now-stale expected version 0 conflicts.
-	if _, err := s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a"}, 0); !errors.Is(err, configrepo.ErrVersionConflict) {
-		t.Fatalf("expected ErrVersionConflict on stale version, got %v", err)
-	}
-
-	// Next write with the fresh version 1 succeeds → version 2.
-	got, err = s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "a", AgentId: "a", Description: "v2"}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.GetVersion() != 2 {
-		t.Fatalf("expected version 2, got %d", got.GetVersion())
-	}
-
-	// Missing agent → ErrNotFound.
-	if _, err := s.UpdateAgentCAS(ctx, wsTest, &agentsv1.Agent{Name: "missing"}, 0); !errors.Is(err, configrepo.ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
+func TestAgentRepositoryConformance(t *testing.T) {
+	repotest.RunAgents(t, func(t *testing.T) configrepo.AgentRepository {
+		return New()
+	})
 }
 
 func TestMCPServerCRUD(t *testing.T) {

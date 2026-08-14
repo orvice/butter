@@ -18,9 +18,9 @@ func newTestService(agents map[string]string) *Service {
 
 func TestHasAgentInWorkspace(t *testing.T) {
 	svc := newTestService(map[string]string{
-		"a-shared": "ws-a",
+		"a-shared":       "ws-a",
 		"a-shared-other": "ws-b",
-		"b-only":  "ws-b",
+		"b-only":         "ws-b",
 	})
 
 	cases := []struct {
@@ -29,11 +29,11 @@ func TestHasAgentInWorkspace(t *testing.T) {
 		want  bool
 	}{
 		{"ws-a", "a-shared", true},
-		{"ws-b", "a-shared", false},      // same name, different workspace → must fail
+		{"ws-b", "a-shared", false}, // same name, different workspace → must fail
 		{"ws-b", "b-only", true},
 		{"ws-a", "b-only", false},
 		{"ws-a", "missing", false},
-		{"", "b-only", true},             // empty workspace bypasses for system paths
+		{"", "b-only", true}, // empty workspace bypasses for system paths
 	}
 
 	for _, tc := range cases {
