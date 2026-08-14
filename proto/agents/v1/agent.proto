@@ -51,6 +51,12 @@ message Agent {
   // @gotags: json:"enable_openai_api,omitempty" yaml:"enable_openai_api,omitempty"
   bool enable_openai_api = 22;
 
+  // Whether this agent should be exposed via the AG-UI protocol endpoint
+  // (POST /api/agui/{agent_id}). Independent of enable_openai_api: the two
+  // protocols address different clients and are controlled separately.
+  // @gotags: json:"enable_agui,omitempty" yaml:"enable_agui,omitempty"
+  bool enable_agui = 32;
+
   // Immutable, workspace-unique slug identifier assigned at creation.
   // (workspace_id, agent_id) is the Agent's logical primary key everywhere:
   // persistence, APIs, and relationships. Once set it cannot be changed or

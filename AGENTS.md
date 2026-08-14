@@ -38,7 +38,7 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `Not
 - `cmd/butter/main.go` — Entry point. Wires config, services, handlers, and registers Gin routes via Butterfly's `core.New()`.
 - `internal/app/` — Application bootstrap and wiring. Split by concern: `routes.go` (HTTP + ConnectRPC route setup), `channels.go` (orchestration), `runtime.go` (MongoDB/Redis/Langfuse init), `cron.go` (scheduler init), `system_agent.go` (built-in agent registration).
 - `internal/config/` — `AppConfig` is the YAML-loaded startup config. Its `Agents` / `Channels` / `ModelProviders` / `MCPServerConfigs` / `RemoteAgents` fields are tagged `yaml:"-"` because they are not inputs but the flattened runtime snapshot that `app.ConfigStore.SyncToConfig` rebuilds from the config store on every reload; those resources are created through the RPC services and live in the database.
-- `internal/handler/http/` — Gin HTTP handlers.
+- `internal/handler/http/` — Gin HTTP handlers. Protocol adapters live here alongside their wire format: `a2a.go` (A2A, gated on `enable_a2a`), `openai.go` (OpenAI-compatible, gated on `enable_openai_api`), and `agui.go` + `agui_sink.go` (AG-UI, gated on `enable_agui`). AG-UI is `POST /api/agui/:agent_id` streaming AG-UI events over SSE; its `aguiSink` implements `streamorch.Sink` and derives the `RUN_FINISHED{outcome:interrupt}` signal from `session.Event.RequestedInput` in-stream, so no runner or `streamorch` change was needed. Sessions are `agui-{threadId}` scoped to the caller, only the trailing client message is forwarded, and client-supplied `tools` / `state` / `resume[].status:"cancelled"` are rejected rather than ignored (see `docs/api.md` and `docs/research/ag-ui-integration.md`).
 - `internal/application/` — RPC service implementations (agent, session, cron, MCP server, remote agent, …). Each service has a `*_service.go` with the business logic. Service methods use native ConnectRPC signatures (`func(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`) and satisfy `agentsv1connect.XxxServiceHandler` directly — `routes.go` hands the service straight to `agentsv1connect.NewXxxServiceHandler(svc, ...)`. Errors are constructed via `connect.NewError` or the `connectx` helpers below.
 - `internal/transport/connectx/` — Shared ConnectRPC plumbing: `connect.Error` constructor helpers (`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` / `InternalWith`) and the snake_case JSON codec installed via `HandlerOptions()` so the wire format stays compatible with the pre-migration JSON output.
 - `internal/service/` — Business logic.
@@ -79,7 +79,7 @@ Code generation is configured via `buf.gen.yaml` (outputs to `pkg/proto/`). Plug
 
 Docs directory layout:
 
-- `docs/api.md` — App developer API reference and handoff doc: auth, workspace headers, ConnectRPC URL/field conventions, TypeScript Connect-Web examples, REST uploads (`/api/uploads/*`), `AgentService.StreamAgent` chat stream, and errors.
+- `docs/api.md` — App developer API reference and handoff doc: auth, workspace headers, ConnectRPC URL/field conventions, TypeScript Connect-Web examples, REST uploads (`/api/uploads/*`), `AgentService.StreamAgent` chat stream, the AG-UI endpoint (`POST /api/agui/:agent_id`), and errors.
 - `docs/app.md` — Product/function overview in Chinese, including workspace multi-tenancy, agent orchestration (LLM/Loop/Sequential/Parallel/Workflow), Workflow Agent graph nodes and human-in-the-loop pauses, model management, MCP tools, remote agents, daemon execution, cron WAITING_INPUT, and channel entry points.
 - `docs/architecture.md` — System architecture overview covering multi-tenancy, process entry, layered structure, startup wiring, agent construction (including Workflow Agent graph building and validation), runner execution flow with implicit workflow interrupt resume, and cron WAITING_INPUT handling.
 - `docs/dashboard-api-gap.md` — Dashboard backend API gap analysis, including current coverage, recommended API extensions, persistence additions, phased implementation, and compatibility notes.
@@ -90,6 +90,7 @@ Docs directory layout:
 - `docs/postgres-migration-analysis.md` — PostgreSQL migration analysis and storage-shape notes.
 - `docs/prd-workspace-agent-git-content.md` — Draft PRD for workspace Git-backed Agent Content.
 - `docs/research/adk-go-v2.1-openai.md` — ADK Go v2.1 OpenAI compatibility research.
+- `docs/research/ag-ui-integration.md` — Research verifying the AG-UI integration (issue #286) against the real SDK and ADK v2.1.0: the untagged Go SDK, ADK's lack of native AG-UI support, why the interrupt outcome and addressed resume need no plumbing change, and why `STEP_*` events have no source event.
 - `docs/adr/0001-workflow-graph-as-nodes-and-edges-proto.md` — ADR: Workflow graphs as explicit nodes + edges in proto; phase-1 node kinds.
 - `docs/adr/0002-interrupt-state-derived-from-session-events.md` — ADR: Pending interrupts derived from session events, FIFO implicit resume.
 - `docs/adr/0003-cron-workflow-pause-notify-and-wait.md` — ADR: Cron + Human Input → WAITING_INPUT, notify question, resume via ReplySession.

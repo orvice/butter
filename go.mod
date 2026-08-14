@@ -7,6 +7,7 @@ require (
 	connectrpc.com/connect v1.19.1
 	github.com/Mad-Pixels/goldmark-tgmd v0.0.10
 	github.com/achetronic/adk-utils-go v0.22.0
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260813165816-6691ac50b34a
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.101.0
 	github.com/aws/smithy-go v1.25.1
@@ -121,6 +122,7 @@ require (
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect

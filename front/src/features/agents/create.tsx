@@ -48,6 +48,7 @@ const agentSchema = z.object({
   type: z.string(),
   enable_a2a: z.boolean(),
   enable_openai_api: z.boolean(),
+  enable_agui: z.boolean(),
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
@@ -80,6 +81,7 @@ export function AgentCreate() {
       type: 'AGENT_TYPE_LLM',
       enable_a2a: false,
       enable_openai_api: false,
+      enable_agui: false,
       model: '',
       instruction: '',
       mcp_server_ids: [],
@@ -107,6 +109,7 @@ export function AgentCreate() {
       type: values.type as AgentType,
       enable_a2a: values.enable_a2a,
       enable_openai_api: values.enable_openai_api,
+      enable_agui: values.enable_agui,
       metadata: values.icon_url ? { icon_url: values.icon_url } : undefined,
       config: {
         model: values.model,
@@ -243,6 +246,15 @@ export function AgentCreate() {
                     <div className='space-y-0.5'>
                       <FormLabel>OpenAI API</FormLabel>
                       <p className='text-xs text-muted-foreground'>Expose this agent as a model through the OpenAI-compatible API.</p>
+                    </div>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name='enable_agui' render={({ field }) => (
+                  <FormItem className='flex items-center justify-between gap-4 rounded-md border px-3 py-3'>
+                    <div className='space-y-0.5'>
+                      <FormLabel>AG-UI</FormLabel>
+                      <p className='text-xs text-muted-foreground'>Expose this agent to AG-UI frontends over the streaming protocol endpoint.</p>
                     </div>
                     <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                   </FormItem>

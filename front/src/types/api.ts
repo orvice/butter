@@ -189,6 +189,7 @@ export interface Agent {
   type?: AgentType;
   enable_a2a?: boolean;
   enable_openai_api?: boolean;
+  enable_agui?: boolean;
   lifecycle_status?: AgentLifecycleStatus;
   version?: number | string;
 }
