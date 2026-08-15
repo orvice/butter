@@ -449,3 +449,31 @@ func TestEmptyMessagesProduceNoInteraction(t *testing.T) {
 		t.Fatalf("ignore = %q, want the empty message to be dropped", decision.Ignore)
 	}
 }
+
+func TestDebugDefaultsToOnWhenTheDestinationNeverChose(t *testing.T) {
+	decision := DecideInteraction(eventFor(message(realUser, "hello", "")), destination(nil), botUsername, Preferences{})
+	if !decision.Debug {
+		t.Error("debug must start enabled when debug_default is unset")
+	}
+	if !decision.DebugDefault {
+		t.Error("the resolved destination default must be enabled when unset")
+	}
+}
+
+func TestExplicitDebugDefaultOffIsHonored(t *testing.T) {
+	off := false
+	dest := destination(func(c *agentsv1.TelegramDestinationConfig) { c.DebugDefault = &off })
+	decision := DecideInteraction(eventFor(message(realUser, "hello", "")), dest, botUsername, Preferences{})
+	if decision.Debug {
+		t.Error("an explicit debug_default=false must turn debug off")
+	}
+}
+
+func TestStoredDebugToggleOverridesTheDefault(t *testing.T) {
+	off := false
+	decision := DecideInteraction(eventFor(message(realUser, "hello", "")),
+		destination(nil), botUsername, Preferences{Debug: &off})
+	if decision.Debug {
+		t.Error("/debug off must override the enabled default")
+	}
+}

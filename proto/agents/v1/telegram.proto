@@ -219,8 +219,9 @@ message TelegramDestinationConfig {
   TelegramReplyMode reply_mode = 9;
 
   // Whether debug output starts enabled for new sessions at this address.
+  // Unset means enabled: debug output is on unless explicitly turned off.
   // @gotags: json:"debug_default,omitempty" bson:"debug_default,omitempty"
-  bool debug_default = 10;
+  optional bool debug_default = 10;
 }
 
 // TelegramDestinationVerification is server-owned evidence that the address

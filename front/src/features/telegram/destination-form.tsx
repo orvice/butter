@@ -69,7 +69,7 @@ const EMPTY: FormState = {
   allowedUserIds: '',
   controllerUserIds: '',
   replyMode: TelegramReplyMode.REPLY,
-  debugDefault: false,
+  debugDefault: true,
 }
 
 /**
@@ -116,7 +116,7 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
       allowedUserIds: formatIdList(config?.allowedUserIds),
       controllerUserIds: formatIdList(config?.controllerUserIds),
       replyMode: config?.replyMode ?? TelegramReplyMode.REPLY,
-      debugDefault: config?.debugDefault ?? false,
+      debugDefault: config?.debugDefault ?? true,
     })
   }
 

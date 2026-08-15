@@ -447,7 +447,11 @@ func (s *TelegramDestinationServiceServer) validateConfig(ctx context.Context, w
 		TriggerMode:   in.GetTriggerMode(),
 		SessionPolicy: in.GetSessionPolicy(),
 		ReplyMode:     in.GetReplyMode(),
-		DebugDefault:  in.GetDebugDefault(),
+	}
+	if in != nil {
+		// Presence matters: nil means "never chosen", which the runtime
+		// resolves to debug enabled.
+		out.DebugDefault = in.DebugDefault
 	}
 	if out.TriggerMode == agentsv1.TelegramTriggerMode_TELEGRAM_TRIGGER_MODE_UNSPECIFIED {
 		out.TriggerMode = agentsv1.TelegramTriggerMode_TELEGRAM_TRIGGER_MODE_ALL

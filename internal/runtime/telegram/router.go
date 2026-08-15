@@ -184,6 +184,6 @@ func snapshotPolicy(config *agentsv1.TelegramDestinationConfig) *telegramqueue.D
 		AllowedUserIDs:     config.GetAllowedUserIds(),
 		ControllerUserIDs:  config.GetControllerUserIds(),
 		ReplyMode:          config.GetReplyMode().String(),
-		DebugDefault:       config.GetDebugDefault(),
+		DebugDefault:       config.DebugDefault,
 	}
 }
