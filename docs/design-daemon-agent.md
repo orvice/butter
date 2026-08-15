@@ -2,7 +2,8 @@
 
 > **状态：历史设计文档（已落地）+ 下一轮重构需求记录。** 本文是 daemon agent 设计阶段的方案稿，
 > 描述当时的 Twirp + Gin 架构与拟新增的 daemon 服务。daemon 已全部落地；
-> 自 2026-06-02 起 RPC 层迁移到 ConnectRPC（见 `migration-connectrpc.md`），
+> 自 2026-06-02 起 RPC 层迁移到 ConnectRPC（当前契约见 `api.md` 和
+> `architecture.md`），
 > 自 2026-06-09 起 daemon connector 也统一挂载在主服务 `/api` ConnectRPC 入口下。
 > RPC 部分提到的 Twirp 文件 / Twirp
 > 路径请参照 `docs/architecture.md` 与 `docs/api.md` 阅读现状。自
@@ -950,8 +951,8 @@ Telegram → Poller.handleMessage()
 | `internal/runtime/daemon/task_store.go` | 新增 | 任务状态 MongoDB 持久化 |
 | `proto/agents/v1/daemon_service.proto` | 新增 | Daemon 管理 Twirp API |
 | `internal/application/daemon_service.go` | 新增 | Twirp 服务实现 |
-| `internal/channel/telegram/poller.go` | 修改 | 异步模式 + 进度推送 |
-| `internal/channel/discord/poller.go` | 修改 | 同上 |
+| `internal/runtime/telegram/poller.go` | 已落地 | Long Polling transport；与 Webhook 共用 Router/Stream/Worker pipeline |
+| legacy Discord Channel runtime | 已移除 | Discord generic Channel runtime 在 cutover 中退役 |
 
 ### 不需要改动
 

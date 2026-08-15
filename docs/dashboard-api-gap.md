@@ -2,10 +2,10 @@
 
 更新时间：2026-06-13
 
-> **状态：历史快照（全部 closed）。**
+> **状态：历史快照（不作为当前 API 契约）。**
 >
-> 这份文档是在 PR #25 开工前对照 Stitch 设计稿做的差距清单，列出了 13 项后端缺口与 5 个分阶段实施分组。截至 2026-05-16，文档中提出的接口与字段全部已落地，对应 RPC 见 `docs/api.md`，功能总览见 `docs/app.md`。
-> 2026-06-13 起，Operations 不再只有 cron 自动化：`AutomationService`、`automation_runs`、`automation_step_runs` 与 Automations dashboard 页面已补齐，Cron 也扩展了 timeout / retry / concurrency / notify / output policy 和更丰富的 execution 状态。本文仍只作为历史 gap 记录。
+> 这份文档是在 PR #25 开工前、Telegram Channel/Destination cutover 和 Agent-ID contraction 之前，对照 Stitch 设计稿做的差距清单。它列出了当时的 13 项后端缺口与 5 个分阶段实施分组；其中的 generic `ChannelService`、`AgentChannel`、`DaemonConfig` 和旧 Agent name 字段不代表当前契约。
+> 当前接口请以 `docs/api.md`、`docs/app.md`、`docs/architecture.md` 和 `proto/agents/v1/*.proto` 为准。
 >
 > 保留本文作为当时的决策记录与 RPC 命名依据；不再用作工作清单。新增能力请直接更新 `api.md` / `app.md` / `architecture.md`。
 
@@ -29,7 +29,7 @@
 | Agent CRUD | ✅ | `AgentService` |
 | MCP Server CRUD | ✅ | `MCPServerService` |
 | Remote Agent CRUD | ✅ | `RemoteAgentService` |
-| Channel CRUD | ✅ | `ChannelService` |
+| Legacy Channel CRUD | 历史兼容 | `ChannelService` 仅保留读取、状态查看和删除；新 Telegram 使用 Channel/Destination services |
 | Automation CRUD + 运行历史 | ✅ | `AutomationService` + `ListAutomationRuns` / `ListAutomationStepRuns` |
 | Cron CRUD + 历史 | ✅ | `CronJobService` + `ListCronExecutions` |
 | Session CRUD + Reply | ✅ | `SessionService`，含过滤/分页 |
@@ -46,7 +46,7 @@
 | Daemon 任务监控 | ✅ | `DaemonService.ListDaemonTasks` |
 | Bridge 诊断指标 | ✅ | `DaemonService.GetBridgeDiagnostics` |
 | MCP 连通性 / ListTools | ✅ | `GetMCPServerStatus` / `ListMCPTools` |
-| Channel 运行状态 / Restart | ✅ | `GetChannelStatus` / `RestartChannel` / `PauseChannel` / `ResumeChannel` |
+| Legacy Channel 运行状态 / Restart | 已退役 | 旧记录报告为 ERROR；Restart/Pause/Resume 返回 `Unimplemented` |
 | API Token 多 token 管理 | ✅ | `APITokenService` + daemon credential tokens |
 | Langfuse trace URL | ✅ | `SessionEvent.trace_url` |
 

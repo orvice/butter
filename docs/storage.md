@@ -125,19 +125,29 @@ Metadata for file spaces and files is stored in MongoDB when
 `storage_backend: mongo`; file contents are versioned in S3. In memory mode,
 both metadata and contents are process-local.
 
-Agent mount example:
+Agent mount example (the runtime Agent configuration is persisted through
+`AgentService`; the top-level YAML `agents` block is not a configuration input):
 
-```yaml
-agents:
-  - name: research-agent
-    config:
-      file_mounts:
-        - space_id: product-docs
-          mount_path: /docs
-          permission: AGENT_FILE_MOUNT_PERMISSION_READ
-        - space_id: research-notes
-          mount_path: /notes
-          permission: AGENT_FILE_MOUNT_PERMISSION_READ_WRITE
+```json
+{
+  "agent": {
+    "agent_id": "research-agent",
+    "config": {
+      "file_mounts": [
+        {
+          "space_id": "product-docs",
+          "mount_path": "/docs",
+          "permission": "AGENT_FILE_MOUNT_PERMISSION_READ"
+        },
+        {
+          "space_id": "research-notes",
+          "mount_path": "/notes",
+          "permission": "AGENT_FILE_MOUNT_PERMISSION_READ_WRITE"
+        }
+      ]
+    }
+  }
+}
 ```
 
 ## 5. Upload endpoints

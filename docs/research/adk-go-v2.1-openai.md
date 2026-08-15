@@ -191,17 +191,17 @@ by ADK v2.1.0 exposes `input_text`, `input_image`, and `input_file`, but no
 equivalent `input_audio` arm. Image and inline PDF/text gaps can be attributed to
 ADK's missing conversion; inline audio cannot be described solely that way.
 
-This distinction is operationally relevant: Butter's Telegram and Discord
-image paths download images and construct `genai.Part.InlineData`. Switching
-those agents to ADK v2.1.0 `openaimodel` would reject the image before any
+This distinction is operationally relevant: Butter's Telegram image path
+downloads images and constructs `genai.Part.InlineData`. Switching those agents
+to ADK v2.1.0 `openaimodel` would reject the image before any
 Responses API request is sent, even though OpenAI itself supports image input.
 
 Sources: [OpenAI image input guide], [OpenAI file input guide], [OpenAI Responses
 create reference], [openai-go v3.8.1 response input types], [genai FileData],
 [v2.1.0 request conversion], [v2.1.0 request tests], [v2.2.0 request conversion],
 [v2.2.0 request tests], [main request conversion], [main request tests], and
-[current adapter source]. Butter paths: `internal/channel/telegram/photo.go` and
-`internal/channel/discord/photo.go`.
+[current adapter source]. The current Butter media path is
+`internal/runtime/telegram/photo.go`.
 
 ### Tools and generation settings
 

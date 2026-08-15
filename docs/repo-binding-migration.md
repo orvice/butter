@@ -14,26 +14,17 @@ epic in issue #210.
 > ([ADR-0010](adr/0010-agent-id-as-logical-persistence-key.md)). The
 > onboarding/offboarding procedures remain current.
 
-## Rollout order (release guidance)
+## Historical Agent-ID rollout
 
-Git-backed Agent Content depends on every Agent having a stable, immutable
-**Agent ID** and on the Agent V2 model (independent entities, ID-based
-composition). Roll out in this order:
+The Agent-ID compatibility and V2 migration phases described in earlier
+versions of this guide are complete. `AssignAgentID`, `GetMigrationReadiness`,
+and `MigrateAgentsV2` are retired and return `Unimplemented`; use
+`VerifyAgentIDCutover` for read-only diagnostics. Do not follow the old
+assignment/readiness steps or attempt to invoke those RPCs.
 
-1. **Compatibility release (#220/#221).** Ship Agent ID assignment and the
-   migration-readiness UI **first**. Agent slug/ID assignment begins *after*
-   this compatibility release and *before* the Agent V2 cutover — not before.
-   Runtime behavior is unchanged in this phase; administrators assign IDs and
-   inspect readiness.
-2. **Agent V2 cutover (#222).** Migrate ready agents and references to the
-   ID-based model.
-3. **Repository binding & content (#214–#219).** Only now may a workspace bind a
-   repository and export or import Agent Content addressed by
-   `agents/{agent-id}/`. Because content paths are keyed by Agent ID, a
-   workspace cannot onboard Git content until its agents have IDs.
-
-Rollout is **independent per workspace**. Binding one workspace never requires
-any other workspace to migrate; each owner/admin chooses their own schedule.
+The current repository-binding workflow is independent per workspace: an
+owner/admin binds a repository, validates its credential, and then chooses
+`EXPORT_CURRENT` or `IMPORT_REPOSITORY` in `OnboardWorkspaceRepository`.
 
 ## Onboarding a workspace
 

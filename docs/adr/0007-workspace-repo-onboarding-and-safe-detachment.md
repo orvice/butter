@@ -96,8 +96,8 @@ touch no other tenant, so workspaces migrate on their own schedule.
   response reports `agents_materialized` so operators can reconcile. A snapshot
   read/agent write failure aborts the detach *before* the binding is removed, so
   a retry is safe.
-- **Staged rollout guidance is a prerequisite, not code.** Agent slug/ID
-  assignment begins after the compatibility release from the first child ticket
-  (#220/#221) and before the Agent V2 cutover; only then can a workspace export
-  or import content addressed by `agents/{agent-id}/`. See
-  `docs/repo-binding-migration.md`.
+- **Agent-ID rollout is complete.** Repository paths use the immutable
+  `agent_id`; the former assignment/readiness/V2 migration RPCs are retired.
+  Remaining cutover problems are reported by `VerifyAgentIDCutover`. See
+  `docs/repo-binding-migration.md` for the current onboarding and detach
+  procedures.
