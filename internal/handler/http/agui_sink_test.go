@@ -141,6 +141,30 @@ func TestAGUISink_ToolCall(t *testing.T) {
 	}
 }
 
+// A frontend tool pause: the run's final event carries the FunctionCall with
+// its ID in LongRunningToolIDs and no FunctionResponse ever arrives. The
+// client sees the standard TOOL_CALL sequence and a plain success finish; the
+// trailing unanswered call is the signal to execute the tool and answer on
+// the next request.
+func TestAGUISink_FrontendToolCallEndsRun(t *testing.T) {
+	call := &session.Event{ID: "e1", Author: "chat"}
+	call.LongRunningToolIDs = []string{"fc-1"}
+	call.Content = &genai.Content{Parts: []*genai.Part{{
+		FunctionCall: &genai.FunctionCall{ID: "fc-1", Name: "confirm",
+			Args: map[string]any{"q": "deploy?"}},
+	}}}
+
+	rec := runAGUISink(t, []*session.Event{call}, "", nil)
+	assertAGUISequence(t, rec.types, []string{
+		"RUN_STARTED",
+		"TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END",
+		"RUN_FINISHED",
+	})
+	if outcome := rec.runFinished(t).Outcome; outcome == nil || outcome.Type != aguievents.RunFinishedOutcomeTypeSuccess {
+		t.Fatalf("outcome = %+v, want success", outcome)
+	}
+}
+
 // The decisive case: a Workflow Agent pausing on a Human Input node must reach
 // the sink in-stream and become RUN_FINISHED{outcome:interrupt} — no access to
 // runner.TurnResult required — with no phantom tool call for the

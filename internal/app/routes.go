@@ -258,6 +258,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	// invocations on sessions being deleted (issue #252).
 	h.agentSvcServer.SetSessionExcluder(h.sessionSvcServer)
 	if result.SessionSvc != nil {
+		// The AG-UI handler validates client tool results against the pending
+		// calls recorded on the session before resuming a run.
+		h.aguiHandler.SetSessionService(result.SessionSvc)
 		h.agentSvcServer.SetSessionService(result.SessionSvc)
 	}
 	if result.MCPOAuthSvc != nil {

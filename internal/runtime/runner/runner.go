@@ -1135,7 +1135,10 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		// Request-input events count as final responses (they end the agent
 		// loop) but must still reach the callback: the dashboard chat stream
 		// renders them as the workflow's question instead of swallowing them.
-		if onEvent != nil && (!evt.IsFinalResponse() || evt.RequestedInput != nil) {
+		// Long-running (frontend) tool calls are final the same way — the run
+		// ends with the call pending — and the callback is the only place the
+		// AG-UI adapter can see the call to hand it to the client.
+		if onEvent != nil && (!evt.IsFinalResponse() || evt.RequestedInput != nil || len(evt.LongRunningToolIDs) > 0) {
 			onEvent(evt)
 		}
 		// A request-input event pauses the workflow: record the Interrupt so

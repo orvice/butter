@@ -4,16 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"iter"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/workflow"
 	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/aguitool"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
@@ -247,12 +251,39 @@ func TestAGUIRun_Rejections(t *testing.T) {
 			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "threadId",
 		},
 		{
-			name:    "client tools not supported",
+			name:    "tool without a name",
 			agentID: "writer",
 			body: withAGUIField(valid, "tools", []map[string]any{
-				{"name": "confirm", "description": "ask", "parameters": map[string]any{}},
+				{"name": "  ", "description": "ask", "parameters": map[string]any{}},
 			}),
-			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "tools",
+			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "name",
+		},
+		{
+			name:    "duplicate tool names",
+			agentID: "writer",
+			body: withAGUIField(valid, "tools", []map[string]any{
+				{"name": "confirm", "description": "a", "parameters": map[string]any{}},
+				{"name": "confirm", "description": "b", "parameters": map[string]any{}},
+			}),
+			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "duplicate tool name",
+		},
+		{
+			name:    "tool result without toolCallId",
+			agentID: "writer",
+			body: withAGUIField(valid, "messages", []map[string]any{
+				{"id": "m1", "role": "user", "content": "hi"},
+				{"id": "m2", "role": "tool", "content": "42"},
+			}),
+			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "toolCallId",
+		},
+		{
+			name:    "duplicate tool results",
+			agentID: "writer",
+			body: withAGUIField(valid, "messages", []map[string]any{
+				{"id": "m2", "role": "tool", "toolCallId": "call-1", "content": "a"},
+				{"id": "m3", "role": "tool", "toolCallId": "call-1", "content": "b"},
+			}),
+			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "duplicate tool result",
 		},
 		{
 			name:    "shared state not supported",
@@ -460,6 +491,191 @@ func TestAGUIRun_LeaseLossBecomesRunError(t *testing.T) {
 	}
 	if guard.releases != 1 {
 		t.Fatalf("releases = %d, want 1", guard.releases)
+	}
+}
+
+// --- frontend tools ---
+
+// ctxCaptureRunner records the run context so tests can assert what rode it.
+type ctxCaptureRunner struct {
+	mockRunner
+	lastCtx context.Context
+}
+
+func (r *ctxCaptureRunner) RunSSE(ctx context.Context, agentName string, parts []*genai.Part, model string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error) {
+	r.lastCtx = ctx
+	return r.mockRunner.RunSSE(ctx, agentName, parts, model, ctxInfo, onEvent, onCompaction)
+}
+
+// fakeADKSession is a minimal session.Session carrying a fixed event list.
+type fakeADKSession struct {
+	events []*adksession.Event
+}
+
+func (f *fakeADKSession) ID() string                { return "s1" }
+func (f *fakeADKSession) AppName() string           { return "agui" }
+func (f *fakeADKSession) UserID() string            { return "agui-user" }
+func (f *fakeADKSession) State() adksession.State   { return nil }
+func (f *fakeADKSession) LastUpdateTime() time.Time { return time.Time{} }
+func (f *fakeADKSession) Events() adksession.Events { return fakeADKEvents(f.events) }
+
+type fakeADKEvents []*adksession.Event
+
+func (e fakeADKEvents) Len() int                   { return len(e) }
+func (e fakeADKEvents) At(i int) *adksession.Event { return e[i] }
+func (e fakeADKEvents) All() iter.Seq[*adksession.Event] {
+	return func(yield func(*adksession.Event) bool) {
+		for _, ev := range e {
+			if !yield(ev) {
+				return
+			}
+		}
+	}
+}
+
+// fakeSessionService serves one fixed session; every other method panics via
+// the embedded nil interface, keeping the fake honest about what runs.
+type fakeSessionService struct {
+	adksession.Service
+	sess   adksession.Session
+	getErr error
+}
+
+func (f *fakeSessionService) Get(_ context.Context, _ *adksession.GetRequest) (*adksession.GetResponse, error) {
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return &adksession.GetResponse{Session: f.sess}, nil
+}
+
+// pendingToolCallSession returns a session whose last run paused on frontend
+// tool call-1 ("confirm").
+func pendingToolCallSession() *fakeADKSession {
+	ev := &adksession.Event{}
+	ev.LongRunningToolIDs = []string{"call-1"}
+	ev.Content = &genai.Content{Parts: []*genai.Part{{
+		FunctionCall: &genai.FunctionCall{Name: "confirm", ID: "call-1", Args: map[string]any{"q": "sure?"}},
+	}}}
+	return &fakeADKSession{events: []*adksession.Event{ev}}
+}
+
+func toolResultBody(threadID, toolCallID, content string) map[string]any {
+	return map[string]any{
+		"threadId": threadID,
+		"runId":    "run-2",
+		"messages": []map[string]any{
+			{"id": "m1", "role": "user", "content": "hi"},
+			{"id": "m2", "role": "assistant", "toolCalls": []map[string]any{
+				{"id": toolCallID, "type": "function", "function": map[string]any{"name": "confirm", "arguments": "{}"}},
+			}},
+			{"id": "m3", "role": "tool", "toolCallId": toolCallID, "content": content},
+		},
+	}
+}
+
+// Client tool declarations ride the run context for the aguitool toolset.
+func TestAGUIRun_ClientToolsReachTheRun(t *testing.T) {
+	mock := &ctxCaptureRunner{mockRunner: mockRunner{runResult: "ok"}}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(wsctx.WithID(c.Request.Context(), "test-workspace"))
+		c.Next()
+	})
+	h := NewAGUIHandler(aguiEnabledRepo())
+	h.SetRunnerService(mock)
+	h.Register(r)
+
+	body := withAGUIField(minimalAGUIBody("t-1", "hi"), "tools", []map[string]any{
+		{"name": "confirm", "description": "ask the user", "parameters": map[string]any{
+			"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}},
+		}},
+	})
+	if w := postAGUI(t, r, "writer", body); w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+
+	decls := aguitool.ClientToolsFrom(mock.lastCtx)
+	if len(decls) != 1 || decls[0].Name != "confirm" || decls[0].Description != "ask the user" {
+		t.Fatalf("declarations on run context = %+v", decls)
+	}
+	if decls[0].Parameters == nil {
+		t.Fatal("tool parameters schema was dropped")
+	}
+}
+
+// A trailing tool-role message answers the pending call: it becomes the
+// FunctionResponse ADK resumes on, named from the session's record.
+func TestAGUIRun_ToolResultBecomesFunctionResponse(t *testing.T) {
+	mock := &mockRunner{runResult: "done"}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(wsctx.WithID(c.Request.Context(), "test-workspace"))
+		c.Next()
+	})
+	h := NewAGUIHandler(aguiEnabledRepo())
+	h.SetRunnerService(mock)
+	h.SetSessionService(&fakeSessionService{sess: pendingToolCallSession()})
+	h.Register(r)
+
+	w := postAGUI(t, r, "writer", toolResultBody("t-1", "call-1", `{"approved":true}`))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if len(mock.lastParts) != 1 {
+		t.Fatalf("parts = %+v, want 1", mock.lastParts)
+	}
+	fr := mock.lastParts[0].FunctionResponse
+	if fr == nil || fr.ID != "call-1" || fr.Name != "confirm" {
+		t.Fatalf("function response = %+v", fr)
+	}
+	if got := fr.Response["approved"]; got != true {
+		t.Errorf("response = %v, want the decoded JSON object", fr.Response)
+	}
+
+	// A plain-string result is wrapped rather than dropped.
+	mock.lastParts = nil
+	w = postAGUI(t, r, "writer", toolResultBody("t-1", "call-1", "looks good"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if fr := mock.lastParts[0].FunctionResponse; fr.Response["result"] != "looks good" {
+		t.Fatalf("wrapped response = %+v", fr.Response)
+	}
+}
+
+// A result for a call the session is not waiting on is rejected before the
+// runner is invoked — nothing is rerun.
+func TestAGUIRun_UnknownToolResultRejected(t *testing.T) {
+	mock := &mockRunner{runResult: "should not run"}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(wsctx.WithID(c.Request.Context(), "test-workspace"))
+		c.Next()
+	})
+	h := NewAGUIHandler(aguiEnabledRepo())
+	h.SetRunnerService(mock)
+	h.SetSessionService(&fakeSessionService{sess: &fakeADKSession{}})
+	h.Register(r)
+
+	w := postAGUI(t, r, "writer", toolResultBody("t-1", "call-404", "42"))
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "call-404") {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if mock.lastAgentName != "" {
+		t.Fatal("runner was invoked for an unknown tool result")
+	}
+}
+
+// Without a session store there is no way to validate results, so they are
+// refused rather than half-trusted.
+func TestAGUIRun_ToolResultsNeedSessionService(t *testing.T) {
+	router := setupAGUIRouter(aguiEnabledRepo(), &mockRunner{}, true)
+	w := postAGUI(t, router, "writer", toolResultBody("t-1", "call-1", "42"))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (body %s)", w.Code, w.Body.String())
 	}
 }
 

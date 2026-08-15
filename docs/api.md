@@ -540,6 +540,44 @@ interrupt by id:
 Addressed resume takes precedence over Butter's implicit oldest-first matching,
 so answering out of order works when several interrupts are pending.
 
+#### Frontend tools
+
+`tools` declares tools that execute **on the client**. Each declaration is
+`{name, description, parameters}` where `parameters` is a JSON Schema for the
+arguments; it is passed to the model untouched. The declarations apply to that
+one run only — Butter never executes them.
+
+When the agent calls a frontend tool, the server emits the standard
+`TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` sequence and the run ends
+with a plain success `RUN_FINISHED` — no `TOOL_CALL_RESULT` follows. The
+trailing unanswered tool call is the signal: execute the tool, then start a new
+run on the same `threadId` whose `messages` **end with** the result as a
+tool-role message:
+
+```json
+{
+  "threadId": "t-1",
+  "runId": "run-2",
+  "tools": [ … same declarations … ],
+  "messages": [
+    { "id": "m1", "role": "user", "content": "deploy it" },
+    { "id": "m2", "role": "assistant", "toolCalls": [
+      { "id": "fc-1", "type": "function", "function": { "name": "confirm", "arguments": "{…}" } }
+    ]},
+    { "id": "m3", "role": "tool", "toolCallId": "fc-1", "content": "{\"approved\":true}" }
+  ]
+}
+```
+
+The result is paired to the pending call by `toolCallId` and validated against
+the server-side session before anything runs: a result without `toolCallId`, a
+duplicate result, or a `toolCallId` the session is not waiting on is a `400`,
+and completed work is never re-run — the agent resumes from history with the
+result injected. JSON-object `content` is passed to the model as-is; any other
+string is wrapped as `{"result": "…"}`; a tool message carrying `error` is
+surfaced to the model as `{"error": "…"}`. Send the same `tools` on the
+follow-up request so the resumed turn can keep calling them.
+
 #### Not supported yet
 
 These are rejected with `400` rather than silently ignored, so a client never
@@ -547,12 +585,12 @@ believes a capability took effect:
 
 | Field | Reason |
 |---|---|
-| `tools` (non-empty) | Client-supplied frontend tools — planned |
 | `state` (non-empty) | Shared state / `STATE_SNAPSHOT` — planned |
-| `resume[].status: "cancelled"` | Butter cannot abandon a pending Interrupt; the workflow would stay paused forever |
+| `resume[].status: "cancelled"` | Butter cannot abandon a pending Interrupt or tool call; the workflow would stay paused forever |
 
-A missing `threadId`, a `resume` entry without `interruptId`, and a `messages`
-array with no trailing user message are also `400`.
+A missing `threadId`, a `resume` entry without `interruptId`, a nameless or
+duplicate tool declaration, and a `messages` array with no trailing user
+message (or tool results) are also `400`.
 
 ---
 
