@@ -18,6 +18,7 @@ import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAgentFilesRouteImport } from './routes/_authenticated/agent-files'
+import { Route as AuthenticatedAguiChatRouteImport } from './routes/_authenticated/agui-chat'
 import { Route as AuthenticatedApiTokensRouteImport } from './routes/_authenticated/api-tokens'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedDaemonsRouteImport } from './routes/_authenticated/daemons'
@@ -113,6 +114,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedAgentFilesRoute = AuthenticatedAgentFilesRouteImport.update({
   id: '/agent-files',
   path: '/agent-files',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAguiChatRoute = AuthenticatedAguiChatRouteImport.update({
+  id: '/agui-chat',
+  path: '/agui-chat',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedApiTokensRoute = AuthenticatedApiTokensRouteImport.update({
@@ -425,6 +431,7 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/agent-files': typeof AuthenticatedAgentFilesRoute
+  '/agui-chat': typeof AuthenticatedAguiChatRoute
   '/api-tokens': typeof AuthenticatedApiTokensRoute
   '/chat': typeof AuthenticatedChatRoute
   '/daemons': typeof AuthenticatedDaemonsRoute
@@ -485,6 +492,7 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/agent-files': typeof AuthenticatedAgentFilesRoute
+  '/agui-chat': typeof AuthenticatedAguiChatRoute
   '/api-tokens': typeof AuthenticatedApiTokensRoute
   '/chat': typeof AuthenticatedChatRoute
   '/daemons': typeof AuthenticatedDaemonsRoute
@@ -549,6 +557,7 @@ export interface FileRoutesById {
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
   '/_authenticated/agent-files': typeof AuthenticatedAgentFilesRoute
+  '/_authenticated/agui-chat': typeof AuthenticatedAguiChatRoute
   '/_authenticated/api-tokens': typeof AuthenticatedApiTokensRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/daemons': typeof AuthenticatedDaemonsRoute
@@ -614,6 +623,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/agent-files'
+    | '/agui-chat'
     | '/api-tokens'
     | '/chat'
     | '/daemons'
@@ -674,6 +684,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/agent-files'
+    | '/agui-chat'
     | '/api-tokens'
     | '/chat'
     | '/daemons'
@@ -737,6 +748,7 @@ export interface FileRouteTypes {
     | '/(errors)/500'
     | '/(errors)/503'
     | '/_authenticated/agent-files'
+    | '/_authenticated/agui-chat'
     | '/_authenticated/api-tokens'
     | '/_authenticated/chat'
     | '/_authenticated/daemons'
@@ -865,6 +877,13 @@ declare module '@tanstack/react-router' {
       path: '/agent-files'
       fullPath: '/agent-files'
       preLoaderRoute: typeof AuthenticatedAgentFilesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/agui-chat': {
+      id: '/_authenticated/agui-chat'
+      path: '/agui-chat'
+      fullPath: '/agui-chat'
+      preLoaderRoute: typeof AuthenticatedAguiChatRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/api-tokens': {
@@ -1255,6 +1274,7 @@ const AuthenticatedSettingsRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedAgentFilesRoute: typeof AuthenticatedAgentFilesRoute
+  AuthenticatedAguiChatRoute: typeof AuthenticatedAguiChatRoute
   AuthenticatedApiTokensRoute: typeof AuthenticatedApiTokensRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedDaemonsRoute: typeof AuthenticatedDaemonsRoute
@@ -1308,6 +1328,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedAgentFilesRoute: AuthenticatedAgentFilesRoute,
+  AuthenticatedAguiChatRoute: AuthenticatedAguiChatRoute,
   AuthenticatedApiTokensRoute: AuthenticatedApiTokensRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedDaemonsRoute: AuthenticatedDaemonsRoute,

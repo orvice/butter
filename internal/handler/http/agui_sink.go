@@ -65,14 +65,43 @@ type aguiSink struct {
 	// pick the run's outcome without reaching for runner.TurnResult — see
 	// docs/research/ag-ui-integration.md.
 	interrupts []aguitypes.Interrupt
+
+	// state mirrors the client-visible session state as the stream advances:
+	// seeded with the pre-run authoritative state, updated by every delta the
+	// sink emits, and diffed against the post-run authoritative state in
+	// Final. It is what makes each STATE_DELTA a correct patch on what the
+	// client has already seen.
+	state map[string]any
+	// emitSnapshot requests a STATE_SNAPSHOT right after RUN_STARTED — set
+	// when the client's mirror is absent or diverged from the authoritative
+	// state (the conflict answer: the server wins, visibly).
+	emitSnapshot bool
+	// fetchFinalState re-reads the authoritative state after the run, closing
+	// the gap for deltas the runner never streams (agent output_key writes
+	// land on final events, which only reach the callback in special cases).
+	fetchFinalState func() (map[string]any, bool)
 }
 
 func newAGUISink(threadID, runID, messageID string, emit aguiEmitter) *aguiSink {
 	return &aguiSink{threadID: threadID, runID: runID, messageID: messageID, emit: emit}
 }
 
+// setSharedState arms the state mapping for this run. initial must already be
+// the client-visible (filtered, normalized) view.
+func (s *aguiSink) setSharedState(initial map[string]any, emitSnapshot bool, fetchFinal func() (map[string]any, bool)) {
+	s.state = initial
+	s.emitSnapshot = emitSnapshot
+	s.fetchFinalState = fetchFinal
+}
+
 func (s *aguiSink) Started(streamorch.RunIdentity) error {
-	return s.emit(aguievents.NewRunStartedEvent(s.threadID, s.runID))
+	if err := s.emit(aguievents.NewRunStartedEvent(s.threadID, s.runID)); err != nil {
+		return err
+	}
+	if s.emitSnapshot {
+		return s.emit(aguievents.NewStateSnapshotEvent(s.state))
+	}
+	return nil
 }
 
 func (s *aguiSink) TextDelta(_ streamorch.RunIdentity, text string) error {
@@ -96,6 +125,13 @@ func (s *aguiSink) RunEvent(_ streamorch.RunIdentity, evt *session.Event) error 
 			Reason:  aguiInterruptReason,
 			Message: req.Message,
 		})
+	}
+
+	// Tool-written state changes stream with the events that carry them.
+	if s.state != nil && len(evt.Actions.StateDelta) > 0 {
+		if err := s.emitStateDelta(aguiVisibleState(evt.Actions.StateDelta)); err != nil {
+			return err
+		}
 	}
 
 	if evt.Content == nil {
@@ -147,12 +183,49 @@ func (s *aguiSink) Final(_ streamorch.RunIdentity, response string) error {
 	if err := s.closeMessage(); err != nil {
 		return err
 	}
+	// Deltas the runner never streamed (output_key and callback writes land
+	// on final events) surface here by re-reading the authoritative state.
+	if s.state != nil && s.fetchFinalState != nil {
+		if final, ok := s.fetchFinalState(); ok {
+			if ops := aguiStateDiffOps(s.state, final); len(ops) > 0 {
+				if err := s.emit(aguievents.NewStateDeltaEvent(ops)); err != nil {
+					return err
+				}
+				s.state = final
+			}
+		}
+	}
 	if len(s.interrupts) > 0 {
 		return s.emit(aguievents.NewRunFinishedEventWithOptions(
 			s.threadID, s.runID, aguievents.WithInterruptOutcome(s.interrupts)))
 	}
 	return s.emit(aguievents.NewRunFinishedEventWithOptions(
 		s.threadID, s.runID, aguievents.WithSuccessOutcome()))
+}
+
+// emitStateDelta translates one batch of state changes into a STATE_DELTA
+// patch on the client's mirror and folds it into the tracked state. delta
+// must already be client-visible (filtered, normalized).
+func (s *aguiSink) emitStateDelta(delta map[string]any) error {
+	if len(delta) == 0 {
+		return nil
+	}
+	next := make(map[string]any, len(s.state)+len(delta))
+	for k, v := range s.state {
+		next[k] = v
+	}
+	for k, v := range delta {
+		next[k] = v
+	}
+	ops := aguiStateDiffOps(s.state, next)
+	if len(ops) == 0 {
+		return nil
+	}
+	if err := s.emit(aguievents.NewStateDeltaEvent(ops)); err != nil {
+		return err
+	}
+	s.state = next
+	return nil
 }
 
 // Error emits RUN_ERROR. streamorch.Sink has no error frame — streamorch.Run

@@ -22,6 +22,7 @@ import (
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/mcptoolset"
 
+	"go.orx.me/apps/butter/internal/aguitool"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/runtime/opencode"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -150,6 +151,9 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1
 		}
 		toolsets = append(toolsets, extraToolsets...)
 	}
+	// AG-UI client-declared frontend tools. Resolved per invocation from the
+	// run's context; inert (zero tools) for every non-AG-UI run.
+	toolsets = append(toolsets, aguitool.NewToolset())
 
 	cfg := llmagent.Config{
 		Name:                     pb.GetName(),

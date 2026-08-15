@@ -301,17 +301,45 @@ table) — see `internal/handler/http/agui_sink_test.go` and `agui_test.go`.
 4. **No `STEP_*` events.** See above — there is no source event to derive an
    honest boundary from.
 
-## Known limitation: per-session serialization is in-process only
+## Known limitation: per-session serialization is in-process only *(resolved)*
 
 `runner.acquireSessionTurn` serializes turns per `appName+userID+sessionID`, but
 it is an in-process lock. Butter runs multiple Pods, so two concurrent requests
-carrying the same `threadId` that land on different Pods are **not** serialized
-and their turns can interleave.
+carrying the same `threadId` that land on different Pods were **not** serialized
+and their turns could interleave.
 
-This is the same problem the Telegram pipeline solved with a Redis session lease
-(`internal/telegramqueue`). It is documented as a client-facing caveat in
-`docs/api.md` rather than fixed here; a Redis lease for the AG-UI path belongs in
-its own issue.
+**Resolved by issue #291 item 1**: the AG-UI handler now takes a bounded,
+renewable Redis lease per `(caller, threadId)` before opening the stream
+(`internal/runtime/sessionguard`, on the `internal/redislease` primitive shared
+with the Telegram pipeline). A busy thread is a pre-stream `409`; losing the
+lease mid-run cancels the run and surfaces as `RUN_ERROR`.
+
+## Follow-up: issue #291 (2026-08-15)
+
+The Phase 1 rejections were lifted one contract at a time:
+
+- **Frontend tools** (`tools`) map onto ADK long-running function tools: a
+  toolset attached to every LLM agent resolves the request's declarations from
+  the run context per invocation (`internal/aguitool`), a call ends the run
+  after `TOOL_CALL_*` (the FunctionCall event is final via
+  `Event.LongRunningToolIDs`, which the runner's callback gate now forwards),
+  and the client's trailing tool-role message resumes ADK by `FunctionCall.ID`
+  (`runner/run_node.go`'s `openLongRunningCallIDs` path). Pending calls are
+  derived from session events (`interrupt.PendingToolCalls`, ADR-0002 style)
+  to validate results before anything runs.
+- **Shared state** (`state`) is server-authoritative: pre-run session state is
+  validated against the client mirror (corrective `STATE_SNAPSHOT` after
+  `RUN_STARTED`), in-run `EventActions.StateDelta` streams as RFC 6902
+  `STATE_DELTA`, and a post-run session re-read emits the trailing delta for
+  `output_key` writes the runner never streams. `app:`/`user:`/`temp:` scopes
+  stay server-side.
+- **Dashboard client**: `front/src/api/agui.ts` (fetch + ReadableStream SSE
+  parser; no AG-UI npm dependency) and `front/src/features/agui-chat` render
+  the stream — text, tool calls, shared state, `RUN_ERROR`, and Interrupts
+  with addressed resume — beside the untouched classic chat.
+
+`resume[].status: "cancelled"` remains rejected: Butter still has no way to
+abandon a pending Interrupt or tool call.
 
 ## References
 
