@@ -286,10 +286,16 @@ func TestAGUIRun_Rejections(t *testing.T) {
 			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "duplicate tool result",
 		},
 		{
-			name:    "shared state not supported",
+			name:    "state must be an object",
+			agentID: "writer",
+			body:    withAGUIField(valid, "state", "not-an-object"),
+			runner:  &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "state",
+		},
+		{
+			name:    "state needs a session service",
 			agentID: "writer",
 			body:    withAGUIField(valid, "state", map[string]any{"count": 1}),
-			runner:  &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "state",
+			runner:  &mockRunner{}, wantStatus: http.StatusServiceUnavailable, wantError: "state",
 		},
 		{
 			name:    "cancelling an interrupt",
@@ -507,17 +513,33 @@ func (r *ctxCaptureRunner) RunSSE(ctx context.Context, agentName string, parts [
 	return r.mockRunner.RunSSE(ctx, agentName, parts, model, ctxInfo, onEvent, onCompaction)
 }
 
-// fakeADKSession is a minimal session.Session carrying a fixed event list.
+// fakeADKSession is a minimal session.Session carrying a fixed event list and
+// state map.
 type fakeADKSession struct {
 	events []*adksession.Event
+	state  map[string]any
 }
 
 func (f *fakeADKSession) ID() string                { return "s1" }
 func (f *fakeADKSession) AppName() string           { return "agui" }
 func (f *fakeADKSession) UserID() string            { return "agui-user" }
-func (f *fakeADKSession) State() adksession.State   { return nil }
+func (f *fakeADKSession) State() adksession.State   { return fakeADKState(f.state) }
 func (f *fakeADKSession) LastUpdateTime() time.Time { return time.Time{} }
 func (f *fakeADKSession) Events() adksession.Events { return fakeADKEvents(f.events) }
+
+type fakeADKState map[string]any
+
+func (s fakeADKState) Get(k string) (any, error) { return s[k], nil }
+func (s fakeADKState) Set(k string, v any) error { s[k] = v; return nil }
+func (s fakeADKState) All() iter.Seq2[string, any] {
+	return func(yield func(string, any) bool) {
+		for k, v := range s {
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
 
 type fakeADKEvents []*adksession.Event
 
@@ -676,6 +698,92 @@ func TestAGUIRun_ToolResultsNeedSessionService(t *testing.T) {
 	w := postAGUI(t, router, "writer", toolResultBody("t-1", "call-1", "42"))
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503 (body %s)", w.Code, w.Body.String())
+	}
+}
+
+// --- shared state ---
+
+func setupStatefulAGUIRouter(runnerSvc AGUIRunnerService, svc adksession.Service) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(wsctx.WithID(c.Request.Context(), "test-workspace"))
+		c.Next()
+	})
+	h := NewAGUIHandler(aguiEnabledRepo())
+	h.SetRunnerService(runnerSvc)
+	h.SetSessionService(svc)
+	h.Register(r)
+	return r
+}
+
+// The client's mirror is validated against the authoritative state: absent or
+// diverged mirrors get a corrective STATE_SNAPSHOT right after RUN_STARTED; a
+// matching mirror gets none. Hidden ADK scopes never leave the server.
+func TestAGUIRun_StateSnapshotOnBaselineAndConflict(t *testing.T) {
+	sess := &fakeADKSession{state: map[string]any{
+		"draft":       "v1",
+		"temp:cursor": 3,
+		"user:theme":  "dark",
+	}}
+
+	cases := []struct {
+		name         string
+		state        any
+		wantSnapshot bool
+	}{
+		{"absent mirror is baselined", nil, true},
+		{"diverged mirror is corrected", map[string]any{"draft": "edited"}, true},
+		{"matching mirror stays quiet", map[string]any{"draft": "v1"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router := setupStatefulAGUIRouter(&mockRunner{runResult: "ok"},
+				&fakeSessionService{sess: sess})
+			w := postAGUI(t, router, "writer", withAGUIField(minimalAGUIBody("t-1", "hi"), "state", tc.state))
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+			}
+			body := w.Body.String()
+			if got := strings.Contains(body, `"type":"STATE_SNAPSHOT"`); got != tc.wantSnapshot {
+				t.Fatalf("snapshot emitted = %v, want %v\n%s", got, tc.wantSnapshot, body)
+			}
+			if tc.wantSnapshot {
+				if !strings.Contains(body, `"draft":"v1"`) {
+					t.Errorf("snapshot missing authoritative value:\n%s", body)
+				}
+				if strings.Contains(body, "temp:cursor") || strings.Contains(body, "user:theme") {
+					t.Errorf("hidden state scope leaked:\n%s", body)
+				}
+			}
+		})
+	}
+}
+
+// State written during the run that the stream never carried (output_key
+// lands on final events) surfaces as a trailing STATE_DELTA before
+// RUN_FINISHED, read back from the authoritative session.
+func TestAGUIRun_TrailingStateDelta(t *testing.T) {
+	svc := &fakeSessionService{sess: &fakeADKSession{state: map[string]any{}}}
+	// The runner mutates state as a side effect of the turn, as output_key
+	// would; the second session Get sees it.
+	mock := &mockRunner{runResult: "ok", onEventFn: func(runner.EventCallback) {
+		svc.sess = &fakeADKSession{state: map[string]any{"summary": "done"}}
+	}}
+	router := setupStatefulAGUIRouter(mock, svc)
+
+	w := postAGUI(t, router, "writer", minimalAGUIBody("t-1", "hi"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"type":"STATE_DELTA"`) ||
+		!strings.Contains(body, `{"op":"add","path":"/summary","value":"done"}`) {
+		t.Fatalf("stream missing trailing STATE_DELTA:\n%s", body)
+	}
+	// The delta must precede RUN_FINISHED so the client applies it in-run.
+	if strings.Index(body, "STATE_DELTA") > strings.Index(body, "RUN_FINISHED") {
+		t.Fatalf("STATE_DELTA emitted after RUN_FINISHED:\n%s", body)
 	}
 }
 

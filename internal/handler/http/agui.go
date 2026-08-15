@@ -144,6 +144,14 @@ type aguiRunContext struct {
 	parts       []*genai.Part
 	ctxInfo     *agentsv1.ContextInfo
 	clientTools []aguitool.Declaration
+
+	// Shared state mapping for this run: stateArmed gates the whole feature
+	// (off without a session store), stateInitial is the pre-run
+	// client-visible authoritative state, and stateSnapshot requests the
+	// corrective/initial STATE_SNAPSHOT.
+	stateArmed    bool
+	stateInitial  map[string]any
+	stateSnapshot bool
 }
 
 // RunAgent handles POST /api/agui/:agent_id.
@@ -201,6 +209,26 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 
 	sink := newAGUISink(rc.input.ThreadID, rc.input.RunID, uuid.NewString(),
 		newAGUISSEEmitter(c.Request.Context(), c.Writer, c.Writer.Flush))
+	if rc.stateArmed {
+		// The final fetch runs on the request context, not the lease context:
+		// it must still work when the run was cancelled.
+		reqCtx := c.Request.Context()
+		sink.setSharedState(rc.stateInitial, rc.stateSnapshot, func() (map[string]any, bool) {
+			svc := h.getSessionService()
+			if svc == nil {
+				return nil, false
+			}
+			resp, err := svc.Get(reqCtx, &session.GetRequest{
+				AppName:   aguiAppName,
+				UserID:    rc.ctxInfo.GetUserId(),
+				SessionID: rc.ctxInfo.GetSessionId(),
+			})
+			if err != nil {
+				return nil, false
+			}
+			return aguiVisibleState(sessionStateMap(resp.Session)), true
+		})
+	}
 
 	runErr := streamorch.Run(runCtx, rc.svc,
 		streamorch.AgentRef{Name: rc.agent.GetName(), ID: rc.agent.GetAgentId()},
@@ -288,14 +316,58 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		return nil, false
 	}
 
-	return &aguiRunContext{
+	rc := &aguiRunContext{
 		input:       input,
 		agent:       agent,
 		svc:         svc,
 		parts:       parts,
 		ctxInfo:     ctxInfo,
 		clientTools: clientToolDeclarations(input.Tools),
-	}, true
+	}
+	if status, err := h.prepareSharedState(ctx, rc); err != nil {
+		c.JSON(status, aguiErrorResponse{Error: err.Error()})
+		return nil, false
+	}
+	return rc, true
+}
+
+// prepareSharedState resolves the run's shared-state baseline.
+//
+// Ownership model: the server-side session owns state; the client holds a
+// mirror. The client's RunAgentInput.State is used for validation only —
+// when it is absent or diverges from the authoritative state, the run opens
+// with a corrective STATE_SNAPSHOT rather than adopting client changes, so a
+// client edit is answered visibly instead of being silently kept or dropped.
+// Without a session store the feature is off; a client that nonetheless
+// sends state is refused rather than left believing its mirror is validated.
+func (h *AGUIHandler) prepareSharedState(ctx context.Context, rc *aguiRunContext) (int, error) {
+	clientState, _ := rc.input.State.(map[string]any)
+	svc := h.getSessionService()
+	if svc == nil {
+		if len(clientState) > 0 {
+			return http.StatusServiceUnavailable, errors.New("shared state is not accepted: session service unavailable")
+		}
+		return 0, nil
+	}
+
+	authoritative := map[string]any{}
+	if resp, err := svc.Get(ctx, &session.GetRequest{
+		AppName:   aguiAppName,
+		UserID:    rc.ctxInfo.GetUserId(),
+		SessionID: rc.ctxInfo.GetSessionId(),
+	}); err == nil {
+		authoritative = aguiVisibleState(sessionStateMap(resp.Session))
+	}
+
+	rc.stateArmed = true
+	rc.stateInitial = authoritative
+	if len(clientState) == 0 {
+		// No mirror yet: baseline the client when there is anything to see.
+		rc.stateSnapshot = len(authoritative) > 0
+		return 0, nil
+	}
+	rc.stateSnapshot = !aguiStatesEqual(authoritative, aguiVisibleState(clientState))
+	return 0, nil
 }
 
 // validateAGUIInput enforces the endpoint's contract. Everything the endpoint
@@ -316,8 +388,10 @@ func validateAGUIInput(input *aguitypes.RunAgentInput) error {
 		}
 		seenTools[name] = true
 	}
-	if !aguiStateIsEmpty(input.State) {
-		return errors.New("shared state is not supported yet")
+	switch input.State.(type) {
+	case nil, map[string]any:
+	default:
+		return errors.New("state must be a JSON object")
 	}
 	for _, entry := range input.Resume {
 		if entry.Status == aguitypes.ResumeStatusCancelled {
@@ -348,19 +422,6 @@ func clientToolDeclarations(tools []aguitypes.Tool) []aguitool.Declaration {
 		})
 	}
 	return decls
-}
-
-// aguiStateIsEmpty reports whether the request carries no shared state. An
-// absent field, JSON null, and an empty object all mean "none".
-func aguiStateIsEmpty(state any) bool {
-	switch v := state.(type) {
-	case nil:
-		return true
-	case map[string]any:
-		return len(v) == 0
-	default:
-		return false
-	}
 }
 
 // aguiInputParts builds the run's input parts and, on failure, the HTTP

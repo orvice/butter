@@ -578,6 +578,27 @@ string is wrapped as `{"result": "…"}`; a tool message carrying `error` is
 surfaced to the model as `{"error": "…"}`. Send the same `tools` on the
 follow-up request so the resumed turn can keep calling them.
 
+#### Shared state
+
+Shared state is the server-side session's state map (what agents write via
+`output_key` and tool state writes), and the **server owns it** — state flows
+server → client only:
+
+- When the client's `state` is absent or diverges from the authoritative
+  state, the run opens with a `STATE_SNAPSHOT` right after `RUN_STARTED` that
+  replaces the client's mirror. A client-modified `state` is never adopted;
+  the corrective snapshot is the conflict answer, in-band and visible.
+- When the client's `state` matches, no snapshot is sent.
+- State changes during the run arrive as `STATE_DELTA` events carrying RFC
+  6902 (JSON Patch) operations against the client's current mirror, including
+  a trailing delta before `RUN_FINISHED` for writes that land at the end of
+  the turn (`output_key`).
+- ADK's scoped keys (`app:…`, `user:…`, `temp:…`) never leave the server.
+
+`state` must be a JSON object (or null); anything else is `400`. Send the
+mirror back on each request — it is how the server knows whether the client
+needs a re-baseline.
+
 #### Not supported yet
 
 These are rejected with `400` rather than silently ignored, so a client never
@@ -585,7 +606,6 @@ believes a capability took effect:
 
 | Field | Reason |
 |---|---|
-| `state` (non-empty) | Shared state / `STATE_SNAPSHOT` — planned |
 | `resume[].status: "cancelled"` | Butter cannot abandon a pending Interrupt or tool call; the workflow would stay paused forever |
 
 A missing `threadId`, a `resume` entry without `interruptId`, a nameless or
