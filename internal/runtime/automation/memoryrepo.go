@@ -3,8 +3,8 @@ package automation
 import (
 	"context"
 	"sort"
-	"strconv"
 	"sync"
+	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
@@ -147,6 +147,22 @@ func (r *MemoryRunRepo) List(_ context.Context, workspaceID, automationName stri
 	return page, next, nil
 }
 
+func (r *MemoryRunRepo) ListStaleRunning(_ context.Context, before time.Time) ([]*agentsv1.AutomationRun, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*agentsv1.AutomationRun, 0)
+	for _, run := range r.byID {
+		if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_RUNNING {
+			continue
+		}
+		if run.GetStartedAt().AsTime().Before(before) {
+			out = append(out, proto.Clone(run).(*agentsv1.AutomationRun))
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].GetId() < out[j].GetId() })
+	return out, nil
+}
+
 func (r *MemoryRunRepo) ListWaitingBySession(_ context.Context, appName, userID, sessionID string) ([]*agentsv1.AutomationRun, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -209,29 +225,32 @@ func (r *MemoryStepRunRepo) ListByRun(_ context.Context, workspaceID, runID stri
 	return out, nil
 }
 
+// paginateRuns applies the same (started_at, id) cursor as the Mongo repo to
+// an already-sorted (started_at desc, id desc) slice, so tests exercise the
+// production token semantics. started_at compares at millisecond precision,
+// matching what the token and BSON storage keep.
 func paginateRuns(items []*agentsv1.AutomationRun, pageSize int32, pageToken string) ([]*agentsv1.AutomationRun, string) {
-	if pageSize <= 0 {
-		pageSize = 20
-	}
-	if pageSize > 200 {
-		pageSize = 200
-	}
-	offset := 0
-	if pageToken != "" {
-		if n, err := strconv.Atoi(pageToken); err == nil && n >= 0 {
-			offset = n
+	pageSize = clampRunPageSize(pageSize)
+	start := 0
+	if after, afterID, ok := DecodeRunPageToken(pageToken); ok {
+		afterMs := after.UnixMilli()
+		for start < len(items) {
+			run := items[start]
+			ms := run.GetStartedAt().AsTime().UnixMilli()
+			if ms < afterMs || (ms == afterMs && run.GetId() < afterID) {
+				break
+			}
+			start++
 		}
 	}
-	if offset >= len(items) {
+	if start >= len(items) {
 		return nil, ""
 	}
-	end := offset + int(pageSize)
-	if end > len(items) {
-		end = len(items)
-	}
+	end := min(start+int(pageSize), len(items))
 	next := ""
 	if end < len(items) {
-		next = strconv.Itoa(end)
+		last := items[end-1]
+		next = EncodeRunPageToken(last.GetStartedAt().AsTime(), last.GetId())
 	}
-	return items[offset:end], next
+	return items[start:end], next
 }

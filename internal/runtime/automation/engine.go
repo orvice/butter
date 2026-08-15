@@ -19,6 +19,7 @@ import (
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -36,7 +37,26 @@ const (
 	// for an invoke_agent turn; the resume listeners rely on it to skip
 	// ordinary chat traffic (mirrors cron's cronSessionPrefix).
 	automationSessionPrefix = "automation:"
+
+	// RunLeaseKeyPrefix scopes the per-automation cross-instance run lock.
+	RunLeaseKeyPrefix = "butter:automation:lease:run:"
+	// RunLeaseTTL bounds how long a crashed instance blocks one automation.
+	// It has to exceed a lease renewal gap, not a whole run — the guard
+	// renews at TTL/3 while the run executes.
+	RunLeaseTTL = 5 * time.Minute
+	// StaleRunAge is how old a RUNNING run must be before reconciliation
+	// declares its process dead and fails it. Generously above any sane run
+	// duration so a long agent turn on another instance is never clobbered.
+	StaleRunAge = 24 * time.Hour
 )
+
+// RunGuard serializes runs of one automation across instances so the SKIP and
+// QUEUE concurrency policies hold fleet-wide, not just per process. Acquire
+// returns ok=false while another instance holds the key; the returned context
+// is cancelled if the lease is lost mid-run. redislease.Guard satisfies this.
+type RunGuard interface {
+	Acquire(ctx context.Context, key string) (context.Context, func(), bool, error)
+}
 
 // Session coordinates for an invoke_agent turn are deterministic from the
 // automation name, workspace, and run ID, so invokeAgent (which runs the turn)
@@ -46,6 +66,11 @@ func automationSessionUserID(workspaceID string) string { return automationSessi
 func automationSessionID(runID string) string           { return automationSessionPrefix + runID }
 
 var ErrAutomationDisabled = errors.New("automation disabled")
+
+// runGuardRetryInterval paces QUEUE-policy waits on the cross-instance lock.
+// There is no fairness guarantee across instances, only exclusion. A var so
+// tests can shrink the wait.
+var runGuardRetryInterval = 2 * time.Second
 
 type runnerService interface {
 	ResolveAgentRef(workspaceID, agentID string) (string, bool)
@@ -76,8 +101,13 @@ type EngineOptions struct {
 	// SessionService, if set, deletes a run's session when the run reaches a
 	// terminal state via the resume path.
 	SessionService sessionDeleter
+	// RunGuard, if set, extends the SKIP/QUEUE/REPLACE concurrency policies
+	// across instances. REPLACE cannot cancel a run on another instance, so
+	// cross-instance it degrades to QUEUE. nil keeps the process-local gate.
+	RunGuard RunGuard
 	// Context is the base context for resume-path work driven by listeners
-	// (which carry no context of their own). Defaults to context.Background().
+	// (which carry no context of their own) and for background execution of
+	// RunNowAsync. Defaults to context.Background().
 	Context context.Context
 }
 
@@ -93,6 +123,7 @@ type Engine struct {
 	forumRepo       forum.Repository
 	httpClient      httpDoer
 	sessionSvc      sessionDeleter
+	guard           RunGuard
 	baseCtx         context.Context
 
 	mu      sync.Mutex
@@ -136,14 +167,48 @@ func NewEngine(defRepo DefinitionRepo, runRepo RunRepo, stepRepo StepRunRepo, op
 		forumRepo:       opts.ForumRepo,
 		httpClient:      httpClient,
 		sessionSvc:      opts.SessionService,
+		guard:           opts.RunGuard,
 		baseCtx:         baseCtx,
 		running:         make(map[string]*runningAutomation),
 	}
 }
 
 // RunNow loads a workspace-scoped automation by name and executes it with a
-// manual trigger.
+// manual trigger, synchronously. Kept for callers that need the terminal run
+// (tests, future synchronous triggers); the RPC layer uses RunNowAsync.
 func (e *Engine) RunNow(ctx context.Context, workspaceID, name, triggerPayloadJSON string) (*agentsv1.AutomationRun, error) {
+	a, err := e.loadEnabled(ctx, workspaceID, name)
+	if err != nil {
+		return nil, err
+	}
+	return e.Execute(ctx, a, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, triggerPayloadJSON)
+}
+
+// RunNowAsync accepts a manual run and executes it in the background on the
+// engine's base context. The returned run is the accepted RUNNING record;
+// callers observe progress through the run APIs. Detaching from the request
+// context is the point: a client disconnect must not cancel a run mid-flight,
+// and a long agent turn must not hold the HTTP request open.
+func (e *Engine) RunNowAsync(ctx context.Context, workspaceID, name, triggerPayloadJSON string) (*agentsv1.AutomationRun, error) {
+	a, err := e.loadEnabled(ctx, workspaceID, name)
+	if err != nil {
+		return nil, err
+	}
+	if err := e.checkExecutable(a); err != nil {
+		return nil, err
+	}
+	run := e.newRun(a, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, triggerPayloadJSON)
+	// Save on the request context so an acceptance failure surfaces to the
+	// caller instead of into a log.
+	if err := e.runRepo.Save(ctx, run); err != nil {
+		return nil, err
+	}
+	accepted := proto.Clone(run).(*agentsv1.AutomationRun)
+	go e.executeManaged(e.baseCtx, a, run, triggerPayloadJSON)
+	return accepted, nil
+}
+
+func (e *Engine) loadEnabled(ctx context.Context, workspaceID, name string) (*agentsv1.Automation, error) {
 	if e == nil || e.defRepo == nil {
 		return nil, errors.New("automation engine definition repo is not configured")
 	}
@@ -154,17 +219,25 @@ func (e *Engine) RunNow(ctx context.Context, workspaceID, name, triggerPayloadJS
 	if !a.GetEnabled() {
 		return nil, ErrAutomationDisabled
 	}
-	return e.Execute(ctx, a, agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL, triggerPayloadJSON)
+	return a, nil
 }
 
-// Execute runs the provided automation definition. It is used by manual runs
-// today and by scheduled/event triggers as they are wired in.
-func (e *Engine) Execute(ctx context.Context, a *agentsv1.Automation, triggerType agentsv1.AutomationTriggerType, triggerPayloadJSON string) (*agentsv1.AutomationRun, error) {
+func (e *Engine) checkExecutable(a *agentsv1.Automation) error {
 	if e == nil || e.runRepo == nil || e.stepRepo == nil {
-		return nil, errors.New("automation engine repositories are not configured")
+		return errors.New("automation engine repositories are not configured")
 	}
 	if a == nil {
-		return nil, errors.New("automation is required")
+		return errors.New("automation is required")
+	}
+	return nil
+}
+
+// Execute runs the provided automation definition synchronously. It is used
+// by scheduled fires and RunNow; RunNowAsync shares everything after the run
+// record is accepted.
+func (e *Engine) Execute(ctx context.Context, a *agentsv1.Automation, triggerType agentsv1.AutomationTriggerType, triggerPayloadJSON string) (*agentsv1.AutomationRun, error) {
+	if err := e.checkExecutable(a); err != nil {
+		return nil, err
 	}
 	if triggerType == agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_UNSPECIFIED {
 		triggerType = a.GetTrigger().GetType()
@@ -172,22 +245,52 @@ func (e *Engine) Execute(ctx context.Context, a *agentsv1.Automation, triggerTyp
 	if triggerType == agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_UNSPECIFIED {
 		triggerType = agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_MANUAL
 	}
-	switch effectiveAutomationConcurrency(a.GetPolicy()) {
-	case agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_ALLOW:
-		return e.executeRun(ctx, a, triggerType, triggerPayloadJSON)
-	case agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_SKIP,
-		agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_UNSPECIFIED:
-		return e.executeWithConcurrency(ctx, a, triggerType, triggerPayloadJSON, false, false)
-	case agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_QUEUE:
-		return e.executeWithConcurrency(ctx, a, triggerType, triggerPayloadJSON, true, false)
-	case agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_REPLACE:
-		return e.executeWithConcurrency(ctx, a, triggerType, triggerPayloadJSON, true, true)
-	default:
-		return nil, fmt.Errorf("unsupported automation concurrency policy %s", a.GetPolicy().GetConcurrency())
+	run := e.newRun(a, triggerType, triggerPayloadJSON)
+	if err := e.runRepo.Save(ctx, run); err != nil {
+		return nil, err
+	}
+	return e.executeManaged(ctx, a, run, triggerPayloadJSON), nil
+}
+
+// newRun builds the accepted RUNNING record. Acceptance and execution are
+// separate so RunNowAsync can persist the record before detaching.
+func (e *Engine) newRun(a *agentsv1.Automation, triggerType agentsv1.AutomationTriggerType, triggerPayloadJSON string) *agentsv1.AutomationRun {
+	triggerPreview, _ := truncateUTF8(triggerPayloadJSON, effectiveMaxOutputBytes(a.GetPolicy()))
+	if triggerPreview == "" {
+		triggerPreview = "{}"
+	}
+	return &agentsv1.AutomationRun{
+		Id:                 uuid.NewString(),
+		AutomationName:     a.GetName(),
+		TriggerType:        triggerType,
+		Status:             agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_RUNNING,
+		TriggerPayloadJson: triggerPreview,
+		StartedAt:          timestamppb.New(time.Now().UTC()),
+		WorkspaceId:        a.GetWorkspaceId(),
 	}
 }
 
-func (e *Engine) executeWithConcurrency(ctx context.Context, a *agentsv1.Automation, triggerType agentsv1.AutomationTriggerType, payload string, wait, replace bool) (*agentsv1.AutomationRun, error) {
+// executeManaged applies the concurrency policy and executes the accepted run
+// to a terminal (or WAITING_INPUT) state. It never returns an error: every
+// outcome, including a policy skip, is recorded on the run itself.
+func (e *Engine) executeManaged(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, payload string) *agentsv1.AutomationRun {
+	switch effectiveAutomationConcurrency(a.GetPolicy()) {
+	case agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_ALLOW:
+		return e.executeRun(ctx, a, run, payload)
+	case agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_SKIP,
+		agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_UNSPECIFIED:
+		return e.executeWithConcurrency(ctx, a, run, payload, false, false)
+	case agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_QUEUE:
+		return e.executeWithConcurrency(ctx, a, run, payload, true, false)
+	case agentsv1.AutomationConcurrencyPolicy_AUTOMATION_CONCURRENCY_POLICY_REPLACE:
+		return e.executeWithConcurrency(ctx, a, run, payload, true, true)
+	default:
+		return e.finishRun(ctx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED,
+			fmt.Sprintf("unsupported automation concurrency policy %s", a.GetPolicy().GetConcurrency()))
+	}
+}
+
+func (e *Engine) executeWithConcurrency(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, payload string, wait, replace bool) *agentsv1.AutomationRun {
 	key := automationID(a.GetWorkspaceId(), a.GetName())
 	for {
 		e.mu.Lock()
@@ -207,12 +310,29 @@ func (e *Engine) executeWithConcurrency(ctx context.Context, a *agentsv1.Automat
 				e.mu.Unlock()
 				close(current.done)
 			}()
-			return e.executeRun(runCtx, a, triggerType, payload)
+			// The local slot is won; now win the fleet. REPLACE cannot reach a
+			// run on another instance, so cross-instance it waits like QUEUE.
+			guardCtx, release, ok, err := e.acquireRunGuard(runCtx, key, wait)
+			if err != nil {
+				// Fail closed: proceeding without the lock is exactly the
+				// double-run the policy exists to prevent.
+				return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED,
+					fmt.Sprintf("acquire cross-instance run lock: %v", err))
+			}
+			if !ok {
+				reason := "previous execution still running on another instance"
+				if runCtx.Err() != nil {
+					reason = "execution context ended before automation could start"
+				}
+				return e.finishRun(context.WithoutCancel(runCtx), run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SKIPPED, reason)
+			}
+			defer release()
+			return e.executeRun(guardCtx, a, run, payload)
 		}
 
 		if !wait {
 			e.mu.Unlock()
-			return e.recordSkipped(ctx, a, triggerType, payload, "previous execution still running")
+			return e.finishRun(ctx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SKIPPED, "previous execution still running")
 		}
 		if replace {
 			active.cancel()
@@ -222,30 +342,55 @@ func (e *Engine) executeWithConcurrency(ctx context.Context, a *agentsv1.Automat
 		select {
 		case <-done:
 		case <-ctx.Done():
-			return e.recordSkipped(context.WithoutCancel(ctx), a, triggerType, payload, "execution context ended before automation could start")
+			return e.finishRun(context.WithoutCancel(ctx), run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SKIPPED, "execution context ended before automation could start")
 		}
 	}
 }
 
-func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, triggerType agentsv1.AutomationTriggerType, triggerPayloadJSON string) (*agentsv1.AutomationRun, error) {
-	start := time.Now().UTC()
-	triggerPreview, _ := truncateUTF8(triggerPayloadJSON, effectiveMaxOutputBytes(a.GetPolicy()))
-	run := &agentsv1.AutomationRun{
-		Id:                 uuid.NewString(),
-		AutomationName:     a.GetName(),
-		TriggerType:        triggerType,
-		Status:             agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_RUNNING,
-		TriggerPayloadJson: triggerPreview,
-		StartedAt:          timestamppb.New(start),
-		WorkspaceId:        a.GetWorkspaceId(),
+// acquireRunGuard takes the automation's cross-instance lock. wait=false
+// reports a held lock as ok=false immediately (SKIP); wait=true polls until
+// the lock frees or ctx ends (QUEUE and cross-instance REPLACE).
+func (e *Engine) acquireRunGuard(ctx context.Context, key string, wait bool) (context.Context, func(), bool, error) {
+	if e.guard == nil {
+		return ctx, func() {}, true, nil
 	}
-	if run.TriggerPayloadJson == "" {
-		run.TriggerPayloadJson = "{}"
+	leaseKey := RunLeaseKeyPrefix + key
+	for {
+		leaseCtx, release, ok, err := e.guard.Acquire(ctx, leaseKey)
+		if err != nil || ok {
+			return leaseCtx, release, ok, err
+		}
+		if !wait {
+			return ctx, func() {}, false, nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx, func() {}, false, nil
+		case <-time.After(runGuardRetryInterval):
+		}
 	}
-	if err := e.runRepo.Save(ctx, run); err != nil {
-		return nil, err
-	}
+}
 
+// ReconcileStaleRuns fails RUNNING runs older than StaleRunAge: their process
+// exited without finalizing them (crash or kill), and nothing else ever will.
+// Safe to call from any instance — a legitimately running run is younger than
+// the threshold, and re-finalizing an already-failed run is idempotent.
+func (e *Engine) ReconcileStaleRuns(ctx context.Context) (int, error) {
+	if e == nil || e.runRepo == nil {
+		return 0, errors.New("automation engine repositories are not configured")
+	}
+	stale, err := e.runRepo.ListStaleRunning(ctx, time.Now().UTC().Add(-StaleRunAge))
+	if err != nil {
+		return 0, err
+	}
+	for _, run := range stale {
+		e.finishRun(ctx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED,
+			"interrupted: the process executing this run exited before it finished")
+	}
+	return len(stale), nil
+}
+
+func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, triggerPayloadJSON string) *agentsv1.AutomationRun {
 	runCtx := ctx
 	cancel := func() {}
 	if timeout := a.GetPolicy().GetTimeout(); timeout != nil && timeout.AsDuration() > 0 {
@@ -255,19 +400,19 @@ func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, trigger
 
 	payload, err := parseJSONPayload(triggerPayloadJSON)
 	if err != nil {
-		return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED, fmt.Sprintf("invalid trigger payload: %v", err)), nil
+		return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED, fmt.Sprintf("invalid trigger payload: %v", err))
 	}
-	state := newExecutionState(a, triggerType, payload)
+	state := newExecutionState(a, run.GetTriggerType(), payload)
 	if skipped, reason, err := conditionsSkipped(a.GetConditions(), state.roots); err != nil {
-		return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED, err.Error()), nil
+		return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_FAILED, err.Error())
 	} else if skipped {
-		return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SKIPPED, reason), nil
+		return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SKIPPED, reason)
 	}
 
 	for i, step := range a.GetSteps() {
 		select {
 		case <-runCtx.Done():
-			return e.finishRun(runCtx, run, runStatusFromErr(runCtx.Err()), runCtx.Err().Error()), nil
+			return e.finishRun(runCtx, run, runStatusFromErr(runCtx.Err()), runCtx.Err().Error())
 		default:
 		}
 		stepRun, output, pending, err := e.executeStep(runCtx, a, run, step, int32(i+1), state)
@@ -276,7 +421,7 @@ func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, trigger
 			if stepRun.GetStatus() == agentsv1.AutomationStepRunStatus_AUTOMATION_STEP_RUN_STATUS_CANCELLED {
 				status = agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_CANCELLED
 			}
-			return e.finishRun(runCtx, run, status, err.Error()), nil
+			return e.finishRun(runCtx, run, status, err.Error())
 		}
 		if len(pending) > 0 {
 			// The invoked Workflow Agent paused on a Human Input node (ADR-0003).
@@ -284,12 +429,12 @@ func (e *Engine) executeRun(ctx context.Context, a *agentsv1.Automation, trigger
 			// coordinates. Later steps do not run until a reply resumes the
 			// workflow and HandleTurn finalizes the run (Option A).
 			agentName, agentID := e.resolveWaitAgent(a, step.GetInvokeAgent())
-			return e.waitForInput(runCtx, a, run, agentName, agentID, pending), nil
+			return e.waitForInput(runCtx, a, run, agentName, agentID, pending)
 		}
 		state.recordStepOutput(step.GetName(), output)
 	}
 
-	return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED, ""), nil
+	return e.finishRun(runCtx, run, agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED, "")
 }
 
 // waitForInput records a run paused on a Human Input node: WAITING_INPUT with
@@ -435,29 +580,6 @@ func (e *Engine) cleanupSession(appName, userID, sessionID string) {
 	}
 }
 
-func (e *Engine) recordSkipped(ctx context.Context, a *agentsv1.Automation, triggerType agentsv1.AutomationTriggerType, triggerPayloadJSON, reason string) (*agentsv1.AutomationRun, error) {
-	now := time.Now().UTC()
-	triggerPreview, _ := truncateUTF8(triggerPayloadJSON, effectiveMaxOutputBytes(a.GetPolicy()))
-	run := &agentsv1.AutomationRun{
-		Id:                 uuid.NewString(),
-		AutomationName:     a.GetName(),
-		TriggerType:        triggerType,
-		Status:             agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SKIPPED,
-		TriggerPayloadJson: triggerPreview,
-		Error:              reason,
-		StartedAt:          timestamppb.New(now),
-		FinishedAt:         timestamppb.New(now),
-		WorkspaceId:        a.GetWorkspaceId(),
-	}
-	if run.TriggerPayloadJson == "" {
-		run.TriggerPayloadJson = "{}"
-	}
-	if err := e.runRepo.Save(ctx, run); err != nil {
-		return nil, err
-	}
-	return run, nil
-}
-
 func (e *Engine) finishRun(ctx context.Context, run *agentsv1.AutomationRun, status agentsv1.AutomationRunStatus, errText string) *agentsv1.AutomationRun {
 	finished := time.Now().UTC()
 	run.Status = status
@@ -559,6 +681,10 @@ func (e *Engine) executeStepWithRetry(ctx context.Context, a *agentsv1.Automatio
 }
 
 func (e *Engine) executeStepAction(ctx context.Context, a *agentsv1.Automation, run *agentsv1.AutomationRun, step *agentsv1.AutomationStep, state *executionState) (string, string, []runner.PendingInput, error) {
+	step, err := renderStepTemplates(step, state)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("render step %q: %w", step.GetName(), err)
+	}
 	switch step.GetType() {
 	case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT:
 		return e.invokeAgent(ctx, a, run, step.GetInvokeAgent())

@@ -2,10 +2,8 @@ package automation
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -21,6 +19,12 @@ const (
 	runsCollection        = "automation_runs"
 	stepRunsCollection    = "automation_step_runs"
 )
+
+// runRetention is how long finished run and step-run records are kept, via a
+// TTL index on finished_at (30 days, matching the Telegram processing-record
+// retention, ADR-0009). Unfinished runs — RUNNING and WAITING_INPUT — omit
+// finished_at entirely, so TTL never touches them.
+const runRetention = 30 * 24 * time.Hour
 
 type definitionDoc struct {
 	ID          string    `bson:"_id"`
@@ -58,7 +62,9 @@ type stepRunDoc struct {
 	Status         string    `bson:"status"`
 	Order          int32     `bson:"order"`
 	StartedAt      time.Time `bson:"started_at,omitempty"`
-	Spec           string    `bson:"spec"`
+	// FinishedAt is promoted out of Spec for the retention TTL index.
+	FinishedAt time.Time `bson:"finished_at,omitempty"`
+	Spec       string    `bson:"spec"`
 }
 
 type MongoDefinitionRepo struct {
@@ -201,7 +207,14 @@ func (r *MongoRunRepo) EnsureIndexes(ctx context.Context) error {
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "automation_name", Value: 1}, {Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "status", Value: 1}}},
+		// Stale-run reconciliation lists RUNNING runs across workspaces.
+		{Keys: bson.D{{Key: "status", Value: 1}, {Key: "started_at", Value: 1}}},
 		{Keys: bson.D{{Key: "session_app_name", Value: 1}, {Key: "session_user_id", Value: 1}, {Key: "session_id", Value: 1}, {Key: "status", Value: 1}}},
+		// Retention: finished runs expire; unfinished runs omit finished_at.
+		{
+			Keys:    bson.D{{Key: "finished_at", Value: 1}},
+			Options: options.Index().SetExpireAfterSeconds(int32(runRetention.Seconds())),
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("create automation run indexes: %w", err)
@@ -238,17 +251,16 @@ func (r *MongoRunRepo) List(ctx context.Context, workspaceID, automationName str
 	if automationName != "" {
 		q["automation_name"] = automationName
 	}
-	if pageSize <= 0 {
-		pageSize = 20
+	pageSize = clampRunPageSize(pageSize)
+	if after, afterID, ok := DecodeRunPageToken(pageToken); ok {
+		q["$or"] = []bson.M{
+			{"started_at": bson.M{"$lt": after}},
+			{"started_at": after, "_id": bson.M{"$lt": afterID}},
+		}
 	}
-	if pageSize > 200 {
-		pageSize = 200
-	}
-	offset := decodePageToken(pageToken)
 
 	cursor, err := r.coll.Find(ctx, q, options.Find().
 		SetSort(bson.D{{Key: "started_at", Value: -1}, {Key: "_id", Value: -1}}).
-		SetSkip(int64(offset)).
 		SetLimit(int64(pageSize+1)),
 	)
 	if err != nil {
@@ -275,9 +287,38 @@ func (r *MongoRunRepo) List(ctx context.Context, workspaceID, automationName str
 	next := ""
 	if len(out) > int(pageSize) {
 		out = out[:pageSize]
-		next = encodePageToken(offset + len(out))
+		last := out[len(out)-1]
+		next = EncodeRunPageToken(last.GetStartedAt().AsTime(), last.GetId())
 	}
 	return out, next, nil
+}
+
+func (r *MongoRunRepo) ListStaleRunning(ctx context.Context, before time.Time) ([]*agentsv1.AutomationRun, error) {
+	cursor, err := r.coll.Find(ctx, bson.M{
+		"status":     agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_RUNNING.String(),
+		"started_at": bson.M{"$lt": before},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list stale automation runs: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var out []*agentsv1.AutomationRun
+	for cursor.Next(ctx) {
+		var d runDoc
+		if err := cursor.Decode(&d); err != nil {
+			return nil, fmt.Errorf("decode automation run: %w", err)
+		}
+		run, err := decodeRun(d.Spec)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, run)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("list stale automation runs: %w", err)
+	}
+	return out, nil
 }
 
 func (r *MongoRunRepo) ListWaitingBySession(ctx context.Context, appName, userID, sessionID string) ([]*agentsv1.AutomationRun, error) {
@@ -323,6 +364,12 @@ func (r *MongoStepRunRepo) EnsureIndexes(ctx context.Context) error {
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "run_id", Value: 1}, {Key: "order", Value: 1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "automation_name", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "status", Value: 1}}},
+		// Retention: mirrors the run TTL so a run's steps never outlive it by
+		// more than the render of their own finish times.
+		{
+			Keys:    bson.D{{Key: "finished_at", Value: 1}},
+			Options: options.Index().SetExpireAfterSeconds(int32(runRetention.Seconds())),
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("create automation step run indexes: %w", err)
@@ -449,6 +496,9 @@ func stepRunDocFromProto(stepRun *agentsv1.AutomationStepRun) (*stepRunDoc, erro
 	if ts := stepRun.GetStartedAt(); ts != nil {
 		d.StartedAt = ts.AsTime()
 	}
+	if ts := stepRun.GetFinishedAt(); ts != nil {
+		d.FinishedAt = ts.AsTime()
+	}
 	return d, nil
 }
 
@@ -476,21 +526,3 @@ func decodeStepRun(spec string) (*agentsv1.AutomationStepRun, error) {
 	return stepRun, nil
 }
 
-func decodePageToken(token string) int {
-	if token == "" {
-		return 0
-	}
-	raw, err := base64.StdEncoding.DecodeString(token)
-	if err != nil {
-		return 0
-	}
-	n, err := strconv.Atoi(string(raw))
-	if err != nil || n < 0 {
-		return 0
-	}
-	return n
-}
-
-func encodePageToken(offset int) string {
-	return base64.StdEncoding.EncodeToString([]byte(strconv.Itoa(offset)))
-}

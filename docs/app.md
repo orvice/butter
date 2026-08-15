@@ -201,9 +201,11 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 - **Automation 配置**：workspace-scoped，包含 name、enabled、trigger、conditions、ordered steps、policy、metadata。v1 运行 manual 和 schedule trigger，同时在模型中保留 webhook / forum / channel / daemon event trigger 形状，便于后续事件触发接入。
 - **条件模型**：每个 condition 用 selector + operator + value 表达，支持 equals / not equals / contains / regex match / exists / not exists。所有条件都通过后才执行 steps；任一失败则 run 标记为 skipped 且不创建 step-run。
 - **线性 steps**：按定义顺序串行执行，默认首个失败 step 会停止整个 run。支持 `INVOKE_AGENT`、`CALL_WEBHOOK`、`SEND_NOTIFY_GROUP`、`CREATE_FORUM_POST`。
-- **执行策略**：Automation 级 policy 支持 timeout、retry/backoff、concurrency、max_output_bytes；step 可覆盖自身 policy。
-- **运行记录**：每次执行写 `automation_runs`，包含 trigger type、status、trigger payload preview、error、起止时间和 duration；每个实际执行的 step 写 `automation_step_runs`，包含 step type、attempt_count、input/output preview、invocation_id、truncated、duration 等。
-- **调度**：启动时 automation scheduler 注册所有 enabled + schedule trigger 的 automation；create/update/delete 自动 reschedule 或 unregister。disabled automation 只持久化，不进入调度器。
+- **Step 模板插值**：step 输入支持 `{{ selector }}` 占位符，执行时按 conditions 相同的数据根解析——`payload`（触发 payload）、`context`（automation 名、workspace、trigger type）、`steps.<name>`（前序 step 的解析输出，invoke_agent 暴露 `steps.<name>.response`）。可插值字段：`invoke_agent.input`、`call_webhook.url` / `payload_json` / header 值、`send_notify_group.title` / `message`、`create_forum_post.body`；`payload_json` 内用 `{{ selector | json }}` 保证字符串值仍是合法 JSON。selector 解析不到时该 step 显式失败，不会静默渲染为空。
+- **执行策略**：Automation 级 policy 支持 timeout、retry/backoff、concurrency、max_output_bytes；step 可覆盖自身 policy。concurrency 通过每个 automation 的 Redis lease 跨 Pod 生效：SKIP 在另一实例持锁时直接记 skipped，QUEUE 轮询等待锁释放；REPLACE 无法取消另一实例上的 run，跨实例退化为 QUEUE（本实例内仍会取消并接替）。
+- **手动执行为异步**：`RunAutomationNow` 同步接受并返回 `RUNNING` 状态的 run，实际执行在后台进行（客户端断开不会取消 run）；通过 `GetAutomationRun` / `ListAutomationStepRuns` 跟进结果。
+- **运行记录**：每次执行写 `automation_runs`，包含 trigger type、status、trigger payload preview、error、起止时间和 duration；每个实际执行的 step 写 `automation_step_runs`，包含 step type、attempt_count、input/output preview、invocation_id、truncated、duration 等。已完成的 run 与 step-run 依 `finished_at` 上的 TTL 索引保留 30 天（RUNNING / WAITING_INPUT 不设 `finished_at`，不受 TTL 影响）；run 列表使用 `(started_at, id)` 游标分页。启动时会把超过 24 小时仍处于 RUNNING 的 run 标记为 FAILED（进程崩溃遗留），WAITING_INPUT 不受影响。
+- **调度**：启动时 automation scheduler 注册所有 enabled + schedule trigger 的 automation；create/update/delete 自动 reschedule 或 unregister。disabled automation 只持久化，不进入调度器。多 Pod 部署时每个 Pod 都注册全部 schedule，但由 Redis lease 选出的唯一 leader 执行触发，避免同一 schedule 每 Pod 各跑一次；leader 优雅退出时立即释放 lease。
 
 ## 10. Cron 自动执行
 
