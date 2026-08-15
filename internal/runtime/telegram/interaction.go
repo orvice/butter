@@ -160,8 +160,8 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 		IsController: isController,
 		UserID:       userID,
 		MessageID:    telegramapi.FormatID(msg.MessageID),
-		DebugDefault: config.GetDebugDefault(),
-		Debug:        config.GetDebugDefault(),
+		DebugDefault: debugDefault(config),
+		Debug:        debugDefault(config),
 		Text:         text,
 	}
 	if stored.Debug != nil {
@@ -211,6 +211,15 @@ func DecideInteraction(event *telegramqueue.Event, dest *agentsv1.TelegramDestin
 		return Interaction{Ignore: IgnoreEmpty}
 	}
 	return interaction
+}
+
+// debugDefault resolves a Destination's debug preference. Unset means
+// enabled: debug output is on unless an operator explicitly turns it off.
+func debugDefault(config *agentsv1.TelegramDestinationConfig) bool {
+	if config != nil && config.DebugDefault != nil {
+		return *config.DebugDefault
+	}
+	return true
 }
 
 func acceptedPolicyConfig(policy *telegramqueue.DestinationPolicy, fallback *agentsv1.TelegramDestinationConfig) *agentsv1.TelegramDestinationConfig {

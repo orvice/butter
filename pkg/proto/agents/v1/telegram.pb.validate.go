@@ -426,7 +426,9 @@ func (m *TelegramDestinationConfig) validate(all bool) error {
 
 	// no validation rules for ReplyMode
 
-	// no validation rules for DebugDefault
+	if m.DebugDefault != nil {
+		// no validation rules for DebugDefault
+	}
 
 	if len(errors) > 0 {
 		return TelegramDestinationConfigMultiError(errors)

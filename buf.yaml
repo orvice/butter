@@ -4,6 +4,12 @@ modules:
 breaking:
   use:
     - FILE
+  ignore_only:
+    # debug_default moved from implicit to explicit presence so "never chose"
+    # is distinguishable from "chose off". Wire-safe here: old writers never
+    # serialized false, and both sides parse the varint the same way.
+    FIELD_SAME_CARDINALITY:
+      - proto/agents/v1/telegram.proto
 lint:
   use:
     - STANDARD

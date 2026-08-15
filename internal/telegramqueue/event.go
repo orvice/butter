@@ -42,7 +42,9 @@ type DestinationPolicy struct {
 	AllowedUserIDs     []string `json:"allowed_user_ids,omitempty"`
 	ControllerUserIDs  []string `json:"controller_user_ids,omitempty"`
 	ReplyMode          string   `json:"reply_mode,omitempty"`
-	DebugDefault       bool     `json:"debug_default,omitempty"`
+	// DebugDefault is tri-state: nil means the Destination never chose, which
+	// resolves to debug enabled.
+	DebugDefault *bool `json:"debug_default,omitempty"`
 }
 
 // Address is the exact Telegram address an event belongs to.
