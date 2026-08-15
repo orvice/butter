@@ -5,6 +5,7 @@ import {
   ListTodo,
   MessageSquare,
   MessagesSquare,
+  PlugZap,
   Sparkles,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -35,6 +36,11 @@ export const sidebarData: SidebarData = {
           title: 'Chat',
           url: '/chat',
           icon: MessageSquare,
+        },
+        {
+          title: 'AG-UI Chat',
+          url: '/agui-chat',
+          icon: PlugZap,
         },
         {
           title: 'Agents',
