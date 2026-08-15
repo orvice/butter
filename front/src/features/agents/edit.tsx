@@ -49,6 +49,7 @@ const agentSchema = z.object({
   type: z.string(),
   enable_a2a: z.boolean(),
   enable_openai_api: z.boolean(),
+  enable_agui: z.boolean(),
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
@@ -108,6 +109,7 @@ export function AgentEdit() {
       type: 'AGENT_TYPE_LLM',
       enable_a2a: false,
       enable_openai_api: false,
+      enable_agui: false,
       model: '',
       instruction: '',
       mcp_server_ids: [],
@@ -128,6 +130,7 @@ export function AgentEdit() {
         type: a.type ?? 'AGENT_TYPE_LLM',
         enable_a2a: a.enable_a2a ?? false,
         enable_openai_api: a.enable_openai_api ?? false,
+        enable_agui: a.enable_agui ?? false,
         model: a.config?.model ?? '',
         instruction: a.config?.instruction ?? '',
         mcp_server_ids: a.config?.mcp_server_ids ?? [],
@@ -146,6 +149,7 @@ export function AgentEdit() {
       type: values.type as AgentType,
       enable_a2a: values.enable_a2a,
       enable_openai_api: values.enable_openai_api,
+      enable_agui: values.enable_agui,
       metadata: mergeAgentIconMetadata(data?.agent?.metadata, values.icon_url),
       config: {
         ...data?.agent?.config,
@@ -205,6 +209,7 @@ export function AgentEdit() {
         type: values.type as AgentType,
         enable_a2a: values.enable_a2a,
         enable_openai_api: values.enable_openai_api,
+        enable_agui: values.enable_agui,
         metadata: mergeAgentIconMetadata(data?.agent?.metadata, values.icon_url),
         config: {
           ...data?.agent?.config,
@@ -225,6 +230,7 @@ export function AgentEdit() {
           type: agent.type ?? 'AGENT_TYPE_LLM',
           enable_a2a: agent.enable_a2a ?? false,
           enable_openai_api: agent.enable_openai_api ?? false,
+          enable_agui: agent.enable_agui ?? false,
           model: agent.config?.model ?? '',
           instruction: agent.config?.instruction ?? '',
           mcp_server_ids: agent.config?.mcp_server_ids ?? [],
@@ -331,6 +337,15 @@ export function AgentEdit() {
                         <div className='space-y-0.5'>
                           <FormLabel>OpenAI API</FormLabel>
                           <p className='text-xs text-muted-foreground'>Expose this agent as a model through the OpenAI-compatible API.</p>
+                        </div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name='enable_agui' render={({ field }) => (
+                      <FormItem className='flex items-center justify-between gap-4 rounded-md border px-3 py-3'>
+                        <div className='space-y-0.5'>
+                          <FormLabel>AG-UI</FormLabel>
+                          <p className='text-xs text-muted-foreground'>Expose this agent to AG-UI frontends over the streaming protocol endpoint.</p>
                         </div>
                         <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                       </FormItem>

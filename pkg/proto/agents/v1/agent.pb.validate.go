@@ -153,6 +153,8 @@ func (m *Agent) validate(all bool) error {
 
 	// no validation rules for EnableOpenaiApi
 
+	// no validation rules for EnableAgui
+
 	// no validation rules for AgentId
 
 	// no validation rules for DisplayName

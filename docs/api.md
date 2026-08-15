@@ -435,6 +435,121 @@ Sends a task to an agent using JSON-RPC 2.0.
 
 ---
 
+### AG-UI Protocol
+
+```
+POST /api/agui/:agent_id
+```
+
+Runs an agent and streams the turn as [AG-UI](https://docs.ag-ui.com) events over
+SSE, so any AG-UI client (CopilotKit, custom React, CLI) can drive a Butter agent
+without a bespoke integration.
+
+The path segment is the agent's immutable `agent_id`. Only an agent with
+`enable_agui: true` is reachable; anything else returns `404`. Auth and workspace
+selection are the same as the rest of `/api` — `Authorization: Bearer <token>`
+plus `X-Workspace-ID`.
+
+**Request body** is an AG-UI `RunAgentInput`. Both camelCase and snake_case keys
+are accepted:
+
+```json
+{
+  "threadId": "t-1",
+  "runId": "run-1",
+  "messages": [{ "id": "m1", "role": "user", "content": "hi" }],
+  "tools": [],
+  "context": [],
+  "state": null,
+  "forwardedProps": null
+}
+```
+
+**Response** is `text/event-stream`, one AG-UI event per frame:
+
+```
+data: {"type":"RUN_STARTED","threadId":"t-1","runId":"run-1"}
+
+data: {"type":"TEXT_MESSAGE_START","messageId":"…","role":"assistant"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"…","delta":"Hi"}
+
+data: {"type":"TEXT_MESSAGE_END","messageId":"…"}
+
+data: {"type":"RUN_FINISHED","threadId":"t-1","runId":"run-1","outcome":{"type":"success"}}
+```
+
+Emitted events: `RUN_STARTED`, `TEXT_MESSAGE_START` / `_CONTENT` / `_END`,
+`TOOL_CALL_START` / `_ARGS` / `_END`, `TOOL_CALL_RESULT`, `RUN_FINISHED`, and
+`RUN_ERROR`. `STEP_STARTED` / `STEP_FINISHED` are **not** emitted — ADK exposes no
+per-node signal that could produce an honest step boundary.
+
+Once the stream opens the status is always `200`, so a mid-run failure arrives as
+a `RUN_ERROR` event rather than an HTTP error. Validation failures happen before
+the stream and return a normal status with `{"error": "…"}`.
+
+#### Sessions
+
+`threadId` is **not** used as a session ID directly. The server-side session is
+authoritative (AG-UI "stateful" mode) and is derived as `agui-{threadId}`, scoped
+to the authenticated user. Two consequences:
+
+- Only the **trailing user message** of `messages` is sent to the agent. The rest
+  is the client's own history; replaying it would duplicate the conversation.
+- Two users may reuse the same `threadId` without sharing history.
+
+Turns on one session are serialized **within a single process only**. Do not fan
+out concurrent runs on one `threadId`: across Pods they are not serialized, and
+the turns can interleave.
+
+#### Human-in-the-loop
+
+When a Workflow Agent pauses on a Human Input node, the run ends with an
+interrupt outcome rather than an error:
+
+```json
+{
+  "type": "RUN_FINISHED",
+  "threadId": "t-1",
+  "runId": "run-1",
+  "outcome": {
+    "type": "interrupt",
+    "interrupts": [{ "id": "int-7", "reason": "human_input", "message": "Approve?" }]
+  }
+}
+```
+
+Answer it by posting to the same `threadId` with a `resume` array addressing the
+interrupt by id:
+
+```json
+{
+  "threadId": "t-1",
+  "runId": "run-2",
+  "messages": [],
+  "resume": [{ "interruptId": "int-7", "status": "resolved", "payload": "approved" }]
+}
+```
+
+Addressed resume takes precedence over Butter's implicit oldest-first matching,
+so answering out of order works when several interrupts are pending.
+
+#### Not supported yet
+
+These are rejected with `400` rather than silently ignored, so a client never
+believes a capability took effect:
+
+| Field | Reason |
+|---|---|
+| `tools` (non-empty) | Client-supplied frontend tools — planned |
+| `state` (non-empty) | Shared state / `STATE_SNAPSHOT` — planned |
+| `resume[].status: "cancelled"` | Butter cannot abandon a pending Interrupt; the workflow would stay paused forever |
+
+A missing `threadId`, a `resume` entry without `interruptId`, and a `messages`
+array with no trailing user message are also `400`.
+
+---
+
 ### Uploads
 
 All upload endpoints use the same auth middleware as the rest of `/api`.

@@ -39,6 +39,7 @@ import (
 type Handlers struct {
 	a2aHandler             *httpHandler.A2AHandler
 	openAIHandler          *httpHandler.OpenAIHandler
+	aguiHandler            *httpHandler.AGUIHandler
 	forumSvcServer         *application.ForumServiceServer
 	agentSvcServer         *application.AgentServiceServer
 	agentFileSvcServer     *application.AgentFileServiceServer
@@ -217,6 +218,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if result.RunnerSvc != nil {
 		h.a2aHandler.SetRunnerService(result.RunnerSvc)
 		h.openAIHandler.SetRunnerService(result.RunnerSvc)
+		h.aguiHandler.SetRunnerService(result.RunnerSvc)
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
 		if h.forumSvcServer != nil {
@@ -617,6 +619,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	statusHandler := httpHandler.NewStatusHandler(statusService)
 	a2aHandler := httpHandler.NewA2AHandler(cfg)
 	openAIHandler := httpHandler.NewOpenAIHandler(configStore)
+	aguiHandler := httpHandler.NewAGUIHandler(configStore)
 	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg,
 	// so we read cfg.Static on every request instead of snapshotting now.
 	uploadSvc := service.NewUploadServiceLazy(func() config.StaticConfig { return cfg.Static })
@@ -693,6 +696,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	handlers := &Handlers{
 		a2aHandler:             a2aHandler,
 		openAIHandler:          openAIHandler,
+		aguiHandler:            aguiHandler,
 		forumSvcServer:         forumSvcServer,
 		agentSvcServer:         agentSvcServer,
 		agentFileSvcServer:     agentFileSvcServer,
@@ -735,6 +739,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		statusHandler.Register(r)
 		a2aHandler.Register(r)
 		openAIHandler.Register(r)
+		aguiHandler.Register(r)
 		uploadHandler.Register(r)
 		httpHandler.RegisterWorkspaceMCP(r, workspaceMCPSvc.Handler(), handlers.workspaceRepoFromHolder)
 		r.GET(mcpoauth.CallbackPath, func(c *gin.Context) {

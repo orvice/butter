@@ -279,6 +279,11 @@ function AgentCard({
             OpenAI API
           </span>
         )}
+        {agent.enable_agui && (
+          <span className='rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[0.7rem] text-muted-foreground'>
+            AG-UI
+          </span>
+        )}
       </div>
 
       <div className='mt-3 flex items-center justify-between border-t border-border pt-3'>
