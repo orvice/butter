@@ -1,17 +1,21 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/adk/v2/workflow"
+	"google.golang.org/genai"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/runtime/runner"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -321,6 +325,141 @@ func TestAGUIRun_GeneratesMissingRunID(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), `"runId":""`) {
 		t.Fatalf("empty runId in stream:\n%s", w.Body.String())
+	}
+}
+
+// fakeSessionGuard records Acquire calls and simulates the cross-Pod lease.
+type fakeSessionGuard struct {
+	mu       sync.Mutex
+	busy     bool
+	err      error
+	loseCtx  bool
+	keys     []string
+	releases int
+}
+
+func (g *fakeSessionGuard) Acquire(ctx context.Context, key string) (context.Context, func(), bool, error) {
+	g.mu.Lock()
+	g.keys = append(g.keys, key)
+	g.mu.Unlock()
+	if g.err != nil {
+		return ctx, func() {}, false, g.err
+	}
+	if g.busy {
+		return ctx, func() {}, false, nil
+	}
+	if g.loseCtx {
+		lost, cancel := context.WithCancel(ctx)
+		cancel()
+		ctx = lost
+	}
+	return ctx, func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.releases++
+	}, true, nil
+}
+
+// ctxEchoRunner fails with the run context's error, simulating a run torn
+// down by lease loss.
+type ctxEchoRunner struct{ mockRunner }
+
+func (r *ctxEchoRunner) RunSSE(ctx context.Context, agentName string, parts []*genai.Part, model string, ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return r.mockRunner.RunSSE(ctx, agentName, parts, model, ctxInfo, onEvent, onCompaction)
+}
+
+func setupGuardedAGUIRouter(runnerSvc AGUIRunnerService, guard *fakeSessionGuard) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(wsctx.WithID(c.Request.Context(), "test-workspace"))
+		c.Next()
+	})
+	h := NewAGUIHandler(aguiEnabledRepo())
+	h.SetRunnerService(runnerSvc)
+	h.SetSessionGuard(guard)
+	h.Register(r)
+	return r
+}
+
+// A held session lease is a pre-stream 409, never a stream, and the runner is
+// not invoked.
+func TestAGUIRun_BusyThreadIsConflict(t *testing.T) {
+	mock := &mockRunner{runResult: "should not run"}
+	guard := &fakeSessionGuard{busy: true}
+	router := setupGuardedAGUIRouter(mock, guard)
+
+	w := postAGUI(t, router, "writer", minimalAGUIBody("t-1", "hi"))
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 (body %s)", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "RUN_STARTED") {
+		t.Fatalf("busy rejection opened a stream: %s", w.Body.String())
+	}
+	if mock.lastAgentName != "" {
+		t.Fatal("runner was invoked despite a held lease")
+	}
+	// The lease key covers the caller and the namespaced session, so two users
+	// sharing a threadId never serialize against each other.
+	if len(guard.keys) != 1 || guard.keys[0] != "agui-user:agui-t-1" {
+		t.Fatalf("lease keys = %v", guard.keys)
+	}
+}
+
+// A guard failure (Redis down) refuses the run rather than silently dropping
+// cross-Pod serialization.
+func TestAGUIRun_GuardErrorIsServiceUnavailable(t *testing.T) {
+	mock := &mockRunner{runResult: "should not run"}
+	guard := &fakeSessionGuard{err: errors.New("redis down")}
+	router := setupGuardedAGUIRouter(mock, guard)
+
+	w := postAGUI(t, router, "writer", minimalAGUIBody("t-1", "hi"))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (body %s)", w.Code, w.Body.String())
+	}
+	if mock.lastAgentName != "" {
+		t.Fatal("runner was invoked despite guard failure")
+	}
+}
+
+// The lease is released after a successful run and after a failed one.
+func TestAGUIRun_ReleasesLease(t *testing.T) {
+	for name, mock := range map[string]*mockRunner{
+		"success": {runResult: "done"},
+		"failure": {runErr: errors.New("model exploded")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			guard := &fakeSessionGuard{}
+			router := setupGuardedAGUIRouter(mock, guard)
+			if w := postAGUI(t, router, "writer", minimalAGUIBody("t-1", "hi")); w.Code != http.StatusOK {
+				t.Fatalf("status = %d", w.Code)
+			}
+			if guard.releases != 1 {
+				t.Fatalf("releases = %d, want 1", guard.releases)
+			}
+		})
+	}
+}
+
+// Losing the lease mid-run cancels the run and is reported in-band as a named
+// RUN_ERROR, not a bare context cancellation.
+func TestAGUIRun_LeaseLossBecomesRunError(t *testing.T) {
+	guard := &fakeSessionGuard{loseCtx: true}
+	router := setupGuardedAGUIRouter(&ctxEchoRunner{}, guard)
+
+	w := postAGUI(t, router, "writer", minimalAGUIBody("t-1", "hi"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (stream already open)", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"type":"RUN_ERROR"`) || !strings.Contains(body, "session lease lost") {
+		t.Fatalf("stream missing lease-loss RUN_ERROR:\n%s", body)
+	}
+	if guard.releases != 1 {
+		t.Fatalf("releases = %d, want 1", guard.releases)
 	}
 }
 

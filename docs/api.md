@@ -498,9 +498,15 @@ to the authenticated user. Two consequences:
   is the client's own history; replaying it would duplicate the conversation.
 - Two users may reuse the same `threadId` without sharing history.
 
-Turns on one session are serialized **within a single process only**. Do not fan
-out concurrent runs on one `threadId`: across Pods they are not serialized, and
-the turns can interleave.
+Turns on one session are serialized **across the whole fleet**: a Redis lease
+per `(caller, threadId)` admits one run at a time, on any Pod. While a run is in
+flight, a second `POST` for the same thread is rejected **before the stream
+opens** with `409 Conflict` and `{"error": "…"}` — retry after the current run
+finishes. Unrelated callers and threads run concurrently. If the lease
+infrastructure itself is unavailable the request fails with `503` rather than
+running unserialized. A run that loses its lease mid-flight (Pod pause longer
+than the lease TTL) is cancelled and reported in-band as a `RUN_ERROR`
+mentioning the lost lease; the client may retry on the same `threadId`.
 
 #### Human-in-the-loop
 

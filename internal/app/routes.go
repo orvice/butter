@@ -25,6 +25,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	telegramruntime "go.orx.me/apps/butter/internal/runtime/telegram"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/service"
@@ -219,6 +220,12 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.a2aHandler.SetRunnerService(result.RunnerSvc)
 		h.openAIHandler.SetRunnerService(result.RunnerSvc)
 		h.aguiHandler.SetRunnerService(result.RunnerSvc)
+		// Serialize AG-UI threads across Pods; without Redis the runner's
+		// in-process turn lock is the only serialization, as before.
+		if result.Redis != nil {
+			h.aguiHandler.SetSessionGuard(sessionguard.NewRedis(result.Redis,
+				uuid.NewString(), httpHandler.AGUISessionLeaseKeyPrefix, httpHandler.AGUISessionLeaseTTL))
+		}
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
 		if h.forumSvcServer != nil {

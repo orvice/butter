@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"butterfly.orx.me/core/log"
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
@@ -16,6 +17,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	"go.orx.me/apps/butter/internal/runtime/streamorch"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -35,6 +37,15 @@ const aguiAppName = "agui"
 // documents the same wire format.
 const aguiRequestInputPayloadKey = "payload"
 
+// AGUISessionLeaseKeyPrefix namespaces the Redis leases that serialize AG-UI
+// runs per (caller, thread) across Pods.
+const AGUISessionLeaseKeyPrefix = "butter:agui:lease:session:"
+
+// AGUISessionLeaseTTL bounds how long a crashed Pod blocks one AG-UI thread.
+// The lease is renewed during the run, so the TTL only matters for crash
+// recovery; it has to exceed a renewal interval comfortably, not a whole turn.
+const AGUISessionLeaseTTL = 5 * time.Minute
+
 // AGUIRunnerService is the subset of runner.Service the AG-UI handler needs.
 // It matches streamorch.Runner so the orchestrator can be driven directly.
 type AGUIRunnerService = streamorch.Runner
@@ -48,8 +59,9 @@ type AGUIRunnerService = streamorch.Runner
 type AGUIHandler struct {
 	agentRepo configrepo.AgentRepository
 
-	mu        sync.RWMutex
-	runnerSvc AGUIRunnerService
+	mu           sync.RWMutex
+	runnerSvc    AGUIRunnerService
+	sessionGuard sessionguard.Guard
 }
 
 // NewAGUIHandler creates an AG-UI handler with the given agent repository.
@@ -68,6 +80,28 @@ func (h *AGUIHandler) getRunner() AGUIRunnerService {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.runnerSvc
+}
+
+// SetSessionGuard wires cross-Pod session serialization. Without a guard only
+// runner.acquireSessionTurn's in-process serialization applies, so two Pods
+// could interleave one thread's history — set it whenever Redis is available.
+func (h *AGUIHandler) SetSessionGuard(guard sessionguard.Guard) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.sessionGuard = guard
+}
+
+func (h *AGUIHandler) getSessionGuard() sessionguard.Guard {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.sessionGuard
+}
+
+// aguiSessionKey identifies one caller's AG-UI thread for serialization. The
+// user ID is part of the key for the same reason it is part of the ADK session
+// key: two users sharing a threadId are two conversations, not one.
+func aguiSessionKey(ctxInfo *agentsv1.ContextInfo) string {
+	return ctxInfo.GetUserId() + ":" + ctxInfo.GetSessionId()
 }
 
 // Register registers the AG-UI route on the Gin engine. The path segment is the
@@ -109,6 +143,28 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 		"resume_entries", len(rc.input.Resume),
 	)
 
+	// One turn per (caller, thread) at a time across the whole fleet. The
+	// lease is taken before the stream opens so a busy thread is an HTTP
+	// error the client can retry, not a stream that dies mid-run. Client
+	// disconnect cancels the request context, which ends the run and releases
+	// the lease through the same defer.
+	runCtx := c.Request.Context()
+	if guard := h.getSessionGuard(); guard != nil {
+		leaseCtx, release, acquired, err := guard.Acquire(runCtx, aguiSessionKey(rc.ctxInfo))
+		if err != nil {
+			logger.Error("agui session lease unavailable",
+				"thread_id", rc.input.ThreadID, "err", err)
+			c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session lock unavailable, retry later"})
+			return
+		}
+		if !acquired {
+			c.JSON(http.StatusConflict, aguiErrorResponse{Error: "a run is already in progress for this thread, retry after it finishes"})
+			return
+		}
+		defer release()
+		runCtx = leaseCtx
+	}
+
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
@@ -118,11 +174,17 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 	sink := newAGUISink(rc.input.ThreadID, rc.input.RunID, uuid.NewString(),
 		newAGUISSEEmitter(c.Request.Context(), c.Writer, c.Writer.Flush))
 
-	runErr := streamorch.Run(c.Request.Context(), rc.svc,
+	runErr := streamorch.Run(runCtx, rc.svc,
 		streamorch.AgentRef{Name: rc.agent.GetName(), ID: rc.agent.GetAgentId()},
 		rc.parts, "", rc.ctxInfo, sink)
 	if runErr == nil {
 		return
+	}
+	// A cancelled lease context with a live request means the lease was lost
+	// (fenced out by expiry or takeover); name it instead of reporting a bare
+	// context cancellation.
+	if errors.Is(runErr, context.Canceled) && c.Request.Context().Err() == nil {
+		runErr = errors.New("session lease lost, the run was cancelled")
 	}
 
 	logger.Error("agui run failed",
