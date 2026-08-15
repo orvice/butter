@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"butterfly.orx.me/core/log"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"google.golang.org/adk/v2/session"
@@ -74,6 +75,7 @@ import (
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
+	"go.orx.me/apps/butter/internal/redislease"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	internalautomation "go.orx.me/apps/butter/internal/runtime/automation"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
@@ -374,11 +376,15 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 			return nil, err
 		}
 	}
+	// One instance ID for this Pod's automation leases: scheduler leadership
+	// and the per-automation run locks.
+	automationInstanceID := uuid.NewString()
 	automationEngine := internalautomation.NewEngine(automationDefRepo, automationRunRepo, automationStepRepo, internalautomation.EngineOptions{
 		Runner:          runnerSvc,
 		NotifyGroupRepo: notifyGroupRepo,
 		ForumRepo:       forumRepo,
 		SessionService:  sessionSvc,
+		RunGuard:        redislease.NewGuard(rdb, automationInstanceID, internalautomation.RunLeaseTTL),
 		Context:         ctx,
 	})
 	// Close the resume loop (issue #176): the engine observes every runner turn
@@ -386,11 +392,22 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// session's WAITING_INPUT automation run, whatever entry point the reply
 	// used (mirrors the cron scheduler's HandleTurn).
 	runnerSvc.AddTurnListener(automationEngine.HandleTurn)
+	// A crashed process leaves its runs RUNNING forever; fail the ones old
+	// enough that no live process can still own them.
+	if stale, staleErr := automationEngine.ReconcileStaleRuns(ctx); staleErr != nil {
+		logger.Warn("automation stale-run reconciliation failed", "err", staleErr)
+	} else if stale > 0 {
+		logger.Info("reconciled stale automation runs", "count", stale)
+	}
 	automationScheduler, err := internalautomation.NewScheduler(ctx, automationDefRepo, automationEngine)
 	if err != nil {
 		logger.Error("failed to create automation scheduler", "err", err)
 		return nil, err
 	}
+	// Every Pod registers every schedule; the lease decides whose fires run,
+	// so multi-Pod deployments do not execute each schedule once per Pod.
+	automationScheduler.SetLeader(redislease.New(rdb,
+		internalautomation.SchedulerLeaseKey, automationInstanceID, internalautomation.SchedulerLeaseTTL))
 	automationScheduler.Start()
 	logger.Info("automation scheduler started")
 

@@ -208,7 +208,11 @@ func (s *AutomationServiceServer) RunAutomationNow(ctx context.Context, req *con
 	if raw := strings.TrimSpace(req.Msg.GetTriggerPayloadJson()); raw != "" && !json.Valid([]byte(raw)) {
 		return nil, connectx.InvalidArgument("trigger_payload_json", "must be valid JSON")
 	}
-	run, err := engine.RunNow(ctx, wsID, strings.TrimSpace(req.Msg.GetName()), req.Msg.GetTriggerPayloadJson())
+	// Acceptance is synchronous, execution is not: the response carries the
+	// RUNNING run and clients follow it through GetAutomationRun. A run must
+	// survive the caller disconnecting, and an invoke_agent step can hold a
+	// request open for minutes.
+	run, err := engine.RunNowAsync(ctx, wsID, strings.TrimSpace(req.Msg.GetName()), req.Msg.GetTriggerPayloadJson())
 	if err != nil {
 		return nil, automationConnectErr(err)
 	}

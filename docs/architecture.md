@@ -113,7 +113,7 @@ Persistence
 - `runtime.go` 初始化 MongoDB、Redis 和 Langfuse plugin。
 - `channels.go` 创建 ADK session/memory、runner、cron scheduler、automation engine/scheduler、system agent 和 channel manager。
 - `cron.go` 创建 cron repository 和 scheduler。
-- `automation` runtime 创建 MongoDB-backed definition/run/step-run repositories，`Engine` 负责手动/调度执行与 step lifecycle，`Scheduler` 负责注册 enabled schedule-triggered automations。
+- `automation` runtime 创建 MongoDB-backed definition/run/step-run repositories，`Engine` 负责手动/调度执行与 step lifecycle（step 输入支持 `{{ selector }}` 模板插值，见 `template.go`），`Scheduler` 负责注册 enabled schedule-triggered automations。多 Pod 语义由 `internal/redislease` 承载：scheduler leader lease（`butter:automation:lease:scheduler`）保证一个 schedule 只由一个 Pod 触发；每个 automation 的 run lease（`butter:automation:lease:run:*`，`redislease.Guard`，续租 TTL/3、丢锁即取消 run context）把 SKIP/QUEUE 并发策略扩展到跨实例（REPLACE 跨实例退化为 QUEUE）。`RunAutomationNow` 异步执行：同步落 RUNNING 记录后在 engine base context 上后台执行。启动时 `ReconcileStaleRuns` 把超过 `StaleRunAge`（24h）仍 RUNNING 的 run 标记为 FAILED；完成的 run/step-run 由 `finished_at` TTL 索引保留 30 天。
 - `system_agent.go` 注册内置系统 agent。
 
 启动时先创建 HTTP/ConnectRPC handler，再初始化配置仓库。配置仓库 seed 完成后，`StartChannels` 用当前配置构建 runner、cron 和渠道管理器。最后 `Handlers.Wire` 把 runner、session、cron、config runtime 等运行时依赖注入到已创建的 RPC/HTTP handler。

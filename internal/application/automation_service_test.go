@@ -3,7 +3,9 @@ package application
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/genai"
@@ -15,6 +17,7 @@ import (
 )
 
 type automationTestRunner struct {
+	mu    sync.Mutex
 	calls int
 }
 
@@ -26,8 +29,16 @@ func (r *automationTestRunner) ResolveAgentRef(workspaceID, agentID string) (str
 }
 
 func (r *automationTestRunner) RunTurnSSE(context.Context, string, []*genai.Part, string, *agentsv1.ContextInfo, runner.EventCallback, runner.CompactionCallback) (*runner.TurnResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.calls++
 	return &runner.TurnResult{Output: "agent done"}, nil
+}
+
+func (r *automationTestRunner) callCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.calls
 }
 
 func newAutomationTestService() (*AutomationServiceServer, *runtimeautomation.MemoryDefinitionRepo, *runtimeautomation.MemoryRunRepo, *runtimeautomation.MemoryStepRunRepo, *automationTestRunner) {
@@ -41,6 +52,26 @@ func newAutomationTestService() (*AutomationServiceServer, *runtimeautomation.Me
 	svc.SetEngine(engine)
 	svc.SetAgentValidator(runnerSvc)
 	return svc, defRepo, runRepo, stepRepo, runnerSvc
+}
+
+// waitForTerminalRun polls a background-executed run until it leaves RUNNING.
+func waitForTerminalRun(t *testing.T, svc *AutomationServiceServer, ctx context.Context, runID string) *agentsv1.AutomationRun {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		resp, err := svc.GetAutomationRun(ctx, connect.NewRequest(&agentsv1.GetAutomationRunRequest{Id: runID}))
+		if err != nil {
+			t.Fatalf("GetAutomationRun: %v", err)
+		}
+		run := resp.Msg.GetRun()
+		if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_RUNNING {
+			return run
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("run %s still RUNNING after deadline", runID)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func validAutomation(name string) *agentsv1.Automation {
@@ -120,11 +151,17 @@ func TestAutomationServiceManualRunAndHistory(t *testing.T) {
 		t.Fatalf("RunAutomationNow: %v", err)
 	}
 	run := runResp.Msg.GetRun()
-	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED {
-		t.Fatalf("run status = %s, want succeeded", run.GetStatus())
+	// Manual runs are accepted synchronously and executed in the background;
+	// the response carries the accepted RUNNING record.
+	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_RUNNING {
+		t.Fatalf("accepted run status = %s, want running", run.GetStatus())
 	}
-	if runnerSvc.calls != 1 {
-		t.Fatalf("runner calls = %d, want 1", runnerSvc.calls)
+	run = waitForTerminalRun(t, svc, ctx, run.GetId())
+	if run.GetStatus() != agentsv1.AutomationRunStatus_AUTOMATION_RUN_STATUS_SUCCEEDED {
+		t.Fatalf("run status = %s, want succeeded (error: %s)", run.GetStatus(), run.GetError())
+	}
+	if got := runnerSvc.callCount(); got != 1 {
+		t.Fatalf("runner calls = %d, want 1", got)
 	}
 
 	runsResp, err := svc.ListAutomationRuns(ctx, connect.NewRequest(&agentsv1.ListAutomationRunsRequest{AutomationName: "daily"}))

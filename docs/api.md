@@ -2774,6 +2774,16 @@ Schedule-triggered automations are registered, rescheduled, or unscheduled as
 part of create/update/delete. Disabled automations are persisted but not
 scheduled.
 
+**Step templating:** step inputs may embed `{{ selector }}` placeholders,
+resolved at execution time against the same roots conditions read — `payload`
+(the trigger payload), `context` (automation name, workspace, trigger type),
+and `steps.<name>` (the parsed output of every earlier step; an invoke_agent
+step exposes `steps.<name>.response`). Templated fields: `invoke_agent.input`,
+`call_webhook.url` / `payload_json` / header values, `send_notify_group.title`
+/ `message`, and `create_forum_post.body`. Inside `payload_json`, use the
+`{{ selector | json }}` filter so string values stay valid JSON. A placeholder
+whose selector resolves to nothing fails the step explicitly.
+
 **Example:**
 
 ```json
@@ -2833,18 +2843,21 @@ POST /api/agents.v1.AutomationService/DeleteAutomation
 POST /api/agents.v1.AutomationService/RunAutomationNow
 ```
 
-Runs an enabled automation immediately with trigger type `MANUAL`. Conditions
-are evaluated before steps; failed conditions produce a skipped run and no step
-runs.
+Accepts a manual run of an enabled automation and executes it **in the
+background**: the response carries the accepted run in `RUNNING` state, and
+clients follow progress through `GetAutomationRun` / `ListAutomationStepRuns`
+until the run reaches a terminal status (or `WAITING_INPUT`). Disconnecting
+after acceptance does not cancel the run. Conditions are evaluated before
+steps; failed conditions produce a skipped run and no step runs.
 
 **Request:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Automation name |
-| `trigger_payload_json` | string | Optional JSON payload stored as a truncated preview and available to conditions |
+| `trigger_payload_json` | string | Optional JSON payload stored as a truncated preview, readable by conditions and step templates |
 
-**Response:** `{ "run": AutomationRun }`
+**Response:** `{ "run": AutomationRun }` — the accepted `RUNNING` record.
 
 #### ListAutomationRuns
 
