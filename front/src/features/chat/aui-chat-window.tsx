@@ -16,11 +16,13 @@ import {
 } from '@assistant-ui/react'
 import {
   ArrowUp,
+  ChevronDown,
   Copy,
   Loader2,
   Paperclip,
   Square,
   Undo2,
+  Wrench,
   X,
 } from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
@@ -292,6 +294,7 @@ function AssistantMessageView({ agentName }: { agentName: string }) {
           <MessagePrimitive.Content
             components={{
               Text: MarkdownText,
+              tools: { Fallback: ToolCallFallback },
             }}
           />
         </div>
@@ -524,6 +527,133 @@ function InvocationNotice({
       )}
     </div>
   )
+}
+
+const HUMAN_INPUT_TOOL = 'ask_user'
+
+function ToolCallFallback({
+  toolName,
+  args,
+  result,
+  status,
+}: {
+  toolName: string
+  args?: Record<string, unknown>
+  result?: unknown
+  status?: { type: string }
+}) {
+  const isHumanInput = toolName === HUMAN_INPUT_TOOL
+  const isRunning = status?.type === 'running'
+  const hasResult = result !== undefined
+
+  if (isHumanInput) {
+    return (
+      <HumanInputView
+        args={args}
+        result={result}
+        isRunning={isRunning}
+        hasResult={hasResult}
+      />
+    )
+  }
+
+  return (
+    <details className='group/tool my-2 max-w-[72ch] overflow-hidden rounded-md border border-border/60 bg-muted/20'>
+      <summary className='flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-muted/45 [&::-webkit-details-marker]:hidden'>
+        <Wrench className='size-3.5 shrink-0 text-muted-foreground' />
+        <span className='truncate font-mono text-xs text-foreground/85'>
+          {toolName}
+        </span>
+        {isRunning && !hasResult && (
+          <Loader2 className='size-3 shrink-0 animate-spin text-muted-foreground' />
+        )}
+        {hasResult && (
+          <span className='shrink-0 text-[0.7rem] text-muted-foreground'>
+            done
+          </span>
+        )}
+        <ChevronDown className='ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform group-open/tool:rotate-180' />
+      </summary>
+      <div className='space-y-2 border-t border-border/60 px-2.5 py-2'>
+        {args && Object.keys(args).length > 0 && (
+          <div>
+            <div className='mb-1 text-[0.68rem] text-muted-foreground'>
+              Arguments
+            </div>
+            <pre className='max-h-64 scrollbar-thin overflow-auto rounded bg-muted/55 p-2 font-mono text-xs leading-5'>
+              {formatJson(args)}
+            </pre>
+          </div>
+        )}
+        {hasResult && (
+          <div>
+            <div className='mb-1 text-[0.68rem] text-muted-foreground'>
+              Result
+            </div>
+            <pre className='max-h-64 scrollbar-thin overflow-auto rounded bg-muted/55 p-2 font-mono text-xs leading-5'>
+              {formatJson(result)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </details>
+  )
+}
+
+function HumanInputView({
+  args,
+  result,
+  isRunning,
+  hasResult,
+}: {
+  args?: Record<string, unknown>
+  result?: unknown
+  isRunning: boolean
+  hasResult: boolean
+}) {
+  const question =
+    typeof args?.question === 'string'
+      ? args.question
+      : typeof args?.message === 'string'
+        ? args.message
+        : formatJson(args)
+
+  return (
+    <div
+      className={cn(
+        'my-2 max-w-[72ch] rounded-lg border px-3.5 py-3 text-sm',
+        isRunning && !hasResult
+          ? 'border-amber-500/35 bg-amber-500/5'
+          : 'border-border/70 bg-muted/30'
+      )}
+    >
+      <p className='font-medium text-foreground'>
+        {isRunning && !hasResult ? 'Waiting for input' : 'Human Input'}
+      </p>
+      <p className='mt-1 text-[0.85rem] leading-5 text-muted-foreground'>
+        {question}
+      </p>
+      {hasResult && (
+        <p className='mt-2 border-l-2 border-border pl-2 text-[0.85rem] text-foreground'>
+          {typeof result === 'string' ? result : formatJson(result)}
+        </p>
+      )}
+      {isRunning && !hasResult && (
+        <p className='mt-2 text-[0.75rem] text-amber-600 dark:text-amber-400'>
+          Send a message below to answer this question.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function formatJson(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  try {
+    return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }
 
 const MARKDOWN_COMPONENTS: Components = {
