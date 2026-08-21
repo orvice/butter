@@ -1,5 +1,8 @@
 import {
+  Component,
   type ComponentProps,
+  type ErrorInfo,
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
@@ -58,7 +61,27 @@ interface AUIChatWindowProps {
   initialInvocationId?: string
 }
 
-export function AUIChatWindow({
+type AUIChatWindowInnerProps = Omit<AUIChatWindowProps, 'session'> & {
+  session: SessionInfo
+}
+
+export function AUIChatWindow(props: AUIChatWindowProps) {
+  if (!props.session) {
+    return (
+      <div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
+        Select a chat in the sidebar or start a new one.
+      </div>
+    )
+  }
+
+  return (
+    <RuntimeErrorBoundary key={props.session.session_id}>
+      <AUIChatWindowInner {...props} session={props.session} />
+    </RuntimeErrorBoundary>
+  )
+}
+
+function AUIChatWindowInner({
   session,
   userId,
   agentName,
@@ -67,7 +90,7 @@ export function AUIChatWindow({
   onInvocationAccepted,
   pendingMessage,
   initialInvocationId,
-}: AUIChatWindowProps) {
+}: AUIChatWindowInnerProps) {
   const sessionId = session?.session_id ?? ''
   const {
     attachments,
@@ -102,6 +125,7 @@ export function AUIChatWindow({
       pendingMessage,
       initialInvocationId,
       attachmentsRef,
+      validateForSend,
       clearAttachments,
       addFiles,
     })
@@ -114,56 +138,47 @@ export function AUIChatWindow({
     if (text) setPendingRestoreText(text)
   }, [restoreInput])
 
-  if (!session) {
-    return (
-      <div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
-        Select a chat in the sidebar or start a new one.
-      </div>
-    )
-  }
-
   const activeNotice = notice && notice.sessionId === sessionId ? notice : null
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col bg-background',
-          isDragOver && 'ring-2 ring-ring/50 ring-inset'
-        )}
-        onDragOver={handleDragOver}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <ChatHeader
-          session={session}
-          agentName={agentName}
-          sessionId={sessionId}
-          onDelete={onDelete}
-        />
-        <ThreadArea
-          agentName={agentName}
-          isLoading={liveQuery.isLoading}
-          isRunning={isRunning}
-          notice={activeNotice}
-          onRestore={handleRestore}
-        />
-        <ChatComposer
-          agentName={agentName}
-          attachments={attachments}
-          previewUrls={previewUrls}
-          onRemoveAttachment={removeAttachment}
-          onOpenFilePicker={openFilePicker}
-          onPaste={handlePaste}
-          fileInputRef={fileInputRef}
-          fileAccept={fileAccept}
-          onFileInputChange={handleFileInputChange}
-          validateForSend={validateForSend}
-          pendingRestoreText={pendingRestoreText}
-          onRestoreTextConsumed={() => setPendingRestoreText(null)}
-          isRunning={isRunning}
-        />
+          className={cn(
+            'flex min-h-0 flex-1 flex-col bg-background',
+            isDragOver && 'ring-2 ring-ring/50 ring-inset'
+          )}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <ChatHeader
+            session={session}
+            agentName={agentName}
+            sessionId={sessionId}
+            onDelete={onDelete}
+          />
+          <ThreadArea
+            agentName={agentName}
+            isLoading={liveQuery.isLoading}
+            isRunning={isRunning}
+            notice={activeNotice}
+            onRestore={handleRestore}
+          />
+          <ChatComposer
+            agentName={agentName}
+            attachments={attachments}
+            previewUrls={previewUrls}
+            onRemoveAttachment={removeAttachment}
+            onOpenFilePicker={openFilePicker}
+            onPaste={handlePaste}
+            fileInputRef={fileInputRef}
+            fileAccept={fileAccept}
+            onFileInputChange={handleFileInputChange}
+            pendingRestoreText={pendingRestoreText}
+            onRestoreTextConsumed={() => setPendingRestoreText(null)}
+            isRunning={isRunning}
+          />
       </div>
     </AssistantRuntimeProvider>
   )
@@ -400,7 +415,6 @@ function ChatComposer({
   fileInputRef,
   fileAccept,
   onFileInputChange,
-  validateForSend: _validateForSend,
   pendingRestoreText,
   onRestoreTextConsumed,
   isRunning,
@@ -414,7 +428,6 @@ function ChatComposer({
   fileInputRef: React.RefObject<HTMLInputElement | null>
   fileAccept: string
   onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  validateForSend: () => string[]
   pendingRestoreText: string | null
   onRestoreTextConsumed: () => void
   isRunning: boolean
@@ -589,7 +602,35 @@ function InvocationNotice({
   )
 }
 
-const HUMAN_INPUT_TOOL = 'ask_user'
+class RuntimeErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    if (
+      error.message?.includes('unstable_state') ||
+      error.message?.includes('isOptimistic')
+    ) {
+      setTimeout(() => this.setState({ error: null }), 0)
+      return
+    }
+    void error
+    void info
+  }
+
+  render() {
+    if (this.state.error) return null
+    return this.props.children
+  }
+}
+
+const HUMAN_INPUT_TOOL = 'adk_request_input'
 
 function ToolCallFallback({
   toolName,

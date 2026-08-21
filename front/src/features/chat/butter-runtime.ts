@@ -176,6 +176,7 @@ export interface UseButterRuntimeOptions {
   pendingMessage?: string
   initialInvocationId?: string
   attachmentsRef?: React.RefObject<File[]>
+  validateForSend?: () => string[]
   clearAttachments?: () => void
   addFiles?: (files: File[]) => void
 }
@@ -198,6 +199,7 @@ export function useButterRuntime({
   pendingMessage,
   initialInvocationId,
   attachmentsRef,
+  validateForSend,
   clearAttachments,
   addFiles,
 }: UseButterRuntimeOptions): UseButterRuntimeResult {
@@ -493,6 +495,15 @@ export function useButterRuntime({
         sendingRef.current
       )
         return
+
+      if (images.length > 0 && validateForSend) {
+        const errors = validateForSend()
+        if (errors.length > 0) {
+          errors.forEach((msg) => toast.error(msg))
+          return
+        }
+      }
+
       sendingRef.current = true
 
       let parts: InputPartInit[] | undefined
