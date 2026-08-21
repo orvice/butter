@@ -23,6 +23,9 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    test: {
+      exclude: ['e2e/**', 'node_modules/**'],
+    },
     server: {
       proxy: {
         '/api/': {

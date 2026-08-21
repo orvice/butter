@@ -13,6 +13,7 @@ import {
   cancelAgentInvocation,
   getActiveInvocationForSession,
   getAgentInvocation,
+  getAgentInvocationInput,
   getLatestInvocationForSession,
   isTerminalInvocationStatus,
   submitAgentInvocation,
@@ -22,6 +23,11 @@ import {
 import { useLiveSession } from '@/api/sessions'
 import { newClientID } from '@/lib/client-id'
 import { CHAT_APP_NAME } from '@/lib/constants'
+import {
+  buildInputParts,
+  decodeInputParts,
+  type InputPartInit,
+} from '@/lib/image-attachments'
 import {
   parseSessionEvent,
   parseSessionEvents,
@@ -169,6 +175,9 @@ export interface UseButterRuntimeOptions {
   onInvocationAccepted?: (invocationId: string, message: string) => void
   pendingMessage?: string
   initialInvocationId?: string
+  attachmentsRef?: React.RefObject<File[]>
+  clearAttachments?: () => void
+  addFiles?: (files: File[]) => void
 }
 
 export interface UseButterRuntimeResult {
@@ -178,6 +187,7 @@ export interface UseButterRuntimeResult {
   notice: TerminalNotice | null
   persistedEvents: ParsedEvent[]
   liveQuery: ReturnType<typeof useLiveSession>
+  restoreInput: () => Promise<string>
 }
 
 export function useButterRuntime({
@@ -187,6 +197,9 @@ export function useButterRuntime({
   onInvocationAccepted,
   pendingMessage,
   initialInvocationId,
+  attachmentsRef,
+  clearAttachments,
+  addFiles,
 }: UseButterRuntimeOptions): UseButterRuntimeResult {
   const [runState, setRunState] = useState<ChatRunState>(() =>
     emptyChatRunState('')
@@ -472,8 +485,28 @@ export function useButterRuntime({
           .join('\n')
           .trim() || ''
 
-      if (!text || !agentId || pending || sendingRef.current) return
+      const images = attachmentsRef?.current ?? []
+      if (
+        (!text && images.length === 0) ||
+        !agentId ||
+        pending ||
+        sendingRef.current
+      )
+        return
       sendingRef.current = true
+
+      let parts: InputPartInit[] | undefined
+      try {
+        parts =
+          images.length > 0 ? await buildInputParts(text, images) : undefined
+      } catch {
+        toast.error('Failed to read attached images')
+        sendingRef.current = false
+        return
+      }
+
+      const displayMessage =
+        text || `(${images.length} image${images.length > 1 ? 's' : ''})`
 
       const runId = newClientID()
       setRunState({
@@ -481,7 +514,7 @@ export function useButterRuntime({
         sessionId,
         pending: true,
         pendingBaseEventIds: new Set(persistedEvents.map((evt) => evt.eventId)),
-        pendingUserMessage: text,
+        pendingUserMessage: displayMessage,
         streamingEvents: [],
         streamingResponse: '',
         invocationId: null,
@@ -493,6 +526,7 @@ export function useButterRuntime({
           agent_id: agentId,
           session_id: sessionId,
           message: text,
+          parts,
         })
         setRunState((prev) =>
           updateChatRun(prev, sessionId, runId, (current) => ({
@@ -501,6 +535,7 @@ export function useButterRuntime({
           }))
         )
         setNotice(null)
+        clearAttachments?.()
         sendingRef.current = false
         if (onInvocationAccepted) {
           onInvocationAccepted(accepted.invocation_id, text)
@@ -543,6 +578,24 @@ export function useButterRuntime({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invocationId, sessionId, runState.runId, pendingUserMessage])
 
+  const restoreInput = useCallback(async (): Promise<string> => {
+    if (!activeNotice) return ''
+    try {
+      const { invocation: inv, parts } = await getAgentInvocationInput(
+        activeNotice.invocationId
+      )
+      const { text: restoredText, files } = decodeInputParts(parts)
+      clearAttachments?.()
+      if (files.length > 0) addFiles?.(files)
+      return restoredText || inv.input
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to restore input'
+      )
+      return ''
+    }
+  }, [activeNotice, clearAttachments, addFiles])
+
   const runtime = useExternalStoreRuntime({
     messages,
     convertMessage: identityConvert,
@@ -559,6 +612,7 @@ export function useButterRuntime({
     notice: activeNotice,
     persistedEvents,
     liveQuery,
+    restoreInput,
   }
 }
 

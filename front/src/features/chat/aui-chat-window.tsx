@@ -1,4 +1,10 @@
-import type { ComponentProps } from 'react'
+import {
+  type ComponentProps,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import type { SessionInfo } from '@/types/api'
 import {
   AssistantRuntimeProvider,
@@ -6,12 +12,22 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ActionBarPrimitive,
+  unstable_useComposerInput,
 } from '@assistant-ui/react'
-import { ArrowUp, Copy, Loader2, Square } from 'lucide-react'
+import {
+  ArrowUp,
+  Copy,
+  Loader2,
+  Paperclip,
+  Square,
+  Undo2,
+  X,
+} from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { sessionTitle } from '@/lib/session-title'
 import { cn } from '@/lib/utils'
+import { useImageAttachments } from '@/hooks/use-image-attachments'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AgentAvatar } from '@/components/butter/primitives'
 import { useButterRuntime, type TerminalNotice } from './butter-runtime'
@@ -39,15 +55,50 @@ export function AUIChatWindow({
   initialInvocationId,
 }: AUIChatWindowProps) {
   const sessionId = session?.session_id ?? ''
+  const {
+    attachments,
+    previewUrls,
+    isDragOver,
+    addFiles,
+    removeAttachment,
+    clearAttachments,
+    validateForSend,
+    handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
+    handleDrop,
+    handlePaste,
+    fileInputRef,
+    openFilePicker,
+    handleFileInputChange,
+    fileAccept,
+  } = useImageAttachments(sessionId)
 
-  const { runtime, isRunning, notice, liveQuery } = useButterRuntime({
-    sessionId,
-    userId,
-    agentId: agentId ?? null,
-    onInvocationAccepted,
-    pendingMessage,
-    initialInvocationId,
-  })
+  const attachmentsRef = useRef<File[]>([])
+  useEffect(() => {
+    attachmentsRef.current = attachments
+  }, [attachments])
+
+  const { runtime, isRunning, notice, liveQuery, restoreInput } =
+    useButterRuntime({
+      sessionId,
+      userId,
+      agentId: agentId ?? null,
+      onInvocationAccepted,
+      pendingMessage,
+      initialInvocationId,
+      attachmentsRef,
+      clearAttachments,
+      addFiles,
+    })
+
+  const [pendingRestoreText, setPendingRestoreText] = useState<string | null>(
+    null
+  )
+  const handleRestore = useCallback(async () => {
+    const text = await restoreInput()
+    if (text) setPendingRestoreText(text)
+  }, [restoreInput])
 
   if (!session) {
     return (
@@ -61,7 +112,16 @@ export function AUIChatWindow({
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div className='flex min-h-0 flex-1 flex-col bg-background'>
+      <div
+        className={cn(
+          'flex min-h-0 flex-1 flex-col bg-background',
+          isDragOver && 'ring-2 ring-ring/50 ring-inset'
+        )}
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <ChatHeader
           session={session}
           agentName={agentName}
@@ -72,8 +132,23 @@ export function AUIChatWindow({
           isLoading={liveQuery.isLoading}
           isRunning={isRunning}
           notice={activeNotice}
+          onRestore={handleRestore}
         />
-        <ChatComposer agentName={agentName} />
+        <ChatComposer
+          agentName={agentName}
+          attachments={attachments}
+          previewUrls={previewUrls}
+          onRemoveAttachment={removeAttachment}
+          onOpenFilePicker={openFilePicker}
+          onPaste={handlePaste}
+          fileInputRef={fileInputRef}
+          fileAccept={fileAccept}
+          onFileInputChange={handleFileInputChange}
+          validateForSend={validateForSend}
+          pendingRestoreText={pendingRestoreText}
+          onRestoreTextConsumed={() => setPendingRestoreText(null)}
+          isRunning={isRunning}
+        />
       </div>
     </AssistantRuntimeProvider>
   )
@@ -114,11 +189,13 @@ function ThreadArea({
   isLoading,
   isRunning,
   notice,
+  onRestore,
 }: {
   agentName: string | null
   isLoading: boolean
   isRunning: boolean
   notice: TerminalNotice | null
+  onRestore?: () => void
 }) {
   if (isLoading) {
     return (
@@ -172,7 +249,9 @@ function ThreadArea({
             </div>
           )}
         </div>
-        {notice && !isRunning && <InvocationNotice notice={notice} />}
+        {notice && !isRunning && (
+          <InvocationNotice notice={notice} onRestore={onRestore} />
+        )}
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
   )
@@ -248,13 +327,84 @@ function MarkdownText({ text }: { text: string }) {
   )
 }
 
-function ChatComposer({ agentName }: { agentName: string | null }) {
+function ChatComposer({
+  agentName,
+  attachments,
+  previewUrls,
+  onRemoveAttachment,
+  onOpenFilePicker,
+  onPaste,
+  fileInputRef,
+  fileAccept,
+  onFileInputChange,
+  validateForSend: _validateForSend,
+  pendingRestoreText,
+  onRestoreTextConsumed,
+  isRunning,
+}: {
+  agentName: string | null
+  attachments: File[]
+  previewUrls: string[]
+  onRemoveAttachment: (index: number) => void
+  onOpenFilePicker: () => void
+  onPaste: (e: React.ClipboardEvent) => void
+  fileInputRef: React.RefObject<HTMLInputElement | null>
+  fileAccept: string
+  onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  validateForSend: () => string[]
+  pendingRestoreText: string | null
+  onRestoreTextConsumed: () => void
+  isRunning: boolean
+}) {
   return (
     <div className='shrink-0 border-t border-border/60 bg-background/95 backdrop-blur-sm'>
       <div className='mx-auto w-full max-w-4xl px-3 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 md:pb-3.5'>
+        {attachments.length > 0 && (
+          <div className='mb-2 flex flex-wrap gap-1.5'>
+            {attachments.map((file, index) => (
+              <span
+                key={`${file.name}-${index}`}
+                className='group relative inline-flex'
+              >
+                <img
+                  src={previewUrls[index]}
+                  alt={file.name}
+                  title={file.name}
+                  className='h-14 w-14 rounded-md object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10'
+                />
+                <button
+                  type='button'
+                  onClick={() => onRemoveAttachment(index)}
+                  aria-label={`Remove ${file.name}`}
+                  className='absolute -top-2 -right-2 inline-flex size-6 touch-manipulation items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-[color,background-color,scale] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100'
+                >
+                  <X className='size-3' />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <ComposerPrimitive.Root className='flex items-end gap-1.5 rounded-lg border border-border/70 bg-card p-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:ring-2 focus-within:ring-ring/10 sm:gap-2 sm:p-2'>
+          <input
+            ref={fileInputRef}
+            type='file'
+            accept={fileAccept}
+            multiple
+            className='hidden'
+            onChange={onFileInputChange}
+          />
+          <button
+            type='button'
+            disabled={!agentName || isRunning}
+            onClick={onOpenFilePicker}
+            aria-label='Attach images'
+            className='inline-flex size-10 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.96] disabled:pointer-events-none motion-reduce:active:scale-100'
+          >
+            <Paperclip className='size-4' />
+          </button>
           <ComposerPrimitive.Input
             autoFocus
+            onPaste={onPaste}
             placeholder={
               agentName
                 ? `Message ${agentName}...`
@@ -291,11 +441,43 @@ function ChatComposer({ agentName }: { agentName: string | null }) {
           them.
         </p>
       </div>
+      <ComposerTextSetter
+        text={pendingRestoreText}
+        onDone={onRestoreTextConsumed}
+      />
     </div>
   )
 }
 
-function InvocationNotice({ notice }: { notice: TerminalNotice }) {
+function ComposerTextSetter({
+  text,
+  onDone,
+}: {
+  text: string | null
+  onDone: () => void
+}) {
+  const { setText } = unstable_useComposerInput()
+  const onDoneRef = useRef(onDone)
+  useEffect(() => {
+    onDoneRef.current = onDone
+  }, [onDone])
+
+  useEffect(() => {
+    if (text !== null) {
+      setText(text)
+      onDoneRef.current()
+    }
+  }, [text, setText])
+  return null
+}
+
+function InvocationNotice({
+  notice,
+  onRestore,
+}: {
+  notice: TerminalNotice
+  onRestore?: () => void
+}) {
   const failed = notice.status === 'failed'
   return (
     <div
@@ -307,6 +489,11 @@ function InvocationNotice({ notice }: { notice: TerminalNotice }) {
           : 'border-border/70 bg-muted/30'
       )}
     >
+      {notice.input && (
+        <p className='mb-2 truncate border-l-2 border-border pl-2 text-[0.85rem] text-muted-foreground italic'>
+          {notice.input}
+        </p>
+      )}
       <p
         className={cn(
           'font-medium',
@@ -320,6 +507,21 @@ function InvocationNotice({ notice }: { notice: TerminalNotice }) {
           ? notice.error || 'The run ended with an error.'
           : 'You stopped this response before it finished.'}
       </p>
+      {onRestore && (
+        <div className='mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5'>
+          <button
+            type='button'
+            onClick={onRestore}
+            className='inline-flex touch-manipulation items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium transition-[background-color,scale] hover:bg-muted active:scale-[0.97] motion-reduce:active:scale-100'
+          >
+            <Undo2 className='size-3.5' />
+            Restore input
+          </button>
+          <span className='text-[0.75rem] leading-4 text-muted-foreground/90'>
+            Sending again starts a new run and may repeat external tool actions.
+          </span>
+        </div>
+      )}
     </div>
   )
 }
