@@ -8,7 +8,6 @@ const searchSchema = z.object({
   agent: z.string().optional(),
   pending_message: z.string().optional(),
   invocation: z.string().optional(),
-  aui: z.number().optional(),
 })
 
 export const Route = createFileRoute('/_authenticated/chat')({

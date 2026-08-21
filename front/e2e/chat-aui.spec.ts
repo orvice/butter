@@ -89,41 +89,12 @@ async function setupChat(page: Page) {
   })
 }
 
-test.describe('AUI Chat migration gate', () => {
+test.describe('AUI Chat', () => {
   test.beforeEach(async ({ page }) => {
     await setupChat(page)
   })
 
-  test('/chat?aui=1 loads without error', async ({ page }) => {
-    const jsErrors: string[] = []
-    page.on('pageerror', (err) => {
-      if (
-        !err.message.includes('net::ERR_') &&
-        !err.message.includes('ConnectError')
-      ) {
-        jsErrors.push(err.message)
-      }
-    })
-
-    await page.goto('/chat?aui=1', { waitUntil: 'networkidle' })
-    await page.waitForTimeout(1000)
-
-    const body = await page.locator('body').innerHTML()
-    expect(body.length).toBeGreaterThan(0)
-    expect(jsErrors).toHaveLength(0)
-  })
-
-  test('/chat?aui=1 preserves the aui parameter in the URL', async ({
-    page,
-  }) => {
-    await page.goto('/chat?aui=1', { waitUntil: 'networkidle' })
-    await page.waitForTimeout(1000)
-
-    const url = new URL(page.url())
-    expect(url.searchParams.get('aui')).toBe('1')
-  })
-
-  test('/chat without aui loads without error', async ({ page }) => {
+  test('/chat loads without JS errors', async ({ page }) => {
     const jsErrors: string[] = []
     page.on('pageerror', (err) => {
       if (
@@ -139,11 +110,10 @@ test.describe('AUI Chat migration gate', () => {
 
     const body = await page.locator('body').innerHTML()
     expect(body.length).toBeGreaterThan(0)
-    expect(url(page)).not.toContain('aui=')
     expect(jsErrors).toHaveLength(0)
   })
 
-  test('/chat?session=x&aui=1 preserves aui alongside session', async ({
+  test('/chat?session=x passes session to the chat view', async ({
     page,
   }) => {
     const jsErrors: string[] = []
@@ -156,18 +126,17 @@ test.describe('AUI Chat migration gate', () => {
       }
     })
 
-    await page.goto('/chat?session=test-session&aui=1', {
+    await page.goto('/chat?session=test-session', {
       waitUntil: 'networkidle',
     })
     await page.waitForTimeout(1000)
 
     const parsed = new URL(page.url())
-    expect(parsed.searchParams.get('aui')).toBe('1')
     expect(parsed.searchParams.get('session')).toBe('test-session')
     expect(jsErrors).toHaveLength(0)
   })
 
-  test('no SessionService/CreateSession call on /chat?aui=1', async ({
+  test('no SessionService/CreateSession call on draft view', async ({
     page,
   }) => {
     let sessionCreated = false
@@ -177,12 +146,8 @@ test.describe('AUI Chat migration gate', () => {
       }
     })
 
-    await page.goto('/chat?aui=1', { waitUntil: 'networkidle' })
+    await page.goto('/chat', { waitUntil: 'networkidle' })
     await page.waitForTimeout(1000)
     expect(sessionCreated).toBe(false)
   })
 })
-
-function url(page: Page): string {
-  return page.url()
-}

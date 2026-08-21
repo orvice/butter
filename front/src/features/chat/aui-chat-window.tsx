@@ -19,19 +19,30 @@ import {
   ChevronDown,
   Copy,
   Loader2,
+  MoreHorizontal,
   Paperclip,
+  Pencil,
   Square,
+  Trash2,
   Undo2,
   Wrench,
   X,
 } from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useUpdateSessionTitle } from '@/api/sessions'
 import { sessionTitle } from '@/lib/session-title'
 import { cn } from '@/lib/utils'
 import { useImageAttachments } from '@/hooks/use-image-attachments'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AgentAvatar } from '@/components/butter/primitives'
+import { InlineTitleInput } from '@/components/inline-title-input'
 import { useButterRuntime, type TerminalNotice } from './butter-runtime'
 
 const REMARK_PLUGINS = [remarkGfm]
@@ -52,6 +63,7 @@ export function AUIChatWindow({
   userId,
   agentName,
   agentId,
+  onDelete,
   onInvocationAccepted,
   pendingMessage,
   initialInvocationId,
@@ -128,6 +140,7 @@ export function AUIChatWindow({
           session={session}
           agentName={agentName}
           sessionId={sessionId}
+          onDelete={onDelete}
         />
         <ThreadArea
           agentName={agentName}
@@ -160,19 +173,51 @@ function ChatHeader({
   session,
   agentName,
   sessionId,
+  onDelete,
 }: {
   session: SessionInfo
   agentName: string | null
   sessionId: string
+  onDelete?: () => void
 }) {
+  const renameMutation = useUpdateSessionTitle()
+  const [editingTitle, setEditingTitle] = useState(false)
+
   return (
     <header className='flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/95 px-2.5 sm:px-4 md:px-6'>
       <div className='flex min-w-0 flex-1 items-center gap-2.5'>
         <AgentAvatar name={agentName ?? '?'} size='sm' />
         <span className='flex max-w-md min-w-0 flex-1 flex-col'>
-          <span className='truncate text-sm leading-tight font-semibold'>
-            {sessionTitle(session)}
-          </span>
+          {editingTitle ? (
+            <InlineTitleInput
+              initial={sessionTitle(session)}
+              onSave={async (title) => {
+                await renameMutation.mutateAsync({
+                  app_name: session.app_name,
+                  user_id: session.user_id,
+                  session_id: session.session_id,
+                  title,
+                })
+              }}
+              onClose={() => setEditingTitle(false)}
+              className='text-sm font-medium'
+            />
+          ) : (
+            <span className='flex min-w-0 items-center gap-1'>
+              <span className='truncate text-sm leading-tight font-semibold'>
+                {sessionTitle(session)}
+              </span>
+              <button
+                type='button'
+                onClick={() => setEditingTitle(true)}
+                aria-label='Rename chat'
+                title='Rename chat'
+                className='inline-flex size-9 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100'
+              >
+                <Pencil className='size-3.5' />
+              </button>
+            </span>
+          )}
           <span
             title={sessionId}
             className='truncate font-mono text-[0.65rem] leading-tight text-muted-foreground/80'
@@ -182,6 +227,21 @@ function ChatHeader({
           </span>
         </span>
       </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label='Chat options'
+          className='inline-flex size-9 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-muted hover:text-foreground active:scale-[0.96] motion-reduce:active:scale-100'
+        >
+          <MoreHorizontal className='size-4' />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end' sideOffset={6}>
+          <DropdownMenuItem variant='destructive' onClick={onDelete}>
+            <Trash2 />
+            Delete chat
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   )
 }

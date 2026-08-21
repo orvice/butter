@@ -22,7 +22,6 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { AgentSelector } from './agent-selector'
 import { AUIChatWindow } from './aui-chat-window'
-import { ChatWindow } from './chat-window'
 import { DraftComposer } from './draft-composer'
 
 function isRunnableAgent(a: Agent): boolean {
@@ -249,11 +248,9 @@ export function ChatPage() {
       </div>
     )
   } else {
-    const useAUI = search.aui === 1
-    const ChatComponent = useAUI ? AUIChatWindow : ChatWindow
     content = (
       <>
-        <ChatComponent
+        <AUIChatWindow
           session={activeSession}
           userId={userId}
           agentName={activeAgent}
@@ -266,7 +263,6 @@ export function ChatPage() {
                 session: activeSession.session_id,
                 invocation: invocationId,
                 pending_message: message,
-                ...(useAUI ? { aui: 1 } : {}),
               },
               replace: true,
             })
