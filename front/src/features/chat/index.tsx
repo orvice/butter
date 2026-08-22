@@ -5,8 +5,8 @@ import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
 import { submitAgentInvocation } from '@/api/chat'
 import { useDeleteSession, useSessions } from '@/api/sessions'
-import { CHAT_APP_NAME, CHAT_LAST_AGENT_PREFIX } from '@/lib/constants'
 import { newClientID } from '@/lib/client-id'
+import { CHAT_APP_NAME, CHAT_LAST_AGENT_PREFIX } from '@/lib/constants'
 import {
   sessionAgentID,
   sessionAgentName,
@@ -21,7 +21,7 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { AgentSelector } from './agent-selector'
-import { ChatWindow } from './chat-window'
+import { AUIChatWindow } from './aui-chat-window'
 import { DraftComposer } from './draft-composer'
 
 function isRunnableAgent(a: Agent): boolean {
@@ -83,7 +83,7 @@ export function ChatPage() {
   const agentsQuery = useAgents({ page_size: 200 }, { enabled: !!userId })
   const allAgents = useMemo(
     () => (agentsQuery.data?.agents ?? []).filter(isRunnableAgent),
-    [agentsQuery.data],
+    [agentsQuery.data]
   )
 
   // Resolve the selected draft agent from URL, localStorage, or default.
@@ -120,7 +120,9 @@ export function ChatPage() {
       if (requestedAgent && allAgents.length > 0) {
         const match = allAgents.find((a) => a.agent_id === requestedAgent)
         if (match) {
-          const frame = globalThis.requestAnimationFrame(() => setDraftAgent(match))
+          const frame = globalThis.requestAnimationFrame(() =>
+            setDraftAgent(match)
+          )
           return () => globalThis.cancelAnimationFrame(frame)
         }
       }
@@ -148,10 +150,7 @@ export function ChatPage() {
     ? (sessionAgentID(activeSession.state) ?? null)
     : null
 
-  async function handleDraftSend(
-    message: string,
-    agent: Agent,
-  ): Promise<void> {
+  async function handleDraftSend(message: string, agent: Agent): Promise<void> {
     if (!userId) {
       toast.error('Missing user context; please re-login.')
       return
@@ -227,10 +226,7 @@ export function ChatPage() {
         busy={draftSubmitting}
       />
     )
-  } else if (
-    !activeSession &&
-    sessionsQuery.isLoading
-  ) {
+  } else if (!activeSession && sessionsQuery.isLoading) {
     content = (
       <div className='flex flex-1 items-center justify-center'>
         <p className='text-sm text-muted-foreground'>Loading chat…</p>
@@ -240,14 +236,21 @@ export function ChatPage() {
     content = (
       <div className='flex flex-1 items-center justify-center'>
         <p className='text-sm text-muted-foreground'>
-          Session not found. <button type="button" className="text-primary underline" onClick={() => navigate({ to: '/chat', search: {}, replace: true })}>Start a new chat</button>
+          Session not found.{' '}
+          <button
+            type='button'
+            className='text-primary underline'
+            onClick={() => navigate({ to: '/chat', search: {}, replace: true })}
+          >
+            Start a new chat
+          </button>
         </p>
       </div>
     )
   } else {
     content = (
       <>
-        <ChatWindow
+        <AUIChatWindow
           session={activeSession}
           userId={userId}
           agentName={activeAgent}

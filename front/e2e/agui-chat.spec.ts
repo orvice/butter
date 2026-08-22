@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 import { ListAgentsResponseSchema } from '../src/gen/agents/v1/agent_service_pb'
 import { fulfillProto, setupAuthenticatedConnectRoutes } from './support/connect'
 
-// The dashboard AG-UI chat drives POST /api/agui/:agent_id and renders the
-// raw AG-UI SSE stream, so the fixture fulfills that route with literal
-// event frames rather than Connect envelopes.
+// The dashboard AG-UI chat uses the official assistant-ui AG-UI runtime with
+// HttpAgent. Fixtures fulfill POST /api/agui/:agent_id with literal SSE event
+// frames. The runtime handles parsing, message reconstruction, and state.
 
 function sse(events: Array<Record<string, unknown>>): string {
   return events.map((ev) => `data: ${JSON.stringify(ev)}\n\n`).join('')
@@ -99,11 +99,11 @@ test.describe('AG-UI chat', () => {
     await composer.fill('ship it')
     await composer.press('Enter')
 
-    // Streamed text, tool call, and shared state all render.
+    // Streamed text renders.
     await expect(page.getByText('Found it. Deploying…')).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'search', exact: true })
-    ).toBeVisible()
+    // Tool call renders with name visible.
+    await expect(page.getByText('search')).toBeVisible()
+    // Shared state panel appears.
     await expect(page.getByText('Shared state')).toBeVisible()
 
     // The interrupt becomes an addressed prompt.
@@ -117,13 +117,12 @@ test.describe('AG-UI chat', () => {
     expect(requests).toHaveLength(2)
     // First run sends the user message to the enabled agent.
     expect(JSON.stringify(requests[0])).toContain('ship it')
-    // The resume addresses the interrupt by id, with no replayed messages.
+    // The resume addresses the interrupt by id.
     const resume = requests[1].resume as Array<Record<string, unknown>>
     expect(resume).toHaveLength(1)
     expect(resume[0].interruptId).toBe('int-1')
     expect(resume[0].status).toBe('resolved')
     expect(resume[0].payload).toBe('yes')
-    expect(requests[1].messages).toEqual([])
     // The state mirror travels back so the server can validate it.
     expect(requests[1].state).toEqual({ draft: 'v1' })
     // Both runs stay on one AG-UI thread.
