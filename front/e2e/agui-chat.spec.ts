@@ -102,7 +102,9 @@ test.describe('AG-UI chat', () => {
     // Streamed text renders.
     await expect(page.getByText('Found it. Deploying…')).toBeVisible()
     // Tool call renders with name visible.
-    await expect(page.getByText('search')).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'search', exact: true })
+    ).toBeVisible()
     // Shared state panel appears.
     await expect(page.getByText('Shared state')).toBeVisible()
 

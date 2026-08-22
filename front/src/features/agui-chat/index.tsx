@@ -8,7 +8,6 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ActionBarPrimitive,
-  useAssistantToolUI,
 } from '@assistant-ui/react'
 import {
   useAgUiRuntime,
@@ -145,7 +144,6 @@ function AGUIChatWithRuntime({
             onAgentChange(id)
           }}
         />
-        <ToolFallbackUI />
         <ThreadArea />
         <SharedStatePanel />
         <ComposerArea />
@@ -199,14 +197,6 @@ function AgentBar({
       </Select>
     </div>
   )
-}
-
-function ToolFallbackUI() {
-  useAssistantToolUI({
-    toolName: '*',
-    render: (props) => <GenericToolCallView {...props} />,
-  })
-  return null
 }
 
 function GenericToolCallView(props: {
@@ -293,6 +283,7 @@ function AssistantMessageView() {
       <MessagePrimitive.Content
         components={{
           Text: MarkdownText,
+          tools: { Fallback: GenericToolCallView },
         }}
       />
       <MessagePrimitive.If lastOrHover>
