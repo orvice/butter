@@ -60,6 +60,7 @@ type Handlers struct {
 	authSvcServer          *application.AuthServiceServer
 	workspaceSvcServer     *application.WorkspaceServiceServer
 	gitHostSvcServer       *application.GitHostServiceServer
+	butterBoxSvcServer     *application.ButterBoxServiceServer
 	repoBindingSvcServer   *application.RepoBindingServiceServer
 	tgChannelSvcServer     *application.TelegramChannelServiceServer
 	tgDestinationSvcServer *application.TelegramDestinationServiceServer
@@ -411,6 +412,12 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if h.gitHostSvcServer != nil && result.GitHostRepo != nil {
 		h.gitHostSvcServer.SetRepo(result.GitHostRepo)
 	}
+	// ButterBoxes (ADR-0011). Box tokens go through the same database-backed
+	// master key as Telegram bot tokens.
+	if h.butterBoxSvcServer != nil && result.ButterBoxRepo != nil {
+		h.butterBoxSvcServer.SetRepo(result.ButterBoxRepo)
+		h.butterBoxSvcServer.SetKeyring(secretbox.NewKeyring(result.CryptoKeyRepo))
+	}
 	// Telegram Channels/Destinations (issue #264). The keyring is shared by
 	// both services so a Bot Token encrypted by one is readable by the other.
 	if result.TelegramRepo != nil {
@@ -683,6 +690,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	workspaceConnectPath, workspaceConnectHandler := agentsv1connect.NewWorkspaceServiceHandler(workspaceSvcServer, connectOpts...)
 	gitHostSvcServer := application.NewGitHostServiceServer(nil)
 	gitHostConnectPath, gitHostConnectHandler := agentsv1connect.NewGitHostServiceHandler(gitHostSvcServer, connectOpts...)
+	butterBoxSvcServer := application.NewButterBoxServiceServer(nil)
+	butterBoxConnectPath, butterBoxConnectHandler := agentsv1connect.NewButterBoxServiceHandler(butterBoxSvcServer, connectOpts...)
 	repoBindingSvcServer := application.NewRepoBindingServiceServer(nil, nil)
 	repoBindingSvcServer.SetAgentRepo(configStore)
 	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg.
@@ -726,6 +735,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		authSvcServer:          authSvcServer,
 		workspaceSvcServer:     workspaceSvcServer,
 		gitHostSvcServer:       gitHostSvcServer,
+		butterBoxSvcServer:     butterBoxSvcServer,
 		repoBindingSvcServer:   repoBindingSvcServer,
 		tgChannelSvcServer:     tgChannelSvcServer,
 		tgDestinationSvcServer: tgDestinationSvcServer,
@@ -797,6 +807,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+daemonConnectorConnectPath+"*path", gin.WrapH(enableFullDuplex(http.StripPrefix("/api", daemonConnectorConnectHandler))))
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
+		r.Any("/api"+butterBoxConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", butterBoxConnectHandler)))
 		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
 		r.Any("/api"+tgChannelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgChannelConnectHandler)))
 		r.Any("/api"+tgDestinationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgDestinationConnectHandler)))

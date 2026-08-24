@@ -303,6 +303,7 @@ The header is required for most methods on these app-facing services:
 | `DaemonService` | Workspace daemon configs, credentials, online daemon/task views |
 | `GitHostService` | Platform Git endpoint allowlist |
 | `WorkspaceRepoBindingService` | Workspace Git repository binding and Agent Content |
+| `ButterBoxService` | Workspace ButterBoxes (pi agent VMs): CRUD, write-only token, status, model catalog |
 
 The header is not required for `AuthService`, `WorkspaceService`,
 or `DashboardService`. `SessionService` creates, reads, lists,
@@ -3758,6 +3759,21 @@ POST /api/agents.v1.APITokenService/RevokeAPIToken
 | `revoked` | bool | Revoked tokens cannot authenticate |
 
 ---
+
+### ButterBoxService
+
+Workspace-registered [ButterBoxes](https://github.com/orvice/butter-box) — agent VMs whose PiService hosts pi coding-agent sessions (ADR-0011). Requires `X-Workspace-ID`. The access token is write-only: it is encrypted at rest and never read back; `credential_set` / `credential_updated_at` report whether and when one was stored.
+
+| RPC | Path | Notes |
+| --- | --- | --- |
+| `ListButterBoxes` | `POST /api/agents.v1.ButterBoxService/ListButterBoxes` | `{ "butter_boxes": ButterBox[] }`, sorted by name |
+| `GetButterBox` | `POST /api/agents.v1.ButterBoxService/GetButterBox` | `{ "id": "..." }` |
+| `CreateButterBox` | `POST /api/agents.v1.ButterBoxService/CreateButterBox` | `{ "name", "base_url", "enabled", "token"? }`; `id` server-assigned; name unique per workspace; `base_url` must be absolute http(s) |
+| `UpdateButterBox` | `POST /api/agents.v1.ButterBoxService/UpdateButterBox` | Replaces name/base_url/enabled; never touches the stored token |
+| `DeleteButterBox` | `POST /api/agents.v1.ButterBoxService/DeleteButterBox` | |
+| `SetButterBoxToken` | `POST /api/agents.v1.ButterBoxService/SetButterBoxToken` | Sets/rotates the token; empty `token` clears it |
+| `GetButterBoxStatus` | `POST /api/agents.v1.ButterBoxService/GetButterBoxStatus` | Probes the box: `{ "reachable", "active_sessions", "error" }`; unreachability is data, not an RPC error |
+| `ListButterBoxModels` | `POST /api/agents.v1.ButterBoxService/ListButterBoxModels` | The box's pi model catalog; `Unavailable` when the box cannot answer |
 
 ### GitHostService
 
