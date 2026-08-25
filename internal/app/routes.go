@@ -413,10 +413,14 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.gitHostSvcServer.SetRepo(result.GitHostRepo)
 	}
 	// ButterBoxes (ADR-0011). Box tokens go through the same database-backed
-	// master key as Telegram bot tokens.
+	// master key as Telegram bot tokens. The two reference checks are
+	// symmetric: an agent write verifies its box exists, a box delete is
+	// refused while PI agents still bind it.
 	if h.butterBoxSvcServer != nil && result.ButterBoxRepo != nil {
 		h.butterBoxSvcServer.SetRepo(result.ButterBoxRepo)
 		h.butterBoxSvcServer.SetKeyring(secretbox.NewKeyring(result.CryptoKeyRepo))
+		h.butterBoxSvcServer.SetAgentRepo(h.agentRepo)
+		h.agentSvcServer.SetButterBoxRepo(result.ButterBoxRepo)
 	}
 	// Telegram Channels/Destinations (issue #264). The keyring is shared by
 	// both services so a Bot Token encrypted by one is readable by the other.

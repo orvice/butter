@@ -19,6 +19,7 @@ import (
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	butterboxrepo "go.orx.me/apps/butter/internal/repo/butterbox"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
@@ -75,6 +76,7 @@ type AgentServiceServer struct {
 	telegramGuard *TelegramReferenceGuard
 
 	repo            configrepo.AgentRepository
+	butterBoxRepo   butterboxrepo.Repository
 	runtime         ConfigRuntime
 	runnerSvc       agentRunner
 	invRepo         invocation.Repository
@@ -160,6 +162,34 @@ func (s *AgentServiceServer) SetTelegramGuard(guard *TelegramReferenceGuard) {
 // authorization of owner/admin-gated RPCs.
 func (s *AgentServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
 	s.wsRepo = repo
+}
+
+// SetButterBoxRepo wires the ButterBox repository used to verify that a PI
+// agent references an existing box at write time (ADR-0011).
+func (s *AgentServiceServer) SetButterBoxRepo(repo butterboxrepo.Repository) {
+	s.butterBoxRepo = repo
+}
+
+// validatePiAgentWrite runs the pure PI config validation and, when the
+// ButterBox repository is wired, verifies the referenced box exists in the
+// caller's workspace — a binding to a box that was never registered would
+// only fail at run time.
+func (s *AgentServiceServer) validatePiAgentWrite(ctx context.Context, wsID string, agent *agentsv1.Agent) error {
+	if err := internalagent.ValidatePiAgent(agent); err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if agent.GetType() != agentsv1.AgentType_AGENT_TYPE_PI || s.butterBoxRepo == nil {
+		return nil
+	}
+	boxID := strings.TrimSpace(agent.GetConfig().GetPi().GetButterboxId())
+	if _, err := s.butterBoxRepo.Get(ctx, wsID, boxID); err != nil {
+		if errors.Is(err, butterboxrepo.ErrNotFound) {
+			return connectx.InvalidArgument("config.pi.butterbox_id",
+				fmt.Sprintf("butterbox %q not found in this workspace; register it via ButterBoxService first", boxID))
+		}
+		return connectx.InternalWith(err)
+	}
+	return nil
 }
 
 // overlayActiveContent replaces description/instruction/global_instruction on
@@ -294,6 +324,9 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	if err := s.validatePiAgentWrite(ctx, wsID, req.Msg.GetAgent()); err != nil {
+		return nil, err
+	}
 
 	agent := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
 
@@ -420,6 +453,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	}
 	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := s.validatePiAgentWrite(ctx, wsID, req.Msg.GetAgent()); err != nil {
+		return nil, err
 	}
 	logger := log.FromContext(ctx)
 	// agent_id is the only lookup key (issue #241); the runtime name is
@@ -980,6 +1016,9 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 	}
 	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := s.validatePiAgentWrite(ctx, wsID, patch); err != nil {
+		return nil, err
 	}
 	coord, err := s.requireCoordinator()
 	if err != nil {
