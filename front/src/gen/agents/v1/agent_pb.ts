@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/agent.proto.
  */
 export const file_agents_v1_agent: GenFile = /*@__PURE__*/
-  fileDesc("ChVhZ2VudHMvdjEvYWdlbnQucHJvdG8SCWFnZW50cy52MSL7BQoFQWdlbnQSGwoEbmFtZRgBIAEoCUIN+kIKcggQAVoEdXNlchITCgtkZXNjcmlwdGlvbhgCIAEoCRIoCgpzdWJfYWdlbnRzGAMgAygLMhAuYWdlbnRzLnYxLkFnZW50QgIYARIsCgZsYWJlbHMYBCADKAsyHC5hZ2VudHMudjEuQWdlbnQuTGFiZWxzRW50cnkSMAoIbWV0YWRhdGEYBSADKAsyHi5hZ2VudHMudjEuQWdlbnQuTWV0YWRhdGFFbnRyeRImCgZjb25maWcYBiABKAsyFi5hZ2VudHMudjEuQWdlbnRDb25maWcSIgoEdHlwZRgUIAEoDjIULmFnZW50cy52MS5BZ2VudFR5cGUSEgoKZW5hYmxlX2EyYRgVIAEoCBIZChFlbmFibGVfb3BlbmFpX2FwaRgWIAEoCBITCgtlbmFibGVfYWd1aRggIAEoCBIQCghhZ2VudF9pZBgXIAEoCRIUCgxkaXNwbGF5X25hbWUYGCABKAkSFwoPY2hpbGRfYWdlbnRfaWRzGBkgAygJEjkKEGxpZmVjeWNsZV9zdGF0dXMYGiABKA4yHy5hZ2VudHMudjEuQWdlbnRMaWZlY3ljbGVTdGF0dXMSEwoLbGVnYWN5X25hbWUYGyABKAkSDwoHdmVyc2lvbhgcIAEoAxIuCgpjcmVhdGVkX2F0GB0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GB4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpkZWxldGVkX2F0GB8gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEi3AQKC0FnZW50Q29uZmlnEigKB3J1bnRpbWUYASABKAsyFy5hZ2VudHMudjEuQWdlbnRSdW50aW1lEikKC21jcF9zZXJ2ZXJzGAIgAygLMhQuYWdlbnRzLnYxLk1DUFNlcnZlchI0Cg1jb250ZXh0X2d1YXJkGAMgASgLMh0uYWdlbnRzLnYxLkNvbnRleHRHdWFyZENvbmZpZxIWCg5tY3Bfc2VydmVyX2lkcxgEIAMoCRIYChByZW1vdGVfYWdlbnRfaWRzGAUgAygJEi4KC2ZpbGVfbW91bnRzGAYgAygLMhkuYWdlbnRzLnYxLkFnZW50RmlsZU1vdW50Eg4KBnNraWxscxgHIAMoCRINCgVtb2RlbBgUIAEoCRITCgtpbnN0cnVjdGlvbhgVIAEoCRIaChJnbG9iYWxfaW5zdHJ1Y3Rpb24YFiABKAkSIwobZGlzYWxsb3dfdHJhbnNmZXJfdG9fcGFyZW50GBcgASgIEiIKGmRpc2FsbG93X3RyYW5zZmVyX3RvX3BlZXJzGBggASgIEjcKEGluY2x1ZGVfY29udGVudHMYGSABKA4yHS5hZ2VudHMudjEuTExNSW5jbHVkZUNvbnRlbnRzEhIKCm91dHB1dF9rZXkYGiABKAkSGQoRaW5wdXRfc2NoZW1hX2pzb24YGyABKAkSGgoSb3V0cHV0X3NjaGVtYV9qc29uGBwgASgJEhYKDm1heF9pdGVyYXRpb25zGB4gASgNEisKCHdvcmtmbG93GCggASgLMhkuYWdlbnRzLnYxLldvcmtmbG93Q29uZmlnImAKDldvcmtmbG93Q29uZmlnEiYKBW5vZGVzGAEgAygLMhcuYWdlbnRzLnYxLldvcmtmbG93Tm9kZRImCgVlZGdlcxgCIAMoCzIXLmFnZW50cy52MS5Xb3JrZmxvd0VkZ2Ui3wEKDFdvcmtmbG93Tm9kZRIMCgRuYW1lGAEgASgJEikKBGtpbmQYAiABKA4yGy5hZ2VudHMudjEuV29ya2Zsb3dOb2RlS2luZBIRCgVhZ2VudBgDIAEoCUICGAESEAoIcXVlc3Rpb24YBCABKAkSEAoIYWdlbnRfaWQYBSABKAkSFwoPcGFyYWxsZWxfd29ya2VyGAogASgIEi0KBXJldHJ5GAsgASgLMh4uYWdlbnRzLnYxLldvcmtmbG93UmV0cnlDb25maWcSFwoPdGltZW91dF9zZWNvbmRzGAwgASgFIn0KE1dvcmtmbG93UmV0cnlDb25maWcSFAoMbWF4X2F0dGVtcHRzGAEgASgFEh0KFWluaXRpYWxfZGVsYXlfc2Vjb25kcxgCIAEoBRIZChFtYXhfZGVsYXlfc2Vjb25kcxgDIAEoBRIWCg5iYWNrb2ZmX2ZhY3RvchgEIAEoASJLCgxXb3JrZmxvd0VkZ2USDAoEZnJvbRgBIAEoCRIKCgJ0bxgCIAEoCRINCgVyb3V0ZRgDIAEoCRISCgppc19kZWZhdWx0GAQgASgIImcKDEFnZW50UnVudGltZRIwCg5zdHJlYW1pbmdfbW9kZRgBIAEoDjIYLmFnZW50cy52MS5TdHJlYW1pbmdNb2RlEiUKHXNhdmVfaW5wdXRfYmxvYnNfYXNfYXJ0aWZhY3RzGAIgASgIIr4DCglNQ1BTZXJ2ZXISFQoEbmFtZRgBIAEoCUIH+kIEcgIQARIwCgl0cmFuc3BvcnQYAiABKA4yHS5hZ2VudHMudjEuTUNQU2VydmVyVHJhbnNwb3J0EgoKAmlkGAogASgJEgsKA3VybBgGIAEoCRIyCgdoZWFkZXJzGAcgAygLMiEuYWdlbnRzLnYxLk1DUFNlcnZlci5IZWFkZXJzRW50cnkSEwoLdG9vbF9maWx0ZXIYCCADKAkSNAoIbWV0YWRhdGEYCSADKAsyIi5hZ2VudHMudjEuTUNQU2VydmVyLk1ldGFkYXRhRW50cnkSFwoPdGltZW91dF9zZWNvbmRzGAsgASgFEiYKBGF1dGgYDCABKAsyGC5hZ2VudHMudjEuTUNQU2VydmVyQXV0aBIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLwoNTWV0YWRhdGFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBSgQIAxAGUgdjb21tYW5kUgRhcmdzUgNlbnYibQoNTUNQU2VydmVyQXV0aBIqCgR0eXBlGAEgASgOMhwuYWdlbnRzLnYxLk1DUFNlcnZlckF1dGhUeXBlEjAKBm9hdXRoMhgCIAEoCzIgLmFnZW50cy52MS5NQ1BTZXJ2ZXJPQXV0aDJDb25maWci0gEKFU1DUFNlcnZlck9BdXRoMkNvbmZpZxIRCgljbGllbnRfaWQYASABKAkSFQoNY2xpZW50X3NlY3JldBgCIAEoCRIOCgZzY29wZXMYAyADKAkSGQoRYXV0aG9yaXphdGlvbl91cmwYBCABKAkSEQoJdG9rZW5fdXJsGAUgASgJEh0KFXJlc291cmNlX21ldGFkYXRhX3VybBgGIAEoCRIgChhhdXRob3JpemF0aW9uX3NlcnZlcl91cmwYByABKAkSEAoIcmVzb3VyY2UYCCABKAkibgoSQ29udGV4dEd1YXJkQ29uZmlnEjEKCHN0cmF0ZWd5GAEgASgOMh8uYWdlbnRzLnYxLkNvbnRleHRHdWFyZFN0cmF0ZWd5EhEKCW1heF90dXJucxgCIAEoBRISCgptYXhfdG9rZW5zGAMgASgFIqsCCgtSZW1vdGVBZ2VudBITCgJpZBgBIAEoCUIH+kIEcgIQARIVCgRuYW1lGAIgASgJQgf6QgRyAhABEgsKA3VybBgDIAEoCRIwCghwcm90b2NvbBgEIAEoDjIeLmFnZW50cy52MS5SZW1vdGVBZ2VudFByb3RvY29sEhkKEWRhZW1vbl9ydW50aW1lX2lkGAYgASgJEhMKC2FjcF9ydW50aW1lGAcgASgJEhYKDm9wZW5jb2RlX2FnZW50GAggASgJEhYKDm9wZW5jb2RlX21vZGVsGAkgASgJEhAKCHVzZXJuYW1lGAogASgJEhAKCHBhc3N3b3JkGAsgASgJEhQKDHdvcmtzcGFjZV9pZBhkIAEoCUoECAUQBlIRZGFlbW9uX2NhcGFiaWxpdHkiKgoLTW9kZWxDb25maWcSDAoEbmFtZRgBIAEoCRINCgVhbGlhcxgCIAEoCSKMAQoNTW9kZWxQcm92aWRlchIMCgRuYW1lGAEgASgJEgwKBHR5cGUYAiABKAkSDwoHYXBpX2tleRgDIAEoCRIQCghiYXNlX3VybBgEIAEoCRImCgZtb2RlbHMYBSADKAsyFi5hZ2VudHMudjEuTW9kZWxDb25maWcSFAoMd29ya3NwYWNlX2lkGGQgASgJItUBCgtOb3RpZnlHcm91cBIMCgRuYW1lGAEgASgJEg8KB2VuYWJsZWQYAiABKAgSKAoHdGFyZ2V0cxgDIAMoCzIXLmFnZW50cy52MS5Ob3RpZnlUYXJnZXQSNgoIbWV0YWRhdGEYCiADKAsyJC5hZ2VudHMudjEuTm90aWZ5R3JvdXAuTWV0YWRhdGFFbnRyeRIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaLwoNTWV0YWRhdGFFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBItECCgxOb3RpZnlUYXJnZXQSDAoEbmFtZRgBIAEoCRIPCgdlbmFibGVkGAIgASgIEikKBHR5cGUYAyABKA4yGy5hZ2VudHMudjEuTm90aWZ5VGFyZ2V0VHlwZRIxCgh0ZWxlZ3JhbRgEIAEoCzIfLmFnZW50cy52MS5UZWxlZ3JhbU5vdGlmeVRhcmdldBIpCgRsYXJrGAUgASgLMhsuYWdlbnRzLnYxLkxhcmtOb3RpZnlUYXJnZXQSLwoHZGlzY29yZBgGIAEoCzIeLmFnZW50cy52MS5EaXNjb3JkTm90aWZ5VGFyZ2V0EjcKCG1ldGFkYXRhGAogAygLMiUuYWdlbnRzLnYxLk5vdGlmeVRhcmdldC5NZXRhZGF0YUVudHJ5Gi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKRAQoUVGVsZWdyYW1Ob3RpZnlUYXJnZXQSFQoJYm90X3Rva2VuGAEgASgJQgIYARITCgdjaGF0X2lkGAIgASgJQgIYARIWCgpwYXJzZV9tb2RlGAMgASgJQgIYARIdChFtZXNzYWdlX3RocmVhZF9pZBgEIAEoA0ICGAESFgoOZGVzdGluYXRpb25faWQYBSABKAkiNwoQTGFya05vdGlmeVRhcmdldBITCgt3ZWJob29rX3VybBgBIAEoCRIOCgZzZWNyZXQYAiABKAkiYwoTRGlzY29yZE5vdGlmeVRhcmdldBITCgt3ZWJob29rX3VybBgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRISCgphdmF0YXJfdXJsGAMgASgJEhEKCXRocmVhZF9pZBgEIAEoCSq0AQoQV29ya2Zsb3dOb2RlS2luZBIiCh5XT1JLRkxPV19OT0RFX0tJTkRfVU5TUEVDSUZJRUQQABIcChhXT1JLRkxPV19OT0RFX0tJTkRfQUdFTlQQARIiCh5XT1JLRkxPV19OT0RFX0tJTkRfSFVNQU5fSU5QVVQQAhIdChlXT1JLRkxPV19OT0RFX0tJTkRfUk9VVEVSEAMSGwoXV09SS0ZMT1dfTk9ERV9LSU5EX0pPSU4QBCqiAQoRTUNQU2VydmVyQXV0aFR5cGUSJAogTUNQX1NFUlZFUl9BVVRIX1RZUEVfVU5TUEVDSUZJRUQQABIdChlNQ1BfU0VSVkVSX0FVVEhfVFlQRV9OT05FEAESJwojTUNQX1NFUlZFUl9BVVRIX1RZUEVfU1RBVElDX0hFQURFUlMQAhIfChtNQ1BfU0VSVkVSX0FVVEhfVFlQRV9PQVVUSDIQAypgCg1TdHJlYW1pbmdNb2RlEh4KGlNUUkVBTUlOR19NT0RFX1VOU1BFQ0lGSUVEEAASFwoTU1RSRUFNSU5HX01PREVfTk9ORRABEhYKElNUUkVBTUlOR19NT0RFX1NTRRACKqQCChRBZ2VudExpZmVjeWNsZVN0YXR1cxImCiJBR0VOVF9MSUZFQ1lDTEVfU1RBVFVTX1VOU1BFQ0lGSUVEEAASIQodQUdFTlRfTElGRUNZQ0xFX1NUQVRVU19BQ1RJVkUQARItCilBR0VOVF9MSUZFQ1lDTEVfU1RBVFVTX01JR1JBVElPTl9SRVFVSVJFRBACEicKI0FHRU5UX0xJRkVDWUNMRV9TVEFUVVNfUFJPVklTSU9OSU5HEAMSIAocQUdFTlRfTElGRUNZQ0xFX1NUQVRVU19FUlJPUhAEEiMKH0FHRU5UX0xJRkVDWUNMRV9TVEFUVVNfREVMRVRJTkcQBRIiCh5BR0VOVF9MSUZFQ1lDTEVfU1RBVFVTX0RFTEVURUQQBiqdAQoJQWdlbnRUeXBlEhoKFkFHRU5UX1RZUEVfVU5TUEVDSUZJRUQQABISCg5BR0VOVF9UWVBFX0xMTRABEhMKD0FHRU5UX1RZUEVfTE9PUBACEhkKFUFHRU5UX1RZUEVfU0VRVUVOVElBTBADEhcKE0FHRU5UX1RZUEVfUEFSQUxMRUwQBBIXChNBR0VOVF9UWVBFX1dPUktGTE9XEAUqewoSTExNSW5jbHVkZUNvbnRlbnRzEiQKIExMTV9JTkNMVURFX0NPTlRFTlRTX1VOU1BFQ0lGSUVEEAASIAocTExNX0lOQ0xVREVfQ09OVEVOVFNfREVGQVVMVBABEh0KGUxMTV9JTkNMVURFX0NPTlRFTlRTX05PTkUQAiqkAQoSTUNQU2VydmVyVHJhbnNwb3J0EiQKIE1DUF9TRVJWRVJfVFJBTlNQT1JUX1VOU1BFQ0lGSUVEEAASKAokTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1RSRUFNQUJMRV9IVFRQEAISHAoYTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1NFEAMiBAgBEAEqGk1DUF9TRVJWRVJfVFJBTlNQT1JUX1NURElPKqYBChNSZW1vdGVBZ2VudFByb3RvY29sEiUKIVJFTU9URV9BR0VOVF9QUk9UT0NPTF9VTlNQRUNJRklFRBAAEh0KGVJFTU9URV9BR0VOVF9QUk9UT0NPTF9BMkEQARIgChxSRU1PVEVfQUdFTlRfUFJPVE9DT0xfREFFTU9OEAISJwojUkVNT1RFX0FHRU5UX1BST1RPQ09MX09QRU5DT0RFX0hUVFAQAyqPAQoUQ29udGV4dEd1YXJkU3RyYXRlZ3kSJgoiQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9VTlNQRUNJRklFRBAAEiQKIENPTlRFWFRfR1VBUkRfU1RSQVRFR1lfVEhSRVNIT0xEEAESKQolQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9TTElESU5HX1dJTkRPVxACKqQBChBOb3RpZnlUYXJnZXRUeXBlEiIKHk5PVElGWV9UQVJHRVRfVFlQRV9VTlNQRUNJRklFRBAAEh8KG05PVElGWV9UQVJHRVRfVFlQRV9URUxFR1JBTRABEiMKH05PVElGWV9UQVJHRVRfVFlQRV9MQVJLX1dFQkhPT0sQAhImCiJOT1RJRllfVEFSR0VUX1RZUEVfRElTQ09SRF9XRUJIT09LEANCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_agents_v1_agent_file, file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChVhZ2VudHMvdjEvYWdlbnQucHJvdG8SCWFnZW50cy52MSL7BQoFQWdlbnQSGwoEbmFtZRgBIAEoCUIN+kIKcggQAVoEdXNlchITCgtkZXNjcmlwdGlvbhgCIAEoCRIoCgpzdWJfYWdlbnRzGAMgAygLMhAuYWdlbnRzLnYxLkFnZW50QgIYARIsCgZsYWJlbHMYBCADKAsyHC5hZ2VudHMudjEuQWdlbnQuTGFiZWxzRW50cnkSMAoIbWV0YWRhdGEYBSADKAsyHi5hZ2VudHMudjEuQWdlbnQuTWV0YWRhdGFFbnRyeRImCgZjb25maWcYBiABKAsyFi5hZ2VudHMudjEuQWdlbnRDb25maWcSIgoEdHlwZRgUIAEoDjIULmFnZW50cy52MS5BZ2VudFR5cGUSEgoKZW5hYmxlX2EyYRgVIAEoCBIZChFlbmFibGVfb3BlbmFpX2FwaRgWIAEoCBITCgtlbmFibGVfYWd1aRggIAEoCBIQCghhZ2VudF9pZBgXIAEoCRIUCgxkaXNwbGF5X25hbWUYGCABKAkSFwoPY2hpbGRfYWdlbnRfaWRzGBkgAygJEjkKEGxpZmVjeWNsZV9zdGF0dXMYGiABKA4yHy5hZ2VudHMudjEuQWdlbnRMaWZlY3ljbGVTdGF0dXMSEwoLbGVnYWN5X25hbWUYGyABKAkSDwoHdmVyc2lvbhgcIAEoAxIuCgpjcmVhdGVkX2F0GB0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GB4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpkZWxldGVkX2F0GB8gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgx3b3Jrc3BhY2VfaWQYZCABKAkaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiggUKC0FnZW50Q29uZmlnEigKB3J1bnRpbWUYASABKAsyFy5hZ2VudHMudjEuQWdlbnRSdW50aW1lEikKC21jcF9zZXJ2ZXJzGAIgAygLMhQuYWdlbnRzLnYxLk1DUFNlcnZlchI0Cg1jb250ZXh0X2d1YXJkGAMgASgLMh0uYWdlbnRzLnYxLkNvbnRleHRHdWFyZENvbmZpZxIWCg5tY3Bfc2VydmVyX2lkcxgEIAMoCRIYChByZW1vdGVfYWdlbnRfaWRzGAUgAygJEi4KC2ZpbGVfbW91bnRzGAYgAygLMhkuYWdlbnRzLnYxLkFnZW50RmlsZU1vdW50Eg4KBnNraWxscxgHIAMoCRINCgVtb2RlbBgUIAEoCRITCgtpbnN0cnVjdGlvbhgVIAEoCRIaChJnbG9iYWxfaW5zdHJ1Y3Rpb24YFiABKAkSIwobZGlzYWxsb3dfdHJhbnNmZXJfdG9fcGFyZW50GBcgASgIEiIKGmRpc2FsbG93X3RyYW5zZmVyX3RvX3BlZXJzGBggASgIEjcKEGluY2x1ZGVfY29udGVudHMYGSABKA4yHS5hZ2VudHMudjEuTExNSW5jbHVkZUNvbnRlbnRzEhIKCm91dHB1dF9rZXkYGiABKAkSGQoRaW5wdXRfc2NoZW1hX2pzb24YGyABKAkSGgoSb3V0cHV0X3NjaGVtYV9qc29uGBwgASgJEhYKDm1heF9pdGVyYXRpb25zGB4gASgNEisKCHdvcmtmbG93GCggASgLMhkuYWdlbnRzLnYxLldvcmtmbG93Q29uZmlnEiQKAnBpGDIgASgLMhguYWdlbnRzLnYxLlBpQWdlbnRDb25maWcilQEKDVBpQWdlbnRDb25maWcSHQoMYnV0dGVyYm94X2lkGAEgASgJQgf6QgRyAhABEhMKC3dvcmtpbmdfZGlyGAIgASgJEhAKCHByb3ZpZGVyGAMgASgJEg0KBW1vZGVsGAQgASgJEhYKDnRoaW5raW5nX2xldmVsGAUgASgJEhcKD21heF9ydW5fc2Vjb25kcxgGIAEoBSJgCg5Xb3JrZmxvd0NvbmZpZxImCgVub2RlcxgBIAMoCzIXLmFnZW50cy52MS5Xb3JrZmxvd05vZGUSJgoFZWRnZXMYAiADKAsyFy5hZ2VudHMudjEuV29ya2Zsb3dFZGdlIt8BCgxXb3JrZmxvd05vZGUSDAoEbmFtZRgBIAEoCRIpCgRraW5kGAIgASgOMhsuYWdlbnRzLnYxLldvcmtmbG93Tm9kZUtpbmQSEQoFYWdlbnQYAyABKAlCAhgBEhAKCHF1ZXN0aW9uGAQgASgJEhAKCGFnZW50X2lkGAUgASgJEhcKD3BhcmFsbGVsX3dvcmtlchgKIAEoCBItCgVyZXRyeRgLIAEoCzIeLmFnZW50cy52MS5Xb3JrZmxvd1JldHJ5Q29uZmlnEhcKD3RpbWVvdXRfc2Vjb25kcxgMIAEoBSJ9ChNXb3JrZmxvd1JldHJ5Q29uZmlnEhQKDG1heF9hdHRlbXB0cxgBIAEoBRIdChVpbml0aWFsX2RlbGF5X3NlY29uZHMYAiABKAUSGQoRbWF4X2RlbGF5X3NlY29uZHMYAyABKAUSFgoOYmFja29mZl9mYWN0b3IYBCABKAEiSwoMV29ya2Zsb3dFZGdlEgwKBGZyb20YASABKAkSCgoCdG8YAiABKAkSDQoFcm91dGUYAyABKAkSEgoKaXNfZGVmYXVsdBgEIAEoCCJnCgxBZ2VudFJ1bnRpbWUSMAoOc3RyZWFtaW5nX21vZGUYASABKA4yGC5hZ2VudHMudjEuU3RyZWFtaW5nTW9kZRIlCh1zYXZlX2lucHV0X2Jsb2JzX2FzX2FydGlmYWN0cxgCIAEoCCK+AwoJTUNQU2VydmVyEhUKBG5hbWUYASABKAlCB/pCBHICEAESMAoJdHJhbnNwb3J0GAIgASgOMh0uYWdlbnRzLnYxLk1DUFNlcnZlclRyYW5zcG9ydBIKCgJpZBgKIAEoCRILCgN1cmwYBiABKAkSMgoHaGVhZGVycxgHIAMoCzIhLmFnZW50cy52MS5NQ1BTZXJ2ZXIuSGVhZGVyc0VudHJ5EhMKC3Rvb2xfZmlsdGVyGAggAygJEjQKCG1ldGFkYXRhGAkgAygLMiIuYWdlbnRzLnYxLk1DUFNlcnZlci5NZXRhZGF0YUVudHJ5EhcKD3RpbWVvdXRfc2Vjb25kcxgLIAEoBRImCgRhdXRoGAwgASgLMhguYWdlbnRzLnYxLk1DUFNlcnZlckF1dGgSFAoMd29ya3NwYWNlX2lkGGQgASgJGi4KDEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUoECAMQBlIHY29tbWFuZFIEYXJnc1IDZW52Im0KDU1DUFNlcnZlckF1dGgSKgoEdHlwZRgBIAEoDjIcLmFnZW50cy52MS5NQ1BTZXJ2ZXJBdXRoVHlwZRIwCgZvYXV0aDIYAiABKAsyIC5hZ2VudHMudjEuTUNQU2VydmVyT0F1dGgyQ29uZmlnItIBChVNQ1BTZXJ2ZXJPQXV0aDJDb25maWcSEQoJY2xpZW50X2lkGAEgASgJEhUKDWNsaWVudF9zZWNyZXQYAiABKAkSDgoGc2NvcGVzGAMgAygJEhkKEWF1dGhvcml6YXRpb25fdXJsGAQgASgJEhEKCXRva2VuX3VybBgFIAEoCRIdChVyZXNvdXJjZV9tZXRhZGF0YV91cmwYBiABKAkSIAoYYXV0aG9yaXphdGlvbl9zZXJ2ZXJfdXJsGAcgASgJEhAKCHJlc291cmNlGAggASgJIm4KEkNvbnRleHRHdWFyZENvbmZpZxIxCghzdHJhdGVneRgBIAEoDjIfLmFnZW50cy52MS5Db250ZXh0R3VhcmRTdHJhdGVneRIRCgltYXhfdHVybnMYAiABKAUSEgoKbWF4X3Rva2VucxgDIAEoBSKrAgoLUmVtb3RlQWdlbnQSEwoCaWQYASABKAlCB/pCBHICEAESFQoEbmFtZRgCIAEoCUIH+kIEcgIQARILCgN1cmwYAyABKAkSMAoIcHJvdG9jb2wYBCABKA4yHi5hZ2VudHMudjEuUmVtb3RlQWdlbnRQcm90b2NvbBIZChFkYWVtb25fcnVudGltZV9pZBgGIAEoCRITCgthY3BfcnVudGltZRgHIAEoCRIWCg5vcGVuY29kZV9hZ2VudBgIIAEoCRIWCg5vcGVuY29kZV9tb2RlbBgJIAEoCRIQCgh1c2VybmFtZRgKIAEoCRIQCghwYXNzd29yZBgLIAEoCRIUCgx3b3Jrc3BhY2VfaWQYZCABKAlKBAgFEAZSEWRhZW1vbl9jYXBhYmlsaXR5IioKC01vZGVsQ29uZmlnEgwKBG5hbWUYASABKAkSDQoFYWxpYXMYAiABKAkijAEKDU1vZGVsUHJvdmlkZXISDAoEbmFtZRgBIAEoCRIMCgR0eXBlGAIgASgJEg8KB2FwaV9rZXkYAyABKAkSEAoIYmFzZV91cmwYBCABKAkSJgoGbW9kZWxzGAUgAygLMhYuYWdlbnRzLnYxLk1vZGVsQ29uZmlnEhQKDHdvcmtzcGFjZV9pZBhkIAEoCSLVAQoLTm90aWZ5R3JvdXASDAoEbmFtZRgBIAEoCRIPCgdlbmFibGVkGAIgASgIEigKB3RhcmdldHMYAyADKAsyFy5hZ2VudHMudjEuTm90aWZ5VGFyZ2V0EjYKCG1ldGFkYXRhGAogAygLMiQuYWdlbnRzLnYxLk5vdGlmeUdyb3VwLk1ldGFkYXRhRW50cnkSFAoMd29ya3NwYWNlX2lkGGQgASgJGi8KDU1ldGFkYXRhRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLRAgoMTm90aWZ5VGFyZ2V0EgwKBG5hbWUYASABKAkSDwoHZW5hYmxlZBgCIAEoCBIpCgR0eXBlGAMgASgOMhsuYWdlbnRzLnYxLk5vdGlmeVRhcmdldFR5cGUSMQoIdGVsZWdyYW0YBCABKAsyHy5hZ2VudHMudjEuVGVsZWdyYW1Ob3RpZnlUYXJnZXQSKQoEbGFyaxgFIAEoCzIbLmFnZW50cy52MS5MYXJrTm90aWZ5VGFyZ2V0Ei8KB2Rpc2NvcmQYBiABKAsyHi5hZ2VudHMudjEuRGlzY29yZE5vdGlmeVRhcmdldBI3CghtZXRhZGF0YRgKIAMoCzIlLmFnZW50cy52MS5Ob3RpZnlUYXJnZXQuTWV0YWRhdGFFbnRyeRovCg1NZXRhZGF0YUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEikQEKFFRlbGVncmFtTm90aWZ5VGFyZ2V0EhUKCWJvdF90b2tlbhgBIAEoCUICGAESEwoHY2hhdF9pZBgCIAEoCUICGAESFgoKcGFyc2VfbW9kZRgDIAEoCUICGAESHQoRbWVzc2FnZV90aHJlYWRfaWQYBCABKANCAhgBEhYKDmRlc3RpbmF0aW9uX2lkGAUgASgJIjcKEExhcmtOb3RpZnlUYXJnZXQSEwoLd2ViaG9va191cmwYASABKAkSDgoGc2VjcmV0GAIgASgJImMKE0Rpc2NvcmROb3RpZnlUYXJnZXQSEwoLd2ViaG9va191cmwYASABKAkSEAoIdXNlcm5hbWUYAiABKAkSEgoKYXZhdGFyX3VybBgDIAEoCRIRCgl0aHJlYWRfaWQYBCABKAkqtAEKEFdvcmtmbG93Tm9kZUtpbmQSIgoeV09SS0ZMT1dfTk9ERV9LSU5EX1VOU1BFQ0lGSUVEEAASHAoYV09SS0ZMT1dfTk9ERV9LSU5EX0FHRU5UEAESIgoeV09SS0ZMT1dfTk9ERV9LSU5EX0hVTUFOX0lOUFVUEAISHQoZV09SS0ZMT1dfTk9ERV9LSU5EX1JPVVRFUhADEhsKF1dPUktGTE9XX05PREVfS0lORF9KT0lOEAQqogEKEU1DUFNlcnZlckF1dGhUeXBlEiQKIE1DUF9TRVJWRVJfQVVUSF9UWVBFX1VOU1BFQ0lGSUVEEAASHQoZTUNQX1NFUlZFUl9BVVRIX1RZUEVfTk9ORRABEicKI01DUF9TRVJWRVJfQVVUSF9UWVBFX1NUQVRJQ19IRUFERVJTEAISHwobTUNQX1NFUlZFUl9BVVRIX1RZUEVfT0FVVEgyEAMqYAoNU3RyZWFtaW5nTW9kZRIeChpTVFJFQU1JTkdfTU9ERV9VTlNQRUNJRklFRBAAEhcKE1NUUkVBTUlOR19NT0RFX05PTkUQARIWChJTVFJFQU1JTkdfTU9ERV9TU0UQAiqkAgoUQWdlbnRMaWZlY3ljbGVTdGF0dXMSJgoiQUdFTlRfTElGRUNZQ0xFX1NUQVRVU19VTlNQRUNJRklFRBAAEiEKHUFHRU5UX0xJRkVDWUNMRV9TVEFUVVNfQUNUSVZFEAESLQopQUdFTlRfTElGRUNZQ0xFX1NUQVRVU19NSUdSQVRJT05fUkVRVUlSRUQQAhInCiNBR0VOVF9MSUZFQ1lDTEVfU1RBVFVTX1BST1ZJU0lPTklORxADEiAKHEFHRU5UX0xJRkVDWUNMRV9TVEFUVVNfRVJST1IQBBIjCh9BR0VOVF9MSUZFQ1lDTEVfU1RBVFVTX0RFTEVUSU5HEAUSIgoeQUdFTlRfTElGRUNZQ0xFX1NUQVRVU19ERUxFVEVEEAYqsAEKCUFnZW50VHlwZRIaChZBR0VOVF9UWVBFX1VOU1BFQ0lGSUVEEAASEgoOQUdFTlRfVFlQRV9MTE0QARITCg9BR0VOVF9UWVBFX0xPT1AQAhIZChVBR0VOVF9UWVBFX1NFUVVFTlRJQUwQAxIXChNBR0VOVF9UWVBFX1BBUkFMTEVMEAQSFwoTQUdFTlRfVFlQRV9XT1JLRkxPVxAFEhEKDUFHRU5UX1RZUEVfUEkQBip7ChJMTE1JbmNsdWRlQ29udGVudHMSJAogTExNX0lOQ0xVREVfQ09OVEVOVFNfVU5TUEVDSUZJRUQQABIgChxMTE1fSU5DTFVERV9DT05URU5UU19ERUZBVUxUEAESHQoZTExNX0lOQ0xVREVfQ09OVEVOVFNfTk9ORRACKqQBChJNQ1BTZXJ2ZXJUcmFuc3BvcnQSJAogTUNQX1NFUlZFUl9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIoCiRNQ1BfU0VSVkVSX1RSQU5TUE9SVF9TVFJFQU1BQkxFX0hUVFAQAhIcChhNQ1BfU0VSVkVSX1RSQU5TUE9SVF9TU0UQAyIECAEQASoaTUNQX1NFUlZFUl9UUkFOU1BPUlRfU1RESU8qpgEKE1JlbW90ZUFnZW50UHJvdG9jb2wSJQohUkVNT1RFX0FHRU5UX1BST1RPQ09MX1VOU1BFQ0lGSUVEEAASHQoZUkVNT1RFX0FHRU5UX1BST1RPQ09MX0EyQRABEiAKHFJFTU9URV9BR0VOVF9QUk9UT0NPTF9EQUVNT04QAhInCiNSRU1PVEVfQUdFTlRfUFJPVE9DT0xfT1BFTkNPREVfSFRUUBADKo8BChRDb250ZXh0R3VhcmRTdHJhdGVneRImCiJDT05URVhUX0dVQVJEX1NUUkFURUdZX1VOU1BFQ0lGSUVEEAASJAogQ09OVEVYVF9HVUFSRF9TVFJBVEVHWV9USFJFU0hPTEQQARIpCiVDT05URVhUX0dVQVJEX1NUUkFURUdZX1NMSURJTkdfV0lORE9XEAIqpAEKEE5vdGlmeVRhcmdldFR5cGUSIgoeTk9USUZZX1RBUkdFVF9UWVBFX1VOU1BFQ0lGSUVEEAASHwobTk9USUZZX1RBUkdFVF9UWVBFX1RFTEVHUkFNEAESIwofTk9USUZZX1RBUkdFVF9UWVBFX0xBUktfV0VCSE9PSxACEiYKIk5PVElGWV9UQVJHRVRfVFlQRV9ESVNDT1JEX1dFQkhPT0sQA0I0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_agents_v1_agent_file, file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * Agent describes a declarative ADK agent configuration.
@@ -355,6 +355,14 @@ export type AgentConfig = Message<"agents.v1.AgentConfig"> & {
    * @generated from field: agents.v1.WorkflowConfig workflow = 40;
    */
   workflow?: WorkflowConfig;
+
+  /**
+   * Configuration for a pi coding-agent session on a ButterBox.
+   * @gotags: json:"pi,omitempty" yaml:"pi,omitempty"
+   *
+   * @generated from field: agents.v1.PiAgentConfig pi = 50;
+   */
+  pi?: PiAgentConfig;
 };
 
 /**
@@ -363,6 +371,74 @@ export type AgentConfig = Message<"agents.v1.AgentConfig"> & {
  */
 export const AgentConfigSchema: GenMessage<AgentConfig> = /*@__PURE__*/
   messageDesc(file_agents_v1_agent, 1);
+
+/**
+ * PiAgentConfig holds the settings for a PI-type agent backed by a ButterBox
+ * VM (ADR-0011). Tools, instructions, and behavior are configured on the box
+ * (pi's AGENTS.md / .pi/ directory), not in butter.
+ *
+ * @generated from message agents.v1.PiAgentConfig
+ */
+export type PiAgentConfig = Message<"agents.v1.PiAgentConfig"> & {
+  /**
+   * ID of the ButterBox that hosts this agent's pi sessions.
+   * @gotags: json:"butterbox_id,omitempty" yaml:"butterbox_id,omitempty"
+   *
+   * @generated from field: string butterbox_id = 1;
+   */
+  butterboxId: string;
+
+  /**
+   * Working directory for the pi process, relative to the box's sandbox root.
+   * @gotags: json:"working_dir,omitempty" yaml:"working_dir,omitempty"
+   *
+   * @generated from field: string working_dir = 2;
+   */
+  workingDir: string;
+
+  /**
+   * Model provider passed through to pi (e.g. "anthropic"). Empty uses the
+   * box's default.
+   * @gotags: json:"provider,omitempty" yaml:"provider,omitempty"
+   *
+   * @generated from field: string provider = 3;
+   */
+  provider: string;
+
+  /**
+   * Model ID or pattern as accepted by pi's --model flag. Empty uses the
+   * box's default.
+   * @gotags: json:"model,omitempty" yaml:"model,omitempty"
+   *
+   * @generated from field: string model = 4;
+   */
+  model: string;
+
+  /**
+   * Thinking level: off, minimal, low, medium, high, xhigh, max. Empty uses
+   * pi's default.
+   * @gotags: json:"thinking_level,omitempty" yaml:"thinking_level,omitempty"
+   *
+   * @generated from field: string thinking_level = 5;
+   */
+  thinkingLevel: string;
+
+  /**
+   * Maximum seconds a single turn may run before being aborted. Default 1800
+   * (30 min); 0 means unlimited. Exists to bound runaway loops.
+   * @gotags: json:"max_run_seconds,omitempty" yaml:"max_run_seconds,omitempty"
+   *
+   * @generated from field: int32 max_run_seconds = 6;
+   */
+  maxRunSeconds: number;
+};
+
+/**
+ * Describes the message agents.v1.PiAgentConfig.
+ * Use `create(PiAgentConfigSchema)` to create a new message.
+ */
+export const PiAgentConfigSchema: GenMessage<PiAgentConfig> = /*@__PURE__*/
+  messageDesc(file_agents_v1_agent, 2);
 
 /**
  * WorkflowConfig declares a Workflow Agent's directed graph as two explicit
@@ -396,7 +472,7 @@ export type WorkflowConfig = Message<"agents.v1.WorkflowConfig"> & {
  * Use `create(WorkflowConfigSchema)` to create a new message.
  */
 export const WorkflowConfigSchema: GenMessage<WorkflowConfig> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 2);
+  messageDesc(file_agents_v1_agent, 3);
 
 /**
  * WorkflowNode is a single step in a Workflow Agent's graph.
@@ -480,7 +556,7 @@ export type WorkflowNode = Message<"agents.v1.WorkflowNode"> & {
  * Use `create(WorkflowNodeSchema)` to create a new message.
  */
 export const WorkflowNodeSchema: GenMessage<WorkflowNode> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 3);
+  messageDesc(file_agents_v1_agent, 4);
 
 /**
  * WorkflowRetryConfig is a serializable subset of the ADK retry policy.
@@ -527,7 +603,7 @@ export type WorkflowRetryConfig = Message<"agents.v1.WorkflowRetryConfig"> & {
  * Use `create(WorkflowRetryConfigSchema)` to create a new message.
  */
 export const WorkflowRetryConfigSchema: GenMessage<WorkflowRetryConfig> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 4);
+  messageDesc(file_agents_v1_agent, 5);
 
 /**
  * WorkflowEdge is a directed connection between two nodes, optionally guarded
@@ -576,7 +652,7 @@ export type WorkflowEdge = Message<"agents.v1.WorkflowEdge"> & {
  * Use `create(WorkflowEdgeSchema)` to create a new message.
  */
 export const WorkflowEdgeSchema: GenMessage<WorkflowEdge> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 5);
+  messageDesc(file_agents_v1_agent, 6);
 
 /**
  * AgentRuntime captures runtime behavior flags that are safe to serialize.
@@ -604,7 +680,7 @@ export type AgentRuntime = Message<"agents.v1.AgentRuntime"> & {
  * Use `create(AgentRuntimeSchema)` to create a new message.
  */
 export const AgentRuntimeSchema: GenMessage<AgentRuntime> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 6);
+  messageDesc(file_agents_v1_agent, 7);
 
 /**
  * MCPServer describes a serializable MCP server connection config.
@@ -697,7 +773,7 @@ export type MCPServer = Message<"agents.v1.MCPServer"> & {
  * Use `create(MCPServerSchema)` to create a new message.
  */
 export const MCPServerSchema: GenMessage<MCPServer> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 7);
+  messageDesc(file_agents_v1_agent, 8);
 
 /**
  * @generated from message agents.v1.MCPServerAuth
@@ -723,7 +799,7 @@ export type MCPServerAuth = Message<"agents.v1.MCPServerAuth"> & {
  * Use `create(MCPServerAuthSchema)` to create a new message.
  */
 export const MCPServerAuthSchema: GenMessage<MCPServerAuth> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 8);
+  messageDesc(file_agents_v1_agent, 9);
 
 /**
  * @generated from message agents.v1.MCPServerOAuth2Config
@@ -801,7 +877,7 @@ export type MCPServerOAuth2Config = Message<"agents.v1.MCPServerOAuth2Config"> &
  * Use `create(MCPServerOAuth2ConfigSchema)` to create a new message.
  */
 export const MCPServerOAuth2ConfigSchema: GenMessage<MCPServerOAuth2Config> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 9);
+  messageDesc(file_agents_v1_agent, 10);
 
 /**
  * ContextGuardConfig configures automatic context window management for an agent.
@@ -839,7 +915,7 @@ export type ContextGuardConfig = Message<"agents.v1.ContextGuardConfig"> & {
  * Use `create(ContextGuardConfigSchema)` to create a new message.
  */
 export const ContextGuardConfigSchema: GenMessage<ContextGuardConfig> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 10);
+  messageDesc(file_agents_v1_agent, 11);
 
 /**
  * RemoteAgent describes a remote agent reachable over a network protocol.
@@ -947,7 +1023,7 @@ export type RemoteAgent = Message<"agents.v1.RemoteAgent"> & {
  * Use `create(RemoteAgentSchema)` to create a new message.
  */
 export const RemoteAgentSchema: GenMessage<RemoteAgent> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 11);
+  messageDesc(file_agents_v1_agent, 12);
 
 /**
  * ModelConfig describes a single model within a provider.
@@ -978,7 +1054,7 @@ export type ModelConfig = Message<"agents.v1.ModelConfig"> & {
  * Use `create(ModelConfigSchema)` to create a new message.
  */
 export const ModelConfigSchema: GenMessage<ModelConfig> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 12);
+  messageDesc(file_agents_v1_agent, 13);
 
 /**
  * ModelProvider maps a set of model names to a provider backend.
@@ -1040,7 +1116,7 @@ export type ModelProvider = Message<"agents.v1.ModelProvider"> & {
  * Use `create(ModelProviderSchema)` to create a new message.
  */
 export const ModelProviderSchema: GenMessage<ModelProvider> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 13);
+  messageDesc(file_agents_v1_agent, 14);
 
 /**
  * NotifyGroup groups outbound notification targets for cron delivery.
@@ -1093,7 +1169,7 @@ export type NotifyGroup = Message<"agents.v1.NotifyGroup"> & {
  * Use `create(NotifyGroupSchema)` to create a new message.
  */
 export const NotifyGroupSchema: GenMessage<NotifyGroup> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 14);
+  messageDesc(file_agents_v1_agent, 15);
 
 /**
  * NotifyTarget is a single outbound destination in a notify group.
@@ -1162,7 +1238,7 @@ export type NotifyTarget = Message<"agents.v1.NotifyTarget"> & {
  * Use `create(NotifyTargetSchema)` to create a new message.
  */
 export const NotifyTargetSchema: GenMessage<NotifyTarget> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 15);
+  messageDesc(file_agents_v1_agent, 16);
 
 /**
  * TelegramNotifyTarget addresses one Telegram Destination (issue #264).
@@ -1226,7 +1302,7 @@ export type TelegramNotifyTarget = Message<"agents.v1.TelegramNotifyTarget"> & {
  * Use `create(TelegramNotifyTargetSchema)` to create a new message.
  */
 export const TelegramNotifyTargetSchema: GenMessage<TelegramNotifyTarget> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 16);
+  messageDesc(file_agents_v1_agent, 17);
 
 /**
  * @generated from message agents.v1.LarkNotifyTarget
@@ -1253,7 +1329,7 @@ export type LarkNotifyTarget = Message<"agents.v1.LarkNotifyTarget"> & {
  * Use `create(LarkNotifyTargetSchema)` to create a new message.
  */
 export const LarkNotifyTargetSchema: GenMessage<LarkNotifyTarget> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 17);
+  messageDesc(file_agents_v1_agent, 18);
 
 /**
  * @generated from message agents.v1.DiscordNotifyTarget
@@ -1293,7 +1369,7 @@ export type DiscordNotifyTarget = Message<"agents.v1.DiscordNotifyTarget"> & {
  * Use `create(DiscordNotifyTargetSchema)` to create a new message.
  */
 export const DiscordNotifyTargetSchema: GenMessage<DiscordNotifyTarget> = /*@__PURE__*/
-  messageDesc(file_agents_v1_agent, 18);
+  messageDesc(file_agents_v1_agent, 19);
 
 /**
  * WorkflowNodeKind selects the behaviour of a workflow node.
@@ -1502,6 +1578,13 @@ export enum AgentType {
    * @generated from enum value: AGENT_TYPE_WORKFLOW = 5;
    */
   WORKFLOW = 5,
+
+  /**
+   * A pi coding-agent session running on a ButterBox VM (ADR-0011).
+   *
+   * @generated from enum value: AGENT_TYPE_PI = 6;
+   */
+  PI = 6,
 }
 
 /**

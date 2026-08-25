@@ -417,6 +417,17 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if h.butterBoxSvcServer != nil && result.ButterBoxRepo != nil {
 		h.butterBoxSvcServer.SetRepo(result.ButterBoxRepo)
 		h.butterBoxSvcServer.SetKeyring(secretbox.NewKeyring(result.CryptoKeyRepo))
+		h.butterBoxSvcServer.SetReferenceGuard(application.NewButterBoxReferenceGuard(h.configStore))
+	}
+	// PI agents need ButterBox validation at write time and a PiClient at
+	// construction time (ADR-0011).
+	if result.ButterBoxRepo != nil {
+		h.agentSvcServer.SetButterBoxRepo(result.ButterBoxRepo)
+	}
+	if result.RunnerSvc != nil && result.ButterBoxRepo != nil && result.CryptoKeyRepo != nil {
+		bbRepo := result.ButterBoxRepo
+		bbKeyring := secretbox.NewKeyring(result.CryptoKeyRepo)
+		result.RunnerSvc.SetPiClientFactory(application.NewPiClientFactory(bbRepo, bbKeyring))
 	}
 	// Telegram Channels/Destinations (issue #264). The keyring is shared by
 	// both services so a Bot Token encrypted by one is readable by the other.

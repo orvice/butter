@@ -214,7 +214,7 @@ butter/
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
 - `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
 - `internal/channel/`：只保留 legacy `AgentChannel` 报告器；Telegram 适配与运行时位于 `internal/runtime/telegram/`。
-- `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`memory`。
+- `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`pibox`（Pi coding-agent bridge，ADR-0011）、`session`、`memory`。
 - `internal/repo/`：仓库层。除 `config/`、`apitoken/`、`invocation/` 外，还包含 Agent Content/lifecycle operation、Agent Files、Skills、Telegram resources/processing/settings、ButterBoxes、Git hosts/repo bindings/cache、input parts、OAuth、forum、workspace、auth、cryptokey 等 memory/mongo 实现。
 - `front/`：Vite + React 19 dashboard。TanStack Router 路由在 `src/routes/`，资源实现位于 `src/features/`；`src/api/` 是类型化的 ConnectRPC 客户端，`uploads.ts` 是唯一仍用裸 `fetch` + multipart 的 API 模块。`src/gen/` 是 buf 生成的 TS proto 类型。
 - `proto/`：Proto 定义源文件，包含 Agent/lifecycle、Telegram、Automation、Skills、Git binding、Daemon、Dashboard、Workspace、Forum、Cron、Content 等服务和消息。

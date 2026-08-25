@@ -19,6 +19,7 @@ import (
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	butterboxrepo "go.orx.me/apps/butter/internal/repo/butterbox"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
@@ -75,6 +76,7 @@ type AgentServiceServer struct {
 	telegramGuard *TelegramReferenceGuard
 
 	repo            configrepo.AgentRepository
+	butterBoxRepo   butterboxrepo.Repository
 	runtime         ConfigRuntime
 	runnerSvc       agentRunner
 	invRepo         invocation.Repository
@@ -154,6 +156,39 @@ func (s *AgentServiceServer) SetInputPartRepo(repo inputpart.Repository) {
 // SetTelegramGuard wires the Telegram reference guard after bootstrap.
 func (s *AgentServiceServer) SetTelegramGuard(guard *TelegramReferenceGuard) {
 	s.telegramGuard = guard
+}
+
+// SetButterBoxRepo wires the ButterBox repository for PI-agent validation.
+func (s *AgentServiceServer) SetButterBoxRepo(repo butterboxrepo.Repository) {
+	s.butterBoxRepo = repo
+}
+
+// validatePiButterBox checks that a PI agent's butterbox_id references an
+// existing ButterBox in the workspace. Non-PI agents skip this check.
+func (s *AgentServiceServer) validatePiButterBox(ctx context.Context, wsID string, a *agentsv1.Agent) error {
+	if a.GetType() != agentsv1.AgentType_AGENT_TYPE_PI {
+		return nil
+	}
+	piCfg := a.GetConfig().GetPi()
+	if piCfg == nil {
+		return nil // ValidatePiAgent catches this
+	}
+	bbID := piCfg.GetButterboxId()
+	if bbID == "" {
+		return nil // ValidatePiAgent catches this
+	}
+	if s.butterBoxRepo == nil {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("butterbox support is not configured"))
+	}
+	_, err := s.butterBoxRepo.Get(ctx, wsID, bbID)
+	if err != nil {
+		if errors.Is(err, butterboxrepo.ErrNotFound) {
+			return connectx.InvalidArgument("config.pi.butterbox_id",
+				fmt.Sprintf("butterbox %q not found in workspace", bbID))
+		}
+		return connectx.InternalWith(fmt.Errorf("check butterbox: %w", err))
+	}
+	return nil
 }
 
 // SetWorkspaceRepo wires the workspace repository used for role-based
@@ -294,6 +329,12 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	if err := internalagent.ValidatePiAgent(req.Msg.GetAgent()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := s.validatePiButterBox(ctx, wsID, req.Msg.GetAgent()); err != nil {
+		return nil, err
+	}
 
 	agent := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
 
@@ -420,6 +461,12 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	}
 	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := internalagent.ValidatePiAgent(req.Msg.GetAgent()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := s.validatePiButterBox(ctx, wsID, req.Msg.GetAgent()); err != nil {
+		return nil, err
 	}
 	logger := log.FromContext(ctx)
 	// agent_id is the only lookup key (issue #241); the runtime name is
@@ -980,6 +1027,12 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 	}
 	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := internalagent.ValidatePiAgent(patch); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := s.validatePiButterBox(ctx, wsID, patch); err != nil {
+		return nil, err
 	}
 	coord, err := s.requireCoordinator()
 	if err != nil {

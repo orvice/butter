@@ -185,6 +185,45 @@ message AgentConfig {
   // Workflow graph of nodes and edges executed by the ADK workflow engine.
   // @gotags: json:"workflow,omitempty" yaml:"workflow,omitempty"
   WorkflowConfig workflow = 40;
+
+  // --- Pi agent fields (used when type is PI, ADR-0011) ---
+
+  // Configuration for a pi coding-agent session on a ButterBox.
+  // @gotags: json:"pi,omitempty" yaml:"pi,omitempty"
+  PiAgentConfig pi = 50;
+}
+
+// PiAgentConfig holds the settings for a PI-type agent backed by a ButterBox
+// VM (ADR-0011). Tools, instructions, and behavior are configured on the box
+// (pi's AGENTS.md / .pi/ directory), not in butter.
+message PiAgentConfig {
+  // ID of the ButterBox that hosts this agent's pi sessions.
+  // @gotags: json:"butterbox_id,omitempty" yaml:"butterbox_id,omitempty"
+  string butterbox_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Working directory for the pi process, relative to the box's sandbox root.
+  // @gotags: json:"working_dir,omitempty" yaml:"working_dir,omitempty"
+  string working_dir = 2;
+
+  // Model provider passed through to pi (e.g. "anthropic"). Empty uses the
+  // box's default.
+  // @gotags: json:"provider,omitempty" yaml:"provider,omitempty"
+  string provider = 3;
+
+  // Model ID or pattern as accepted by pi's --model flag. Empty uses the
+  // box's default.
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
+  string model = 4;
+
+  // Thinking level: off, minimal, low, medium, high, xhigh, max. Empty uses
+  // pi's default.
+  // @gotags: json:"thinking_level,omitempty" yaml:"thinking_level,omitempty"
+  string thinking_level = 5;
+
+  // Maximum seconds a single turn may run before being aborted. Default 1800
+  // (30 min); 0 means unlimited. Exists to bound runaway loops.
+  // @gotags: json:"max_run_seconds,omitempty" yaml:"max_run_seconds,omitempty"
+  int32 max_run_seconds = 6;
 }
 
 // WorkflowConfig declares a Workflow Agent's directed graph as two explicit
@@ -439,6 +478,8 @@ enum AgentType {
   AGENT_TYPE_SEQUENTIAL = 3;
   AGENT_TYPE_PARALLEL = 4;
   AGENT_TYPE_WORKFLOW = 5;
+  // A pi coding-agent session running on a ButterBox VM (ADR-0011).
+  AGENT_TYPE_PI = 6;
 }
 
 // LLMIncludeContents matches llmagent.IncludeContents values.

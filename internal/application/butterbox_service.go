@@ -30,8 +30,9 @@ const butterBoxProbeTimeout = 15 * time.Second
 // name/URL/enabled, the access token lives behind the secretbox credential
 // seam, and status/catalog reads are proxied to the box's PiService.
 type ButterBoxServiceServer struct {
-	repo    butterboxrepo.Repository
-	keyring *secretbox.Keyring
+	repo     butterboxrepo.Repository
+	keyring  *secretbox.Keyring
+	refGuard *ButterBoxReferenceGuard
 }
 
 func NewButterBoxServiceServer(repo butterboxrepo.Repository) *ButterBoxServiceServer {
@@ -44,6 +45,10 @@ func (s *ButterBoxServiceServer) SetRepo(repo butterboxrepo.Repository) { s.repo
 // SetKeyring wires credential encryption after bootstrap. Without it, token
 // writes are refused (a nil keyring fails closed).
 func (s *ButterBoxServiceServer) SetKeyring(k *secretbox.Keyring) { s.keyring = k }
+
+// SetReferenceGuard wires the guard that blocks deleting a ButterBox still
+// referenced by PI agents.
+func (s *ButterBoxServiceServer) SetReferenceGuard(g *ButterBoxReferenceGuard) { s.refGuard = g }
 
 func (s *ButterBoxServiceServer) requireRepo() error {
 	if s.repo == nil {
@@ -231,6 +236,9 @@ func (s *ButterBoxServiceServer) DeleteButterBox(ctx context.Context, req *conne
 	}
 	workspaceID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.refGuard.CheckRemovable(ctx, workspaceID, req.Msg.GetId()); err != nil {
 		return nil, err
 	}
 	if err := s.repo.Delete(ctx, workspaceID, req.Msg.GetId()); err != nil {

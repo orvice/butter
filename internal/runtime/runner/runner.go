@@ -85,6 +85,7 @@ type Service struct {
 	basePluginConfig adkrunner.PluginConfig
 	pluginConfig     adkrunner.PluginConfig
 	mcpHTTPFactory   internalagent.MCPHTTPClientFactory
+	piClientFactory  internalagent.PiClientFactory
 
 	mu              sync.Mutex
 	runners         map[string]*adkrunner.Runner // keyed by channel name
@@ -283,7 +284,7 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 			return nil, fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
 		}
 
-		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory, wsPools[agents[i].GetWorkspaceId()])
+		a, err := internalagent.NewFromProtoWithPiClientFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory, nil, wsPools[agents[i].GetWorkspaceId()])
 		if err != nil {
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}
@@ -507,7 +508,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 			logger.Warn("skipping proto agent that collides with a reserved builder name", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
 			continue
 		}
-		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory, wsPools[agents[i].GetWorkspaceId()])
+		a, err := internalagent.NewFromProtoWithPiClientFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory, s.piClientFactory, wsPools[agents[i].GetWorkspaceId()])
 		if err != nil {
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
 		}
@@ -621,6 +622,13 @@ func (s *Service) HasAgentInWorkspace(workspaceID, name string) bool {
 		return false
 	}
 	return p.GetWorkspaceId() == workspaceID
+}
+
+// SetPiClientFactory wires the factory that builds PiService clients for
+// PI-type agents. Called during bootstrap after the ButterBox repo and
+// keyring are ready.
+func (s *Service) SetPiClientFactory(f internalagent.PiClientFactory) {
+	s.piClientFactory = f
 }
 
 // ModelProviders returns the configured model providers.
@@ -807,7 +815,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 			clone.Config = &agentsv1.AgentConfig{}
 		}
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(deps), buildWorkspacePoolFromProtoRegistry(s.agentsProto, pb.GetWorkspaceId()))
+		a, err = internalagent.NewFromProtoWithPiClientFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(deps), s.piClientFactory, buildWorkspacePoolFromProtoRegistry(s.agentsProto, pb.GetWorkspaceId()))
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)

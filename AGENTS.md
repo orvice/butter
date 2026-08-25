@@ -44,18 +44,19 @@ Every `Agent`, `AgentChannel`, `MCPServer`, `RemoteAgent`, `ModelProvider`, `But
 - `internal/service/` — Business logic.
 - `internal/repo/` — Data access abstractions.
 - `internal/store/config/` — In-memory CRUD store for agent/MCP/remote-agent configurations.
-- `internal/agent/` — `NewFromProto()` factory: converts proto `agentsv1.Agent` configs into ADK agent instances (LLM, Loop, Sequential, Parallel, Workflow). Workflow agents are directed graphs of nodes and edges (see `workflow.go`, `workflow_router.go`, `workflow_human_input.go`).
+- `internal/agent/` — `NewFromProto()` factory: converts proto `agentsv1.Agent` configs into ADK agent instances (LLM, Loop, Sequential, Parallel, Workflow, PI). Workflow agents are directed graphs of nodes and edges (see `workflow.go`, `workflow_router.go`, `workflow_human_input.go`). PI agents delegate to `internal/runtime/pibox` (see `pi_validation.go` for write-time checks).
 - `internal/runtime/runner/` — Agent runner service managing per-channel ADK runners. `workflow_resume.go` gates implicit resume to workflow-bearing agents; the pending-Interrupt derivation and FIFO reply-matching it relies on live in `internal/runtime/interrupt`.
 - `internal/runtime/interrupt/` — The single seam for a paused workflow's human-input state: `Pending` derives unanswered Interrupts from session events (FIFO, oldest-first) and `Resume` rewraps a plain-text reply as the oldest Interrupt's `FunctionResponse`. Consumed by the runner (implicit resume) and, via `TurnResult.Pending`, the cron scheduler (WAITING_INPUT finalization). Holds no state — session events remain the single source of truth (ADR-0002).
 - `internal/runtime/cron/` — Cron scheduler for automated agent execution.
 - `internal/runtime/session/` — Session persistence (MongoDB implementation).
 - `internal/runtime/memory/` — Memory persistence (MongoDB implementation).
+- `internal/runtime/pibox/` — Pi coding-agent bridge (ADR-0011): `Bridge` drives `SubmitMessage` + `GetTurn` on a ButterBox VM, keeps one pi session per (butter session × agent) in ADK session state, and aborts on cancellation or `max_run_seconds`. Used by the agent factory for `AGENT_TYPE_PI`.
 - `internal/channel/` — Platform channel implementations (Telegram, Discord).
 - `pkg/agent/` — Thin wrapper around ADK `agent.Agent`.
 - `pkg/proto/agents/v1/` — Generated Go code from protos. **Do not edit.**
 
 **Proto definitions** live in `proto/agents/v1/`:
-- `agent.proto` — Agent tree config: `Agent`, `AgentConfig`, `LLMAgentConfig`, `MCPServer`, workflow agent configs (Loop, Sequential, Parallel), and the graph Workflow Agent config (`WorkflowConfig`, `WorkflowNode`, `WorkflowEdge`, `WorkflowNodeKind`, `WorkflowRetryConfig`).
+- `agent.proto` — Agent tree config: `Agent`, `AgentConfig`, `LLMAgentConfig`, `MCPServer`, workflow agent configs (Loop, Sequential, Parallel), the graph Workflow Agent config (`WorkflowConfig`, `WorkflowNode`, `WorkflowEdge`, `WorkflowNodeKind`, `WorkflowRetryConfig`), and the Pi Agent config (`PiAgentConfig`, `AGENT_TYPE_PI`).
 - `agentchannel.proto` — **Deprecated** platform bindings: `AgentChannel`, triggers, delivery, legacy Telegram/Discord config. Retained so historical records decode; nothing starts them (#273). Use `telegram.proto`.
 - `cron.proto` — CronJob, CronExecution (including `WAITING_INPUT` status for workflow pauses), CronJobService.
 - `skill.proto` — Skill (agentskills.io bundle metadata) and `SkillResource`; SkillService CRUD plus the resource RPCs (`ListSkillResources` / `GetSkillResource` / `PutSkillResource` / `DeleteSkillResource`).

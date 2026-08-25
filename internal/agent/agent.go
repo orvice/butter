@@ -25,6 +25,7 @@ import (
 	"go.orx.me/apps/butter/internal/aguitool"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/runtime/opencode"
+	"go.orx.me/apps/butter/internal/runtime/pibox"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -38,6 +39,11 @@ type MCPHTTPClientFactory interface {
 
 // ToolsetFactory creates built-in, per-agent toolsets such as agent_files.
 type ToolsetFactory func(ctx context.Context, pb *agentsv1.Agent) ([]tool.Toolset, error)
+
+// PiClientFactory builds a pibox.PiClient for a ButterBox resource. The
+// runner supplies one that decrypts the credential; a nil factory makes PI
+// agents fail at build time.
+type PiClientFactory func(ctx context.Context, workspaceID, butterboxID string) (pibox.PiClient, error)
 
 // AgentPool maps agent_id → proto for ID-based child resolution. Agents that
 // declare child_agent_ids require a pool; an agent without children needs
@@ -58,12 +64,27 @@ func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agen
 	return NewFromProtoWithToolsetFactory(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, nil)
 }
 
+// NewFromProtoWithPiClientFactory creates an ADK agent with all factory hooks
+// including the PiClientFactory needed for PI-type agents.
+func NewFromProtoWithPiClientFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, piClientFactory PiClientFactory, pool ...AgentPool) (agent.Agent, error) {
+	return newFromProto(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, piClientFactory, pool...)
+}
+
 // NewFromProtoWithToolsetFactory creates an ADK agent with custom MCP HTTP and
 // built-in toolset factories. Children are declared via child_agent_ids and
 // resolved from the pool; embedded sub_agents are never consumed (issue #241).
 func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, pool ...AgentPool) (agent.Agent, error) {
+	return newFromProto(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, nil, pool...)
+}
+
+func newFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, piClientFactory PiClientFactory, pool ...AgentPool) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
+	}
+
+	// PI agents are leaves: no children, no MCP, no remote agents.
+	if pb.GetType() == agentsv1.AgentType_AGENT_TYPE_PI {
+		return newPiAgent(ctx, pb, piClientFactory)
 	}
 
 	var agentPool AgentPool
@@ -82,7 +103,7 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 		if !ok {
 			return nil, fmt.Errorf("agent %q: child_agent_id %q not found in agent pool", pb.GetName(), childID)
 		}
-		sa, err := NewFromProtoWithToolsetFactory(ctx, childPb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, agentPool)
+		sa, err := newFromProto(ctx, childPb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, piClientFactory, agentPool)
 		if err != nil {
 			return nil, fmt.Errorf("building child agent %q (id=%s): %w", childPb.GetName(), childID, err)
 		}
@@ -109,6 +130,32 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %v", pb.GetType())
 	}
+}
+
+// newPiAgent builds a PI-type agent that delegates to the pibox bridge.
+func newPiAgent(ctx context.Context, pb *agentsv1.Agent, piClientFactory PiClientFactory) (agent.Agent, error) {
+	piCfg := pb.GetConfig().GetPi()
+	if piCfg == nil {
+		return nil, fmt.Errorf("agent %q: type PI requires config.pi", pb.GetName())
+	}
+	if piClientFactory == nil {
+		return nil, fmt.Errorf("agent %q: PI agent support is not configured (no PiClientFactory)", pb.GetName())
+	}
+	client, err := piClientFactory(ctx, pb.GetWorkspaceId(), piCfg.GetButterboxId())
+	if err != nil {
+		return nil, fmt.Errorf("agent %q: building pi client for butterbox %q: %w", pb.GetName(), piCfg.GetButterboxId(), err)
+	}
+	bridge := pibox.NewBridge(pibox.Config{
+		Client:        client,
+		AgentID:       pb.GetAgentId(),
+		ButterBoxID:   piCfg.GetButterboxId(),
+		WorkingDir:    piCfg.GetWorkingDir(),
+		Provider:      piCfg.GetProvider(),
+		Model:         piCfg.GetModel(),
+		ThinkingLevel: piCfg.GetThinkingLevel(),
+		MaxRunSeconds: piCfg.GetMaxRunSeconds(),
+	})
+	return bridge.BuildAgent(pb.GetName(), pb.GetDescription())
 }
 
 func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1.MCPServer, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
