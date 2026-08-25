@@ -9,6 +9,7 @@ import {
   Bell,
   Blocks,
   Bot,
+  Box,
   Building2,
   Cable,
   ChevronRight,
@@ -146,6 +147,12 @@ const MODEL_SECTIONS: ManageSection[] = [
         icon: Satellite,
       },
       {
+        title: 'ButterBoxes',
+        description: 'Register agent VMs that host pi coding-agent sessions.',
+        to: '/butterboxes',
+        icon: Box,
+      },
+      {
         title: 'Daemons',
         description: 'Inspect connected daemon execution environments.',
         to: '/daemons',
@@ -209,7 +216,8 @@ const ADMIN_ITEMS: ManageItem[] = [
   },
   {
     title: 'Git hosts',
-    description: 'Manage the platform allowlist of Git hosts for repository bindings.',
+    description:
+      'Manage the platform allowlist of Git hosts for repository bindings.',
     to: '/admin/git-hosts',
     icon: GitBranch,
   },

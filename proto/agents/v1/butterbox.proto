@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// ButterBox is a workspace-registered agent VM running the butter-box server
+// (github.com/orvice/butter-box), whose PiService hosts pi coding-agent
+// sessions (ADR-0011, issue #308). A box carries a filesystem and provider
+// credentials, which is tenant data, so boxes are workspace scoped. The
+// access token is deliberately not a proto field: it is encrypted through
+// the secretbox credential seam and `credential_set` only reports whether a
+// usable one exists.
+// =============================================================================
+
+message ButterBox {
+  // Stable server-assigned identifier (UUID).
+  // @gotags: json:"id,omitempty" yaml:"id,omitempty" bson:"_id,omitempty"
+  string id = 1;
+
+  // Human-readable name, unique within the workspace.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty" bson:"name,omitempty"
+  string name = 2 [(validate.rules).string.min_len = 1];
+
+  // Base URL the box's HTTP server listens on, e.g. "https://box.example.com".
+  // PiService lives under it at /butterbox.pi.v1.PiService/; pi-web (when
+  // enabled on the box) is served at its root.
+  // @gotags: json:"base_url,omitempty" yaml:"base_url,omitempty" bson:"base_url,omitempty"
+  string base_url = 3 [(validate.rules).string.min_len = 1];
+
+  // When false the box is not offered for new Pi agent bindings.
+  // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty" bson:"enabled,omitempty"
+  bool enabled = 4;
+
+  // Reports whether an access token is stored for this box. Derived from
+  // the credential columns on every read; never taken from client input.
+  // @gotags: json:"credential_set,omitempty" yaml:"credential_set,omitempty" bson:"credential_set,omitempty"
+  bool credential_set = 5;
+
+  // When the access token was last set or rotated. Unset when no token is
+  // stored.
+  // @gotags: json:"credential_updated_at,omitempty" yaml:"credential_updated_at,omitempty" bson:"credential_updated_at,omitempty"
+  google.protobuf.Timestamp credential_updated_at = 6;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 7;
+
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 8;
+
+  // ID of the workspace this box belongs to. Stamped by the repository from
+  // request context; never taken from client input.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// ButterBoxService manages the workspace's registered ButterBoxes.
+service ButterBoxService {
+  rpc ListButterBoxes(ListButterBoxesRequest) returns (ListButterBoxesResponse);
+  rpc GetButterBox(GetButterBoxRequest) returns (GetButterBoxResponse);
+  rpc CreateButterBox(CreateButterBoxRequest) returns (CreateButterBoxResponse);
+  rpc UpdateButterBox(UpdateButterBoxRequest) returns (UpdateButterBoxResponse);
+  rpc DeleteButterBox(DeleteButterBoxRequest) returns (DeleteButterBoxResponse);
+
+  // SetButterBoxToken sets, rotates, or clears (empty token) the box access
+  // token. The token is write-only: encrypted at rest, never read back.
+  rpc SetButterBoxToken(SetButterBoxTokenRequest) returns (SetButterBoxTokenResponse);
+
+  // GetButterBoxStatus probes the box and reports reachability and the
+  // number of active pi sessions.
+  rpc GetButterBoxStatus(GetButterBoxStatusRequest) returns (GetButterBoxStatusResponse);
+
+  // ListButterBoxModels reports the box's pi model catalog (the models pi is
+  // configured with on the box).
+  rpc ListButterBoxModels(ListButterBoxModelsRequest) returns (ListButterBoxModelsResponse);
+}
+
+message ListButterBoxesRequest {}
+
+message ListButterBoxesResponse {
+  repeated ButterBox butter_boxes = 1;
+}
+
+message GetButterBoxRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetButterBoxResponse {
+  ButterBox butter_box = 1;
+}
+
+message CreateButterBoxRequest {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  string base_url = 2 [(validate.rules).string.min_len = 1];
+  bool enabled = 3;
+  // Optional access token, stored through the credential seam atomically
+  // with the box. Write-only.
+  string token = 4;
+}
+
+message CreateButterBoxResponse {
+  ButterBox butter_box = 1;
+}
+
+message UpdateButterBoxRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  string name = 2 [(validate.rules).string.min_len = 1];
+  string base_url = 3 [(validate.rules).string.min_len = 1];
+  bool enabled = 4;
+}
+
+message UpdateButterBoxResponse {
+  ButterBox butter_box = 1;
+}
+
+message DeleteButterBoxRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteButterBoxResponse {}
+
+message SetButterBoxTokenRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  // New access token; empty clears the stored token.
+  string token = 2;
+}
+
+message SetButterBoxTokenResponse {
+  ButterBox butter_box = 1;
+}
+
+message GetButterBoxStatusRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetButterBoxStatusResponse {
+  // True when the box answered the probe.
+  bool reachable = 1;
+  // Number of active pi sessions on the box. Zero when unreachable.
+  int32 active_sessions = 2;
+  // Human-readable probe failure, empty when reachable.
+  string error = 3;
+}
+
+message ListButterBoxModelsRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ListButterBoxModelsResponse {
+  repeated ButterBoxModel models = 1;
+}
+
+// ButterBoxModel is one entry of a box's pi model catalog, trimmed to what
+// agent configuration needs.
+message ButterBoxModel {
+  // Model ID as accepted by pi (e.g. "claude-fable-5").
+  string id = 1;
+  // Provider ID (e.g. "anthropic").
+  string provider = 2;
+  // Human-readable model name.
+  string name = 3;
+  // True when the model supports reasoning/thinking levels.
+  bool reasoning = 4;
+}
