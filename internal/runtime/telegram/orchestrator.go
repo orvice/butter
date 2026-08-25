@@ -27,6 +27,10 @@ import (
 type AgentRunner interface {
 	// ResolveAgentRef maps a workspace-scoped agent_id to a runnable name.
 	ResolveAgentRef(workspaceID, agentID string) (string, bool)
+	// SupportsModelOverride reports whether Butter may choose a model for the
+	// effective Agent. Pi Agents return false because pi owns its model on the
+	// ButterBox.
+	SupportsModelOverride(workspaceID, agentID string) (bool, bool)
 	// RunTurnSSE runs one turn.
 	RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, modelOverride string,
 		ctxInfo *agentsv1.ContextInfo, onEvent runner.EventCallback,
@@ -130,7 +134,6 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		logger.Debug("telegram update produced no interaction", "reason", string(decision.Ignore))
 		return nil
 	}
-
 	// Preference resolution needs its own short lease because changing Agent
 	// changes the final session ID. Without this handoff lease, a message could
 	// read the old preference, pause, let /agent complete, and then run the old
@@ -169,6 +172,7 @@ func (o *Orchestrator) Handle(ctx context.Context, event *telegramqueue.Event) e
 		logger.Debug("telegram update produced no interaction", "reason", string(decision.Ignore))
 		return nil
 	}
+	decision = o.applyAgentModelPolicy(event.WorkspaceID, decision)
 
 	// Claiming derives the only safe recovery action from persisted state.
 	record, action, leaseToken, err := o.claimRecord(routingCtx, event)
@@ -476,6 +480,10 @@ func (o *Orchestrator) handleAgentCommand(ctx context.Context, event *telegramqu
 // handleModelCommand switches, resets, or lists the selectable Models.
 func (o *Orchestrator) handleModelCommand(ctx context.Context, event *telegramqueue.Event, dest *agentsv1.TelegramDestination, decision Interaction) error {
 	config := dest.GetConfig()
+	if !o.agentSupportsModelOverride(event.WorkspaceID, decision.AgentID) {
+		return o.reply(ctx, event, decision,
+			"Model selection is unavailable for Pi agents. Configure the model in the Agent's ButterBox settings.")
+	}
 	if !ModelSelectionEnabled(config) {
 		return o.reply(ctx, event, decision,
 			"Model selection is locked at this destination. Add selectable models in the dashboard to enable it.")
@@ -568,7 +576,8 @@ func (o *Orchestrator) handleCallback(ctx context.Context, event *telegramqueue.
 		return o.applySelection(ctx, event, decision, func(p *Preferences) { p.AgentID = value },
 			fmt.Sprintf("Agent set to %s.", value))
 	case "model":
-		if !ModelSelectionEnabled(config) || !modelSelectable(config, value) {
+		if !o.agentSupportsModelOverride(event.WorkspaceID, decision.AgentID) ||
+			!ModelSelectionEnabled(config) || !modelSelectable(config, value) {
 			return o.reply(ctx, event, decision,
 				"That model is no longer selectable at this destination.")
 		}
@@ -577,6 +586,25 @@ func (o *Orchestrator) handleCallback(ctx context.Context, event *telegramqueue.
 	default:
 		return nil
 	}
+}
+
+// applyAgentModelPolicy removes the Destination's Butter model choice when the
+// effective Agent owns model selection elsewhere. Preferences stay intact so
+// switching back to a normal Agent restores its model choice without changing
+// either Agent's conversation history.
+func (o *Orchestrator) applyAgentModelPolicy(workspaceID string, decision Interaction) Interaction {
+	if !o.agentSupportsModelOverride(workspaceID, decision.AgentID) {
+		decision.Model = ""
+	}
+	return decision
+}
+
+func (o *Orchestrator) agentSupportsModelOverride(workspaceID, agentID string) bool {
+	if o.runner == nil {
+		return true
+	}
+	supported, known := o.runner.SupportsModelOverride(workspaceID, agentID)
+	return !known || supported
 }
 
 // listChoices renders the available options with the current one marked.

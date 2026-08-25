@@ -149,6 +149,58 @@ func TestControllerSwitchesAndResetsTheAgent(t *testing.T) {
 	}
 }
 
+func TestPiAgentLocksModelSelectionAndResumesItsSession(t *testing.T) {
+	fx := newSelectionFixture(t, func(c *agentsv1.TelegramDestinationConfig) {
+		c.SelectableAgentIds = []string{"support", "research", "pi-coder"}
+	})
+	fx.agents.known["pi-coder"] = "Pi Coder"
+	fx.agents.modelOverrideLocked = map[string]bool{"pi-coder": true}
+
+	handle := func(raw string) {
+		t.Helper()
+		if err := fx.orchestrator.Handle(t.Context(), fx.eventForStored(raw)); err != nil {
+			t.Fatalf("Handle: %v", err)
+		}
+	}
+
+	handle(command(realUser, "/agent pi-coder"))
+	handle(command(realUser, "/model pro"))
+	stored, err := fx.prefs.Get(t.Context(), PreferenceKey(fx.dest.GetId(), "d"+fx.dest.GetId()))
+	if err != nil {
+		t.Fatalf("read preferences: %v", err)
+	}
+	if stored.Model != "" {
+		t.Fatalf("Pi agent stored a Butter model override %q", stored.Model)
+	}
+	lastReply := fx.bots.Sent()[len(fx.bots.Sent())-1]
+	if !strings.Contains(lastReply.Params.Text, "Pi agents") {
+		t.Fatalf("model lock reply = %q, want Pi-specific guidance", lastReply.Params.Text)
+	}
+
+	handle(message(realUser, "first pi turn", ""))
+	handle(command(realUser, "/agent research"))
+	handle(message(realUser, "research turn", ""))
+	handle(command(realUser, "/agent pi-coder"))
+	handle(message(realUser, "second pi turn", ""))
+
+	if len(fx.agents.calls) != 3 {
+		t.Fatalf("agent calls = %d, want 3", len(fx.agents.calls))
+	}
+	firstPi, research, secondPi := fx.agents.calls[0], fx.agents.calls[1], fx.agents.calls[2]
+	if firstPi.agentName != "Pi Coder" || firstPi.model != "" {
+		t.Fatalf("first Pi call = %+v, want no model override", firstPi)
+	}
+	if research.agentName != "Research Agent" || research.model != "fast" {
+		t.Fatalf("research call = %+v, want destination model", research)
+	}
+	if secondPi.agentName != "Pi Coder" || secondPi.model != "" {
+		t.Fatalf("second Pi call = %+v, want no model override", secondPi)
+	}
+	if secondPi.sessionID != firstPi.sessionID {
+		t.Fatalf("Pi session changed after switching away and back: %q != %q", secondPi.sessionID, firstPi.sessionID)
+	}
+}
+
 func TestSwitchingToANonCandidateIsRefused(t *testing.T) {
 	fx := newSelectionFixture(t, nil)
 

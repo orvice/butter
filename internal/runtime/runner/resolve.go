@@ -47,6 +47,23 @@ func (s *Service) ResolveAgentRef(workspaceID, agentID string) (string, bool) {
 	return "", false
 }
 
+// SupportsModelOverride reports whether the referenced Agent accepts a Butter
+// model override. Pi owns model selection on its ButterBox, so policy-driven
+// entry points expose no Butter model candidates while a Pi Agent is active.
+func (s *Service) SupportsModelOverride(workspaceID, agentID string) (bool, bool) {
+	name, ok := s.ResolveAgentRef(workspaceID, agentID)
+	if !ok {
+		return false, false
+	}
+	_, _, agentType, hasProto := s.GetAgentMeta(name)
+	if !hasProto {
+		// Built-in Agents have no proto type and retain their existing override
+		// behavior on the system path.
+		return true, true
+	}
+	return agentType != agentsv1.AgentType_AGENT_TYPE_PI, true
+}
+
 // HasAgentIDInWorkspace reports whether an agent with the given agent_id is
 // registered and belongs to the given workspace. An empty workspaceID is the
 // admin/system path.

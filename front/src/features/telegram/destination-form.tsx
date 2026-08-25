@@ -121,6 +121,8 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
   }
 
   const agents = (agentsData?.agents ?? []).filter((agent) => Boolean(agent.agent_id))
+  const selectedAgent = agents.find((agent) => agent.agent_id === form.agentId)
+  const selectedAgentIsPi = selectedAgent?.type === 'AGENT_TYPE_PI'
   const modelAliases = (providersData?.model_providers ?? []).flatMap((provider) =>
     (provider.models ?? []).map((model) => model.alias || model.name)
   )
@@ -129,12 +131,21 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
+  function setAgent(agentId: string) {
+    const isPi = agents.find((agent) => agent.agent_id === agentId)?.type === 'AGENT_TYPE_PI'
+    setForm((prev) => ({
+      ...prev,
+      agentId,
+      ...(isPi ? { model: '', selectableModels: '' } : {}),
+    }))
+  }
+
   async function submit() {
     const config = {
       agentId: form.agentId,
-      model: form.model,
+      model: selectedAgentIsPi ? '' : form.model,
       selectableAgentIds: parseIdList(form.selectableAgentIds),
-      selectableModels: parseIdList(form.selectableModels),
+      selectableModels: selectedAgentIsPi ? [] : parseIdList(form.selectableModels),
       triggerMode: form.triggerMode,
       sessionPolicy: form.sessionPolicy,
       allowedUserIds: parseIdList(form.allowedUserIds),
@@ -265,7 +276,7 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
                 <Label htmlFor='destination-agent'>Default agent</Label>
                 <Select
                   value={form.agentId || undefined}
-                  onValueChange={(value) => set('agentId', value)}
+                  onValueChange={setAgent}
                 >
                   <SelectTrigger id='destination-agent' aria-label='Default agent'>
                     <SelectValue placeholder='Select an agent' />
@@ -287,6 +298,7 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
                 <Select
                   value={form.model || undefined}
                   onValueChange={(value) => set('model', value)}
+                  disabled={selectedAgentIsPi}
                 >
                   <SelectTrigger id='destination-model' aria-label='Model override'>
                     <SelectValue placeholder="Inherit the agent's model" />
@@ -321,9 +333,16 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
                     value={form.selectableModels}
                     onChange={(e) => set('selectableModels', e.target.value)}
                     placeholder='leave empty to lock the model'
+                    disabled={selectedAgentIsPi}
                   />
                 </div>
               </div>
+              {selectedAgentIsPi && (
+                <p className='text-sm text-muted-foreground'>
+                  Pi uses the model in its ButterBox binding, so Telegram model switching is locked
+                  while this Agent is active.
+                </p>
+              )}
             </CardContent>
           </Card>
 

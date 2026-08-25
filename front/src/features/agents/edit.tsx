@@ -35,6 +35,15 @@ import { AgentIconUpload } from './icon-upload'
 import { AgentFileMountsField } from './file-mounts-field'
 import { AgentRemoteAgentsField } from './remote-agents-field'
 import { agentIconUrl } from './icon-utils'
+import { PiAgentConfigurationCard } from './pi-agent-fields'
+import {
+  asPiAgent,
+  EMPTY_PI_AGENT_FORM_VALUES,
+  piAgentFormSchema,
+  piFormValuesFromConfig,
+  type PiAgentFormValues,
+  validatePiAgentForm,
+} from './pi-config'
 import type { Agent, AgentFileMount, AgentFileMountPermission, AgentType } from '@/types/api'
 
 const MOUNT_PERMISSIONS = [
@@ -60,6 +69,10 @@ const agentSchema = z.object({
     permission: z.enum(MOUNT_PERMISSIONS).optional(),
   })).optional(),
   icon_url: z.string().optional(),
+  pi: piAgentFormSchema,
+}).superRefine((values, ctx) => {
+  if (values.type !== 'AGENT_TYPE_PI') return
+  validatePiAgentForm(values.pi, ctx)
 })
 
 type AgentFormValues = z.infer<typeof agentSchema>
@@ -116,10 +129,13 @@ export function AgentEdit() {
       remote_agent_ids: [],
       file_mounts: [],
       icon_url: '',
+      pi: { ...EMPTY_PI_AGENT_FORM_VALUES },
     },
   })
   const agentName = useWatch({ control: form.control, name: 'name' })
   const iconUrl = useWatch({ control: form.control, name: 'icon_url' })
+  const agentType = useWatch({ control: form.control, name: 'type' })
+  const piValues = useWatch({ control: form.control, name: 'pi' })
 
   useEffect(() => {
     if (data?.agent) {
@@ -137,11 +153,17 @@ export function AgentEdit() {
         remote_agent_ids: a.config?.remote_agent_ids ?? [],
         file_mounts: toAgentFileMountFormValues(a.config?.file_mounts),
         icon_url: agentIconUrl(a),
+        pi: piFormValuesFromConfig(a.config?.pi),
       })
     }
   }, [data, form])
 
   function onFormSubmit(values: AgentFormValues) {
+    submitUpdate(agentFromFormValues(values))
+  }
+
+  function agentFromFormValues(values: AgentFormValues): Agent {
+    const isPi = values.type === 'AGENT_TYPE_PI'
     const agent: Agent = {
       ...data?.agent,
       name: values.name,
@@ -153,6 +175,7 @@ export function AgentEdit() {
       metadata: mergeAgentIconMetadata(data?.agent?.metadata, values.icon_url),
       config: {
         ...data?.agent?.config,
+        pi: undefined,
         model: values.model,
         instruction: values.instruction,
         mcp_server_ids: values.mcp_server_ids ?? [],
@@ -160,7 +183,7 @@ export function AgentEdit() {
         file_mounts: values.file_mounts ?? [],
       },
     }
-    submitUpdate(agent)
+    return isPi ? asPiAgent(agent, values.pi) : agent
   }
 
   function onJsonSubmit() {
@@ -202,24 +225,7 @@ export function AgentEdit() {
   function handleTabChange(tab: string) {
     if (tab === 'json') {
       const values = form.getValues()
-      const agent: Agent = {
-        ...data?.agent,
-        name: values.name,
-        description: values.description,
-        type: values.type as AgentType,
-        enable_a2a: values.enable_a2a,
-        enable_openai_api: values.enable_openai_api,
-        enable_agui: values.enable_agui,
-        metadata: mergeAgentIconMetadata(data?.agent?.metadata, values.icon_url),
-        config: {
-          ...data?.agent?.config,
-          model: values.model,
-          instruction: values.instruction,
-          mcp_server_ids: values.mcp_server_ids ?? [],
-          remote_agent_ids: values.remote_agent_ids ?? [],
-          file_mounts: values.file_mounts ?? [],
-        },
-      }
+      const agent = agentFromFormValues(values)
       setJsonValue(JSON.stringify(agent, null, 2))
     } else if (tab === 'form') {
       try {
@@ -237,6 +243,7 @@ export function AgentEdit() {
           remote_agent_ids: agent.config?.remote_agent_ids ?? [],
           file_mounts: toAgentFileMountFormValues(agent.config?.file_mounts),
           icon_url: agentIconUrl(agent),
+          pi: piFormValuesFromConfig(agent.config?.pi),
         })
       } catch { /* keep current form values if JSON is invalid */ }
     }
@@ -314,6 +321,7 @@ export function AgentEdit() {
                           <SelectItem value='AGENT_TYPE_LOOP'>Loop</SelectItem>
                           <SelectItem value='AGENT_TYPE_SEQUENTIAL'>Sequential</SelectItem>
                           <SelectItem value='AGENT_TYPE_PARALLEL'>Parallel</SelectItem>
+                          <SelectItem value='AGENT_TYPE_PI'>Pi</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormItem>
@@ -368,6 +376,21 @@ export function AgentEdit() {
                 </CardContent>
               </Card>
 
+              {agentType === 'AGENT_TYPE_PI' ? (
+                <PiAgentConfigurationCard
+                  value={(piValues ?? EMPTY_PI_AGENT_FORM_VALUES) as PiAgentFormValues}
+                  onChange={(field, value) => form.setValue(
+                    'pi',
+                    { ...form.getValues('pi'), [field]: value },
+                    { shouldDirty: true, shouldValidate: true },
+                  )}
+                  errors={{
+                    butterboxId: form.formState.errors.pi?.butterboxId?.message,
+                    maxRunSeconds: form.formState.errors.pi?.maxRunSeconds?.message,
+                  }}
+                />
+              ) : (
+                <>
               <Card>
                 <CardHeader>
                   <CardTitle>Model Configuration</CardTitle>
@@ -484,6 +507,9 @@ export function AgentEdit() {
                   )} />
                 </CardContent>
               </Card>
+
+                </>
+              )}
 
               {/* Sub-agents - read-only list */}
               {data?.agent?.sub_agents && data.agent.sub_agents.length > 0 && (

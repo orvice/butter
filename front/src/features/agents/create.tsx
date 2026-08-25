@@ -19,6 +19,14 @@ import { AgentModelSelect } from './model-select'
 import { AgentIconUpload } from './icon-upload'
 import { AgentFileMountsField } from './file-mounts-field'
 import { AgentRemoteAgentsField } from './remote-agents-field'
+import { PiAgentConfigurationCard } from './pi-agent-fields'
+import {
+  asPiAgent,
+  EMPTY_PI_AGENT_FORM_VALUES,
+  piAgentFormSchema,
+  type PiAgentFormValues,
+  validatePiAgentForm,
+} from './pi-config'
 import {
   Form,
   FormControl,
@@ -59,6 +67,10 @@ const agentSchema = z.object({
     permission: z.enum(MOUNT_PERMISSIONS).optional(),
   })).optional(),
   icon_url: z.string().optional(),
+  pi: piAgentFormSchema,
+}).superRefine((values, ctx) => {
+  if (values.type !== 'AGENT_TYPE_PI') return
+  validatePiAgentForm(values.pi, ctx)
 })
 
 type AgentFormValues = z.infer<typeof agentSchema>
@@ -88,10 +100,13 @@ export function AgentCreate() {
       remote_agent_ids: initialRemoteAgentId ? [initialRemoteAgentId] : [],
       file_mounts: [],
       icon_url: '',
+      pi: { ...EMPTY_PI_AGENT_FORM_VALUES },
     },
   })
   const agentName = useWatch({ control: form.control, name: 'name' })
   const iconUrl = useWatch({ control: form.control, name: 'icon_url' })
+  const agentType = useWatch({ control: form.control, name: 'type' })
+  const piValues = useWatch({ control: form.control, name: 'pi' })
 
   // Suggest the slug from the name as the user types, until the user edits
   // the Agent ID field themselves.
@@ -102,7 +117,8 @@ export function AgentCreate() {
   }, [agentIdTouched, agentName, form])
 
   function onSubmit(values: AgentFormValues) {
-    const agent = {
+    const isPi = values.type === 'AGENT_TYPE_PI'
+    const baseAgent = {
       name: values.name,
       agent_id: values.agent_id,
       description: values.description,
@@ -119,9 +135,10 @@ export function AgentCreate() {
         file_mounts: values.file_mounts ?? [],
       },
     }
+    const agent = isPi ? asPiAgent(baseAgent, values.pi) : baseAgent
     const initialContent = {
       description: values.description ?? '',
-      prompt: values.instruction ?? '',
+      prompt: isPi ? '' : (values.instruction ?? ''),
       global_prompt: '',
     }
     const request = JSON.stringify({ agent, initialContent })
@@ -222,6 +239,7 @@ export function AgentCreate() {
                       <SelectItem value='AGENT_TYPE_LOOP'>Loop</SelectItem>
                       <SelectItem value='AGENT_TYPE_SEQUENTIAL'>Sequential</SelectItem>
                       <SelectItem value='AGENT_TYPE_PARALLEL'>Parallel</SelectItem>
+                      <SelectItem value='AGENT_TYPE_PI'>Pi</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -277,6 +295,21 @@ export function AgentCreate() {
             </CardContent>
           </Card>
 
+          {agentType === 'AGENT_TYPE_PI' ? (
+            <PiAgentConfigurationCard
+              value={(piValues ?? EMPTY_PI_AGENT_FORM_VALUES) as PiAgentFormValues}
+              onChange={(field, value) => form.setValue(
+                'pi',
+                { ...form.getValues('pi'), [field]: value },
+                { shouldDirty: true, shouldValidate: true },
+              )}
+              errors={{
+                butterboxId: form.formState.errors.pi?.butterboxId?.message,
+                maxRunSeconds: form.formState.errors.pi?.maxRunSeconds?.message,
+              }}
+            />
+          ) : (
+            <>
           <Card>
             <CardHeader>
               <CardTitle>Model Configuration</CardTitle>
@@ -401,6 +434,9 @@ export function AgentCreate() {
               )} />
             </CardContent>
           </Card>
+
+            </>
+          )}
 
           <PageActions>
             <Button variant='outline' asChild>

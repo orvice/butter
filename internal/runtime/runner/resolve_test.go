@@ -12,6 +12,11 @@ func newResolveTestService() *Service {
 	return NewServiceForTestAgents(
 		&agentsv1.Agent{Name: "researcher", AgentId: "researcher-v2", DisplayName: "Researcher", WorkspaceId: "ws-a"},
 		&agentsv1.Agent{Name: "writer", AgentId: "writer", WorkspaceId: "ws-a"},
+		&agentsv1.Agent{
+			Name: "pi-coder", AgentId: "pi-coder", WorkspaceId: "ws-a",
+			Type:   agentsv1.AgentType_AGENT_TYPE_PI,
+			Config: &agentsv1.AgentConfig{Pi: &agentsv1.PiAgentConfig{ButterboxId: "box-1"}},
+		},
 		&agentsv1.Agent{Name: "reviewer", WorkspaceId: "ws-b"}, // no agent_id assigned
 	)
 }
@@ -76,6 +81,20 @@ func TestHasAgentIDInWorkspace(t *testing.T) {
 	}
 	if s.HasAgentIDInWorkspace("ws-b", "writer") {
 		t.Fatal("HasAgentIDInWorkspace(ws-b, writer) = true; want false")
+	}
+}
+
+func TestSupportsModelOverrideByAgentID(t *testing.T) {
+	s := newResolveTestService()
+
+	if supported, ok := s.SupportsModelOverride("ws-a", "researcher-v2"); !ok || !supported {
+		t.Fatalf("SupportsModelOverride(LLM) = %v, %v; want true, true", supported, ok)
+	}
+	if supported, ok := s.SupportsModelOverride("ws-a", "pi-coder"); !ok || supported {
+		t.Fatalf("SupportsModelOverride(PI) = %v, %v; want false, true", supported, ok)
+	}
+	if supported, ok := s.SupportsModelOverride("ws-b", "pi-coder"); ok || supported {
+		t.Fatalf("SupportsModelOverride(other workspace) = %v, %v; want false, false", supported, ok)
 	}
 }
 
