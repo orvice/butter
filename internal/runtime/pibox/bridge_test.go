@@ -36,6 +36,7 @@ type fakePi struct {
 	abortedIDs   []string
 	createErr    error
 	submitErr    error
+	turnErr      error
 	turnScript   []*piv1.GetTurnResponse // consumed in order; last entry repeats
 	turnIdx      int
 	gotAuth      string
@@ -84,6 +85,9 @@ func (f *fakePi) GetTurn(_ context.Context, _ *connect.Request[piv1.GetTurnReque
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.turnRequests++
+	if f.turnErr != nil {
+		return nil, f.turnErr
+	}
 	resp := f.turnScript[f.turnIdx]
 	if f.turnIdx < len(f.turnScript)-1 {
 		f.turnIdx++
@@ -371,6 +375,32 @@ func TestBridge_DidNotFinishIsHonest(t *testing.T) {
 	_, err := h.turn(t.Context(), textContent("hi"))
 	if err == nil || !strings.Contains(err.Error(), "did not finish") {
 		t.Fatalf("expected did-not-finish error, got %v", err)
+	}
+}
+
+func TestBridge_SessionLostMidRunIsDidNotFinish(t *testing.T) {
+	fake := newFakePi()
+	fake.turnErr = connect.NewError(connect.CodeNotFound, errors.New("session not found"))
+	b := NewBridge(piAgentProto("box-1", ""), staticFactory{serveFake(t, fake)})
+	h := newHarness(t, b)
+
+	_, err := h.turn(t.Context(), textContent("hi"))
+	if err == nil || !strings.Contains(err.Error(), "did not finish") {
+		t.Fatalf("expected did-not-finish for a session lost mid-run, got %v", err)
+	}
+}
+
+func TestBridge_FreshSessionLostIsActionable(t *testing.T) {
+	fake := newFakePi()
+	fake.submitErr = connect.NewError(connect.CodeNotFound, errors.New("session not found"))
+	b := NewBridge(piAgentProto("box-1", ""), staticFactory{serveFake(t, fake)})
+	h := newHarness(t, b)
+
+	// The session is created and then the box immediately forgets it: the
+	// bridge must not loop on recreates, and must not leak a raw not_found.
+	_, err := h.turn(t.Context(), textContent("hi"))
+	if err == nil || !strings.Contains(err.Error(), "freshly created") {
+		t.Fatalf("expected unhealthy-box error, got %v", err)
 	}
 }
 

@@ -166,6 +166,11 @@ func (b *Bridge) run(ictx agent.InvocationContext) iter.Seq2[*session.Event, err
 			if runCtx.Err() != nil {
 				b.abort(client, bnd.PiSessionID)
 			}
+			if connect.CodeOf(err) == connect.CodeNotFound {
+				// The session vanished right after we created (or recreated)
+				// it — recreating again would loop, so report the box state.
+				err = fmt.Errorf("pibox: the box lost a freshly created pi session; the box looks unhealthy — check it before retrying: %w", err)
+			}
 			yield(nil, b.classifyInterruption(ictx, runCtx, err))
 			return
 		}
@@ -269,6 +274,12 @@ func (b *Bridge) await(runCtx context.Context, client piv1connect.PiServiceClien
 			if runCtx.Err() != nil {
 				b.abort(client, sessionID)
 				return nil, runCtx.Err()
+			}
+			if connect.CodeOf(err) == connect.CodeNotFound {
+				// The box no longer knows the session mid-run (restart plus a
+				// lost session file). The submitted turn can never settle for
+				// us, so this is a did-not-finish, not a transport blip.
+				return nil, fmt.Errorf("pibox: the box lost the pi session mid-run — the run did not finish and no answer was produced: %w", err)
 			}
 			failures++
 			if failures >= maxConsecutivePollFailures {
