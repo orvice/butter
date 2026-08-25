@@ -5,7 +5,8 @@ export type AgentType =
   | "AGENT_TYPE_LLM"
   | "AGENT_TYPE_LOOP"
   | "AGENT_TYPE_SEQUENTIAL"
-  | "AGENT_TYPE_PARALLEL";
+  | "AGENT_TYPE_PARALLEL"
+  | "AGENT_TYPE_PI";
 
 export type MCPServerTransport =
   | "MCP_SERVER_TRANSPORT_UNSPECIFIED"
@@ -150,6 +151,15 @@ export interface AgentRuntime {
   save_input_blobs_as_artifacts?: boolean;
 }
 
+export interface PiAgentConfig {
+  butterbox_id: string;
+  working_dir?: string;
+  provider?: string;
+  model?: string;
+  thinking_level?: string;
+  max_run_seconds?: number;
+}
+
 export interface AgentConfig {
   runtime?: AgentRuntime;
   mcp_servers?: MCPServer[];
@@ -167,6 +177,7 @@ export interface AgentConfig {
   input_schema_json?: string;
   output_schema_json?: string;
   max_iterations?: number;
+  pi?: PiAgentConfig;
 }
 
 export type AgentLifecycleStatus =
@@ -183,6 +194,7 @@ export interface Agent {
   agent_id?: string;
   description?: string;
   sub_agents?: Agent[];
+  child_agent_ids?: string[];
   labels?: Record<string, string>;
   metadata?: Record<string, string>;
   config?: AgentConfig;

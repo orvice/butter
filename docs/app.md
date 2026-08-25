@@ -1,6 +1,6 @@
 # Butter 功能总览
 
-更新时间：2026-07-14
+更新时间：2026-08-25
 
 Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入口（HTTP / ConnectRPC / gRPC / 即时消息 / 定时任务）统一编排为 Google ADK Agent 执行流，并提供配置化、热更新、多执行面、多租户与持久化运行时。
 
@@ -18,12 +18,13 @@ Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入�
 ## 1. Agent 编排
 
 - **Agent ID 身份**：每个 Agent 由不可变、workspace 内唯一的 **Agent ID**（`agent_id`，slug 形如 `assistant`；规则 `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`）标识，是所有引用（interactive 调用、channel/cron/automation/forum 绑定、A2A、OpenAI 兼容 API）的**唯一键**（agent_id-only）：调用/绑定时 `agent_id` 必填，缺失 → `InvalidArgument`，未知 → `NotFound`，绝不回退 name。`display_name` 是可变的 UI 显示名，不参与解析。旧的 `agent_name`（运行时名字）不再作为输入，仅保留为服务端回写的显示名与历史记录字段。`CreateAgent` 要求 `agent_id`；`(workspace_id, agent_id)` 也是持久层的逻辑主键（Get/Update/Delete/CAS 一律按 ID 定位，ADR-0010）。迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役（恒返回 `Unimplemented`）；`VerifyAgentIDCutover`（全局管理员）提供只读的 cutover 校验诊断。
-- **多类型 Agent 构建**：通过 `agents.v1.Agent` 配置统一生成 ADK Agent，支持五种类型：
+- **多类型 Agent 构建**：通过 `agents.v1.Agent` 配置统一生成 ADK Agent，支持六种类型：
   - `AGENT_TYPE_LLM`：LLM Agent，支持 instruction、global instruction、input/output JSON schema、`output_key`、`context_guard`、`include_contents` 等参数。
   - `AGENT_TYPE_LOOP`：Loop workflow，支持 `max_iterations`。
   - `AGENT_TYPE_SEQUENTIAL`：顺序 workflow。
   - `AGENT_TYPE_PARALLEL`：并行 workflow。
   - `AGENT_TYPE_WORKFLOW`：图 workflow（见下方 §1.1）。
+  - `AGENT_TYPE_PI`：由 workspace 内注册的 ButterBox 承载的 pi coding agent（见下方 §1.2）。
 - **子 Agent 与委派（V2 ID 组合）**：新 Agent 通过 `child_agent_ids` 按 Agent ID 引用独立的子 Agent 记录，结合 `description` 用于 LLM 子 Agent 委派；`CreateAgent` 拒绝内联 `sub_agents`，`UpdateAgent` 也拒绝修改内联 `sub_agents`（未变更的历史记录可原样往返，但构建时从不消费内联树——子 Agent 只来自 `child_agent_ids`）。
 - **Labels / Metadata**：每个 Agent 可携带 `labels`、`metadata`，用于路由与索引。
 - **内置系统 Agent**：进程启动时注册 built-in system agent，便于诊断和管理类操作。
@@ -55,6 +56,25 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 - 暂停状态存储在 session events 中（ADK 把 workflow run state 写在 session state），进程重启后可恢复。
 
 **配置校验：** `CreateAgent` / `UpdateAgent` 在保存时校验图结构——未声明的节点引用、重复名称、Router 缺少 default edge、routed edge 指向 JOIN 等均被拒绝。
+
+### 1.2 Pi Agent（ButterBox 执行）
+
+Pi Agent 是绑定一个 ButterBox 与工作目录的叶子 Agent（ADR-0011）。Dashboard 的 Agent
+表单可以选择 ButterBox、填写工作目录、从该 box 的 catalog 选择或手填 model，并配置
+thinking level 与单轮最长运行时间（未填默认 1800 秒，`0` 表示不限时）。同一 Butter
+session × Agent 会复用同一个 pi session，因此多轮对话保留上下文；更换 box 或工作目录
+会创建新的 pi session，不迁移旧状态。
+
+职责边界是 **Butter 决定在哪里运行，pi 决定如何工作**：Butter 负责 workspace 隔离、
+Agent/Destination 路由、会话身份、取消与超时、图片传递以及 ButterBox credential；pi 在
+box 上决定 provider/model/thinking 行为，并从工作目录的 `AGENTS.md`、`.pi/`、extensions
+和 skills 获得指令与工具。因此 Pi Agent 不接受 Butter 侧 instruction、MCP、Skill、文件
+挂载、context guard 或 remote-agent 配置。
+
+Telegram Destination 可以把 Pi Agent 作为默认或可切换 Agent。消息与照片仍在原 Forum
+Topic 内投递；切换到别的 Agent 再切回时，会恢复该 Pi Agent 自己的 topic 会话。Pi 的
+model 不属于 Butter ModelProvider，Pi 生效期间 `/model` 固定为锁定状态，不会把
+Destination 的 model override 传给 pi。
 
 ## 2. 模型管理
 

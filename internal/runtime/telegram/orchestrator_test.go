@@ -27,11 +27,12 @@ import (
 
 // fakeAgentRunner records invocations instead of running ADK.
 type fakeAgentRunner struct {
-	mu      sync.Mutex
-	calls   []fakeAgentCall
-	output  string
-	failErr error
-	known   map[string]string
+	mu                  sync.Mutex
+	calls               []fakeAgentCall
+	output              string
+	failErr             error
+	known               map[string]string
+	modelOverrideLocked map[string]bool
 }
 
 type fakeAgentCall struct {
@@ -44,6 +45,13 @@ type fakeAgentCall struct {
 func (r *fakeAgentRunner) ResolveAgentRef(_ string, agentID string) (string, bool) {
 	name, ok := r.known[agentID]
 	return name, ok
+}
+
+func (r *fakeAgentRunner) SupportsModelOverride(_ string, agentID string) (bool, bool) {
+	if _, ok := r.known[agentID]; !ok {
+		return false, false
+	}
+	return !r.modelOverrideLocked[agentID], true
 }
 
 func (r *fakeAgentRunner) RunTurnSSE(_ context.Context, agentName string, parts []*genai.Part,
