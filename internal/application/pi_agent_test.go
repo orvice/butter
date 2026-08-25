@@ -23,10 +23,10 @@ func testPiAgent(agentID, boxID string) *agentsv1.Agent {
 	}
 }
 
-func seedButterBox(t *testing.T, repo butterboxrepo.Repository, id string) {
+func seedButterBox(t *testing.T, repo butterboxrepo.Repository, id string, enabled bool) {
 	t.Helper()
 	if _, err := repo.Create(testCtx(), wsTest, &agentsv1.ButterBox{
-		Id: id, Name: id, BaseUrl: "https://box.example.com", Enabled: true,
+		Id: id, Name: id, BaseUrl: "https://box.example.com", Enabled: enabled,
 	}, butterboxrepo.Credential{}); err != nil {
 		t.Fatalf("seed butterbox: %v", err)
 	}
@@ -35,7 +35,8 @@ func seedButterBox(t *testing.T, repo butterboxrepo.Repository, id string) {
 func TestCreatePiAgent(t *testing.T) {
 	store := memory.New()
 	boxes := butterboxmemory.New()
-	seedButterBox(t, boxes, "box-1")
+	seedButterBox(t, boxes, "box-1", true)
+	seedButterBox(t, boxes, "box-disabled", false)
 	svc := NewAgentServiceServer(store)
 	svc.SetButterBoxRepo(boxes)
 	ctx := testCtx()
@@ -46,6 +47,14 @@ func TestCreatePiAgent(t *testing.T) {
 	}))
 	if err == nil || connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "missing-box") {
 		t.Fatalf("expected InvalidArgument naming the box, got %v", err)
+	}
+
+	// A disabled box is not available for a new binding.
+	_, err = svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
+		Agent: testPiAgent("pi-disabled", "box-disabled"),
+	}))
+	if err == nil || connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("expected InvalidArgument for disabled box, got %v", err)
 	}
 
 	// Box-owned behavior fields are rejected on write.
@@ -66,7 +75,7 @@ func TestCreatePiAgent(t *testing.T) {
 
 	// A valid pi agent is accepted.
 	resp, err := svc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
-		Agent: testPiAgent("pi-ok", "box-1"),
+		Agent: testPiAgent("pi-ok", " box-1 "),
 	}))
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
@@ -79,7 +88,8 @@ func TestCreatePiAgent(t *testing.T) {
 func TestUpdatePiAgentValidates(t *testing.T) {
 	store := memory.New()
 	boxes := butterboxmemory.New()
-	seedButterBox(t, boxes, "box-1")
+	seedButterBox(t, boxes, "box-1", true)
+	seedButterBox(t, boxes, "box-disabled", false)
 	svc := NewAgentServiceServer(store)
 	svc.SetButterBoxRepo(boxes)
 	ctx := testCtx()
@@ -97,18 +107,44 @@ func TestUpdatePiAgentValidates(t *testing.T) {
 		t.Fatalf("expected InvalidArgument naming the box, got %v", err)
 	}
 
+	// Repointing to a disabled box is rejected.
+	update = testPiAgent("pi-1", "box-disabled")
+	_, err = svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{Agent: update}))
+	if err == nil || connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("expected InvalidArgument for disabled box, got %v", err)
+	}
+
 	// Repointing the working directory is a legal update.
 	update = testPiAgent("pi-1", "box-1")
 	update.Config.Pi.WorkingDir = "projects/other"
 	if _, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{Agent: update})); err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
 	}
+
+	// Disabling a box does not invalidate an agent already bound to it.
+	box, err := boxes.Get(ctx, wsTest, "box-1")
+	if err != nil {
+		t.Fatalf("get butterbox: %v", err)
+	}
+	box.Enabled = false
+	if _, err := boxes.Update(ctx, wsTest, box); err != nil {
+		t.Fatalf("disable butterbox: %v", err)
+	}
+	update = testPiAgent("pi-1", " box-1 ")
+	update.Config.Pi.WorkingDir = "projects/after-disable"
+	resp, err := svc.UpdateAgent(ctx, connect.NewRequest(&agentsv1.UpdateAgentRequest{Agent: update}))
+	if err != nil {
+		t.Fatalf("UpdateAgent existing disabled binding: %v", err)
+	}
+	if got := resp.Msg.GetAgent().GetConfig().GetPi().GetButterboxId(); got != "box-1" {
+		t.Fatalf("stored butterbox_id: got %q", got)
+	}
 }
 
 func TestDeleteButterBoxRefusedWhilePiAgentsReferenceIt(t *testing.T) {
 	agents := memory.New()
 	boxes := butterboxmemory.New()
-	seedButterBox(t, boxes, "box-1")
+	seedButterBox(t, boxes, "box-1", true)
 
 	agentSvc := NewAgentServiceServer(agents)
 	agentSvc.SetButterBoxRepo(boxes)
@@ -117,8 +153,12 @@ func TestDeleteButterBoxRefusedWhilePiAgentsReferenceIt(t *testing.T) {
 	ctx := testCtx()
 
 	for _, id := range []string{"pi-one", "pi-two"} {
+		boxID := "box-1"
+		if id == "pi-one" {
+			boxID = " box-1 "
+		}
 		if _, err := agentSvc.CreateAgent(ctx, connect.NewRequest(&agentsv1.CreateAgentRequest{
-			Agent: testPiAgent(id, "box-1"),
+			Agent: testPiAgent(id, boxID),
 		})); err != nil {
 			t.Fatalf("CreateAgent %s: %v", id, err)
 		}

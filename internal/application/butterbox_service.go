@@ -270,7 +270,7 @@ func (s *ButterBoxServiceServer) checkBoxRemovable(ctx context.Context, workspac
 		if a.GetType() != agentsv1.AgentType_AGENT_TYPE_PI {
 			continue
 		}
-		if a.GetConfig().GetPi().GetButterboxId() == boxID {
+		if strings.TrimSpace(a.GetConfig().GetPi().GetButterboxId()) == strings.TrimSpace(boxID) {
 			refs = append(refs, a.GetAgentId())
 		}
 	}

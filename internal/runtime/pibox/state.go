@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
 	adksession "google.golang.org/adk/v2/session"
 )
 
@@ -53,12 +54,11 @@ func readBinding(state adksession.State, agentID string) (binding, bool) {
 	return bindingFromValue(v)
 }
 
-// bindingFromValue parses a stored state value. Session backends hand the
-// value back as whatever generic map their codec produces (map[string]any
-// in-memory, primitive.M from Mongo — both map[string]any under the hood),
-// so parsing is defensive rather than typed.
+// bindingFromValue parses a stored state value. In-memory sessions retain the
+// map written in StateDelta, while Mongo decodes the nested document as a
+// bson.D when loading it into map[string]any state.
 func bindingFromValue(v any) (binding, bool) {
-	m, ok := v.(map[string]any)
+	m, ok := bindingValueMap(v)
 	if !ok {
 		return binding{}, false
 	}
@@ -71,6 +71,23 @@ func bindingFromValue(v any) (binding, bool) {
 		return binding{}, false
 	}
 	return b, true
+}
+
+func bindingValueMap(v any) (map[string]any, bool) {
+	switch value := v.(type) {
+	case map[string]any:
+		return value, true
+	case bson.M:
+		return map[string]any(value), true
+	case bson.D:
+		m := make(map[string]any, len(value))
+		for _, elem := range value {
+			m[elem.Key] = elem.Value
+		}
+		return m, true
+	default:
+		return nil, false
+	}
 }
 
 func stringField(m map[string]any, key string) string {

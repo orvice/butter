@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	piv1 "github.com/orvice/butter-box/pkg/proto/butterbox/pi/v1"
 	"github.com/orvice/butter-box/pkg/proto/butterbox/pi/v1/piv1connect"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/adk/v2/agent"
 	adkrunner "google.golang.org/adk/v2/runner"
 	adksession "google.golang.org/adk/v2/session"
@@ -151,7 +152,8 @@ func piAgentProto(butterboxID, workingDir string) *agentsv1.Agent {
 }
 
 // harness runs the bridge through a real ADK runner over an in-memory
-// session service, so state deltas persist exactly as they do in production.
+// session service. The BSON regression test explicitly crosses the production
+// persistence codec boundary before its second turn.
 type harness struct {
 	t        *testing.T
 	runner   *adkrunner.Runner
@@ -265,6 +267,56 @@ func TestBridge_SecondTurnReusesPiSession(t *testing.T) {
 	}
 	if fake.createCount() != 1 {
 		t.Fatalf("expected one pi session across turns, got %d creates", fake.createCount())
+	}
+	if got := fake.submitReqs[1].GetSessionId(); got != "pi-1" {
+		t.Fatalf("second submit session: got %q", got)
+	}
+}
+
+func TestBridge_SecondTurnReusesPiSessionAfterBSONRoundTrip(t *testing.T) {
+	fake := newFakePi()
+	b := NewBridge(piAgentProto("box-1", "projects/demo"), staticFactory{serveFake(t, fake)})
+	h := newHarness(t, b)
+
+	if _, err := h.turn(t.Context(), textContent("first")); err != nil {
+		t.Fatalf("first turn: %v", err)
+	}
+
+	resp, err := h.sessions.Get(t.Context(), &adksession.GetRequest{
+		AppName: "test-app", UserID: "u1", SessionID: "s1",
+	})
+	if err != nil {
+		t.Fatalf("get session: %v", err)
+	}
+	value, err := resp.Session.State().Get(stateKey("pi-coder"))
+	if err != nil {
+		t.Fatalf("get binding state: %v", err)
+	}
+	encoded, err := bson.Marshal(struct {
+		State map[string]any `bson:"state"`
+	}{State: map[string]any{stateKey("pi-coder"): value}})
+	if err != nil {
+		t.Fatalf("marshal session state: %v", err)
+	}
+	var persisted struct {
+		State map[string]any `bson:"state"`
+	}
+	if err := bson.Unmarshal(encoded, &persisted); err != nil {
+		t.Fatalf("unmarshal session state: %v", err)
+	}
+	roundTripped := persisted.State[stateKey("pi-coder")]
+	if _, ok := roundTripped.(bson.D); !ok {
+		t.Fatalf("round-tripped binding type = %T, want bson.D", roundTripped)
+	}
+	if err := resp.Session.State().Set(stateKey("pi-coder"), roundTripped); err != nil {
+		t.Fatalf("replace binding state: %v", err)
+	}
+
+	if _, err := h.turn(t.Context(), textContent("second")); err != nil {
+		t.Fatalf("second turn: %v", err)
+	}
+	if fake.createCount() != 1 {
+		t.Fatalf("expected BSON-loaded binding to reuse the pi session, got %d creates", fake.createCount())
 	}
 	if got := fake.submitReqs[1].GetSessionId(); got != "pi-1" {
 		t.Fatalf("second submit session: got %q", got)
