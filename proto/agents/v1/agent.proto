@@ -185,6 +185,51 @@ message AgentConfig {
   // Workflow graph of nodes and edges executed by the ADK workflow engine.
   // @gotags: json:"workflow,omitempty" yaml:"workflow,omitempty"
   WorkflowConfig workflow = 40;
+
+  // --- Pi agent fields (used when type is PI, ADR-0011) ---
+
+  // Binding of a PI agent to one ButterBox and one working directory.
+  // Required when type is PI; meaningless otherwise.
+  // @gotags: json:"pi,omitempty" yaml:"pi,omitempty"
+  PiAgentConfig pi = 50;
+}
+
+// PiAgentConfig binds a PI agent to the ButterBox that runs its pi coding
+// agent and to one working directory on that box (ADR-0011). A PI agent's
+// tools and instructions are configured on the box — in the working
+// directory's AGENTS.md and .pi/ — not in butter, so the LLM/MCP/skill
+// fields of AgentConfig are rejected on write for PI agents.
+message PiAgentConfig {
+  // The workspace ButterBox that hosts this agent's pi sessions.
+  // @gotags: json:"butterbox_id,omitempty" yaml:"butterbox_id,omitempty"
+  string butterbox_id = 1;
+
+  // Working directory for pi sessions, absolute or relative to the box's
+  // sandbox root. Empty uses the box server's working directory.
+  // @gotags: json:"working_dir,omitempty" yaml:"working_dir,omitempty"
+  string working_dir = 2;
+
+  // Optional pi model provider (e.g. "anthropic"). Empty uses pi's default
+  // on the box. Model identity is pi's, not butter's: ModelProviders are
+  // not involved.
+  // @gotags: json:"provider,omitempty" yaml:"provider,omitempty"
+  string provider = 3;
+
+  // Optional model pattern or ID as accepted by pi's --model flag. The
+  // dropdown is fed by ButterBoxService.ListButterBoxModels.
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
+  string model = 4;
+
+  // Optional thinking level: off, minimal, low, medium, high, xhigh, max.
+  // @gotags: json:"thinking_level,omitempty" yaml:"thinking_level,omitempty"
+  string thinking_level = 5;
+
+  // Bounds one turn's run on the box; exceeding it aborts the run. Unset
+  // defaults to 1800 seconds; an explicit 0 means unlimited. The bound
+  // exists to stop runaway loops from holding a session lease and a box
+  // process slot forever — long legitimate runs raise the number.
+  // @gotags: json:"max_run_seconds,omitempty" yaml:"max_run_seconds,omitempty"
+  optional int32 max_run_seconds = 6;
 }
 
 // WorkflowConfig declares a Workflow Agent's directed graph as two explicit
@@ -439,6 +484,9 @@ enum AgentType {
   AGENT_TYPE_SEQUENTIAL = 3;
   AGENT_TYPE_PARALLEL = 4;
   AGENT_TYPE_WORKFLOW = 5;
+  // Leaf agent backed by a pi coding agent running on a ButterBox
+  // (ADR-0011). Configured via AgentConfig.pi; may not have children.
+  AGENT_TYPE_PI = 6;
 }
 
 // LLMIncludeContents matches llmagent.IncludeContents values.

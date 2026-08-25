@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 	butterboxrepo "go.orx.me/apps/butter/internal/repo/butterbox"
+	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -32,6 +34,9 @@ const butterBoxProbeTimeout = 15 * time.Second
 type ButterBoxServiceServer struct {
 	repo    butterboxrepo.Repository
 	keyring *secretbox.Keyring
+	// agentRepo backs the delete reference guard: a box a PI agent still
+	// points at cannot be removed.
+	agentRepo configrepo.AgentRepository
 }
 
 func NewButterBoxServiceServer(repo butterboxrepo.Repository) *ButterBoxServiceServer {
@@ -44,6 +49,9 @@ func (s *ButterBoxServiceServer) SetRepo(repo butterboxrepo.Repository) { s.repo
 // SetKeyring wires credential encryption after bootstrap. Without it, token
 // writes are refused (a nil keyring fails closed).
 func (s *ButterBoxServiceServer) SetKeyring(k *secretbox.Keyring) { s.keyring = k }
+
+// SetAgentRepo wires the agent repository used by the delete reference guard.
+func (s *ButterBoxServiceServer) SetAgentRepo(repo configrepo.AgentRepository) { s.agentRepo = repo }
 
 func (s *ButterBoxServiceServer) requireRepo() error {
 	if s.repo == nil {
@@ -233,11 +241,45 @@ func (s *ButterBoxServiceServer) DeleteButterBox(ctx context.Context, req *conne
 	if err != nil {
 		return nil, err
 	}
+	// A PI agent whose box vanished is an agent that silently stops working;
+	// refuse the delete and name the agents instead (same contract as the
+	// Telegram reference guard). Tombstoned agents count too — restoring one
+	// must not resurrect a dangling box reference.
+	if err := s.checkBoxRemovable(ctx, workspaceID, req.Msg.GetId()); err != nil {
+		return nil, err
+	}
 	if err := s.repo.Delete(ctx, workspaceID, req.Msg.GetId()); err != nil {
 		return nil, mapButterBoxErr(err)
 	}
 	log.FromContext(ctx).Info("butterbox deleted", "id", req.Msg.GetId(), "workspace", workspaceID)
 	return connect.NewResponse(&agentsv1.DeleteButterBoxResponse{}), nil
+}
+
+// checkBoxRemovable returns a FailedPrecondition error naming every PI agent
+// (any lifecycle status) whose config binds the box.
+func (s *ButterBoxServiceServer) checkBoxRemovable(ctx context.Context, workspaceID, boxID string) error {
+	if s.agentRepo == nil {
+		return nil
+	}
+	agents, err := s.agentRepo.ListAgents(ctx, workspaceID)
+	if err != nil {
+		return connectx.InternalWith(err)
+	}
+	var refs []string
+	for _, a := range agents {
+		if a.GetType() != agentsv1.AgentType_AGENT_TYPE_PI {
+			continue
+		}
+		if strings.TrimSpace(a.GetConfig().GetPi().GetButterboxId()) == strings.TrimSpace(boxID) {
+			refs = append(refs, a.GetAgentId())
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	sort.Strings(refs)
+	return connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf(
+		"butterbox %q is referenced by pi agents: %s; repoint or delete them first", boxID, strings.Join(refs, ", ")))
 }
 
 func (s *ButterBoxServiceServer) SetButterBoxToken(ctx context.Context, req *connect.Request[agentsv1.SetButterBoxTokenRequest]) (*connect.Response[agentsv1.SetButterBoxTokenResponse], error) {

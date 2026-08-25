@@ -19,6 +19,7 @@ import (
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	butterboxrepo "go.orx.me/apps/butter/internal/repo/butterbox"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
@@ -75,6 +76,7 @@ type AgentServiceServer struct {
 	telegramGuard *TelegramReferenceGuard
 
 	repo            configrepo.AgentRepository
+	butterBoxRepo   butterboxrepo.Repository
 	runtime         ConfigRuntime
 	runnerSvc       agentRunner
 	invRepo         invocation.Repository
@@ -160,6 +162,57 @@ func (s *AgentServiceServer) SetTelegramGuard(guard *TelegramReferenceGuard) {
 // authorization of owner/admin-gated RPCs.
 func (s *AgentServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
 	s.wsRepo = repo
+}
+
+// SetButterBoxRepo wires the ButterBox repository used to verify that a PI
+// agent references an existing box at write time (ADR-0011).
+func (s *AgentServiceServer) SetButterBoxRepo(repo butterboxrepo.Repository) {
+	s.butterBoxRepo = repo
+}
+
+// validatePiAgentWrite canonicalizes the PI binding, runs pure config
+// validation, and verifies that the referenced ButterBox is usable for this
+// write. Disabling a box blocks new bindings but does not break agents that
+// were already bound to it.
+func (s *AgentServiceServer) validatePiAgentWrite(ctx context.Context, wsID string, agent *agentsv1.Agent) error {
+	if agent.GetType() == agentsv1.AgentType_AGENT_TYPE_PI && agent.GetConfig().GetPi() != nil {
+		pi := agent.GetConfig().GetPi()
+		pi.ButterboxId = strings.TrimSpace(pi.GetButterboxId())
+	}
+	if err := internalagent.ValidatePiAgent(agent); err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if agent.GetType() != agentsv1.AgentType_AGENT_TYPE_PI || s.butterBoxRepo == nil {
+		return nil
+	}
+	boxID := agent.GetConfig().GetPi().GetButterboxId()
+	box, err := s.butterBoxRepo.Get(ctx, wsID, boxID)
+	if err != nil {
+		if errors.Is(err, butterboxrepo.ErrNotFound) {
+			return connectx.InvalidArgument("config.pi.butterbox_id",
+				fmt.Sprintf("butterbox %q not found in this workspace; register it via ButterBoxService first", boxID))
+		}
+		return connectx.InternalWith(err)
+	}
+	if box.GetEnabled() {
+		return nil
+	}
+
+	// Existing bindings remain valid after an operator disables the box. The
+	// current row is also compared canonically so a legacy spaced ID can be
+	// repaired by the next write without being mistaken for a repoint.
+	if agent.GetAgentId() != "" {
+		current, getErr := s.repo.GetAgent(ctx, wsID, agent.GetAgentId())
+		switch {
+		case getErr == nil && current.GetType() == agentsv1.AgentType_AGENT_TYPE_PI &&
+			strings.TrimSpace(current.GetConfig().GetPi().GetButterboxId()) == boxID:
+			return nil
+		case getErr != nil && !errors.Is(getErr, configrepo.ErrNotFound):
+			return connectx.InternalWith(getErr)
+		}
+	}
+	return connectx.InvalidArgument("config.pi.butterbox_id",
+		fmt.Sprintf("butterbox %q is disabled and cannot accept new pi agent bindings; enable it or choose another box", boxID))
 }
 
 // overlayActiveContent replaces description/instruction/global_instruction on
@@ -286,16 +339,18 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, err
 	}
-	name := req.Msg.GetAgent().GetName()
+	agent := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
+	name := agent.GetName()
 	if s.runnerSvc != nil && s.runnerSvc.IsReservedAgentName(name) {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			fmt.Errorf("agent name %q is reserved by a built-in agent", name))
 	}
-	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
+	if err := internalagent.ValidateWorkflowAgent(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-
-	agent := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
+	if err := s.validatePiAgentWrite(ctx, wsID, agent); err != nil {
+		return nil, err
+	}
 
 	// Every new agent is created with an immutable agent_id and composes
 	// children via ID references — the embedded sub_agents write path is
@@ -418,8 +473,12 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, err
 	}
-	if err := internalagent.ValidateWorkflowAgent(req.Msg.GetAgent()); err != nil {
+	update := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
+	if err := internalagent.ValidateWorkflowAgent(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := s.validatePiAgentWrite(ctx, wsID, update); err != nil {
+		return nil, err
 	}
 	logger := log.FromContext(ctx)
 	// agent_id is the only lookup key (issue #241); the runtime name is
@@ -432,7 +491,6 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, toConnectError(err)
 	}
 
-	update := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
 	update.Name = prev.GetName()
 	update.LifecycleStatus = prev.GetLifecycleStatus()
 	update.LegacyName = prev.GetLegacyName()
@@ -974,12 +1032,15 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 	if err := s.requireOwnerOrAdmin(ctx, wsID); err != nil {
 		return nil, err
 	}
-	patch := req.Msg.GetAgentPatch()
+	patch := proto.Clone(req.Msg.GetAgentPatch()).(*agentsv1.Agent)
 	if patch.GetAgentId() == "" {
 		return nil, connectx.RequiredArgument("agent_patch.agent_id")
 	}
 	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := s.validatePiAgentWrite(ctx, wsID, patch); err != nil {
+		return nil, err
 	}
 	coord, err := s.requireCoordinator()
 	if err != nil {
