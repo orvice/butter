@@ -284,6 +284,7 @@ export interface RemoteAgent {
 export interface ModelConfig {
   name: string;
   alias?: string;
+  context_window_tokens?: number;
 }
 
 export interface ModelProvider {

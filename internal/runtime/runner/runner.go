@@ -403,11 +403,14 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 		walk(&agents[i])
 	}
 
+	registry, err := newConfiguredModelRegistry(providers, contextguard.NewCrushRegistry())
+	if err != nil {
+		return adkrunner.PluginConfig{}, fmt.Errorf("configured model registry: %w", err)
+	}
 	if len(entries) == 0 {
 		return adkrunner.PluginConfig{}, nil
 	}
 
-	registry := contextguard.NewCrushRegistry()
 	guard := contextguard.New(registry)
 
 	for _, e := range entries {

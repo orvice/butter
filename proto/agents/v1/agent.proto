@@ -605,6 +605,12 @@ message ModelConfig {
   // Agents and channels use alias to reference models.
   // @gotags: json:"alias,omitempty" yaml:"alias,omitempty"
   string alias = 2;
+
+  // Optional provider model input context-window capacity in tokens.
+  // Zero means unset; ContextGuard delegates to embedded model metadata.
+  // This is not the model's maximum output-token configuration.
+  // @gotags: json:"context_window_tokens,omitempty" yaml:"context_window_tokens,omitempty"
+  uint32 context_window_tokens = 3;
 }
 
 // ModelProvider maps a set of model names to a provider backend.

@@ -53,6 +53,12 @@ func TestMongoAgentRepositoryConformance(t *testing.T) {
 	})
 }
 
+func TestMongoModelProviderRepositoryConformance(t *testing.T) {
+	repotest.RunModelProviders(t, func(t *testing.T) configrepo.ModelProviderRepository {
+		return newStore(t, testDB(t))
+	})
+}
+
 // seedLegacyAgentDoc inserts an agent document exactly as the pre-#241 code
 // wrote it: _id = "workspace_id:name".
 func seedLegacyAgentDoc(t *testing.T, s *Store, ws string, agent *agentsv1.Agent) string {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   AT_LEAST_ONE_MODEL_MESSAGE,
+  CONTEXT_WINDOW_TOKENS_MESSAGE,
+  MAX_CONTEXT_WINDOW_TOKENS,
   MODEL_ID_REQUIRED_MESSAGE,
   blankModelRow,
   modelRowSchema,
@@ -10,17 +12,21 @@ import {
 } from './model-rows'
 
 describe('modelsToRows', () => {
-  it('maps every model to an editable row, keeping empty aliases as empty strings', () => {
+  it('maps model IDs, aliases, and configured capacities to editable strings', () => {
     expect(
       modelsToRows([
-        { name: 'gpt-4o', alias: '4o' },
+        {
+          name: 'gpt-4o',
+          alias: '4o',
+          context_window_tokens: 128_000,
+        },
         { name: 'gemini-2.5-pro' },
-        { name: 'plain', alias: '' },
+        { name: 'plain', alias: '', context_window_tokens: 0 },
       ])
     ).toEqual([
-      { name: 'gpt-4o', alias: '4o' },
-      { name: 'gemini-2.5-pro', alias: '' },
-      { name: 'plain', alias: '' },
+      { name: 'gpt-4o', alias: '4o', contextWindowTokens: '128000' },
+      { name: 'gemini-2.5-pro', alias: '', contextWindowTokens: '' },
+      { name: 'plain', alias: '', contextWindowTokens: '' },
     ])
   })
 
@@ -31,69 +37,110 @@ describe('modelsToRows', () => {
 })
 
 describe('blankModelRow', () => {
-  it('starts a new row with neither a model ID nor an alias', () => {
-    expect(blankModelRow()).toEqual({ name: '', alias: '' })
+  it('starts a new row with blank optional model metadata', () => {
+    expect(blankModelRow()).toEqual({
+      name: '',
+      alias: '',
+      contextWindowTokens: '',
+    })
   })
 })
 
 describe('rowsToModels', () => {
-  it('omits blank aliases and preserves the submitted row order', () => {
+  it('omits blank aliases and capacities while preserving row order', () => {
     expect(
       rowsToModels([
-        { name: 'gemini-2.5-pro', alias: 'pro' },
-        { name: 'gpt-4.1', alias: '' },
-        { name: 'gpt-4o', alias: '4o' },
+        {
+          name: 'gemini-2.5-pro',
+          alias: 'pro',
+          contextWindowTokens: '1048576',
+        },
+        { name: 'gpt-4.1', alias: '', contextWindowTokens: '' },
+        { name: 'gpt-4o', alias: '4o', contextWindowTokens: '0' },
       ])
     ).toEqual([
-      { name: 'gemini-2.5-pro', alias: 'pro' },
+      {
+        name: 'gemini-2.5-pro',
+        alias: 'pro',
+        context_window_tokens: 1_048_576,
+      },
       { name: 'gpt-4.1' },
       { name: 'gpt-4o', alias: '4o' },
     ])
   })
 
   it('trims whitespace through the schema before mapping, like the real submit path', () => {
-    // The form resolver parses rows through modelsSchema first, so its .trim()
-    // owns normalization; rowsToModels maps the parsed values as-is.
     const parsed = modelsSchema.parse([
-      { name: '  gpt-4o  ', alias: '   ' },
-      { name: ' gpt-4o ', alias: ' 4o ' },
+      {
+        name: '  gpt-4o  ',
+        alias: '   ',
+        contextWindowTokens: ' 128000 ',
+      },
+      { name: ' gpt-4o ', alias: ' 4o ', contextWindowTokens: ' ' },
     ])
 
     expect(rowsToModels(parsed)).toEqual([
-      { name: 'gpt-4o' },
+      { name: 'gpt-4o', context_window_tokens: 128_000 },
       { name: 'gpt-4o', alias: '4o' },
     ])
   })
 
-  it('maps each row to the payload shape without altering its exact values', () => {
-    const row = { name: ' gpt-4o ', alias: '' }
+  it('maps row strings without altering model IDs or aliases', () => {
+    const row = {
+      name: ' gpt-4o ',
+      alias: '',
+      contextWindowTokens: '64000',
+    }
 
-    expect(rowsToModels([row])).toEqual([{ name: ' gpt-4o ' }])
-    expect(row).toEqual({ name: ' gpt-4o ', alias: '' })
+    expect(rowsToModels([row])).toEqual([
+      { name: ' gpt-4o ', context_window_tokens: 64_000 },
+    ])
+    expect(row).toEqual({
+      name: ' gpt-4o ',
+      alias: '',
+      contextWindowTokens: '64000',
+    })
   })
 })
 
 describe('existing-data round trips', () => {
   it('loads a stored provider into rows and back without changing models', () => {
-    const stored = [{ name: 'gpt-4o', alias: '4o' }, { name: 'gemini-2.5-pro' }]
+    const stored = [
+      {
+        name: 'gpt-4o',
+        alias: '4o',
+        context_window_tokens: 128_000,
+      },
+      { name: 'gemini-2.5-pro' },
+    ]
 
     expect(rowsToModels(modelsToRows(stored))).toEqual(stored)
   })
 
-  it('keeps aliases distinct per row across repeated round trips', () => {
+  it('keeps aliases and capacities distinct across repeated round trips', () => {
     const stored = [
-      { name: 'shared-model', alias: 'a' },
-      { name: 'shared-model', alias: 'b' },
+      {
+        name: 'shared-model',
+        alias: 'a',
+        context_window_tokens: 32_000,
+      },
+      {
+        name: 'shared-model',
+        alias: 'b',
+        context_window_tokens: 64_000,
+      },
     ]
     const once = modelsToRows(stored)
 
     expect(once.map((row) => row.alias)).toEqual(['a', 'b'])
+    expect(once.map((row) => row.contextWindowTokens)).toEqual([
+      '32000',
+      '64000',
+    ])
     expect(rowsToModels(modelsToRows(rowsToModels(once)))).toEqual(stored)
   })
 
-  it("round-trips a provider's model list without inventing or reordering rows", () => {
-    // Only the models array is mapped back and forth, so each stored model
-    // comes back exactly once, in order.
+  it("does not invent capacity for a provider's legacy model list", () => {
     const providerModels = [{ name: 'ollama-local' }]
 
     expect(rowsToModels(modelsToRows(providerModels))).toEqual([
@@ -121,23 +168,32 @@ describe('model validation (add/remove behavior)', () => {
       expect(issue?.path).toContain(1)
       expect(issue?.path).toContain('name')
     }
-    // Removing the appended row restores the exact previous configuration.
     expect(rowsToModels(rowsAfterAdd.slice(0, -1))).toEqual(existing)
   })
 
   it('attaches per-row errors to the specific row with the empty model ID', () => {
-    const parsed = modelRowSchema.safeParse({ name: '', alias: 'x' })
+    const parsed = modelRowSchema.safeParse({
+      name: '',
+      alias: 'x',
+      contextWindowTokens: '',
+    })
     expect(parsed.success).toBe(false)
     if (!parsed.success) {
       expect(parsed.error.issues[0].message).toBe(MODEL_ID_REQUIRED_MESSAGE)
     }
 
-    const filled = modelRowSchema.safeParse({ name: 'm', alias: '' })
+    const filled = modelRowSchema.safeParse({
+      name: 'm',
+      alias: '',
+      contextWindowTokens: '',
+    })
     expect(filled.success).toBe(true)
   })
 
   it('rejects whitespace-only model IDs so every submitted ID is non-empty', () => {
-    const parsed = modelsSchema.safeParse([{ name: '   ', alias: '' }])
+    const parsed = modelsSchema.safeParse([
+      { name: '   ', alias: '', contextWindowTokens: '' },
+    ])
     expect(parsed.success).toBe(false)
     if (!parsed.success) {
       expect(parsed.error.issues[0].message).toBe(MODEL_ID_REQUIRED_MESSAGE)
@@ -155,8 +211,51 @@ describe('model validation (add/remove behavior)', () => {
 
   it('normalizes trimmed values through the schema like the resolver would on submit', () => {
     const parsed = modelsSchema.parse([
-      { name: ' gemini-2.5-pro ', alias: ' pro ' },
+      {
+        name: ' gemini-2.5-pro ',
+        alias: ' pro ',
+        contextWindowTokens: ' 1048576 ',
+      },
     ])
-    expect(parsed).toEqual([{ name: 'gemini-2.5-pro', alias: 'pro' }])
+    expect(parsed).toEqual([
+      {
+        name: 'gemini-2.5-pro',
+        alias: 'pro',
+        contextWindowTokens: '1048576',
+      },
+    ])
   })
+})
+
+describe('context window validation', () => {
+  it.each(['', '0', '1', String(MAX_CONTEXT_WINDOW_TOKENS)])(
+    'accepts %j as blank or unsigned uint32 input',
+    (contextWindowTokens) => {
+      expect(
+        modelRowSchema.safeParse({
+          name: 'model',
+          alias: '',
+          contextWindowTokens,
+        }).success
+      ).toBe(true)
+    }
+  )
+
+  it.each(['-1', '1.5', '1e5', 'not-a-number', '4294967296'])(
+    'rejects invalid capacity %j',
+    (contextWindowTokens) => {
+      const parsed = modelRowSchema.safeParse({
+        name: 'model',
+        alias: '',
+        contextWindowTokens,
+      })
+      expect(parsed.success).toBe(false)
+      if (!parsed.success) {
+        expect(parsed.error.issues[0].message).toBe(
+          CONTEXT_WINDOW_TOKENS_MESSAGE
+        )
+        expect(parsed.error.issues[0].path).toContain('contextWindowTokens')
+      }
+    }
+  )
 })

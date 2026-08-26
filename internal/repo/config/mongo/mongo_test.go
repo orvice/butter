@@ -6,6 +6,22 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+func TestUnmarshalLegacyModelProviderDefaultsContextCapacity(t *testing.T) {
+	const legacy = `{
+		"name": "openai",
+		"type": "openai",
+		"models": [{"name": "gpt-4o", "alias": "4o"}]
+	}`
+
+	provider := &agentsv1.ModelProvider{}
+	if err := unmarshal(legacy, provider); err != nil {
+		t.Fatalf("unmarshal legacy model provider: %v", err)
+	}
+	if got := provider.GetModels()[0].GetContextWindowTokens(); got != 0 {
+		t.Fatalf("legacy context_window_tokens = %d, want zero", got)
+	}
+}
+
 func TestUnmarshalMCPServerIgnoresLegacyStdioJSON(t *testing.T) {
 	const legacy = `{
 		"id": "legacy-stdio",

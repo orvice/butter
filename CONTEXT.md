@@ -24,6 +24,18 @@ _Avoid_: agent config
 **Effective Agent**:
 The runnable Agent produced by combining its operational configuration with the currently active Agent Content revision.
 
+**Model Context Capacity**:
+Optional operator-supplied metadata describing a provider Model's input context window in tokens. Zero or absent means the embedded model registry remains authoritative. It does not configure maximum output tokens or change the provider's actual limit.
+_Avoid_: model max tokens, output limit
+
+**Agent Context Override**:
+The threshold ContextGuard value stored in `context_guard.max_tokens`. It overrides Model Context Capacity for that Agent's input-context calculations and is retained under the existing wire name for compatibility.
+_Avoid_: maximum output tokens
+
+**Effective Context Window**:
+The input-context value ContextGuard uses after resolving the Agent Context Override, configured Model Context Capacity, embedded model metadata, and the 128,000-token unknown-model fallback in that order.
+_Avoid_: provider hard limit
+
 **Git Host**:
 A platform-admin-configured Git service endpoint (GitHub, GitHub Enterprise, GitLab, or self-hosted GitLab) with a fixed API base URL. Workspaces bind repositories only on configured hosts; workspace input can never introduce an arbitrary URL.
 _Avoid_: git provider config, git server
