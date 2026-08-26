@@ -12,8 +12,10 @@ import (
 )
 
 type contextGuardPolicy struct {
-	strategy      agentsv1.ContextGuardStrategy
-	agentOverride int
+	strategy           agentsv1.ContextGuardStrategy
+	agentOverride      int
+	configuredMaxTurns int
+	effectiveMaxTurns  int
 }
 
 // newEffectiveContextWindowLoggerPlugin logs the callback-time resolution
@@ -35,6 +37,8 @@ func newEffectiveContextWindowLoggerPlugin(registry *configuredModelRegistry, po
 				"metadata_source", string(resolution.MetadataSource),
 				"configured_agent_override", resolution.ConfiguredAgentOverride,
 				"configured_model_capacity", resolution.ConfiguredModelCapacity,
+				"configured_max_turns", policy.configuredMaxTurns,
+				"effective_max_turns", policy.effectiveMaxTurns,
 				"effective_context_window", resolution.EffectiveContextWindow,
 			)
 			return nil, nil

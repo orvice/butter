@@ -105,6 +105,7 @@ test('edits ContextGuard modes, persists the valid fields, and reloads them', as
   await page.getByLabel('Context window override (tokens)').fill('64000')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await ctx.saved
+  await expect(page).toHaveURL(/\/agents$/)
 
   const request = ctx.submittedRequest()
   const guard = request?.agent?.config?.contextGuard

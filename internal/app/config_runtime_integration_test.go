@@ -2,14 +2,8 @@ package app
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -26,13 +20,14 @@ import (
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
+	"go.orx.me/apps/butter/internal/testsupport/openaifake"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 func TestConfigRuntimeReloadRunnerUpdatesWarmedEffectiveContextWindows(t *testing.T) {
 	const marker = "[System: The conversation was compacted because it exceeded the context window."
-	backend := newConfigRuntimeModelBackend(t)
+	backend := openaifake.New(t)
 	ctx := workspace.WithID(context.Background(), "ws-test")
 	store := NewConfigStore()
 
@@ -54,10 +49,10 @@ func TestConfigRuntimeReloadRunnerUpdatesWarmedEffectiveContextWindows(t *testin
 	provider := &agentsv1.ModelProvider{
 		Name:    "fake",
 		Type:    "openai",
-		BaseUrl: backend.srv.URL,
+		BaseUrl: backend.URL(),
 		Models: []*agentsv1.ModelConfig{
 			{Name: "actual-default", Alias: "default-alias", ContextWindowTokens: 128_000},
-			{Name: "actual-override", Alias: "override-alias", ContextWindowTokens: 128_000},
+			{Name: "actual-override-v1", Alias: "override-alias", ContextWindowTokens: 128_000},
 		},
 	}
 	if _, err := store.CreateModelProvider(ctx, "ws-test", provider); err != nil {
@@ -85,10 +80,10 @@ func TestConfigRuntimeReloadRunnerUpdatesWarmedEffectiveContextWindows(t *testin
 	if _, err := runnerSvc.Run(ctx, agentConfig.GetName(), []*genai.Part{{Text: input}}, "override-alias", overrideCtx, nil, nil); err != nil {
 		t.Fatalf("warm override Run: %v", err)
 	}
-	if got := backend.callCount("actual-default"); got != 1 {
+	if got := backend.CallCount("actual-default"); got != 1 {
 		t.Fatalf("default calls before reload = %d, want 1", got)
 	}
-	if got := backend.callCount("actual-override"); got != 1 {
+	if got := backend.CallCount("actual-override-v1"); got != 1 {
 		t.Fatalf("override calls before reload = %d, want 1", got)
 	}
 
@@ -109,7 +104,7 @@ func TestConfigRuntimeReloadRunnerUpdatesWarmedEffectiveContextWindows(t *testin
 		BaseUrl: provider.GetBaseUrl(),
 		Models: []*agentsv1.ModelConfig{
 			{Name: "actual-default", Alias: "default-alias", ContextWindowTokens: 128},
-			{Name: "actual-override", Alias: "override-alias", ContextWindowTokens: 128},
+			{Name: "actual-override-v2", Alias: "override-alias", ContextWindowTokens: 128},
 		},
 	}
 	if _, err := store.UpdateModelProvider(ctx, "ws-test", updated); err != nil {
@@ -140,88 +135,18 @@ func TestConfigRuntimeReloadRunnerUpdatesWarmedEffectiveContextWindows(t *testin
 	if _, err := runnerSvc.Run(ctx, agentConfig.GetName(), []*genai.Part{{Text: input}}, "", defaultCtx, nil, nil); err != nil {
 		t.Fatalf("first default Run after reload: %v", err)
 	}
-	if got := backend.lastInput("actual-default"); !strings.Contains(got, marker) {
+	if got := backend.LastInput("actual-default"); !strings.Contains(got, marker) {
 		t.Fatalf("first default request after ConfigRuntime reload did not compact: %q", got)
 	}
 	if _, err := runnerSvc.Run(ctx, agentConfig.GetName(), []*genai.Part{{Text: input}}, "override-alias", overrideCtx, nil, nil); err != nil {
 		t.Fatalf("first override Run after reload: %v", err)
 	}
-	if got := backend.lastInput("actual-override"); !strings.Contains(got, marker) {
-		t.Fatalf("first override request after ConfigRuntime reload did not compact: %q", got)
+	if got := backend.LastInput("actual-override-v2"); !strings.Contains(got, marker) {
+		t.Fatalf("first override request after ConfigRuntime reload did not use the rebuilt Agent and compact: %q", got)
 	}
-}
-
-type configRuntimeModelBackend struct {
-	srv *httptest.Server
-	mu  sync.Mutex
-	all map[string][]string
-}
-
-func newConfigRuntimeModelBackend(t *testing.T) *configRuntimeModelBackend {
-	t.Helper()
-	backend := &configRuntimeModelBackend{all: make(map[string][]string)}
-	backend.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		var req struct {
-			Model    string `json:"model"`
-			Messages []struct {
-				Role    string          `json:"role"`
-				Content json.RawMessage `json:"content"`
-			} `json:"messages"`
-		}
-		if err := json.Unmarshal(body, &req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		lastUser := ""
-		for _, message := range req.Messages {
-			if message.Role != "user" {
-				continue
-			}
-			var text string
-			if json.Unmarshal(message.Content, &text) == nil {
-				lastUser = text
-				continue
-			}
-			var parts []struct {
-				Text string `json:"text"`
-			}
-			if json.Unmarshal(message.Content, &parts) == nil {
-				var joined strings.Builder
-				for _, part := range parts {
-					joined.WriteString(part.Text)
-				}
-				lastUser = joined.String()
-			}
-		}
-		backend.mu.Lock()
-		backend.all[req.Model] = append(backend.all[req.Model], lastUser)
-		backend.mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"id":"config-runtime","object":"chat.completion","created":1,"model":%q,"choices":[{"index":0,"message":{"role":"assistant","content":%q},"finish_reason":"stop"}]}`, req.Model, req.Model+"("+lastUser+")")
-	}))
-	t.Cleanup(backend.srv.Close)
-	return backend
-}
-
-func (b *configRuntimeModelBackend) callCount(modelID string) int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return len(b.all[modelID])
-}
-
-func (b *configRuntimeModelBackend) lastInput(modelID string) string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	inputs := b.all[modelID]
-	if len(inputs) == 0 {
-		return ""
+	if got := backend.CallCount("actual-override-v1"); got != 1 {
+		t.Fatalf("stale override model calls after ConfigRuntime reload = %d, want the warmed v1 Agent to remain unused", got)
 	}
-	return inputs[len(inputs)-1]
 }
 
 func configRuntimeContextInfo(sessionID string) *agentsv1.ContextInfo {
