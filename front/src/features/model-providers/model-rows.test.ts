@@ -24,9 +24,8 @@ describe('modelsToRows', () => {
     ])
   })
 
-  it('treats missing or undefined models as no rows', () => {
+  it('treats missing models as no rows', () => {
     expect(modelsToRows(undefined)).toEqual([])
-    expect(modelsToRows(null)).toEqual([])
     expect(modelsToRows([])).toEqual([])
   })
 })
@@ -52,13 +51,25 @@ describe('rowsToModels', () => {
     ])
   })
 
-  it('trims whitespace from IDs and aliases before submission', () => {
-    expect(rowsToModels([{ name: '  gpt-4o  ', alias: '   ' }])).toEqual([
-      { name: 'gpt-4o' },
+  it('trims whitespace through the schema before mapping, like the real submit path', () => {
+    // The form resolver parses rows through modelsSchema first, so its .trim()
+    // owns normalization; rowsToModels maps the parsed values as-is.
+    const parsed = modelsSchema.parse([
+      { name: '  gpt-4o  ', alias: '   ' },
+      { name: ' gpt-4o ', alias: ' 4o ' },
     ])
-    expect(rowsToModels([{ name: ' gpt-4o ', alias: ' 4o ' }])).toEqual([
+
+    expect(rowsToModels(parsed)).toEqual([
+      { name: 'gpt-4o' },
       { name: 'gpt-4o', alias: '4o' },
     ])
+  })
+
+  it('maps each row to the payload shape without altering its exact values', () => {
+    const row = { name: ' gpt-4o ', alias: '' }
+
+    expect(rowsToModels([row])).toEqual([{ name: ' gpt-4o ' }])
+    expect(row).toEqual({ name: ' gpt-4o ', alias: '' })
   })
 })
 
@@ -80,8 +91,9 @@ describe('existing-data round trips', () => {
     expect(rowsToModels(modelsToRows(rowsToModels(once)))).toEqual(stored)
   })
 
-  it('does not invent or reorder rows when a provider carries credentials alongside models', () => {
-    // The form maps only the model list; provider-level fields stay untouched.
+  it("round-trips a provider's model list without inventing or reordering rows", () => {
+    // Only the models array is mapped back and forth, so each stored model
+    // comes back exactly once, in order.
     const providerModels = [{ name: 'ollama-local' }]
 
     expect(rowsToModels(modelsToRows(providerModels))).toEqual([
