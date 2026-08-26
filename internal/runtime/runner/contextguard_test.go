@@ -13,7 +13,7 @@ import (
 
 func TestRun_ContextGuardThresholdAgentOverrideCompacts(t *testing.T) {
 	backend := newFakeBackend(t)
-	agent := agentsv1.Agent{
+	agents := []agentsv1.Agent{{
 		Name:        "guarded",
 		AgentId:     "guarded",
 		WorkspaceId: "ws-a",
@@ -24,16 +24,17 @@ func TestRun_ContextGuardThresholdAgentOverrideCompacts(t *testing.T) {
 				MaxTokens: 128,
 			},
 		},
-	}
+	}}
+	agent := &agents[0]
 
-	svc := buildWorkflowService(t, backend, []agentsv1.Agent{agent}, []string{"model-a"}, session.InMemoryService())
+	svc := buildWorkflowService(t, backend, agents, []string{"model-a"}, session.InMemoryService())
 	input := strings.Repeat("This deliberately long request exercises the configured context window. ", 20)
 	got, err := svc.Run(
 		context.Background(),
 		agent.GetName(),
 		[]*genai.Part{{Text: input}},
 		"",
-		turnCtxInfo(&agent),
+		turnCtxInfo(agent),
 		nil,
 		nil,
 	)
@@ -56,7 +57,7 @@ func TestRun_ContextGuardThresholdAgentOverrideCompacts(t *testing.T) {
 
 func TestRun_ContextGuardSlidingWindowUsesContentEntryLimit(t *testing.T) {
 	backend := newFakeBackend(t)
-	agent := agentsv1.Agent{
+	agents := []agentsv1.Agent{{
 		Name:        "sliding",
 		AgentId:     "sliding",
 		WorkspaceId: "ws-a",
@@ -67,8 +68,9 @@ func TestRun_ContextGuardSlidingWindowUsesContentEntryLimit(t *testing.T) {
 				MaxTurns: 1,
 			},
 		},
-	}
-	svc := buildWorkflowService(t, backend, []agentsv1.Agent{agent}, []string{"model-a"}, session.InMemoryService())
+	}}
+	agent := &agents[0]
+	svc := buildWorkflowService(t, backend, agents, []string{"model-a"}, session.InMemoryService())
 
 	for i := 0; i < 4; i++ {
 		_, err := svc.Run(
@@ -76,7 +78,7 @@ func TestRun_ContextGuardSlidingWindowUsesContentEntryLimit(t *testing.T) {
 			agent.GetName(),
 			[]*genai.Part{{Text: "turn " + string(rune('1'+i))}},
 			"",
-			turnCtxInfo(&agent),
+			turnCtxInfo(agent),
 			nil,
 			nil,
 		)
