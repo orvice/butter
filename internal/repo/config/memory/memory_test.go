@@ -18,6 +18,12 @@ func TestAgentRepositoryConformance(t *testing.T) {
 	})
 }
 
+func TestModelProviderRepositoryConformance(t *testing.T) {
+	repotest.RunModelProviders(t, func(t *testing.T) configrepo.ModelProviderRepository {
+		return New()
+	})
+}
+
 func TestMCPServerCRUD(t *testing.T) {
 	s := New()
 	ctx := context.Background()

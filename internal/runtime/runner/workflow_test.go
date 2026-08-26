@@ -1123,19 +1123,28 @@ func buildWorkflowService(t *testing.T, b *fakeBackend, agents []agentsv1.Agent,
 	for _, m := range models {
 		modelCfgs = append(modelCfgs, &agentsv1.ModelConfig{Name: m})
 	}
-	providers := []agentsv1.ModelProvider{{
-		Name:    "fake",
-		Type:    "openai",
-		BaseUrl: b.srv.URL,
-		Models:  modelCfgs,
-	}}
+	return buildWorkflowServiceWithModels(t, b, agents, modelCfgs, sessSvc)
+}
 
+func buildWorkflowServiceWithModels(t *testing.T, b *fakeBackend, agents []agentsv1.Agent, models []*agentsv1.ModelConfig, sessSvc session.Service) *Service {
+	t.Helper()
+
+	providers := fakeBackendProviders(b, models)
 	svc, err := NewService(context.Background(), agents, providers,
 		nil, nil, nil, sessSvc, nil, nil, adkrunner.PluginConfig{})
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
 	return svc
+}
+
+func fakeBackendProviders(b *fakeBackend, models []*agentsv1.ModelConfig) []agentsv1.ModelProvider {
+	return []agentsv1.ModelProvider{{
+		Name:    "fake",
+		Type:    "openai",
+		BaseUrl: b.srv.URL,
+		Models:  models,
+	}}
 }
 
 func turnCtxInfo(a *agentsv1.Agent) *agentsv1.ContextInfo {
