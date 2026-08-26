@@ -147,6 +147,16 @@ firewall. For windows below 200,000 tokens the dependency keeps a 20% buffer;
 for windows at or above 200,000 it keeps a fixed 20,000-token buffer. Agents
 without `context_guard` remain unchanged even when model metadata exists.
 
+Model Context Capacity is configured per `ModelConfig` with the unsigned
+`context_window_tokens` field. Zero or omission delegates to embedded metadata;
+for example, `{"name":"custom-model","alias":"custom","context_window_tokens":64000}`.
+The registry is keyed by the actual `name`, not the alias. Across the flattened
+runtime snapshot, every non-zero capacity for the same actual Model ID must
+match; zero values do not conflict. A mismatch rejects runtime reload with a
+deterministic error naming the Model ID and sorted values, and the Model
+Provider mutation is rolled back. `DefaultMaxTokens` output metadata continues
+to come from the embedded registry unchanged.
+
 ### Plain JSON examples
 
 Login:
@@ -2213,6 +2223,14 @@ POST /api/agents.v1.ModelProviderService/DeleteModelProvider
 |-------|------|-------------|
 | `name` | string | Provider model identifier |
 | `alias` | string | Short alias used by agents and channels |
+| `context_window_tokens` | uint32 | Optional Model Context Capacity for input-context calculations; zero/unset delegates to embedded metadata and does not configure maximum output tokens |
+
+`CreateModelProvider`, `GetModelProvider`, `ListModelProviders`, and
+`UpdateModelProvider` all round-trip `context_window_tokens`. Existing records
+without the field decode as zero and require no migration. Updating the value
+rebuilds the configured registry for future turns through the normal runtime
+reload path. Matching non-zero capacities for duplicate actual Model IDs are
+accepted; conflicting values fail reload and roll back the mutation.
 
 ---
 

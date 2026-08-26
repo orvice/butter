@@ -80,6 +80,9 @@ Destination 的 model override 传给 pi。
 ## 2. 模型管理
 
 - **模型别名与 Provider 解析**：通过 `model_providers` 配置把别名（如 `flash`）映射到具体模型。
+- **Model Context Capacity**：每个 Provider Model 行可选填输入上下文容量 `context_window_tokens`；0 或留空表示继续使用内置 Crush/catwalk 元数据，未知模型最终回退到 128,000 tokens。该值只描述模型元数据，不是 maximum output tokens，也不会提高 provider 实际接受的上限。
+- **ContextGuard 继承**：只有显式启用 ContextGuard 的 LLM Agent 才使用模型容量。Threshold 未设置 Agent Context Override 时继承该容量；Sliding Window 仍由 `max_turns` 触发，但使用模型容量执行压缩后的安全与重试计算。容量进入现有安全缓冲，因此名义值不是精确压缩触发点或 provider 端硬限制。
+- **冲突与热更新**：扁平运行时中相同实际 Model ID 的非零容量必须一致，0 不参与冲突；冲突会以包含 Model ID 和排序后数值的确定性错误拒绝 runner 构建或 reload。Model Provider 更新沿现有 reload 路径重建 registry 与 runner cache；reload 失败时回滚数据库配置并重新加载旧运行时，无需迁移或重启。
 - **运行时 Model Override**：渠道/调用方可在调用时指定 `model_override`；Runner 会 clone 配置、替换模型并缓存 override 后的 Agent 实例。
 - **OpenAI 兼容性**：运行时已升级到 ADK Go v2.1.0，但 OpenAI provider 暂时继续使用 `adk-utils-go` 的 Chat Completions adapter。OpenAI Responses API 本身支持 `input_image`（URL、Base64 data URL 或 file ID）；缺口在 v2.1.0 原生 `openaimodel` 的 ADK 转换层，它尚未把 Butter 使用的 `genai.InlineData` / `FileData` 映射为 `input_image` / `input_file`，并且还存在多轮 assistant history 编码错误。待上游修复并完成各自定义 `base_url` 的 Responses API 合约测试后再切换。调查记录见 `docs/research/adk-go-v2.1-openai.md`。
 - **Langfuse Tracing**：运行时初始化 Langfuse plugin 支持模型调用追踪。
