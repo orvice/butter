@@ -152,7 +152,20 @@ Agent proto
           -> workflowagent.New(config)
 ```
 
-模型通过 `model_providers` 解析。Runner 支持运行时 model override：如果渠道选择了不同模型，`runner.Service` 会 clone proto 配置、替换 model，并缓存 override 后的 agent。
+模型通过 `model_providers` 解析。alias-first 解析在 Agent 构建阶段完成，OpenAI-compatible 和 Gemini LLM 的 `Name()` 都返回实际 provider Model ID；ADK 在每个 model callback 前把该值写入 `LLMRequest.Model`。Runner 支持运行时 model override：如果渠道选择了不同模型，`runner.Service` 会先把 alias 解析为实际 ID，再 clone proto 配置、替换 model，并缓存 override 后的 agent。
+
+Effective Context Window 仍由 ContextGuard 执行全部 compaction、buffer、summary、retry、session state 和通知语义，Butter 不复制其策略。Runner 从配置构建一个 source-aware `configuredModelRegistry`：配置容量覆盖 Crush/catwalk；内置 catalog 的 last-ID-wins 索引只用于准确区分 `embedded` 与数值同为 128,000 的 unknown `fallback`，output-token metadata 继续直接委托 Crush。Agent Threshold override 仍通过 `contextguard.WithMaxTokens` 传入，因此保持最高优先级；没有 Agent override 时，ContextGuard 在 callback 时按 `LLMRequest.Model` 查询实际选中 Model 的容量，model override 不会误用默认 Model 容量。
+
+受管 LLM callback 的 plugin 顺序固定为：
+
+```text
+base plugins
+  -> effective_context_window_logger (只读取 Agent name、strategy、LLMRequest.Model 与容量 metadata)
+  -> ContextGuard (可能改写 request contents，并维护既有 state keys)
+  -> compaction_notifier (观察 ContextGuard 写入的既有 state，不改变 callback contract)
+```
+
+logger 与 ContextGuard 都按现有 ADK runtime Agent name 查 policy；default 与 model-overridden Agent 保持同名，因此共享既有 ContextGuard state namespace。logger 不读取或附加 contents、summary、state value、tool/payload。ContextGuard 注册时捕获的默认 LLM 继续承担 summary call；#324 只让 callback-time selected Model 决定 Effective Context Window，不改变 summarizer、session state 或 notifier 语义。
 
 同一 `(channel/app, user, session)` 的 turn 在 Runner 层串行执行，避免 Telegram、RPC 或 cron 同时写入一个 ADK session；不同 session 仍可并行。每个 turn 返回结构化诊断（event count、finish reason、error code），无可见文本时优先渲染 workflow `Event.Output`。Mongo session store 使用完整 `event_json` 保存 ADK event，并兼容读取旧的 `content_json` 文档，确保 workflow Output、Routes、Human Input 和终止元数据在重启后保留。
 
@@ -204,7 +217,7 @@ input parts + ContextInfo
 
 **Workflow 暂停/恢复**（`internal/runtime/interrupt`，单一派生 seam）：pending Interrupt 从 session events 派生（`interrupt.Pending` 扫描 `adk_request_input` FunctionCall/FunctionResponse 对，FIFO 最老优先），不额外存储。当 session 有未回答的 Interrupt 且新消息为纯文本时，`interrupt.Resume` 隐式将文本重包为最老 Interrupt 的 FunctionResponse，workflow engine 在该 session 上恢复；`runner/workflow_resume.go` 只负责把隐式恢复限定在含 Workflow 的 agent 上。已携带 FunctionResponse 的精确地址回复直接透传。cron 的 WAITING_INPUT 判定通过 `TurnResult.Pending`（同一 seam 产出）消费，不自行扫描 events。删除 session（`ClearSession`）可放弃暂停中的 workflow。
 
-当 agent 配置、MCP server 或 remote agent 发生变更时，`ConfigRuntime.ReloadRunner` 会重新构建 proto agent registry，并清空 runner 与 model override 缓存。
+当 Agent、Model Provider、MCP server 或 remote agent 配置发生变更时，`ConfigRuntime.ReloadRunner` 会同步扁平配置，重新构建 proto agent registry、source-aware ModelRegistry 与 plugin chain，然后在一次锁内推进单调 runtime generation、替换 registry 并清空 runner / model override cache。overridden Agent 与 ADK runner 在锁外构建时会携带 generation snapshot，发布前再次校验；若 reload 已推进 generation，旧 build 被丢弃并从新 snapshot 重试，避免旧 Agent 搭配新 plugin 回填 cache。`sessionSvc` 不参与 swap，因此 reload 只影响后续 model call，不删除或迁移 history，也不改变 ContextGuard state key。
 
 ## 异步 Invocation 与只读观察流（issue #243 系列）
 
