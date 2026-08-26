@@ -99,7 +99,11 @@ export function ModelProviderForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className='space-y-6'>
+      <form
+        noValidate
+        onSubmit={form.handleSubmit(handleSubmit)}
+        className='space-y-6'
+      >
         <Card>
           <CardHeader>
             <CardTitle>Provider</CardTitle>
