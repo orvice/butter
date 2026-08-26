@@ -58,10 +58,6 @@ func (b *fakeBackend) callCount(model string) int {
 	return b.CallCount(model)
 }
 
-func writeCompletion(w http.ResponseWriter, model, reply string) {
-	openaifake.WriteCompletion(w, model, reply)
-}
-
 // TestRun_WorkflowLinearChain drives a message through the runner seam: a
 // WORKFLOW agent with a linear two-AGENT-node graph runs to completion and
 // the chain's final output comes back as the reply. step_b's input is
