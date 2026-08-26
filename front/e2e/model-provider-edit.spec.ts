@@ -1,15 +1,20 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
-import { fromBinary } from '@bufbuild/protobuf'
+import { create, fromBinary } from '@bufbuild/protobuf'
 import {
   GetModelProviderResponseSchema,
+  type UpdateModelProviderRequest,
   UpdateModelProviderRequestSchema,
   UpdateModelProviderResponseSchema,
 } from '../src/gen/agents/v1/agent_service_pb'
-import type { ModelProvider } from '../src/gen/agents/v1/agent_pb'
+import {
+  ModelProviderSchema,
+  type ModelProvider,
+} from '../src/gen/agents/v1/agent_pb'
 import { fulfillProto, setupAuthenticatedConnectRoutes } from './support/connect'
 
 // Seed provider: one aliased model plus one plain model (issue #321).
-const SEED_PROVIDER: ModelProvider = {
+// Built with create() so nested ModelConfig values carry their $typeName.
+const SEED_PROVIDER: ModelProvider = create(ModelProviderSchema, {
   name: 'openai',
   type: 'openai',
   apiKey: 'sk-test-key',
@@ -19,7 +24,7 @@ const SEED_PROVIDER: ModelProvider = {
     { name: 'gemini-2.5-pro', alias: '' },
   ],
   workspaceId: '',
-}
+})
 
 function decodeRequest<T extends Parameters<typeof fromBinary>[0]>(
   schema: T,

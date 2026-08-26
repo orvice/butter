@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
-import { fromBinary } from '@bufbuild/protobuf'
+import { fromBinary, type MessageInitShape } from '@bufbuild/protobuf'
 import {
   CreateTelegramChannelRequestSchema,
   CreateTelegramChannelResponseSchema,
@@ -11,7 +11,7 @@ import {
   RotateTelegramChannelCredentialResponseSchema,
   TelegramCredentialState,
   TelegramReceiveMode,
-  type TelegramChannel,
+  type TelegramChannelSchema,
 } from '../src/gen/agents/v1/telegram_pb'
 import {
   fulfillConnectError,
@@ -19,7 +19,7 @@ import {
   setupAuthenticatedConnectRoutes,
 } from './support/connect'
 
-const CHANNEL: Partial<TelegramChannel> = {
+const CHANNEL: MessageInitShape<typeof TelegramChannelSchema> = {
   id: 'ch-1',
   key: 'ops-bot',
   name: 'Ops bot',
