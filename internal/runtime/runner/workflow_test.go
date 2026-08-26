@@ -26,14 +26,26 @@ import (
 // each completion echoes "<model>(<last user message>)" so a test can observe
 // which model ran and what input it received — the expected chain output is
 // an independent literal, not recomputed from the code under test. A model
-// with a scripted handler answers through it instead. Calls per model are
-// recorded.
+// with a scripted handler answers through it instead. Complete decoded
+// requests and the derived last-user input are recorded per actual model ID.
 type fakeBackend struct {
 	srv      *httptest.Server
 	scripted map[string]http.HandlerFunc
 
-	mu    sync.Mutex
-	calls map[string][]string // model -> inputs received
+	mu       sync.Mutex
+	calls    map[string][]string
+	requests map[string][]fakeChatCompletionRequest
+}
+
+type fakeChatCompletionRequest struct {
+	Model    string                      `json:"model"`
+	Messages []fakeChatCompletionMessage `json:"messages"`
+	Decoded  map[string]any              `json:"-"`
+}
+
+type fakeChatCompletionMessage struct {
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
 }
 
 func newFakeBackend(t *testing.T) *fakeBackend {
@@ -41,18 +53,17 @@ func newFakeBackend(t *testing.T) *fakeBackend {
 	b := &fakeBackend{
 		scripted: map[string]http.HandlerFunc{},
 		calls:    map[string][]string{},
+		requests: map[string][]fakeChatCompletionRequest{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Model    string `json:"model"`
-			Messages []struct {
-				Role    string          `json:"role"`
-				Content json.RawMessage `json:"content"`
-			} `json:"messages"`
-		}
 		body, _ := io.ReadAll(r.Body)
+		var req fakeChatCompletionRequest
 		if err := json.Unmarshal(body, &req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := json.Unmarshal(body, &req.Decoded); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -81,6 +92,7 @@ func newFakeBackend(t *testing.T) *fakeBackend {
 		}
 		b.mu.Lock()
 		b.calls[req.Model] = append(b.calls[req.Model], lastUser)
+		b.requests[req.Model] = append(b.requests[req.Model], req)
 		handler := b.scripted[req.Model]
 		b.mu.Unlock()
 		if handler != nil {
@@ -161,11 +173,23 @@ func (b *fakeBackend) lastInput(model string) string {
 	return inputs[len(inputs)-1]
 }
 
+// lastRequest returns the complete decoded request most recently received by
+// an actual model ID.
+func (b *fakeBackend) lastRequest(model string) (fakeChatCompletionRequest, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	requests := b.requests[model]
+	if len(requests) == 0 {
+		return fakeChatCompletionRequest{}, false
+	}
+	return requests[len(requests)-1], true
+}
+
 // callCount returns how many completions were requested for the model.
 func (b *fakeBackend) callCount(model string) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return len(b.calls[model])
+	return len(b.requests[model])
 }
 
 func writeCompletion(w http.ResponseWriter, model, reply string) {

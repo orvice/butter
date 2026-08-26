@@ -30,6 +30,13 @@ func (r fakeModelRegistry) DefaultMaxTokens(modelID string) int {
 	return 4_096
 }
 
+func (r fakeModelRegistry) resolveContextWindow(modelID string) (int, contextWindowSource) {
+	if value, ok := r.contextWindows[modelID]; ok {
+		return value, contextWindowSourceEmbedded
+	}
+	return r.ContextWindow(modelID), contextWindowSourceFallback
+}
+
 func modelProvider(name string, models ...*agentsv1.ModelConfig) agentsv1.ModelProvider {
 	return agentsv1.ModelProvider{Name: name, Models: models}
 }
@@ -59,6 +66,7 @@ func TestConfiguredModelRegistryContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newConfiguredModelRegistry: %v", err)
 	}
+	var contract contextguard.ModelRegistry = registry
 
 	tests := []struct {
 		name    string
@@ -72,17 +80,83 @@ func TestConfiguredModelRegistryContract(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := registry.ContextWindow(tt.modelID); got != tt.want {
+			if got := contract.ContextWindow(tt.modelID); got != tt.want {
 				t.Fatalf("ContextWindow(%q) = %d, want %d", tt.modelID, got, tt.want)
 			}
 		})
 	}
 
-	if got := registry.DefaultMaxTokens("configured"); got != 8_192 {
+	if got := contract.DefaultMaxTokens("configured"); got != 8_192 {
 		t.Fatalf("DefaultMaxTokens(configured) = %d, want delegated 8192", got)
 	}
-	if got := registry.DefaultMaxTokens("unknown"); got != 4_096 {
+	if got := contract.DefaultMaxTokens("unknown"); got != 4_096 {
 		t.Fatalf("DefaultMaxTokens(unknown) = %d, want delegated 4096", got)
+	}
+}
+
+func TestConfiguredModelRegistryResolvesEffectiveContextWindow(t *testing.T) {
+	fallback := fakeModelRegistry{contextWindows: map[string]int{"embedded": 128_000}}
+	registry, err := newConfiguredModelRegistry([]agentsv1.ModelProvider{
+		modelProvider("configured", &agentsv1.ModelConfig{Name: "configured", ContextWindowTokens: 64_000}),
+	}, fallback)
+	if err != nil {
+		t.Fatalf("newConfiguredModelRegistry: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		modelID       string
+		agentOverride int
+		want          contextWindowResolution
+	}{
+		{
+			name:          "agent override wins and retains model metadata",
+			modelID:       "configured",
+			agentOverride: 32_000,
+			want: contextWindowResolution{
+				SelectedModelID:         "configured",
+				MetadataSource:          contextWindowSourceAgent,
+				ConfiguredAgentOverride: 32_000,
+				ConfiguredModelCapacity: 64_000,
+				EffectiveContextWindow:  32_000,
+			},
+		},
+		{
+			name:    "configured model wins",
+			modelID: "configured",
+			want: contextWindowResolution{
+				SelectedModelID:         "configured",
+				MetadataSource:          contextWindowSourceModel,
+				ConfiguredModelCapacity: 64_000,
+				EffectiveContextWindow:  64_000,
+			},
+		},
+		{
+			name:    "embedded metadata is attributed exactly",
+			modelID: "embedded",
+			want: contextWindowResolution{
+				SelectedModelID:        "embedded",
+				MetadataSource:         contextWindowSourceEmbedded,
+				EffectiveContextWindow: 128_000,
+			},
+		},
+		{
+			name:    "unknown model uses fallback",
+			modelID: "unknown",
+			want: contextWindowResolution{
+				SelectedModelID:        "unknown",
+				MetadataSource:         contextWindowSourceFallback,
+				EffectiveContextWindow: 128_000,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := registry.Resolve(tt.modelID, tt.agentOverride); got != tt.want {
+				t.Fatalf("Resolve(%q, %d) = %+v, want %+v", tt.modelID, tt.agentOverride, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -114,7 +188,7 @@ func TestConfiguredModelRegistryWrapsCrushFallback(t *testing.T) {
 		[]agentsv1.ModelProvider{modelProvider("custom",
 			&agentsv1.ModelConfig{Name: "custom-model", ContextWindowTokens: 24_000},
 		)},
-		contextguard.NewCrushRegistry(),
+		newEmbeddedModelRegistry(),
 	)
 	if err != nil {
 		t.Fatalf("newConfiguredModelRegistry: %v", err)
@@ -124,6 +198,15 @@ func TestConfiguredModelRegistryWrapsCrushFallback(t *testing.T) {
 	}
 	if got := registry.ContextWindow("unknown-model"); got != 128_000 {
 		t.Fatalf("unknown context window = %d, want Crush fallback 128000", got)
+	}
+
+	known := registry.Resolve("gpt-4o", 0)
+	if known.EffectiveContextWindow != 128_000 || known.MetadataSource != contextWindowSourceEmbedded {
+		t.Fatalf("known 128k resolution = %+v, want embedded source with 128000 tokens", known)
+	}
+	unknown := registry.Resolve("unknown-model", 0)
+	if unknown.EffectiveContextWindow != 128_000 || unknown.MetadataSource != contextWindowSourceFallback {
+		t.Fatalf("unknown 128k resolution = %+v, want fallback source with 128000 tokens", unknown)
 	}
 }
 

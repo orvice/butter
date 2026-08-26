@@ -6,10 +6,65 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/catwalk/pkg/embedded"
 	"github.com/achetronic/adk-utils-go/plugin/contextguard"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
+
+type contextWindowSource string
+
+const (
+	contextWindowSourceAgent    contextWindowSource = "agent"
+	contextWindowSourceModel    contextWindowSource = "model"
+	contextWindowSourceEmbedded contextWindowSource = "embedded"
+	contextWindowSourceFallback contextWindowSource = "fallback"
+)
+
+// contextWindowResolution is the complete, source-aware Effective Context
+// Window decision for one callback-time model selection.
+type contextWindowResolution struct {
+	SelectedModelID         string
+	MetadataSource          contextWindowSource
+	ConfiguredAgentOverride int
+	ConfiguredModelCapacity int
+	EffectiveContextWindow  int
+}
+
+// sourceAwareContextWindowRegistry is implemented by fallbacks that can
+// distinguish real metadata from their unknown-model default.
+type sourceAwareContextWindowRegistry interface {
+	contextguard.ModelRegistry
+	resolveContextWindow(modelID string) (int, contextWindowSource)
+}
+
+// embeddedModelRegistry preserves Crush's metadata behavior while retaining
+// enough catalog knowledge to attribute an equal-valued 128k result exactly.
+type embeddedModelRegistry struct {
+	contextguard.ModelRegistry
+	contextWindows map[string]int
+}
+
+func newEmbeddedModelRegistry() *embeddedModelRegistry {
+	windows := make(map[string]int)
+	for _, provider := range embedded.GetAll() {
+		for _, model := range provider.Models {
+			// Crush uses the same last-ID-wins traversal.
+			windows[model.ID] = int(model.ContextWindow)
+		}
+	}
+	return &embeddedModelRegistry{
+		ModelRegistry:  contextguard.NewCrushRegistry(),
+		contextWindows: windows,
+	}
+}
+
+func (r *embeddedModelRegistry) resolveContextWindow(modelID string) (int, contextWindowSource) {
+	if capacity := r.contextWindows[modelID]; capacity > 0 {
+		return r.ContextWindow(modelID), contextWindowSourceEmbedded
+	}
+	return r.ContextWindow(modelID), contextWindowSourceFallback
+}
 
 // configuredModelRegistry overlays operator-supplied context capacities on a
 // fallback registry. Model IDs are the provider-facing names, not aliases.
@@ -20,7 +75,7 @@ type configuredModelRegistry struct {
 
 var _ contextguard.ModelRegistry = (*configuredModelRegistry)(nil)
 
-func newConfiguredModelRegistry(providers []agentsv1.ModelProvider, fallback contextguard.ModelRegistry) (contextguard.ModelRegistry, error) {
+func newConfiguredModelRegistry(providers []agentsv1.ModelProvider, fallback contextguard.ModelRegistry) (*configuredModelRegistry, error) {
 	if fallback == nil {
 		return nil, fmt.Errorf("configured model registry requires a fallback registry")
 	}
@@ -69,11 +124,36 @@ func newConfiguredModelRegistry(providers []agentsv1.ModelProvider, fallback con
 	}, nil
 }
 
-func (r *configuredModelRegistry) ContextWindow(modelID string) int {
-	if capacity, ok := r.contextWindows[modelID]; ok {
-		return capacity
+// Resolve applies Effective Context Window precedence for the actual selected
+// model ID. Agent overrides are supplied by ContextGuard policy, never aliases.
+func (r *configuredModelRegistry) Resolve(modelID string, agentOverride int) contextWindowResolution {
+	resolution := contextWindowResolution{
+		SelectedModelID:         modelID,
+		ConfiguredAgentOverride: agentOverride,
+		ConfiguredModelCapacity: r.contextWindows[modelID],
 	}
-	return r.fallback.ContextWindow(modelID)
+
+	if agentOverride > 0 {
+		resolution.MetadataSource = contextWindowSourceAgent
+		resolution.EffectiveContextWindow = agentOverride
+		return resolution
+	}
+	if resolution.ConfiguredModelCapacity > 0 {
+		resolution.MetadataSource = contextWindowSourceModel
+		resolution.EffectiveContextWindow = resolution.ConfiguredModelCapacity
+		return resolution
+	}
+	if fallback, ok := r.fallback.(sourceAwareContextWindowRegistry); ok {
+		resolution.EffectiveContextWindow, resolution.MetadataSource = fallback.resolveContextWindow(modelID)
+		return resolution
+	}
+	resolution.MetadataSource = contextWindowSourceFallback
+	resolution.EffectiveContextWindow = r.fallback.ContextWindow(modelID)
+	return resolution
+}
+
+func (r *configuredModelRegistry) ContextWindow(modelID string) int {
+	return r.Resolve(modelID, 0).EffectiveContextWindow
 }
 
 func (r *configuredModelRegistry) DefaultMaxTokens(modelID string) int {

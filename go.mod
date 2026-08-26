@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	butterfly.orx.me/core v0.0.0-20260430072052-a6971e20cd35
+	charm.land/catwalk v0.25.0
 	connectrpc.com/connect v1.19.1
 	github.com/Mad-Pixels/goldmark-tgmd v0.0.10
 	github.com/achetronic/adk-utils-go v0.22.0
@@ -35,7 +36,6 @@ require (
 )
 
 require (
-	charm.land/catwalk v0.25.0 // indirect
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect

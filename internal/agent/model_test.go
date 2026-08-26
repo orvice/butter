@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"testing"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -24,6 +25,41 @@ func makeProviders() []agentsv1.ModelProvider {
 				{Name: "gpt-4o-mini"}, // no alias
 			},
 		},
+	}
+}
+
+func TestResolveModelUsesActualIDAcrossProviderAdapters(t *testing.T) {
+	providers := []agentsv1.ModelProvider{
+		{
+			Name:   "gemini",
+			Type:   "gemini",
+			ApiKey: "test-key",
+			Models: []*agentsv1.ModelConfig{{Name: "gemini-actual-id", Alias: "gemini-alias"}},
+		},
+		{
+			Name:   "openai",
+			Type:   "openai",
+			Models: []*agentsv1.ModelConfig{{Name: "openai-actual-id", Alias: "openai-alias"}},
+		},
+	}
+
+	for _, tt := range []struct {
+		name   string
+		ref    string
+		actual string
+	}{
+		{name: "Gemini alias", ref: "gemini-alias", actual: "gemini-actual-id"},
+		{name: "OpenAI-compatible alias", ref: "openai-alias", actual: "openai-actual-id"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			llm, err := ResolveModel(context.Background(), tt.ref, providers)
+			if err != nil {
+				t.Fatalf("ResolveModel: %v", err)
+			}
+			if got := llm.Name(); got != tt.actual {
+				t.Fatalf("resolved LLM Name() = %q, want actual provider ID %q", got, tt.actual)
+			}
+		})
 	}
 }
 

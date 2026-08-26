@@ -1,7 +1,10 @@
 package runner
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -148,48 +151,304 @@ func TestRun_ContextGuardSlidingWindowUsesModelCapacityForSafetyRetries(t *testi
 	}
 }
 
-func TestReloadProtoAgentsRebuildsConfiguredModelRegistry(t *testing.T) {
+func TestReloadProtoAgentsUsesNewCapacityForWarmedDefaultAndOverrideCaches(t *testing.T) {
+	const marker = "[System: The conversation was compacted because it exceeded the context window."
 	backend := newFakeBackend(t)
 	agents := []agentsv1.Agent{{
 		Name:        "reload-guarded",
 		AgentId:     "reload-guarded",
 		WorkspaceId: "ws-a",
 		Config: &agentsv1.AgentConfig{
-			Model: "reload-model",
+			Model: "default-alias",
 			ContextGuard: &agentsv1.ContextGuardConfig{
 				Strategy: agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD,
 			},
 		},
 	}}
 	agent := &agents[0]
-	initialModels := []*agentsv1.ModelConfig{{Name: "reload-model", ContextWindowTokens: 128_000}}
-	svc := buildWorkflowServiceWithModels(t, backend, agents, initialModels, session.InMemoryService())
+	initialModels := []*agentsv1.ModelConfig{
+		{Name: "actual-default", Alias: "default-alias", ContextWindowTokens: 128_000},
+		{Name: "actual-override", Alias: "override-alias", ContextWindowTokens: 128_000},
+	}
+	sessions := session.InMemoryService()
+	svc := buildWorkflowServiceWithModels(t, backend, agents, initialModels, sessions)
 	input := strings.Repeat("This request compacts only after the configured capacity reload. ", 20)
 
-	before := turnCtxInfo(agent)
-	before.SessionId = "before-reload"
-	if _, err := svc.Run(context.Background(), agent.GetName(), []*genai.Part{{Text: input}}, "", before, nil, nil); err != nil {
-		t.Fatalf("Run before reload: %v", err)
+	defaultCtx := turnCtxInfo(agent)
+	defaultCtx.SessionId = "reload-default-session"
+	overrideCtx := turnCtxInfo(agent)
+	overrideCtx.SessionId = "reload-override-session"
+	if _, err := svc.Run(context.Background(), agent.GetName(), []*genai.Part{{Text: input}}, "", defaultCtx, nil, nil); err != nil {
+		t.Fatalf("warm default Run: %v", err)
 	}
-	if calls := backend.callCount("reload-model"); calls != 1 {
-		t.Fatalf("calls before reload = %d, want one ordinary turn", calls)
+	if _, err := svc.Run(context.Background(), agent.GetName(), []*genai.Part{{Text: input}}, "override-alias", overrideCtx, nil, nil); err != nil {
+		t.Fatalf("warm override Run: %v", err)
+	}
+	if calls := backend.callCount("actual-default"); calls != 1 {
+		t.Fatalf("default calls before reload = %d, want one ordinary turn", calls)
+	}
+	if calls := backend.callCount("actual-override"); calls != 1 {
+		t.Fatalf("override calls before reload = %d, want one ordinary turn", calls)
 	}
 
-	updatedProviders := fakeBackendProviders(backend, []*agentsv1.ModelConfig{{
-		Name:                "reload-model",
-		ContextWindowTokens: 128,
-	}})
+	defaultBefore, err := svc.GetSession(context.Background(), defaultCtx.GetChannelName(), defaultCtx.GetSessionId(), defaultCtx.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession default before reload: %v", err)
+	}
+	overrideBefore, err := svc.GetSession(context.Background(), overrideCtx.GetChannelName(), overrideCtx.GetSessionId(), overrideCtx.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession override before reload: %v", err)
+	}
+	defaultEventCount := defaultBefore.Events().Len()
+	overrideEventCount := overrideBefore.Events().Len()
+
+	updatedProviders := fakeBackendProviders(backend, []*agentsv1.ModelConfig{
+		{Name: "actual-default", Alias: "default-alias", ContextWindowTokens: 128},
+		{Name: "actual-override", Alias: "override-alias", ContextWindowTokens: 128},
+	})
 	if err := svc.ReloadProtoAgents(context.Background(), agents, updatedProviders, nil, nil); err != nil {
 		t.Fatalf("ReloadProtoAgents: %v", err)
 	}
 
-	after := turnCtxInfo(agent)
-	after.SessionId = "after-reload"
-	if _, err := svc.Run(context.Background(), agent.GetName(), []*genai.Part{{Text: input}}, "", after, nil, nil); err != nil {
-		t.Fatalf("Run after reload: %v", err)
+	defaultAfterReload, err := svc.GetSession(context.Background(), defaultCtx.GetChannelName(), defaultCtx.GetSessionId(), defaultCtx.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession default after reload: %v", err)
 	}
-	if calls := backend.callCount("reload-model"); calls < 3 {
-		t.Fatalf("total calls after reload = %d, want the future turn to add a summary call and model call", calls)
+	overrideAfterReload, err := svc.GetSession(context.Background(), overrideCtx.GetChannelName(), overrideCtx.GetSessionId(), overrideCtx.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession override after reload: %v", err)
+	}
+	if got := defaultAfterReload.Events().Len(); got != defaultEventCount {
+		t.Fatalf("default session events after reload = %d, want preserved %d", got, defaultEventCount)
+	}
+	if got := overrideAfterReload.Events().Len(); got != overrideEventCount {
+		t.Fatalf("override session events after reload = %d, want preserved %d", got, overrideEventCount)
+	}
+
+	if _, err := svc.Run(context.Background(), agent.GetName(), []*genai.Part{{Text: input}}, "", defaultCtx, nil, nil); err != nil {
+		t.Fatalf("first default Run after reload: %v", err)
+	}
+	if input := backend.lastInput("actual-default"); !strings.Contains(input, marker) {
+		t.Fatalf("first default request after reload did not compact: %q", input)
+	}
+	if _, err := svc.Run(context.Background(), agent.GetName(), []*genai.Part{{Text: input}}, "override-alias", overrideCtx, nil, nil); err != nil {
+		t.Fatalf("first override Run after reload: %v", err)
+	}
+	if input := backend.lastInput("actual-override"); !strings.Contains(input, marker) {
+		t.Fatalf("first override request after reload did not compact: %q", input)
+	}
+}
+
+func TestRun_ContextGuardUsesActualSelectedModelIDAndCapacity(t *testing.T) {
+	const marker = "[System: The conversation was compacted because it exceeded the context window."
+	longInput := strings.Repeat("This input is long enough to require context compaction. ", 20)
+
+	tests := []struct {
+		name          string
+		defaultModel  string
+		modelOverride string
+		maxTokens     int32
+		models        []*agentsv1.ModelConfig
+		actualModelID string
+	}{
+		{
+			name:         "default alias resolves before configured metadata lookup",
+			defaultModel: "default-alias",
+			models: []*agentsv1.ModelConfig{
+				{Name: "actual-default", Alias: "default-alias", ContextWindowTokens: 128},
+			},
+			actualModelID: "actual-default",
+		},
+		{
+			name:          "per-turn alias selects overridden model metadata",
+			defaultModel:  "large-alias",
+			modelOverride: "small-alias",
+			models: []*agentsv1.ModelConfig{
+				{Name: "actual-large", Alias: "large-alias", ContextWindowTokens: 128_000},
+				{Name: "actual-small", Alias: "small-alias", ContextWindowTokens: 128},
+			},
+			actualModelID: "actual-small",
+		},
+		{
+			name:          "agent override remains authoritative for overridden model",
+			defaultModel:  "summary-alias",
+			modelOverride: "override-alias",
+			maxTokens:     128,
+			models: []*agentsv1.ModelConfig{
+				{Name: "actual-summary", Alias: "summary-alias", ContextWindowTokens: 128_000},
+				{Name: "actual-override", Alias: "override-alias", ContextWindowTokens: 128_000},
+			},
+			actualModelID: "actual-override",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			backend := newFakeBackend(t)
+			agents := []agentsv1.Agent{{
+				Name:        "selected-model-agent",
+				AgentId:     "selected-model-agent",
+				WorkspaceId: "ws-a",
+				Config: &agentsv1.AgentConfig{
+					Model: tt.defaultModel,
+					ContextGuard: &agentsv1.ContextGuardConfig{
+						Strategy:  agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD,
+						MaxTokens: tt.maxTokens,
+					},
+				},
+			}}
+			svc := buildWorkflowServiceWithModels(t, backend, agents, tt.models, session.InMemoryService())
+			if _, err := svc.Run(context.Background(), agents[0].GetName(), []*genai.Part{{Text: longInput}}, tt.modelOverride, turnCtxInfo(&agents[0]), nil, nil); err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+
+			request, ok := backend.lastRequest(tt.actualModelID)
+			if !ok {
+				t.Fatalf("provider received no request for actual model ID %q", tt.actualModelID)
+			}
+			if request.Model != tt.actualModelID || request.Decoded["model"] != tt.actualModelID {
+				t.Fatalf("complete request model = %q (%v), want actual ID %q", request.Model, request.Decoded["model"], tt.actualModelID)
+			}
+			if len(request.Messages) == 0 {
+				t.Fatal("complete request captured no messages")
+			}
+			if input := backend.lastInput(tt.actualModelID); !strings.Contains(input, marker) {
+				t.Fatalf("selected-model request did not contain ContextGuard compaction marker: %q", input)
+			}
+			if tt.modelOverride != "" && backend.callCount(tt.modelOverride) != 0 {
+				t.Fatalf("provider was called with alias %q; aliases must not be provider model IDs", tt.modelOverride)
+			}
+			if tt.modelOverride == "" && backend.callCount(tt.defaultModel) != 0 {
+				t.Fatalf("provider was called with alias %q; aliases must not be provider model IDs", tt.defaultModel)
+			}
+		})
+	}
+}
+
+func TestRun_LogsEffectiveContextWindowMetadataForAllSources(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	backend := newFakeBackend(t)
+	agents := []agentsv1.Agent{
+		contextGuardRuntimeAgent("agent-source", "agent-alias", 32_000),
+		contextGuardRuntimeAgent("model-source", "model-alias", 0),
+		contextGuardRuntimeAgent("embedded-source", "embedded-alias", 0),
+		contextGuardRuntimeAgent("fallback-source", "fallback-alias", 0),
+	}
+	models := []*agentsv1.ModelConfig{
+		{Name: "actual-agent-model", Alias: "agent-alias", ContextWindowTokens: 64_000},
+		{Name: "actual-agent-override-model", Alias: "agent-turn-override", ContextWindowTokens: 80_000},
+		{Name: "actual-configured-model", Alias: "model-alias", ContextWindowTokens: 96_000},
+		{Name: "gpt-4o", Alias: "embedded-alias"},
+		{Name: "unknown-effective-window-model-324", Alias: "fallback-alias"},
+	}
+	svc := buildWorkflowServiceWithModels(t, backend, agents, models, session.InMemoryService())
+
+	secrets := map[string]string{}
+	modelOverrides := map[string]string{"agent-source": "agent-turn-override"}
+	for i := range agents {
+		secret := "private-prompt-for-" + agents[i].GetName()
+		secrets[agents[i].GetName()] = secret
+		ctxInfo := turnCtxInfo(&agents[i])
+		ctxInfo.SessionId = "log-source-" + agents[i].GetName()
+		if _, err := svc.Run(context.Background(), agents[i].GetName(), []*genai.Part{{Text: secret}}, modelOverrides[agents[i].GetName()], ctxInfo, nil, nil); err != nil {
+			t.Fatalf("Run %s: %v", agents[i].GetName(), err)
+		}
+	}
+
+	expected := map[string]map[string]any{
+		"agent-source": {
+			"strategy":                  agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD.String(),
+			"selected_model_id":         "actual-agent-override-model",
+			"metadata_source":           "agent",
+			"configured_agent_override": float64(32_000),
+			"configured_model_capacity": float64(80_000),
+			"effective_context_window":  float64(32_000),
+		},
+		"model-source": {
+			"strategy":                  agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD.String(),
+			"selected_model_id":         "actual-configured-model",
+			"metadata_source":           "model",
+			"configured_agent_override": float64(0),
+			"configured_model_capacity": float64(96_000),
+			"effective_context_window":  float64(96_000),
+		},
+		"embedded-source": {
+			"strategy":                  agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD.String(),
+			"selected_model_id":         "gpt-4o",
+			"metadata_source":           "embedded",
+			"configured_agent_override": float64(0),
+			"configured_model_capacity": float64(0),
+			"effective_context_window":  float64(128_000),
+		},
+		"fallback-source": {
+			"strategy":                  agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD.String(),
+			"selected_model_id":         "unknown-effective-window-model-324",
+			"metadata_source":           "fallback",
+			"configured_agent_override": float64(0),
+			"configured_model_capacity": float64(0),
+			"effective_context_window":  float64(128_000),
+		},
+	}
+
+	seen := make(map[string]bool)
+	for _, line := range bytes.Split(bytes.TrimSpace(logs.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("decode slog record: %v", err)
+		}
+		if record["msg"] != "effective context window resolved" {
+			continue
+		}
+		agentName, _ := record["agent"].(string)
+		want, ok := expected[agentName]
+		if !ok {
+			t.Fatalf("unexpected resolution log for agent %q: %v", agentName, record)
+		}
+		if seen[agentName] {
+			t.Fatalf("duplicate resolution log for agent %q", agentName)
+		}
+		seen[agentName] = true
+
+		allowed := map[string]bool{"time": true, "level": true, "msg": true, "agent": true}
+		for key, value := range want {
+			allowed[key] = true
+			if record[key] != value {
+				t.Errorf("%s log field %s = %v, want %v", agentName, key, record[key], value)
+			}
+		}
+		for key := range record {
+			if !allowed[key] {
+				t.Errorf("%s resolution log contains non-metadata field %q", agentName, key)
+			}
+		}
+		if bytes.Contains(line, []byte(secrets[agentName])) {
+			t.Errorf("%s resolution log contains conversation content", agentName)
+		}
+	}
+
+	for agentName := range expected {
+		if !seen[agentName] {
+			t.Errorf("missing resolution log for agent %q", agentName)
+		}
+	}
+}
+
+func contextGuardRuntimeAgent(name, modelRef string, maxTokens int32) agentsv1.Agent {
+	return agentsv1.Agent{
+		Name:        name,
+		AgentId:     name,
+		WorkspaceId: "ws-a",
+		Config: &agentsv1.AgentConfig{
+			Model: modelRef,
+			ContextGuard: &agentsv1.ContextGuardConfig{
+				Strategy:  agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD,
+				MaxTokens: maxTokens,
+			},
+		},
 	}
 }
 
