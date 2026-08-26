@@ -28,17 +28,17 @@ export function blankModelRow(): ModelRowValues {
   return { name: '', alias: '' }
 }
 
-export function modelsToRows(models?: ModelConfig[] | null): ModelRowValues[] {
+export function modelsToRows(models?: ModelConfig[]): ModelRowValues[] {
   return (models ?? []).map((model) => ({
     name: model.name ?? '',
     alias: model.alias ?? '',
   }))
 }
 
+// Pure shape mapper: values arrive already trimmed because the form resolver
+// parses rows through modelRowSchema, which owns whitespace normalization.
 export function rowsToModels(rows: readonly ModelRowValues[]): ModelConfig[] {
-  return rows.map((row) => {
-    const name = row.name.trim()
-    const alias = row.alias.trim()
-    return alias ? { name, alias } : { name }
-  })
+  return rows.map((row) =>
+    row.alias ? { name: row.name, alias: row.alias } : { name: row.name }
+  )
 }
