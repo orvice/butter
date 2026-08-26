@@ -348,6 +348,9 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateWorkflowAgent(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	if err := internalagent.ValidateContextGuard(agent); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	if err := s.validatePiAgentWrite(ctx, wsID, agent); err != nil {
 		return nil, err
 	}
@@ -475,6 +478,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	}
 	update := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
 	if err := internalagent.ValidateWorkflowAgent(update); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := internalagent.ValidateContextGuard(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := s.validatePiAgentWrite(ctx, wsID, update); err != nil {
@@ -1037,6 +1043,9 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 		return nil, connectx.RequiredArgument("agent_patch.agent_id")
 	}
 	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := internalagent.ValidateContextGuard(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := s.validatePiAgentWrite(ctx, wsID, patch); err != nil {
