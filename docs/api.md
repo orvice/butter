@@ -139,13 +139,40 @@ valid only on `AGENT_TYPE_LLM` and legacy `AGENT_TYPE_UNSPECIFIED` Agents;
 Loop, Sequential, Parallel, Workflow, Pi, and other box-backed Agents must
 configure context management on their standalone LLM children instead.
 
-When no Agent Context Override is set, the effective context window is selected
-from the selected model's configured or embedded metadata, with the documented
-128,000-token fallback for an unknown model. The value feeds ContextGuard's
-existing safety buffer; it is not an exact provider hard limit or a request
-firewall. For windows below 200,000 tokens the dependency keeps a 20% buffer;
-for windows at or above 200,000 it keeps a fixed 20,000-token buffer. Agents
-without `context_guard` remain unchanged even when model metadata exists.
+For every guarded model callback, ADK supplies the actual provider-facing Model
+ID selected for that request. Butter resolves the Effective Context Window with
+this single precedence rule:
+
+| Priority | Metadata source | Condition | Effective Context Window |
+|---:|---|---|---:|
+| 1 | Agent Context Override | Threshold strategy has positive `context_guard.max_tokens` | Agent `max_tokens` |
+| 2 | Model Context Capacity | The actual selected `ModelConfig.name` has positive `context_window_tokens` | Model `context_window_tokens` |
+| 3 | Embedded metadata | The actual selected Model ID has a positive Crush/catwalk context window | Embedded context window |
+| 4 | Unknown-model fallback | No earlier source supplies a value | 128,000 tokens |
+
+Sliding Window starts at priority 2 because an Agent Context Override is invalid
+for that strategy. Aliases never form metadata keys: Butter resolves an alias to
+`ModelConfig.name` before ADK creates the callback request. The value feeds
+ContextGuard's existing safety buffer; it is not an exact provider hard limit or
+a request firewall. For windows below 200,000 tokens the dependency keeps a 20%
+buffer; for windows at or above 200,000 it keeps a fixed 20,000-token buffer.
+Agents without `context_guard` remain unchanged even when model metadata exists.
+
+Resolution examples:
+
+- **Default model:** an Agent configured with actual Model ID `custom-large`, no
+  Agent override, and `custom-large.context_window_tokens = 64000` resolves to
+  64,000 from `model`.
+- **Alias:** if the Agent's model is alias `fast` and `fast` maps to actual ID
+  `vendor-fast-v3` with capacity 32,000, lookup and provider requests use
+  `vendor-fast-v3`; the alias has no separate context metadata.
+- **Agent override:** a Threshold Agent with `max_tokens = 48000` resolves to
+  48,000 from `agent`, even if the selected Model advertises a larger capacity
+  or the caller switches Models for the turn.
+- **Per-turn model override:** an Agent with no Agent override may default to a
+  128,000-token Model, but `model_override = "small"` resolves alias `small` to
+  its actual ID and uses that selected Model's 16,000-token capacity for the
+  callback.
 
 Model Context Capacity is configured per `ModelConfig` with the unsigned
 `context_window_tokens` field. Zero or omission delegates to embedded metadata;
@@ -156,6 +183,21 @@ match; zero values do not conflict. A mismatch rejects runtime reload with a
 deterministic error naming the Model ID and sorted values, and the Model
 Provider mutation is rolled back. `DefaultMaxTokens` output metadata continues
 to come from the embedded registry unchanged.
+
+Each guarded callback emits one structured `effective context window resolved`
+log record with `agent`, `strategy`, `selected_model_id`, `metadata_source`,
+`configured_agent_override`, `configured_model_capacity`, and
+`effective_context_window`. `metadata_source` is one of `agent`, `model`,
+`embedded`, or `fallback`. The record contains metadata only: prompts,
+summaries, state values, tools, and message payloads are never attached.
+
+A successful Agent or Model Provider runtime reload rebuilds this resolver and
+the ContextGuard plugin, advances the runner runtime generation, and invalidates
+default runner and model-override Agent caches. Cache entries built concurrently
+against an older generation are discarded instead of being published. The
+session service is retained, so history and ContextGuard state keys survive;
+the existing post-ContextGuard compaction notifier and its callback contract are
+unchanged.
 
 ### Plain JSON examples
 

@@ -1,6 +1,6 @@
 # Butter 功能总览
 
-更新时间：2026-08-25
+更新时间：2026-08-26
 
 Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入口（HTTP / ConnectRPC / gRPC / 即时消息 / 定时任务）统一编排为 Google ADK Agent 执行流，并提供配置化、热更新、多执行面、多租户与持久化运行时。
 
@@ -25,7 +25,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入�
   - `AGENT_TYPE_PARALLEL`：并行 workflow。
   - `AGENT_TYPE_WORKFLOW`：图 workflow（见下方 §1.1）。
   - `AGENT_TYPE_PI`：由 workspace 内注册的 ButterBox 承载的 pi coding agent（见下方 §1.2）。
-- **LLM ContextGuard**：ContextGuard 是 LLM Agent 的可选输入上下文管理策略，不会因为模型配置了上下文容量而自动启用。界面提供 Off、Token Threshold 和 Sliding Window 三种模式。Threshold 可设置 Agent Context Override（`config.context_guard.max_tokens`），它表示输入上下文窗口覆盖值，不是 maximum output tokens；留空或 0 时继承模型元数据。Sliding Window 用 `max_turns` 表示内容条目上限，留空或 0 保持已有的 20 条默认值，并使用模型容量做压缩后的安全检查。两种策略的专属字段不能混用，策略必须明确；负值和不支持的 Agent 类型会在保存时拒绝。ContextGuard 只适用于 LLM 或 legacy unspecified（按 LLM 构建）Agent，Loop、Sequential、Parallel、Workflow 与 Pi 的上下文策略由实际执行模型的子 Agent 或 Box 管理。有效窗口使用现有 ContextGuard 安全缓冲：小于 200,000 tokens 时保留 20%，达到或超过该值时保留固定 20,000 tokens，因此配置值不是 provider 的硬限制。
+- **LLM ContextGuard**：ContextGuard 是 LLM Agent 的可选输入上下文管理策略，不会因为模型配置了上下文容量而自动启用。界面提供 Off、Token Threshold 和 Sliding Window 三种模式。Threshold 可设置 Agent Context Override（`config.context_guard.max_tokens`），它表示输入上下文窗口覆盖值，不是 maximum output tokens；留空或 0 时继承本次实际选中 Model 的元数据。Sliding Window 用 `max_turns` 表示内容条目上限，留空或 0 保持已有的 20 条默认值，并使用本次实际选中 Model 的容量做压缩后安全检查。两种策略的专属字段不能混用，策略必须明确；负值和不支持的 Agent 类型会在保存时拒绝。ContextGuard 只适用于 LLM 或 legacy unspecified（按 LLM 构建）Agent，Loop、Sequential、Parallel、Workflow 与 Pi 的上下文策略由实际执行模型的子 Agent 或 Box 管理。Effective Context Window 依次取 Agent Context Override、实际 Model ID 的配置容量、内置元数据、未知模型 128,000 回退值；有效窗口使用现有 ContextGuard 安全缓冲：小于 200,000 tokens 时保留 20%，达到或超过该值时保留固定 20,000 tokens，因此配置值不是 provider 的硬限制。
 - **子 Agent 与委派（V2 ID 组合）**：新 Agent 通过 `child_agent_ids` 按 Agent ID 引用独立的子 Agent 记录，结合 `description` 用于 LLM 子 Agent 委派；`CreateAgent` 拒绝内联 `sub_agents`，`UpdateAgent` 也拒绝修改内联 `sub_agents`（未变更的历史记录可原样往返，但构建时从不消费内联树——子 Agent 只来自 `child_agent_ids`）。
 - **Labels / Metadata**：每个 Agent 可携带 `labels`、`metadata`，用于路由与索引。
 - **内置系统 Agent**：进程启动时注册 built-in system agent，便于诊断和管理类操作。
@@ -79,11 +79,13 @@ Destination 的 model override 传给 pi。
 
 ## 2. 模型管理
 
-- **模型别名与 Provider 解析**：通过 `model_providers` 配置把别名（如 `flash`）映射到具体模型。
+- **模型别名与 Provider 解析**：通过 `model_providers` 配置把别名（如 `flash`）映射到具体模型。别名只用于选择；OpenAI-compatible 与 Gemini adapter 都把解析后的实际 `ModelConfig.name` 写入 ADK 请求，容量 lookup 和日志不会为 alias 建第二套命名空间。
 - **Model Context Capacity**：每个 Provider Model 行可选填输入上下文容量 `context_window_tokens`；0 或留空表示继续使用内置 Crush/catwalk 元数据，未知模型最终回退到 128,000 tokens。该值只描述模型元数据，不是 maximum output tokens，也不会提高 provider 实际接受的上限。
-- **ContextGuard 继承**：只有显式启用 ContextGuard 的 LLM Agent 才使用模型容量。Threshold 未设置 Agent Context Override 时继承该容量；Sliding Window 仍由 `max_turns` 触发，但使用模型容量执行压缩后的安全与重试计算。容量进入现有安全缓冲，因此名义值不是精确压缩触发点或 provider 端硬限制。
-- **冲突与热更新**：扁平运行时中相同实际 Model ID 的非零容量必须一致，0 不参与冲突；冲突会以包含 Model ID 和排序后数值的确定性错误拒绝 runner 构建或 reload。Model Provider 更新沿现有 reload 路径重建 registry 与 runner cache；reload 失败时回滚数据库配置并重新加载旧运行时，无需迁移或重启。
-- **运行时 Model Override**：渠道/调用方可在调用时指定 `model_override`；Runner 会 clone 配置、替换模型并缓存 override 后的 Agent 实例。
+- **ContextGuard 继承**：只有显式启用 ContextGuard 的 LLM Agent 才使用模型容量。Threshold 未设置 Agent Context Override 时继承本次实际选中 Model 的容量；Sliding Window 仍由 `max_turns` 触发，但使用该容量执行压缩后的安全与重试计算。容量进入现有安全缓冲，因此名义值不是精确压缩触发点或 provider 端硬限制。
+- **冲突与热更新**：扁平运行时中相同实际 Model ID 的非零容量必须一致，0 不参与冲突；冲突会以包含 Model ID 和排序后数值的确定性错误拒绝 runner 构建或 reload。Model Provider 更新沿现有 reload 路径重建 registry 与 plugin，推进 runtime generation 并清空 runner / model override cache；与 reload 并发的旧 generation cache build 会被丢弃并重试。reload 失败时回滚数据库配置并重新加载旧运行时，无需迁移或重启，session 历史、ContextGuard state key 与 compaction 通知契约均不变。
+- **运行时 Model Override**：渠道/调用方可在调用时指定 `model_override`；Runner 会解析 alias、clone 配置、替换为实际 Model ID 并缓存 override 后的 Agent 实例。未配置 Agent Context Override 时，本轮容量跟随 override Model；已配置时 Agent 值继续生效，不会被 Model 容量 clamp。
+- **选择示例**：默认实际模型 `custom-large` 配置 64,000 且 Agent 未覆盖时取 64,000；默认引用 alias `fast` 时先解析到 `vendor-fast-v3` 再查它的容量；Threshold Agent 配置 48,000 时始终取 48,000；无 Agent 覆盖但本轮 `model_override=small` 时改取 `small` 对应实际模型的容量，而不是默认模型容量。
+- **安全日志**：每次受管 model callback 在 ContextGuard 前记录 Agent、strategy、实际 Model ID、`agent|model|embedded|fallback` 来源、两个配置值与 Effective Context Window；不记录 prompt、summary、state、tool 或消息 payload。
 - **OpenAI 兼容性**：运行时已升级到 ADK Go v2.1.0，但 OpenAI provider 暂时继续使用 `adk-utils-go` 的 Chat Completions adapter。OpenAI Responses API 本身支持 `input_image`（URL、Base64 data URL 或 file ID）；缺口在 v2.1.0 原生 `openaimodel` 的 ADK 转换层，它尚未把 Butter 使用的 `genai.InlineData` / `FileData` 映射为 `input_image` / `input_file`，并且还存在多轮 assistant history 编码错误。待上游修复并完成各自定义 `base_url` 的 Responses API 合约测试后再切换。调查记录见 `docs/research/adk-go-v2.1-openai.md`。
 - **Langfuse Tracing**：运行时初始化 Langfuse plugin 支持模型调用追踪。
 
