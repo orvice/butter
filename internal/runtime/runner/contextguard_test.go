@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -239,17 +240,124 @@ func TestReloadProtoAgentsUsesNewCapacityForWarmedDefaultAndOverrideCaches(t *te
 	}
 }
 
+func TestReloadProtoAgentsPreservesContextGuardStateAndCompactionCallbacks(t *testing.T) {
+	backend := newFakeBackend(t)
+	agents := []agentsv1.Agent{{
+		Name:        "reload-state-guarded",
+		AgentId:     "reload-state-guarded",
+		WorkspaceId: "ws-a",
+		Config: &agentsv1.AgentConfig{
+			Model: "state-model",
+			ContextGuard: &agentsv1.ContextGuardConfig{
+				Strategy:  agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD,
+				MaxTokens: 128,
+			},
+		},
+	}}
+	agent := &agents[0]
+	providers := fakeBackendProviders(backend, []*agentsv1.ModelConfig{{Name: "state-model"}})
+	svc := buildWorkflowServiceWithModels(t, backend, agents, providers[0].GetModels(), session.InMemoryService())
+	ctxInfo := turnCtxInfo(agent)
+	ctxInfo.SessionId = "reload-state-session"
+	input := strings.Repeat("ContextGuard state and notifications must survive runtime reload. ", 20)
+
+	var notifications []string
+	onCompaction := func(agentName string) {
+		notifications = append(notifications, agentName)
+	}
+	run := func(label string) {
+		t.Helper()
+		if _, err := svc.Run(context.Background(), agent.GetName(), []*genai.Part{{Text: input}}, "", ctxInfo, nil, onCompaction); err != nil {
+			t.Fatalf("%s Run: %v", label, err)
+		}
+	}
+
+	// The notifier establishes a baseline on the first compaction and emits on
+	// the next changed compaction count.
+	run("first pre-reload")
+	if len(notifications) != 0 {
+		t.Fatalf("notifications after first compaction = %v, want baseline only", notifications)
+	}
+	run("second pre-reload")
+	if !reflect.DeepEqual(notifications, []string{agent.GetName()}) {
+		t.Fatalf("notifications before reload = %v, want one notification for %q", notifications, agent.GetName())
+	}
+
+	beforeSession, err := svc.GetSession(context.Background(), ctxInfo.GetChannelName(), ctxInfo.GetSessionId(), ctxInfo.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession before reload: %v", err)
+	}
+	beforeState := contextGuardSessionState(beforeSession)
+	summaryKey := "__context_guard_summary_" + agent.GetName()
+	contentsKey := stateKeyPrefixContentsAtCompaction + agent.GetName()
+	if summary, ok := beforeState[summaryKey].(string); !ok || summary == "" {
+		t.Fatalf("ContextGuard summary state %q = %v, want a persisted summary", summaryKey, beforeState[summaryKey])
+	}
+	if _, ok := beforeState[contentsKey]; !ok {
+		t.Fatalf("ContextGuard contents state is missing runtime-name key %q: %v", contentsKey, beforeState)
+	}
+
+	if err := svc.ReloadProtoAgents(context.Background(), agents, providers, nil, nil); err != nil {
+		t.Fatalf("ReloadProtoAgents: %v", err)
+	}
+	afterReloadSession, err := svc.GetSession(context.Background(), ctxInfo.GetChannelName(), ctxInfo.GetSessionId(), ctxInfo.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession after reload: %v", err)
+	}
+	if afterReloadState := contextGuardSessionState(afterReloadSession); !reflect.DeepEqual(afterReloadState, beforeState) {
+		t.Fatalf("ContextGuard session state changed during reload:\n before: %v\n  after: %v", beforeState, afterReloadState)
+	}
+
+	// Rebuilding the notifier must not synthesize a callback from persisted
+	// state. It seeds on the first post-reload compaction and resumes normal
+	// changed-count notifications on the second.
+	run("first post-reload")
+	if !reflect.DeepEqual(notifications, []string{agent.GetName()}) {
+		t.Fatalf("first post-reload compaction emitted a synthetic notification: %v", notifications)
+	}
+	run("second post-reload")
+	if !reflect.DeepEqual(notifications, []string{agent.GetName(), agent.GetName()}) {
+		t.Fatalf("notifications after reload = %v, want normal callback behavior to resume", notifications)
+	}
+
+	finalSession, err := svc.GetSession(context.Background(), ctxInfo.GetChannelName(), ctxInfo.GetSessionId(), ctxInfo.GetUserId())
+	if err != nil {
+		t.Fatalf("GetSession after post-reload turns: %v", err)
+	}
+	finalState := contextGuardSessionState(finalSession)
+	if len(finalState) != len(beforeState) {
+		t.Fatalf("ContextGuard state-key count after reload turns = %d, want unchanged %d: %v", len(finalState), len(beforeState), finalState)
+	}
+	for key := range beforeState {
+		if _, ok := finalState[key]; !ok {
+			t.Fatalf("ContextGuard state key %q was not reused after reload: %v", key, finalState)
+		}
+	}
+}
+
+func contextGuardSessionState(sess session.Session) map[string]any {
+	state := make(map[string]any)
+	for key, value := range sess.State().All() {
+		if strings.HasPrefix(key, "__context_guard_") {
+			state[key] = value
+		}
+	}
+	return state
+}
+
 func TestRun_ContextGuardUsesActualSelectedModelIDAndCapacity(t *testing.T) {
 	const marker = "[System: The conversation was compacted because it exceeded the context window."
 	longInput := strings.Repeat("This input is long enough to require context compaction. ", 20)
 
 	tests := []struct {
-		name          string
-		defaultModel  string
-		modelOverride string
-		maxTokens     int32
-		models        []*agentsv1.ModelConfig
-		actualModelID string
+		name              string
+		defaultModel      string
+		modelOverride     string
+		maxTokens         int32
+		models            []*agentsv1.ModelConfig
+		actualModelID     string
+		wantCompaction    bool
+		summarizerModelID string
 	}{
 		{
 			name:         "default alias resolves before configured metadata lookup",
@@ -257,7 +365,8 @@ func TestRun_ContextGuardUsesActualSelectedModelIDAndCapacity(t *testing.T) {
 			models: []*agentsv1.ModelConfig{
 				{Name: "actual-default", Alias: "default-alias", ContextWindowTokens: 128},
 			},
-			actualModelID: "actual-default",
+			actualModelID:  "actual-default",
+			wantCompaction: true,
 		},
 		{
 			name:          "per-turn alias selects overridden model metadata",
@@ -267,18 +376,20 @@ func TestRun_ContextGuardUsesActualSelectedModelIDAndCapacity(t *testing.T) {
 				{Name: "actual-large", Alias: "large-alias", ContextWindowTokens: 128_000},
 				{Name: "actual-small", Alias: "small-alias", ContextWindowTokens: 128},
 			},
-			actualModelID: "actual-small",
+			actualModelID:  "actual-small",
+			wantCompaction: true,
 		},
 		{
-			name:          "agent override remains authoritative for overridden model",
+			name:          "agent override is not clamped to overridden model capacity",
 			defaultModel:  "summary-alias",
 			modelOverride: "override-alias",
-			maxTokens:     128,
+			maxTokens:     4_096,
 			models: []*agentsv1.ModelConfig{
 				{Name: "actual-summary", Alias: "summary-alias", ContextWindowTokens: 128_000},
-				{Name: "actual-override", Alias: "override-alias", ContextWindowTokens: 128_000},
+				{Name: "actual-override", Alias: "override-alias", ContextWindowTokens: 128},
 			},
-			actualModelID: "actual-override",
+			actualModelID:     "actual-override",
+			summarizerModelID: "actual-summary",
 		},
 	}
 
@@ -312,8 +423,21 @@ func TestRun_ContextGuardUsesActualSelectedModelIDAndCapacity(t *testing.T) {
 			if len(request.Messages) == 0 {
 				t.Fatal("complete request captured no messages")
 			}
-			if input := backend.lastInput(tt.actualModelID); !strings.Contains(input, marker) {
-				t.Fatalf("selected-model request did not contain ContextGuard compaction marker: %q", input)
+			input := backend.lastInput(tt.actualModelID)
+			if tt.wantCompaction {
+				if !strings.Contains(input, marker) {
+					t.Fatalf("selected-model request did not contain ContextGuard compaction marker: %q", input)
+				}
+			} else {
+				if strings.Contains(input, marker) {
+					t.Fatalf("Agent Context Override was clamped to Model capacity and compacted: %q", input)
+				}
+				if calls := backend.callCount(tt.actualModelID); calls != 1 {
+					t.Fatalf("selected-model calls = %d, want one ordinary turn under the authoritative Agent override", calls)
+				}
+				if calls := backend.callCount(tt.summarizerModelID); calls != 0 {
+					t.Fatalf("summarizer calls = %d, want none when the request is below the Agent override", calls)
+				}
 			}
 			if tt.modelOverride != "" && backend.callCount(tt.modelOverride) != 0 {
 				t.Fatalf("provider was called with alias %q; aliases must not be provider model IDs", tt.modelOverride)
@@ -337,6 +461,7 @@ func TestRun_LogsEffectiveContextWindowMetadataForAllSources(t *testing.T) {
 		contextGuardRuntimeAgent("model-source", "model-alias", 0),
 		contextGuardRuntimeAgent("embedded-source", "embedded-alias", 0),
 		contextGuardRuntimeAgent("fallback-source", "fallback-alias", 0),
+		slidingContextGuardRuntimeAgent("sliding-source", "sliding-alias", 7),
 	}
 	models := []*agentsv1.ModelConfig{
 		{Name: "actual-agent-model", Alias: "agent-alias", ContextWindowTokens: 64_000},
@@ -344,6 +469,7 @@ func TestRun_LogsEffectiveContextWindowMetadataForAllSources(t *testing.T) {
 		{Name: "actual-configured-model", Alias: "model-alias", ContextWindowTokens: 96_000},
 		{Name: "gpt-4o", Alias: "embedded-alias"},
 		{Name: "unknown-effective-window-model-324", Alias: "fallback-alias"},
+		{Name: "actual-sliding-model", Alias: "sliding-alias", ContextWindowTokens: 72_000},
 	}
 	svc := buildWorkflowServiceWithModels(t, backend, agents, models, session.InMemoryService())
 
@@ -366,6 +492,8 @@ func TestRun_LogsEffectiveContextWindowMetadataForAllSources(t *testing.T) {
 			"metadata_source":           "agent",
 			"configured_agent_override": float64(32_000),
 			"configured_model_capacity": float64(80_000),
+			"configured_max_turns":      float64(0),
+			"effective_max_turns":       float64(0),
 			"effective_context_window":  float64(32_000),
 		},
 		"model-source": {
@@ -374,6 +502,8 @@ func TestRun_LogsEffectiveContextWindowMetadataForAllSources(t *testing.T) {
 			"metadata_source":           "model",
 			"configured_agent_override": float64(0),
 			"configured_model_capacity": float64(96_000),
+			"configured_max_turns":      float64(0),
+			"effective_max_turns":       float64(0),
 			"effective_context_window":  float64(96_000),
 		},
 		"embedded-source": {
@@ -382,6 +512,8 @@ func TestRun_LogsEffectiveContextWindowMetadataForAllSources(t *testing.T) {
 			"metadata_source":           "embedded",
 			"configured_agent_override": float64(0),
 			"configured_model_capacity": float64(0),
+			"configured_max_turns":      float64(0),
+			"effective_max_turns":       float64(0),
 			"effective_context_window":  float64(128_000),
 		},
 		"fallback-source": {
@@ -390,7 +522,19 @@ func TestRun_LogsEffectiveContextWindowMetadataForAllSources(t *testing.T) {
 			"metadata_source":           "fallback",
 			"configured_agent_override": float64(0),
 			"configured_model_capacity": float64(0),
+			"configured_max_turns":      float64(0),
+			"effective_max_turns":       float64(0),
 			"effective_context_window":  float64(128_000),
+		},
+		"sliding-source": {
+			"strategy":                  agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW.String(),
+			"selected_model_id":         "actual-sliding-model",
+			"metadata_source":           "model",
+			"configured_agent_override": float64(0),
+			"configured_model_capacity": float64(72_000),
+			"configured_max_turns":      float64(7),
+			"effective_max_turns":       float64(7),
+			"effective_context_window":  float64(72_000),
 		},
 	}
 
@@ -434,6 +578,21 @@ func TestRun_LogsEffectiveContextWindowMetadataForAllSources(t *testing.T) {
 		if !seen[agentName] {
 			t.Errorf("missing resolution log for agent %q", agentName)
 		}
+	}
+}
+
+func slidingContextGuardRuntimeAgent(name, modelRef string, maxTurns int32) agentsv1.Agent {
+	return agentsv1.Agent{
+		Name:        name,
+		AgentId:     name,
+		WorkspaceId: "ws-a",
+		Config: &agentsv1.AgentConfig{
+			Model: modelRef,
+			ContextGuard: &agentsv1.ContextGuardConfig{
+				Strategy: agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW,
+				MaxTurns: maxTurns,
+			},
+		},
 	}
 }
 

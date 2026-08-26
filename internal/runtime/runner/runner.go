@@ -87,10 +87,8 @@ type Service struct {
 	mcpHTTPFactory   internalagent.MCPHTTPClientFactory
 	piBuilder        internalagent.PiAgentBuilder
 
-	mu                sync.Mutex
-	runtimeGeneration uint64
-	runners           map[string]*adkrunner.Runner // keyed by channel name
-	overriddenCache   map[string]agent.Agent       // keyed by "agentName:modelOverride"
+	mu           sync.Mutex
+	runtimeCache runtimeCache
 
 	invRecorder InvocationRecorder
 
@@ -303,24 +301,22 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 	pluginConfig = mergePluginConfigs(pluginConfig, guardPC)
 
 	svc := &Service{
-		agents:            registry,
-		agentsProto:       protoRegistry,
-		agentBuilders:     make(map[string]AgentBuilderFunc),
-		providers:         providers,
-		mcpRegistry:       mcpRegistry,
-		remoteAgents:      remoteAgentRegistry,
-		daemonRegistry:    daemonRegistry,
-		sessionSvc:        sessionSvc,
-		memorySvc:         memorySvc,
-		artifactSvc:       artifactSvc,
-		toolsetDeps:       deps,
-		basePluginConfig:  basePluginConfig,
-		pluginConfig:      pluginConfig,
-		mcpHTTPFactory:    mcpHTTPFactory,
-		piBuilder:         piBuilder,
-		runtimeGeneration: 1,
-		runners:           make(map[string]*adkrunner.Runner),
-		overriddenCache:   make(map[string]agent.Agent),
+		agents:           registry,
+		agentsProto:      protoRegistry,
+		agentBuilders:    make(map[string]AgentBuilderFunc),
+		providers:        providers,
+		mcpRegistry:      mcpRegistry,
+		remoteAgents:     remoteAgentRegistry,
+		daemonRegistry:   daemonRegistry,
+		sessionSvc:       sessionSvc,
+		memorySvc:        memorySvc,
+		artifactSvc:      artifactSvc,
+		toolsetDeps:      deps,
+		basePluginConfig: basePluginConfig,
+		pluginConfig:     pluginConfig,
+		mcpHTTPFactory:   mcpHTTPFactory,
+		piBuilder:        piBuilder,
+		runtimeCache:     newRuntimeCache(),
 	}
 
 	// Add compaction notifier plugin (must be after contextguard).
@@ -423,6 +419,8 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 		}
 
 		var opts []contextguard.AgentOption
+		configuredMaxTurns := int(e.cfg.GetMaxTurns())
+		effectiveMaxTurns := 0
 		switch e.cfg.GetStrategy() {
 		case agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD:
 			// max_tokens is the Agent Context Override for the effective
@@ -435,17 +433,19 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 			// max_turns is the content-entry trigger; 0 keeps the dependency's
 			// default of 20. max_tokens is invalid with this strategy and is
 			// rejected at write time (issue #322).
-			maxTurns := int(e.cfg.GetMaxTurns())
-			if maxTurns <= 0 {
-				maxTurns = 20
+			effectiveMaxTurns = configuredMaxTurns
+			if effectiveMaxTurns <= 0 {
+				effectiveMaxTurns = 20
 			}
-			opts = append(opts, contextguard.WithSlidingWindow(maxTurns))
+			opts = append(opts, contextguard.WithSlidingWindow(effectiveMaxTurns))
 		}
 
 		guard.Add(e.name, m, opts...)
 		policies[e.name] = contextGuardPolicy{
-			strategy:      e.cfg.GetStrategy(),
-			agentOverride: int(e.cfg.GetMaxTokens()),
+			strategy:           e.cfg.GetStrategy(),
+			agentOverride:      int(e.cfg.GetMaxTokens()),
+			configuredMaxTurns: configuredMaxTurns,
+			effectiveMaxTurns:  effectiveMaxTurns,
 		}
 		logger.Info("context guard configured",
 			"agent", e.name,
@@ -566,9 +566,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 	s.mcpRegistry = mcpRegistry
 	s.remoteAgents = remoteAgentRegistry
 	s.pluginConfig = pluginConfig
-	s.runtimeGeneration++
-	s.runners = make(map[string]*adkrunner.Runner)
-	s.overriddenCache = make(map[string]agent.Agent)
+	s.runtimeCache.reset()
 
 	logger.Info("runner service reloaded", "proto_agents", len(protoRegistry), "total_agents", len(registry))
 	return nil
@@ -795,7 +793,7 @@ func (s *Service) GetSession(ctx context.Context, channelName, sessionID, userID
 func (s *Service) runtimeGenerationCurrent(generation uint64) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.runtimeGeneration == generation
+	return s.runtimeCache.current(generation)
 }
 
 // buildOverriddenAgent creates (or returns cached) an agent with its model
@@ -805,17 +803,17 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	logger := log.FromContext(ctx)
 	cacheKey := agentName + ":" + modelOverride
 	s.mu.Lock()
-	if s.runtimeGeneration != expectedGeneration {
+	cached, cacheStatus := s.runtimeCache.overriddenAgent(expectedGeneration, cacheKey)
+	if cacheStatus != runtimeCacheMiss {
 		s.mu.Unlock()
+		if cacheStatus == runtimeCacheHit {
+			logger.Debug("using cached model-overridden agent",
+				"agent", agentName,
+				"model_override", modelOverride,
+			)
+			return cached, true, nil
+		}
 		return nil, false, nil
-	}
-	if cached, ok := s.overriddenCache[cacheKey]; ok {
-		s.mu.Unlock()
-		logger.Debug("using cached model-overridden agent",
-			"agent", agentName,
-			"model_override", modelOverride,
-		)
-		return cached, true, nil
 	}
 	pb, hasProto := s.agentsProto[agentName]
 	builder, hasBuilder := s.agentBuilders[agentName]
@@ -867,8 +865,9 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	}
 
 	s.mu.Lock()
-	if s.runtimeGeneration != expectedGeneration {
-		s.mu.Unlock()
+	published, cacheStatus := s.runtimeCache.publishOverriddenAgent(expectedGeneration, cacheKey, a)
+	s.mu.Unlock()
+	if cacheStatus == runtimeCacheStale {
 		logger.Debug("discarding model-overridden agent built across runtime reload",
 			"agent", agentName,
 			"model_override", modelOverride,
@@ -876,19 +875,16 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 		)
 		return nil, false, nil
 	}
-	if cached, ok := s.overriddenCache[cacheKey]; ok {
-		s.mu.Unlock()
-		return cached, true, nil
+	if cacheStatus == runtimeCacheHit {
+		return published, true, nil
 	}
-	s.overriddenCache[cacheKey] = a
-	s.mu.Unlock()
 
 	logger.Info("model-overridden agent cached",
 		"agent", agentName,
 		"model_override", modelOverride,
 		"resolved_model", resolvedName,
 	)
-	return a, true, nil
+	return published, true, nil
 }
 
 // getOrCreateRunner returns a runner for the given channel, agent, and model
@@ -899,14 +895,14 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName,
 	key := channelName + ":" + agentName + ":" + modelOverride
 
 	s.mu.Lock()
-	if s.runtimeGeneration != expectedGeneration {
+	cached, cacheStatus := s.runtimeCache.runner(expectedGeneration, key)
+	if cacheStatus != runtimeCacheMiss {
 		s.mu.Unlock()
+		if cacheStatus == runtimeCacheHit {
+			logger.Debug("using cached ADK runner", "channel", channelName, "agent", agentName, "model_override", modelOverride)
+			return cached, true, nil
+		}
 		return nil, false, nil
-	}
-	if r, ok := s.runners[key]; ok {
-		s.mu.Unlock()
-		logger.Debug("using cached ADK runner", "channel", channelName, "agent", agentName, "model_override", modelOverride)
-		return r, true, nil
 	}
 	pluginConfig := s.pluginConfig
 	sessionSvc := s.sessionSvc
@@ -931,8 +927,9 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName,
 	}
 
 	s.mu.Lock()
-	if s.runtimeGeneration != expectedGeneration {
-		s.mu.Unlock()
+	published, cacheStatus := s.runtimeCache.publishRunner(expectedGeneration, key, r)
+	s.mu.Unlock()
+	if cacheStatus == runtimeCacheStale {
 		logger.Debug("discarding ADK runner built across runtime reload",
 			"channel", channelName,
 			"agent", agentName,
@@ -941,15 +938,12 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName,
 		)
 		return nil, false, nil
 	}
-	if cached, ok := s.runners[key]; ok {
-		s.mu.Unlock()
-		return cached, true, nil
+	if cacheStatus == runtimeCacheHit {
+		return published, true, nil
 	}
-	s.runners[key] = r
-	s.mu.Unlock()
 
 	logger.Info("ADK runner created", "channel", channelName, "agent", agentName, "model_override", modelOverride)
-	return r, true, nil
+	return published, true, nil
 }
 
 // EventCallback is called for each non-final event during agent execution.
@@ -1090,7 +1084,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	var agentProto *agentsv1.Agent
 	for {
 		s.mu.Lock()
-		generation := s.runtimeGeneration
+		generation := s.runtimeCache.generation
 		ag, ok := s.agents[agentName]
 		agentProto = s.agentsProto[agentName]
 		s.mu.Unlock()
