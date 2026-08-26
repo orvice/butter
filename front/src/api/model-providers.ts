@@ -18,7 +18,11 @@ function toProto(p: ModelProvider): PbModelProvider {
     apiKey: p.api_key ?? "",
     baseUrl: p.base_url ?? "",
     models: (p.models ?? []).map((m) =>
-      create(ModelConfigSchema, { name: m.name, alias: m.alias ?? "" }),
+      create(ModelConfigSchema, {
+        name: m.name,
+        alias: m.alias ?? "",
+        contextWindowTokens: m.context_window_tokens ?? 0,
+      }),
     ),
   });
 }
@@ -29,7 +33,11 @@ function fromProto(p: PbModelProvider): ModelProvider {
     type: p.type,
     api_key: p.apiKey,
     base_url: p.baseUrl,
-    models: p.models,
+    models: p.models.map((model) => ({
+      name: model.name,
+      alias: model.alias,
+      context_window_tokens: model.contextWindowTokens || undefined,
+    })),
   };
 }
 

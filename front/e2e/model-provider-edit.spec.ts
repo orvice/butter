@@ -20,8 +20,8 @@ const SEED_PROVIDER: ModelProvider = create(ModelProviderSchema, {
   apiKey: 'sk-test-key',
   baseUrl: 'https://api.example.com/v1',
   models: [
-    { name: 'gpt-4o', alias: '4o' },
-    { name: 'gemini-2.5-pro', alias: '' },
+    { name: 'gpt-4o', alias: '4o', contextWindowTokens: 128_000 },
+    { name: 'gemini-2.5-pro', alias: '', contextWindowTokens: 0 },
   ],
   workspaceId: '',
 })
@@ -85,17 +85,27 @@ test('edits model rows, submits them to UpdateModelProvider, and reflects persis
   ).toHaveValue('gpt-4o')
   await expect(rows.nth(0).getByPlaceholder('Optional alias')).toHaveValue('4o')
   await expect(
+    rows.nth(0).getByRole('spinbutton', { name: 'Context Window' })
+  ).toHaveValue('128000')
+  await expect(
     rows.nth(1).getByRole('textbox', { name: 'Model ID' })
   ).toHaveValue('gemini-2.5-pro')
   await expect(rows.nth(1).getByPlaceholder('Optional alias')).toHaveValue('')
+  await expect(
+    rows.nth(1).getByRole('spinbutton', { name: 'Context Window' })
+  ).toHaveValue('')
   await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue(
     'openai'
   )
   await expect(page.getByRole('textbox', { name: 'Name' })).toBeDisabled()
 
-  // Edit the rows: give the plain model an alias...
+  // Edit the rows: give the plain model an alias and context capacity...
   await rows.nth(1).getByPlaceholder('Optional alias').fill('pro')
-  // ...append a new row with a model ID...
+  await rows
+    .nth(1)
+    .getByRole('spinbutton', { name: 'Context Window' })
+    .fill('1048576')
+  // ...append a new row with a model ID and no configured capacity...
   await page.getByRole('button', { name: 'Add model' }).click()
   await expect(rows).toHaveCount(3)
   await rows
@@ -123,9 +133,19 @@ test('edits model rows, submits them to UpdateModelProvider, and reflects persis
   expect(provider?.type).toBe('openai')
   expect(provider?.apiKey).toBe('sk-test-key')
   expect(provider?.baseUrl).toBe('https://api.example.com/v1')
-  expect(provider?.models.map((m) => ({ name: m.name, alias: m.alias }))).toEqual([
-    { name: 'gemini-2.5-pro', alias: 'pro' },
-    { name: 'gpt-4.1', alias: '' },
+  expect(
+    provider?.models.map((m) => ({
+      name: m.name,
+      alias: m.alias,
+      contextWindowTokens: m.contextWindowTokens,
+    }))
+  ).toEqual([
+    {
+      name: 'gemini-2.5-pro',
+      alias: 'pro',
+      contextWindowTokens: 1_048_576,
+    },
+    { name: 'gpt-4.1', alias: '', contextWindowTokens: 0 },
   ])
 
   // Reload: the persisted models come back as the same structured rows.
@@ -138,9 +158,15 @@ test('edits model rows, submits them to UpdateModelProvider, and reflects persis
     'pro'
   )
   await expect(
+    rows.nth(0).getByRole('spinbutton', { name: 'Context Window' })
+  ).toHaveValue('1048576')
+  await expect(
     rows.nth(1).getByRole('textbox', { name: 'Model ID' })
   ).toHaveValue('gpt-4.1')
   await expect(rows.nth(1).getByPlaceholder('Optional alias')).toHaveValue('')
+  await expect(
+    rows.nth(1).getByRole('spinbutton', { name: 'Context Window' })
+  ).toHaveValue('')
 })
 
 test('blocks submission without at least one model and flags the offending row', async ({
@@ -150,6 +176,7 @@ test('blocks submission without at least one model and flags the offending row',
 
   await page.goto('/model-providers/openai/edit')
 
+  const rows = page.getByRole('list', { name: 'Models' }).getByRole('listitem')
   const removeFirst = page.getByRole('button', { name: 'Remove model 1' })
   await removeFirst.click()
   await removeFirst.click() // indices shift; row 2 is now row 1
@@ -164,4 +191,19 @@ test('blocks submission without at least one model and flags the offending row',
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByText('At least one model is required')).toBeHidden()
   await expect(page.getByText('Model ID is required')).toBeVisible()
+
+  await rows
+    .nth(0)
+    .getByRole('textbox', { name: 'Model ID' })
+    .fill('invalid-capacity')
+  await rows
+    .nth(0)
+    .getByRole('spinbutton', { name: 'Context Window' })
+    .fill('-1')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(
+    page.getByText(
+      'Context Window must be a whole number from 0 to 4,294,967,295'
+    )
+  ).toBeVisible()
 })

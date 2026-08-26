@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { PageActions } from '@/components/butter/page-parts'
 import {
+  MAX_CONTEXT_WINDOW_TOKENS,
   blankModelRow,
   modelsSchema,
   modelsToRows,
@@ -201,7 +202,7 @@ export function ModelProviderForm({
                 {fields.map((row, index) => (
                   <li
                     key={row.id}
-                    className='grid gap-3 rounded-md border p-3 lg:grid-cols-[1fr_1fr_auto] lg:items-start'
+                    className='grid gap-3 rounded-md border p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(10rem,0.8fr)_auto] lg:items-start'
                   >
                     <FormField
                       control={form.control}
@@ -221,11 +222,29 @@ export function ModelProviderForm({
                       name={`models.${index}.alias`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className='sr-only'>
-                            Alias for row {index + 1}
-                          </FormLabel>
+                          <FormLabel>Alias</FormLabel>
                           <FormControl>
                             <Input placeholder='Optional alias' {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`models.${index}.contextWindowTokens`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Context Window</FormLabel>
+                          <FormControl>
+                            <Input
+                              type='number'
+                              min={0}
+                              max={MAX_CONTEXT_WINDOW_TOKENS}
+                              step={1}
+                              placeholder='Optional tokens'
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -235,6 +254,7 @@ export function ModelProviderForm({
                       type='button'
                       variant='ghost'
                       size='icon'
+                      className='lg:mt-8'
                       onClick={() => remove(index)}
                       aria-label={`Remove model ${index + 1}`}
                     >
