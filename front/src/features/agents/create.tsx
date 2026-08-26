@@ -20,6 +20,13 @@ import { AgentIconUpload } from './icon-upload'
 import { AgentFileMountsField } from './file-mounts-field'
 import { AgentRemoteAgentsField } from './remote-agents-field'
 import { PiAgentConfigurationCard } from './pi-agent-fields'
+import { ContextGuardConfigurationCard } from './context-guard-fields'
+import {
+  buildContextGuardConfig,
+  contextGuardFormSchema,
+  EMPTY_CONTEXT_GUARD_FORM_VALUES,
+  supportsContextGuard,
+} from './context-guard-config'
 import {
   asPiAgent,
   EMPTY_PI_AGENT_FORM_VALUES,
@@ -67,6 +74,7 @@ const agentSchema = z.object({
     permission: z.enum(MOUNT_PERMISSIONS).optional(),
   })).optional(),
   icon_url: z.string().optional(),
+  context_guard: contextGuardFormSchema,
   pi: piAgentFormSchema,
 }).superRefine((values, ctx) => {
   if (values.type !== 'AGENT_TYPE_PI') return
@@ -100,13 +108,24 @@ export function AgentCreate() {
       remote_agent_ids: initialRemoteAgentId ? [initialRemoteAgentId] : [],
       file_mounts: [],
       icon_url: '',
+      context_guard: { ...EMPTY_CONTEXT_GUARD_FORM_VALUES },
       pi: { ...EMPTY_PI_AGENT_FORM_VALUES },
     },
   })
   const agentName = useWatch({ control: form.control, name: 'name' })
   const iconUrl = useWatch({ control: form.control, name: 'icon_url' })
   const agentType = useWatch({ control: form.control, name: 'type' })
+  const contextGuardValues = useWatch({ control: form.control, name: 'context_guard' })
   const piValues = useWatch({ control: form.control, name: 'pi' })
+
+  useEffect(() => {
+    if (supportsContextGuard(agentType)) return
+    if (form.getValues('context_guard').mode === 'off') return
+    form.setValue('context_guard', { ...EMPTY_CONTEXT_GUARD_FORM_VALUES }, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }, [agentType, form])
 
   // Suggest the slug from the name as the user types, until the user edits
   // the Agent ID field themselves.
@@ -133,6 +152,9 @@ export function AgentCreate() {
         mcp_server_ids: values.mcp_server_ids ?? [],
         remote_agent_ids: values.remote_agent_ids ?? [],
         file_mounts: values.file_mounts ?? [],
+        context_guard: supportsContextGuard(values.type)
+          ? buildContextGuardConfig(values.context_guard)
+          : undefined,
       },
     }
     const agent = isPi ? asPiAgent(baseAgent, values.pi) : baseAgent
@@ -335,6 +357,21 @@ export function AgentCreate() {
               )} />
             </CardContent>
           </Card>
+
+          {supportsContextGuard(agentType) && (
+            <ContextGuardConfigurationCard
+              value={contextGuardValues ?? EMPTY_CONTEXT_GUARD_FORM_VALUES}
+              onChange={(value) => form.setValue('context_guard', value, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })}
+              errors={{
+                mode: form.formState.errors.context_guard?.mode?.message,
+                maxTokens: form.formState.errors.context_guard?.maxTokens?.message,
+                maxTurns: form.formState.errors.context_guard?.maxTurns?.message,
+              }}
+            />
+          )}
 
           <Card>
             <CardHeader>

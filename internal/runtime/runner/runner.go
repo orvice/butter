@@ -418,15 +418,22 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 
 		var opts []contextguard.AgentOption
 		switch e.cfg.GetStrategy() {
+		case agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD:
+			// max_tokens is the Agent Context Override for the effective
+			// context window; unset inherits the Model's capacity from the
+			// registry (issue #322).
+			if e.cfg.GetMaxTokens() > 0 {
+				opts = append(opts, contextguard.WithMaxTokens(int(e.cfg.GetMaxTokens())))
+			}
 		case agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW:
+			// max_turns is the content-entry trigger; 0 keeps the dependency's
+			// default of 20. max_tokens is invalid with this strategy and is
+			// rejected at write time (issue #322).
 			maxTurns := int(e.cfg.GetMaxTurns())
 			if maxTurns <= 0 {
 				maxTurns = 20
 			}
 			opts = append(opts, contextguard.WithSlidingWindow(maxTurns))
-		}
-		if e.cfg.GetMaxTokens() > 0 {
-			opts = append(opts, contextguard.WithMaxTokens(int(e.cfg.GetMaxTokens())))
 		}
 
 		guard.Add(e.name, m, opts...)

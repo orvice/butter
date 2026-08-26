@@ -345,6 +345,9 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			fmt.Errorf("agent name %q is reserved by a built-in agent", name))
 	}
+	if err := internalagent.ValidateContextGuard(agent); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	if err := internalagent.ValidateWorkflowAgent(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -474,6 +477,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, err
 	}
 	update := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
+	if err := internalagent.ValidateContextGuard(update); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	if err := internalagent.ValidateWorkflowAgent(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -1035,6 +1041,9 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 	patch := proto.Clone(req.Msg.GetAgentPatch()).(*agentsv1.Agent)
 	if patch.GetAgentId() == "" {
 		return nil, connectx.RequiredArgument("agent_patch.agent_id")
+	}
+	if err := internalagent.ValidateContextGuard(patch); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

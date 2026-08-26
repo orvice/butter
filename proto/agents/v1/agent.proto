@@ -527,11 +527,14 @@ message ContextGuardConfig {
   // @gotags: json:"strategy,omitempty" yaml:"strategy,omitempty"
   ContextGuardStrategy strategy = 1;
 
-  // Maximum number of conversation turns before compaction (sliding window only).
+  // Maximum number of content entries before compaction (sliding window only).
+  // Zero/unset keeps the existing default of 20.
   // @gotags: json:"max_turns,omitempty" yaml:"max_turns,omitempty"
   int32 max_turns = 2;
 
-  // Override for context window size in tokens. When set, bypasses the model registry.
+  // Agent Context Override for the input context window in tokens (threshold
+  // strategy only). This is not maximum output tokens. Zero/unset inherits
+  // the selected model's configured or embedded context metadata.
   // @gotags: json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"
   int32 max_tokens = 3;
 }
