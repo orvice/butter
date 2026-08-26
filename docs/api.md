@@ -96,6 +96,57 @@ an `agent_id`; the read-only cutover verifier (`VerifyAgentIDCutover`, also
 run non-fatally at startup) reports any record that still references an agent
 only by legacy name instead of silently rewriting it.
 
+### Agent ContextGuard configuration
+
+`Agent.config.context_guard` is an opt-in input-context policy for an ADK LLM
+Agent. It is independent of maximum output tokens: `max_tokens` in this
+message is the Agent Context Override for the input context window, not the
+number of tokens the provider may generate.
+
+The supported wire shapes are:
+
+```json
+{
+  "config": {
+    "context_guard": {
+      "strategy": "CONTEXT_GUARD_STRATEGY_THRESHOLD",
+      "max_tokens": 48000
+    }
+  }
+}
+```
+
+```json
+{
+  "config": {
+    "context_guard": {
+      "strategy": "CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW",
+      "max_turns": 8
+    }
+  }
+}
+```
+
+Use no `context_guard` field for **Off**. Threshold compaction accepts an
+optional positive `max_tokens` Agent Context Override; zero or unset inherits
+model metadata. `max_turns` must be zero or unset for this strategy. Sliding
+Window compaction accepts an optional positive `max_turns` content-entry limit;
+zero or unset keeps the existing default of 20. `max_tokens` is invalid with
+Sliding Window because the dependency does not use it for that strategy.
+Negative values, an unspecified strategy, and unknown strategy values are
+rejected with `invalid_argument` and a field-specific message. ContextGuard is
+valid only on `AGENT_TYPE_LLM` and legacy `AGENT_TYPE_UNSPECIFIED` Agents;
+Loop, Sequential, Parallel, Workflow, Pi, and other box-backed Agents must
+configure context management on their standalone LLM children instead.
+
+When no Agent Context Override is set, the effective context window is selected
+from the selected model's configured or embedded metadata, with the documented
+128,000-token fallback for an unknown model. The value feeds ContextGuard's
+existing safety buffer; it is not an exact provider hard limit or a request
+firewall. For windows below 200,000 tokens the dependency keeps a 20% buffer;
+for windows at or above 200,000 it keeps a fixed 20,000-token buffer. Agents
+without `context_guard` remain unchanged even when model metadata exists.
+
 ### Plain JSON examples
 
 Login:

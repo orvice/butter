@@ -25,6 +25,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入�
   - `AGENT_TYPE_PARALLEL`：并行 workflow。
   - `AGENT_TYPE_WORKFLOW`：图 workflow（见下方 §1.1）。
   - `AGENT_TYPE_PI`：由 workspace 内注册的 ButterBox 承载的 pi coding agent（见下方 §1.2）。
+- **LLM ContextGuard**：ContextGuard 是 LLM Agent 的可选输入上下文管理策略，不会因为模型配置了上下文容量而自动启用。界面提供 Off、Token Threshold 和 Sliding Window 三种模式。Threshold 可设置 Agent Context Override（`config.context_guard.max_tokens`），它表示输入上下文窗口覆盖值，不是 maximum output tokens；留空或 0 时继承模型元数据。Sliding Window 用 `max_turns` 表示内容条目上限，留空或 0 保持已有的 20 条默认值，并使用模型容量做压缩后的安全检查。两种策略的专属字段不能混用，策略必须明确；负值和不支持的 Agent 类型会在保存时拒绝。ContextGuard 只适用于 LLM 或 legacy unspecified（按 LLM 构建）Agent，Loop、Sequential、Parallel、Workflow 与 Pi 的上下文策略由实际执行模型的子 Agent 或 Box 管理。有效窗口使用现有 ContextGuard 安全缓冲：小于 200,000 tokens 时保留 20%，达到或超过该值时保留固定 20,000 tokens，因此配置值不是 provider 的硬限制。
 - **子 Agent 与委派（V2 ID 组合）**：新 Agent 通过 `child_agent_ids` 按 Agent ID 引用独立的子 Agent 记录，结合 `description` 用于 LLM 子 Agent 委派；`CreateAgent` 拒绝内联 `sub_agents`，`UpdateAgent` 也拒绝修改内联 `sub_agents`（未变更的历史记录可原样往返，但构建时从不消费内联树——子 Agent 只来自 `child_agent_ids`）。
 - **Labels / Metadata**：每个 Agent 可携带 `labels`、`metadata`，用于路由与索引。
 - **内置系统 Agent**：进程启动时注册 built-in system agent，便于诊断和管理类操作。
