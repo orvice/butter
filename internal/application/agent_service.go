@@ -345,10 +345,10 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			fmt.Errorf("agent name %q is reserved by a built-in agent", name))
 	}
-	if err := internalagent.ValidateWorkflowAgent(agent); err != nil {
+	if err := internalagent.ValidateContextGuard(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if err := internalagent.ValidateContextGuard(agent); err != nil {
+	if err := internalagent.ValidateWorkflowAgent(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := s.validatePiAgentWrite(ctx, wsID, agent); err != nil {
@@ -477,10 +477,10 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, err
 	}
 	update := proto.Clone(req.Msg.GetAgent()).(*agentsv1.Agent)
-	if err := internalagent.ValidateWorkflowAgent(update); err != nil {
+	if err := internalagent.ValidateContextGuard(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if err := internalagent.ValidateContextGuard(update); err != nil {
+	if err := internalagent.ValidateWorkflowAgent(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := s.validatePiAgentWrite(ctx, wsID, update); err != nil {
@@ -1042,10 +1042,10 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 	if patch.GetAgentId() == "" {
 		return nil, connectx.RequiredArgument("agent_patch.agent_id")
 	}
-	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
+	if err := internalagent.ValidateContextGuard(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if err := internalagent.ValidateContextGuard(patch); err != nil {
+	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := s.validatePiAgentWrite(ctx, wsID, patch); err != nil {

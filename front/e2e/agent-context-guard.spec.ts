@@ -118,5 +118,13 @@ test('edits ContextGuard modes, persists the valid fields, and reloads them', as
   await expect(page.getByRole('radio', { name: /Token Threshold/ })).toBeChecked()
   await expect(page.getByLabel('Context window override (tokens)')).toHaveValue('64000')
   await expect(page.getByLabel('Maximum content entries')).toBeHidden()
+
+  // Form-to-JSON and JSON-to-form keep the same nested wire value.
+  await page.getByRole('tab', { name: 'JSON' }).click()
+  const editor = page.locator('.monaco-editor')
+  await expect(editor).toContainText('"context_guard"')
+  await expect(editor).toContainText('"max_tokens": 64000')
+  await page.getByRole('tab', { name: 'Form' }).click()
+  await expect(page.getByLabel('Context window override (tokens)')).toHaveValue('64000')
   expect(ctx.currentAgent().config?.contextGuard?.maxTokens).toBe(64000)
 })
