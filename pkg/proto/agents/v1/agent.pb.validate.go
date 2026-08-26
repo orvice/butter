@@ -2055,6 +2055,8 @@ func (m *ModelConfig) validate(all bool) error {
 
 	// no validation rules for Alias
 
+	// no validation rules for ContextWindowTokens
+
 	if len(errors) > 0 {
 		return ModelConfigMultiError(errors)
 	}
