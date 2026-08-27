@@ -67,8 +67,25 @@ describe('cursorFormValuesFromConfig', () => {
 })
 
 describe('validateCursorAgentForm', () => {
-  it('requires a ButterBox and rejects a bogus mode or max run', () => {
+  type Issue = {
+    code: string
+    message?: string
+    path?: Array<string | number | symbol>
+  }
+  const collectIssues = () => {
     const issues: Array<{ path: string[]; message: string }> = []
+    const ctx = {
+      addIssue: (issue: Issue) =>
+        issues.push({
+          path: (issue.path ?? []).map(String),
+          message: issue.message ?? '',
+        }),
+    } as never
+    return { issues, ctx }
+  }
+
+  it('requires a ButterBox and rejects a bogus mode or max run', () => {
+    const { issues, ctx } = collectIssues()
     validateCursorAgentForm(
       {
         butterboxId: ' ',
@@ -77,9 +94,7 @@ describe('validateCursorAgentForm', () => {
         mode: 'execute',
         maxRunSeconds: 'not-a-number',
       },
-      {
-        addIssue: (issue) => issues.push(issue as { path: string[]; message: string }),
-      } as never
+      ctx
     )
     const messages = issues.map((i) => i.message).join(' | ')
     expect(messages).toContain('Select a ButterBox')
@@ -88,7 +103,7 @@ describe('validateCursorAgentForm', () => {
   })
 
   it('accepts an empty model (box default) and an explicit 0 timeout', () => {
-    const issues: Array<{ path: string[]; message: string }> = []
+    const { issues, ctx } = collectIssues()
     validateCursorAgentForm(
       {
         butterboxId: 'box-1',
@@ -97,9 +112,7 @@ describe('validateCursorAgentForm', () => {
         mode: '',
         maxRunSeconds: '0',
       },
-      {
-        addIssue: (issue) => issues.push(issue as { path: string[]; message: string }),
-      } as never
+      ctx
     )
     expect(issues).toHaveLength(0)
   })
