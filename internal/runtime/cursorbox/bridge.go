@@ -11,6 +11,10 @@ import (
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1"
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1/cursorv1connect"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -24,6 +28,12 @@ const (
 	controlCallTimeout = 60 * time.Second
 
 	abortTimeout = 5 * time.Second
+
+	// cursorAPIKeyInvalidReason is the Google RPC ErrorInfo reason the box
+	// attaches to Unauthenticated errors when its CURSOR_API_KEY is missing
+	// or invalid. It is what lets the bridge tell "configure the Cursor API
+	// key on the box" apart from "the ButterBox access token was rejected".
+	cursorAPIKeyInvalidReason = "CURSOR_API_KEY_MISSING_OR_INVALID"
 )
 
 // AgentBuilder adapts a ClientFactory into the internal/agent Cursor
@@ -144,12 +154,12 @@ func (b *Bridge) run(ictx agent.InvocationContext) iter.Seq2[*session.Event, err
 
 		evt := session.NewEvent(ictx, ictx.InvocationID())
 		evt.Author = ictx.Agent().Name()
-		evt.Content = genai.NewContentFromText(resp.Text, genai.RoleModel)
+		evt.Content = genai.NewContentFromText(resp.GetText(), genai.RoleModel)
 		yield(evt, nil)
 	}
 }
 
-func (b *Bridge) ensureSession(runCtx context.Context, ictx agent.InvocationContext, client CursorClient) (binding, bool, error) {
+func (b *Bridge) ensureSession(runCtx context.Context, ictx agent.InvocationContext, client cursorv1connect.CursorServiceClient) (binding, bool, error) {
 	if bnd, ok := readBinding(ictx.Session().State(), b.agentID); ok && bnd.matches(b.butterboxID, b.workingDir) {
 		return bnd, false, nil
 	}
@@ -160,19 +170,19 @@ func (b *Bridge) ensureSession(runCtx context.Context, ictx agent.InvocationCont
 	return bnd, true, nil
 }
 
-func (b *Bridge) createSession(runCtx context.Context, ictx agent.InvocationContext, client CursorClient) (binding, error) {
+func (b *Bridge) createSession(runCtx context.Context, ictx agent.InvocationContext, client cursorv1connect.CursorServiceClient) (binding, error) {
 	callCtx, cancel := context.WithTimeout(runCtx, controlCallTimeout)
 	defer cancel()
-	resp, err := client.CreateSession(callCtx, &CreateSessionRequest{
-		Name:       fmt.Sprintf("butter:%s:%s", b.agentID, ictx.Session().ID()),
-		WorkingDir: b.workingDir,
-		Model:      b.model,
-		Mode:       b.mode,
-	})
+	resp, err := client.CreateSession(callCtx, connect.NewRequest(&cursorv1.CreateSessionRequest{
+		Name:  fmt.Sprintf("butter:%s:%s", b.agentID, ictx.Session().ID()),
+		Cwd:   b.workingDir,
+		Model: b.model,
+		Mode:  b.mode,
+	}))
 	if err != nil {
 		return binding{}, b.actionable("create cursor session", err)
 	}
-	id := resp.SessionID
+	id := resp.Msg.GetSessionId()
 	if id == "" {
 		return binding{}, fmt.Errorf("cursorbox: the box answered CreateSession without a session id")
 	}
@@ -186,25 +196,25 @@ func (b *Bridge) yieldBinding(ictx agent.InvocationContext, bnd binding, yield f
 	return yield(evt, nil)
 }
 
-func (b *Bridge) sendMessage(runCtx context.Context, client CursorClient, sessionID, input string, images []ImageContent) (*SendMessageResponse, error) {
-	resp, err := client.SendMessage(runCtx, &SendMessageRequest{
-		SessionID: sessionID,
+func (b *Bridge) sendMessage(runCtx context.Context, client cursorv1connect.CursorServiceClient, sessionID, input string, images []*cursorv1.ImageContent) (*cursorv1.SendMessageResponse, error) {
+	resp, err := client.SendMessage(runCtx, connect.NewRequest(&cursorv1.SendMessageRequest{
+		SessionId: sessionID,
 		Message:   input,
 		Images:    images,
-	})
+	}))
 	if err != nil {
 		if isNotFound(err) {
 			return nil, err
 		}
 		return nil, b.actionable("send message", err)
 	}
-	return resp, nil
+	return resp.Msg, nil
 }
 
-func (b *Bridge) abort(client CursorClient, sessionID string) {
+func (b *Bridge) abort(client cursorv1connect.CursorServiceClient, sessionID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), abortTimeout)
 	defer cancel()
-	_ = client.AbortSession(ctx, &AbortSessionRequest{SessionID: sessionID})
+	_, _ = client.AbortSession(ctx, connect.NewRequest(&cursorv1.AbortSessionRequest{SessionId: sessionID}))
 }
 
 func (b *Bridge) classifyInterruption(ictx agent.InvocationContext, runCtx context.Context, err error) error {
@@ -218,6 +228,9 @@ func (b *Bridge) classifyInterruption(ictx agent.InvocationContext, runCtx conte
 }
 
 func (b *Bridge) actionable(op string, err error) error {
+	if cursorAPIKeyInvalid(err) {
+		return fmt.Errorf("cursorbox: the box has no valid CURSOR_API_KEY; Cursor agents run through Cursor's API, so configure the Cursor API key in the box environment before retrying: %w", err)
+	}
 	switch connect.CodeOf(err) {
 	case connect.CodeResourceExhausted:
 		return fmt.Errorf("cursorbox: the ButterBox is at its session capacity; retry later or raise CURSOR_MAX_SESSIONS on the box: %w", err)
@@ -228,6 +241,28 @@ func (b *Bridge) actionable(op string, err error) error {
 	default:
 		return fmt.Errorf("cursorbox: %s: %w", op, err)
 	}
+}
+
+// cursorAPIKeyInvalid reports whether the box signaled a missing or invalid
+// CURSOR_API_KEY — distinct from a rejected box access token. The contract
+// (see proto/butterbox/cursor/v1) attaches a google.rpc.ErrorInfo with reason
+// CURSOR_API_KEY_MISSING_OR_INVALID to Unauthenticated errors raised while a
+// run tries to reach Cursor's hosted API.
+func cursorAPIKeyInvalid(err error) bool {
+	cerr, ok := err.(*connect.Error)
+	if !ok {
+		return false
+	}
+	for _, detail := range cerr.Details() {
+		msg, uerr := detail.Value()
+		if uerr != nil {
+			continue
+		}
+		if info, ok := msg.(*errdetails.ErrorInfo); ok && info.GetReason() == cursorAPIKeyInvalidReason {
+			return true
+		}
+	}
+	return false
 }
 
 func isNotFound(err error) bool {
@@ -247,11 +282,11 @@ func extractText(c *genai.Content) string {
 	return strings.Join(parts, "\n")
 }
 
-func extractImages(c *genai.Content) []ImageContent {
+func extractImages(c *genai.Content) []*cursorv1.ImageContent {
 	if c == nil {
 		return nil
 	}
-	var images []ImageContent
+	var images []*cursorv1.ImageContent
 	for _, p := range c.Parts {
 		if p.InlineData == nil || len(p.InlineData.Data) == 0 {
 			continue
@@ -259,8 +294,8 @@ func extractImages(c *genai.Content) []ImageContent {
 		if !strings.HasPrefix(p.InlineData.MIMEType, "image/") {
 			continue
 		}
-		images = append(images, ImageContent{
-			MIMEType: p.InlineData.MIMEType,
+		images = append(images, &cursorv1.ImageContent{
+			MimeType: p.InlineData.MIMEType,
 			Data:     p.InlineData.Data,
 		})
 	}

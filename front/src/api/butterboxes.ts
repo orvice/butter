@@ -3,6 +3,7 @@ import {
   ButterBoxService,
   type ButterBox,
   type ButterBoxModel,
+  type CursorBoxModel,
   type GetButterBoxStatusResponse,
 } from '@/gen/agents/v1/butterbox_pb'
 import { makeClient } from './transport'
@@ -54,6 +55,21 @@ export function useButterBoxModels(id: string | undefined, enabled = true) {
     enabled: Boolean(id) && enabled,
     queryFn: async (): Promise<ButterBoxModel[]> => {
       const res = await client.listButterBoxModels({ id: id! })
+      return res.models
+    },
+  })
+}
+
+/**
+ * The box's Cursor model catalog. Fetched on demand (pass `enabled: false`
+ * until a consumer — e.g. the agent form — actually needs it).
+ */
+export function useCursorModels(id: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [...BOXES_KEY, id, 'cursor-models'],
+    enabled: Boolean(id) && enabled,
+    queryFn: async (): Promise<CursorBoxModel[]> => {
+      const res = await client.listCursorModels({ id: id! })
       return res.models
     },
   })

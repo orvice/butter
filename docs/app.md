@@ -18,13 +18,14 @@ Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入�
 ## 1. Agent 编排
 
 - **Agent ID 身份**：每个 Agent 由不可变、workspace 内唯一的 **Agent ID**（`agent_id`，slug 形如 `assistant`；规则 `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`）标识，是所有引用（interactive 调用、channel/cron/automation/forum 绑定、A2A、OpenAI 兼容 API）的**唯一键**（agent_id-only）：调用/绑定时 `agent_id` 必填，缺失 → `InvalidArgument`，未知 → `NotFound`，绝不回退 name。`display_name` 是可变的 UI 显示名，不参与解析。旧的 `agent_name`（运行时名字）不再作为输入，仅保留为服务端回写的显示名与历史记录字段。`CreateAgent` 要求 `agent_id`；`(workspace_id, agent_id)` 也是持久层的逻辑主键（Get/Update/Delete/CAS 一律按 ID 定位，ADR-0010）。迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役（恒返回 `Unimplemented`）；`VerifyAgentIDCutover`（全局管理员）提供只读的 cutover 校验诊断。
-- **多类型 Agent 构建**：通过 `agents.v1.Agent` 配置统一生成 ADK Agent，支持六种类型：
+- **多类型 Agent 构建**：通过 `agents.v1.Agent` 配置统一生成 ADK Agent，支持七种类型：
   - `AGENT_TYPE_LLM`：LLM Agent，支持 instruction、global instruction、input/output JSON schema、`output_key`、`context_guard`、`include_contents` 等参数。
   - `AGENT_TYPE_LOOP`：Loop workflow，支持 `max_iterations`。
   - `AGENT_TYPE_SEQUENTIAL`：顺序 workflow。
   - `AGENT_TYPE_PARALLEL`：并行 workflow。
   - `AGENT_TYPE_WORKFLOW`：图 workflow（见下方 §1.1）。
   - `AGENT_TYPE_PI`：由 workspace 内注册的 ButterBox 承载的 pi coding agent（见下方 §1.2）。
+  - `AGENT_TYPE_CURSOR`：由 workspace 内注册的 ButterBox 承载的 Cursor SDK Bridge agent（镜像 Pi，模型走 Cursor API，模型目录由 ButterBoxService.ListCursorModels 提供，Telegram 模型切换锁定）。
 - **LLM ContextGuard**：ContextGuard 是 LLM Agent 的可选输入上下文管理策略，不会因为模型配置了上下文容量而自动启用。界面提供 Off、Token Threshold 和 Sliding Window 三种模式。Threshold 可设置 Agent Context Override（`config.context_guard.max_tokens`），它表示输入上下文窗口覆盖值，不是 maximum output tokens；留空或 0 时继承本次实际选中 Model 的元数据。Sliding Window 用 `max_turns` 表示内容条目上限，留空或 0 保持已有的 20 条默认值，并使用本次实际选中 Model 的容量做压缩后安全检查。两种策略的专属字段不能混用，策略必须明确；负值和不支持的 Agent 类型会在保存时拒绝。ContextGuard 只适用于 LLM 或 legacy unspecified（按 LLM 构建）Agent，Loop、Sequential、Parallel、Workflow 与 Pi 的上下文策略由实际执行模型的子 Agent 或 Box 管理。Effective Context Window 依次取 Agent Context Override、实际 Model ID 的配置容量、内置元数据、未知模型 128,000 回退值；有效窗口使用现有 ContextGuard 安全缓冲：小于 200,000 tokens 时保留 20%，达到或超过该值时保留固定 20,000 tokens，因此配置值不是 provider 的硬限制。
 - **子 Agent 与委派（V2 ID 组合）**：新 Agent 通过 `child_agent_ids` 按 Agent ID 引用独立的子 Agent 记录，结合 `description` 用于 LLM 子 Agent 委派；`CreateAgent` 拒绝内联 `sub_agents`，`UpdateAgent` 也拒绝修改内联 `sub_agents`（未变更的历史记录可原样往返，但构建时从不消费内联树——子 Agent 只来自 `child_agent_ids`）。
 - **Labels / Metadata**：每个 Agent 可携带 `labels`、`metadata`，用于路由与索引。
@@ -76,6 +77,28 @@ Telegram Destination 可以把 Pi Agent 作为默认或可切换 Agent。消息�
 Topic 内投递；切换到别的 Agent 再切回时，会恢复该 Pi Agent 自己的 topic 会话。Pi 的
 model 不属于 Butter ModelProvider，Pi 生效期间 `/model` 固定为锁定状态，不会把
 Destination 的 model override 传给 pi。
+
+### 1.3 Cursor Agent（ButterBox 执行）
+
+Cursor Agent 镜像 Pi Agent：绑定一个 ButterBox 与工作目录的叶子 Agent，Dashboard 表单
+选择 ButterBox、填写工作目录、从该 box 的 Cursor model catalog 选择或手填 model（空=box
+default；`ButterBoxService.ListCursorModels` 提供目录）、选择模式（`agent` 默认 / `plan`），
+并配置单轮最长运行时间（未填默认 1800 秒，`0` 表示不限时）。同一 Butter session ×
+Agent 复用同一个 Cursor session，多轮对话保留上下文；更换 box 或工作目录会创建新的
+Cursor session，不迁移旧状态。
+
+职责边界是 **Butter 决定在哪里运行，Cursor 决定如何工作**：Cursor 在 box 上通过
+`.cursor/rules`、`mcp.json` 与 hooks 获得指令与工具，模型推理总是走 Cursor 托管 API。因此
+Cursor Agent 不接受 Butter 侧 instruction、MCP、Skill、文件挂载、context guard 或
+remote-agent 配置；`CURSOR_API_KEY` 由 box 操作员在 box 环境里配置，Butter 不持有。
+
+Telegram Destination 可以把 Cursor Agent 作为默认或可切换 Agent（镜像 Pi 的锁定语义：
+Cursor 的 model 不属于 Butter ModelProvider，生效期间 `/model` 固定为锁定状态）。
+
+Cursor 关键错误均可操作：box 不可达 / capacity 用尽 → 提示检查 box 或调大
+`CURSOR_MAX_SESSIONS`；`CURSOR_API_KEY` 缺失或无效（box 以
+`CURSOR_API_KEY_MISSING_OR_INVALID` 的 `google.rpc.ErrorInfo` reason 返回）→ 提示在 box
+环境配置该 key；其他鉴权失败 → 提示轮换 ButterBox token。
 
 ## 2. 模型管理
 

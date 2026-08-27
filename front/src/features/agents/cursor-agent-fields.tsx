@@ -1,6 +1,13 @@
 import { useId } from 'react'
 import { Info } from 'lucide-react'
-import { useButterBoxes } from '@/api/butterboxes'
+import { useButterBoxes, useCursorModels } from '@/api/butterboxes'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -10,10 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { CursorAgentFormValues } from './cursor-config'
 
 const DEFAULT_MODE = '__default__'
+const CUSTOM_MODEL = '__custom_model__'
 
 export type CursorAgentFieldsProps = {
   value: CursorAgentFormValues
@@ -31,10 +38,33 @@ export function CursorAgentFields({
 }: CursorAgentFieldsProps) {
   const id = useId()
   const boxesQuery = useButterBoxes()
+  const modelsQuery = useCursorModels(
+    value.butterboxId,
+    Boolean(value.butterboxId)
+  )
   const boxes = boxesQuery.data ?? []
+  const models = modelsQuery.data ?? []
   const boxErrorId = `${id}-butterbox-error`
   const maxRunErrorId = `${id}-max-run-error`
   const modeErrorId = `${id}-mode-error`
+  const modelStatusId = `${id}-model-status`
+
+  function selectModel(selection: string) {
+    onChange('model', selection === CUSTOM_MODEL ? '' : selection)
+  }
+
+  const usesCatalogModel = models.some((model) => model.id === value.model)
+  const modelSelection = usesCatalogModel ? value.model : CUSTOM_MODEL
+
+  let modelStatus = ''
+  if (!value.butterboxId) modelStatus = 'Select a ButterBox to load its models.'
+  else if (modelsQuery.isFetching) modelStatus = 'Loading models...'
+  else if (modelsQuery.isError)
+    modelStatus = 'Unable to load models. Enter a model ID manually.'
+  else if (models.length === 0)
+    modelStatus = 'No models reported. Enter a model ID manually.'
+  else if (value.model && !usesCatalogModel)
+    modelStatus = 'Custom model ID — not in the box catalog.'
 
   return (
     <div className='space-y-5'>
@@ -108,15 +138,45 @@ export function CursorAgentFields({
       <div className='grid gap-4 sm:grid-cols-2'>
         <div className='space-y-2'>
           <Label htmlFor={`${id}-model`}>Model</Label>
-          <Input
-            id={`${id}-model`}
-            value={value.model}
-            onChange={(event) => onChange('model', event.target.value)}
-            placeholder='Model ID'
-            autoComplete='off'
-            spellCheck={false}
-            disabled={!value.butterboxId}
-          />
+          {models.length > 0 ? (
+            <Select value={modelSelection} onValueChange={selectModel}>
+              <SelectTrigger
+                id={`${id}-model`}
+                disabled={!value.butterboxId}
+                aria-describedby={modelStatusId}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {models.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.name || model.id}
+                  </SelectItem>
+                ))}
+                <SelectItem value={CUSTOM_MODEL}>Custom model ID...</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : null}
+          {(models.length === 0 || !usesCatalogModel) && (
+            <Input
+              id={models.length === 0 ? `${id}-model` : `${id}-custom-model`}
+              value={value.model}
+              onChange={(event) => onChange('model', event.target.value)}
+              placeholder='Model ID'
+              autoComplete='off'
+              spellCheck={false}
+              disabled={!value.butterboxId}
+              aria-label={models.length > 0 ? 'Custom model ID' : undefined}
+              aria-describedby={modelStatusId}
+            />
+          )}
+          <p
+            id={modelStatusId}
+            role='status'
+            className='min-h-5 text-xs text-muted-foreground'
+          >
+            {modelStatus}
+          </p>
         </div>
 
         <div className='space-y-2'>

@@ -7,24 +7,31 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1/cursorv1connect"
 
 	butterboxrepo "go.orx.me/apps/butter/internal/repo/butterbox"
 	"go.orx.me/apps/butter/internal/secretbox"
 )
 
-// ClientFactory resolves a workspace's ButterBox into a CursorClient.
-// Implementations resolve per call — no client cache — so a base-URL change
-// or token rotation takes effect on the next turn.
+// ClientFactory resolves a workspace's ButterBox into a CursorService
+// client. Implementations resolve per call — no client cache — so a
+// base-URL change or token rotation takes effect on the next turn (same
+// contract as internal/telegramapi and pibox).
 type ClientFactory interface {
-	ClientFor(ctx context.Context, workspaceID, butterboxID string) (CursorClient, error)
+	ClientFor(ctx context.Context, workspaceID, butterboxID string) (cursorv1connect.CursorServiceClient, error)
 }
 
 // Factory is the production ClientFactory: it reads the box from the
 // repository and decrypts its access token through the secretbox keyring,
-// then builds a Connect-based CursorClient targeting the box's CursorService.
+// then builds a generated Connect client targeting the box's CursorService
+// (butterbox.cursor.v1 — the #315 contract, mirrored in this repo's proto
+// tree until butter-box publishes it).
 type Factory struct {
-	repo       butterboxrepo.Repository
-	keyring    *secretbox.Keyring
+	repo    butterboxrepo.Repository
+	keyring *secretbox.Keyring
+	// httpClient overrides the HTTP client, for tests. The default client
+	// carries no global timeout: SendMessage is bounded by the bridge's
+	// max-run deadline, not per client.
 	httpClient connect.HTTPClient
 }
 
@@ -32,7 +39,7 @@ func NewFactory(repo butterboxrepo.Repository, keyring *secretbox.Keyring) *Fact
 	return &Factory{repo: repo, keyring: keyring}
 }
 
-func (f *Factory) ClientFor(ctx context.Context, workspaceID, butterboxID string) (CursorClient, error) {
+func (f *Factory) ClientFor(ctx context.Context, workspaceID, butterboxID string) (cursorv1connect.CursorServiceClient, error) {
 	if f == nil || f.repo == nil {
 		return nil, fmt.Errorf("cursorbox: butterbox repository is not configured")
 	}
@@ -64,106 +71,11 @@ func (f *Factory) ClientFor(ctx context.Context, workspaceID, butterboxID string
 	if httpClient == nil {
 		httpClient = &http.Client{}
 	}
-	return newConnectCursorClient(httpClient, box.GetBaseUrl(), token), nil
-}
-
-// connectCursorClient wraps HTTP calls to the box's CursorService endpoint
-// using plain Connect unary RPCs. When butter-box publishes the cursor.v1
-// proto (issue #315), this implementation should be replaced by the generated
-// Connect client.
-type connectCursorClient struct {
-	baseURL    string
-	httpClient connect.HTTPClient
-	opts       []connect.ClientOption
-}
-
-func newConnectCursorClient(httpClient connect.HTTPClient, baseURL, token string) *connectCursorClient {
-	var opts []connect.ClientOption
+	opts := []connect.ClientOption{}
 	if token != "" {
 		opts = append(opts, connect.WithInterceptors(bearerInterceptor(token)))
 	}
-	return &connectCursorClient{
-		baseURL:    baseURL,
-		httpClient: httpClient,
-		opts:       opts,
-	}
-}
-
-func (c *connectCursorClient) CreateSession(ctx context.Context, req *CreateSessionRequest) (*CreateSessionResponse, error) {
-	type wireReq struct {
-		Name       string `json:"name,omitempty"`
-		WorkingDir string `json:"working_dir,omitempty"`
-		Model      string `json:"model,omitempty"`
-		Mode       string `json:"mode,omitempty"`
-	}
-	type wireSession struct {
-		ID string `json:"id"`
-	}
-	type wireResp struct {
-		Session wireSession `json:"session"`
-	}
-	client := connect.NewClient[wireReq, wireResp](
-		c.httpClient,
-		c.baseURL+"/butterbox.cursor.v1.CursorService/CreateSession",
-		c.opts...,
-	)
-	resp, err := client.CallUnary(ctx, connect.NewRequest(&wireReq{
-		Name:       req.Name,
-		WorkingDir: req.WorkingDir,
-		Model:      req.Model,
-		Mode:       req.Mode,
-	}))
-	if err != nil {
-		return nil, err
-	}
-	return &CreateSessionResponse{SessionID: resp.Msg.Session.ID}, nil
-}
-
-func (c *connectCursorClient) SendMessage(ctx context.Context, req *SendMessageRequest) (*SendMessageResponse, error) {
-	type wireImage struct {
-		MIMEType string `json:"mime_type,omitempty"`
-		Data     []byte `json:"data,omitempty"`
-	}
-	type wireReq struct {
-		SessionID string      `json:"session_id"`
-		Message   string      `json:"message"`
-		Images    []wireImage `json:"images,omitempty"`
-	}
-	type wireResp struct {
-		Text string `json:"text"`
-	}
-	var wireImages []wireImage
-	for _, img := range req.Images {
-		wireImages = append(wireImages, wireImage{MIMEType: img.MIMEType, Data: img.Data})
-	}
-	client := connect.NewClient[wireReq, wireResp](
-		c.httpClient,
-		c.baseURL+"/butterbox.cursor.v1.CursorService/SendMessage",
-		c.opts...,
-	)
-	resp, err := client.CallUnary(ctx, connect.NewRequest(&wireReq{
-		SessionID: req.SessionID,
-		Message:   req.Message,
-		Images:    wireImages,
-	}))
-	if err != nil {
-		return nil, err
-	}
-	return &SendMessageResponse{Text: resp.Msg.Text}, nil
-}
-
-func (c *connectCursorClient) AbortSession(ctx context.Context, req *AbortSessionRequest) error {
-	type wireReq struct {
-		SessionID string `json:"session_id"`
-	}
-	type wireResp struct{}
-	client := connect.NewClient[wireReq, wireResp](
-		c.httpClient,
-		c.baseURL+"/butterbox.cursor.v1.CursorService/AbortSession",
-		c.opts...,
-	)
-	_, err := client.CallUnary(ctx, connect.NewRequest(&wireReq{SessionID: req.SessionID}))
-	return err
+	return cursorv1connect.NewCursorServiceClient(httpClient, box.GetBaseUrl(), opts...), nil
 }
 
 func bearerInterceptor(token string) connect.UnaryInterceptorFunc {

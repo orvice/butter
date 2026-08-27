@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -15,21 +17,25 @@ import (
 	adkrunner "google.golang.org/adk/v2/runner"
 	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/protobuf/proto"
+
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1"
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1/cursorv1connect"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 type fakeCursor struct {
-	mu          sync.Mutex
-	nextID      int
-	sessions    map[string]bool
-	createReqs  []*CreateSessionRequest
-	sendReqs    []*SendMessageRequest
-	abortedIDs  []string
-	createErr   error
-	sendErr     error
-	sendDelay   time.Duration
+	mu           sync.Mutex
+	nextID       int
+	sessions     map[string]bool
+	createReqs   []*cursorv1.CreateSessionRequest
+	sendReqs     []*cursorv1.SendMessageRequest
+	abortedIDs   []string
+	createErr    error
+	sendErr      error
+	sendDelay    time.Duration
 	responseText string
 }
 
@@ -40,7 +46,7 @@ func newFakeCursor() *fakeCursor {
 	}
 }
 
-func (f *fakeCursor) CreateSession(_ context.Context, req *CreateSessionRequest) (*CreateSessionResponse, error) {
+func (f *fakeCursor) CreateSession(_ context.Context, req *connect.Request[cursorv1.CreateSessionRequest]) (*connect.Response[cursorv1.CreateSessionResponse], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.createErr != nil {
@@ -49,22 +55,22 @@ func (f *fakeCursor) CreateSession(_ context.Context, req *CreateSessionRequest)
 	f.nextID++
 	id := fmt.Sprintf("cur-%d", f.nextID)
 	f.sessions[id] = true
-	f.createReqs = append(f.createReqs, req)
-	return &CreateSessionResponse{SessionID: id}, nil
+	f.createReqs = append(f.createReqs, proto.Clone(req.Msg).(*cursorv1.CreateSessionRequest))
+	return connect.NewResponse(&cursorv1.CreateSessionResponse{SessionId: id}), nil
 }
 
-func (f *fakeCursor) SendMessage(ctx context.Context, req *SendMessageRequest) (*SendMessageResponse, error) {
+func (f *fakeCursor) SendMessage(ctx context.Context, req *connect.Request[cursorv1.SendMessageRequest]) (*connect.Response[cursorv1.SendMessageResponse], error) {
 	f.mu.Lock()
 	if f.sendErr != nil {
 		err := f.sendErr
 		f.mu.Unlock()
 		return nil, err
 	}
-	if !f.sessions[req.SessionID] {
+	if !f.sessions[req.Msg.GetSessionId()] {
 		f.mu.Unlock()
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("session not found"))
 	}
-	f.sendReqs = append(f.sendReqs, req)
+	f.sendReqs = append(f.sendReqs, proto.Clone(req.Msg).(*cursorv1.SendMessageRequest))
 	delay := f.sendDelay
 	text := f.responseText
 	f.mu.Unlock()
@@ -76,14 +82,21 @@ func (f *fakeCursor) SendMessage(ctx context.Context, req *SendMessageRequest) (
 		case <-time.After(delay):
 		}
 	}
-	return &SendMessageResponse{Text: text}, nil
+	return connect.NewResponse(&cursorv1.SendMessageResponse{Text: text}), nil
 }
 
-func (f *fakeCursor) AbortSession(_ context.Context, req *AbortSessionRequest) error {
+func (f *fakeCursor) AbortSession(_ context.Context, req *connect.Request[cursorv1.AbortSessionRequest]) (*connect.Response[cursorv1.AbortSessionResponse], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.abortedIDs = append(f.abortedIDs, req.SessionID)
-	return nil
+	f.abortedIDs = append(f.abortedIDs, req.Msg.GetSessionId())
+	return connect.NewResponse(&cursorv1.AbortSessionResponse{}), nil
+}
+
+func (f *fakeCursor) ListModels(_ context.Context, _ *connect.Request[cursorv1.ListModelsRequest]) (*connect.Response[cursorv1.ListModelsResponse], error) {
+	return connect.NewResponse(&cursorv1.ListModelsResponse{Models: []*cursorv1.Model{
+		{Id: "composer-2.5", Name: "Composer 2.5"},
+		{Id: "auto-smart", Name: "Auto Smart"},
+	}}), nil
 }
 
 func (f *fakeCursor) createCount() int {
@@ -98,9 +111,11 @@ func (f *fakeCursor) abortCount() int {
 	return len(f.abortedIDs)
 }
 
-type staticFactory struct{ client CursorClient }
+type staticFactory struct {
+	client cursorv1connect.CursorServiceClient
+}
 
-func (s staticFactory) ClientFor(context.Context, string, string) (CursorClient, error) {
+func (s staticFactory) ClientFor(context.Context, string, string) (cursorv1connect.CursorServiceClient, error) {
 	return s.client, nil
 }
 
@@ -200,13 +215,13 @@ func TestBridge_FirstTurnCreatesSessionAndAnswers(t *testing.T) {
 		t.Fatalf("create count: got %d", fake.createCount())
 	}
 	create := fake.createReqs[0]
-	if create.WorkingDir != "projects/demo" || create.Model != "composer-2.5" || create.Mode != "agent" {
+	if create.GetCwd() != "projects/demo" || create.GetModel() != "composer-2.5" || create.GetMode() != "agent" {
 		t.Fatalf("create request lost config: %+v", create)
 	}
-	if !strings.HasPrefix(create.Name, "butter:cursor-coder:") {
-		t.Fatalf("session name: got %q", create.Name)
+	if !strings.HasPrefix(create.GetName(), "butter:cursor-coder:") {
+		t.Fatalf("session name: got %q", create.GetName())
 	}
-	if got := fake.sendReqs[0].Message; got != "hi cursor" {
+	if got := fake.sendReqs[0].GetMessage(); got != "hi cursor" {
 		t.Fatalf("submitted message: got %q", got)
 	}
 
@@ -233,7 +248,7 @@ func TestBridge_SecondTurnReusesCursorSession(t *testing.T) {
 	if fake.createCount() != 1 {
 		t.Fatalf("expected one cursor session across turns, got %d creates", fake.createCount())
 	}
-	if got := fake.sendReqs[1].SessionID; got != "cur-1" {
+	if got := fake.sendReqs[1].GetSessionId(); got != "cur-1" {
 		t.Fatalf("second send session: got %q", got)
 	}
 }
@@ -283,7 +298,7 @@ func TestBridge_SecondTurnReusesCursorSessionAfterBSONRoundTrip(t *testing.T) {
 	if fake.createCount() != 1 {
 		t.Fatalf("expected BSON-loaded binding to reuse the cursor session, got %d creates", fake.createCount())
 	}
-	if got := fake.sendReqs[1].SessionID; got != "cur-1" {
+	if got := fake.sendReqs[1].GetSessionId(); got != "cur-1" {
 		t.Fatalf("second send session: got %q", got)
 	}
 }
@@ -314,7 +329,7 @@ func TestBridge_RepointedAgentAbandonsAndRecreates(t *testing.T) {
 	if fake.createCount() != 2 {
 		t.Fatalf("expected recreate after repoint, got %d creates", fake.createCount())
 	}
-	if got := fake.createReqs[1].WorkingDir; got != "projects/other" {
+	if got := fake.createReqs[1].GetCwd(); got != "projects/other" {
 		t.Fatalf("recreate cwd: got %q", got)
 	}
 	bnd, _ := h.storedBinding()
@@ -437,8 +452,8 @@ func TestBridge_ImagesPassThrough(t *testing.T) {
 	if _, err := h.turn(t.Context(), content); err != nil {
 		t.Fatalf("turn: %v", err)
 	}
-	images := fake.sendReqs[0].Images
-	if len(images) != 1 || images[0].MIMEType != "image/png" || len(images[0].Data) != 4 {
+	images := fake.sendReqs[0].GetImages()
+	if len(images) != 1 || images[0].GetMimeType() != "image/png" || len(images[0].GetData()) != 4 {
 		t.Fatalf("images: got %v", images)
 	}
 }
@@ -452,5 +467,116 @@ func TestBridge_UnlimitedRunHasNoDeadline(t *testing.T) {
 	}
 	if NewBridge(cursorAgentProto("box-1", ""), staticFactory{newFakeCursor()}).maxRun != defaultMaxRunSeconds*time.Second {
 		t.Fatal("unset max_run_seconds must default to 1800s")
+	}
+}
+
+// TestBridge_GeneratedHandlerOverWire drives the full bridge through the
+// generated Connect handler mounted on an httptest server — the wire path the
+// production Factory produces — proving the cursor.v1 messages actually
+// serialize and the session lifecycle survives the round trip. This is the
+// check #316 requires (typed fake CursorService over httptest); the previous
+// bridge tests use the fake as an in-process client, which never exercises
+// the codec.
+func TestBridge_GeneratedHandlerOverWire(t *testing.T) {
+	serverCursor := newFakeCursor()
+	path, handler := cursorv1connect.NewCursorServiceHandler(serverCursor)
+	mux := http.NewServeMux()
+	mux.Handle(path, handler)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := cursorv1connect.NewCursorServiceClient(server.Client(), server.URL)
+	b := NewBridge(cursorAgentProto("box-1", "projects/demo"), staticFactory{client})
+	h := newHarness(t, b)
+
+	if _, err := h.turn(t.Context(), textContent("first")); err != nil {
+		t.Fatalf("first turn: %v", err)
+	}
+	if _, err := h.turn(t.Context(), textContent("second")); err != nil {
+		t.Fatalf("second turn: %v", err)
+	}
+	if serverCursor.createCount() != 1 {
+		t.Fatalf("expected one cursor session across wire turns, got %d creates", serverCursor.createCount())
+	}
+	if got := serverCursor.sendReqs[1].GetSessionId(); got != "cur-1" {
+		t.Fatalf("second wire send session: got %q", got)
+	}
+	if got := serverCursor.sendReqs[0].GetMessage(); got != "first" {
+		t.Fatalf("wire message: got %q", got)
+	}
+}
+
+// TestBridge_CursorAPIKeyInvalidIsActionable verifies the #316/#317 error
+// path: a box that signals a missing or invalid CURSOR_API_KEY (Unauthenticated
+// carrying the documented google.rpc.ErrorInfo reason) yields guidance to
+// configure the key on the box, while a plain rejected access token still maps
+// to rotating the ButterBox token.
+func TestBridge_CursorAPIKeyInvalidIsActionable(t *testing.T) {
+	fake := newFakeCursor()
+	detail, derr := connect.NewErrorDetail(&errdetails.ErrorInfo{
+		Reason: cursorAPIKeyInvalidReason,
+		Domain: "butterbox.cursor.v1",
+	})
+	if derr != nil {
+		t.Fatalf("error detail: %v", derr)
+	}
+	fake.sendErr = connect.NewError(connect.CodeUnauthenticated, errors.New("cursor api key rejected"))
+	fake.sendErr.(*connect.Error).AddDetail(detail)
+	b := NewBridge(cursorAgentProto("box-1", ""), staticFactory{fake})
+	h := newHarness(t, b)
+
+	_, err := h.turn(t.Context(), textContent("hi"))
+	if err == nil || !strings.Contains(err.Error(), "CURSOR_API_KEY") {
+		t.Fatalf("expected configure-the-angel-key guidance, got %v", err)
+	}
+	if strings.Contains(err.Error(), "SetButterBoxToken") {
+		t.Fatalf("API-key failure must not be reported as a box-token problem: %v", err)
+	}
+
+	// A rejected box access token (no ErrorInfo reason) still maps to the
+	// rotate-the-token guidance.
+	tokenFake := newFakeCursor()
+	tokenFake.createErr = connect.NewError(connect.CodeUnauthenticated, errors.New("bad bearer"))
+	tokenBridge := NewBridge(cursorAgentProto("box-1", ""), staticFactory{tokenFake})
+	tokenHarness := newHarness(t, tokenBridge)
+	_, tokenErr := tokenHarness.turn(t.Context(), textContent("hi"))
+	if tokenErr == nil || !strings.Contains(tokenErr.Error(), "SetButterBoxToken") {
+		t.Fatalf("box token rejection must map to rotate-the-token, got %v", tokenErr)
+	}
+}
+
+// TestBridge_CursorAPIKeyInvalidOverWire is the same distinguishable-error
+// check over the generated Connect handler: the box answers Unauthenticated
+// with the CURSOR_API_KEY ErrorInfo reason, the client decodes the wire
+// error, and the bridge still maps it to configure-the-key guidance.
+func TestBridge_CursorAPIKeyInvalidOverWire(t *testing.T) {
+	serverCursor := newFakeCursor()
+	detail, derr := connect.NewErrorDetail(&errdetails.ErrorInfo{
+		Reason: cursorAPIKeyInvalidReason,
+		Domain: "butterbox.cursor.v1",
+	})
+	if derr != nil {
+		t.Fatalf("error detail: %v", derr)
+	}
+	apikeyErr := connect.NewError(connect.CodeUnauthenticated, errors.New("cursor api key rejected"))
+	apikeyErr.AddDetail(detail)
+	serverCursor.sendErr = apikeyErr
+
+	path, handler := cursorv1connect.NewCursorServiceHandler(serverCursor)
+	mux := http.NewServeMux()
+	mux.Handle(path, handler)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := cursorv1connect.NewCursorServiceClient(server.Client(), server.URL)
+	b := NewBridge(cursorAgentProto("box-1", ""), staticFactory{client})
+	h := newHarness(t, b)
+
+	_, err := h.turn(t.Context(), textContent("hi"))
+	if err == nil || !strings.Contains(err.Error(), "CURSOR_API_KEY") {
+		t.Fatalf("expected configure-the-angel-key guidance over the wire, got %v", err)
+	}
+	if strings.Contains(err.Error(), "SetButterBoxToken") {
+		t.Fatalf("API-key failure must not be reported as a box-token problem: %v", err)
 	}
 }

@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+// The ButterBox CursorService contract. issue #315 (butter-box) owns the
+// authoritative proto for this surface; this copy lives in butter so the
+// production cursorbox client is generated and tested before #315 lands.
+// Keep this file in lockstep with the #315 spec — when butter-box publishes
+// cursor.v1, cursorbox should switch to the module's generated client.
+package butterbox.cursor.v1;
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1;cursorv1";
+
+// CursorService drives Cursor SDK Bridge sessions hosted on this ButterBox.
+//
+// A session maps 1:1 to a `cursor-sdk-bridge` child process while active.
+// Model inference always goes through Cursor's hosted API, so the box must
+// run the bridge with a valid CURSOR_API_KEY in its environment — butter
+// never stores that key.
+//
+// Error contract (butter maps these onto actionable guidance):
+//   - Box access token rejected -> Unauthenticated (bearer auth failed at
+//     the RPC boundary, no ErrorInfo reason attached).
+//   - Missing or invalid CURSOR_API_KEY -> Unauthenticated with a
+//     google.rpc.ErrorInfo whose reason is "CURSOR_API_KEY_MISSING_OR_INVALID".
+//     This is the signal butter uses to tell the operator to configure the
+//     key on the box, distinct from a bad box access token.
+//   - At session capacity -> ResourceExhausted.
+//   - The session is busy with another message -> FailedPrecondition.
+//   - Unknown session -> NotFound.
+service CursorService {
+  // CreateSession spawns a bridge process for one Cursor agent session and
+  // returns its session ID.
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+
+  // SendMessage sends one prompt and returns after the Cursor agent finishes
+  // its turn (the bridge collects RunUpdate events until TurnEndedUpdate).
+  // A box restart mid-run yields an error, never a stale answer.
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+
+  // AbortSession cancels the in-flight run, if any, and stops the bridge
+  // process. Session files stay on disk.
+  rpc AbortSession(AbortSessionRequest) returns (AbortSessionResponse);
+
+  // ListModels reports the Cursor model catalog the box's bridge is
+  // configured with. Session-less: a short-lived bridge answers and is shut
+  // down, so this never consumes a session slot.
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+}
+
+message CreateSessionRequest {
+  // Optional display name.
+  string name = 1;
+  // Optional model ID (e.g. "composer-2.5"). Empty uses the bridge default.
+  string model = 2;
+  // Agent mode: "agent" (default) or "plan".
+  string mode = 3;
+  // Working directory for the session's bridge process, absolute or relative
+  // to the box's sandbox root. Must resolve inside the sandbox root and
+  // exist. Empty keeps the server process working directory.
+  string cwd = 4;
+}
+
+message CreateSessionResponse {
+  // Opaque session ID on the box (the bridge's agent ID).
+  string session_id = 1;
+}
+
+message SendMessageRequest {
+  string session_id = 1;
+  string message = 2;
+  repeated ImageContent images = 3;
+}
+
+message SendMessageResponse {
+  // The agent's final text output after the turn ended.
+  string text = 1;
+}
+
+message AbortSessionRequest {
+  string session_id = 1;
+}
+
+message AbortSessionResponse {}
+
+message ListModelsRequest {}
+
+message ListModelsResponse {
+  repeated Model models = 1;
+}
+
+message Model {
+  // Cursor model ID (e.g. "composer-2.5", "auto-smart"), usable as
+  // CreateSessionRequest.model.
+  string id = 1;
+  // Human-readable model name.
+  string name = 2;
+}
+
+message ImageContent {
+  // e.g. "image/png".
+  string mime_type = 1;
+  // Raw image bytes.
+  bytes data = 2;
+}
