@@ -122,7 +122,9 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
 
   const agents = (agentsData?.agents ?? []).filter((agent) => Boolean(agent.agent_id))
   const selectedAgent = agents.find((agent) => agent.agent_id === form.agentId)
-  const selectedAgentIsPi = selectedAgent?.type === 'AGENT_TYPE_PI'
+  const selectedAgentIsBoxBacked =
+    selectedAgent?.type === 'AGENT_TYPE_PI' ||
+    selectedAgent?.type === 'AGENT_TYPE_CURSOR'
   const modelAliases = (providersData?.model_providers ?? []).flatMap((provider) =>
     (provider.models ?? []).map((model) => model.alias || model.name)
   )
@@ -132,20 +134,22 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
   }
 
   function setAgent(agentId: string) {
-    const isPi = agents.find((agent) => agent.agent_id === agentId)?.type === 'AGENT_TYPE_PI'
+    const agent = agents.find((item) => item.agent_id === agentId)
+    const isBoxBacked =
+      agent?.type === 'AGENT_TYPE_PI' || agent?.type === 'AGENT_TYPE_CURSOR'
     setForm((prev) => ({
       ...prev,
       agentId,
-      ...(isPi ? { model: '', selectableModels: '' } : {}),
+      ...(isBoxBacked ? { model: '', selectableModels: '' } : {}),
     }))
   }
 
   async function submit() {
     const config = {
       agentId: form.agentId,
-      model: selectedAgentIsPi ? '' : form.model,
+      model: selectedAgentIsBoxBacked ? '' : form.model,
       selectableAgentIds: parseIdList(form.selectableAgentIds),
-      selectableModels: selectedAgentIsPi ? [] : parseIdList(form.selectableModels),
+      selectableModels: selectedAgentIsBoxBacked ? [] : parseIdList(form.selectableModels),
       triggerMode: form.triggerMode,
       sessionPolicy: form.sessionPolicy,
       allowedUserIds: parseIdList(form.allowedUserIds),
@@ -298,7 +302,7 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
                 <Select
                   value={form.model || undefined}
                   onValueChange={(value) => set('model', value)}
-                  disabled={selectedAgentIsPi}
+                  disabled={selectedAgentIsBoxBacked}
                 >
                   <SelectTrigger id='destination-model' aria-label='Model override'>
                     <SelectValue placeholder="Inherit the agent's model" />
@@ -333,14 +337,15 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
                     value={form.selectableModels}
                     onChange={(e) => set('selectableModels', e.target.value)}
                     placeholder='leave empty to lock the model'
-                    disabled={selectedAgentIsPi}
+                    disabled={selectedAgentIsBoxBacked}
                   />
                 </div>
               </div>
-              {selectedAgentIsPi && (
+              {selectedAgentIsBoxBacked && (
                 <p className='text-sm text-muted-foreground'>
-                  Pi uses the model in its ButterBox binding, so Telegram model switching is locked
-                  while this Agent is active.
+                  {selectedAgent?.type === 'AGENT_TYPE_PI'
+                    ? 'Pi uses the model in its ButterBox binding, so Telegram model switching is locked while this Agent is active.'
+                    : 'Cursor uses the model in its ButterBox binding, so Telegram model switching is locked while this Agent is active.'}
                 </p>
               )}
             </CardContent>
