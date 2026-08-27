@@ -61,7 +61,8 @@ func (s *Service) SupportsModelOverride(workspaceID, agentID string) (bool, bool
 		// behavior on the system path.
 		return true, true
 	}
-	return agentType != agentsv1.AgentType_AGENT_TYPE_PI, true
+	return agentType != agentsv1.AgentType_AGENT_TYPE_PI &&
+		agentType != agentsv1.AgentType_AGENT_TYPE_CURSOR, true
 }
 
 // HasAgentIDInWorkspace reports whether an agent with the given agent_id is

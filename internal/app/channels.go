@@ -84,6 +84,7 @@ import (
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
+	"go.orx.me/apps/butter/internal/runtime/cursorbox"
 	"go.orx.me/apps/butter/internal/runtime/pibox"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
@@ -361,9 +362,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// credential seams.
 	piBuilder := pibox.AgentBuilder(pibox.NewFactory(butterBoxRepo, secretbox.NewKeyring(cryptoKeyRepo)))
 
+	// Cursor agents mirror PI: bridge to a ButterBox's CursorService.
+	cursorBuilder := cursorbox.AgentBuilder(cursorbox.NewFactory(butterBoxRepo, secretbox.NewKeyring(cryptoKeyRepo)))
+
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, fileRepo, cfg.AgentFiles.EffectiveMaxFileBytes(), skillRepo, pluginConfig, mcpAuthResolver, piBuilder)
+	runnerSvc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, fileRepo, cfg.AgentFiles.EffectiveMaxFileBytes(), skillRepo, pluginConfig, mcpAuthResolver, piBuilder, cursorBuilder)
 	if err == nil {
 		runnerSvc.SetInvocationRecorder(invRepo)
 	}

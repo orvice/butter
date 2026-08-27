@@ -192,6 +192,13 @@ message AgentConfig {
   // Required when type is PI; meaningless otherwise.
   // @gotags: json:"pi,omitempty" yaml:"pi,omitempty"
   PiAgentConfig pi = 50;
+
+  // --- Cursor agent fields (used when type is CURSOR) ---
+
+  // Binding of a CURSOR agent to one ButterBox and one working directory.
+  // Required when type is CURSOR; meaningless otherwise.
+  // @gotags: json:"cursor,omitempty" yaml:"cursor,omitempty"
+  CursorAgentConfig cursor = 51;
 }
 
 // PiAgentConfig binds a PI agent to the ButterBox that runs its pi coding
@@ -230,6 +237,37 @@ message PiAgentConfig {
   // process slot forever — long legitimate runs raise the number.
   // @gotags: json:"max_run_seconds,omitempty" yaml:"max_run_seconds,omitempty"
   optional int32 max_run_seconds = 6;
+}
+
+// CursorAgentConfig binds a CURSOR agent to the ButterBox that runs Cursor's
+// SDK Bridge and to one working directory on that box. A Cursor agent's tools
+// and instructions are configured on the box — in .cursor/rules, mcp.json,
+// and hooks — not in butter, so the LLM/MCP/skill fields of AgentConfig are
+// rejected on write for Cursor agents (same pattern as PI, ADR-0011).
+message CursorAgentConfig {
+  // The workspace ButterBox that hosts this agent's Cursor sessions.
+  // @gotags: json:"butterbox_id,omitempty" yaml:"butterbox_id,omitempty"
+  string butterbox_id = 1;
+
+  // Working directory for Cursor sessions, absolute or relative to the box's
+  // sandbox root. Empty uses the box server's working directory.
+  // @gotags: json:"working_dir,omitempty" yaml:"working_dir,omitempty"
+  string working_dir = 2;
+
+  // Optional Cursor model ID (e.g. "composer-2.5", "auto-smart"). Empty uses
+  // the bridge's default.
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
+  string model = 3;
+
+  // Agent mode: "agent" (default) or "plan".
+  // @gotags: json:"mode,omitempty" yaml:"mode,omitempty"
+  string mode = 4;
+
+  // Bounds one turn's run on the box; exceeding it aborts the run. Unset
+  // defaults to 1800 seconds; an explicit 0 means unlimited. Same semantics
+  // as PiAgentConfig.max_run_seconds.
+  // @gotags: json:"max_run_seconds,omitempty" yaml:"max_run_seconds,omitempty"
+  optional int32 max_run_seconds = 5;
 }
 
 // WorkflowConfig declares a Workflow Agent's directed graph as two explicit
@@ -487,6 +525,9 @@ enum AgentType {
   // Leaf agent backed by a pi coding agent running on a ButterBox
   // (ADR-0011). Configured via AgentConfig.pi; may not have children.
   AGENT_TYPE_PI = 6;
+  // Leaf agent backed by Cursor's SDK Bridge running on a ButterBox.
+  // Configured via AgentConfig.cursor; may not have children.
+  AGENT_TYPE_CURSOR = 7;
 }
 
 // LLMIncludeContents matches llmagent.IncludeContents values.

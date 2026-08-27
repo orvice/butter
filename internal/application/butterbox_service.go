@@ -255,8 +255,8 @@ func (s *ButterBoxServiceServer) DeleteButterBox(ctx context.Context, req *conne
 	return connect.NewResponse(&agentsv1.DeleteButterBoxResponse{}), nil
 }
 
-// checkBoxRemovable returns a FailedPrecondition error naming every PI agent
-// (any lifecycle status) whose config binds the box.
+// checkBoxRemovable returns a FailedPrecondition error naming every PI or
+// Cursor agent (any lifecycle status) whose config binds the box.
 func (s *ButterBoxServiceServer) checkBoxRemovable(ctx context.Context, workspaceID, boxID string) error {
 	if s.agentRepo == nil {
 		return nil
@@ -267,11 +267,15 @@ func (s *ButterBoxServiceServer) checkBoxRemovable(ctx context.Context, workspac
 	}
 	var refs []string
 	for _, a := range agents {
-		if a.GetType() != agentsv1.AgentType_AGENT_TYPE_PI {
-			continue
-		}
-		if strings.TrimSpace(a.GetConfig().GetPi().GetButterboxId()) == strings.TrimSpace(boxID) {
-			refs = append(refs, a.GetAgentId())
+		switch a.GetType() {
+		case agentsv1.AgentType_AGENT_TYPE_PI:
+			if strings.TrimSpace(a.GetConfig().GetPi().GetButterboxId()) == strings.TrimSpace(boxID) {
+				refs = append(refs, a.GetAgentId())
+			}
+		case agentsv1.AgentType_AGENT_TYPE_CURSOR:
+			if strings.TrimSpace(a.GetConfig().GetCursor().GetButterboxId()) == strings.TrimSpace(boxID) {
+				refs = append(refs, a.GetAgentId())
+			}
 		}
 	}
 	if len(refs) == 0 {
@@ -279,7 +283,7 @@ func (s *ButterBoxServiceServer) checkBoxRemovable(ctx context.Context, workspac
 	}
 	sort.Strings(refs)
 	return connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf(
-		"butterbox %q is referenced by pi agents: %s; repoint or delete them first", boxID, strings.Join(refs, ", ")))
+		"butterbox %q is referenced by agents: %s; repoint or delete them first", boxID, strings.Join(refs, ", ")))
 }
 
 func (s *ButterBoxServiceServer) SetButterBoxToken(ctx context.Context, req *connect.Request[agentsv1.SetButterBoxTokenRequest]) (*connect.Response[agentsv1.SetButterBoxTokenResponse], error) {
