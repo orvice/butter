@@ -87,9 +87,8 @@ type Service struct {
 	mcpHTTPFactory   internalagent.MCPHTTPClientFactory
 	piBuilder        internalagent.PiAgentBuilder
 
-	mu              sync.Mutex
-	runners         map[string]*adkrunner.Runner // keyed by channel name
-	overriddenCache map[string]agent.Agent       // keyed by "agentName:modelOverride"
+	mu           sync.Mutex
+	runtimeCache runtimeCache
 
 	invRecorder InvocationRecorder
 
@@ -317,8 +316,7 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 		pluginConfig:     pluginConfig,
 		mcpHTTPFactory:   mcpHTTPFactory,
 		piBuilder:        piBuilder,
-		runners:          make(map[string]*adkrunner.Runner),
-		overriddenCache:  make(map[string]agent.Agent),
+		runtimeCache:     newRuntimeCache(),
 	}
 
 	// Add compaction notifier plugin (must be after contextguard).
@@ -403,7 +401,7 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 		walk(&agents[i])
 	}
 
-	registry, err := newConfiguredModelRegistry(providers, contextguard.NewCrushRegistry())
+	registry, err := newConfiguredModelRegistry(providers, newEmbeddedModelRegistry())
 	if err != nil {
 		return adkrunner.PluginConfig{}, fmt.Errorf("configured model registry: %w", err)
 	}
@@ -412,6 +410,7 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 	}
 
 	guard := contextguard.New(registry)
+	policies := make(map[string]contextGuardPolicy, len(entries))
 
 	for _, e := range entries {
 		m, err := internalagent.ResolveModel(ctx, e.modelName, providers)
@@ -420,6 +419,8 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 		}
 
 		var opts []contextguard.AgentOption
+		configuredMaxTurns := int(e.cfg.GetMaxTurns())
+		effectiveMaxTurns := 0
 		switch e.cfg.GetStrategy() {
 		case agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD:
 			// max_tokens is the Agent Context Override for the effective
@@ -432,14 +433,20 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 			// max_turns is the content-entry trigger; 0 keeps the dependency's
 			// default of 20. max_tokens is invalid with this strategy and is
 			// rejected at write time (issue #322).
-			maxTurns := int(e.cfg.GetMaxTurns())
-			if maxTurns <= 0 {
-				maxTurns = 20
+			effectiveMaxTurns = configuredMaxTurns
+			if effectiveMaxTurns <= 0 {
+				effectiveMaxTurns = 20
 			}
-			opts = append(opts, contextguard.WithSlidingWindow(maxTurns))
+			opts = append(opts, contextguard.WithSlidingWindow(effectiveMaxTurns))
 		}
 
 		guard.Add(e.name, m, opts...)
+		policies[e.name] = contextGuardPolicy{
+			strategy:           e.cfg.GetStrategy(),
+			agentOverride:      int(e.cfg.GetMaxTokens()),
+			configuredMaxTurns: configuredMaxTurns,
+			effectiveMaxTurns:  effectiveMaxTurns,
+		}
 		logger.Info("context guard configured",
 			"agent", e.name,
 			"strategy", e.cfg.GetStrategy().String(),
@@ -448,7 +455,11 @@ func buildContextGuardPlugin(ctx context.Context, agents []agentsv1.Agent, provi
 		)
 	}
 
-	return guard.PluginConfig(), nil
+	loggerPC, err := newEffectiveContextWindowLoggerPlugin(registry, policies)
+	if err != nil {
+		return adkrunner.PluginConfig{}, fmt.Errorf("effective context window logger: %w", err)
+	}
+	return mergePluginConfigs(loggerPC, guard.PluginConfig()), nil
 }
 
 // mergePluginConfigs combines two PluginConfigs by appending their plugin slices.
@@ -555,8 +566,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 	s.mcpRegistry = mcpRegistry
 	s.remoteAgents = remoteAgentRegistry
 	s.pluginConfig = pluginConfig
-	s.runners = make(map[string]*adkrunner.Runner)
-	s.overriddenCache = make(map[string]agent.Agent)
+	s.runtimeCache.reset()
 
 	logger.Info("runner service reloaded", "proto_agents", len(protoRegistry), "total_agents", len(registry))
 	return nil
@@ -780,18 +790,30 @@ func (s *Service) GetSession(ctx context.Context, channelName, sessionID, userID
 	return resp.Session, nil
 }
 
-// buildOverriddenAgent creates (or returns cached) an agent with its model replaced.
-func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOverride string) (agent.Agent, error) {
+func (s *Service) runtimeGenerationCurrent(generation uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.runtimeCache.current(generation)
+}
+
+// buildOverriddenAgent creates (or returns cached) an agent with its model
+// replaced. A false current result tells the caller to retry from a fresh
+// runtime snapshot after a concurrent reload.
+func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOverride string, expectedGeneration uint64) (agent.Agent, bool, error) {
 	logger := log.FromContext(ctx)
 	cacheKey := agentName + ":" + modelOverride
 	s.mu.Lock()
-	if cached, ok := s.overriddenCache[cacheKey]; ok {
+	cached, cacheStatus := s.runtimeCache.overriddenAgent(expectedGeneration, cacheKey)
+	if cacheStatus != runtimeCacheMiss {
 		s.mu.Unlock()
-		logger.Debug("using cached model-overridden agent",
-			"agent", agentName,
-			"model_override", modelOverride,
-		)
-		return cached, nil
+		if cacheStatus == runtimeCacheHit {
+			logger.Debug("using cached model-overridden agent",
+				"agent", agentName,
+				"model_override", modelOverride,
+			)
+			return cached, true, nil
+		}
+		return nil, false, nil
 	}
 	pb, hasProto := s.agentsProto[agentName]
 	builder, hasBuilder := s.agentBuilders[agentName]
@@ -799,6 +821,13 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	mcpRegistry := s.mcpRegistry
 	remoteAgents := s.remoteAgents
 	deps := s.toolsetDeps
+	daemonRegistry := s.daemonRegistry
+	mcpHTTPFactory := s.mcpHTTPFactory
+	piBuilder := s.piBuilder
+	var pool internalagent.AgentPool
+	if hasProto {
+		pool = buildWorkspacePoolFromProtoRegistry(s.agentsProto, pb.GetWorkspaceId())
+	}
 	s.mu.Unlock()
 
 	// Resolve the model alias to get the actual model name.
@@ -820,59 +849,101 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 			clone.Config = &agentsv1.AgentConfig{}
 		}
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, s.daemonRegistry, s.mcpHTTPFactory, newToolsetFactory(deps), s.piBuilder, buildWorkspacePoolFromProtoRegistry(s.agentsProto, pb.GetWorkspaceId()))
+		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, daemonRegistry, mcpHTTPFactory, newToolsetFactory(deps), piBuilder, pool)
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)
 	} else {
-		return nil, fmt.Errorf("agent %q has no proto config or builder for model override", agentName)
+		err = fmt.Errorf("agent %q has no proto config or builder for model override", agentName)
 	}
 
 	if err != nil {
-		return nil, err
+		if !s.runtimeGenerationCurrent(expectedGeneration) {
+			return nil, false, nil
+		}
+		return nil, true, err
 	}
 
 	s.mu.Lock()
-	s.overriddenCache[cacheKey] = a
+	published, cacheStatus := s.runtimeCache.publishOverriddenAgent(expectedGeneration, cacheKey, a)
 	s.mu.Unlock()
+	if cacheStatus == runtimeCacheStale {
+		logger.Debug("discarding model-overridden agent built across runtime reload",
+			"agent", agentName,
+			"model_override", modelOverride,
+			"generation", expectedGeneration,
+		)
+		return nil, false, nil
+	}
+	if cacheStatus == runtimeCacheHit {
+		return published, true, nil
+	}
 
 	logger.Info("model-overridden agent cached",
 		"agent", agentName,
 		"model_override", modelOverride,
 		"resolved_model", resolvedName,
 	)
-	return a, nil
+	return published, true, nil
 }
 
-// getOrCreateRunner returns a runner for the given channel, agent, and model override.
-func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName, modelOverride string, ag agent.Agent) (*adkrunner.Runner, error) {
+// getOrCreateRunner returns a runner for the given channel, agent, and model
+// override. Runner construction happens outside the service lock; publication
+// is fenced by the runtime generation captured with the Agent/plugin snapshot.
+func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName, modelOverride string, ag agent.Agent, expectedGeneration uint64) (*adkrunner.Runner, bool, error) {
 	logger := log.FromContext(ctx)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	key := channelName + ":" + agentName + ":" + modelOverride
-	if r, ok := s.runners[key]; ok {
-		logger.Debug("using cached ADK runner", "channel", channelName, "agent", agentName, "model_override", modelOverride)
-		return r, nil
+
+	s.mu.Lock()
+	cached, cacheStatus := s.runtimeCache.runner(expectedGeneration, key)
+	if cacheStatus != runtimeCacheMiss {
+		s.mu.Unlock()
+		if cacheStatus == runtimeCacheHit {
+			logger.Debug("using cached ADK runner", "channel", channelName, "agent", agentName, "model_override", modelOverride)
+			return cached, true, nil
+		}
+		return nil, false, nil
 	}
+	pluginConfig := s.pluginConfig
+	sessionSvc := s.sessionSvc
+	memorySvc := s.memorySvc
+	artifactSvc := s.artifactSvc
+	s.mu.Unlock()
 
 	logger.Info("creating new ADK runner", "channel", channelName, "agent", agentName, "model_override", modelOverride)
-
 	r, err := adkrunner.New(adkrunner.Config{
 		AppName:         channelName,
 		Agent:           ag,
-		SessionService:  s.sessionSvc,
-		MemoryService:   s.memorySvc,
-		ArtifactService: s.artifactSvc,
-		PluginConfig:    s.pluginConfig,
+		SessionService:  sessionSvc,
+		MemoryService:   memorySvc,
+		ArtifactService: artifactSvc,
+		PluginConfig:    pluginConfig,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating runner for channel %q: %w", channelName, err)
+		if !s.runtimeGenerationCurrent(expectedGeneration) {
+			return nil, false, nil
+		}
+		return nil, true, fmt.Errorf("creating runner for channel %q: %w", channelName, err)
 	}
 
-	s.runners[key] = r
+	s.mu.Lock()
+	published, cacheStatus := s.runtimeCache.publishRunner(expectedGeneration, key, r)
+	s.mu.Unlock()
+	if cacheStatus == runtimeCacheStale {
+		logger.Debug("discarding ADK runner built across runtime reload",
+			"channel", channelName,
+			"agent", agentName,
+			"model_override", modelOverride,
+			"generation", expectedGeneration,
+		)
+		return nil, false, nil
+	}
+	if cacheStatus == runtimeCacheHit {
+		return published, true, nil
+	}
+
 	logger.Info("ADK runner created", "channel", channelName, "agent", agentName, "model_override", modelOverride)
-	return r, nil
+	return published, true, nil
 }
 
 // EventCallback is called for each non-final event during agent execution.
@@ -1009,48 +1080,63 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		"metadata_keys", len(ctxInfo.GetMetadata()),
 	)
 
-	s.mu.Lock()
-	ag, ok := s.agents[agentName]
-	agentProto := s.agentsProto[agentName]
-	s.mu.Unlock()
-	if !ok {
-		return turn, fmt.Errorf("unknown agent: %q", agentName)
-	}
-
-	// Enforce the tenant boundary: when the caller is bound to a workspace,
-	// the resolved agent must belong to that workspace. Without this check a
-	// channel/poller from workspace A could invoke an agent from workspace B
-	// by passing its name. An empty workspace_id on ctxInfo means the call
-	// originates from a system path (admin, root token, cron without
-	// workspace) and is allowed through.
-	if wsID := ctxInfo.GetWorkspaceId(); wsID != "" {
-		var agentWS string
-		if agentProto != nil {
-			agentWS = agentProto.GetWorkspaceId()
+	var r *adkrunner.Runner
+	var agentProto *agentsv1.Agent
+	for {
+		s.mu.Lock()
+		generation := s.runtimeCache.generation
+		ag, ok := s.agents[agentName]
+		agentProto = s.agentsProto[agentName]
+		s.mu.Unlock()
+		if !ok {
+			if !s.runtimeGenerationCurrent(generation) {
+				continue
+			}
+			return turn, fmt.Errorf("unknown agent: %q", agentName)
 		}
-		if agentWS != wsID {
-			logger.Warn("agent workspace scope rejected",
-				"agent_workspace_id", agentWS,
-				"requested_workspace_id", wsID,
-			)
-			return turn, fmt.Errorf("agent %q not available in workspace %q", agentName, wsID)
-		}
-		logger.Debug("agent workspace scope accepted", "workspace_id", wsID)
-	}
 
-	// If model override is set, rebuild the agent with the overridden model.
-	if modelOverride != "" {
-		logger.Info("applying model override", "model_override", modelOverride)
-		overriddenAg, err := s.buildOverriddenAgent(ctx, agentName, modelOverride)
+		// Enforce the tenant boundary against the same generation used to build
+		// the runner. A concurrent reload causes the whole lookup to retry.
+		if wsID := ctxInfo.GetWorkspaceId(); wsID != "" {
+			var agentWS string
+			if agentProto != nil {
+				agentWS = agentProto.GetWorkspaceId()
+			}
+			if agentWS != wsID {
+				if !s.runtimeGenerationCurrent(generation) {
+					continue
+				}
+				logger.Warn("agent workspace scope rejected",
+					"agent_workspace_id", agentWS,
+					"requested_workspace_id", wsID,
+				)
+				return turn, fmt.Errorf("agent %q not available in workspace %q", agentName, wsID)
+			}
+			logger.Debug("agent workspace scope accepted", "workspace_id", wsID)
+		}
+
+		// If model override is set, rebuild the agent with the overridden model.
+		if modelOverride != "" {
+			logger.Info("applying model override", "model_override", modelOverride)
+			overriddenAg, current, err := s.buildOverriddenAgent(ctx, agentName, modelOverride, generation)
+			if err != nil {
+				return turn, fmt.Errorf("building model-overridden agent: %w", err)
+			}
+			if !current {
+				continue
+			}
+			ag = overriddenAg
+		}
+
+		candidate, current, err := s.getOrCreateRunner(ctx, channelName, agentName, modelOverride, ag, generation)
 		if err != nil {
-			return turn, fmt.Errorf("building model-overridden agent: %w", err)
+			return turn, err
 		}
-		ag = overriddenAg
-	}
-
-	r, err := s.getOrCreateRunner(ctx, channelName, agentName, modelOverride, ag)
-	if err != nil {
-		return turn, err
+		if !current {
+			continue
+		}
+		r = candidate
+		break
 	}
 
 	logger.Debug("invoking ADK runner",

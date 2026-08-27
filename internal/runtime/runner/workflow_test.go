@@ -2,16 +2,10 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"google.golang.org/adk/v2/model"
 	adkrunner "google.golang.org/adk/v2/runner"
@@ -19,164 +13,49 @@ import (
 	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
+	"go.orx.me/apps/butter/internal/testsupport/openaifake"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-// fakeBackend is an OpenAI-compatible chat completions endpoint. By default
-// each completion echoes "<model>(<last user message>)" so a test can observe
-// which model ran and what input it received — the expected chain output is
-// an independent literal, not recomputed from the code under test. A model
-// with a scripted handler answers through it instead. Calls per model are
-// recorded.
+// fakeBackend preserves the runner test vocabulary while sharing request
+// decoding and recording with cross-package integration tests.
 type fakeBackend struct {
-	srv      *httptest.Server
-	scripted map[string]http.HandlerFunc
-
-	mu    sync.Mutex
-	calls map[string][]string // model -> inputs received
+	*openaifake.Backend
 }
+
+type fakeChatCompletionRequest = openaifake.ChatCompletionRequest
 
 func newFakeBackend(t *testing.T) *fakeBackend {
 	t.Helper()
-	b := &fakeBackend{
-		scripted: map[string]http.HandlerFunc{},
-		calls:    map[string][]string{},
-	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Model    string `json:"model"`
-			Messages []struct {
-				Role    string          `json:"role"`
-				Content json.RawMessage `json:"content"`
-			} `json:"messages"`
-		}
-		body, _ := io.ReadAll(r.Body)
-		if err := json.Unmarshal(body, &req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		lastUser := ""
-		for _, m := range req.Messages {
-			if m.Role != "user" {
-				continue
-			}
-			// Content is either a JSON string or an array of typed parts.
-			var s string
-			if err := json.Unmarshal(m.Content, &s); err == nil {
-				lastUser = s
-				continue
-			}
-			var parts []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			}
-			if err := json.Unmarshal(m.Content, &parts); err == nil {
-				var sb strings.Builder
-				for _, p := range parts {
-					sb.WriteString(p.Text)
-				}
-				lastUser = sb.String()
-			}
-		}
-		b.mu.Lock()
-		b.calls[req.Model] = append(b.calls[req.Model], lastUser)
-		handler := b.scripted[req.Model]
-		b.mu.Unlock()
-		if handler != nil {
-			handler(w, r)
-			return
-		}
-		writeCompletion(w, req.Model, fmt.Sprintf("%s(%s)", req.Model, lastUser))
-	})
-	b.srv = httptest.NewServer(mux)
-	t.Cleanup(b.srv.Close)
-	return b
+	return &fakeBackend{Backend: openaifake.New(t)}
 }
 
-// answer scripts a fixed reply for a model, overriding the echo default.
 func (b *fakeBackend) answer(model, reply string) {
-	b.script(model, func(w http.ResponseWriter, _ *http.Request) {
-		writeCompletion(w, model, reply)
-	})
+	b.Answer(model, reply)
 }
 
-// script installs a handler for a model, replacing the echo default.
 func (b *fakeBackend) script(model string, handler http.HandlerFunc) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.scripted[model] = handler
+	b.Script(model, handler)
 }
 
-// requireConcurrent makes the model's completions block until n requests are
-// in flight at once, so the run only succeeds if the caller really issues
-// them concurrently. A request left waiting fails with HTTP 400 (not retried
-// by the client), surfacing as a run error.
 func (b *fakeBackend) requireConcurrent(model string, n int32) {
-	var inFlight atomic.Int32
-	proceed := make(chan struct{})
-	var once sync.Once
-	b.script(model, func(w http.ResponseWriter, r *http.Request) {
-		if inFlight.Add(1) >= n {
-			once.Do(func() { close(proceed) })
-		}
-		select {
-		case <-proceed:
-			writeCompletion(w, model, "done")
-		case <-time.After(3 * time.Second):
-			http.Error(w, `{"error": {"message": "items were not processed concurrently"}}`, http.StatusBadRequest)
-		}
-	})
+	b.RequireConcurrent(model, n)
 }
 
-// failFirstCall makes the model's first completion fail with HTTP 400
-// (never retried by the OpenAI client); later calls echo as usual.
 func (b *fakeBackend) failFirstCall(model string) {
-	failed := false
-	b.script(model, func(w http.ResponseWriter, _ *http.Request) {
-		b.mu.Lock()
-		first := !failed
-		failed = true
-		input := ""
-		if inputs := b.calls[model]; len(inputs) > 0 {
-			input = inputs[len(inputs)-1]
-		}
-		b.mu.Unlock()
-		if first {
-			http.Error(w, `{"error": {"message": "transient failure"}}`, http.StatusBadRequest)
-			return
-		}
-		writeCompletion(w, model, fmt.Sprintf("%s(%s)", model, input))
-	})
+	b.FailFirstCall(model)
 }
 
-// lastInput returns the last user message the model was called with.
 func (b *fakeBackend) lastInput(model string) string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	inputs := b.calls[model]
-	if len(inputs) == 0 {
-		return ""
-	}
-	return inputs[len(inputs)-1]
+	return b.LastInput(model)
 }
 
-// callCount returns how many completions were requested for the model.
+func (b *fakeBackend) lastRequest(model string) (fakeChatCompletionRequest, bool) {
+	return b.LastRequest(model)
+}
+
 func (b *fakeBackend) callCount(model string) int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return len(b.calls[model])
-}
-
-func writeCompletion(w http.ResponseWriter, model, reply string) {
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{
-		"id": "cmpl-test",
-		"object": "chat.completion",
-		"created": 1,
-		"model": %q,
-		"choices": [{"index": 0, "message": {"role": "assistant", "content": %q}, "finish_reason": "stop"}]
-	}`, model, reply)
+	return b.CallCount(model)
 }
 
 // TestRun_WorkflowLinearChain drives a message through the runner seam: a
@@ -1142,7 +1021,7 @@ func fakeBackendProviders(b *fakeBackend, models []*agentsv1.ModelConfig) []agen
 	return []agentsv1.ModelProvider{{
 		Name:    "fake",
 		Type:    "openai",
-		BaseUrl: b.srv.URL,
+		BaseUrl: b.URL(),
 		Models:  models,
 	}}
 }

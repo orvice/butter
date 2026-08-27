@@ -2,11 +2,16 @@ package runner
 
 import (
 	"context"
+	"iter"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/model"
 	adkrunner "google.golang.org/adk/v2/runner"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
@@ -218,6 +223,97 @@ func TestReloadProtoAgentsSkipsNonRunnableLifecycle(t *testing.T) {
 			t.Fatalf("non-runnable agent %q must not be registered", name)
 		}
 	}
+}
+
+func TestRunDiscardsOverriddenAgentBuiltAcrossReload(t *testing.T) {
+	svc, err := NewService(context.Background(), nil, nil, nil, nil, nil, session.InMemoryService(), nil, nil, adkrunner.PluginConfig{})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	base, err := newGenerationTestAgent("base")
+	if err != nil {
+		t.Fatalf("new base agent: %v", err)
+	}
+	firstBuildStarted := make(chan struct{})
+	releaseFirstBuild := make(chan struct{})
+	var builds atomic.Int32
+	svc.RegisterAgentWithBuilder("dynamic-agent", base, func(_ context.Context, _ string) (agent.Agent, error) {
+		build := builds.Add(1)
+		if build == 1 {
+			close(firstBuildStarted)
+			<-releaseFirstBuild
+		}
+		return newGenerationTestAgent("build-" + string(rune('0'+build)))
+	})
+
+	type runResult struct {
+		output string
+		err    error
+	}
+	result := make(chan runResult, 1)
+	go func() {
+		ctxInfo := &agentsv1.ContextInfo{Uuid: "generation-1", SessionId: "generation-1", UserId: "u1", ChannelName: "test-app"}
+		output, runErr := svc.Run(context.Background(), "dynamic-agent", []*genai.Part{{Text: "hello"}}, "override", ctxInfo, nil, nil)
+		result <- runResult{output: output, err: runErr}
+	}()
+
+	select {
+	case <-firstBuildStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first overridden-Agent build did not start")
+	}
+	if err := svc.ReloadProtoAgents(context.Background(), nil, nil, nil, nil); err != nil {
+		t.Fatalf("ReloadProtoAgents: %v", err)
+	}
+	close(releaseFirstBuild)
+
+	var first runResult
+	select {
+	case first = <-result:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not finish after reload")
+	}
+	if first.err != nil {
+		t.Fatalf("Run: %v", first.err)
+	}
+	if first.output != "build-2" {
+		t.Fatalf("overlapping Run output = %q, want post-reload build-2", first.output)
+	}
+
+	ctxInfo := &agentsv1.ContextInfo{Uuid: "generation-2", SessionId: "generation-2", UserId: "u1", ChannelName: "test-app"}
+	second, err := svc.Run(context.Background(), "dynamic-agent", []*genai.Part{{Text: "hello again"}}, "override", ctxInfo, nil, nil)
+	if err != nil {
+		t.Fatalf("second Run: %v", err)
+	}
+	if second != "build-2" {
+		t.Fatalf("cached post-reload Run output = %q, want build-2", second)
+	}
+	if got := builds.Load(); got != 2 {
+		t.Fatalf("overridden-Agent builds = %d, want stale build discarded and one post-reload build cached", got)
+	}
+}
+
+type generationTestModel struct {
+	reply string
+}
+
+func (m *generationTestModel) Name() string { return "generation-model" }
+
+func (m *generationTestModel) GenerateContent(_ context.Context, _ *model.LLMRequest, _ bool) iter.Seq2[*model.LLMResponse, error] {
+	return func(yield func(*model.LLMResponse, error) bool) {
+		yield(&model.LLMResponse{
+			Content:      genai.NewContentFromText(m.reply, genai.RoleModel),
+			FinishReason: genai.FinishReasonStop,
+		}, nil)
+	}
+}
+
+func newGenerationTestAgent(reply string) (agent.Agent, error) {
+	return llmagent.New(llmagent.Config{
+		Name:  "dynamic-agent",
+		Model: &generationTestModel{reply: reply},
+	})
 }
 
 func TestSummarizeEvent(t *testing.T) {
