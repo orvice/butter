@@ -15,6 +15,9 @@ import (
 	piv1 "github.com/orvice/butter-box/pkg/proto/butterbox/pi/v1"
 	"github.com/orvice/butter-box/pkg/proto/butterbox/pi/v1/piv1connect"
 
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1"
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1/cursorv1connect"
+
 	"butterfly.orx.me/core/log"
 	butterboxrepo "go.orx.me/apps/butter/internal/repo/butterbox"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
@@ -138,6 +141,33 @@ func (s *ButterBoxServiceServer) piClient(ctx context.Context, workspaceID strin
 	return piv1connect.NewPiServiceClient(httpClient, box.GetBaseUrl(), opts...), nil
 }
 
+// cursorClient builds a CursorService client for one box, carrying the box's
+// decrypted token as a bearer credential — same shape as piClient.
+func (s *ButterBoxServiceServer) cursorClient(ctx context.Context, workspaceID string, box *agentsv1.ButterBox) (cursorv1connect.CursorServiceClient, error) {
+	token := ""
+	if box.GetCredentialSet() {
+		if err := s.requireKeyring(); err != nil {
+			return nil, err
+		}
+		cred, err := s.repo.GetCredential(ctx, workspaceID, box.GetId())
+		if err != nil {
+			return nil, mapButterBoxErr(err)
+		}
+		plaintext, err := s.keyring.Decrypt(ctx, cred.Ciphertext, cred.KeyID)
+		if err != nil {
+			return nil, connectx.InternalWith(fmt.Errorf("decrypt butterbox token: %w", err))
+		}
+		token = string(plaintext)
+	}
+
+	httpClient := &http.Client{Timeout: butterBoxProbeTimeout}
+	opts := []connect.ClientOption{}
+	if token != "" {
+		opts = append(opts, connect.WithInterceptors(bearerInterceptor(token)))
+	}
+	return cursorv1connect.NewCursorServiceClient(httpClient, box.GetBaseUrl(), opts...), nil
+}
+
 func bearerInterceptor(token string) connect.UnaryInterceptorFunc {
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
@@ -255,8 +285,8 @@ func (s *ButterBoxServiceServer) DeleteButterBox(ctx context.Context, req *conne
 	return connect.NewResponse(&agentsv1.DeleteButterBoxResponse{}), nil
 }
 
-// checkBoxRemovable returns a FailedPrecondition error naming every PI agent
-// (any lifecycle status) whose config binds the box.
+// checkBoxRemovable returns a FailedPrecondition error naming every PI or
+// Cursor agent (any lifecycle status) whose config binds the box.
 func (s *ButterBoxServiceServer) checkBoxRemovable(ctx context.Context, workspaceID, boxID string) error {
 	if s.agentRepo == nil {
 		return nil
@@ -267,11 +297,15 @@ func (s *ButterBoxServiceServer) checkBoxRemovable(ctx context.Context, workspac
 	}
 	var refs []string
 	for _, a := range agents {
-		if a.GetType() != agentsv1.AgentType_AGENT_TYPE_PI {
-			continue
-		}
-		if strings.TrimSpace(a.GetConfig().GetPi().GetButterboxId()) == strings.TrimSpace(boxID) {
-			refs = append(refs, a.GetAgentId())
+		switch a.GetType() {
+		case agentsv1.AgentType_AGENT_TYPE_PI:
+			if strings.TrimSpace(a.GetConfig().GetPi().GetButterboxId()) == strings.TrimSpace(boxID) {
+				refs = append(refs, a.GetAgentId())
+			}
+		case agentsv1.AgentType_AGENT_TYPE_CURSOR:
+			if strings.TrimSpace(a.GetConfig().GetCursor().GetButterboxId()) == strings.TrimSpace(boxID) {
+				refs = append(refs, a.GetAgentId())
+			}
 		}
 	}
 	if len(refs) == 0 {
@@ -279,7 +313,7 @@ func (s *ButterBoxServiceServer) checkBoxRemovable(ctx context.Context, workspac
 	}
 	sort.Strings(refs)
 	return connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf(
-		"butterbox %q is referenced by pi agents: %s; repoint or delete them first", boxID, strings.Join(refs, ", ")))
+		"butterbox %q is referenced by agents: %s; repoint or delete them first", boxID, strings.Join(refs, ", ")))
 }
 
 func (s *ButterBoxServiceServer) SetButterBoxToken(ctx context.Context, req *connect.Request[agentsv1.SetButterBoxTokenRequest]) (*connect.Response[agentsv1.SetButterBoxTokenResponse], error) {
@@ -382,4 +416,44 @@ func (s *ButterBoxServiceServer) ListButterBoxModels(ctx context.Context, req *c
 		})
 	}
 	return connect.NewResponse(&agentsv1.ListButterBoxModelsResponse{Models: models}), nil
+}
+
+func (s *ButterBoxServiceServer) ListCursorModels(ctx context.Context, req *connect.Request[agentsv1.ListCursorModelsRequest]) (*connect.Response[agentsv1.ListCursorModelsResponse], error) {
+	if err := s.requireRepo(); err != nil {
+		return nil, err
+	}
+	workspaceID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	box, err := s.repo.Get(ctx, workspaceID, req.Msg.GetId())
+	if err != nil {
+		return nil, mapButterBoxErr(err)
+	}
+	client, err := s.cursorClient(ctx, workspaceID, box)
+	if err != nil {
+		return nil, err
+	}
+
+	probeCtx, cancel := context.WithTimeout(ctx, butterBoxProbeTimeout)
+	defer cancel()
+	// Session-less: the box answers from a short-lived bridge and shuts it
+	// down, so this never consumes a session slot (butter-box #315).
+	catalog, err := client.ListModels(probeCtx, connect.NewRequest(&cursorv1.ListModelsRequest{}))
+	if err != nil {
+		if connect.CodeOf(err) == connect.CodeResourceExhausted {
+			return nil, connect.NewError(connect.CodeResourceExhausted,
+				fmt.Errorf("butterbox %q is at its session capacity; retry later or raise CURSOR_MAX_SESSIONS on the box: %w", box.GetName(), err))
+		}
+		return nil, connect.NewError(connect.CodeUnavailable,
+			fmt.Errorf("butterbox %q did not answer the cursor model catalog; check the box is running, the token is valid, and CURSOR_API_KEY is configured on the box: %w", box.GetName(), err))
+	}
+	models := make([]*agentsv1.CursorBoxModel, 0, len(catalog.Msg.GetModels()))
+	for _, m := range catalog.Msg.GetModels() {
+		models = append(models, &agentsv1.CursorBoxModel{
+			Id:   m.GetId(),
+			Name: m.GetName(),
+		})
+	}
+	return connect.NewResponse(&agentsv1.ListCursorModelsResponse{Models: models}), nil
 }

@@ -3885,6 +3885,7 @@ Workspace-registered [ButterBoxes](https://github.com/orvice/butter-box) — age
 | `SetButterBoxToken` | `POST /api/agents.v1.ButterBoxService/SetButterBoxToken` | Sets/rotates the token; empty `token` clears it |
 | `GetButterBoxStatus` | `POST /api/agents.v1.ButterBoxService/GetButterBoxStatus` | Probes the box: `{ "reachable", "active_sessions", "error" }`; unreachability is data, not an RPC error |
 | `ListButterBoxModels` | `POST /api/agents.v1.ButterBoxService/ListButterBoxModels` | The box's pi model catalog; `Unavailable` when the box cannot answer |
+| `ListCursorModels` | `POST /api/agents.v1.ButterBoxService/ListCursorModels` | The box's Cursor model catalog; `Unavailable` when the box cannot answer |
 
 ### GitHostService
 

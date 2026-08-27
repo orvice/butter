@@ -92,7 +92,7 @@ func TestPiAgentAnswersInTelegramTopicWithContinuityAndPhoto(t *testing.T) {
 			}},
 		}}, nil, nil, nil, nil,
 		sessions, nil, nil, nil, 0, nil, adkrunner.PluginConfig{}, nil,
-		pibox.AgentBuilder(telegramPiFactory{client: piClient}),
+		pibox.AgentBuilder(telegramPiFactory{client: piClient}), nil,
 	)
 	if err != nil {
 		t.Fatalf("build runner: %v", err)

@@ -55,14 +55,14 @@ func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.
 // NewFromProtoWithMCPHTTPClientFactory creates an ADK agent with a custom MCP
 // HTTP client factory for static headers, OAuth2 bearer injection, and tests.
 func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory) (agent.Agent, error) {
-	return NewFromProtoWithToolsetFactory(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, nil, nil)
+	return NewFromProtoWithToolsetFactory(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, nil, nil, nil)
 }
 
 // NewFromProtoWithToolsetFactory creates an ADK agent with custom MCP HTTP,
-// built-in toolset, and PI agent factories. Children are declared via
-// child_agent_ids and resolved from the pool; embedded sub_agents are never
-// consumed (issue #241).
-func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, piBuilder PiAgentBuilder, pool ...AgentPool) (agent.Agent, error) {
+// built-in toolset, PI agent, and Cursor agent factories. Children are
+// declared via child_agent_ids and resolved from the pool; embedded
+// sub_agents are never consumed (issue #241).
+func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, piBuilder PiAgentBuilder, cursorBuilder CursorAgentBuilder, pool ...AgentPool) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
 	}
@@ -83,7 +83,7 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 		if !ok {
 			return nil, fmt.Errorf("agent %q: child_agent_id %q not found in agent pool", pb.GetName(), childID)
 		}
-		sa, err := NewFromProtoWithToolsetFactory(ctx, childPb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, piBuilder, agentPool)
+		sa, err := NewFromProtoWithToolsetFactory(ctx, childPb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, piBuilder, cursorBuilder, agentPool)
 		if err != nil {
 			return nil, fmt.Errorf("building child agent %q (id=%s): %w", childPb.GetName(), childID, err)
 		}
@@ -109,6 +109,8 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 		return newWorkflowAgent(pb, subAgents, agentPool)
 	case agentsv1.AgentType_AGENT_TYPE_PI:
 		return newPiAgent(pb, piBuilder)
+	case agentsv1.AgentType_AGENT_TYPE_CURSOR:
+		return newCursorAgent(pb, cursorBuilder)
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %v", pb.GetType())
 	}

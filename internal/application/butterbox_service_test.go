@@ -12,6 +12,9 @@ import (
 	piv1 "github.com/orvice/butter-box/pkg/proto/butterbox/pi/v1"
 	"github.com/orvice/butter-box/pkg/proto/butterbox/pi/v1/piv1connect"
 
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1"
+	"go.orx.me/apps/butter/pkg/proto/butterbox/cursor/v1/cursorv1connect"
+
 	butterboxmemory "go.orx.me/apps/butter/internal/repo/butterbox/memory"
 	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
 	"go.orx.me/apps/butter/internal/secretbox"
@@ -51,11 +54,34 @@ func (f *fakePiService) GetAvailableModels(_ context.Context, req *connect.Reque
 	return connect.NewResponse(&piv1.GetAvailableModelsResponse{Models: f.models}), nil
 }
 
+// fakeCursorService is a typed fake of the box's CursorService: only the RPCs
+// the ButterBox service consumes are implemented; everything else answers
+// Unimplemented.
+type fakeCursorService struct {
+	cursorv1connect.UnimplementedCursorServiceHandler
+
+	mu       sync.Mutex
+	lastAuth string
+	models   []*cursorv1.Model
+}
+
+func (f *fakeCursorService) recordAuth(header http.Header) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastAuth = header.Get("Authorization")
+}
+
+func (f *fakeCursorService) ListModels(_ context.Context, req *connect.Request[cursorv1.ListModelsRequest]) (*connect.Response[cursorv1.ListModelsResponse], error) {
+	f.recordAuth(req.Header())
+	return connect.NewResponse(&cursorv1.ListModelsResponse{Models: f.models}), nil
+}
+
 type butterBoxFixture struct {
-	svc  *ButterBoxServiceServer
-	fake *fakePiService
-	box  *httptest.Server
-	ctx  context.Context
+	svc        *ButterBoxServiceServer
+	fake       *fakePiService
+	fakeCursor *fakeCursorService
+	box        *httptest.Server
+	ctx        context.Context
 }
 
 func newButterBoxFixture(t *testing.T) *butterBoxFixture {
@@ -67,9 +93,17 @@ func newButterBoxFixture(t *testing.T) *butterBoxFixture {
 			{Id: "gpt-5.6", Provider: "openai", Name: "GPT-5.6"},
 		},
 	}
+	fakeCursor := &fakeCursorService{
+		models: []*cursorv1.Model{
+			{Id: "composer-2.5", Name: "Composer 2.5"},
+			{Id: "auto-smart", Name: "Auto Smart"},
+		},
+	}
 	path, handler := piv1connect.NewPiServiceHandler(fake)
+	cursorPath, cursorHandler := cursorv1connect.NewCursorServiceHandler(fakeCursor)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
+	mux.Handle(cursorPath, cursorHandler)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -77,10 +111,11 @@ func newButterBoxFixture(t *testing.T) *butterBoxFixture {
 	svc.SetKeyring(secretbox.NewKeyring(cryptokeymemory.New()))
 
 	return &butterBoxFixture{
-		svc:  svc,
-		fake: fake,
-		box:  srv,
-		ctx:  workspace.WithID(t.Context(), "ws1"),
+		svc:        svc,
+		fake:       fake,
+		fakeCursor: fakeCursor,
+		box:        srv,
+		ctx:        workspace.WithID(t.Context(), "ws1"),
 	}
 }
 
@@ -233,6 +268,30 @@ func TestButterBoxModels(t *testing.T) {
 	// data, not a health report).
 	f.box.Close()
 	_, err = f.svc.ListButterBoxModels(f.ctx, connect.NewRequest(&agentsv1.ListButterBoxModelsRequest{Id: created.GetId()}))
+	wantCode(t, err, connect.CodeUnavailable)
+}
+
+func TestButterBoxCursorModels(t *testing.T) {
+	f := newButterBoxFixture(t)
+	created := f.create(t, "dev-box", "secret-token")
+
+	models, err := f.svc.ListCursorModels(f.ctx, connect.NewRequest(&agentsv1.ListCursorModelsRequest{Id: created.GetId()}))
+	if err != nil {
+		t.Fatalf("ListCursorModels: %v", err)
+	}
+	got := models.Msg.GetModels()
+	if len(got) != 2 || got[0].GetId() != "composer-2.5" || got[0].GetName() != "Composer 2.5" {
+		t.Fatalf("cursor models = %+v", got)
+	}
+	// The decrypted token must round-trip to the box as a bearer credential.
+	if f.fakeCursor.lastAuth != "Bearer secret-token" {
+		t.Fatalf("box saw Authorization %q", f.fakeCursor.lastAuth)
+	}
+
+	// An unreachable box surfaces as an RPC error: the caller asked for the
+	// catalog, not a health report.
+	f.box.Close()
+	_, err = f.svc.ListCursorModels(f.ctx, connect.NewRequest(&agentsv1.ListCursorModelsRequest{Id: created.GetId()}))
 	wantCode(t, err, connect.CodeUnavailable)
 }
 

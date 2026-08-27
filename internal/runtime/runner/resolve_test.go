@@ -17,6 +17,11 @@ func newResolveTestService() *Service {
 			Type:   agentsv1.AgentType_AGENT_TYPE_PI,
 			Config: &agentsv1.AgentConfig{Pi: &agentsv1.PiAgentConfig{ButterboxId: "box-1"}},
 		},
+		&agentsv1.Agent{
+			Name: "cursor-coder", AgentId: "cursor-coder", WorkspaceId: "ws-a",
+			Type:   agentsv1.AgentType_AGENT_TYPE_CURSOR,
+			Config: &agentsv1.AgentConfig{Cursor: &agentsv1.CursorAgentConfig{ButterboxId: "box-1"}},
+		},
 		&agentsv1.Agent{Name: "reviewer", WorkspaceId: "ws-b"}, // no agent_id assigned
 	)
 }
@@ -92,6 +97,9 @@ func TestSupportsModelOverrideByAgentID(t *testing.T) {
 	}
 	if supported, ok := s.SupportsModelOverride("ws-a", "pi-coder"); !ok || supported {
 		t.Fatalf("SupportsModelOverride(PI) = %v, %v; want false, true", supported, ok)
+	}
+	if supported, ok := s.SupportsModelOverride("ws-a", "cursor-coder"); !ok || supported {
+		t.Fatalf("SupportsModelOverride(CURSOR) = %v, %v; want false, true (Cursor owns its models, so switching is locked)", supported, ok)
 	}
 	if supported, ok := s.SupportsModelOverride("ws-b", "pi-coder"); ok || supported {
 		t.Fatalf("SupportsModelOverride(other workspace) = %v, %v; want false, false", supported, ok)

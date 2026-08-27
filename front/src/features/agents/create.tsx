@@ -20,6 +20,7 @@ import { AgentIconUpload } from './icon-upload'
 import { AgentFileMountsField } from './file-mounts-field'
 import { AgentRemoteAgentsField } from './remote-agents-field'
 import { PiAgentConfigurationCard } from './pi-agent-fields'
+import { CursorAgentConfigurationCard } from './cursor-agent-fields'
 import { ContextGuardConfigurationCard } from './context-guard-fields'
 import {
   buildContextGuardConfig,
@@ -34,6 +35,13 @@ import {
   type PiAgentFormValues,
   validatePiAgentForm,
 } from './pi-config'
+import {
+  asCursorAgent,
+  cursorAgentFormSchema,
+  EMPTY_CURSOR_AGENT_FORM_VALUES,
+  type CursorAgentFormValues,
+  validateCursorAgentForm,
+} from './cursor-config'
 import {
   Form,
   FormControl,
@@ -76,12 +84,21 @@ const agentSchema = z.object({
   icon_url: z.string().optional(),
   context_guard: contextGuardFormSchema,
   pi: piAgentFormSchema,
+  cursor: cursorAgentFormSchema,
 }).superRefine((values, ctx) => {
-  if (values.type !== 'AGENT_TYPE_PI') return
-  validatePiAgentForm(values.pi, ctx)
+  if (values.type === 'AGENT_TYPE_PI') {
+    validatePiAgentForm(values.pi, ctx)
+  }
+  if (values.type === 'AGENT_TYPE_CURSOR') {
+    validateCursorAgentForm(values.cursor, ctx)
+  }
 })
 
 type AgentFormValues = z.infer<typeof agentSchema>
+
+function isBoxBackedLeaf(type: string) {
+  return type === 'AGENT_TYPE_PI' || type === 'AGENT_TYPE_CURSOR'
+}
 
 export function AgentCreate() {
   const navigate = useNavigate()
@@ -110,6 +127,7 @@ export function AgentCreate() {
       icon_url: '',
       context_guard: { ...EMPTY_CONTEXT_GUARD_FORM_VALUES },
       pi: { ...EMPTY_PI_AGENT_FORM_VALUES },
+      cursor: { ...EMPTY_CURSOR_AGENT_FORM_VALUES },
     },
   })
   const agentName = useWatch({ control: form.control, name: 'name' })
@@ -117,6 +135,7 @@ export function AgentCreate() {
   const agentType = useWatch({ control: form.control, name: 'type' })
   const contextGuardValues = useWatch({ control: form.control, name: 'context_guard' })
   const piValues = useWatch({ control: form.control, name: 'pi' })
+  const cursorValues = useWatch({ control: form.control, name: 'cursor' })
 
   useEffect(() => {
     if (supportsContextGuard(agentType)) return
@@ -136,7 +155,7 @@ export function AgentCreate() {
   }, [agentIdTouched, agentName, form])
 
   function onSubmit(values: AgentFormValues) {
-    const isPi = values.type === 'AGENT_TYPE_PI'
+    const isBoxBacked = isBoxBackedLeaf(values.type)
     const baseAgent = {
       name: values.name,
       agent_id: values.agent_id,
@@ -157,10 +176,14 @@ export function AgentCreate() {
           : undefined,
       },
     }
-    const agent = isPi ? asPiAgent(baseAgent, values.pi) : baseAgent
+    const agent = values.type === 'AGENT_TYPE_PI'
+      ? asPiAgent(baseAgent, values.pi)
+      : values.type === 'AGENT_TYPE_CURSOR'
+        ? asCursorAgent(baseAgent, values.cursor)
+        : baseAgent
     const initialContent = {
       description: values.description ?? '',
-      prompt: isPi ? '' : (values.instruction ?? ''),
+      prompt: isBoxBacked ? '' : (values.instruction ?? ''),
       global_prompt: '',
     }
     const request = JSON.stringify({ agent, initialContent })
@@ -262,6 +285,7 @@ export function AgentCreate() {
                       <SelectItem value='AGENT_TYPE_SEQUENTIAL'>Sequential</SelectItem>
                       <SelectItem value='AGENT_TYPE_PARALLEL'>Parallel</SelectItem>
                       <SelectItem value='AGENT_TYPE_PI'>Pi</SelectItem>
+                      <SelectItem value='AGENT_TYPE_CURSOR'>Cursor</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -328,6 +352,20 @@ export function AgentCreate() {
               errors={{
                 butterboxId: form.formState.errors.pi?.butterboxId?.message,
                 maxRunSeconds: form.formState.errors.pi?.maxRunSeconds?.message,
+              }}
+            />
+          ) : agentType === 'AGENT_TYPE_CURSOR' ? (
+            <CursorAgentConfigurationCard
+              value={(cursorValues ?? EMPTY_CURSOR_AGENT_FORM_VALUES) as CursorAgentFormValues}
+              onChange={(field, value) => form.setValue(
+                'cursor',
+                { ...form.getValues('cursor'), [field]: value },
+                { shouldDirty: true, shouldValidate: true },
+              )}
+              errors={{
+                butterboxId: form.formState.errors.cursor?.butterboxId?.message,
+                maxRunSeconds: form.formState.errors.cursor?.maxRunSeconds?.message,
+                mode: form.formState.errors.cursor?.mode?.message,
               }}
             />
           ) : (

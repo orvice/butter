@@ -2299,3 +2299,356 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ButterBoxModelValidationError{}
+
+// Validate checks the field values on ListCursorModelsRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListCursorModelsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListCursorModelsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListCursorModelsRequestMultiError, or nil if none found.
+func (m *ListCursorModelsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListCursorModelsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := ListCursorModelsRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return ListCursorModelsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListCursorModelsRequestMultiError is an error wrapping multiple validation
+// errors returned by ListCursorModelsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type ListCursorModelsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListCursorModelsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListCursorModelsRequestMultiError) AllErrors() []error { return m }
+
+// ListCursorModelsRequestValidationError is the validation error returned by
+// ListCursorModelsRequest.Validate if the designated constraints aren't met.
+type ListCursorModelsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListCursorModelsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListCursorModelsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListCursorModelsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListCursorModelsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListCursorModelsRequestValidationError) ErrorName() string {
+	return "ListCursorModelsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListCursorModelsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListCursorModelsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListCursorModelsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListCursorModelsRequestValidationError{}
+
+// Validate checks the field values on ListCursorModelsResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListCursorModelsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListCursorModelsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListCursorModelsResponseMultiError, or nil if none found.
+func (m *ListCursorModelsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListCursorModelsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetModels() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListCursorModelsResponseValidationError{
+						field:  fmt.Sprintf("Models[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListCursorModelsResponseValidationError{
+						field:  fmt.Sprintf("Models[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListCursorModelsResponseValidationError{
+					field:  fmt.Sprintf("Models[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListCursorModelsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListCursorModelsResponseMultiError is an error wrapping multiple validation
+// errors returned by ListCursorModelsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type ListCursorModelsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListCursorModelsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListCursorModelsResponseMultiError) AllErrors() []error { return m }
+
+// ListCursorModelsResponseValidationError is the validation error returned by
+// ListCursorModelsResponse.Validate if the designated constraints aren't met.
+type ListCursorModelsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListCursorModelsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListCursorModelsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListCursorModelsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListCursorModelsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListCursorModelsResponseValidationError) ErrorName() string {
+	return "ListCursorModelsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListCursorModelsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListCursorModelsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListCursorModelsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListCursorModelsResponseValidationError{}
+
+// Validate checks the field values on CursorBoxModel with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *CursorBoxModel) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CursorBoxModel with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in CursorBoxModelMultiError,
+// or nil if none found.
+func (m *CursorBoxModel) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CursorBoxModel) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for Name
+
+	if len(errors) > 0 {
+		return CursorBoxModelMultiError(errors)
+	}
+
+	return nil
+}
+
+// CursorBoxModelMultiError is an error wrapping multiple validation errors
+// returned by CursorBoxModel.ValidateAll() if the designated constraints
+// aren't met.
+type CursorBoxModelMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CursorBoxModelMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CursorBoxModelMultiError) AllErrors() []error { return m }
+
+// CursorBoxModelValidationError is the validation error returned by
+// CursorBoxModel.Validate if the designated constraints aren't met.
+type CursorBoxModelValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CursorBoxModelValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CursorBoxModelValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CursorBoxModelValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CursorBoxModelValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CursorBoxModelValidationError) ErrorName() string { return "CursorBoxModelValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CursorBoxModelValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCursorBoxModel.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CursorBoxModelValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CursorBoxModelValidationError{}

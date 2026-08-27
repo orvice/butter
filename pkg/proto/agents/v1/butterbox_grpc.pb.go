@@ -27,6 +27,7 @@ const (
 	ButterBoxService_SetButterBoxToken_FullMethodName   = "/agents.v1.ButterBoxService/SetButterBoxToken"
 	ButterBoxService_GetButterBoxStatus_FullMethodName  = "/agents.v1.ButterBoxService/GetButterBoxStatus"
 	ButterBoxService_ListButterBoxModels_FullMethodName = "/agents.v1.ButterBoxService/ListButterBoxModels"
+	ButterBoxService_ListCursorModels_FullMethodName    = "/agents.v1.ButterBoxService/ListCursorModels"
 )
 
 // ButterBoxServiceClient is the client API for ButterBoxService service.
@@ -49,6 +50,9 @@ type ButterBoxServiceClient interface {
 	// ListButterBoxModels reports the box's pi model catalog (the models pi is
 	// configured with on the box).
 	ListButterBoxModels(ctx context.Context, in *ListButterBoxModelsRequest, opts ...grpc.CallOption) (*ListButterBoxModelsResponse, error)
+	// ListCursorModels reports the box's Cursor model catalog (the models the
+	// box's Cursor SDK Bridge is configured with).
+	ListCursorModels(ctx context.Context, in *ListCursorModelsRequest, opts ...grpc.CallOption) (*ListCursorModelsResponse, error)
 }
 
 type butterBoxServiceClient struct {
@@ -139,6 +143,16 @@ func (c *butterBoxServiceClient) ListButterBoxModels(ctx context.Context, in *Li
 	return out, nil
 }
 
+func (c *butterBoxServiceClient) ListCursorModels(ctx context.Context, in *ListCursorModelsRequest, opts ...grpc.CallOption) (*ListCursorModelsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCursorModelsResponse)
+	err := c.cc.Invoke(ctx, ButterBoxService_ListCursorModels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ButterBoxServiceServer is the server API for ButterBoxService service.
 // All implementations must embed UnimplementedButterBoxServiceServer
 // for forward compatibility.
@@ -159,6 +173,9 @@ type ButterBoxServiceServer interface {
 	// ListButterBoxModels reports the box's pi model catalog (the models pi is
 	// configured with on the box).
 	ListButterBoxModels(context.Context, *ListButterBoxModelsRequest) (*ListButterBoxModelsResponse, error)
+	// ListCursorModels reports the box's Cursor model catalog (the models the
+	// box's Cursor SDK Bridge is configured with).
+	ListCursorModels(context.Context, *ListCursorModelsRequest) (*ListCursorModelsResponse, error)
 	mustEmbedUnimplementedButterBoxServiceServer()
 }
 
@@ -192,6 +209,9 @@ func (UnimplementedButterBoxServiceServer) GetButterBoxStatus(context.Context, *
 }
 func (UnimplementedButterBoxServiceServer) ListButterBoxModels(context.Context, *ListButterBoxModelsRequest) (*ListButterBoxModelsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListButterBoxModels not implemented")
+}
+func (UnimplementedButterBoxServiceServer) ListCursorModels(context.Context, *ListCursorModelsRequest) (*ListCursorModelsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCursorModels not implemented")
 }
 func (UnimplementedButterBoxServiceServer) mustEmbedUnimplementedButterBoxServiceServer() {}
 func (UnimplementedButterBoxServiceServer) testEmbeddedByValue()                          {}
@@ -358,6 +378,24 @@ func _ButterBoxService_ListButterBoxModels_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ButterBoxService_ListCursorModels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCursorModelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ButterBoxServiceServer).ListCursorModels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ButterBoxService_ListCursorModels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ButterBoxServiceServer).ListCursorModels(ctx, req.(*ListCursorModelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ButterBoxService_ServiceDesc is the grpc.ServiceDesc for ButterBoxService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -396,6 +434,10 @@ var ButterBoxService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListButterBoxModels",
 			Handler:    _ButterBoxService_ListButterBoxModels_Handler,
+		},
+		{
+			MethodName: "ListCursorModels",
+			Handler:    _ButterBoxService_ListCursorModels_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

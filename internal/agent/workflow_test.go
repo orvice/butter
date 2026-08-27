@@ -151,7 +151,7 @@ func humanInputWorkflowProto() (*agentsv1.Agent, AgentPool) {
 
 func TestNewFromProto_WorkflowHumanInput(t *testing.T) {
 	pb, pool := humanInputWorkflowProto()
-	a, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, pool)
+	a, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, nil, pool)
 	if err != nil {
 		t.Fatalf("NewFromProto: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestNewFromProto_WorkflowRouterAndJoin(t *testing.T) {
 		pb   *agentsv1.Agent
 		pool AgentPool
 	}{{branching, branchingPool}, {fanOut, fanOutPool}} {
-		a, err := NewFromProtoWithToolsetFactory(context.Background(), tc.pb, workflowProviders(), nil, nil, nil, nil, nil, nil, tc.pool)
+		a, err := NewFromProtoWithToolsetFactory(context.Background(), tc.pb, workflowProviders(), nil, nil, nil, nil, nil, nil, nil, tc.pool)
 		if err != nil {
 			t.Fatalf("NewFromProto(%q): %v", tc.pb.GetName(), err)
 		}
@@ -270,7 +270,7 @@ func TestValidateWorkflowAgent_RejectsInvalidGraphs(t *testing.T) {
 func TestNewFromProto_RejectsUnresolvedWorkflowNodeID(t *testing.T) {
 	pb, pool := linearWorkflowProto()
 	pb.Config.Workflow.Nodes[0].AgentId = "no-such-agent"
-	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, pool); err == nil {
+	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, nil, pool); err == nil {
 		t.Fatal("NewFromProto accepted a workflow node with an unresolved agent_id")
 	} else if !strings.Contains(err.Error(), "no-such-agent") {
 		t.Errorf("error %q does not mention the unresolved id", err.Error())
@@ -333,7 +333,7 @@ func assertGraphRejected(t *testing.T, pb *agentsv1.Agent, pool AgentPool, wantE
 	}
 
 	// The factory must reject the same graph.
-	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, pool); err == nil {
+	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, nil, pool); err == nil {
 		t.Error("NewFromProto accepted an invalid graph")
 	}
 }
@@ -380,7 +380,7 @@ func TestMatchRouteLabel(t *testing.T) {
 func TestNewFromProto_WorkflowLinearChain(t *testing.T) {
 	pb, pool := linearWorkflowProto()
 
-	a, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, pool)
+	a, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, nil, pool)
 	if err != nil {
 		t.Fatalf("NewFromProto: %v", err)
 	}

@@ -215,6 +215,47 @@ func (s *AgentServiceServer) validatePiAgentWrite(ctx context.Context, wsID stri
 		fmt.Sprintf("butterbox %q is disabled and cannot accept new pi agent bindings; enable it or choose another box", boxID))
 }
 
+// validateCursorAgentWrite canonicalizes the Cursor binding, runs pure config
+// validation, and verifies that the referenced ButterBox is usable for this
+// write. Mirrors validatePiAgentWrite.
+func (s *AgentServiceServer) validateCursorAgentWrite(ctx context.Context, wsID string, agent *agentsv1.Agent) error {
+	if agent.GetType() == agentsv1.AgentType_AGENT_TYPE_CURSOR && agent.GetConfig().GetCursor() != nil {
+		cur := agent.GetConfig().GetCursor()
+		cur.ButterboxId = strings.TrimSpace(cur.GetButterboxId())
+	}
+	if err := internalagent.ValidateCursorAgent(agent); err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if agent.GetType() != agentsv1.AgentType_AGENT_TYPE_CURSOR || s.butterBoxRepo == nil {
+		return nil
+	}
+	boxID := agent.GetConfig().GetCursor().GetButterboxId()
+	box, err := s.butterBoxRepo.Get(ctx, wsID, boxID)
+	if err != nil {
+		if errors.Is(err, butterboxrepo.ErrNotFound) {
+			return connectx.InvalidArgument("config.cursor.butterbox_id",
+				fmt.Sprintf("butterbox %q not found in this workspace; register it via ButterBoxService first", boxID))
+		}
+		return connectx.InternalWith(err)
+	}
+	if box.GetEnabled() {
+		return nil
+	}
+
+	if agent.GetAgentId() != "" {
+		current, getErr := s.repo.GetAgent(ctx, wsID, agent.GetAgentId())
+		switch {
+		case getErr == nil && current.GetType() == agentsv1.AgentType_AGENT_TYPE_CURSOR &&
+			strings.TrimSpace(current.GetConfig().GetCursor().GetButterboxId()) == boxID:
+			return nil
+		case getErr != nil && !errors.Is(getErr, configrepo.ErrNotFound):
+			return connectx.InternalWith(getErr)
+		}
+	}
+	return connectx.InvalidArgument("config.cursor.butterbox_id",
+		fmt.Sprintf("butterbox %q is disabled and cannot accept new cursor agent bindings; enable it or choose another box", boxID))
+}
+
 // overlayActiveContent replaces description/instruction/global_instruction on
 // agents whose content is Git-owned. When the workspace has no binding or no
 // published Active Revision the agents pass through unchanged. A published
@@ -354,6 +395,9 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := s.validatePiAgentWrite(ctx, wsID, agent); err != nil {
 		return nil, err
 	}
+	if err := s.validateCursorAgentWrite(ctx, wsID, agent); err != nil {
+		return nil, err
+	}
 
 	// Every new agent is created with an immutable agent_id and composes
 	// children via ID references — the embedded sub_agents write path is
@@ -484,6 +528,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := s.validatePiAgentWrite(ctx, wsID, update); err != nil {
+		return nil, err
+	}
+	if err := s.validateCursorAgentWrite(ctx, wsID, update); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -1049,6 +1096,9 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := s.validatePiAgentWrite(ctx, wsID, patch); err != nil {
+		return nil, err
+	}
+	if err := s.validateCursorAgentWrite(ctx, wsID, patch); err != nil {
 		return nil, err
 	}
 	coord, err := s.requireCoordinator()
