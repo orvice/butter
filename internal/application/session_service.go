@@ -956,12 +956,34 @@ func sessionToInfo(sess session.Session) *agentsv1.SessionInfo {
 		stateMap[k] = v
 	}
 	if len(stateMap) > 0 {
-		if st, err := structpb.NewStruct(stateMap); err == nil {
-			info.State = st
-		}
+		info.State = sessionStateToProto(stateMap)
 	}
 
 	return info
+}
+
+// sessionStateToProto preserves state loaded from stores whose nested
+// documents use named map or slice types (for example MongoDB's bson.D).
+// structpb accepts only its fixed set of JSON-shaped Go types, while a JSON
+// round trip normalizes those store-specific representations.
+func sessionStateToProto(stateMap map[string]any) *structpb.Struct {
+	if state, err := structpb.NewStruct(stateMap); err == nil {
+		return state
+	}
+
+	raw, err := json.Marshal(stateMap)
+	if err != nil {
+		return nil
+	}
+	var normalized map[string]any
+	if err := json.Unmarshal(raw, &normalized); err != nil {
+		return nil
+	}
+	state, err := structpb.NewStruct(normalized)
+	if err != nil {
+		return nil
+	}
+	return state
 }
 
 func (s *SessionServiceServer) MarkSessionRead(ctx context.Context, req *connect.Request[agentsv1.MarkSessionReadRequest]) (*connect.Response[agentsv1.MarkSessionReadResponse], error) {
