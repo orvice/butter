@@ -4,7 +4,8 @@ import type { Agent, SessionInfo } from '@/types/api'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
 import { submitAgentInvocation } from '@/api/chat'
-import { useDeleteSession, useSessions } from '@/api/sessions'
+import { useDeleteSession, useSession, useSessions } from '@/api/sessions'
+import { Code, ConnectError } from '@/api/transport'
 import { newClientID } from '@/lib/client-id'
 import { CHAT_APP_NAME, CHAT_LAST_AGENT_PREFIX } from '@/lib/constants'
 import {
@@ -35,6 +36,10 @@ function isRunnableAgent(a: Agent): boolean {
 
 function lastAgentKey(workspaceId: string): string {
   return `${CHAT_LAST_AGENT_PREFIX}${workspaceId}`
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof ConnectError && error.code === Code.NotFound
 }
 
 export function ChatPage() {
@@ -79,6 +84,11 @@ export function ChatPage() {
 
   const requestedSessionId = search.session ?? null
   const requestedAgent = search.agent ?? null
+  const requestedSessionQuery = useSession(
+    CHAT_APP_NAME,
+    userId,
+    requestedSessionId ?? ''
+  )
 
   const agentsQuery = useAgents({ page_size: 200 }, { enabled: !!userId })
   const allAgents = useMemo(
@@ -136,12 +146,15 @@ export function ChatPage() {
     }
   }
 
-  // Determine if we're viewing an existing session.
-  // Plain /chat (no ?session=) → show the draft view, never auto-activate.
-  const activeSession = useMemo(() => {
+  // Resolve URL-addressed sessions through GetSession. The recent-session
+  // list is useful as an immediate snapshot, but it is not authoritative: it
+  // can be stale, truncated, or temporarily unavailable after submission.
+  const listedSession = useMemo(() => {
     if (!requestedSessionId) return null
     return sessions.find((s) => s.session_id === requestedSessionId) ?? null
   }, [requestedSessionId, sessions])
+  const activeSession =
+    requestedSessionQuery.data?.session_detail.session ?? listedSession
 
   const activeAgent = activeSession
     ? (sessionAgentName(activeSession.state) ?? null)
@@ -226,10 +239,32 @@ export function ChatPage() {
         busy={draftSubmitting}
       />
     )
-  } else if (!activeSession && sessionsQuery.isLoading) {
+  } else if (
+    !activeSession &&
+    (requestedSessionQuery.isLoading || sessionsQuery.isLoading)
+  ) {
     content = (
       <div className='flex flex-1 items-center justify-center'>
         <p className='text-sm text-muted-foreground'>Loading chat…</p>
+      </div>
+    )
+  } else if (
+    !activeSession &&
+    requestedSessionQuery.isError &&
+    !isNotFoundError(requestedSessionQuery.error)
+  ) {
+    content = (
+      <div className='flex flex-1 items-center justify-center'>
+        <p className='text-sm text-muted-foreground'>
+          Failed to load chat.{' '}
+          <button
+            type='button'
+            className='text-primary underline'
+            onClick={() => void requestedSessionQuery.refetch()}
+          >
+            Retry
+          </button>
+        </p>
       </div>
     )
   } else if (!activeSession) {

@@ -271,7 +271,7 @@ export function useLiveSession(
   pollIntervalMs = 1500,
 ) {
   return useQuery({
-    queryKey: ["sessions", { appName, userId, sessionId }],
+    queryKey: ["sessions", { appName, userId, sessionId, numRecentEvents: 0 }],
     queryFn: () => getSession({ app_name: appName, user_id: userId, session_id: sessionId }),
     enabled: !!appName && !!userId && !!sessionId,
     refetchInterval: enabled ? pollIntervalMs : false,
