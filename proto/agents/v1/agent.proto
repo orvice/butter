@@ -192,6 +192,44 @@ message AgentConfig {
   // Required when type is PI; meaningless otherwise.
   // @gotags: json:"pi,omitempty" yaml:"pi,omitempty"
   PiAgentConfig pi = 50;
+
+  // --- Cursor agent fields (used when type is CURSOR) ---
+
+  // Binding of a CURSOR agent to one ButterBox and one working directory.
+  // Required when type is CURSOR; meaningless otherwise.
+  // @gotags: json:"cursor,omitempty" yaml:"cursor,omitempty"
+  CursorAgentConfig cursor = 51;
+}
+
+// CursorAgentConfig binds a CURSOR agent to the ButterBox that runs its
+// Cursor SDK Bridge sessions (CursorService) and to one working directory on
+// that box. Like a PI agent, a CURSOR agent's tools and instructions are
+// configured on the box — the working directory's .cursor/rules and
+// mcp.json — and the Cursor API key lives in the box's environment, never in
+// butter.
+message CursorAgentConfig {
+  // The workspace ButterBox that hosts this agent's Cursor sessions.
+  // @gotags: json:"butterbox_id,omitempty" yaml:"butterbox_id,omitempty"
+  string butterbox_id = 1;
+
+  // Working directory for Cursor sessions, absolute or relative to the box's
+  // sandbox root. Empty uses the box server's working directory.
+  // @gotags: json:"working_dir,omitempty" yaml:"working_dir,omitempty"
+  string working_dir = 2;
+
+  // Optional Cursor model ID (e.g. "composer-2.5"). Empty uses the bridge
+  // default. The dropdown is fed by ButterBoxService.ListButterBoxCursorModels.
+  // @gotags: json:"model,omitempty" yaml:"model,omitempty"
+  string model = 3;
+
+  // Agent mode: "agent" (default when empty) or "plan".
+  // @gotags: json:"mode,omitempty" yaml:"mode,omitempty"
+  string mode = 4;
+
+  // Bounds one turn's run on the box; exceeding it aborts the run. Unset
+  // defaults to 1800 seconds; an explicit 0 means unlimited.
+  // @gotags: json:"max_run_seconds,omitempty" yaml:"max_run_seconds,omitempty"
+  optional int32 max_run_seconds = 5;
 }
 
 // PiAgentConfig binds a PI agent to the ButterBox that runs its pi coding
@@ -487,6 +525,9 @@ enum AgentType {
   // Leaf agent backed by a pi coding agent running on a ButterBox
   // (ADR-0011). Configured via AgentConfig.pi; may not have children.
   AGENT_TYPE_PI = 6;
+  // Leaf agent backed by a Cursor SDK Bridge session running on a ButterBox.
+  // Configured via AgentConfig.cursor; may not have children.
+  AGENT_TYPE_CURSOR = 7;
 }
 
 // LLMIncludeContents matches llmagent.IncludeContents values.

@@ -22,7 +22,7 @@ func isLLMAgentType(t agentsv1.AgentType) bool {
 //   - ContextGuard applies only to ADK LLM Agents: AGENT_TYPE_LLM and
 //     AGENT_TYPE_UNSPECIFIED (which constructs as an LLM agent). It is
 //     rejected on Loop, Sequential, Parallel, Workflow, and box-backed
-//     (AGENT_TYPE_PI) types because those records do not make the relevant
+//     (AGENT_TYPE_PI, AGENT_TYPE_CURSOR) types because those records do not make the relevant
 //     ADK model call; referenced child LLM Agents own their own context
 //     policy.
 //   - A present ContextGuard must select a concrete strategy; an unspecified

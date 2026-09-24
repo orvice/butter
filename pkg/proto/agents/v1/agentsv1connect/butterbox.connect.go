@@ -57,6 +57,9 @@ const (
 	// ButterBoxServiceListButterBoxModelsProcedure is the fully-qualified name of the
 	// ButterBoxService's ListButterBoxModels RPC.
 	ButterBoxServiceListButterBoxModelsProcedure = "/agents.v1.ButterBoxService/ListButterBoxModels"
+	// ButterBoxServiceListButterBoxCursorModelsProcedure is the fully-qualified name of the
+	// ButterBoxService's ListButterBoxCursorModels RPC.
+	ButterBoxServiceListButterBoxCursorModelsProcedure = "/agents.v1.ButterBoxService/ListButterBoxCursorModels"
 )
 
 // ButterBoxServiceClient is a client for the agents.v1.ButterBoxService service.
@@ -75,6 +78,9 @@ type ButterBoxServiceClient interface {
 	// ListButterBoxModels reports the box's pi model catalog (the models pi is
 	// configured with on the box).
 	ListButterBoxModels(context.Context, *connect.Request[v1.ListButterBoxModelsRequest]) (*connect.Response[v1.ListButterBoxModelsResponse], error)
+	// ListButterBoxCursorModels reports the box's Cursor model catalog (from
+	// the box's CursorService, which asks Cursor's API with the box's key).
+	ListButterBoxCursorModels(context.Context, *connect.Request[v1.ListButterBoxCursorModelsRequest]) (*connect.Response[v1.ListButterBoxCursorModelsResponse], error)
 }
 
 // NewButterBoxServiceClient constructs a client for the agents.v1.ButterBoxService service. By
@@ -136,19 +142,26 @@ func NewButterBoxServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(butterBoxServiceMethods.ByName("ListButterBoxModels")),
 			connect.WithClientOptions(opts...),
 		),
+		listButterBoxCursorModels: connect.NewClient[v1.ListButterBoxCursorModelsRequest, v1.ListButterBoxCursorModelsResponse](
+			httpClient,
+			baseURL+ButterBoxServiceListButterBoxCursorModelsProcedure,
+			connect.WithSchema(butterBoxServiceMethods.ByName("ListButterBoxCursorModels")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // butterBoxServiceClient implements ButterBoxServiceClient.
 type butterBoxServiceClient struct {
-	listButterBoxes     *connect.Client[v1.ListButterBoxesRequest, v1.ListButterBoxesResponse]
-	getButterBox        *connect.Client[v1.GetButterBoxRequest, v1.GetButterBoxResponse]
-	createButterBox     *connect.Client[v1.CreateButterBoxRequest, v1.CreateButterBoxResponse]
-	updateButterBox     *connect.Client[v1.UpdateButterBoxRequest, v1.UpdateButterBoxResponse]
-	deleteButterBox     *connect.Client[v1.DeleteButterBoxRequest, v1.DeleteButterBoxResponse]
-	setButterBoxToken   *connect.Client[v1.SetButterBoxTokenRequest, v1.SetButterBoxTokenResponse]
-	getButterBoxStatus  *connect.Client[v1.GetButterBoxStatusRequest, v1.GetButterBoxStatusResponse]
-	listButterBoxModels *connect.Client[v1.ListButterBoxModelsRequest, v1.ListButterBoxModelsResponse]
+	listButterBoxes           *connect.Client[v1.ListButterBoxesRequest, v1.ListButterBoxesResponse]
+	getButterBox              *connect.Client[v1.GetButterBoxRequest, v1.GetButterBoxResponse]
+	createButterBox           *connect.Client[v1.CreateButterBoxRequest, v1.CreateButterBoxResponse]
+	updateButterBox           *connect.Client[v1.UpdateButterBoxRequest, v1.UpdateButterBoxResponse]
+	deleteButterBox           *connect.Client[v1.DeleteButterBoxRequest, v1.DeleteButterBoxResponse]
+	setButterBoxToken         *connect.Client[v1.SetButterBoxTokenRequest, v1.SetButterBoxTokenResponse]
+	getButterBoxStatus        *connect.Client[v1.GetButterBoxStatusRequest, v1.GetButterBoxStatusResponse]
+	listButterBoxModels       *connect.Client[v1.ListButterBoxModelsRequest, v1.ListButterBoxModelsResponse]
+	listButterBoxCursorModels *connect.Client[v1.ListButterBoxCursorModelsRequest, v1.ListButterBoxCursorModelsResponse]
 }
 
 // ListButterBoxes calls agents.v1.ButterBoxService.ListButterBoxes.
@@ -191,6 +204,11 @@ func (c *butterBoxServiceClient) ListButterBoxModels(ctx context.Context, req *c
 	return c.listButterBoxModels.CallUnary(ctx, req)
 }
 
+// ListButterBoxCursorModels calls agents.v1.ButterBoxService.ListButterBoxCursorModels.
+func (c *butterBoxServiceClient) ListButterBoxCursorModels(ctx context.Context, req *connect.Request[v1.ListButterBoxCursorModelsRequest]) (*connect.Response[v1.ListButterBoxCursorModelsResponse], error) {
+	return c.listButterBoxCursorModels.CallUnary(ctx, req)
+}
+
 // ButterBoxServiceHandler is an implementation of the agents.v1.ButterBoxService service.
 type ButterBoxServiceHandler interface {
 	ListButterBoxes(context.Context, *connect.Request[v1.ListButterBoxesRequest]) (*connect.Response[v1.ListButterBoxesResponse], error)
@@ -207,6 +225,9 @@ type ButterBoxServiceHandler interface {
 	// ListButterBoxModels reports the box's pi model catalog (the models pi is
 	// configured with on the box).
 	ListButterBoxModels(context.Context, *connect.Request[v1.ListButterBoxModelsRequest]) (*connect.Response[v1.ListButterBoxModelsResponse], error)
+	// ListButterBoxCursorModels reports the box's Cursor model catalog (from
+	// the box's CursorService, which asks Cursor's API with the box's key).
+	ListButterBoxCursorModels(context.Context, *connect.Request[v1.ListButterBoxCursorModelsRequest]) (*connect.Response[v1.ListButterBoxCursorModelsResponse], error)
 }
 
 // NewButterBoxServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -264,6 +285,12 @@ func NewButterBoxServiceHandler(svc ButterBoxServiceHandler, opts ...connect.Han
 		connect.WithSchema(butterBoxServiceMethods.ByName("ListButterBoxModels")),
 		connect.WithHandlerOptions(opts...),
 	)
+	butterBoxServiceListButterBoxCursorModelsHandler := connect.NewUnaryHandler(
+		ButterBoxServiceListButterBoxCursorModelsProcedure,
+		svc.ListButterBoxCursorModels,
+		connect.WithSchema(butterBoxServiceMethods.ByName("ListButterBoxCursorModels")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.ButterBoxService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ButterBoxServiceListButterBoxesProcedure:
@@ -282,6 +309,8 @@ func NewButterBoxServiceHandler(svc ButterBoxServiceHandler, opts ...connect.Han
 			butterBoxServiceGetButterBoxStatusHandler.ServeHTTP(w, r)
 		case ButterBoxServiceListButterBoxModelsProcedure:
 			butterBoxServiceListButterBoxModelsHandler.ServeHTTP(w, r)
+		case ButterBoxServiceListButterBoxCursorModelsProcedure:
+			butterBoxServiceListButterBoxCursorModelsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -321,4 +350,8 @@ func (UnimplementedButterBoxServiceHandler) GetButterBoxStatus(context.Context, 
 
 func (UnimplementedButterBoxServiceHandler) ListButterBoxModels(context.Context, *connect.Request[v1.ListButterBoxModelsRequest]) (*connect.Response[v1.ListButterBoxModelsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ButterBoxService.ListButterBoxModels is not implemented"))
+}
+
+func (UnimplementedButterBoxServiceHandler) ListButterBoxCursorModels(context.Context, *connect.Request[v1.ListButterBoxCursorModelsRequest]) (*connect.Response[v1.ListButterBoxCursorModelsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.ButterBoxService.ListButterBoxCursorModels is not implemented"))
 }

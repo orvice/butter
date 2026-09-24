@@ -1,11 +1,11 @@
 package pibox
 
 import (
-	"fmt"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/v2/bson"
 	adksession "google.golang.org/adk/v2/session"
+
+	"go.orx.me/apps/butter/internal/runtime/butterboxconn"
 )
 
 // stateKeyPrefix scopes the per-agent pi session binding inside ADK session
@@ -54,49 +54,19 @@ func readBinding(state adksession.State, agentID string) (binding, bool) {
 	return bindingFromValue(v)
 }
 
-// bindingFromValue parses a stored state value. In-memory sessions retain the
-// map written in StateDelta, while Mongo decodes the nested document as a
-// bson.D when loading it into map[string]any state.
+// bindingFromValue parses a stored state value (map or Mongo-decoded bson.D).
 func bindingFromValue(v any) (binding, bool) {
-	m, ok := bindingValueMap(v)
+	m, ok := butterboxconn.StateMap(v)
 	if !ok {
 		return binding{}, false
 	}
 	b := binding{
-		PiSessionID: stringField(m, "pi_session_id"),
-		ButterboxID: stringField(m, "butterbox_id"),
-		WorkingDir:  stringField(m, "working_dir"),
+		PiSessionID: butterboxconn.StringField(m, "pi_session_id"),
+		ButterboxID: butterboxconn.StringField(m, "butterbox_id"),
+		WorkingDir:  butterboxconn.StringField(m, "working_dir"),
 	}
 	if strings.TrimSpace(b.PiSessionID) == "" {
 		return binding{}, false
 	}
 	return b, true
-}
-
-func bindingValueMap(v any) (map[string]any, bool) {
-	switch value := v.(type) {
-	case map[string]any:
-		return value, true
-	case bson.M:
-		return map[string]any(value), true
-	case bson.D:
-		m := make(map[string]any, len(value))
-		for _, elem := range value {
-			m[elem.Key] = elem.Value
-		}
-		return m, true
-	default:
-		return nil, false
-	}
-}
-
-func stringField(m map[string]any, key string) string {
-	v, ok := m[key]
-	if !ok || v == nil {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return fmt.Sprintf("%v", v)
 }

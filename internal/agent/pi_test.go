@@ -154,7 +154,7 @@ func TestNewFromProto_PiUsesBuilder(t *testing.T) {
 		got = pb
 		return agent.New(agent.Config{Name: pb.GetName(), Description: pb.GetDescription()})
 	})
-	a, err := NewFromProtoWithToolsetFactory(context.Background(), validPiAgent(), nil, nil, nil, nil, nil, nil, builder)
+	a, err := NewFromProtoWithToolsetFactory(context.Background(), validPiAgent(), nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Pi: builder})
 	if err != nil {
 		t.Fatalf("NewFromProto: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestNewFromProto_PiInvalidConfigFails(t *testing.T) {
 		t.Fatal("builder must not be called for an invalid pi agent")
 		return nil, nil
 	})
-	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, nil, nil, nil, nil, nil, nil, builder); err == nil {
+	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Pi: builder}); err == nil {
 		t.Fatal("expected invalid pi config to fail construction")
 	}
 }

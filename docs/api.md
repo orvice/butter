@@ -406,7 +406,7 @@ The header is required for most methods on these app-facing services:
 | `DaemonService` | Workspace daemon configs, credentials, online daemon/task views |
 | `GitHostService` | Platform Git endpoint allowlist |
 | `WorkspaceRepoBindingService` | Workspace Git repository binding and Agent Content |
-| `ButterBoxService` | Workspace ButterBoxes (pi agent VMs): CRUD, write-only token, status, model catalog |
+| `ButterBoxService` | Workspace ButterBoxes (pi / Cursor agent VMs): CRUD, write-only token, status, pi and Cursor model catalogs |
 
 The header is not required for `AuthService`, `WorkspaceService`,
 or `DashboardService`. `SessionService` creates, reads, lists,
@@ -3873,7 +3873,7 @@ POST /api/agents.v1.APITokenService/RevokeAPIToken
 
 ### ButterBoxService
 
-Workspace-registered [ButterBoxes](https://github.com/orvice/butter-box) — agent VMs whose PiService hosts pi coding-agent sessions (ADR-0011). Requires `X-Workspace-ID`. The access token is write-only: it is encrypted at rest and never read back; `credential_set` / `credential_updated_at` report whether and when one was stored.
+Workspace-registered [ButterBoxes](https://github.com/orvice/butter-box) — agent VMs whose PiService hosts pi coding-agent sessions (ADR-0011) and whose CursorService hosts Cursor agent sessions (ADR-0012). `DeleteButterBox` is refused while any PI or CURSOR agent (including tombstones) references the box. Requires `X-Workspace-ID`. The access token is write-only: it is encrypted at rest and never read back; `credential_set` / `credential_updated_at` report whether and when one was stored.
 
 | RPC | Path | Notes |
 | --- | --- | --- |
@@ -3885,6 +3885,7 @@ Workspace-registered [ButterBoxes](https://github.com/orvice/butter-box) — age
 | `SetButterBoxToken` | `POST /api/agents.v1.ButterBoxService/SetButterBoxToken` | Sets/rotates the token; empty `token` clears it |
 | `GetButterBoxStatus` | `POST /api/agents.v1.ButterBoxService/GetButterBoxStatus` | Probes the box: `{ "reachable", "active_sessions", "error" }`; unreachability is data, not an RPC error |
 | `ListButterBoxModels` | `POST /api/agents.v1.ButterBoxService/ListButterBoxModels` | The box's pi model catalog; `Unavailable` when the box cannot answer |
+| `ListButterBoxCursorModels` | `POST /api/agents.v1.ButterBoxService/ListButterBoxCursorModels` | The box's Cursor model catalog `{ "models": [{ "id", "name" }] }` (feeds `config.cursor.model`); `FailedPrecondition` when the box token or the box's `CURSOR_API_KEY` is rejected or the box has no CursorService, `Unavailable` when the box cannot answer |
 
 ### GitHostService
 

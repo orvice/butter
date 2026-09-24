@@ -85,7 +85,7 @@ type Service struct {
 	basePluginConfig adkrunner.PluginConfig
 	pluginConfig     adkrunner.PluginConfig
 	mcpHTTPFactory   internalagent.MCPHTTPClientFactory
-	piBuilder        internalagent.PiAgentBuilder
+	boxBuilders      *internalagent.BoxAgentBuilders
 
 	mu           sync.Mutex
 	runtimeCache runtimeCache
@@ -249,7 +249,7 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 // NewServiceWithMCPHTTPClientFactory builds the agent registry with a shared
 // MCP HTTP client factory used by runtime toolsets and an optional PI agent
 // builder (the ButterBox bridge, ADR-0011).
-func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, agentFileRepo agentfile.Repository, agentFileMaxBytes int64, skillRepo skillrepo.Repository, pluginConfig adkrunner.PluginConfig, mcpHTTPFactory internalagent.MCPHTTPClientFactory, piBuilder internalagent.PiAgentBuilder) (*Service, error) {
+func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, agentFileRepo agentfile.Repository, agentFileMaxBytes int64, skillRepo skillrepo.Repository, pluginConfig adkrunner.PluginConfig, mcpHTTPFactory internalagent.MCPHTTPClientFactory, boxBuilders *internalagent.BoxAgentBuilders) (*Service, error) {
 	logger := log.FromContext(ctx)
 	basePluginConfig := pluginConfig
 	registry := make(map[string]agent.Agent, len(agents))
@@ -284,7 +284,7 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 			return nil, fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
 		}
 
-		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory, piBuilder, wsPools[agents[i].GetWorkspaceId()])
+		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory, boxBuilders, wsPools[agents[i].GetWorkspaceId()])
 		if err != nil {
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}
@@ -315,7 +315,7 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 		basePluginConfig: basePluginConfig,
 		pluginConfig:     pluginConfig,
 		mcpHTTPFactory:   mcpHTTPFactory,
-		piBuilder:        piBuilder,
+		boxBuilders:      boxBuilders,
 		runtimeCache:     newRuntimeCache(),
 	}
 
@@ -531,7 +531,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 			logger.Warn("skipping proto agent that collides with a reserved builder name", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
 			continue
 		}
-		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory, s.piBuilder, wsPools[agents[i].GetWorkspaceId()])
+		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory, s.boxBuilders, wsPools[agents[i].GetWorkspaceId()])
 		if err != nil {
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
 		}
@@ -823,7 +823,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	deps := s.toolsetDeps
 	daemonRegistry := s.daemonRegistry
 	mcpHTTPFactory := s.mcpHTTPFactory
-	piBuilder := s.piBuilder
+	boxBuilders := s.boxBuilders
 	var pool internalagent.AgentPool
 	if hasProto {
 		pool = buildWorkspacePoolFromProtoRegistry(s.agentsProto, pb.GetWorkspaceId())
@@ -849,7 +849,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 			clone.Config = &agentsv1.AgentConfig{}
 		}
 		clone.Config.Model = resolvedName
-		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, daemonRegistry, mcpHTTPFactory, newToolsetFactory(deps), piBuilder, pool)
+		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, daemonRegistry, mcpHTTPFactory, newToolsetFactory(deps), boxBuilders, pool)
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)
