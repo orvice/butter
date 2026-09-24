@@ -1,11 +1,11 @@
 module go.orx.me/apps/butter
 
-go 1.26.5
+go 1.27.1
 
 require (
 	butterfly.orx.me/core v0.0.0-20260430072052-a6971e20cd35
 	charm.land/catwalk v0.25.0
-	connectrpc.com/connect v1.19.1
+	connectrpc.com/connect v1.21.0
 	github.com/Mad-Pixels/goldmark-tgmd v0.0.10
 	github.com/achetronic/adk-utils-go v0.22.0
 	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260813165816-6691ac50b34a
@@ -17,22 +17,22 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/modelcontextprotocol/go-sdk v1.7.0
-	github.com/orvice/butter-box v0.0.0-20260827171955-8246e4b39b40
+	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/orvice/butter-box v0.0.0-20260923050531-5326bff87105
 	github.com/orvice/opencode-go v0.0.0-20260707161352-f1f9601fceb2
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/robfig/cron/v3 v3.0.1
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	golang.org/x/crypto v0.52.0
 	golang.org/x/net v0.55.0
-	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sync v0.21.0
+	golang.org/x/oauth2 v0.37.0
+	golang.org/x/sync v0.23.0
 	google.golang.org/adk/v2 v2.1.0
 	google.golang.org/genai v1.63.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260427160629-7cedc36a6bc4
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260921155816-b14227669459
 	google.golang.org/grpc v1.81.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -122,7 +122,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
-	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
@@ -158,9 +158,9 @@ require (
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20260112195511-716be5621a96 // indirect
 	golang.org/x/mod v0.36.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/api v0.279.0 // indirect
 	rsc.io/omap v1.2.0 // indirect
 	rsc.io/ordered v1.1.1 // indirect
