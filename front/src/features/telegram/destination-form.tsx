@@ -13,6 +13,8 @@ import {
   TelegramSessionPolicy,
   TelegramTriggerMode,
 } from '@/gen/agents/v1/telegram_pb'
+import { AGENT_TYPE_LABELS } from '@/lib/constants'
+import type { AgentType } from '@/types/api'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -72,6 +74,12 @@ const EMPTY: FormState = {
   debugDefault: true,
 }
 
+// Box-backed agents (Pi, Cursor) own their model on the ButterBox, so the
+// Destination exposes no Butter model candidates for them.
+function ownsModelSelection(type: AgentType | undefined): boolean {
+  return type === 'AGENT_TYPE_PI' || type === 'AGENT_TYPE_CURSOR'
+}
+
 /**
  * One form for creating and editing a Destination. The address fields are
  * disabled in edit mode because they are immutable server-side: a Cron job or
@@ -122,7 +130,7 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
 
   const agents = (agentsData?.agents ?? []).filter((agent) => Boolean(agent.agent_id))
   const selectedAgent = agents.find((agent) => agent.agent_id === form.agentId)
-  const selectedAgentIsPi = selectedAgent?.type === 'AGENT_TYPE_PI'
+  const selectedAgentOwnsModel = ownsModelSelection(selectedAgent?.type)
   const modelAliases = (providersData?.model_providers ?? []).flatMap((provider) =>
     (provider.models ?? []).map((model) => model.alias || model.name)
   )
@@ -132,20 +140,20 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
   }
 
   function setAgent(agentId: string) {
-    const isPi = agents.find((agent) => agent.agent_id === agentId)?.type === 'AGENT_TYPE_PI'
+    const ownsModel = ownsModelSelection(agents.find((agent) => agent.agent_id === agentId)?.type)
     setForm((prev) => ({
       ...prev,
       agentId,
-      ...(isPi ? { model: '', selectableModels: '' } : {}),
+      ...(ownsModel ? { model: '', selectableModels: '' } : {}),
     }))
   }
 
   async function submit() {
     const config = {
       agentId: form.agentId,
-      model: selectedAgentIsPi ? '' : form.model,
+      model: selectedAgentOwnsModel ? '' : form.model,
       selectableAgentIds: parseIdList(form.selectableAgentIds),
-      selectableModels: selectedAgentIsPi ? [] : parseIdList(form.selectableModels),
+      selectableModels: selectedAgentOwnsModel ? [] : parseIdList(form.selectableModels),
       triggerMode: form.triggerMode,
       sessionPolicy: form.sessionPolicy,
       allowedUserIds: parseIdList(form.allowedUserIds),
@@ -298,7 +306,7 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
                 <Select
                   value={form.model || undefined}
                   onValueChange={(value) => set('model', value)}
-                  disabled={selectedAgentIsPi}
+                  disabled={selectedAgentOwnsModel}
                 >
                   <SelectTrigger id='destination-model' aria-label='Model override'>
                     <SelectValue placeholder="Inherit the agent's model" />
@@ -333,14 +341,15 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
                     value={form.selectableModels}
                     onChange={(e) => set('selectableModels', e.target.value)}
                     placeholder='leave empty to lock the model'
-                    disabled={selectedAgentIsPi}
+                    disabled={selectedAgentOwnsModel}
                   />
                 </div>
               </div>
-              {selectedAgentIsPi && (
+              {selectedAgentOwnsModel && (
                 <p className='text-sm text-muted-foreground'>
-                  Pi uses the model in its ButterBox binding, so Telegram model switching is locked
-                  while this Agent is active.
+                  {AGENT_TYPE_LABELS[selectedAgent?.type ?? '']} uses the model in
+                  its ButterBox binding, so Telegram model switching is locked while this Agent is
+                  active.
                 </p>
               )}
             </CardContent>

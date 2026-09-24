@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ButterBoxService,
   type ButterBox,
+  type ButterBoxCursorModel,
   type ButterBoxModel,
   type GetButterBoxStatusResponse,
 } from '@/gen/agents/v1/butterbox_pb'
@@ -54,6 +55,22 @@ export function useButterBoxModels(id: string | undefined, enabled = true) {
     enabled: Boolean(id) && enabled,
     queryFn: async (): Promise<ButterBoxModel[]> => {
       const res = await client.listButterBoxModels({ id: id! })
+      return res.models
+    },
+  })
+}
+
+/**
+ * The box's Cursor model catalog (from its CursorService). Fetched on
+ * demand, like useButterBoxModels.
+ */
+export function useButterBoxCursorModels(id: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [...BOXES_KEY, id, 'cursor-models'],
+    enabled: Boolean(id) && enabled,
+    retry: false,
+    queryFn: async (): Promise<ButterBoxCursorModel[]> => {
+      const res = await client.listButterBoxCursorModels({ id: id! })
       return res.models
     },
   })

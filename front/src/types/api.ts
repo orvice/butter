@@ -6,7 +6,8 @@ export type AgentType =
   | "AGENT_TYPE_LOOP"
   | "AGENT_TYPE_SEQUENTIAL"
   | "AGENT_TYPE_PARALLEL"
-  | "AGENT_TYPE_PI";
+  | "AGENT_TYPE_PI"
+  | "AGENT_TYPE_CURSOR";
 
 export type MCPServerTransport =
   | "MCP_SERVER_TRANSPORT_UNSPECIFIED"
@@ -160,6 +161,16 @@ export interface PiAgentConfig {
   max_run_seconds?: number;
 }
 
+export type CursorAgentMode = "agent" | "plan";
+
+export interface CursorAgentConfig {
+  butterbox_id: string;
+  working_dir?: string;
+  model?: string;
+  mode?: CursorAgentMode | "";
+  max_run_seconds?: number;
+}
+
 export interface AgentConfig {
   runtime?: AgentRuntime;
   mcp_servers?: MCPServer[];
@@ -178,6 +189,7 @@ export interface AgentConfig {
   output_schema_json?: string;
   max_iterations?: number;
   pi?: PiAgentConfig;
+  cursor?: CursorAgentConfig;
 }
 
 export type AgentLifecycleStatus =

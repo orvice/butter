@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,8 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	cursorv1 "github.com/orvice/butter-box/pkg/proto/butterbox/cursor/v1"
+	"github.com/orvice/butter-box/pkg/proto/butterbox/cursor/v1/cursorv1connect"
 	piv1 "github.com/orvice/butter-box/pkg/proto/butterbox/pi/v1"
 	"github.com/orvice/butter-box/pkg/proto/butterbox/pi/v1/piv1connect"
 
@@ -51,11 +54,33 @@ func (f *fakePiService) GetAvailableModels(_ context.Context, req *connect.Reque
 	return connect.NewResponse(&piv1.GetAvailableModelsResponse{Models: f.models}), nil
 }
 
+// fakeCursorService is a typed fake of the butter-box CursorService serving
+// only the model catalog.
+type fakeCursorService struct {
+	cursorv1connect.UnimplementedCursorServiceHandler
+
+	mu       sync.Mutex
+	lastAuth string
+	models   []*cursorv1.Model
+	err      error
+}
+
+func (f *fakeCursorService) ListModels(_ context.Context, req *connect.Request[cursorv1.ListModelsRequest]) (*connect.Response[cursorv1.ListModelsResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastAuth = req.Header().Get("Authorization")
+	if f.err != nil {
+		return nil, f.err
+	}
+	return connect.NewResponse(&cursorv1.ListModelsResponse{Models: f.models}), nil
+}
+
 type butterBoxFixture struct {
-	svc  *ButterBoxServiceServer
-	fake *fakePiService
-	box  *httptest.Server
-	ctx  context.Context
+	svc    *ButterBoxServiceServer
+	fake   *fakePiService
+	cursor *fakeCursorService
+	box    *httptest.Server
+	ctx    context.Context
 }
 
 func newButterBoxFixture(t *testing.T) *butterBoxFixture {
@@ -67,9 +92,15 @@ func newButterBoxFixture(t *testing.T) *butterBoxFixture {
 			{Id: "gpt-5.6", Provider: "openai", Name: "GPT-5.6"},
 		},
 	}
+	cursor := &fakeCursorService{models: []*cursorv1.Model{
+		{Id: "composer-2.5", Name: "Composer 2.5"},
+		{Id: "auto-smart", Name: "Auto (smart)"},
+	}}
 	path, handler := piv1connect.NewPiServiceHandler(fake)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
+	cursorPath, cursorHandler := cursorv1connect.NewCursorServiceHandler(cursor)
+	mux.Handle(cursorPath, cursorHandler)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -77,10 +108,11 @@ func newButterBoxFixture(t *testing.T) *butterBoxFixture {
 	svc.SetKeyring(secretbox.NewKeyring(cryptokeymemory.New()))
 
 	return &butterBoxFixture{
-		svc:  svc,
-		fake: fake,
-		box:  srv,
-		ctx:  workspace.WithID(t.Context(), "ws1"),
+		svc:    svc,
+		fake:   fake,
+		cursor: cursor,
+		box:    srv,
+		ctx:    workspace.WithID(t.Context(), "ws1"),
 	}
 }
 
@@ -233,6 +265,35 @@ func TestButterBoxModels(t *testing.T) {
 	// data, not a health report).
 	f.box.Close()
 	_, err = f.svc.ListButterBoxModels(f.ctx, connect.NewRequest(&agentsv1.ListButterBoxModelsRequest{Id: created.GetId()}))
+	wantCode(t, err, connect.CodeUnavailable)
+}
+
+func TestButterBoxCursorModels(t *testing.T) {
+	f := newButterBoxFixture(t)
+	created := f.create(t, "dev-box", "secret-token")
+
+	models, err := f.svc.ListButterBoxCursorModels(f.ctx, connect.NewRequest(&agentsv1.ListButterBoxCursorModelsRequest{Id: created.GetId()}))
+	if err != nil {
+		t.Fatalf("ListButterBoxCursorModels: %v", err)
+	}
+	got := models.Msg.GetModels()
+	if len(got) != 2 || got[0].GetId() != "composer-2.5" || got[0].GetName() != "Composer 2.5" {
+		t.Fatalf("models = %+v", got)
+	}
+	if f.cursor.lastAuth != "Bearer secret-token" {
+		t.Fatalf("box saw Authorization %q", f.cursor.lastAuth)
+	}
+
+	// A missing Cursor API key on the box is an actionable precondition.
+	f.cursor.err = connect.NewError(connect.CodeUnauthenticated, errors.New("cursor API key is missing or invalid"))
+	_, err = f.svc.ListButterBoxCursorModels(f.ctx, connect.NewRequest(&agentsv1.ListButterBoxCursorModelsRequest{Id: created.GetId()}))
+	wantCode(t, err, connect.CodeFailedPrecondition)
+	if !strings.Contains(err.Error(), "CURSOR_API_KEY") {
+		t.Fatalf("error should point at CURSOR_API_KEY: %v", err)
+	}
+
+	f.box.Close()
+	_, err = f.svc.ListButterBoxCursorModels(f.ctx, connect.NewRequest(&agentsv1.ListButterBoxCursorModelsRequest{Id: created.GetId()}))
 	wantCode(t, err, connect.CodeUnavailable)
 }
 

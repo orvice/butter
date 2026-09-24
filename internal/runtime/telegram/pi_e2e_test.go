@@ -14,6 +14,7 @@ import (
 	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/protobuf/proto"
 
+	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/runtime/pibox"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/telegramapi"
@@ -92,7 +93,7 @@ func TestPiAgentAnswersInTelegramTopicWithContinuityAndPhoto(t *testing.T) {
 			}},
 		}}, nil, nil, nil, nil,
 		sessions, nil, nil, nil, 0, nil, adkrunner.PluginConfig{}, nil,
-		pibox.AgentBuilder(telegramPiFactory{client: piClient}),
+		&internalagent.BoxAgentBuilders{Pi: pibox.AgentBuilder(telegramPiFactory{client: piClient})},
 	)
 	if err != nil {
 		t.Fatalf("build runner: %v", err)

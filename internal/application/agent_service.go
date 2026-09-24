@@ -164,32 +164,64 @@ func (s *AgentServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
 	s.wsRepo = repo
 }
 
-// SetButterBoxRepo wires the ButterBox repository used to verify that a PI
-// agent references an existing box at write time (ADR-0011).
+// SetButterBoxRepo wires the ButterBox repository used to verify that a PI or
+// CURSOR agent references an existing box at write time (ADR-0011).
 func (s *AgentServiceServer) SetButterBoxRepo(repo butterboxrepo.Repository) {
 	s.butterBoxRepo = repo
 }
 
-// validatePiAgentWrite canonicalizes the PI binding, runs pure config
-// validation, and verifies that the referenced ButterBox is usable for this
-// write. Disabling a box blocks new bindings but does not break agents that
-// were already bound to it.
-func (s *AgentServiceServer) validatePiAgentWrite(ctx context.Context, wsID string, agent *agentsv1.Agent) error {
-	if agent.GetType() == agentsv1.AgentType_AGENT_TYPE_PI && agent.GetConfig().GetPi() != nil {
-		pi := agent.GetConfig().GetPi()
-		pi.ButterboxId = strings.TrimSpace(pi.GetButterboxId())
+// butterBoxRef reports the ButterBox a box-backed agent (PI, CURSOR) binds,
+// together with its kind and config field path. ok is false for every other
+// agent type or a box-backed agent without its config block.
+func butterBoxRef(a *agentsv1.Agent) (kind, field, boxID string, ok bool) {
+	switch a.GetType() {
+	case agentsv1.AgentType_AGENT_TYPE_PI:
+		if pi := a.GetConfig().GetPi(); pi != nil {
+			return "pi", "config.pi.butterbox_id", strings.TrimSpace(pi.GetButterboxId()), true
+		}
+	case agentsv1.AgentType_AGENT_TYPE_CURSOR:
+		if c := a.GetConfig().GetCursor(); c != nil {
+			return "cursor", "config.cursor.butterbox_id", strings.TrimSpace(c.GetButterboxId()), true
+		}
 	}
+	return "", "", "", false
+}
+
+// canonicalizeButterBoxRef trims the stored box reference of a box-backed
+// agent in place.
+func canonicalizeButterBoxRef(a *agentsv1.Agent) {
+	switch a.GetType() {
+	case agentsv1.AgentType_AGENT_TYPE_PI:
+		if pi := a.GetConfig().GetPi(); pi != nil {
+			pi.ButterboxId = strings.TrimSpace(pi.GetButterboxId())
+		}
+	case agentsv1.AgentType_AGENT_TYPE_CURSOR:
+		if c := a.GetConfig().GetCursor(); c != nil {
+			c.ButterboxId = strings.TrimSpace(c.GetButterboxId())
+		}
+	}
+}
+
+// validateBoxAgentWrite canonicalizes a box-backed agent's (PI, CURSOR)
+// binding, runs pure config validation, and verifies that the referenced
+// ButterBox is usable for this write. Disabling a box blocks new bindings but
+// does not break agents that were already bound to it.
+func (s *AgentServiceServer) validateBoxAgentWrite(ctx context.Context, wsID string, agent *agentsv1.Agent) error {
+	canonicalizeButterBoxRef(agent)
 	if err := internalagent.ValidatePiAgent(agent); err != nil {
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if agent.GetType() != agentsv1.AgentType_AGENT_TYPE_PI || s.butterBoxRepo == nil {
+	if err := internalagent.ValidateCursorAgent(agent); err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	kind, field, boxID, ok := butterBoxRef(agent)
+	if !ok || s.butterBoxRepo == nil {
 		return nil
 	}
-	boxID := agent.GetConfig().GetPi().GetButterboxId()
 	box, err := s.butterBoxRepo.Get(ctx, wsID, boxID)
 	if err != nil {
 		if errors.Is(err, butterboxrepo.ErrNotFound) {
-			return connectx.InvalidArgument("config.pi.butterbox_id",
+			return connectx.InvalidArgument(field,
 				fmt.Sprintf("butterbox %q not found in this workspace; register it via ButterBoxService first", boxID))
 		}
 		return connectx.InternalWith(err)
@@ -204,15 +236,16 @@ func (s *AgentServiceServer) validatePiAgentWrite(ctx context.Context, wsID stri
 	if agent.GetAgentId() != "" {
 		current, getErr := s.repo.GetAgent(ctx, wsID, agent.GetAgentId())
 		switch {
-		case getErr == nil && current.GetType() == agentsv1.AgentType_AGENT_TYPE_PI &&
-			strings.TrimSpace(current.GetConfig().GetPi().GetButterboxId()) == boxID:
-			return nil
-		case getErr != nil && !errors.Is(getErr, configrepo.ErrNotFound):
+		case getErr == nil:
+			if curKind, _, curBox, curOK := butterBoxRef(current); curOK && curKind == kind && curBox == boxID {
+				return nil
+			}
+		case !errors.Is(getErr, configrepo.ErrNotFound):
 			return connectx.InternalWith(getErr)
 		}
 	}
-	return connectx.InvalidArgument("config.pi.butterbox_id",
-		fmt.Sprintf("butterbox %q is disabled and cannot accept new pi agent bindings; enable it or choose another box", boxID))
+	return connectx.InvalidArgument(field,
+		fmt.Sprintf("butterbox %q is disabled and cannot accept new %s agent bindings; enable it or choose another box", boxID, kind))
 }
 
 // overlayActiveContent replaces description/instruction/global_instruction on
@@ -351,7 +384,7 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateWorkflowAgent(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if err := s.validatePiAgentWrite(ctx, wsID, agent); err != nil {
+	if err := s.validateBoxAgentWrite(ctx, wsID, agent); err != nil {
 		return nil, err
 	}
 
@@ -483,7 +516,7 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateWorkflowAgent(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if err := s.validatePiAgentWrite(ctx, wsID, update); err != nil {
+	if err := s.validateBoxAgentWrite(ctx, wsID, update); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -1048,7 +1081,7 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	if err := s.validatePiAgentWrite(ctx, wsID, patch); err != nil {
+	if err := s.validateBoxAgentWrite(ctx, wsID, patch); err != nil {
 		return nil, err
 	}
 	coord, err := s.requireCoordinator()

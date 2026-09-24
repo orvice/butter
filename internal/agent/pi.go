@@ -52,7 +52,12 @@ func validatePiConfig(pb *agentsv1.Agent) error {
 		return fmt.Errorf("child_agent_ids is not supported: a pi agent is a leaf — compose it as a child or workflow node of another agent instead")
 	}
 
-	cfg := pb.GetConfig()
+	return rejectBoxOwnedFields(pb.GetConfig(), "pi", "pi's tools and instructions are configured on the box, in the working directory's AGENTS.md and .pi/ (ADR-0011)")
+}
+
+// rejectBoxOwnedFields refuses every butter-side behavior field on a
+// box-backed leaf (PI, CURSOR) whose behavior surface lives on the ButterBox.
+func rejectBoxOwnedFields(cfg *agentsv1.AgentConfig, kind, hint string) error {
 	boxOwned := []struct {
 		set   bool
 		field string
@@ -68,7 +73,7 @@ func validatePiConfig(pb *agentsv1.Agent) error {
 	}
 	for _, f := range boxOwned {
 		if f.set {
-			return fmt.Errorf("%s is not supported on a pi agent: pi's tools and instructions are configured on the box, in the working directory's AGENTS.md and .pi/ (ADR-0011)", f.field)
+			return fmt.Errorf("%s is not supported on a %s agent: %s", f.field, kind, hint)
 		}
 	}
 	return nil

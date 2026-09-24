@@ -77,6 +77,10 @@ service ButterBoxService {
   // ListButterBoxModels reports the box's pi model catalog (the models pi is
   // configured with on the box).
   rpc ListButterBoxModels(ListButterBoxModelsRequest) returns (ListButterBoxModelsResponse);
+
+  // ListButterBoxCursorModels reports the box's Cursor model catalog (from
+  // the box's CursorService, which asks Cursor's API with the box's key).
+  rpc ListButterBoxCursorModels(ListButterBoxCursorModelsRequest) returns (ListButterBoxCursorModelsResponse);
 }
 
 message ListButterBoxesRequest {}
@@ -165,4 +169,20 @@ message ButterBoxModel {
   string name = 3;
   // True when the model supports reasoning/thinking levels.
   bool reasoning = 4;
+}
+
+message ListButterBoxCursorModelsRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ListButterBoxCursorModelsResponse {
+  repeated ButterBoxCursorModel models = 1;
+}
+
+// ButterBoxCursorModel is one entry of a box's Cursor model catalog.
+message ButterBoxCursorModel {
+  // Model ID as accepted by Cursor (e.g. "composer-2.5").
+  string id = 1;
+  // Human-readable model name.
+  string name = 2;
 }

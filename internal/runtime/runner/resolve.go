@@ -48,8 +48,9 @@ func (s *Service) ResolveAgentRef(workspaceID, agentID string) (string, bool) {
 }
 
 // SupportsModelOverride reports whether the referenced Agent accepts a Butter
-// model override. Pi owns model selection on its ButterBox, so policy-driven
-// entry points expose no Butter model candidates while a Pi Agent is active.
+// model override. Box-backed agents (Pi, Cursor) own model selection on their
+// ButterBox, so policy-driven entry points expose no Butter model candidates
+// while one is active.
 func (s *Service) SupportsModelOverride(workspaceID, agentID string) (bool, bool) {
 	name, ok := s.ResolveAgentRef(workspaceID, agentID)
 	if !ok {
@@ -61,7 +62,12 @@ func (s *Service) SupportsModelOverride(workspaceID, agentID string) (bool, bool
 		// behavior on the system path.
 		return true, true
 	}
-	return agentType != agentsv1.AgentType_AGENT_TYPE_PI, true
+	switch agentType {
+	case agentsv1.AgentType_AGENT_TYPE_PI, agentsv1.AgentType_AGENT_TYPE_CURSOR:
+		return false, true
+	default:
+		return true, true
+	}
 }
 
 // HasAgentIDInWorkspace reports whether an agent with the given agent_id is

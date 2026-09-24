@@ -82,6 +82,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	internalautomation "go.orx.me/apps/butter/internal/runtime/automation"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
+	"go.orx.me/apps/butter/internal/runtime/cursorbox"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
 	"go.orx.me/apps/butter/internal/runtime/pibox"
@@ -356,14 +357,18 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// Setup S3-backed artifact service if configured. nil disables artifacts.
 	artifactSvc := setupArtifactService(ctx, cfg)
 
-	// PI agents (ADR-0011) bridge to a ButterBox's PiService; box tokens go
-	// through the same database-backed master-key keyring as the other
-	// credential seams.
-	piBuilder := pibox.AgentBuilder(pibox.NewFactory(butterBoxRepo, secretbox.NewKeyring(cryptoKeyRepo)))
+	// PI agents (ADR-0011) bridge to a ButterBox's PiService and CURSOR
+	// agents to its CursorService; box tokens go through the same
+	// database-backed master-key keyring as the other credential seams.
+	boxKeyring := secretbox.NewKeyring(cryptoKeyRepo)
+	boxBuilders := &internalagent.BoxAgentBuilders{
+		Pi:     pibox.AgentBuilder(pibox.NewFactory(butterBoxRepo, boxKeyring)),
+		Cursor: cursorbox.AgentBuilder(cursorbox.NewFactory(butterBoxRepo, boxKeyring)),
+	}
 
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))
-	runnerSvc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, fileRepo, cfg.AgentFiles.EffectiveMaxFileBytes(), skillRepo, pluginConfig, mcpAuthResolver, piBuilder)
+	runnerSvc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, fileRepo, cfg.AgentFiles.EffectiveMaxFileBytes(), skillRepo, pluginConfig, mcpAuthResolver, boxBuilders)
 	if err == nil {
 		runnerSvc.SetInvocationRecorder(invRepo)
 	}
