@@ -4,9 +4,9 @@
 // internal/runtime/pibox (ADR-0011).
 //
 // Unlike PiService, CursorService.SendMessage is one held call that returns
-// the final text once the Cursor turn ends; the turn's deadline and
-// cancellation ride that call's context, and AbortSession is issued on the
-// same single cancellation path. One Cursor session exists per (butter
+// the final text once the Cursor turn ends; the turn's cancellation rides that
+// call's context (its deadline is enforced client-side, ADR-0012 §3), and
+// AbortSession is issued on the same single cancellation path. One Cursor session exists per (butter
 // session × agent), keyed in ADK session state; on a repointed agent or a
 // session the box no longer knows, the bridge abandons and recreates —
 // sessions are never migrated. The Cursor API key lives in the box's

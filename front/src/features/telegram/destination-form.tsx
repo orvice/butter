@@ -13,6 +13,7 @@ import {
   TelegramSessionPolicy,
   TelegramTriggerMode,
 } from '@/gen/agents/v1/telegram_pb'
+import { AGENT_TYPE_LABELS } from '@/lib/constants'
 import type { AgentType } from '@/types/api'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { Button } from '@/components/ui/button'
@@ -73,18 +74,18 @@ const EMPTY: FormState = {
   debugDefault: true,
 }
 
-/**
- * One form for creating and editing a Destination. The address fields are
- * disabled in edit mode because they are immutable server-side: a Cron job or
- * Notify Group already persists this Destination's ID, so changing where it
- * points would silently redirect them.
- */
 // Box-backed agents (Pi, Cursor) own their model on the ButterBox, so the
 // Destination exposes no Butter model candidates for them.
 function ownsModelSelection(type: AgentType | undefined): boolean {
   return type === 'AGENT_TYPE_PI' || type === 'AGENT_TYPE_CURSOR'
 }
 
+/**
+ * One form for creating and editing a Destination. The address fields are
+ * disabled in edit mode because they are immutable server-side: a Cron job or
+ * Notify Group already persists this Destination's ID, so changing where it
+ * points would silently redirect them.
+ */
 export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
   const navigate = useNavigate()
   const params = useParams({ strict: false })
@@ -346,7 +347,7 @@ export function TelegramDestinationForm({ mode }: { mode: 'create' | 'edit' }) {
               </div>
               {selectedAgentOwnsModel && (
                 <p className='text-sm text-muted-foreground'>
-                  {selectedAgent?.type === 'AGENT_TYPE_CURSOR' ? 'Cursor' : 'Pi'} uses the model in
+                  {AGENT_TYPE_LABELS[selectedAgent?.type ?? '']} uses the model in
                   its ButterBox binding, so Telegram model switching is locked while this Agent is
                   active.
                 </p>

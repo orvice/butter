@@ -247,8 +247,9 @@ func NewService(ctx context.Context, agents []agentsv1.Agent, providers []agents
 }
 
 // NewServiceWithMCPHTTPClientFactory builds the agent registry with a shared
-// MCP HTTP client factory used by runtime toolsets and an optional PI agent
-// builder (the ButterBox bridge, ADR-0011).
+// MCP HTTP client factory used by runtime toolsets and optional box-backed
+// agent builders (the ButterBox bridges for PI and CURSOR agents, ADR-0011 /
+// ADR-0012).
 func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, sessionSvc session.Service, memorySvc memory.Service, artifactSvc artifact.Service, agentFileRepo agentfile.Repository, agentFileMaxBytes int64, skillRepo skillrepo.Repository, pluginConfig adkrunner.PluginConfig, mcpHTTPFactory internalagent.MCPHTTPClientFactory, boxBuilders *internalagent.BoxAgentBuilders) (*Service, error) {
 	logger := log.FromContext(ctx)
 	basePluginConfig := pluginConfig
