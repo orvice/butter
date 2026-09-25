@@ -45,9 +45,10 @@ LLM and the embedder.
 
 ### 2. One Workspace Memory Config per workspace; the API key never enters the proto
 
-`WorkspaceMemoryConfig` holds the base URL, an `enabled` flag and a
-`credential_state`. A workspace has zero or one, enforced by upsert keyed by
-workspace, following the `WorkspaceRepoBinding` precedent. Members can read
+`WorkspaceMemoryConfig` holds the base URL, an `enabled` flag and the
+derived `credential_set` / `credential_updated_at` (the ButterBox shape). A
+workspace has zero or one, enforced by keying the stored document by
+workspace ID, following the `WorkspaceRepoBinding` precedent. Members can read
 it; owners, admins and global admins can manage it.
 
 The API key is write-only. It is encrypted through a credential seam

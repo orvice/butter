@@ -61,6 +61,7 @@ type Handlers struct {
 	workspaceSvcServer     *application.WorkspaceServiceServer
 	gitHostSvcServer       *application.GitHostServiceServer
 	butterBoxSvcServer     *application.ButterBoxServiceServer
+	memoryConfigSvcServer  *application.WorkspaceMemoryConfigServiceServer
 	repoBindingSvcServer   *application.RepoBindingServiceServer
 	tgChannelSvcServer     *application.TelegramChannelServiceServer
 	tgDestinationSvcServer *application.TelegramDestinationServiceServer
@@ -422,6 +423,13 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.butterBoxSvcServer.SetAgentRepo(h.agentRepo)
 		h.agentSvcServer.SetButterBoxRepo(result.ButterBoxRepo)
 	}
+	// Workspace Memory Config (ADR-0013). The mem0 API key goes through the
+	// same database-backed master key as ButterBox and Telegram tokens.
+	if h.memoryConfigSvcServer != nil && result.MemoryConfigRepo != nil {
+		h.memoryConfigSvcServer.SetRepo(result.MemoryConfigRepo)
+		h.memoryConfigSvcServer.SetKeyring(secretbox.NewKeyring(result.CryptoKeyRepo))
+		h.memoryConfigSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+	}
 	// Telegram Channels/Destinations (issue #264). The keyring is shared by
 	// both services so a Bot Token encrypted by one is readable by the other.
 	if result.TelegramRepo != nil {
@@ -696,6 +704,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	gitHostConnectPath, gitHostConnectHandler := agentsv1connect.NewGitHostServiceHandler(gitHostSvcServer, connectOpts...)
 	butterBoxSvcServer := application.NewButterBoxServiceServer(nil)
 	butterBoxConnectPath, butterBoxConnectHandler := agentsv1connect.NewButterBoxServiceHandler(butterBoxSvcServer, connectOpts...)
+	memoryConfigSvcServer := application.NewWorkspaceMemoryConfigServiceServer(nil)
+	memoryConfigConnectPath, memoryConfigConnectHandler := agentsv1connect.NewWorkspaceMemoryConfigServiceHandler(memoryConfigSvcServer, connectOpts...)
 	repoBindingSvcServer := application.NewRepoBindingServiceServer(nil, nil)
 	repoBindingSvcServer.SetAgentRepo(configStore)
 	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg.
@@ -740,6 +750,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		workspaceSvcServer:     workspaceSvcServer,
 		gitHostSvcServer:       gitHostSvcServer,
 		butterBoxSvcServer:     butterBoxSvcServer,
+		memoryConfigSvcServer:  memoryConfigSvcServer,
 		repoBindingSvcServer:   repoBindingSvcServer,
 		tgChannelSvcServer:     tgChannelSvcServer,
 		tgDestinationSvcServer: tgDestinationSvcServer,
@@ -812,6 +823,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
 		r.Any("/api"+butterBoxConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", butterBoxConnectHandler)))
+		r.Any("/api"+memoryConfigConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", memoryConfigConnectHandler)))
 		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
 		r.Any("/api"+tgChannelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgChannelConnectHandler)))
 		r.Any("/api"+tgDestinationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgDestinationConnectHandler)))
