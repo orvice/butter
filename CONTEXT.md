@@ -107,3 +107,25 @@ _Avoid_: attachment, content part
 **Inline Data**:
 Raw bytes plus their MIME type carried inside an Input Part. Limited to whitelisted image formats (jpeg/png/gif/webp), 10 MiB per image, 10 images and 20 MiB combined payload per request — enforced by the application layer, not the schema.
 _Avoid_: blob, file upload
+
+### Memory
+
+**Workspace Memory**:
+The memory pool shared by every member, entry point, and memory-enabled Agent of a Workspace, held by the workspace's mem0 OSS server. In v1 it has no per-person partition; it is the target of every Memory Capture (ADR-0013).
+_Avoid_: user memory, user scope
+
+**Agent Memory**:
+Memory private to one Agent within a Workspace, written only explicitly through the Agent's memory tool and recalled alongside Workspace Memory.
+_Avoid_: agent knowledge
+
+**Workspace Memory Config**:
+The zero-or-one per-Workspace connection to a mem0 OSS server: base URL, enabled flag, and a write-only encrypted API key. Without an enabled one, memory-enabled Agents run without memory.
+_Avoid_: memory provider, mem0 resource
+
+**Memory Recall**:
+Retrieving Workspace and Agent Memory relevant to the current turn and presenting it to the model for that turn only; recalled memories are never written into session history.
+_Avoid_: memory preload, memory injection
+
+**Memory Capture**:
+Best-effort submission of one turn's user and assistant text to Workspace Memory for extraction after the turn completes.
+_Avoid_: memory sync, memory flush
