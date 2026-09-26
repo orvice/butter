@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// WorkspaceMemoryConfig connects a workspace to a self-hosted mem0 OSS server
+// that holds its Workspace Memory and Agent Memory (ADR-0013, issue #333). A
+// workspace has zero or one config. The mem0 API key is deliberately not a
+// proto field: it is encrypted through the secretbox credential seam and
+// `credential_set` only reports whether one is stored.
+// =============================================================================
+
+message WorkspaceMemoryConfig {
+  // ID of the workspace this config belongs to. Stamped by the repository
+  // from request context; never taken from client input.
+  // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 1;
+
+  // Base URL of the mem0 OSS REST server, e.g. "https://mem0.example.com".
+  // @gotags: json:"base_url,omitempty" yaml:"base_url,omitempty" bson:"base_url,omitempty"
+  string base_url = 2;
+
+  // When false, memory-enabled agents in this workspace run without memory.
+  // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty" bson:"enabled,omitempty"
+  bool enabled = 3;
+
+  // Reports whether a mem0 API key is stored. Derived from the credential
+  // columns on every read; never taken from client input.
+  // @gotags: json:"credential_set,omitempty" yaml:"credential_set,omitempty" bson:"credential_set,omitempty"
+  bool credential_set = 4;
+
+  // When the API key was last set or rotated. Unset when no key is stored.
+  // @gotags: json:"credential_updated_at,omitempty" yaml:"credential_updated_at,omitempty" bson:"credential_updated_at,omitempty"
+  google.protobuf.Timestamp credential_updated_at = 5;
+
+  // @gotags: json:"created_at,omitempty" yaml:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 6;
+
+  // @gotags: json:"updated_at,omitempty" yaml:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// WorkspaceMemoryConfigService manages the workspace's mem0 connection. Any
+// member may read it; owners, admins, and global admins may change it.
+service WorkspaceMemoryConfigService {
+  // GetWorkspaceMemoryConfig returns the config, or an unset `config` when
+  // the workspace has none.
+  rpc GetWorkspaceMemoryConfig(GetWorkspaceMemoryConfigRequest) returns (GetWorkspaceMemoryConfigResponse);
+
+  // PutWorkspaceMemoryConfig creates or replaces the config. When the result
+  // is enabled, the server is probed first: a rejected API key refuses the
+  // save, while an unreachable server saves and reports a warning.
+  rpc PutWorkspaceMemoryConfig(PutWorkspaceMemoryConfigRequest) returns (PutWorkspaceMemoryConfigResponse);
+
+  // DeleteWorkspaceMemoryConfig removes the config and its API key. Agents
+  // that enable memory keep running, without memory.
+  rpc DeleteWorkspaceMemoryConfig(DeleteWorkspaceMemoryConfigRequest) returns (DeleteWorkspaceMemoryConfigResponse);
+
+  // TestWorkspaceMemoryConnection probes the stored config's server with the
+  // stored API key and reports the outcome.
+  rpc TestWorkspaceMemoryConnection(TestWorkspaceMemoryConnectionRequest) returns (TestWorkspaceMemoryConnectionResponse);
+}
+
+message GetWorkspaceMemoryConfigRequest {}
+
+message GetWorkspaceMemoryConfigResponse {
+  // Unset when the workspace has no config.
+  WorkspaceMemoryConfig config = 1;
+}
+
+message PutWorkspaceMemoryConfigRequest {
+  string base_url = 1;
+  bool enabled = 2;
+  // Write-only mem0 API key. Absent keeps the stored key, empty clears it,
+  // any other value sets or rotates it.
+  optional string api_key = 3;
+}
+
+message PutWorkspaceMemoryConfigResponse {
+  WorkspaceMemoryConfig config = 1;
+  // Non-empty when the config was saved but the probe could not reach the
+  // server.
+  string warning = 2;
+}
+
+message DeleteWorkspaceMemoryConfigRequest {}
+
+message DeleteWorkspaceMemoryConfigResponse {}
+
+message TestWorkspaceMemoryConnectionRequest {}
+
+message TestWorkspaceMemoryConnectionResponse {
+  // True when the server answered the probe and accepted the API key.
+  bool ok = 1;
+  // Human-readable probe failure, empty when ok.
+  string error = 2;
+}
