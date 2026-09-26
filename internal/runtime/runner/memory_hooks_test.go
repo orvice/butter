@@ -348,3 +348,107 @@ func TestMemoryRecallReachesAnLLMRoot(t *testing.T) {
 		t.Fatalf("LLM root system instructions = %q", systems)
 	}
 }
+
+// toolCallingModel calls add_memory on its first turn step and answers
+// with text once it sees the function response. It records the tool names
+// each request offered.
+type toolCallingModel struct {
+	mu      sync.Mutex
+	offered [][]string
+}
+
+func (m *toolCallingModel) Name() string { return "tool-calling-model" }
+
+func (m *toolCallingModel) GenerateContent(_ context.Context, req *model.LLMRequest, _ bool) iter.Seq2[*model.LLMResponse, error] {
+	var names []string
+	if req.Config != nil {
+		for _, tl := range req.Config.Tools {
+			for _, fd := range tl.FunctionDeclarations {
+				names = append(names, fd.Name)
+			}
+		}
+	}
+	m.mu.Lock()
+	m.offered = append(m.offered, names)
+	m.mu.Unlock()
+
+	answered := false
+	if n := len(req.Contents); n > 0 {
+		for _, p := range req.Contents[n-1].Parts {
+			if p.FunctionResponse != nil {
+				answered = true
+			}
+		}
+	}
+	return func(yield func(*model.LLMResponse, error) bool) {
+		if answered {
+			yield(&model.LLMResponse{Content: genai.NewContentFromText("Saved.", genai.RoleModel), FinishReason: genai.FinishReasonStop}, nil)
+			return
+		}
+		yield(&model.LLMResponse{
+			Content: &genai.Content{Role: genai.RoleModel, Parts: []*genai.Part{
+				genai.NewPartFromFunctionCall("add_memory", map[string]any{"content": "The team deploys with pnpm"}),
+			}},
+			FinishReason: genai.FinishReasonStop,
+		}, nil)
+	}
+}
+
+func TestMemoryToolsWorkThroughTheADKToolFlow(t *testing.T) {
+	fx := newMemoryFixture(t, nil)
+	mc := &agentsv1.MemoryConfig{Enabled: true, EnableTools: true, DisableAutoRecall: true, DisableAutoCapture: true}
+	memSvc := fx.svc.toolsetDeps.memory
+	if memSvc == nil {
+		t.Fatal("runner did not pick up the mem0 memory service for tools")
+	}
+	ts, err := newToolsetFactory(fx.svc.toolsetDeps)(t.Context(), &agentsv1.Agent{AgentId: "mem-tools", Config: &agentsv1.AgentConfig{Memory: mc}})
+	if err != nil || len(ts) != 1 || ts[0].Name() != "memory" {
+		t.Fatalf("toolset factory = %v, %v; want the memory toolset", ts, err)
+	}
+
+	m := &toolCallingModel{}
+	root, err := llmagent.New(llmagent.Config{Name: "mem-tools", Model: m, Toolsets: ts})
+	if err != nil {
+		t.Fatalf("llmagent.New: %v", err)
+	}
+	fx.svc.RegisterAgent("mem-tools", root)
+	fx.svc.mu.Lock()
+	fx.svc.agentsProto["mem-tools"] = &agentsv1.Agent{
+		Name: "mem-tools", AgentId: "mem-tools", WorkspaceId: "ws1",
+		Type: agentsv1.AgentType_AGENT_TYPE_LLM, Config: &agentsv1.AgentConfig{Memory: mc},
+	}
+	fx.svc.mu.Unlock()
+
+	out, err := fx.svc.Run(t.Context(), "mem-tools", []*genai.Part{{Text: "Remember that we deploy with pnpm."}}, "", memoryCtxInfo("s7"), nil, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if out != "Saved." {
+		t.Fatalf("output = %q", out)
+	}
+	if first := m.offered[0]; strings.Join(first, ",") != "search_memory,add_memory" {
+		t.Fatalf("tools offered = %v", first)
+	}
+	_, adds := fx.mem0.recorded()
+	if len(adds) != 1 || adds[0]["user_id"] != "ws:ws1" {
+		t.Fatalf("adds = %v, want one Workspace Memory write from the tool", adds)
+	}
+	if msg := adds[0]["messages"].([]any)[0].(map[string]any); msg["content"] != "The team deploys with pnpm" {
+		t.Fatalf("tool add message = %v", msg)
+	}
+}
+
+func TestMemoryToolsetFactoryRespectsTheConfig(t *testing.T) {
+	fx := newMemoryFixture(t, nil)
+	factory := newToolsetFactory(fx.svc.toolsetDeps)
+	for name, mc := range map[string]*agentsv1.MemoryConfig{
+		"no memory":     nil,
+		"disabled":      {EnableTools: true},
+		"tools not set": {Enabled: true},
+	} {
+		ts, err := factory(t.Context(), &agentsv1.Agent{AgentId: "a", Config: &agentsv1.AgentConfig{Memory: mc}})
+		if err != nil || len(ts) != 0 {
+			t.Fatalf("%s: toolsets = %v, %v; want none", name, ts, err)
+		}
+	}
+}

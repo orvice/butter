@@ -139,11 +139,20 @@ func (s *Service) Recall(ctx context.Context, scope Scope, query string, opts Se
 	return merged, nil
 }
 
+// Configured reports whether the workspace has an enabled memory config.
+// A resolution failure other than "not configured" counts as configured:
+// the caller will see the real error on its next memory call.
+func (s *Service) Configured(ctx context.Context, workspaceID string) bool {
+	_, err := s.resolver.Resolve(ctx, workspaceID)
+	return !errors.Is(err, memoryconn.ErrNotConfigured)
+}
+
 // Add submits messages to one scope for extraction (`infer=true`), tagged
-// with the scope's provenance metadata. Every message is redacted first.
-func (s *Service) Add(ctx context.Context, scope Scope, target Target, messages []mem0.Message) error {
+// with the scope's provenance metadata, and returns the memories mem0
+// stored. Every message is redacted first.
+func (s *Service) Add(ctx context.Context, scope Scope, target Target, messages []mem0.Message) ([]mem0.AddResult, error) {
 	if len(messages) == 0 {
-		return nil
+		return nil, nil
 	}
 	clean := make([]mem0.Message, len(messages))
 	for i, m := range messages {
@@ -152,21 +161,20 @@ func (s *Service) Add(ctx context.Context, scope Scope, target Target, messages 
 	messages = clean
 	userID, agentID, err := scope.identity(target)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	client, err := s.client(ctx, scope.WorkspaceID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	infer := true
-	_, err = client.Add(ctx, mem0.AddRequest{
+	return client.Add(ctx, mem0.AddRequest{
 		Messages: messages,
 		UserID:   userID,
 		AgentID:  agentID,
 		Metadata: scope.metadata(),
 		Infer:    &infer,
 	})
-	return err
 }
 
 // Capture submits the user and assistant text of the scope's invocation to
@@ -177,7 +185,8 @@ func (s *Service) Capture(ctx context.Context, scope Scope, sess session.Session
 	if scope.InvocationID == "" {
 		return errors.New("memory capture needs the turn's invocation ID")
 	}
-	return s.Add(ctx, scope, TargetWorkspace, TurnMessages(sess, scope.InvocationID))
+	_, err := s.Add(ctx, scope, TargetWorkspace, TurnMessages(sess, scope.InvocationID))
+	return err
 }
 
 // CaptureTurn submits one finished turn, as the runner saw it, to Workspace
@@ -186,7 +195,8 @@ func (s *Service) CaptureTurn(ctx context.Context, scope Scope, in TurnInput) er
 	if scope.InvocationID == "" {
 		return errors.New("memory capture needs the turn's invocation ID")
 	}
-	return s.Add(ctx, scope, TargetWorkspace, in.messages(scope.InvocationID))
+	_, err := s.Add(ctx, scope, TargetWorkspace, in.messages(scope.InvocationID))
+	return err
 }
 
 // SearchMemory implements memory.Service. The scope comes from the context

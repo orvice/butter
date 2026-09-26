@@ -118,7 +118,7 @@ func TestAddWritesWorkspaceIdentityOnlyWithProvenance(t *testing.T) {
 	f := newFakeMem0(t)
 	svc := newService(t, f, true)
 
-	err := svc.Add(t.Context(), testScope, TargetWorkspace, []mem0.Message{{Role: "user", Content: "we deploy on fridays"}})
+	_, err := svc.Add(t.Context(), testScope, TargetWorkspace, []mem0.Message{{Role: "user", Content: "we deploy on fridays"}})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestAddAgentTargetWritesAgentIdentityOnly(t *testing.T) {
 	f := newFakeMem0(t)
 	svc := newService(t, f, true)
 
-	if err := svc.Add(t.Context(), testScope, TargetAgent, []mem0.Message{{Role: "user", Content: "x"}}); err != nil {
+	if _, err := svc.Add(t.Context(), testScope, TargetAgent, []mem0.Message{{Role: "user", Content: "x"}}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	_, adds := f.recorded()
@@ -170,7 +170,7 @@ func TestAddAgentTargetWritesAgentIdentityOnly(t *testing.T) {
 func TestAddWithoutMessagesSendsNothing(t *testing.T) {
 	f := newFakeMem0(t)
 	svc := newService(t, f, true)
-	if err := svc.Add(t.Context(), testScope, TargetWorkspace, nil); err != nil {
+	if _, err := svc.Add(t.Context(), testScope, TargetWorkspace, nil); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	if _, adds := f.recorded(); len(adds) != 0 {
@@ -242,7 +242,7 @@ func TestExtensionMethodsReportNotConfigured(t *testing.T) {
 		if _, err := svc.Recall(t.Context(), testScope, "q", SearchOptions{}); !errors.Is(err, memoryconn.ErrNotConfigured) {
 			t.Fatalf("%s Recall = %v, want ErrNotConfigured", name, err)
 		}
-		if err := svc.Add(t.Context(), testScope, TargetWorkspace, []mem0.Message{{Role: "user", Content: "x"}}); !errors.Is(err, memoryconn.ErrNotConfigured) {
+		if _, err := svc.Add(t.Context(), testScope, TargetWorkspace, []mem0.Message{{Role: "user", Content: "x"}}); !errors.Is(err, memoryconn.ErrNotConfigured) {
 			t.Fatalf("%s Add = %v, want ErrNotConfigured", name, err)
 		}
 	}
@@ -456,7 +456,7 @@ func TestCaptureTurnHandlesAWorkflowResume(t *testing.T) {
 func TestAddRedactsSecrets(t *testing.T) {
 	f := newFakeMem0(t)
 	svc := newService(t, f, true)
-	err := svc.Add(t.Context(), testScope, TargetWorkspace, []mem0.Message{{Role: "user", Content: "deploy key is ghp_abcdefghijklmnopqrstuvwxyz0123456789"}})
+	_, err := svc.Add(t.Context(), testScope, TargetWorkspace, []mem0.Message{{Role: "user", Content: "deploy key is ghp_abcdefghijklmnopqrstuvwxyz0123456789"}})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
