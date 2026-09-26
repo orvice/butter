@@ -110,13 +110,18 @@ and never dropped by butter. Nothing was ever written to it.
 ### 5. Memory Recall runs once per turn and is injected ephemerally
 
 The invocation's **root agent** decides whether memory applies, through
-`AgentConfig.memory`. At the start of a turn, a runner plugin searches both
-scopes once, merges the results, drops duplicate memory IDs, keeps the top
-`top_k` by score, and caches the result for the invocation.
+`AgentConfig.memory`. At the start of a turn, before the ADK run, the runner
+(`internal/runtime/memoryhook`) searches both scopes once, merges the
+results, drops duplicate memory IDs, keeps the top `top_k` by score, and
+carries the formatted block in the run context. Recall happens in the
+runner rather than in a plugin `BeforeRun` callback because ADK runs an LLM
+root through a separate node runtime; the context reaches `BeforeModel`
+callbacks on both paths.
 
 The cached block is appended to the system instruction of **every LLM call
 in the invocation**, including the LLM sub-agents of a composite or
-Workflow root. It is never written into session history, so history stays
+Workflow root, by an injection plugin registered ahead of Langfuse and
+ContextGuard so that both see the final request. It is never written into session history, so history stays
 clean and ContextGuard summaries never absorb memories.
 
 Because the injection is not persisted, recall must repeat on every turn.
@@ -138,12 +143,18 @@ it fails the model call when the search fails.
 
 ### 6. Memory Capture is best-effort, per turn, and scoped to the turn's invocation
 
-After each turn, the runner's turn-completion seam starts a background
-submission to mem0 with a 60 s timeout, detached from the request so that
-extraction latency never adds to the reply. The submission contains only
-the events of **that turn's invocation**, identified by the invocation ID
-on the events. No offset is stored, and a Workflow resume is naturally its
-own invocation.
+After each successful turn, the runner starts a background submission to
+mem0 with a 60 s timeout, detached from the request so that extraction
+latency never adds to the reply. The submission contains the user's input
+**as sent** plus the final assistant text of the events **this turn
+appended** under the turn's ADK invocation ID. Nothing is persisted: the
+runner remembers the session's event count from before the run.
+
+Both refinements exist because a Workflow resume is *not* its own
+invocation. ADK reuses the paused invocation's ID for the resume, and the
+runner rewraps the reply as a `FunctionResponse` that carries no text.
+Selecting by invocation ID alone would resend the exchange from before the
+pause and lose the reply.
 
 - **What is sent:** user text and final assistant text only. Tool calls,
   tool results and thoughts are excluded; images become a placeholder.
@@ -212,5 +223,5 @@ models.
 - **The pool accumulates near-duplicates and superseded facts** (v3 is
   ADD-only). v1 has no management UI. Viewing and deleting memories is
   tracked as follow-up work.
-- **The runner's turn-completion seam must expose the session and
-  invocation identity** so that capture can select the turn's events.
+- **`TurnResult` exposes the turn's ADK invocation ID**, so capture and
+  other listeners can select the turn's events.

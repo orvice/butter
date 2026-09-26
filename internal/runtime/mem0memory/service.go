@@ -140,11 +140,16 @@ func (s *Service) Recall(ctx context.Context, scope Scope, query string, opts Se
 }
 
 // Add submits messages to one scope for extraction (`infer=true`), tagged
-// with the scope's provenance metadata.
+// with the scope's provenance metadata. Every message is redacted first.
 func (s *Service) Add(ctx context.Context, scope Scope, target Target, messages []mem0.Message) error {
 	if len(messages) == 0 {
 		return nil
 	}
+	clean := make([]mem0.Message, len(messages))
+	for i, m := range messages {
+		clean[i] = mem0.Message{Role: m.Role, Content: Redact(m.Content)}
+	}
+	messages = clean
 	userID, agentID, err := scope.identity(target)
 	if err != nil {
 		return err
@@ -166,12 +171,22 @@ func (s *Service) Add(ctx context.Context, scope Scope, target Target, messages 
 
 // Capture submits the user and assistant text of the scope's invocation to
 // Workspace Memory. Only events carrying scope.InvocationID are sent, so a
-// turn is captured once no matter how long the session grows.
+// turn is captured once no matter how long the session grows. The runner
+// uses CaptureTurn instead, which also handles workflow resumes.
 func (s *Service) Capture(ctx context.Context, scope Scope, sess session.Session) error {
 	if scope.InvocationID == "" {
 		return errors.New("memory capture needs the turn's invocation ID")
 	}
 	return s.Add(ctx, scope, TargetWorkspace, TurnMessages(sess, scope.InvocationID))
+}
+
+// CaptureTurn submits one finished turn, as the runner saw it, to Workspace
+// Memory (Memory Capture, ADR-0013 §6).
+func (s *Service) CaptureTurn(ctx context.Context, scope Scope, in TurnInput) error {
+	if scope.InvocationID == "" {
+		return errors.New("memory capture needs the turn's invocation ID")
+	}
+	return s.Add(ctx, scope, TargetWorkspace, in.messages(scope.InvocationID))
 }
 
 // SearchMemory implements memory.Service. The scope comes from the context

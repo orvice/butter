@@ -415,3 +415,54 @@ func TestTruncateRunes(t *testing.T) {
 		t.Fatalf("truncateRunes at limit = %q", got)
 	}
 }
+
+// A workflow resume reuses the paused invocation's ID and rewraps the reply
+// as a FunctionResponse: capture must send the typed reply and only what
+// this turn appended.
+func TestCaptureTurnHandlesAWorkflowResume(t *testing.T) {
+	f := newFakeMem0(t)
+	svc := newService(t, f, true)
+	events := []*session.Event{
+		// The turn that paused (same invocation ID as the resume).
+		textEvent("inv-2", "user", genai.NewPartFromText("ship the release")),
+		textEvent("inv-2", "helper", genai.NewPartFromText("Which version should I tag?")),
+	}
+	fromEvent := len(events)
+	events = append(events,
+		// The resume turn: the reply arrives as a FunctionResponse.
+		textEvent("inv-2", "user", genai.NewPartFromFunctionResponse("human_input", map[string]any{"answer": "v2.1.0"})),
+		textEvent("inv-2", "helper", genai.NewPartFromText("Tagged v2.1.0.")),
+	)
+	sess := newTestSession(t, events)
+
+	err := svc.CaptureTurn(t.Context(), testScope, TurnInput{Session: sess, FromEvent: fromEvent, UserText: "v2.1.0"})
+	if err != nil {
+		t.Fatalf("CaptureTurn: %v", err)
+	}
+	_, adds := f.recorded()
+	if len(adds) != 1 {
+		t.Fatalf("adds = %d", len(adds))
+	}
+	var got []string
+	for _, m := range adds[0]["messages"].([]any) {
+		msg := m.(map[string]any)
+		got = append(got, msg["role"].(string)+": "+msg["content"].(string))
+	}
+	if strings.Join(got, " | ") != "user: v2.1.0 | assistant: Tagged v2.1.0." {
+		t.Fatalf("captured = %q", got)
+	}
+}
+
+func TestAddRedactsSecrets(t *testing.T) {
+	f := newFakeMem0(t)
+	svc := newService(t, f, true)
+	err := svc.Add(t.Context(), testScope, TargetWorkspace, []mem0.Message{{Role: "user", Content: "deploy key is ghp_abcdefghijklmnopqrstuvwxyz0123456789"}})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	_, adds := f.recorded()
+	content := adds[0]["messages"].([]any)[0].(map[string]any)["content"].(string)
+	if strings.Contains(content, "ghp_") || !strings.Contains(content, "[REDACTED]") {
+		t.Fatalf("content = %q", content)
+	}
+}
