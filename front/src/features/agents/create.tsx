@@ -29,6 +29,13 @@ import {
 } from './cursor-config'
 import { PiAgentConfigurationCard } from './pi-agent-fields'
 import { ContextGuardConfigurationCard } from './context-guard-fields'
+import { MemoryConfigurationCard } from './memory-fields'
+import {
+  buildMemoryConfig,
+  EMPTY_MEMORY_FORM_VALUES,
+  memoryFormSchema,
+  supportsMemory,
+} from './memory-config'
 import {
   buildContextGuardConfig,
   contextGuardFormSchema,
@@ -83,6 +90,7 @@ const agentSchema = z.object({
   })).optional(),
   icon_url: z.string().optional(),
   context_guard: contextGuardFormSchema,
+  memory: memoryFormSchema,
   pi: piAgentFormSchema,
   cursor: cursorAgentFormSchema,
 }).superRefine((values, ctx) => {
@@ -118,6 +126,7 @@ export function AgentCreate() {
       file_mounts: [],
       icon_url: '',
       context_guard: { ...EMPTY_CONTEXT_GUARD_FORM_VALUES },
+      memory: { ...EMPTY_MEMORY_FORM_VALUES },
       pi: { ...EMPTY_PI_AGENT_FORM_VALUES },
       cursor: { ...EMPTY_CURSOR_AGENT_FORM_VALUES },
     },
@@ -126,6 +135,7 @@ export function AgentCreate() {
   const iconUrl = useWatch({ control: form.control, name: 'icon_url' })
   const agentType = useWatch({ control: form.control, name: 'type' })
   const contextGuardValues = useWatch({ control: form.control, name: 'context_guard' })
+  const memoryValues = useWatch({ control: form.control, name: 'memory' })
   const piValues = useWatch({ control: form.control, name: 'pi' })
   const cursorValues = useWatch({ control: form.control, name: 'cursor' })
 
@@ -167,6 +177,7 @@ export function AgentCreate() {
         context_guard: supportsContextGuard(values.type)
           ? buildContextGuardConfig(values.context_guard)
           : undefined,
+        memory: buildMemoryConfig(values.memory, values.type),
       },
     }
     let agent: Agent = baseAgent
@@ -397,6 +408,21 @@ export function AgentCreate() {
                 mode: form.formState.errors.context_guard?.mode?.message,
                 maxTokens: form.formState.errors.context_guard?.maxTokens?.message,
                 maxTurns: form.formState.errors.context_guard?.maxTurns?.message,
+              }}
+            />
+          )}
+
+          {supportsMemory(agentType) && (
+            <MemoryConfigurationCard
+              value={memoryValues ?? EMPTY_MEMORY_FORM_VALUES}
+              agentType={agentType}
+              onChange={(value) => form.setValue('memory', value, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })}
+              errors={{
+                topK: form.formState.errors.memory?.topK?.message,
+                threshold: form.formState.errors.memory?.threshold?.message,
               }}
             />
           )}

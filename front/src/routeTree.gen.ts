@@ -24,6 +24,7 @@ import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/c
 import { Route as AuthenticatedDaemonsRouteImport } from './routes/_authenticated/daemons'
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedManageRouteImport } from './routes/_authenticated/manage'
+import { Route as AuthenticatedMemoryRouteImport } from './routes/_authenticated/memory'
 import { Route as AuthenticatedOperationsRouteImport } from './routes/_authenticated/operations'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedRepoBindingRouteImport } from './routes/_authenticated/repo-binding'
@@ -148,6 +149,11 @@ const AuthenticatedIntegrationsRoute =
 const AuthenticatedManageRoute = AuthenticatedManageRouteImport.update({
   id: '/manage',
   path: '/manage',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMemoryRoute = AuthenticatedMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedOperationsRoute = AuthenticatedOperationsRouteImport.update({
@@ -458,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/daemons': typeof AuthenticatedDaemonsRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/manage': typeof AuthenticatedManageRoute
+  '/memory': typeof AuthenticatedMemoryRoute
   '/operations': typeof AuthenticatedOperationsRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/repo-binding': typeof AuthenticatedRepoBindingRoute
@@ -522,6 +529,7 @@ export interface FileRoutesByTo {
   '/daemons': typeof AuthenticatedDaemonsRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/manage': typeof AuthenticatedManageRoute
+  '/memory': typeof AuthenticatedMemoryRoute
   '/operations': typeof AuthenticatedOperationsRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/repo-binding': typeof AuthenticatedRepoBindingRoute
@@ -590,6 +598,7 @@ export interface FileRoutesById {
   '/_authenticated/daemons': typeof AuthenticatedDaemonsRoute
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/manage': typeof AuthenticatedManageRoute
+  '/_authenticated/memory': typeof AuthenticatedMemoryRoute
   '/_authenticated/operations': typeof AuthenticatedOperationsRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/repo-binding': typeof AuthenticatedRepoBindingRoute
@@ -659,6 +668,7 @@ export interface FileRouteTypes {
     | '/daemons'
     | '/integrations'
     | '/manage'
+    | '/memory'
     | '/operations'
     | '/profile'
     | '/repo-binding'
@@ -723,6 +733,7 @@ export interface FileRouteTypes {
     | '/daemons'
     | '/integrations'
     | '/manage'
+    | '/memory'
     | '/operations'
     | '/profile'
     | '/repo-binding'
@@ -790,6 +801,7 @@ export interface FileRouteTypes {
     | '/_authenticated/daemons'
     | '/_authenticated/integrations'
     | '/_authenticated/manage'
+    | '/_authenticated/memory'
     | '/_authenticated/operations'
     | '/_authenticated/profile'
     | '/_authenticated/repo-binding'
@@ -958,6 +970,13 @@ declare module '@tanstack/react-router' {
       path: '/manage'
       fullPath: '/manage'
       preLoaderRoute: typeof AuthenticatedManageRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/memory': {
+      id: '/_authenticated/memory'
+      path: '/memory'
+      fullPath: '/memory'
+      preLoaderRoute: typeof AuthenticatedMemoryRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/operations': {
@@ -1340,6 +1359,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDaemonsRoute: typeof AuthenticatedDaemonsRoute
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedManageRoute: typeof AuthenticatedManageRoute
+  AuthenticatedMemoryRoute: typeof AuthenticatedMemoryRoute
   AuthenticatedOperationsRoute: typeof AuthenticatedOperationsRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedRepoBindingRoute: typeof AuthenticatedRepoBindingRoute
@@ -1397,6 +1417,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDaemonsRoute: AuthenticatedDaemonsRoute,
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedManageRoute: AuthenticatedManageRoute,
+  AuthenticatedMemoryRoute: AuthenticatedMemoryRoute,
   AuthenticatedOperationsRoute: AuthenticatedOperationsRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedRepoBindingRoute: AuthenticatedRepoBindingRoute,

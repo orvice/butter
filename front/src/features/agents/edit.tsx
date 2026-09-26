@@ -46,6 +46,14 @@ import {
 } from './cursor-config'
 import { PiAgentConfigurationCard } from './pi-agent-fields'
 import { ContextGuardConfigurationCard } from './context-guard-fields'
+import { MemoryConfigurationCard } from './memory-fields'
+import {
+  buildMemoryConfig,
+  EMPTY_MEMORY_FORM_VALUES,
+  memoryFormSchema,
+  memoryFormValuesFromConfig,
+  supportsMemory,
+} from './memory-config'
 import {
   buildContextGuardConfig,
   contextGuardFormSchema,
@@ -87,6 +95,7 @@ const agentSchema = z.object({
   })).optional(),
   icon_url: z.string().optional(),
   context_guard: contextGuardFormSchema,
+  memory: memoryFormSchema,
   pi: piAgentFormSchema,
   cursor: cursorAgentFormSchema,
 }).superRefine((values, ctx) => {
@@ -149,6 +158,7 @@ export function AgentEdit() {
       file_mounts: [],
       icon_url: '',
       context_guard: { ...EMPTY_CONTEXT_GUARD_FORM_VALUES },
+      memory: { ...EMPTY_MEMORY_FORM_VALUES },
       pi: { ...EMPTY_PI_AGENT_FORM_VALUES },
       cursor: { ...EMPTY_CURSOR_AGENT_FORM_VALUES },
     },
@@ -157,6 +167,7 @@ export function AgentEdit() {
   const iconUrl = useWatch({ control: form.control, name: 'icon_url' })
   const agentType = useWatch({ control: form.control, name: 'type' })
   const contextGuardValues = useWatch({ control: form.control, name: 'context_guard' })
+  const memoryValues = useWatch({ control: form.control, name: 'memory' })
   const piValues = useWatch({ control: form.control, name: 'pi' })
   const cursorValues = useWatch({ control: form.control, name: 'cursor' })
 
@@ -189,6 +200,7 @@ export function AgentEdit() {
         file_mounts: toAgentFileMountFormValues(a.config?.file_mounts),
         icon_url: agentIconUrl(a),
         context_guard: contextGuardFormValuesFromConfig(a.config?.context_guard),
+        memory: memoryFormValuesFromConfig(a.config?.memory),
         pi: piFormValuesFromConfig(a.config?.pi),
         cursor: cursorFormValuesFromConfig(a.config?.cursor),
       })
@@ -221,6 +233,7 @@ export function AgentEdit() {
         context_guard: supportsContextGuard(values.type)
           ? buildContextGuardConfig(values.context_guard)
           : undefined,
+        memory: buildMemoryConfig(values.memory, values.type),
       },
     }
     if (values.type === 'AGENT_TYPE_PI') return asPiAgent(agent, values.pi)
@@ -286,6 +299,7 @@ export function AgentEdit() {
           file_mounts: toAgentFileMountFormValues(agent.config?.file_mounts),
           icon_url: agentIconUrl(agent),
           context_guard: contextGuardFormValuesFromConfig(agent.config?.context_guard),
+          memory: memoryFormValuesFromConfig(agent.config?.memory),
           pi: piFormValuesFromConfig(agent.config?.pi),
           cursor: cursorFormValuesFromConfig(agent.config?.cursor),
         })
@@ -484,6 +498,21 @@ export function AgentEdit() {
                     mode: form.formState.errors.context_guard?.mode?.message,
                     maxTokens: form.formState.errors.context_guard?.maxTokens?.message,
                     maxTurns: form.formState.errors.context_guard?.maxTurns?.message,
+                  }}
+                />
+              )}
+
+              {supportsMemory(agentType) && (
+                <MemoryConfigurationCard
+                  value={memoryValues ?? EMPTY_MEMORY_FORM_VALUES}
+                  agentType={agentType}
+                  onChange={(value) => form.setValue('memory', value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })}
+                  errors={{
+                    topK: form.formState.errors.memory?.topK?.message,
+                    threshold: form.formState.errors.memory?.threshold?.message,
                   }}
                 />
               )}
