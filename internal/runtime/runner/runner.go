@@ -25,10 +25,12 @@ import (
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/agentfiletool"
+	"go.orx.me/apps/butter/internal/memorytool"
 	"go.orx.me/apps/butter/internal/repo/agentfile"
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
+	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryhook"
 	"go.orx.me/apps/butter/internal/skilltool"
 	"go.orx.me/apps/butter/internal/workspace"
@@ -265,6 +267,9 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
 	deps := toolsetDeps{agentFileRepo: agentFileRepo, agentFileMaxBytes: agentFileMaxBytes, skillRepo: skillRepo}
+	if ms, ok := memorySvc.(*mem0memory.Service); ok {
+		deps.memory = ms
+	}
 	toolsetFactory := newToolsetFactory(deps)
 
 	// Validate model alias uniqueness.
@@ -348,10 +353,13 @@ type toolsetDeps struct {
 	agentFileRepo     agentfile.Repository
 	agentFileMaxBytes int64
 	skillRepo         skillrepo.Repository
+	// memory backs the search_memory / add_memory tools (ADR-0013 §7); nil
+	// when the runner's memory service is not the mem0-backed one.
+	memory *mem0memory.Service
 }
 
 func newToolsetFactory(deps toolsetDeps) internalagent.ToolsetFactory {
-	if deps.agentFileRepo == nil && deps.skillRepo == nil {
+	if deps.agentFileRepo == nil && deps.skillRepo == nil && deps.memory == nil {
 		return nil
 	}
 	return func(ctx context.Context, pb *agentsv1.Agent) ([]tool.Toolset, error) {
@@ -375,6 +383,17 @@ func newToolsetFactory(deps toolsetDeps) internalagent.ToolsetFactory {
 				return nil, fmt.Errorf("create skill toolset: %w", err)
 			}
 			toolsets = append(toolsets, ts)
+		}
+		// Memory tools are built for every LLM agent that enables them and
+		// offered per turn only when that agent is the invocation's root.
+		if mc := pb.GetConfig().GetMemory(); deps.memory != nil && mc.GetEnabled() && mc.GetEnableTools() {
+			ts, err := memorytool.NewToolset(deps.memory, pb.GetAgentId())
+			if err != nil {
+				return nil, err
+			}
+			if ts != nil {
+				toolsets = append(toolsets, ts)
+			}
 		}
 		return toolsets, nil
 	}

@@ -57,6 +57,34 @@ type Turn struct {
 	userText  string
 	fromEvent int
 	block     string
+	// toolsAvailable is resolved once per turn so the memory toolset can
+	// decide per model call without touching the config store.
+	toolsAvailable bool
+}
+
+// Scope is the turn's memory scope: the root agent's workspace and Agent ID
+// plus provenance. Callers fill InvocationID themselves.
+func (t *Turn) Scope() mem0memory.Scope {
+	if t == nil {
+		return mem0memory.Scope{}
+	}
+	return t.scope
+}
+
+// Config is the root agent's MemoryConfig.
+func (t *Turn) Config() *agentsv1.MemoryConfig {
+	if t == nil {
+		return nil
+	}
+	return t.config
+}
+
+// ToolsFor reports whether the memory tools of the agent with agentID are
+// usable in this turn: the agent is the invocation's root, enables the
+// tools, and its workspace has an enabled memory config. A memory-enabled
+// agent running as someone else's sub-agent gets no tools (ADR-0013 §7).
+func (t *Turn) ToolsFor(agentID string) bool {
+	return t != nil && t.toolsAvailable && agentID != "" && t.scope.AgentID == agentID
 }
 
 // Block is the formatted recall block injected into model calls; empty
@@ -129,6 +157,9 @@ func (h *Hooks) Begin(ctx context.Context, root *agentsv1.Agent, info *agentsv1.
 	}
 	if !mc.GetDisableAutoRecall() {
 		t.block = h.recall(ctx, t, prior)
+	}
+	if mc.GetEnableTools() {
+		t.toolsAvailable = h.svc.Configured(ctx, t.scope.WorkspaceID)
 	}
 	// The scope also serves callers that reach memory through ADK's
 	// memory.Service interface during the run.

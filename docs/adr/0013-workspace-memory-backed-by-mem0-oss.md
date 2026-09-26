@@ -176,6 +176,14 @@ The tools are mounted only when the root agent is itself an LLM agent.
 Composite roots do not have tools pushed into their sub-agents. Writing
 Agent Memory also requires `allow_agent_scope_write`.
 
+Mechanically, the toolset is built for every LLM agent that sets
+`enable_tools`, and its `Tools(ctx)` offers the tools per turn. It offers
+them only when that agent is the invocation's root and its workspace has an
+enabled config, resolved once per turn. The same agent running as someone
+else's sub-agent sees no memory tools. `add_memory` waits (up to 30 s) for
+mem0's extraction and reports what was stored, so the model learns when mem0
+judged the content a duplicate.
+
 There are no update or delete tools. Deleting memories is for people, not
 models.
 
