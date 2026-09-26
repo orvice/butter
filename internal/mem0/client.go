@@ -92,6 +92,45 @@ type resultsEnvelope struct {
 	Results []Memory `json:"results"`
 }
 
+// Message is one conversation message submitted for extraction.
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// AddRequest is the body of `POST /memories`. At least one of UserID or
+// AgentID must be set. `run_id` is deliberately not exposed: butter never
+// sets it, because it would narrow mem0's add-time dedup (ADR-0013 §3).
+type AddRequest struct {
+	Messages []Message      `json:"messages"`
+	UserID   string         `json:"user_id,omitempty"`
+	AgentID  string         `json:"agent_id,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
+	// Infer asks the server to extract facts with its LLM (the server
+	// default); false stores the messages verbatim.
+	Infer *bool `json:"infer,omitempty"`
+}
+
+// AddResult is one memory the server stored for an add.
+type AddResult struct {
+	ID     string `json:"id"`
+	Memory string `json:"memory"`
+	Event  string `json:"event"`
+}
+
+// Add runs `POST /memories`. With inference on, the OSS server answers only
+// after its extraction LLM call, so callers should run it off the request
+// path with a generous timeout.
+func (c *Client) Add(ctx context.Context, req AddRequest) ([]AddResult, error) {
+	var out struct {
+		Results []AddResult `json:"results"`
+	}
+	if err := c.post(ctx, "/memories", req, &out); err != nil {
+		return nil, err
+	}
+	return out.Results, nil
+}
+
 // Search runs `POST /search` and returns the matching memories.
 func (c *Client) Search(ctx context.Context, req SearchRequest) ([]Memory, error) {
 	var out resultsEnvelope

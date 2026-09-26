@@ -47,6 +47,49 @@ func TestSearchSendsAPIKeyAndDecodesResults(t *testing.T) {
 	}
 }
 
+func TestAddSendsMessagesAndScope(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/memories" {
+			t.Errorf("request = %s %s, want POST /memories", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Errorf("decode body: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"results":[{"id":"m9","memory":"prefers pnpm","event":"ADD"}]}`))
+	}))
+	defer srv.Close()
+
+	infer := true
+	got, err := New(srv.URL, "k", srv.Client()).Add(t.Context(), AddRequest{
+		Messages: []Message{{Role: "user", Content: "we use pnpm"}, {Role: "assistant", Content: "noted"}},
+		UserID:   "ws:w1",
+		Metadata: map[string]any{"session_id": "s1"},
+		Infer:    &infer,
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "m9" || got[0].Event != "ADD" {
+		t.Fatalf("results = %+v", got)
+	}
+	if gotBody["user_id"] != "ws:w1" || gotBody["infer"] != true {
+		t.Fatalf("body = %v", gotBody)
+	}
+	for _, absent := range []string{"agent_id", "run_id"} {
+		if _, ok := gotBody[absent]; ok {
+			t.Fatalf("body carries %s: %v", absent, gotBody)
+		}
+	}
+	msgs, _ := gotBody["messages"].([]any)
+	if len(msgs) != 2 {
+		t.Fatalf("messages = %v", gotBody["messages"])
+	}
+	if meta, _ := gotBody["metadata"].(map[string]any); meta["session_id"] != "s1" {
+		t.Fatalf("metadata = %v", gotBody["metadata"])
+	}
+}
+
 func TestSearchWithoutAPIKeySendsNoHeader(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := r.Header["X-Api-Key"]; ok {

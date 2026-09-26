@@ -87,7 +87,8 @@ import (
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/cursorbox"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
-	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
+	"go.orx.me/apps/butter/internal/runtime/mem0memory"
+	"go.orx.me/apps/butter/internal/runtime/memoryconn"
 	"go.orx.me/apps/butter/internal/runtime/pibox"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
@@ -160,12 +161,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	sessionSvc, err := mongosession.New(ctx, db)
 	if err != nil {
 		logger.Error("failed to create mongo session service", "err", err)
-		return nil, err
-	}
-
-	memorySvc, err := mongomemory.New(ctx, db)
-	if err != nil {
-		logger.Error("failed to create mongo memory service", "err", err)
 		return nil, err
 	}
 
@@ -376,6 +371,11 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		Pi:     pibox.AgentBuilder(pibox.NewFactory(butterBoxRepo, boxKeyring)),
 		Cursor: cursorbox.AgentBuilder(cursorbox.NewFactory(butterBoxRepo, boxKeyring)),
 	}
+
+	// Workspace/Agent Memory (ADR-0013) lives on each workspace's mem0 OSS
+	// server; the service resolves the WorkspaceMemoryConfig per call and is
+	// a no-op for workspaces without an enabled one.
+	memorySvc := mem0memory.New(memoryconn.NewResolver(memoryConfigRepo, secretbox.NewKeyring(cryptoKeyRepo)))
 
 	// Build runner service.
 	logger.Info("building runner service", "agent_count", len(cfg.Agents))

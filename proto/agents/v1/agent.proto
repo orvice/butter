@@ -140,6 +140,12 @@ message AgentConfig {
   // @gotags: json:"skills,omitempty" yaml:"skills,omitempty"
   repeated string skills = 7;
 
+  // Memory configures mem0-backed Workspace/Agent Memory (ADR-0013). Only
+  // the invocation's root agent's config applies; PI and CURSOR agents
+  // reject it on write.
+  // @gotags: json:"memory,omitempty" yaml:"memory,omitempty"
+  MemoryConfig memory = 8;
+
   // --- LLM agent fields (used when type is LLM or UNSPECIFIED) ---
 
   // Model identifier (for example: "gemini-2.5-pro").
@@ -578,6 +584,42 @@ message ContextGuardConfig {
   // the selected model's configured or embedded context metadata.
   // @gotags: json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"
   int32 max_tokens = 3;
+}
+
+// MemoryConfig controls an agent's use of Workspace Memory and Agent Memory
+// (ADR-0013). Memory needs an enabled WorkspaceMemoryConfig; without one the
+// agent runs without memory. Booleans are phrased so that the zero value is
+// the default: enabling memory turns on automatic Memory Recall and Memory
+// Capture, while the memory tools stay off until requested.
+message MemoryConfig {
+  // Master switch. When false, the rest of the config has no effect.
+  // @gotags: json:"enabled,omitempty" yaml:"enabled,omitempty"
+  bool enabled = 1;
+
+  // Skip the automatic per-turn Memory Recall.
+  // @gotags: json:"disable_auto_recall,omitempty" yaml:"disable_auto_recall,omitempty"
+  bool disable_auto_recall = 2;
+
+  // Skip the automatic per-turn Memory Capture into Workspace Memory.
+  // @gotags: json:"disable_auto_capture,omitempty" yaml:"disable_auto_capture,omitempty"
+  bool disable_auto_capture = 3;
+
+  // Mount the search_memory / add_memory tools (LLM root agents only).
+  // @gotags: json:"enable_tools,omitempty" yaml:"enable_tools,omitempty"
+  bool enable_tools = 4;
+
+  // Allow add_memory to write Agent Memory (scope = agent). Automatic
+  // capture never writes Agent Memory.
+  // @gotags: json:"allow_agent_scope_write,omitempty" yaml:"allow_agent_scope_write,omitempty"
+  bool allow_agent_scope_write = 5;
+
+  // Maximum memories injected per turn across both scopes. Unset means 5.
+  // @gotags: json:"top_k,omitempty" yaml:"top_k,omitempty"
+  optional int32 top_k = 6;
+
+  // Minimum mem0 relevance score, in [0, 1]. Unset means 0.3.
+  // @gotags: json:"threshold,omitempty" yaml:"threshold,omitempty"
+  optional float threshold = 7;
 }
 
 // RemoteAgent describes a remote agent reachable over a network protocol.
