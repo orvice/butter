@@ -10,6 +10,7 @@ import {
   Blocks,
   Bot,
   Box,
+  Brain,
   Building2,
   Cable,
   ChevronRight,
@@ -191,6 +192,12 @@ const WORKSPACE_SECTION: ManageSection = {
       description: 'Bind this workspace to a Git repository for agent content.',
       to: '/repo-binding',
       icon: GitBranch,
+    },
+    {
+      title: 'Memory',
+      description: 'Connect this workspace to a mem0 server for agent memory.',
+      to: '/memory',
+      icon: Brain,
     },
     {
       title: 'Profile',

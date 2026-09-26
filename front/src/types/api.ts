@@ -147,6 +147,17 @@ export interface ContextGuardConfig {
   max_tokens?: number;
 }
 
+/** mem0-backed Workspace/Agent Memory settings (ADR-0013). */
+export interface MemoryConfig {
+  enabled?: boolean;
+  disable_auto_recall?: boolean;
+  disable_auto_capture?: boolean;
+  enable_tools?: boolean;
+  allow_agent_scope_write?: boolean;
+  top_k?: number;
+  threshold?: number;
+}
+
 export interface AgentRuntime {
   streaming_mode?: StreamingMode;
   save_input_blobs_as_artifacts?: boolean;
@@ -175,6 +186,7 @@ export interface AgentConfig {
   runtime?: AgentRuntime;
   mcp_servers?: MCPServer[];
   context_guard?: ContextGuardConfig;
+  memory?: MemoryConfig;
   mcp_server_ids?: string[];
   remote_agent_ids?: string[];
   file_mounts?: AgentFileMount[];
