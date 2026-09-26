@@ -199,6 +199,79 @@ session service is retained, so history and ContextGuard state keys survive;
 the existing post-ContextGuard compaction notifier and its callback contract are
 unchanged.
 
+### Agent memory configuration
+
+`Agent.config.memory` opts an Agent into mem0-backed long-term memory
+(ADR-0013). Memory also needs the workspace's `WorkspaceMemoryConfig` (see
+[WorkspaceMemoryConfigService](#workspacememoryconfigservice)) to be present
+and enabled. Without it, a memory-enabled Agent runs normally, without memory.
+
+```json
+{
+  "config": {
+    "memory": {
+      "enabled": true,
+      "enable_tools": true,
+      "top_k": 8,
+      "threshold": 0.4
+    }
+  }
+}
+```
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `enabled` | bool | `false` | Master switch; the other fields have no effect while it is off |
+| `disable_auto_recall` | bool | `false` | Skip the automatic per-turn Memory Recall |
+| `disable_auto_capture` | bool | `false` | Skip the automatic per-turn Memory Capture |
+| `enable_tools` | bool | `false` | Mount the `search_memory` / `add_memory` tools (LLM roots only) |
+| `allow_agent_scope_write` | bool | `false` | Let `add_memory` write Agent Memory (`scope: "agent"`) |
+| `top_k` | int32 | 5 | Memories recalled per turn across both scopes; 1–50 |
+| `threshold` | float | 0.3 | Minimum mem0 relevance score; 0–1 |
+
+The booleans are phrased so their zero values are the defaults: enabling
+memory turns on recall and capture, while the tools stay off until requested.
+Out-of-range `top_k` / `threshold` values are rejected with
+`invalid_argument`. `AGENT_TYPE_PI` and `AGENT_TYPE_CURSOR` Agents reject the
+field, because their behavior is configured on the ButterBox. The field is
+operational config, stored in the database and never in Git-backed Agent
+Content.
+
+**Only the invocation's root Agent's `memory` applies.** A memory-enabled
+Agent running as another Agent's sub-agent follows its root's settings. A
+composite or Workflow root still drives memory for the whole tree.
+
+- **Memory Recall.** Before each turn, the runner searches Workspace Memory
+  and the root Agent's Agent Memory, using the user's message as the query.
+  When the message is shorter than 20 characters, the previous user message
+  is prepended. The top `top_k` results are appended to the system
+  instruction of **every model call in that turn**, including LLM sub-agents,
+  as a dated `<memories>` block of at most 4,000 characters. The block is
+  never written to the session. Recall has a 2 s timeout.
+- **Memory Capture.** After each successful turn, the user's input and the
+  agents' final replies from that turn are sent to Workspace Memory in the
+  background. Tool calls and thoughts are left out, images become
+  `[image]`, and common secret shapes are redacted first. Capture runs
+  detached from the reply, with a 60 s timeout.
+- **Memory tools.** These are mounted only when the root Agent is itself an
+  LLM Agent with `enable_tools`, and the workspace config is enabled.
+  - `search_memory(query, scope?, top_k?)`: `scope` is `"workspace"` (the
+    default) or `"agent"`. `top_k` is capped at 20.
+  - `add_memory(content, scope?)`: `content` is at most 2,000 characters.
+    The call waits for mem0's extraction and returns what was stored.
+  
+  The model never chooses whose memory it touches: the workspace, Agent ID,
+  and provenance come from the server. Failures come back to the model as
+  tool errors, and the turn continues.
+
+Every mem0 failure degrades to "no memory" and never fails a turn.
+**Workspace Memory is shared** by every member, entry point (dashboard, API,
+OpenAI-compatible API, AG-UI, A2A, Telegram, cron, automation, forum), and
+memory-enabled Agent of the workspace. Anyone who can talk to a
+memory-enabled Agent can therefore influence what the others recall. This
+includes everyone who can reach a Telegram Bot whose Destination has an empty
+`allowed_user_ids`.
+
 ### Plain JSON examples
 
 Login:
@@ -1555,6 +1628,7 @@ replayed; clients must call `RetryAgentOperation` explicitly.
 | `mcp_server_ids` | string[] | References to shared MCP servers |
 | `remote_agent_ids` | string[] | References to shared remote agents |
 | `context_guard` | ContextGuardConfig | Context window management |
+| `memory` | MemoryConfig | mem0-backed Workspace/Agent Memory; see [Agent memory configuration](#agent-memory-configuration) |
 | `file_mounts` | AgentFileMount[] | Agent Files spaces mounted into the built-in `agent_files_*` tools |
 | `include_contents` | enum | `LLM_INCLUDE_CONTENTS_DEFAULT`, `LLM_INCLUDE_CONTENTS_NONE` |
 | `output_key` | string | Session state key for output |
@@ -3956,6 +4030,67 @@ the runtime. Without a valid snapshot it refuses by default; callers may choose
 `KEEP_DATABASE` explicitly. Remote Git history is never changed by detaching.
 
 `overlaps[]` lists other workspaces bound to the same effective location (same host, repository, branch, and root path). Overlap is allowed and means those workspaces intentionally share Agent Content.
+
+### WorkspaceMemoryConfigService
+
+Manages the current workspace's connection to a self-hosted
+[mem0 OSS](https://github.com/mem0ai/mem0) REST server. This backs Workspace
+Memory and Agent Memory (ADR-0013). A workspace has zero or one config.
+
+- **Headers:** requires `X-Workspace-ID`.
+- **Access:** every workspace member can call `Get` and
+  `TestWorkspaceMemoryConnection`. `Put` and `Delete` require the workspace
+  `owner` or `admin` role. Global admins bypass the role check, and the
+  bypass is audited.
+- **API key:** write-only. It is encrypted at rest under the database-backed
+  master key and never returned. `credential_set` / `credential_updated_at`
+  report whether and when a key was stored.
+
+| RPC | Path | Notes |
+| --- | --- | --- |
+| `GetWorkspaceMemoryConfig` | `POST /api/agents.v1.WorkspaceMemoryConfigService/GetWorkspaceMemoryConfig` | `{ "config": WorkspaceMemoryConfig? }`; `config` is unset when the workspace has none |
+| `PutWorkspaceMemoryConfig` | `POST /api/agents.v1.WorkspaceMemoryConfigService/PutWorkspaceMemoryConfig` | Creates or replaces the config; see the request and probe rules below. Returns `{ "config", "warning" }` |
+| `DeleteWorkspaceMemoryConfig` | `POST /api/agents.v1.WorkspaceMemoryConfigService/DeleteWorkspaceMemoryConfig` | Removes the config and key; `not_found` without one. There is no reference check: memory-enabled Agents keep running, without memory. Memories on the mem0 server are not deleted |
+| `TestWorkspaceMemoryConnection` | `POST /api/agents.v1.WorkspaceMemoryConfigService/TestWorkspaceMemoryConnection` | Probes the stored config with the stored key: `{ "ok", "error" }`. A failed probe is data, not an RPC error; `not_found` without a config |
+
+**`PutWorkspaceMemoryConfig` request:** `{ "base_url", "enabled", "api_key"? }`.
+
+- `base_url` must be an absolute http(s) URL.
+- `api_key` is optional and write-only: leave it out to keep the stored key,
+  send `""` to clear it, or send a value to set or rotate it.
+
+**Probe on save:** when the result is enabled, `Put` first runs one read-only
+search against the server.
+
+- If the server rejects the key (401/403), the save is refused with
+  `failed_precondition`.
+- If the server is unreachable, the config is saved and `warning` explains why.
+
+`WorkspaceMemoryConfig` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workspace_id` | string | Owning workspace (server-stamped) |
+| `base_url` | string | mem0 OSS server URL |
+| `enabled` | bool | When false, memory-enabled Agents in the workspace run without memory |
+| `credential_set` | bool | Whether an API key is stored (derived) |
+| `credential_updated_at` | Timestamp | When the key was last set or rotated |
+| `created_at` / `updated_at` | Timestamp | |
+
+**Deployment:** butter speaks only the mem0 OSS REST API, with `X-API-Key`
+auth and unversioned `/memories` and `/search` paths. It does not speak the
+hosted mem0 platform API. Run the mem0 server with authentication enabled,
+and configure its extraction LLM and embedder on the mem0 side; butter never
+calls `/configure` or `/reset`.
+
+Memories are stored under these identities:
+
+- Workspace Memory: `user_id = "ws:<workspace_id>"`.
+- Agent Memory: `agent_id = "ws:<workspace_id>:agent:<agent_id>"`.
+
+Provenance is stored in `butter_*` metadata keys. mem0 OSS v3 extraction is
+ADD-only, so superseded facts and near-duplicates accumulate. There is no
+memory browsing UI yet (#339).
 
 ---
 

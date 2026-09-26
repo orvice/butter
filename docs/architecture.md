@@ -204,16 +204,39 @@ input parts + ContextInfo
       AND session has pending Interrupts (interrupt.Pending)
       AND input is plain text:
         rewrap as FunctionResponse targeting oldest pending Interrupt
+  -> Memory Recall (memoryhook.Begin, ADR-0013), when the root agent's
+     config.memory is enabled: search both scopes once, carry the
+     <memories> block + memory scope in ctx
   -> run ADK runner
-  -> collect final response text
+      (memory injection plugin appends the block to every model call's
+       system instruction; memory tools read the scope from ctx)
+  -> collect final response text; record the ADK invocation ID
   -> detect Human Input questions in session events
       -> append question text to output
   -> re-scan session for remaining pending Interrupts (interrupt.Pending)
+  -> Memory Capture (memoryhook.Finish): background goroutine sends the
+     turn's user input + final replies to Workspace Memory
   -> notify TurnListeners (cron uses this for WAITING_INPUT)
   -> stream non-final events to callback
 ```
 
 `ContextInfo` 提供 channel、session、user、source 和 uuid。Runner 使用 MongoDB session service 保持 ADK 上下文，使用 mem0 支持的 memory service（`internal/runtime/mem0memory`，ADR-0013）读写各 workspace 的 Workspace/Agent Memory，并按 channel/agent/model 维度缓存 ADK runner。
+
+**长期记忆**（ADR-0013）：记忆由各 workspace 自托管的 mem0 OSS 服务端保存。butter 一侧分四层：
+
+- `internal/mem0`：最小的 REST 客户端，只实现 `/memories` 和 `/search`，认证用 `X-API-Key`。
+- `internal/runtime/memoryconn`：每次调用都重新读取 `WorkspaceMemoryConfig` 并解密 key，不做缓存。
+- `internal/runtime/mem0memory`：实现 ADK `memory.Service`，替换了原来的 Mongo 实现。在此之上提供 `Search` / `Recall` / `Add` / `CaptureTurn` 扩展方法，并负责 scope 和 ID 编码。
+- `internal/runtime/memoryhook`：在每轮 runner 前后接入召回和写入。
+
+各部分的具体做法：
+
+- **根 agent 决定是否启用。** runtime 里 agent 以名字注册，runner 按名字找到根 agent 的 proto，从中取出 Agent ID 和 `config.memory`。
+- **召回在 runner 里做。** 召回放在 ADK run 之前，不放在插件的 `BeforeRun` 回调里，因为 LLM 根 agent 会走 ADK 的另一条节点运行时（`runNode`）。召回结果经 ctx 传到 BeforeModel 插件，这条路径在两种运行时下都能到达。
+- **插件排在最前面。** 注入插件注册在 Langfuse 和 ContextGuard 之前，这样 Langfuse 记录、ContextGuard 计数看到的都是注入后的请求。
+- **写入的内容范围。** workflow 恢复时 ADK 会沿用暂停前那一轮的 invocation ID，恢复时用户的回复又被重包成 FunctionResponse。所以写入的内容是"运行前发出的用户输入"，加上"运行前 session 事件数之后、属于本轮 invocation 的最终回复"。
+- **记忆工具集。** `internal/memorytool` 的工具集在构建 agent 时挂到开了 `enable_tools` 的 LLM agent 上，但每次模型调用时由 `Tools(ctx)` 判断是否提供：只有这个 agent 是本次调用的根 agent、并且 workspace 配置已启用时才提供。
+- **失败处理。** mem0 出任何问题都降级为"没有记忆"。召回和写入的结果写日志，同时生成 OTel span（`memory.recall` / `memory.capture`）。
 
 **Workflow 暂停/恢复**（`internal/runtime/interrupt`，单一派生 seam）：pending Interrupt 从 session events 派生（`interrupt.Pending` 扫描 `adk_request_input` FunctionCall/FunctionResponse 对，FIFO 最老优先），不额外存储。当 session 有未回答的 Interrupt 且新消息为纯文本时，`interrupt.Resume` 隐式将文本重包为最老 Interrupt 的 FunctionResponse，workflow engine 在该 session 上恢复；`runner/workflow_resume.go` 只负责把隐式恢复限定在含 Workflow 的 agent 上。已携带 FunctionResponse 的精确地址回复直接透传。cron 的 WAITING_INPUT 判定通过 `TurnResult.Pending`（同一 seam 产出）消费，不自行扫描 events。删除 session（`ClearSession`）可放弃暂停中的 workflow。
 
@@ -509,7 +532,8 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 默认数据库名为 `butter`，可通过 `mongo_db` 配置。MongoDB 负责：
 
 - ADK sessions（`adk_sessions` / `adk_events`）。`session/mongo.Service.CountSessions` 给 dashboard overview 用。
-- ADK memories。
+- ADK memories：旧的 `adk_memories` 集合已不再使用，只保留不删除。长期记忆存在各 workspace 的 mem0 OSS 服务端上（ADR-0013）。
+- `workspace_memory_configs`：每个 workspace 最多一份 mem0 连接配置，`_id` 为 workspace ID；API key 用数据库主密钥加密后存进单独的凭证列。
 - 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemon_runtimes` / legacy `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键，并对 `(workspace_id, name)` 建索引。
 - Agent Files：`agent_file_spaces` / `agent_files` / `agent_file_versions`。
 - Skills：`skills`（元数据 + 内容 key，`(workspace_id, name)` 唯一索引）与 `skill_resources`（资源路径索引，`(workspace_id, skill_name, path)` 索引）；`SKILL.md` 正文与资源内容走 `skill.ContentStore`（S3，未配置 bucket 时回退内存）。

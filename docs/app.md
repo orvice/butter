@@ -1,12 +1,12 @@
 # Butter 功能总览
 
-更新时间：2026-08-26
+更新时间：2026-09-26
 
 Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入口（HTTP / ConnectRPC / gRPC / 即时消息 / 定时任务）统一编排为 Google ADK Agent 执行流，并提供配置化、热更新、多执行面、多租户与持久化运行时。
 
 ## 0. Workspace 多租户
 
-- **Workspace 实体**：所有 Agent / Channel / MCP Server / Remote Agent / Model Provider / Notify Group / Agent File / Forum / Cron Job / Automation / API Token / Invocation / Cron Execution / Automation Run 必须归属一个 workspace。`WorkspaceService` 暴露 workspace 与成员（`owner` / `admin` / `member`）的 CRUD。
+- **Workspace 实体**：所有 Agent / Channel / MCP Server / Remote Agent / Model Provider / Notify Group / Agent File / Forum / Cron Job / Automation / API Token / Invocation / Cron Execution / Automation Run / Workspace Memory Config 必须归属一个 workspace。`WorkspaceService` 暴露 workspace 与成员（`owner` / `admin` / `member`）的 CRUD。
 - **请求级别 workspace 选择**：客户端通过 `X-Workspace-ID` HTTP 头选择活跃 workspace；`AuthMiddleware` 校验该用户是 workspace 成员（全局 `admin` 角色旁路）。workspace-scoped RPC 缺失 header 时返回 `failed_precondition`；`AuthService` / `WorkspaceService` / `DashboardService` 不需要该 header，`DaemonService` 的配置、credential 签发、在线 daemon / task 查询需要 workspace，daemon 原生 gRPC `Connect` 由 daemon credential 自带 workspace。`SessionService.ReplySession` 建议带 header 以便 runner 在正确 workspace 解析 agent。
 - **登录返回 workspace 列表**：`AuthService.Login` 在响应中带 `workspaces`，dashboard 登录后弹 workspace 选择器，把选中的 workspace 写入后续请求头。
 - **API token 自带 workspace**：`CreateAPIToken` 时记录创建上下文的 workspace；用 API token 鉴权时直接绑定到 token 的 workspace，忽略 header。
@@ -239,6 +239,52 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 - **会话维度的 Agent Runner 缓存**：按 `channel:agent:model` 维度缓存 ADK runner 实例。
 - **LLM 自动标题（Web Chat）**：首轮对话完成后 dashboard 调用 `GenerateSessionTitle`。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。
 
+### 8.1 长期记忆（mem0 OSS，ADR-0013）
+
+Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 Claude Code / Codex / pi 插件的 hook 模型：每轮开始前自动召回，每轮结束后自动写入，也可以让模型自己调用记忆工具。butter 只对接**自托管的 mem0 OSS REST API**，不支持 mem0 云平台。
+
+**配置分两层：**
+
+- **Workspace Memory Config**：每个 workspace 最多一份，在 dashboard 的 **Manage → Workspace → Memory**（`/memory`）配置。
+  - 内容包括 mem0 服务端地址、启用开关和一个只写的 API key。API key 用数据库主密钥加密，任何接口都读不回来。
+  - 成员可读；owner、admin 和全局管理员可以修改。
+  - 保存一份启用的配置时会先探测一次：key 被拒绝就不保存；连不上时照样保存，同时给出警告。页面上也可以随时点"测试连接"。
+  - 删除配置时不检查引用，开了记忆的 agent 会自动降级成不带记忆运行。mem0 上已经存下的记忆不会被删除。
+- **Agent 配置 `config.memory`**：在 agent 编辑页的 Memory 卡片里配置。
+  - 选项有：启用、自动召回、自动写入、记忆工具、允许写 agent scope、每轮召回条数（默认 5）、相关度阈值（默认 0.3）。
+  - 只看本次调用的**根 agent**：同一个 agent 被别人当子 agent 调用时，按根 agent 的设置来。组合型或 Workflow 根 agent 负责整棵树的记忆。
+  - PI / Cursor agent 不支持这个配置，因为它们的行为在 ButterBox 上配置。
+
+**两个 scope：**
+
+- **Workspace Memory**：v1 不区分人，整个 workspace 共用一个记忆池（mem0 `user_id = ws:<workspace_id>`）。自动写入只写到这里。
+- **Agent Memory**：单个 agent 私有（`agent_id = ws:<workspace_id>:agent:<agent_id>`），只能通过 `add_memory` 工具显式写入，而且 agent 要开启"允许写 agent scope"。
+
+**运行时行为：**
+
+- **自动召回**
+  - 每轮用用户消息搜两个 scope 各一次；消息少于 20 个字符时，会拼上上一条用户消息。
+  - 取前 `top_k` 条，整理成带日期的 `<memories>` 块，最多 4000 字符，临时追加到本轮**每一次模型调用**的 system instruction。
+  - 这个块**不写进 session**。块里注明"和当前对话冲突时以当前对话为准"。
+- **自动写入**
+  - 每轮成功后在后台把本轮内容发给 mem0 提取，`infer=true`。
+  - 发送的内容是用户原话和 agent 的最终回复；工具调用和思考过程不发，图片用 `[image]` 占位，常见密钥会先用正则脱敏。
+  - workflow 暂停后恢复的那一轮，只写恢复这一轮的内容。
+- **记忆工具**
+  - 只有根 agent 本身是 LLM agent、开了 `enable_tools`，并且 workspace 配置已启用时，模型才能看到 `search_memory` / `add_memory`。
+  - 读写哪个人、哪个 agent 的记忆由服务端决定，模型只能选 `workspace` 或 `agent` scope。
+  - `add_memory` 会等 mem0 提取完，并告诉模型实际存下了什么。
+- **降级**：mem0 出任何问题都不会让这一轮失败，只会退化成没有记忆。召回和写入的结果写入日志和 OTel span；开了 Langfuse 时 span 会进 Langfuse。
+
+**需要知道的后果：**
+
+- **workspace 内共享**：任何成员、任何入口（dashboard、API、OpenAI 兼容 API、AG-UI、A2A、Telegram、cron、automation、forum）、任何开了记忆的 agent，读写的都是同一个池子。A 在 Telegram 里告诉 agent X 的事，B 用 agent Y 时也可能被召回。
+- **投毒风险**：能和开了记忆的 agent 对话的人，都能影响其他 agent 召回到什么。如果一个 Telegram Destination 的 `allowed_user_ids` 为空，任何能找到这个 bot 的人都能往 workspace 记忆里写东西。给开放的 bot 开启记忆要谨慎。
+- **cron / automation 也会写入**：定时任务重复的提示词和输出也会进入记忆池。不需要的话，在对应 agent 上关闭自动写入。
+- **记忆只增不改**：mem0 OSS v3 的提取只会新增，旧事实、换个说法的近似重复会一直累积。目前还没有查看和删除记忆的界面（#339）。
+
+**部署前提：** 需要一个可以访问的 mem0 OSS 服务端，并开启鉴权（用 `X-API-Key`）。提取用的 LLM 和 embedder 在 mem0 那边配置，butter 不会调用 `/configure` 或 `/reset`。
+
 ## 9. 自动化工作流
 
 - **Automation 配置**：workspace-scoped，包含 name、enabled、trigger、conditions、ordered steps、policy、metadata。v1 运行 manual 和 schedule trigger，同时在模型中保留 webhook / forum / channel / daemon event trigger 形状，便于后续事件触发接入。
@@ -345,7 +391,7 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 
 - `front/` 是 Vite + React 19 + shadcn/ui 应用，TanStack Query 做数据层。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 route/feature 层 boundary。Chat 通过 `SubmitAgentInvocation` + `WatchAgentInvocation` 观察异步执行；同步兼容入口仍可使用 `AgentService.StreamAgent`。头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
-- 一级路由（`front/src/routes/`）和资源实现（`front/src/features/`）包含 Login / Chat / Forum / Dashboard / Agents / MCP Servers / Remote Agents / Daemons / Telegram Channels/Destinations / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Users / Profile / Integrations / Admin。
+- 一级路由（`front/src/routes/`）和资源实现（`front/src/features/`）包含 Login / Chat / Forum / Dashboard / Agents / MCP Servers / Remote Agents / Daemons / Telegram Channels/Destinations / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Memory / Users / Profile / Integrations / Admin。
 - 全部页面消费上面 12-16 节描述的 RPC；细节见 `docs/api.md`。
 
 ## 18.5 Telegram 运维前提
@@ -413,3 +459,4 @@ cmd/butter-daemon (客户端)
 - Automation v1 是线性有序 step，不支持 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 字段已建模但尚未接入事件路由。
 - 内置 system agent 仍为全局注册；daemon connector 是 `/api` 下的长连接入口，但连接、registry、任务路由和配置均按 workspace 隔离。
 - `pkg/proto/agents/v1` 为生成代码，改动需在 `proto/agents/v1` 中完成后重新生成。
+- 长期记忆 v1：Workspace Memory 在 workspace 内共享，不区分人；没有查看和删除记忆的界面（#339）；PI / Cursor agent 不支持；只对接 mem0 OSS，不支持 mem0 云平台。

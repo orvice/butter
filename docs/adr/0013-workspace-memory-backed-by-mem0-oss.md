@@ -1,6 +1,6 @@
 # ADR-0013: Workspace and Agent Memory backed by a mem0 OSS server
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-25
 - Issue: #332 (PRD), #333–#338 (slices), #339 (follow-up)
 - Builds on: ADR-0005 / ADR-0008 (credentials outside the public model), ADR-0010 (Agent ID as logical key)
