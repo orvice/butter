@@ -82,9 +82,12 @@ The workspace is encoded in the identity fields themselves, not only in
 field would narrow mem0's add-time dedup, so the same fact would be stored
 once per session or once per agent.
 
-Provenance lives in `metadata`: `agent_id`, `session_id`, `invocation_id`,
-`channel` and `principal`. A later per-person scope can then filter on it
-without migrating data.
+Provenance lives in `metadata` under `butter_`-prefixed keys:
+`butter_workspace_id`, `butter_agent_id`, `butter_session_id`,
+`butter_invocation_id`, `butter_channel` and `butter_principal`. The prefix
+is required, not cosmetic: mem0 silently strips identity keys such as
+`agent_id` from caller metadata. A later per-person scope can filter on
+these keys without migrating data.
 
 Agent Memory is written only explicitly, through the memory tool, and only
 when the agent allows it. Automatic capture writes Workspace Memory only.

@@ -213,7 +213,7 @@ input parts + ContextInfo
   -> stream non-final events to callback
 ```
 
-`ContextInfo` 提供 channel、session、user、source 和 uuid。Runner 使用 MongoDB session service 保持 ADK 上下文，使用 memory service 保存 ADK memory，并按 channel/agent/model 维度缓存 ADK runner。
+`ContextInfo` 提供 channel、session、user、source 和 uuid。Runner 使用 MongoDB session service 保持 ADK 上下文，使用 mem0 支持的 memory service（`internal/runtime/mem0memory`，ADR-0013）读写各 workspace 的 Workspace/Agent Memory，并按 channel/agent/model 维度缓存 ADK runner。
 
 **Workflow 暂停/恢复**（`internal/runtime/interrupt`，单一派生 seam）：pending Interrupt 从 session events 派生（`interrupt.Pending` 扫描 `adk_request_input` FunctionCall/FunctionResponse 对，FIFO 最老优先），不额外存储。当 session 有未回答的 Interrupt 且新消息为纯文本时，`interrupt.Resume` 隐式将文本重包为最老 Interrupt 的 FunctionResponse，workflow engine 在该 session 上恢复；`runner/workflow_resume.go` 只负责把隐式恢复限定在含 Workflow 的 agent 上。已携带 FunctionResponse 的精确地址回复直接透传。cron 的 WAITING_INPUT 判定通过 `TurnResult.Pending`（同一 seam 产出）消费，不自行扫描 events。删除 session（`ClearSession`）可放弃暂停中的 workflow。
 

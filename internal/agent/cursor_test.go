@@ -90,6 +90,7 @@ func TestValidateCursorAgent_RejectsBoxOwnedFields(t *testing.T) {
 			pb.Config.ContextGuard = &agentsv1.ContextGuardConfig{Strategy: agentsv1.ContextGuardStrategy_CONTEXT_GUARD_STRATEGY_THRESHOLD}
 		}},
 		{"remote_agent_ids", func(pb *agentsv1.Agent) { pb.Config.RemoteAgentIds = []string{"r1"} }},
+		{"memory", func(pb *agentsv1.Agent) { pb.Config.Memory = &agentsv1.MemoryConfig{Enabled: true} }},
 	}
 	for _, tc := range cases {
 		pb := validCursorAgent()

@@ -234,7 +234,7 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 ## 8. 会话与记忆
 
 - **ADK Session**：MongoDB session service 持久化会话事件，支持按 channel/user/session 查询、列表、删除、回复。
-- **ADK Memory**：MongoDB memory service 保存长期记忆。
+- **ADK Memory**：由各 workspace 配置的 mem0 OSS 服务端保存长期记忆（Workspace Memory / Agent Memory，ADR-0013）。
 - **ContextInfo**：runner 调用统一携带 channel、session、user、source、uuid，作为执行上下文。
 - **会话维度的 Agent Runner 缓存**：按 `channel:agent:model` 维度缓存 ADK runner 实例。
 - **LLM 自动标题（Web Chat）**：首轮对话完成后 dashboard 调用 `GenerateSessionTitle`。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。

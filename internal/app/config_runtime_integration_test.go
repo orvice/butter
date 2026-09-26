@@ -17,7 +17,8 @@ import (
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
-	mongomemory "go.orx.me/apps/butter/internal/runtime/memory/mongo"
+	"go.orx.me/apps/butter/internal/runtime/mem0memory"
+	"go.orx.me/apps/butter/internal/runtime/memoryconn"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
 	"go.orx.me/apps/butter/internal/testsupport/openaifake"
@@ -195,10 +196,8 @@ func TestMongoBackedConfigRuntimeIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new session service: %v", err)
 	}
-	memorySvc, err := mongomemory.New(ctx, db)
-	if err != nil {
-		t.Fatalf("new memory service: %v", err)
-	}
+	// No memory config repository: every workspace runs without memory.
+	memorySvc := mem0memory.New(memoryconn.NewResolver(nil, nil))
 
 	runnerSvc, err := runner.NewService(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, nil, sessionSvc, memorySvc, nil, adkrunner.PluginConfig{})
 	if err != nil {

@@ -70,6 +70,7 @@ func rejectBoxOwnedFields(cfg *agentsv1.AgentConfig, kind, hint string) error {
 		{len(cfg.GetFileMounts()) > 0, "file_mounts"},
 		{cfg.GetContextGuard() != nil, "context_guard"},
 		{len(cfg.GetRemoteAgentIds()) > 0, "remote_agent_ids"},
+		{cfg.GetMemory() != nil, "memory"},
 	}
 	for _, f := range boxOwned {
 		if f.set {

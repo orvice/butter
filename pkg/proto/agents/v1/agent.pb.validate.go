@@ -483,6 +483,35 @@ func (m *AgentConfig) validate(all bool) error {
 
 	}
 
+	if all {
+		switch v := interface{}(m.GetMemory()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AgentConfigValidationError{
+					field:  "Memory",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AgentConfigValidationError{
+					field:  "Memory",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMemory()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AgentConfigValidationError{
+				field:  "Memory",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	// no validation rules for Model
 
 	// no validation rules for Instruction
@@ -2032,6 +2061,123 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ContextGuardConfigValidationError{}
+
+// Validate checks the field values on MemoryConfig with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *MemoryConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MemoryConfig with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in MemoryConfigMultiError, or
+// nil if none found.
+func (m *MemoryConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MemoryConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Enabled
+
+	// no validation rules for DisableAutoRecall
+
+	// no validation rules for DisableAutoCapture
+
+	// no validation rules for EnableTools
+
+	// no validation rules for AllowAgentScopeWrite
+
+	if m.TopK != nil {
+		// no validation rules for TopK
+	}
+
+	if m.Threshold != nil {
+		// no validation rules for Threshold
+	}
+
+	if len(errors) > 0 {
+		return MemoryConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// MemoryConfigMultiError is an error wrapping multiple validation errors
+// returned by MemoryConfig.ValidateAll() if the designated constraints aren't met.
+type MemoryConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MemoryConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MemoryConfigMultiError) AllErrors() []error { return m }
+
+// MemoryConfigValidationError is the validation error returned by
+// MemoryConfig.Validate if the designated constraints aren't met.
+type MemoryConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MemoryConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MemoryConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MemoryConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MemoryConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MemoryConfigValidationError) ErrorName() string { return "MemoryConfigValidationError" }
+
+// Error satisfies the builtin error interface
+func (e MemoryConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMemoryConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MemoryConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MemoryConfigValidationError{}
 
 // Validate checks the field values on RemoteAgent with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
