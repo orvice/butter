@@ -29,6 +29,7 @@ import (
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
+	"go.orx.me/apps/butter/internal/runtime/memoryhook"
 	"go.orx.me/apps/butter/internal/skilltool"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -95,6 +96,10 @@ type Service struct {
 	listenerMu    sync.Mutex
 	turnListeners []TurnListener
 
+	// memoryHooks performs Memory Recall before and Memory Capture after
+	// each turn (ADR-0013); nil disables both.
+	memoryHooks *memoryhook.Hooks
+
 	cancelMu  sync.Mutex
 	cancelers map[string]cancelEntry
 
@@ -107,6 +112,10 @@ type Service struct {
 // WAITING_INPUT executions when a reply completes a paused workflow
 // (ADR 0003). Listeners run synchronously after the turn and must not block.
 type TurnListener func(ctxInfo *agentsv1.ContextInfo, turn *TurnResult, runErr error)
+
+// SetMemoryHooks wires Workspace/Agent Memory recall and capture into every
+// turn. Call it during bootstrap, before the service handles turns.
+func (s *Service) SetMemoryHooks(h *memoryhook.Hooks) { s.memoryHooks = h }
 
 // AddTurnListener registers a listener called after every turn.
 func (s *Service) AddTurnListener(fn TurnListener) {
@@ -970,6 +979,9 @@ type TurnResult struct {
 	// Pending lists the Interrupts this turn left unanswered, oldest first.
 	// Empty for a turn that ran to completion.
 	Pending []PendingInput
+	// InvocationID is the ADK invocation the turn ran under. A workflow
+	// resume reuses the paused invocation's ID.
+	InvocationID string
 }
 
 // Interrupted reports whether the turn left the session with unanswered
@@ -1145,8 +1157,11 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		"model_override", modelOverride,
 	)
 
-	// Ensure session exists; create one if not found.
+	// Ensure session exists; create one if not found. The loaded session
+	// and the input as sent are kept for Memory Recall and Capture.
 	logger.Debug("checking ADK session")
+	var priorSession session.Session
+	userParts := parts
 	if resp, err := s.sessionSvc.Get(ctx, &session.GetRequest{
 		AppName:   channelName,
 		UserID:    userID,
@@ -1163,6 +1178,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		logger.Info("ADK session created")
 	} else {
 		logger.Debug("ADK session found")
+		priorSession = resp.Session
 		// Implicit resume: with an unanswered Interrupt on the session, this
 		// message is the answer to the oldest one (ADR 0002). Gated to
 		// workflow-bearing agents — a session may be reused with a different
@@ -1181,6 +1197,10 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		ctx = WithCompactionCallback(ctx, onCompaction)
 	}
 
+	// Memory Recall: once per turn, against the root agent's MemoryConfig.
+	// The recalled block rides in ctx to the injection plugin.
+	ctx, memTurn := s.memoryHooks.Begin(ctx, agentProto, ctxInfo, priorSession, userParts)
+
 	msg := &genai.Content{Parts: parts, Role: genai.RoleUser}
 
 	var result strings.Builder
@@ -1198,6 +1218,9 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		}
 		eventCount++
 		turn.EventCount = eventCount
+		if turn.InvocationID == "" && evt.InvocationID != "" {
+			turn.InvocationID = evt.InvocationID
+		}
 		if evt.FinishReason != "" && evt.FinishReason != genai.FinishReasonUnspecified {
 			turn.FinishReason = evt.FinishReason
 		}
@@ -1290,6 +1313,9 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			turn.Pending = asked
 		}
 	}
+
+	// Memory Capture runs in the background, off the reply path.
+	s.memoryHooks.Finish(ctx, memTurn, ctxInfo, turn.InvocationID, nil)
 
 	logger.Info("ADK runner completed",
 		"event_count", eventCount,

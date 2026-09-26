@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"google.golang.org/adk/v2/plugin"
 	"google.golang.org/adk/v2/session"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
@@ -89,6 +90,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryconn"
+	"go.orx.me/apps/butter/internal/runtime/memoryhook"
 	"go.orx.me/apps/butter/internal/runtime/pibox"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
@@ -359,6 +361,9 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	if err != nil {
 		return nil, err
 	}
+	// The memory injection plugin goes first so Langfuse records, and
+	// ContextGuard counts, the request with recalled memories in it.
+	pluginConfig.Plugins = append([]*plugin.Plugin{memoryhook.InjectionPlugin()}, pluginConfig.Plugins...)
 
 	// Setup S3-backed artifact service if configured. nil disables artifacts.
 	artifactSvc := setupArtifactService(ctx, cfg)
@@ -382,6 +387,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	runnerSvc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, cfg.Agents, cfg.ModelProviders, cfg.MCPServerConfigs, cfg.RemoteAgents, daemonRegistry, sessionSvc, memorySvc, artifactSvc, fileRepo, cfg.AgentFiles.EffectiveMaxFileBytes(), skillRepo, pluginConfig, mcpAuthResolver, boxBuilders)
 	if err == nil {
 		runnerSvc.SetInvocationRecorder(invRepo)
+		runnerSvc.SetMemoryHooks(memoryhook.New(memorySvc, sessionSvc))
 	}
 	if err != nil {
 		logger.Error("failed to build runner service", "err", err)
