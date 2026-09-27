@@ -250,6 +250,12 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
   - 成员可读；owner、admin 和全局管理员可以修改。
   - 保存一份启用的配置时会先探测一次：key 被拒绝就不保存；连不上时照样保存，同时给出警告。页面上也可以随时点"测试连接"。
   - 删除配置时不检查引用，开了记忆的 agent 会自动降级成不带记忆运行。mem0 上已经存下的记忆不会被删除。
+- **记忆管理**（`/memory` 页面的 Memories 区域，#339）：
+  - 分 Workspace 和 Agent 两个 tab，可以列表查看、语义搜索、删除单条。
+  - 所有成员都能查看和搜索；只有 owner、admin 和全局管理员能删除。
+  - 每条显示内容、日期、来源 agent 和来源入口；发言人只对 owner/admin 显示。
+  - mem0 OSS 的列表接口不支持分页，所以列表最多显示最新的 200 条，更早的记忆用搜索找。
+  - mem0 自己的删除接口不校验归属，所以 butter 删除前会先核对这条记忆属于当前 workspace，不属于的一律当作不存在。
 - **Agent 配置 `config.memory`**：在 agent 编辑页的 Memory 卡片里配置。
   - 选项有：启用、自动召回、自动写入、记忆工具、允许写 agent scope、每轮召回条数（默认 5）、相关度阈值（默认 0.3）。
   - 只看本次调用的**根 agent**：同一个 agent 被别人当子 agent 调用时，按根 agent 的设置来。组合型或 Workflow 根 agent 负责整棵树的记忆。
@@ -281,7 +287,7 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
 - **workspace 内共享**：任何成员、任何入口（dashboard、API、OpenAI 兼容 API、AG-UI、A2A、Telegram、cron、automation、forum）、任何开了记忆的 agent，读写的都是同一个池子。A 在 Telegram 里告诉 agent X 的事，B 用 agent Y 时也可能被召回。
 - **投毒风险**：能和开了记忆的 agent 对话的人，都能影响其他 agent 召回到什么。如果一个 Telegram Destination 的 `allowed_user_ids` 为空，任何能找到这个 bot 的人都能往 workspace 记忆里写东西。给开放的 bot 开启记忆要谨慎。
 - **cron / automation 也会写入**：定时任务重复的提示词和输出也会进入记忆池。不需要的话，在对应 agent 上关闭自动写入。
-- **记忆只增不改**：mem0 OSS v3 的提取只会新增，旧事实、换个说法的近似重复会一直累积。目前还没有查看和删除记忆的界面（#339）。
+- **记忆只增不改**：mem0 OSS v3 的提取只会新增，旧事实、换个说法的近似重复会一直累积。可以在 `/memory` 页面的 Memories 区域查看、搜索、删除记忆（#339）。
 
 **部署前提：** 需要一个可以访问的 mem0 OSS 服务端，并开启鉴权（用 `X-API-Key`）。提取用的 LLM 和 embedder 在 mem0 那边配置，butter 不会调用 `/configure` 或 `/reset`。
 
@@ -459,4 +465,4 @@ cmd/butter-daemon (客户端)
 - Automation v1 是线性有序 step，不支持 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 字段已建模但尚未接入事件路由。
 - 内置 system agent 仍为全局注册；daemon connector 是 `/api` 下的长连接入口，但连接、registry、任务路由和配置均按 workspace 隔离。
 - `pkg/proto/agents/v1` 为生成代码，改动需在 `proto/agents/v1` 中完成后重新生成。
-- 长期记忆 v1：Workspace Memory 在 workspace 内共享，不区分人；没有查看和删除记忆的界面（#339）；PI / Cursor agent 不支持；只对接 mem0 OSS，不支持 mem0 云平台。
+- 长期记忆 v1：Workspace Memory 在 workspace 内共享，不区分人（按人区分的 scope 见 #347）；记忆管理只支持查看、搜索、删除单条，不支持修改和一键清空，列表最多显示 200 条，更早的记忆靠搜索找到；PI / Cursor agent 不支持；只对接 mem0 OSS，不支持 mem0 云平台。

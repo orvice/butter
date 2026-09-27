@@ -1139,3 +1139,881 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = TestWorkspaceMemoryConnectionResponseValidationError{}
+
+// Validate checks the field values on WorkspaceMemory with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *WorkspaceMemory) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on WorkspaceMemory with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// WorkspaceMemoryMultiError, or nil if none found.
+func (m *WorkspaceMemory) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *WorkspaceMemory) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for Memory
+
+	// no validation rules for Scope
+
+	// no validation rules for AgentId
+
+	// no validation rules for Channel
+
+	// no validation rules for Principal
+
+	// no validation rules for SessionId
+
+	if all {
+		switch v := interface{}(m.GetCreatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, WorkspaceMemoryValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, WorkspaceMemoryValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCreatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return WorkspaceMemoryValidationError{
+				field:  "CreatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, WorkspaceMemoryValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, WorkspaceMemoryValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return WorkspaceMemoryValidationError{
+				field:  "UpdatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for Score
+
+	if len(errors) > 0 {
+		return WorkspaceMemoryMultiError(errors)
+	}
+
+	return nil
+}
+
+// WorkspaceMemoryMultiError is an error wrapping multiple validation errors
+// returned by WorkspaceMemory.ValidateAll() if the designated constraints
+// aren't met.
+type WorkspaceMemoryMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m WorkspaceMemoryMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m WorkspaceMemoryMultiError) AllErrors() []error { return m }
+
+// WorkspaceMemoryValidationError is the validation error returned by
+// WorkspaceMemory.Validate if the designated constraints aren't met.
+type WorkspaceMemoryValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e WorkspaceMemoryValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e WorkspaceMemoryValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e WorkspaceMemoryValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e WorkspaceMemoryValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e WorkspaceMemoryValidationError) ErrorName() string { return "WorkspaceMemoryValidationError" }
+
+// Error satisfies the builtin error interface
+func (e WorkspaceMemoryValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sWorkspaceMemory.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = WorkspaceMemoryValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = WorkspaceMemoryValidationError{}
+
+// Validate checks the field values on ListWorkspaceMemoriesRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListWorkspaceMemoriesRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListWorkspaceMemoriesRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListWorkspaceMemoriesRequestMultiError, or nil if none found.
+func (m *ListWorkspaceMemoriesRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListWorkspaceMemoriesRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Scope
+
+	// no validation rules for AgentId
+
+	if len(errors) > 0 {
+		return ListWorkspaceMemoriesRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListWorkspaceMemoriesRequestMultiError is an error wrapping multiple
+// validation errors returned by ListWorkspaceMemoriesRequest.ValidateAll() if
+// the designated constraints aren't met.
+type ListWorkspaceMemoriesRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListWorkspaceMemoriesRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListWorkspaceMemoriesRequestMultiError) AllErrors() []error { return m }
+
+// ListWorkspaceMemoriesRequestValidationError is the validation error returned
+// by ListWorkspaceMemoriesRequest.Validate if the designated constraints
+// aren't met.
+type ListWorkspaceMemoriesRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListWorkspaceMemoriesRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListWorkspaceMemoriesRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListWorkspaceMemoriesRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListWorkspaceMemoriesRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListWorkspaceMemoriesRequestValidationError) ErrorName() string {
+	return "ListWorkspaceMemoriesRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListWorkspaceMemoriesRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListWorkspaceMemoriesRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListWorkspaceMemoriesRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListWorkspaceMemoriesRequestValidationError{}
+
+// Validate checks the field values on ListWorkspaceMemoriesResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListWorkspaceMemoriesResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListWorkspaceMemoriesResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// ListWorkspaceMemoriesResponseMultiError, or nil if none found.
+func (m *ListWorkspaceMemoriesResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListWorkspaceMemoriesResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetMemories() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListWorkspaceMemoriesResponseValidationError{
+						field:  fmt.Sprintf("Memories[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListWorkspaceMemoriesResponseValidationError{
+						field:  fmt.Sprintf("Memories[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListWorkspaceMemoriesResponseValidationError{
+					field:  fmt.Sprintf("Memories[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Truncated
+
+	// no validation rules for Limit
+
+	if len(errors) > 0 {
+		return ListWorkspaceMemoriesResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListWorkspaceMemoriesResponseMultiError is an error wrapping multiple
+// validation errors returned by ListWorkspaceMemoriesResponse.ValidateAll()
+// if the designated constraints aren't met.
+type ListWorkspaceMemoriesResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListWorkspaceMemoriesResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListWorkspaceMemoriesResponseMultiError) AllErrors() []error { return m }
+
+// ListWorkspaceMemoriesResponseValidationError is the validation error
+// returned by ListWorkspaceMemoriesResponse.Validate if the designated
+// constraints aren't met.
+type ListWorkspaceMemoriesResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListWorkspaceMemoriesResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListWorkspaceMemoriesResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListWorkspaceMemoriesResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListWorkspaceMemoriesResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListWorkspaceMemoriesResponseValidationError) ErrorName() string {
+	return "ListWorkspaceMemoriesResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListWorkspaceMemoriesResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListWorkspaceMemoriesResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListWorkspaceMemoriesResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListWorkspaceMemoriesResponseValidationError{}
+
+// Validate checks the field values on SearchWorkspaceMemoriesRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SearchWorkspaceMemoriesRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SearchWorkspaceMemoriesRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// SearchWorkspaceMemoriesRequestMultiError, or nil if none found.
+func (m *SearchWorkspaceMemoriesRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SearchWorkspaceMemoriesRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Query
+
+	// no validation rules for Scope
+
+	// no validation rules for AgentId
+
+	// no validation rules for TopK
+
+	if len(errors) > 0 {
+		return SearchWorkspaceMemoriesRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// SearchWorkspaceMemoriesRequestMultiError is an error wrapping multiple
+// validation errors returned by SearchWorkspaceMemoriesRequest.ValidateAll()
+// if the designated constraints aren't met.
+type SearchWorkspaceMemoriesRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SearchWorkspaceMemoriesRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SearchWorkspaceMemoriesRequestMultiError) AllErrors() []error { return m }
+
+// SearchWorkspaceMemoriesRequestValidationError is the validation error
+// returned by SearchWorkspaceMemoriesRequest.Validate if the designated
+// constraints aren't met.
+type SearchWorkspaceMemoriesRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SearchWorkspaceMemoriesRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SearchWorkspaceMemoriesRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SearchWorkspaceMemoriesRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SearchWorkspaceMemoriesRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SearchWorkspaceMemoriesRequestValidationError) ErrorName() string {
+	return "SearchWorkspaceMemoriesRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SearchWorkspaceMemoriesRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSearchWorkspaceMemoriesRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SearchWorkspaceMemoriesRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SearchWorkspaceMemoriesRequestValidationError{}
+
+// Validate checks the field values on SearchWorkspaceMemoriesResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SearchWorkspaceMemoriesResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SearchWorkspaceMemoriesResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// SearchWorkspaceMemoriesResponseMultiError, or nil if none found.
+func (m *SearchWorkspaceMemoriesResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SearchWorkspaceMemoriesResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetMemories() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, SearchWorkspaceMemoriesResponseValidationError{
+						field:  fmt.Sprintf("Memories[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, SearchWorkspaceMemoriesResponseValidationError{
+						field:  fmt.Sprintf("Memories[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return SearchWorkspaceMemoriesResponseValidationError{
+					field:  fmt.Sprintf("Memories[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return SearchWorkspaceMemoriesResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// SearchWorkspaceMemoriesResponseMultiError is an error wrapping multiple
+// validation errors returned by SearchWorkspaceMemoriesResponse.ValidateAll()
+// if the designated constraints aren't met.
+type SearchWorkspaceMemoriesResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SearchWorkspaceMemoriesResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SearchWorkspaceMemoriesResponseMultiError) AllErrors() []error { return m }
+
+// SearchWorkspaceMemoriesResponseValidationError is the validation error
+// returned by SearchWorkspaceMemoriesResponse.Validate if the designated
+// constraints aren't met.
+type SearchWorkspaceMemoriesResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SearchWorkspaceMemoriesResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SearchWorkspaceMemoriesResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SearchWorkspaceMemoriesResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SearchWorkspaceMemoriesResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SearchWorkspaceMemoriesResponseValidationError) ErrorName() string {
+	return "SearchWorkspaceMemoriesResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SearchWorkspaceMemoriesResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSearchWorkspaceMemoriesResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SearchWorkspaceMemoriesResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SearchWorkspaceMemoriesResponseValidationError{}
+
+// Validate checks the field values on DeleteWorkspaceMemoryRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteWorkspaceMemoryRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteWorkspaceMemoryRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeleteWorkspaceMemoryRequestMultiError, or nil if none found.
+func (m *DeleteWorkspaceMemoryRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteWorkspaceMemoryRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for MemoryId
+
+	if len(errors) > 0 {
+		return DeleteWorkspaceMemoryRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteWorkspaceMemoryRequestMultiError is an error wrapping multiple
+// validation errors returned by DeleteWorkspaceMemoryRequest.ValidateAll() if
+// the designated constraints aren't met.
+type DeleteWorkspaceMemoryRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteWorkspaceMemoryRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteWorkspaceMemoryRequestMultiError) AllErrors() []error { return m }
+
+// DeleteWorkspaceMemoryRequestValidationError is the validation error returned
+// by DeleteWorkspaceMemoryRequest.Validate if the designated constraints
+// aren't met.
+type DeleteWorkspaceMemoryRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteWorkspaceMemoryRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteWorkspaceMemoryRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteWorkspaceMemoryRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteWorkspaceMemoryRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteWorkspaceMemoryRequestValidationError) ErrorName() string {
+	return "DeleteWorkspaceMemoryRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteWorkspaceMemoryRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteWorkspaceMemoryRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteWorkspaceMemoryRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteWorkspaceMemoryRequestValidationError{}
+
+// Validate checks the field values on DeleteWorkspaceMemoryResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteWorkspaceMemoryResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteWorkspaceMemoryResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// DeleteWorkspaceMemoryResponseMultiError, or nil if none found.
+func (m *DeleteWorkspaceMemoryResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteWorkspaceMemoryResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return DeleteWorkspaceMemoryResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteWorkspaceMemoryResponseMultiError is an error wrapping multiple
+// validation errors returned by DeleteWorkspaceMemoryResponse.ValidateAll()
+// if the designated constraints aren't met.
+type DeleteWorkspaceMemoryResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteWorkspaceMemoryResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteWorkspaceMemoryResponseMultiError) AllErrors() []error { return m }
+
+// DeleteWorkspaceMemoryResponseValidationError is the validation error
+// returned by DeleteWorkspaceMemoryResponse.Validate if the designated
+// constraints aren't met.
+type DeleteWorkspaceMemoryResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteWorkspaceMemoryResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteWorkspaceMemoryResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteWorkspaceMemoryResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteWorkspaceMemoryResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteWorkspaceMemoryResponseValidationError) ErrorName() string {
+	return "DeleteWorkspaceMemoryResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteWorkspaceMemoryResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteWorkspaceMemoryResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteWorkspaceMemoryResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteWorkspaceMemoryResponseValidationError{}

@@ -258,3 +258,192 @@ var WorkspaceMemoryConfigService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "agents/v1/workspace_memory.proto",
 }
+
+const (
+	WorkspaceMemoryService_ListWorkspaceMemories_FullMethodName   = "/agents.v1.WorkspaceMemoryService/ListWorkspaceMemories"
+	WorkspaceMemoryService_SearchWorkspaceMemories_FullMethodName = "/agents.v1.WorkspaceMemoryService/SearchWorkspaceMemories"
+	WorkspaceMemoryService_DeleteWorkspaceMemory_FullMethodName   = "/agents.v1.WorkspaceMemoryService/DeleteWorkspaceMemory"
+)
+
+// WorkspaceMemoryServiceClient is the client API for WorkspaceMemoryService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type WorkspaceMemoryServiceClient interface {
+	// ListWorkspaceMemories returns the newest memories of one scope, capped
+	// at `limit` (mem0 OSS listing has no pagination; search reaches the rest).
+	ListWorkspaceMemories(ctx context.Context, in *ListWorkspaceMemoriesRequest, opts ...grpc.CallOption) (*ListWorkspaceMemoriesResponse, error)
+	// SearchWorkspaceMemories runs a semantic search in one scope.
+	SearchWorkspaceMemories(ctx context.Context, in *SearchWorkspaceMemoriesRequest, opts ...grpc.CallOption) (*SearchWorkspaceMemoriesResponse, error)
+	// DeleteWorkspaceMemory deletes one memory of this workspace. A memory
+	// that does not exist or belongs to another workspace is NotFound.
+	DeleteWorkspaceMemory(ctx context.Context, in *DeleteWorkspaceMemoryRequest, opts ...grpc.CallOption) (*DeleteWorkspaceMemoryResponse, error)
+}
+
+type workspaceMemoryServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewWorkspaceMemoryServiceClient(cc grpc.ClientConnInterface) WorkspaceMemoryServiceClient {
+	return &workspaceMemoryServiceClient{cc}
+}
+
+func (c *workspaceMemoryServiceClient) ListWorkspaceMemories(ctx context.Context, in *ListWorkspaceMemoriesRequest, opts ...grpc.CallOption) (*ListWorkspaceMemoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkspaceMemoriesResponse)
+	err := c.cc.Invoke(ctx, WorkspaceMemoryService_ListWorkspaceMemories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceMemoryServiceClient) SearchWorkspaceMemories(ctx context.Context, in *SearchWorkspaceMemoriesRequest, opts ...grpc.CallOption) (*SearchWorkspaceMemoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchWorkspaceMemoriesResponse)
+	err := c.cc.Invoke(ctx, WorkspaceMemoryService_SearchWorkspaceMemories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceMemoryServiceClient) DeleteWorkspaceMemory(ctx context.Context, in *DeleteWorkspaceMemoryRequest, opts ...grpc.CallOption) (*DeleteWorkspaceMemoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteWorkspaceMemoryResponse)
+	err := c.cc.Invoke(ctx, WorkspaceMemoryService_DeleteWorkspaceMemory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// WorkspaceMemoryServiceServer is the server API for WorkspaceMemoryService service.
+// All implementations must embed UnimplementedWorkspaceMemoryServiceServer
+// for forward compatibility.
+type WorkspaceMemoryServiceServer interface {
+	// ListWorkspaceMemories returns the newest memories of one scope, capped
+	// at `limit` (mem0 OSS listing has no pagination; search reaches the rest).
+	ListWorkspaceMemories(context.Context, *ListWorkspaceMemoriesRequest) (*ListWorkspaceMemoriesResponse, error)
+	// SearchWorkspaceMemories runs a semantic search in one scope.
+	SearchWorkspaceMemories(context.Context, *SearchWorkspaceMemoriesRequest) (*SearchWorkspaceMemoriesResponse, error)
+	// DeleteWorkspaceMemory deletes one memory of this workspace. A memory
+	// that does not exist or belongs to another workspace is NotFound.
+	DeleteWorkspaceMemory(context.Context, *DeleteWorkspaceMemoryRequest) (*DeleteWorkspaceMemoryResponse, error)
+	mustEmbedUnimplementedWorkspaceMemoryServiceServer()
+}
+
+// UnimplementedWorkspaceMemoryServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedWorkspaceMemoryServiceServer struct{}
+
+func (UnimplementedWorkspaceMemoryServiceServer) ListWorkspaceMemories(context.Context, *ListWorkspaceMemoriesRequest) (*ListWorkspaceMemoriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkspaceMemories not implemented")
+}
+func (UnimplementedWorkspaceMemoryServiceServer) SearchWorkspaceMemories(context.Context, *SearchWorkspaceMemoriesRequest) (*SearchWorkspaceMemoriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchWorkspaceMemories not implemented")
+}
+func (UnimplementedWorkspaceMemoryServiceServer) DeleteWorkspaceMemory(context.Context, *DeleteWorkspaceMemoryRequest) (*DeleteWorkspaceMemoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteWorkspaceMemory not implemented")
+}
+func (UnimplementedWorkspaceMemoryServiceServer) mustEmbedUnimplementedWorkspaceMemoryServiceServer() {
+}
+func (UnimplementedWorkspaceMemoryServiceServer) testEmbeddedByValue() {}
+
+// UnsafeWorkspaceMemoryServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to WorkspaceMemoryServiceServer will
+// result in compilation errors.
+type UnsafeWorkspaceMemoryServiceServer interface {
+	mustEmbedUnimplementedWorkspaceMemoryServiceServer()
+}
+
+func RegisterWorkspaceMemoryServiceServer(s grpc.ServiceRegistrar, srv WorkspaceMemoryServiceServer) {
+	// If the following call panics, it indicates UnimplementedWorkspaceMemoryServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&WorkspaceMemoryService_ServiceDesc, srv)
+}
+
+func _WorkspaceMemoryService_ListWorkspaceMemories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkspaceMemoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceMemoryServiceServer).ListWorkspaceMemories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceMemoryService_ListWorkspaceMemories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceMemoryServiceServer).ListWorkspaceMemories(ctx, req.(*ListWorkspaceMemoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceMemoryService_SearchWorkspaceMemories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchWorkspaceMemoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceMemoryServiceServer).SearchWorkspaceMemories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceMemoryService_SearchWorkspaceMemories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceMemoryServiceServer).SearchWorkspaceMemories(ctx, req.(*SearchWorkspaceMemoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceMemoryService_DeleteWorkspaceMemory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteWorkspaceMemoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceMemoryServiceServer).DeleteWorkspaceMemory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceMemoryService_DeleteWorkspaceMemory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceMemoryServiceServer).DeleteWorkspaceMemory(ctx, req.(*DeleteWorkspaceMemoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// WorkspaceMemoryService_ServiceDesc is the grpc.ServiceDesc for WorkspaceMemoryService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var WorkspaceMemoryService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.WorkspaceMemoryService",
+	HandlerType: (*WorkspaceMemoryServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListWorkspaceMemories",
+			Handler:    _WorkspaceMemoryService_ListWorkspaceMemories_Handler,
+		},
+		{
+			MethodName: "SearchWorkspaceMemories",
+			Handler:    _WorkspaceMemoryService_SearchWorkspaceMemories_Handler,
+		},
+		{
+			MethodName: "DeleteWorkspaceMemory",
+			Handler:    _WorkspaceMemoryService_DeleteWorkspaceMemory_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agents/v1/workspace_memory.proto",
+}

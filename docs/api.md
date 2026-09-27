@@ -4089,8 +4089,53 @@ Memories are stored under these identities:
 - Agent Memory: `agent_id = "ws:<workspace_id>:agent:<agent_id>"`.
 
 Provenance is stored in `butter_*` metadata keys. mem0 OSS v3 extraction is
-ADD-only, so superseded facts and near-duplicates accumulate. There is no
-memory browsing UI yet (#339).
+ADD-only, so superseded facts and near-duplicates accumulate. People prune
+them with [WorkspaceMemoryService](#workspacememoryservice).
+
+### WorkspaceMemoryService
+
+Lets people list, search, and delete the memories the workspace's mem0
+server holds (#339).
+
+- **Headers:** requires `X-Workspace-ID`.
+- **Access:** any workspace member may list and search. Deleting requires the
+  workspace `owner` or `admin` role; global admins bypass the check, and the
+  bypass is audited.
+- **Configuration:** without an enabled `WorkspaceMemoryConfig`, every RPC
+  returns `failed_precondition`. When the mem0 server fails or does not
+  answer, the RPC returns `unavailable`.
+
+| RPC | Path | Notes |
+| --- | --- | --- |
+| `ListWorkspaceMemories` | `POST /api/agents.v1.WorkspaceMemoryService/ListWorkspaceMemories` | `{ "scope", "agent_id"? }` → `{ "memories", "truncated", "limit" }`, newest first |
+| `SearchWorkspaceMemories` | `POST /api/agents.v1.WorkspaceMemoryService/SearchWorkspaceMemories` | `{ "query", "scope", "agent_id"?, "top_k"? }` → `{ "memories" }`, most relevant first |
+| `DeleteWorkspaceMemory` | `POST /api/agents.v1.WorkspaceMemoryService/DeleteWorkspaceMemory` | `{ "memory_id" }` |
+
+- **Scope:** `scope` is `WORKSPACE_MEMORY_SCOPE_WORKSPACE`, which is also the
+  default, or `WORKSPACE_MEMORY_SCOPE_AGENT`, which requires `agent_id`.
+- **Listing limit:** the mem0 OSS listing has no pagination, so
+  `ListWorkspaceMemories` returns at most `limit` (200) memories. `truncated`
+  says more exist; search reaches the rest.
+- **Search:** `top_k` defaults to 20 and is capped at 100. The search uses no
+  relevance threshold, so weak matches show up for pruning.
+- **Delete safety:** mem0's own delete does not check ownership. butter
+  therefore reads the memory first, and deletes it only if it carries this
+  workspace's Workspace Memory or Agent Memory identity. A missing memory and
+  one owned by another workspace both return `not_found`.
+
+`WorkspaceMemory` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | mem0 memory ID |
+| `memory` | string | Stored text |
+| `scope` | WorkspaceMemoryScope | Which scope holds it |
+| `agent_id` | string | For Agent Memory, the owning Agent ID. For Workspace Memory, the Agent whose turn produced it, when known |
+| `channel` | string | Entry point it came from (provenance) |
+| `principal` | string | Who sent the turn (provenance). **Only returned to owners/admins and global admins** |
+| `session_id` | string | Session it came from, when known |
+| `created_at` / `updated_at` | Timestamp | |
+| `score` | double | Relevance, on search results only |
 
 ---
 

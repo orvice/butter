@@ -139,3 +139,70 @@ func TestIsAuthErrorIgnoresTransportErrors(t *testing.T) {
 		t.Fatal("transport error classified as auth error")
 	}
 }
+
+func TestListGetDelete(t *testing.T) {
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Method+" "+r.URL.RequestURI())
+		if r.Header.Get("X-API-Key") != "k" {
+			t.Errorf("%s %s without the API key", r.Method, r.URL.Path)
+		}
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/memories":
+			_, _ = w.Write([]byte(`{"results":[{"id":"m1","memory":"a","user_id":"ws:w1","metadata":{"butter_channel":"web-chat"}}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/memories/m1":
+			_, _ = w.Write([]byte(`{"id":"m1","memory":"a","agent_id":"ws:w1:agent:x"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/memories/missing":
+			_, _ = w.Write([]byte(`null`))
+		case r.Method == http.MethodDelete && r.URL.Path == "/memories/m1":
+			_, _ = w.Write([]byte(`{"message":"Memory deleted successfully"}`))
+		default:
+			http.Error(w, `{"detail":"not found"}`, http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	c := New(srv.URL, "k", srv.Client())
+
+	list, err := c.List(t.Context(), ListRequest{UserID: "ws:w1", TopK: 201})
+	if err != nil || len(list) != 1 || list[0].Metadata["butter_channel"] != "web-chat" {
+		t.Fatalf("List = %+v, %v", list, err)
+	}
+	if _, err := c.List(t.Context(), ListRequest{AgentID: "ws:w1:agent:x"}); err != nil {
+		t.Fatalf("List by agent: %v", err)
+	}
+	if _, err := c.List(t.Context(), ListRequest{}); err == nil {
+		t.Fatal("identity-less List succeeded")
+	}
+
+	got, err := c.Get(t.Context(), "m1")
+	if err != nil || got == nil || got.AgentID != "ws:w1:agent:x" {
+		t.Fatalf("Get = %+v, %v", got, err)
+	}
+	if got, err := c.Get(t.Context(), "missing"); err != nil || got != nil {
+		t.Fatalf("Get missing = %+v, %v; want nil, nil", got, err)
+	}
+	if err := c.Delete(t.Context(), "m1"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	var apiErr *APIError
+	if err := c.Delete(t.Context(), "nope"); !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
+		t.Fatalf("Delete unknown = %v", err)
+	}
+
+	want := []string{
+		"GET /memories?top_k=201&user_id=ws%3Aw1",
+		"GET /memories?agent_id=ws%3Aw1%3Aagent%3Ax",
+		"GET /memories/m1",
+		"GET /memories/missing",
+		"DELETE /memories/m1",
+		"DELETE /memories/nope",
+	}
+	if len(seen) != len(want) {
+		t.Fatalf("requests = %v", seen)
+	}
+	for i := range want {
+		if seen[i] != want[i] {
+			t.Fatalf("request %d = %q, want %q", i, seen[i], want[i])
+		}
+	}
+}

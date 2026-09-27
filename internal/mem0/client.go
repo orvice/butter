@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -140,16 +142,73 @@ func (c *Client) Search(ctx context.Context, req SearchRequest) ([]Memory, error
 	return out.Results, nil
 }
 
-func (c *Client) post(ctx context.Context, path string, body, out any) error {
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("mem0: encode %s: %w", path, err)
+// ListRequest scopes `GET /memories` to exactly one identity. An
+// identity-less listing is admin-only on the server and never used.
+type ListRequest struct {
+	UserID  string
+	AgentID string
+	// TopK caps the result; the server defaults to 20 and allows 1000. The
+	// endpoint has no pagination.
+	TopK int
+}
+
+// List runs `GET /memories` for one identity.
+func (c *Client) List(ctx context.Context, req ListRequest) ([]Memory, error) {
+	q := url.Values{}
+	switch {
+	case req.UserID != "":
+		q.Set("user_id", req.UserID)
+	case req.AgentID != "":
+		q.Set("agent_id", req.AgentID)
+	default:
+		return nil, errors.New("mem0: list needs a user_id or agent_id")
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(payload))
+	if req.TopK > 0 {
+		q.Set("top_k", strconv.Itoa(req.TopK))
+	}
+	var out resultsEnvelope
+	if err := c.do(ctx, http.MethodGet, "/memories?"+q.Encode(), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Results, nil
+}
+
+// Get runs `GET /memories/{id}`. It returns nil without error when the
+// memory does not exist (the server answers `null`).
+func (c *Client) Get(ctx context.Context, id string) (*Memory, error) {
+	var out *Memory
+	if err := c.do(ctx, http.MethodGet, "/memories/"+url.PathEscape(id), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Delete runs `DELETE /memories/{id}`. The server does not check who owns
+// the memory: callers must verify ownership first.
+func (c *Client) Delete(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/memories/"+url.PathEscape(id), nil, nil)
+}
+
+func (c *Client) post(ctx context.Context, path string, body, out any) error {
+	return c.do(ctx, http.MethodPost, path, body, out)
+}
+
+func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	var reader io.Reader
+	if body != nil {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("mem0: encode %s: %w", path, err)
+		}
+		reader = bytes.NewReader(payload)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reader)
 	if err != nil {
 		return fmt.Errorf("mem0: build %s: %w", path, err)
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
 	httpReq.Header.Set("Accept", "application/json")
 	if c.apiKey != "" {
 		httpReq.Header.Set("X-API-Key", c.apiKey)
