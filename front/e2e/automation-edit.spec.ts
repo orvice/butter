@@ -23,7 +23,10 @@ async function setupAutomationEdit(page: Page) {
         cronJob: {
           name: 'daily-ticket',
           schedule: '0 9 * * *',
+          // The form selects by the immutable agent_id (#241); agent_name
+          // is display-only.
           agentName: 'TicketManager',
+          agentId: 'ticketmanager',
           input: 'Review open tickets',
           timezone: 'UTC',
           enabled: true,
