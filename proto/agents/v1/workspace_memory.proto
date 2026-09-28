@@ -99,3 +99,101 @@ message TestWorkspaceMemoryConnectionResponse {
   // Human-readable probe failure, empty when ok.
   string error = 2;
 }
+
+// =============================================================================
+// WorkspaceMemoryService lets people see and prune what the workspace's mem0
+// server holds (issue #339): list, semantic search, and delete one memory.
+// Any member may list and search; deleting requires the workspace owner or
+// admin role (global admins bypass). mem0 OSS v3 extraction is ADD-only, so
+// automatic capture accumulates near-duplicates that people remove here.
+// =============================================================================
+
+enum WorkspaceMemoryScope {
+  // Treated as WORKSPACE.
+  WORKSPACE_MEMORY_SCOPE_UNSPECIFIED = 0;
+  // Workspace Memory: the pool shared across the workspace.
+  WORKSPACE_MEMORY_SCOPE_WORKSPACE = 1;
+  // Agent Memory: private to one agent; requests name it with agent_id.
+  WORKSPACE_MEMORY_SCOPE_AGENT = 2;
+}
+
+message WorkspaceMemory {
+  // mem0 memory ID.
+  string id = 1;
+
+  // The stored memory text.
+  string memory = 2;
+
+  // Which scope holds the memory.
+  WorkspaceMemoryScope scope = 3;
+
+  // For Agent Memory, the owning Agent ID. For Workspace Memory, the Agent
+  // whose turn produced it, when known (provenance).
+  string agent_id = 4;
+
+  // Entry point the memory came from (provenance), e.g. "web-chat",
+  // "telegram", "cron:<job>".
+  string channel = 5;
+
+  // Who sent the turn that produced the memory (provenance). Only returned
+  // to workspace owners/admins and global admins; empty for other members.
+  string principal = 6;
+
+  // Session the memory came from, when known (provenance).
+  string session_id = 7;
+
+  google.protobuf.Timestamp created_at = 8;
+
+  google.protobuf.Timestamp updated_at = 9;
+
+  // mem0 relevance score; set on search results only.
+  double score = 10;
+}
+
+service WorkspaceMemoryService {
+  // ListWorkspaceMemories returns the newest memories of one scope, capped
+  // at `limit` (mem0 OSS listing has no pagination; search reaches the rest).
+  rpc ListWorkspaceMemories(ListWorkspaceMemoriesRequest) returns (ListWorkspaceMemoriesResponse);
+
+  // SearchWorkspaceMemories runs a semantic search in one scope.
+  rpc SearchWorkspaceMemories(SearchWorkspaceMemoriesRequest) returns (SearchWorkspaceMemoriesResponse);
+
+  // DeleteWorkspaceMemory deletes one memory of this workspace. A memory
+  // that does not exist or belongs to another workspace is NotFound.
+  rpc DeleteWorkspaceMemory(DeleteWorkspaceMemoryRequest) returns (DeleteWorkspaceMemoryResponse);
+}
+
+message ListWorkspaceMemoriesRequest {
+  WorkspaceMemoryScope scope = 1;
+  // Required for WORKSPACE_MEMORY_SCOPE_AGENT.
+  string agent_id = 2;
+}
+
+message ListWorkspaceMemoriesResponse {
+  // Newest first.
+  repeated WorkspaceMemory memories = 1;
+  // True when more memories exist than the listing returns.
+  bool truncated = 2;
+  // The listing cap applied.
+  int32 limit = 3;
+}
+
+message SearchWorkspaceMemoriesRequest {
+  string query = 1;
+  WorkspaceMemoryScope scope = 2;
+  // Required for WORKSPACE_MEMORY_SCOPE_AGENT.
+  string agent_id = 3;
+  // Maximum results; 0 means 20, capped at 100.
+  int32 top_k = 4;
+}
+
+message SearchWorkspaceMemoriesResponse {
+  // Most relevant first.
+  repeated WorkspaceMemory memories = 1;
+}
+
+message DeleteWorkspaceMemoryRequest {
+  string memory_id = 1;
+}
+
+message DeleteWorkspaceMemoryResponse {}

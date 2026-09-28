@@ -25,6 +25,8 @@ import (
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/runtime/mem0memory"
+	"go.orx.me/apps/butter/internal/runtime/memoryconn"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	telegramruntime "go.orx.me/apps/butter/internal/runtime/telegram"
 	"go.orx.me/apps/butter/internal/secretbox"
@@ -62,6 +64,7 @@ type Handlers struct {
 	gitHostSvcServer       *application.GitHostServiceServer
 	butterBoxSvcServer     *application.ButterBoxServiceServer
 	memoryConfigSvcServer  *application.WorkspaceMemoryConfigServiceServer
+	memoriesSvcServer      *application.WorkspaceMemoryServiceServer
 	repoBindingSvcServer   *application.RepoBindingServiceServer
 	tgChannelSvcServer     *application.TelegramChannelServiceServer
 	tgDestinationSvcServer *application.TelegramDestinationServiceServer
@@ -430,6 +433,13 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.memoryConfigSvcServer.SetKeyring(secretbox.NewKeyring(result.CryptoKeyRepo))
 		h.memoryConfigSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 	}
+	// Memory management (#339) reads and prunes the same mem0 servers; the
+	// service resolves each workspace's config per call, so a separate
+	// instance from the runner's is equivalent.
+	if h.memoriesSvcServer != nil && result.MemoryConfigRepo != nil {
+		h.memoriesSvcServer.SetMemory(mem0memory.New(memoryconn.NewResolver(result.MemoryConfigRepo, secretbox.NewKeyring(result.CryptoKeyRepo))))
+		h.memoriesSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+	}
 	// Telegram Channels/Destinations (issue #264). The keyring is shared by
 	// both services so a Bot Token encrypted by one is readable by the other.
 	if result.TelegramRepo != nil {
@@ -706,6 +716,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	butterBoxConnectPath, butterBoxConnectHandler := agentsv1connect.NewButterBoxServiceHandler(butterBoxSvcServer, connectOpts...)
 	memoryConfigSvcServer := application.NewWorkspaceMemoryConfigServiceServer(nil)
 	memoryConfigConnectPath, memoryConfigConnectHandler := agentsv1connect.NewWorkspaceMemoryConfigServiceHandler(memoryConfigSvcServer, connectOpts...)
+	memoriesSvcServer := application.NewWorkspaceMemoryServiceServer(nil)
+	memoriesConnectPath, memoriesConnectHandler := agentsv1connect.NewWorkspaceMemoryServiceHandler(memoriesSvcServer, connectOpts...)
 	repoBindingSvcServer := application.NewRepoBindingServiceServer(nil, nil)
 	repoBindingSvcServer.SetAgentRepo(configStore)
 	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg.
@@ -751,6 +763,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		gitHostSvcServer:       gitHostSvcServer,
 		butterBoxSvcServer:     butterBoxSvcServer,
 		memoryConfigSvcServer:  memoryConfigSvcServer,
+		memoriesSvcServer:      memoriesSvcServer,
 		repoBindingSvcServer:   repoBindingSvcServer,
 		tgChannelSvcServer:     tgChannelSvcServer,
 		tgDestinationSvcServer: tgDestinationSvcServer,
@@ -824,6 +837,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
 		r.Any("/api"+butterBoxConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", butterBoxConnectHandler)))
 		r.Any("/api"+memoryConfigConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", memoryConfigConnectHandler)))
+		r.Any("/api"+memoriesConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", memoriesConnectHandler)))
 		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
 		r.Any("/api"+tgChannelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgChannelConnectHandler)))
 		r.Any("/api"+tgDestinationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgDestinationConnectHandler)))

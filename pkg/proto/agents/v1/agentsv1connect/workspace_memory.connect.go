@@ -24,6 +24,8 @@ const (
 	// WorkspaceMemoryConfigServiceName is the fully-qualified name of the WorkspaceMemoryConfigService
 	// service.
 	WorkspaceMemoryConfigServiceName = "agents.v1.WorkspaceMemoryConfigService"
+	// WorkspaceMemoryServiceName is the fully-qualified name of the WorkspaceMemoryService service.
+	WorkspaceMemoryServiceName = "agents.v1.WorkspaceMemoryService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -46,6 +48,15 @@ const (
 	// WorkspaceMemoryConfigServiceTestWorkspaceMemoryConnectionProcedure is the fully-qualified name of
 	// the WorkspaceMemoryConfigService's TestWorkspaceMemoryConnection RPC.
 	WorkspaceMemoryConfigServiceTestWorkspaceMemoryConnectionProcedure = "/agents.v1.WorkspaceMemoryConfigService/TestWorkspaceMemoryConnection"
+	// WorkspaceMemoryServiceListWorkspaceMemoriesProcedure is the fully-qualified name of the
+	// WorkspaceMemoryService's ListWorkspaceMemories RPC.
+	WorkspaceMemoryServiceListWorkspaceMemoriesProcedure = "/agents.v1.WorkspaceMemoryService/ListWorkspaceMemories"
+	// WorkspaceMemoryServiceSearchWorkspaceMemoriesProcedure is the fully-qualified name of the
+	// WorkspaceMemoryService's SearchWorkspaceMemories RPC.
+	WorkspaceMemoryServiceSearchWorkspaceMemoriesProcedure = "/agents.v1.WorkspaceMemoryService/SearchWorkspaceMemories"
+	// WorkspaceMemoryServiceDeleteWorkspaceMemoryProcedure is the fully-qualified name of the
+	// WorkspaceMemoryService's DeleteWorkspaceMemory RPC.
+	WorkspaceMemoryServiceDeleteWorkspaceMemoryProcedure = "/agents.v1.WorkspaceMemoryService/DeleteWorkspaceMemory"
 )
 
 // WorkspaceMemoryConfigServiceClient is a client for the agents.v1.WorkspaceMemoryConfigService
@@ -216,4 +227,137 @@ func (UnimplementedWorkspaceMemoryConfigServiceHandler) DeleteWorkspaceMemoryCon
 
 func (UnimplementedWorkspaceMemoryConfigServiceHandler) TestWorkspaceMemoryConnection(context.Context, *connect.Request[v1.TestWorkspaceMemoryConnectionRequest]) (*connect.Response[v1.TestWorkspaceMemoryConnectionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceMemoryConfigService.TestWorkspaceMemoryConnection is not implemented"))
+}
+
+// WorkspaceMemoryServiceClient is a client for the agents.v1.WorkspaceMemoryService service.
+type WorkspaceMemoryServiceClient interface {
+	// ListWorkspaceMemories returns the newest memories of one scope, capped
+	// at `limit` (mem0 OSS listing has no pagination; search reaches the rest).
+	ListWorkspaceMemories(context.Context, *connect.Request[v1.ListWorkspaceMemoriesRequest]) (*connect.Response[v1.ListWorkspaceMemoriesResponse], error)
+	// SearchWorkspaceMemories runs a semantic search in one scope.
+	SearchWorkspaceMemories(context.Context, *connect.Request[v1.SearchWorkspaceMemoriesRequest]) (*connect.Response[v1.SearchWorkspaceMemoriesResponse], error)
+	// DeleteWorkspaceMemory deletes one memory of this workspace. A memory
+	// that does not exist or belongs to another workspace is NotFound.
+	DeleteWorkspaceMemory(context.Context, *connect.Request[v1.DeleteWorkspaceMemoryRequest]) (*connect.Response[v1.DeleteWorkspaceMemoryResponse], error)
+}
+
+// NewWorkspaceMemoryServiceClient constructs a client for the agents.v1.WorkspaceMemoryService
+// service. By default, it uses the Connect protocol with the binary Protobuf Codec, asks for
+// gzipped responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply
+// the connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewWorkspaceMemoryServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) WorkspaceMemoryServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	workspaceMemoryServiceMethods := v1.File_agents_v1_workspace_memory_proto.Services().ByName("WorkspaceMemoryService").Methods()
+	return &workspaceMemoryServiceClient{
+		listWorkspaceMemories: connect.NewClient[v1.ListWorkspaceMemoriesRequest, v1.ListWorkspaceMemoriesResponse](
+			httpClient,
+			baseURL+WorkspaceMemoryServiceListWorkspaceMemoriesProcedure,
+			connect.WithSchema(workspaceMemoryServiceMethods.ByName("ListWorkspaceMemories")),
+			connect.WithClientOptions(opts...),
+		),
+		searchWorkspaceMemories: connect.NewClient[v1.SearchWorkspaceMemoriesRequest, v1.SearchWorkspaceMemoriesResponse](
+			httpClient,
+			baseURL+WorkspaceMemoryServiceSearchWorkspaceMemoriesProcedure,
+			connect.WithSchema(workspaceMemoryServiceMethods.ByName("SearchWorkspaceMemories")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteWorkspaceMemory: connect.NewClient[v1.DeleteWorkspaceMemoryRequest, v1.DeleteWorkspaceMemoryResponse](
+			httpClient,
+			baseURL+WorkspaceMemoryServiceDeleteWorkspaceMemoryProcedure,
+			connect.WithSchema(workspaceMemoryServiceMethods.ByName("DeleteWorkspaceMemory")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// workspaceMemoryServiceClient implements WorkspaceMemoryServiceClient.
+type workspaceMemoryServiceClient struct {
+	listWorkspaceMemories   *connect.Client[v1.ListWorkspaceMemoriesRequest, v1.ListWorkspaceMemoriesResponse]
+	searchWorkspaceMemories *connect.Client[v1.SearchWorkspaceMemoriesRequest, v1.SearchWorkspaceMemoriesResponse]
+	deleteWorkspaceMemory   *connect.Client[v1.DeleteWorkspaceMemoryRequest, v1.DeleteWorkspaceMemoryResponse]
+}
+
+// ListWorkspaceMemories calls agents.v1.WorkspaceMemoryService.ListWorkspaceMemories.
+func (c *workspaceMemoryServiceClient) ListWorkspaceMemories(ctx context.Context, req *connect.Request[v1.ListWorkspaceMemoriesRequest]) (*connect.Response[v1.ListWorkspaceMemoriesResponse], error) {
+	return c.listWorkspaceMemories.CallUnary(ctx, req)
+}
+
+// SearchWorkspaceMemories calls agents.v1.WorkspaceMemoryService.SearchWorkspaceMemories.
+func (c *workspaceMemoryServiceClient) SearchWorkspaceMemories(ctx context.Context, req *connect.Request[v1.SearchWorkspaceMemoriesRequest]) (*connect.Response[v1.SearchWorkspaceMemoriesResponse], error) {
+	return c.searchWorkspaceMemories.CallUnary(ctx, req)
+}
+
+// DeleteWorkspaceMemory calls agents.v1.WorkspaceMemoryService.DeleteWorkspaceMemory.
+func (c *workspaceMemoryServiceClient) DeleteWorkspaceMemory(ctx context.Context, req *connect.Request[v1.DeleteWorkspaceMemoryRequest]) (*connect.Response[v1.DeleteWorkspaceMemoryResponse], error) {
+	return c.deleteWorkspaceMemory.CallUnary(ctx, req)
+}
+
+// WorkspaceMemoryServiceHandler is an implementation of the agents.v1.WorkspaceMemoryService
+// service.
+type WorkspaceMemoryServiceHandler interface {
+	// ListWorkspaceMemories returns the newest memories of one scope, capped
+	// at `limit` (mem0 OSS listing has no pagination; search reaches the rest).
+	ListWorkspaceMemories(context.Context, *connect.Request[v1.ListWorkspaceMemoriesRequest]) (*connect.Response[v1.ListWorkspaceMemoriesResponse], error)
+	// SearchWorkspaceMemories runs a semantic search in one scope.
+	SearchWorkspaceMemories(context.Context, *connect.Request[v1.SearchWorkspaceMemoriesRequest]) (*connect.Response[v1.SearchWorkspaceMemoriesResponse], error)
+	// DeleteWorkspaceMemory deletes one memory of this workspace. A memory
+	// that does not exist or belongs to another workspace is NotFound.
+	DeleteWorkspaceMemory(context.Context, *connect.Request[v1.DeleteWorkspaceMemoryRequest]) (*connect.Response[v1.DeleteWorkspaceMemoryResponse], error)
+}
+
+// NewWorkspaceMemoryServiceHandler builds an HTTP handler from the service implementation. It
+// returns the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewWorkspaceMemoryServiceHandler(svc WorkspaceMemoryServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	workspaceMemoryServiceMethods := v1.File_agents_v1_workspace_memory_proto.Services().ByName("WorkspaceMemoryService").Methods()
+	workspaceMemoryServiceListWorkspaceMemoriesHandler := connect.NewUnaryHandler(
+		WorkspaceMemoryServiceListWorkspaceMemoriesProcedure,
+		svc.ListWorkspaceMemories,
+		connect.WithSchema(workspaceMemoryServiceMethods.ByName("ListWorkspaceMemories")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceMemoryServiceSearchWorkspaceMemoriesHandler := connect.NewUnaryHandler(
+		WorkspaceMemoryServiceSearchWorkspaceMemoriesProcedure,
+		svc.SearchWorkspaceMemories,
+		connect.WithSchema(workspaceMemoryServiceMethods.ByName("SearchWorkspaceMemories")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceMemoryServiceDeleteWorkspaceMemoryHandler := connect.NewUnaryHandler(
+		WorkspaceMemoryServiceDeleteWorkspaceMemoryProcedure,
+		svc.DeleteWorkspaceMemory,
+		connect.WithSchema(workspaceMemoryServiceMethods.ByName("DeleteWorkspaceMemory")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.WorkspaceMemoryService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case WorkspaceMemoryServiceListWorkspaceMemoriesProcedure:
+			workspaceMemoryServiceListWorkspaceMemoriesHandler.ServeHTTP(w, r)
+		case WorkspaceMemoryServiceSearchWorkspaceMemoriesProcedure:
+			workspaceMemoryServiceSearchWorkspaceMemoriesHandler.ServeHTTP(w, r)
+		case WorkspaceMemoryServiceDeleteWorkspaceMemoryProcedure:
+			workspaceMemoryServiceDeleteWorkspaceMemoryHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedWorkspaceMemoryServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedWorkspaceMemoryServiceHandler struct{}
+
+func (UnimplementedWorkspaceMemoryServiceHandler) ListWorkspaceMemories(context.Context, *connect.Request[v1.ListWorkspaceMemoriesRequest]) (*connect.Response[v1.ListWorkspaceMemoriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceMemoryService.ListWorkspaceMemories is not implemented"))
+}
+
+func (UnimplementedWorkspaceMemoryServiceHandler) SearchWorkspaceMemories(context.Context, *connect.Request[v1.SearchWorkspaceMemoriesRequest]) (*connect.Response[v1.SearchWorkspaceMemoriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceMemoryService.SearchWorkspaceMemories is not implemented"))
+}
+
+func (UnimplementedWorkspaceMemoryServiceHandler) DeleteWorkspaceMemory(context.Context, *connect.Request[v1.DeleteWorkspaceMemoryRequest]) (*connect.Response[v1.DeleteWorkspaceMemoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkspaceMemoryService.DeleteWorkspaceMemory is not implemented"))
 }

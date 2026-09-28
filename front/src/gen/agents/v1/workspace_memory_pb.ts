@@ -2,8 +2,8 @@
 // @generated from file agents/v1/workspace_memory.proto (package agents.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/workspace_memory.proto.
  */
 export const file_agents_v1_workspace_memory: GenFile = /*@__PURE__*/
-  fileDesc("CiBhZ2VudHMvdjEvd29ya3NwYWNlX21lbW9yeS5wcm90bxIJYWdlbnRzLnYxIoMCChVXb3Jrc3BhY2VNZW1vcnlDb25maWcSFAoMd29ya3NwYWNlX2lkGAEgASgJEhAKCGJhc2VfdXJsGAIgASgJEg8KB2VuYWJsZWQYAyABKAgSFgoOY3JlZGVudGlhbF9zZXQYBCABKAgSOQoVY3JlZGVudGlhbF91cGRhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIhCh9HZXRXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXF1ZXN0IlQKIEdldFdvcmtzcGFjZU1lbW9yeUNvbmZpZ1Jlc3BvbnNlEjAKBmNvbmZpZxgBIAEoCzIgLmFnZW50cy52MS5Xb3Jrc3BhY2VNZW1vcnlDb25maWciZgofUHV0V29ya3NwYWNlTWVtb3J5Q29uZmlnUmVxdWVzdBIQCghiYXNlX3VybBgBIAEoCRIPCgdlbmFibGVkGAIgASgIEhQKB2FwaV9rZXkYAyABKAlIAIgBAUIKCghfYXBpX2tleSJlCiBQdXRXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXNwb25zZRIwCgZjb25maWcYASABKAsyIC5hZ2VudHMudjEuV29ya3NwYWNlTWVtb3J5Q29uZmlnEg8KB3dhcm5pbmcYAiABKAkiJAoiRGVsZXRlV29ya3NwYWNlTWVtb3J5Q29uZmlnUmVxdWVzdCIlCiNEZWxldGVXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXNwb25zZSImCiRUZXN0V29ya3NwYWNlTWVtb3J5Q29ubmVjdGlvblJlcXVlc3QiQgolVGVzdFdvcmtzcGFjZU1lbW9yeUNvbm5lY3Rpb25SZXNwb25zZRIKCgJvaxgBIAEoCBINCgVlcnJvchgCIAEoCTKLBAocV29ya3NwYWNlTWVtb3J5Q29uZmlnU2VydmljZRJzChhHZXRXb3Jrc3BhY2VNZW1vcnlDb25maWcSKi5hZ2VudHMudjEuR2V0V29ya3NwYWNlTWVtb3J5Q29uZmlnUmVxdWVzdBorLmFnZW50cy52MS5HZXRXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXNwb25zZRJzChhQdXRXb3Jrc3BhY2VNZW1vcnlDb25maWcSKi5hZ2VudHMudjEuUHV0V29ya3NwYWNlTWVtb3J5Q29uZmlnUmVxdWVzdBorLmFnZW50cy52MS5QdXRXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXNwb25zZRJ8ChtEZWxldGVXb3Jrc3BhY2VNZW1vcnlDb25maWcSLS5hZ2VudHMudjEuRGVsZXRlV29ya3NwYWNlTWVtb3J5Q29uZmlnUmVxdWVzdBouLmFnZW50cy52MS5EZWxldGVXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXNwb25zZRKCAQodVGVzdFdvcmtzcGFjZU1lbW9yeUNvbm5lY3Rpb24SLy5hZ2VudHMudjEuVGVzdFdvcmtzcGFjZU1lbW9yeUNvbm5lY3Rpb25SZXF1ZXN0GjAuYWdlbnRzLnYxLlRlc3RXb3Jrc3BhY2VNZW1vcnlDb25uZWN0aW9uUmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("CiBhZ2VudHMvdjEvd29ya3NwYWNlX21lbW9yeS5wcm90bxIJYWdlbnRzLnYxIoMCChVXb3Jrc3BhY2VNZW1vcnlDb25maWcSFAoMd29ya3NwYWNlX2lkGAEgASgJEhAKCGJhc2VfdXJsGAIgASgJEg8KB2VuYWJsZWQYAyABKAgSFgoOY3JlZGVudGlhbF9zZXQYBCABKAgSOQoVY3JlZGVudGlhbF91cGRhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIhCh9HZXRXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXF1ZXN0IlQKIEdldFdvcmtzcGFjZU1lbW9yeUNvbmZpZ1Jlc3BvbnNlEjAKBmNvbmZpZxgBIAEoCzIgLmFnZW50cy52MS5Xb3Jrc3BhY2VNZW1vcnlDb25maWciZgofUHV0V29ya3NwYWNlTWVtb3J5Q29uZmlnUmVxdWVzdBIQCghiYXNlX3VybBgBIAEoCRIPCgdlbmFibGVkGAIgASgIEhQKB2FwaV9rZXkYAyABKAlIAIgBAUIKCghfYXBpX2tleSJlCiBQdXRXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXNwb25zZRIwCgZjb25maWcYASABKAsyIC5hZ2VudHMudjEuV29ya3NwYWNlTWVtb3J5Q29uZmlnEg8KB3dhcm5pbmcYAiABKAkiJAoiRGVsZXRlV29ya3NwYWNlTWVtb3J5Q29uZmlnUmVxdWVzdCIlCiNEZWxldGVXb3Jrc3BhY2VNZW1vcnlDb25maWdSZXNwb25zZSImCiRUZXN0V29ya3NwYWNlTWVtb3J5Q29ubmVjdGlvblJlcXVlc3QiQgolVGVzdFdvcmtzcGFjZU1lbW9yeUNvbm5lY3Rpb25SZXNwb25zZRIKCgJvaxgBIAEoCBINCgVlcnJvchgCIAEoCSKWAgoPV29ya3NwYWNlTWVtb3J5EgoKAmlkGAEgASgJEg4KBm1lbW9yeRgCIAEoCRIuCgVzY29wZRgDIAEoDjIfLmFnZW50cy52MS5Xb3Jrc3BhY2VNZW1vcnlTY29wZRIQCghhZ2VudF9pZBgEIAEoCRIPCgdjaGFubmVsGAUgASgJEhEKCXByaW5jaXBhbBgGIAEoCRISCgpzZXNzaW9uX2lkGAcgASgJEi4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBXNjb3JlGAogASgBImAKHExpc3RXb3Jrc3BhY2VNZW1vcmllc1JlcXVlc3QSLgoFc2NvcGUYASABKA4yHy5hZ2VudHMudjEuV29ya3NwYWNlTWVtb3J5U2NvcGUSEAoIYWdlbnRfaWQYAiABKAkibwodTGlzdFdvcmtzcGFjZU1lbW9yaWVzUmVzcG9uc2USLAoIbWVtb3JpZXMYASADKAsyGi5hZ2VudHMudjEuV29ya3NwYWNlTWVtb3J5EhEKCXRydW5jYXRlZBgCIAEoCBINCgVsaW1pdBgDIAEoBSKAAQoeU2VhcmNoV29ya3NwYWNlTWVtb3JpZXNSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEi4KBXNjb3BlGAIgASgOMh8uYWdlbnRzLnYxLldvcmtzcGFjZU1lbW9yeVNjb3BlEhAKCGFnZW50X2lkGAMgASgJEg0KBXRvcF9rGAQgASgFIk8KH1NlYXJjaFdvcmtzcGFjZU1lbW9yaWVzUmVzcG9uc2USLAoIbWVtb3JpZXMYASADKAsyGi5hZ2VudHMudjEuV29ya3NwYWNlTWVtb3J5IjEKHERlbGV0ZVdvcmtzcGFjZU1lbW9yeVJlcXVlc3QSEQoJbWVtb3J5X2lkGAEgASgJIh8KHURlbGV0ZVdvcmtzcGFjZU1lbW9yeVJlc3BvbnNlKoYBChRXb3Jrc3BhY2VNZW1vcnlTY29wZRImCiJXT1JLU1BBQ0VfTUVNT1JZX1NDT1BFX1VOU1BFQ0lGSUVEEAASJAogV09SS1NQQUNFX01FTU9SWV9TQ09QRV9XT1JLU1BBQ0UQARIgChxXT1JLU1BBQ0VfTUVNT1JZX1NDT1BFX0FHRU5UEAIyiwQKHFdvcmtzcGFjZU1lbW9yeUNvbmZpZ1NlcnZpY2UScwoYR2V0V29ya3NwYWNlTWVtb3J5Q29uZmlnEiouYWdlbnRzLnYxLkdldFdvcmtzcGFjZU1lbW9yeUNvbmZpZ1JlcXVlc3QaKy5hZ2VudHMudjEuR2V0V29ya3NwYWNlTWVtb3J5Q29uZmlnUmVzcG9uc2UScwoYUHV0V29ya3NwYWNlTWVtb3J5Q29uZmlnEiouYWdlbnRzLnYxLlB1dFdvcmtzcGFjZU1lbW9yeUNvbmZpZ1JlcXVlc3QaKy5hZ2VudHMudjEuUHV0V29ya3NwYWNlTWVtb3J5Q29uZmlnUmVzcG9uc2USfAobRGVsZXRlV29ya3NwYWNlTWVtb3J5Q29uZmlnEi0uYWdlbnRzLnYxLkRlbGV0ZVdvcmtzcGFjZU1lbW9yeUNvbmZpZ1JlcXVlc3QaLi5hZ2VudHMudjEuRGVsZXRlV29ya3NwYWNlTWVtb3J5Q29uZmlnUmVzcG9uc2USggEKHVRlc3RXb3Jrc3BhY2VNZW1vcnlDb25uZWN0aW9uEi8uYWdlbnRzLnYxLlRlc3RXb3Jrc3BhY2VNZW1vcnlDb25uZWN0aW9uUmVxdWVzdBowLmFnZW50cy52MS5UZXN0V29ya3NwYWNlTWVtb3J5Q29ubmVjdGlvblJlc3BvbnNlMuICChZXb3Jrc3BhY2VNZW1vcnlTZXJ2aWNlEmoKFUxpc3RXb3Jrc3BhY2VNZW1vcmllcxInLmFnZW50cy52MS5MaXN0V29ya3NwYWNlTWVtb3JpZXNSZXF1ZXN0GiguYWdlbnRzLnYxLkxpc3RXb3Jrc3BhY2VNZW1vcmllc1Jlc3BvbnNlEnAKF1NlYXJjaFdvcmtzcGFjZU1lbW9yaWVzEikuYWdlbnRzLnYxLlNlYXJjaFdvcmtzcGFjZU1lbW9yaWVzUmVxdWVzdBoqLmFnZW50cy52MS5TZWFyY2hXb3Jrc3BhY2VNZW1vcmllc1Jlc3BvbnNlEmoKFURlbGV0ZVdvcmtzcGFjZU1lbW9yeRInLmFnZW50cy52MS5EZWxldGVXb3Jrc3BhY2VNZW1vcnlSZXF1ZXN0GiguYWdlbnRzLnYxLkRlbGV0ZVdvcmtzcGFjZU1lbW9yeVJlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message agents.v1.WorkspaceMemoryConfig
@@ -235,6 +235,261 @@ export const TestWorkspaceMemoryConnectionResponseSchema: GenMessage<TestWorkspa
   messageDesc(file_agents_v1_workspace_memory, 8);
 
 /**
+ * @generated from message agents.v1.WorkspaceMemory
+ */
+export type WorkspaceMemory = Message<"agents.v1.WorkspaceMemory"> & {
+  /**
+   * mem0 memory ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The stored memory text.
+   *
+   * @generated from field: string memory = 2;
+   */
+  memory: string;
+
+  /**
+   * Which scope holds the memory.
+   *
+   * @generated from field: agents.v1.WorkspaceMemoryScope scope = 3;
+   */
+  scope: WorkspaceMemoryScope;
+
+  /**
+   * For Agent Memory, the owning Agent ID. For Workspace Memory, the Agent
+   * whose turn produced it, when known (provenance).
+   *
+   * @generated from field: string agent_id = 4;
+   */
+  agentId: string;
+
+  /**
+   * Entry point the memory came from (provenance), e.g. "web-chat",
+   * "telegram", "cron:<job>".
+   *
+   * @generated from field: string channel = 5;
+   */
+  channel: string;
+
+  /**
+   * Who sent the turn that produced the memory (provenance). Only returned
+   * to workspace owners/admins and global admins; empty for other members.
+   *
+   * @generated from field: string principal = 6;
+   */
+  principal: string;
+
+  /**
+   * Session the memory came from, when known (provenance).
+   *
+   * @generated from field: string session_id = 7;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 8;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 9;
+   */
+  updatedAt?: Timestamp;
+
+  /**
+   * mem0 relevance score; set on search results only.
+   *
+   * @generated from field: double score = 10;
+   */
+  score: number;
+};
+
+/**
+ * Describes the message agents.v1.WorkspaceMemory.
+ * Use `create(WorkspaceMemorySchema)` to create a new message.
+ */
+export const WorkspaceMemorySchema: GenMessage<WorkspaceMemory> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workspace_memory, 9);
+
+/**
+ * @generated from message agents.v1.ListWorkspaceMemoriesRequest
+ */
+export type ListWorkspaceMemoriesRequest = Message<"agents.v1.ListWorkspaceMemoriesRequest"> & {
+  /**
+   * @generated from field: agents.v1.WorkspaceMemoryScope scope = 1;
+   */
+  scope: WorkspaceMemoryScope;
+
+  /**
+   * Required for WORKSPACE_MEMORY_SCOPE_AGENT.
+   *
+   * @generated from field: string agent_id = 2;
+   */
+  agentId: string;
+};
+
+/**
+ * Describes the message agents.v1.ListWorkspaceMemoriesRequest.
+ * Use `create(ListWorkspaceMemoriesRequestSchema)` to create a new message.
+ */
+export const ListWorkspaceMemoriesRequestSchema: GenMessage<ListWorkspaceMemoriesRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workspace_memory, 10);
+
+/**
+ * @generated from message agents.v1.ListWorkspaceMemoriesResponse
+ */
+export type ListWorkspaceMemoriesResponse = Message<"agents.v1.ListWorkspaceMemoriesResponse"> & {
+  /**
+   * Newest first.
+   *
+   * @generated from field: repeated agents.v1.WorkspaceMemory memories = 1;
+   */
+  memories: WorkspaceMemory[];
+
+  /**
+   * True when more memories exist than the listing returns.
+   *
+   * @generated from field: bool truncated = 2;
+   */
+  truncated: boolean;
+
+  /**
+   * The listing cap applied.
+   *
+   * @generated from field: int32 limit = 3;
+   */
+  limit: number;
+};
+
+/**
+ * Describes the message agents.v1.ListWorkspaceMemoriesResponse.
+ * Use `create(ListWorkspaceMemoriesResponseSchema)` to create a new message.
+ */
+export const ListWorkspaceMemoriesResponseSchema: GenMessage<ListWorkspaceMemoriesResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workspace_memory, 11);
+
+/**
+ * @generated from message agents.v1.SearchWorkspaceMemoriesRequest
+ */
+export type SearchWorkspaceMemoriesRequest = Message<"agents.v1.SearchWorkspaceMemoriesRequest"> & {
+  /**
+   * @generated from field: string query = 1;
+   */
+  query: string;
+
+  /**
+   * @generated from field: agents.v1.WorkspaceMemoryScope scope = 2;
+   */
+  scope: WorkspaceMemoryScope;
+
+  /**
+   * Required for WORKSPACE_MEMORY_SCOPE_AGENT.
+   *
+   * @generated from field: string agent_id = 3;
+   */
+  agentId: string;
+
+  /**
+   * Maximum results; 0 means 20, capped at 100.
+   *
+   * @generated from field: int32 top_k = 4;
+   */
+  topK: number;
+};
+
+/**
+ * Describes the message agents.v1.SearchWorkspaceMemoriesRequest.
+ * Use `create(SearchWorkspaceMemoriesRequestSchema)` to create a new message.
+ */
+export const SearchWorkspaceMemoriesRequestSchema: GenMessage<SearchWorkspaceMemoriesRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workspace_memory, 12);
+
+/**
+ * @generated from message agents.v1.SearchWorkspaceMemoriesResponse
+ */
+export type SearchWorkspaceMemoriesResponse = Message<"agents.v1.SearchWorkspaceMemoriesResponse"> & {
+  /**
+   * Most relevant first.
+   *
+   * @generated from field: repeated agents.v1.WorkspaceMemory memories = 1;
+   */
+  memories: WorkspaceMemory[];
+};
+
+/**
+ * Describes the message agents.v1.SearchWorkspaceMemoriesResponse.
+ * Use `create(SearchWorkspaceMemoriesResponseSchema)` to create a new message.
+ */
+export const SearchWorkspaceMemoriesResponseSchema: GenMessage<SearchWorkspaceMemoriesResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workspace_memory, 13);
+
+/**
+ * @generated from message agents.v1.DeleteWorkspaceMemoryRequest
+ */
+export type DeleteWorkspaceMemoryRequest = Message<"agents.v1.DeleteWorkspaceMemoryRequest"> & {
+  /**
+   * @generated from field: string memory_id = 1;
+   */
+  memoryId: string;
+};
+
+/**
+ * Describes the message agents.v1.DeleteWorkspaceMemoryRequest.
+ * Use `create(DeleteWorkspaceMemoryRequestSchema)` to create a new message.
+ */
+export const DeleteWorkspaceMemoryRequestSchema: GenMessage<DeleteWorkspaceMemoryRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workspace_memory, 14);
+
+/**
+ * @generated from message agents.v1.DeleteWorkspaceMemoryResponse
+ */
+export type DeleteWorkspaceMemoryResponse = Message<"agents.v1.DeleteWorkspaceMemoryResponse"> & {
+};
+
+/**
+ * Describes the message agents.v1.DeleteWorkspaceMemoryResponse.
+ * Use `create(DeleteWorkspaceMemoryResponseSchema)` to create a new message.
+ */
+export const DeleteWorkspaceMemoryResponseSchema: GenMessage<DeleteWorkspaceMemoryResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workspace_memory, 15);
+
+/**
+ * @generated from enum agents.v1.WorkspaceMemoryScope
+ */
+export enum WorkspaceMemoryScope {
+  /**
+   * Treated as WORKSPACE.
+   *
+   * @generated from enum value: WORKSPACE_MEMORY_SCOPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Workspace Memory: the pool shared across the workspace.
+   *
+   * @generated from enum value: WORKSPACE_MEMORY_SCOPE_WORKSPACE = 1;
+   */
+  WORKSPACE = 1,
+
+  /**
+   * Agent Memory: private to one agent; requests name it with agent_id.
+   *
+   * @generated from enum value: WORKSPACE_MEMORY_SCOPE_AGENT = 2;
+   */
+  AGENT = 2,
+}
+
+/**
+ * Describes the enum agents.v1.WorkspaceMemoryScope.
+ */
+export const WorkspaceMemoryScopeSchema: GenEnum<WorkspaceMemoryScope> = /*@__PURE__*/
+  enumDesc(file_agents_v1_workspace_memory, 0);
+
+/**
  * WorkspaceMemoryConfigService manages the workspace's mem0 connection. Any
  * member may read it; owners, admins, and global admins may change it.
  *
@@ -288,4 +543,43 @@ export const WorkspaceMemoryConfigService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_workspace_memory, 0);
+
+/**
+ * @generated from service agents.v1.WorkspaceMemoryService
+ */
+export const WorkspaceMemoryService: GenService<{
+  /**
+   * ListWorkspaceMemories returns the newest memories of one scope, capped
+   * at `limit` (mem0 OSS listing has no pagination; search reaches the rest).
+   *
+   * @generated from rpc agents.v1.WorkspaceMemoryService.ListWorkspaceMemories
+   */
+  listWorkspaceMemories: {
+    methodKind: "unary";
+    input: typeof ListWorkspaceMemoriesRequestSchema;
+    output: typeof ListWorkspaceMemoriesResponseSchema;
+  },
+  /**
+   * SearchWorkspaceMemories runs a semantic search in one scope.
+   *
+   * @generated from rpc agents.v1.WorkspaceMemoryService.SearchWorkspaceMemories
+   */
+  searchWorkspaceMemories: {
+    methodKind: "unary";
+    input: typeof SearchWorkspaceMemoriesRequestSchema;
+    output: typeof SearchWorkspaceMemoriesResponseSchema;
+  },
+  /**
+   * DeleteWorkspaceMemory deletes one memory of this workspace. A memory
+   * that does not exist or belongs to another workspace is NotFound.
+   *
+   * @generated from rpc agents.v1.WorkspaceMemoryService.DeleteWorkspaceMemory
+   */
+  deleteWorkspaceMemory: {
+    methodKind: "unary";
+    input: typeof DeleteWorkspaceMemoryRequestSchema;
+    output: typeof DeleteWorkspaceMemoryResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_agents_v1_workspace_memory, 1);
 

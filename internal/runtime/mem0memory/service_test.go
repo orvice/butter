@@ -466,3 +466,26 @@ func TestAddRedactsSecrets(t *testing.T) {
 		t.Fatalf("content = %q", content)
 	}
 }
+
+func TestOwnedBy(t *testing.T) {
+	cases := []struct {
+		m      mem0.Memory
+		target Target
+		agent  string
+		ok     bool
+	}{
+		{mem0.Memory{UserID: "ws:ws1"}, TargetWorkspace, "", true},
+		{mem0.Memory{AgentID: "ws:ws1:agent:helper"}, TargetAgent, "helper", true},
+		{mem0.Memory{UserID: "ws:ws2"}, 0, "", false},
+		{mem0.Memory{AgentID: "ws:ws2:agent:helper"}, 0, "", false},
+		{mem0.Memory{AgentID: "ws:ws1:agent:"}, 0, "", false},
+		{mem0.Memory{UserID: "alice"}, 0, "", false},
+		{mem0.Memory{}, 0, "", false},
+	}
+	for _, tc := range cases {
+		target, agent, ok := OwnedBy(tc.m, "ws1")
+		if target != tc.target || agent != tc.agent || ok != tc.ok {
+			t.Errorf("OwnedBy(%+v) = %v, %q, %v", tc.m, target, agent, ok)
+		}
+	}
+}

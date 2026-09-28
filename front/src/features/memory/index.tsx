@@ -46,6 +46,7 @@ import { Switch } from '@/components/ui/switch'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { DeleteDialog } from '@/components/delete-dialog'
 import { apiKeyForSave } from './api-key'
+import { MemoriesSection } from './memories'
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -337,6 +338,8 @@ export function MemorySettingsPage() {
                 </div>
               </form>
             </Form>
+
+            {config?.enabled && <MemoriesSection canManage={canManage} />}
           </div>
         )}
       </PageScroll>
