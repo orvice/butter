@@ -1,4 +1,4 @@
-package telegramqueue
+package eventqueue
 
 import "testing"
 
@@ -16,7 +16,7 @@ func TestValidateDurabilityConfig(t *testing.T) {
 		{name: "volatile", policy: "noeviction", wantFailure: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateDurabilityConfig(
+			err := ValidateDurabilityConfig(
 				map[string]string{"maxmemory-policy": tc.policy},
 				map[string]string{"appendonly": tc.appendonly},
 				map[string]string{"save": tc.save},

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+
+	"go.orx.me/apps/butter/internal/eventqueue"
 )
 
 const (
@@ -25,61 +25,55 @@ const (
 	// dedupeTTL bounds how long a duplicate is recognized. Telegram retries
 	// an undelivered update for far less than this.
 	dedupeTTL = 24 * time.Hour
+	// leasePreflightKeyPrefix namespaces CheckLeaseReady's probe lease.
+	leasePreflightKeyPrefix = "butter:telegram:lease:preflight:"
 )
+
+// errNotConfigured is what every operation reports on a nil queue.
+var errNotConfigured = errors.New("telegram queue is not configured")
 
 // ErrDuplicate reports that this (channel, update) pair was already accepted.
 // It is not a failure: the caller acknowledges the delivery.
-var ErrDuplicate = errors.New("telegram update already accepted")
+var ErrDuplicate = eventqueue.ErrDuplicate
 
-// acceptScript deduplicates and appends in one round trip.
-//
-// Atomicity matters here, not speed: two Pods can receive the same Telegram
-// retry concurrently. Doing SETNX and XADD as separate commands would let
-// both pass the SETNX check window, or leave a dedupe marker set for an event
-// that was never appended — which would silently drop the update forever.
-var acceptScript = redis.NewScript(`
-local seen = redis.call('SET', KEYS[1], '1', 'NX', 'PX', ARGV[1])
-if not seen then
-  return nil
-end
-return redis.call('XADD', KEYS[2], '*', 'event', ARGV[2])
-`)
-
-// touchScript refreshes a pending entry only while it still belongs to the
-// expected consumer. XPENDING and XCLAIM run atomically inside the script so
-// a stale heartbeat cannot steal work back from a new owner.
-var touchScript = redis.NewScript(`
-local pending = redis.call('XPENDING', KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
-if #pending == 0 or pending[1][2] ~= ARGV[2] then
-  return 0
-end
-redis.call('XCLAIM', KEYS[1], ARGV[1], ARGV[2], 0, ARGV[3], 'JUSTID')
-return 1
-`)
-
-// Queue is the Redis Streams implementation of the receive hand-off.
+// Queue is the Telegram receive hand-off: the shared durable event queue
+// (internal/eventqueue) under Telegram's keys, carrying encoded Events.
 type Queue struct {
-	rdb *redis.Client
+	inner *eventqueue.Queue
 }
 
 func New(rdb *redis.Client) *Queue {
 	if rdb == nil {
 		return nil
 	}
-	return &Queue{rdb: rdb}
+	return &Queue{inner: eventqueue.New(rdb, eventqueue.Config{
+		Name:                    "telegram",
+		StreamKey:               StreamKey,
+		ConsumerGroup:           ConsumerGroup,
+		DedupeKeyPrefix:         dedupeKeyPrefix,
+		DedupeTTL:               dedupeTTL,
+		LeasePreflightKeyPrefix: leasePreflightKeyPrefix,
+	})}
+}
+
+func (q *Queue) queue() *eventqueue.Queue {
+	if q == nil {
+		return nil
+	}
+	return q.inner
 }
 
 // Available reports whether a durable queue is wired at all. Callers use it
 // to block enablement rather than discovering the gap at the first update.
-func (q *Queue) Available() bool { return q != nil && q.rdb != nil }
+func (q *Queue) Available() bool { return q.queue().Available() }
 
 // Ping verifies that the queue backend is reachable without imposing the
 // persistence-policy checks required before accepting webhook deliveries.
 func (q *Queue) Ping(ctx context.Context) error {
 	if !q.Available() {
-		return errors.New("telegram queue is not configured")
+		return errNotConfigured
 	}
-	return q.rdb.Ping(ctx).Err()
+	return q.inner.Ping(ctx)
 }
 
 // Accept durably records an event, returning ErrDuplicate when this
@@ -91,47 +85,22 @@ func (q *Queue) Ping(ctx context.Context) error {
 // an update we failed to enqueue loses it permanently.
 func (q *Queue) Accept(ctx context.Context, event *Event) (string, error) {
 	if !q.Available() {
-		return "", errors.New("telegram queue is not configured")
+		return "", errNotConfigured
 	}
 	payload, err := event.Encode()
 	if err != nil {
 		return "", err
 	}
-	dedupeKey := fmt.Sprintf("%s%s:%d", dedupeKeyPrefix, event.ChannelID, event.UpdateID)
-
-	result, err := acceptScript.Run(ctx, q.rdb,
-		[]string{dedupeKey, StreamKey},
-		dedupeTTL.Milliseconds(), payload,
-	).Result()
-	if errors.Is(err, redis.Nil) {
-		return "", ErrDuplicate
-	}
-	if err != nil {
-		return "", fmt.Errorf("accept telegram update: %w", err)
-	}
-	id, _ := result.(string)
-	return id, nil
+	return q.inner.Accept(ctx, fmt.Sprintf("%s:%d", event.ChannelID, event.UpdateID), payload)
 }
 
 // EnsureGroup creates the consumer group if it does not exist. It is safe to
 // call from every Pod on every start.
 func (q *Queue) EnsureGroup(ctx context.Context) error {
 	if !q.Available() {
-		return errors.New("telegram queue is not configured")
+		return errNotConfigured
 	}
-	// MKSTREAM so the first Pod to start does not have to wait for an update
-	// before the group can exist.
-	err := q.rdb.XGroupCreateMkStream(ctx, StreamKey, ConsumerGroup, "0").Err()
-	if err != nil && !isBusyGroup(err) {
-		return fmt.Errorf("create telegram consumer group: %w", err)
-	}
-	return nil
-}
-
-// isBusyGroup recognizes "the group already exists", which every Pod after
-// the first will see. Redis reports it only as a message prefix.
-func isBusyGroup(err error) bool {
-	return err != nil && strings.HasPrefix(err.Error(), "BUSYGROUP")
+	return q.inner.EnsureGroup(ctx)
 }
 
 // Delivery is one claimed Stream entry.
@@ -144,108 +113,75 @@ type Delivery struct {
 // Read claims up to count new entries for this consumer, blocking up to
 // block for work to arrive.
 func (q *Queue) Read(ctx context.Context, consumer string, count int64, block time.Duration) ([]Delivery, error) {
-	return q.read(ctx, consumer, ">", count, block)
+	if !q.Available() {
+		return nil, errNotConfigured
+	}
+	entries, err := q.inner.Read(ctx, consumer, count, block)
+	if err != nil {
+		return nil, err
+	}
+	return q.decodeAll(ctx, entries)
 }
 
 // ReadPending re-claims entries this consumer already holds but never
 // acknowledged — the state a Pod is in after a crash mid-turn.
 func (q *Queue) ReadPending(ctx context.Context, consumer string, count int64) ([]Delivery, error) {
-	return q.read(ctx, consumer, "0", count, 0)
+	if !q.Available() {
+		return nil, errNotConfigured
+	}
+	entries, err := q.inner.ReadPending(ctx, consumer, count)
+	if err != nil {
+		return nil, err
+	}
+	return q.decodeAll(ctx, entries)
 }
 
-func (q *Queue) read(ctx context.Context, consumer, start string, count int64, block time.Duration) ([]Delivery, error) {
-	if !q.Available() {
-		return nil, errors.New("telegram queue is not configured")
-	}
-	streams, err := q.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
-		Group:    ConsumerGroup,
-		Consumer: consumer,
-		Streams:  []string{StreamKey, start},
-		Count:    count,
-		Block:    block,
-	}).Result()
-	if errors.Is(err, redis.Nil) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("read telegram updates: %w", err)
-	}
-
+// decodeAll decodes read entries in order. An undecodable entry can never
+// succeed: it is acknowledged so it stops being redelivered, and reported.
+func (q *Queue) decodeAll(ctx context.Context, entries []eventqueue.Entry) ([]Delivery, error) {
 	var out []Delivery
-	for _, stream := range streams {
-		for _, message := range stream.Messages {
-			payload, _ := message.Values["event"].(string)
-			event, decodeErr := DecodeEvent(payload)
-			if decodeErr != nil {
-				// An undecodable entry can never succeed. Acknowledge it so
-				// it stops being redelivered, and report it.
-				_ = q.Ack(ctx, message.ID)
-				return out, fmt.Errorf("drop undecodable telegram event %s: %w", message.ID, decodeErr)
-			}
-			out = append(out, Delivery{ID: message.ID, Event: event})
+	for _, entry := range entries {
+		event, decodeErr := DecodeEvent(entry.Payload)
+		if decodeErr != nil {
+			_ = q.Ack(ctx, entry.ID)
+			return out, fmt.Errorf("drop undecodable telegram event %s: %w", entry.ID, decodeErr)
 		}
+		out = append(out, Delivery{ID: entry.ID, Event: event})
 	}
 	return out, nil
 }
 
 // Ack marks entries as fully handled.
-func (q *Queue) Ack(ctx context.Context, ids ...string) error {
-	if !q.Available() || len(ids) == 0 {
-		return nil
-	}
-	if err := q.rdb.XAck(ctx, StreamKey, ConsumerGroup, ids...).Err(); err != nil {
-		return fmt.Errorf("ack telegram updates: %w", err)
-	}
-	return nil
-}
+func (q *Queue) Ack(ctx context.Context, ids ...string) error { return q.queue().Ack(ctx, ids...) }
 
 // Touch resets one pending entry's idle time while its consumer is still
 // handling it. Without this heartbeat, XAUTOCLAIM can steal a healthy long
 // Agent turn merely because it exceeded reclaimIdle.
 func (q *Queue) Touch(ctx context.Context, consumer, id string) error {
 	if !q.Available() {
-		return errors.New("telegram queue is not configured")
+		return errNotConfigured
 	}
-	result, err := touchScript.Run(ctx, q.rdb, []string{StreamKey}, ConsumerGroup, consumer, id).Int64()
-	if err != nil {
-		return fmt.Errorf("touch telegram update %s: %w", id, err)
-	}
-	if result != 1 {
-		return fmt.Errorf("touch telegram update %s: pending entry is no longer owned", id)
-	}
-	return nil
+	return q.inner.Touch(ctx, consumer, id)
 }
 
 // Claim takes over entries idle longer than minIdle from whichever consumer
 // holds them, so a crashed Pod's work does not stall.
 func (q *Queue) Claim(ctx context.Context, consumer string, minIdle time.Duration, count int64) ([]Delivery, error) {
 	if !q.Available() {
-		return nil, errors.New("telegram queue is not configured")
+		return nil, errNotConfigured
 	}
-	messages, _, err := q.rdb.XAutoClaim(ctx, &redis.XAutoClaimArgs{
-		Stream:   StreamKey,
-		Group:    ConsumerGroup,
-		Consumer: consumer,
-		MinIdle:  minIdle,
-		Start:    "0",
-		Count:    count,
-	}).Result()
-	if errors.Is(err, redis.Nil) {
-		return nil, nil
-	}
+	entries, err := q.inner.Claim(ctx, consumer, minIdle, count)
 	if err != nil {
-		return nil, fmt.Errorf("claim telegram updates: %w", err)
+		return nil, err
 	}
-
 	var out []Delivery
-	for _, message := range messages {
-		payload, _ := message.Values["event"].(string)
-		event, decodeErr := DecodeEvent(payload)
+	for _, entry := range entries {
+		event, decodeErr := DecodeEvent(entry.Payload)
 		if decodeErr != nil {
-			_ = q.Ack(ctx, message.ID)
+			_ = q.Ack(ctx, entry.ID)
 			continue
 		}
-		out = append(out, Delivery{ID: message.ID, Event: event})
+		out = append(out, Delivery{ID: entry.ID, Event: event})
 	}
 	return out, nil
 }
@@ -255,24 +191,9 @@ func (q *Queue) Claim(ctx context.Context, consumer string, minIdle time.Duratio
 // Telegram update and then discard the only authoritative copy.
 func (q *Queue) CheckReady(ctx context.Context) error {
 	if !q.Available() {
-		return errors.New("telegram queue is not configured")
+		return errNotConfigured
 	}
-	if err := q.Ping(ctx); err != nil {
-		return fmt.Errorf("redis is unreachable: %w", err)
-	}
-	policy, err := q.rdb.ConfigGet(ctx, "maxmemory-policy").Result()
-	if err != nil {
-		return fmt.Errorf("read maxmemory-policy: %w", err)
-	}
-	persistence, err := q.rdb.ConfigGet(ctx, "appendonly").Result()
-	if err != nil {
-		return fmt.Errorf("read appendonly: %w", err)
-	}
-	snapshot, err := q.rdb.ConfigGet(ctx, "save").Result()
-	if err != nil {
-		return fmt.Errorf("read save schedule: %w", err)
-	}
-	return validateDurabilityConfig(policy, persistence, snapshot)
+	return q.inner.CheckReady(ctx)
 }
 
 // CheckLeaseReady verifies the Redis commands and Lua execution used by the
@@ -281,42 +202,7 @@ func (q *Queue) CheckReady(ctx context.Context) error {
 // consumer lease.
 func (q *Queue) CheckLeaseReady(ctx context.Context) error {
 	if !q.Available() {
-		return errors.New("telegram queue is not configured")
+		return errNotConfigured
 	}
-	probeID := uuid.NewString()
-	lease := NewLease(q.rdb, "butter:telegram:lease:preflight:"+probeID, probeID, 10*time.Second)
-	acquired, err := lease.Acquire(ctx)
-	if err != nil {
-		return fmt.Errorf("acquire probe lease: %w", err)
-	}
-	if !acquired {
-		return errors.New("acquire probe lease: lease was not acquired")
-	}
-	defer func() {
-		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_ = lease.Release(releaseCtx)
-	}()
-
-	renewed, err := lease.Renew(ctx)
-	if err != nil {
-		return fmt.Errorf("renew probe lease: %w", err)
-	}
-	if !renewed {
-		return errors.New("renew probe lease: lease ownership was lost")
-	}
-	if err := lease.Release(ctx); err != nil {
-		return fmt.Errorf("release probe lease: %w", err)
-	}
-	return nil
-}
-
-func validateDurabilityConfig(policy, persistence, snapshot map[string]string) error {
-	if policy["maxmemory-policy"] != "noeviction" {
-		return errors.New("maxmemory-policy must be noeviction")
-	}
-	if persistence["appendonly"] == "yes" || strings.TrimSpace(snapshot["save"]) != "" {
-		return nil
-	}
-	return errors.New("Redis persistence is disabled; enable AOF or RDB snapshots")
+	return q.inner.CheckLeaseReady(ctx)
 }

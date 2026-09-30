@@ -1,4 +1,4 @@
-package mem0memory
+package redact
 
 import (
 	"strings"
@@ -27,7 +27,7 @@ func TestRedactRemovesSecrets(t *testing.T) {
 		{in: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA\n-----END RSA PRIVATE KEY-----", leak: "MIIEpAIBAAKCAQEA"},
 	}
 	for _, tc := range cases {
-		got := Redact(tc.in)
+		got := Text(tc.in)
 		if strings.Contains(got, tc.leak) {
 			t.Errorf("Redact(%q) = %q, still contains %q", tc.in, got, tc.leak)
 		}
@@ -47,7 +47,7 @@ func TestRedactLeavesOrdinaryTextAlone(t *testing.T) {
 		"call the /api/v1/tokens endpoint",
 		"sk-short",
 	} {
-		if got := Redact(in); got != in {
+		if got := Text(in); got != in {
 			t.Errorf("Redact(%q) = %q, want unchanged", in, got)
 		}
 	}
