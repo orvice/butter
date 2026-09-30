@@ -198,6 +198,73 @@ func runCoordinationContract(t *testing.T, factory coordinatorFactory) {
 		}
 	})
 
+	t.Run("AStopReachesTheHolderAndDiscardsTheQueue", func(t *testing.T) {
+		c, _ := factory(t)
+		ctx := t.Context()
+		hold, _, _ := c.EnqueueOrAcquire(ctx, "s", followUp(0))
+		c.EnqueueOrAcquire(ctx, "s", followUp(1))
+		held, discarded, err := c.RequestStop(ctx, "s")
+		if err != nil || !held || len(discarded) != 1 || discarded[0].Text != "message 1" {
+			t.Fatalf("RequestStop = %v, %+v, %v; want held with the queued follow-up discarded", held, discarded, err)
+		}
+		select {
+		case <-hold.Stopped():
+		case <-time.After(2 * time.Second):
+			t.Fatal("the holder was not told to stop")
+		}
+		if drained, _ := hold.ReleaseOrDrain(ctx); len(drained) != 0 {
+			t.Fatalf("drained after stop = %+v, want nothing", drained)
+		}
+	})
+
+	t.Run("AStopWithNothingRunningReportsIdle", func(t *testing.T) {
+		c, _ := factory(t)
+		held, discarded, err := c.RequestStop(t.Context(), "s")
+		if err != nil || held || len(discarded) != 0 {
+			t.Fatalf("RequestStop = %v, %+v, %v; want idle", held, discarded, err)
+		}
+	})
+
+	t.Run("AStopRightAfterTheTurnStartsIsHonored", func(t *testing.T) {
+		c, _ := factory(t)
+		ctx := t.Context()
+		hold, _, _ := c.EnqueueOrAcquire(ctx, "s", followUp(0))
+		if held, _, _ := c.RequestStop(ctx, "s"); !held {
+			t.Fatal("RequestStop did not see the holder")
+		}
+		select {
+		case <-hold.Stopped():
+		case <-time.After(2 * time.Second):
+			t.Fatal("a stop right after the turn started was lost")
+		}
+		hold.Abandon()
+	})
+
+	t.Run("AStopDoesNotCarryOverToTheNextHolderOrTurn", func(t *testing.T) {
+		c, _ := factory(t)
+		ctx := t.Context()
+		hold, _, _ := c.EnqueueOrAcquire(ctx, "s", followUp(0))
+		c.RequestStop(ctx, "s")
+		<-hold.Stopped()
+		hold.AcknowledgeStop(ctx)
+		select {
+		case <-hold.Stopped():
+			t.Fatal("an acknowledged stop still reads as stopped")
+		case <-time.After(50 * time.Millisecond):
+		}
+		hold.Abandon()
+		next, _, _ := c.TryAcquire(ctx, "s")
+		if next == nil {
+			t.Fatal("TryAcquire after abandon failed")
+		}
+		select {
+		case <-next.Stopped():
+			t.Fatal("the next holder inherited a stop")
+		case <-time.After(50 * time.Millisecond):
+		}
+		next.Abandon()
+	})
+
 	t.Run("SessionsAreIndependent", func(t *testing.T) {
 		c, _ := factory(t)
 		ctx := t.Context()
@@ -209,4 +276,32 @@ func runCoordinationContract(t *testing.T, factory coordinatorFactory) {
 		a.Abandon()
 		b.Abandon()
 	})
+}
+
+func TestAStopBetweenAcquisitionAndSubscriptionIsCaughtByTheMarker(t *testing.T) {
+	sc, _ := redisCoordinator(t)
+	c := sc.(*RedisCoordinator)
+	ctx := t.Context()
+	c.beforeSubscribe = func() {
+		// The lease exists but the holder is not listening yet: the nudge
+		// goes nowhere and only the marker can carry the stop.
+		if held, _, err := c.RequestStop(ctx, "s"); err != nil || !held {
+			t.Errorf("RequestStop = %v, %v", held, err)
+		}
+	}
+	hold, _, err := c.EnqueueOrAcquire(ctx, "s", followUp(0))
+	if err != nil || hold == nil {
+		t.Fatalf("EnqueueOrAcquire = %v, %v", hold, err)
+	}
+	c.beforeSubscribe = nil
+	select {
+	case <-hold.Stopped():
+	case <-time.After(2 * time.Second):
+		t.Fatal("the stop marker was not honored")
+	}
+	ttl, err := c.rdb.PTTL(ctx, c.stopKey("s")).Result()
+	if err != nil || ttl <= 0 || ttl > stopMarkerTTL {
+		t.Fatalf("stop marker TTL = %v, %v; want a bounded TTL", ttl, err)
+	}
+	hold.Abandon()
 }

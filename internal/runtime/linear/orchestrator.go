@@ -172,6 +172,7 @@ type routing struct {
 const (
 	cutShortMessage = "The previous run was cut short before it finished, so it was not repeated. Send a message to continue in the same session."
 	queuedMessage   = "Queued — this will run after the current task finishes."
+	stoppedMessage  = "Stopped — send a message to continue."
 )
 
 // Handle implements EventHandler.
@@ -254,7 +255,7 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 			"You are not allowed to use this agent. Ask a Butter workspace admin to add your Linear user ID to the Linear App's allowlist.")
 	}
 	if event.Stop {
-		return o.answer(ctx, t, linearapi.ActivityResponse, "Nothing is running, so there is nothing to stop.")
+		return o.stop(ctx, t)
 	}
 
 	route, ok := o.route(t)
@@ -291,6 +292,34 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 	return o.holdSession(ctx, t, hold, route, prompts)
 }
 
+// stop halts the session's running turn, whichever Pod runs it, and
+// discards its queued follow-ups. It never takes the session lease: a stop
+// must not wait behind the turn it is meant to stop. The holder confirms
+// once its turn can post nothing more.
+func (o *Orchestrator) stop(ctx context.Context, t *turn) error {
+	sessionID := SessionID(t.app.GetId(), t.event.AgentSessionID, t.app.GetAgentId())
+	held, discarded, err := o.coord.RequestStop(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	o.cancelFollowUps(ctx, t, discarded)
+	if !held {
+		return o.answer(ctx, t, linearapi.ActivityResponse, "Nothing is running, so there is nothing to stop.")
+	}
+	t.logger(ctx).Info("linear stop requested for a running turn", "discarded", len(discarded))
+	return o.recordStatus(ctx, t.own, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_SUCCEEDED, "")
+}
+
+// cancelFollowUps marks follow-ups a stop discarded as cancelled: they were
+// accepted but will never run.
+func (o *Orchestrator) cancelFollowUps(ctx context.Context, t *turn, followUps []FollowUp) {
+	for _, p := range o.loadFollowUps(ctx, t, followUps) {
+		if err := o.recordStatus(ctx, p, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_CANCELLED, "discarded by a stop"); err != nil {
+			t.logger(ctx).Warn("could not cancel a queued linear follow-up", "err", err)
+		}
+	}
+}
+
 // route resolves the App's Agent and the session it runs in.
 func (o *Orchestrator) route(t *turn) (routing, bool) {
 	agentName, ok := o.runner.ResolveAgentRef(t.event.WorkspaceID, t.app.GetAgentId())
@@ -313,10 +342,16 @@ func (o *Orchestrator) holdSession(ctx context.Context, t *turn, hold SessionHol
 	o.sweepInterrupted(runCtx, t, prompts)
 	for {
 		if len(prompts) > 0 {
-			if err := o.run(runCtx, t, route, prompts); err != nil {
+			if err := o.runStoppable(runCtx, t, hold, route, prompts); err != nil {
 				hold.Abandon()
 				return err
 			}
+		}
+		if isClosed(hold.Stopped()) {
+			// The stop is answered only now, when the stopped turn can
+			// post nothing more.
+			_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityResponse, Body: stoppedMessage})
+			hold.AcknowledgeStop(ctx)
 		}
 		if runCtx.Err() != nil {
 			// Shutting down or fenced out: leave queued follow-ups for the
@@ -408,8 +443,34 @@ func (o *Orchestrator) sweepInterrupted(ctx context.Context, t *turn, inHand []*
 	}
 }
 
+// runStoppable runs one turn that a stop request cancels.
+func (o *Orchestrator) runStoppable(ctx context.Context, t *turn, hold SessionHold, route routing, prompts []*prompt) error {
+	stopped := hold.Stopped()
+	turnCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-stopped:
+			cancel()
+		case <-turnCtx.Done():
+		}
+	}()
+	return o.run(turnCtx, t, route, prompts, func() bool { return isClosed(stopped) })
+}
+
+// isClosed reports whether ch is closed.
+func isClosed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
 // run invokes the Agent for prompts, persists its reply, then posts it.
-func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts []*prompt) error {
+// stopped reports whether a user stop cancelled the turn.
+func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts []*prompt, stopped func() bool) error {
 	logger := t.logger(ctx)
 	hasHistory := false
 	if sess, err := o.runner.GetSession(ctx, AppName, route.sessionID, route.userID); err == nil && sess != nil && sess.Events().Len() > 0 {
@@ -469,6 +530,17 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts 
 	started := time.Now()
 	result, err := o.runner.RunTurnSSE(runCtx, route.agentName, []*genai.Part{{Text: input}}, "", ctxInfo, nil, nil)
 	if err != nil {
+		if stopped() {
+			// The user stopped it: cancelled, not dead-lettered. The stop
+			// is confirmed by the caller.
+			for _, p := range prompts {
+				if recErr := o.recordStatus(ctx, p, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_CANCELLED, "stopped by the user"); recErr != nil {
+					logger.Warn("could not record a stopped linear turn", "err", recErr)
+				}
+			}
+			logger.Info("linear turn stopped")
+			return nil
+		}
 		if ctx.Err() != nil {
 			// Shutting down or fenced out mid-turn: the records stay
 			// PROCESSING for the reclaim to settle honestly.

@@ -40,6 +40,11 @@ type SessionCoordinator interface {
 	TryAcquire(ctx context.Context, sessionKey string) (SessionHold, []FollowUp, error)
 	// Discard removes and returns every queued follow-up.
 	Discard(ctx context.Context, sessionKey string) ([]FollowUp, error)
+	// RequestStop discards every queued follow-up and, when a turn holds
+	// the session, tells that holder to stop. It never takes the lease, so
+	// a stop never waits behind the turn it is meant to stop. held reports
+	// whether a turn was running.
+	RequestStop(ctx context.Context, sessionKey string) (held bool, discarded []FollowUp, err error)
 }
 
 // SessionHold is one holder's turn on a session.
@@ -53,6 +58,10 @@ type SessionHold interface {
 	// Abandon gives the session up without draining: queued follow-ups
 	// stay for the next holder.
 	Abandon()
+	// Stopped is closed when a stop is requested for this holder.
+	Stopped() <-chan struct{}
+	// AcknowledgeStop clears a handled stop so later turns in this hold run.
+	AcknowledgeStop(ctx context.Context)
 }
 
 // --- In-process coordinator --------------------------------------------------
@@ -68,6 +77,7 @@ type memorySession struct {
 	holder string
 	cancel context.CancelFunc
 	items  []FollowUp
+	hold   *memoryHold
 }
 
 func NewMemoryCoordinator() *MemoryCoordinator {
@@ -92,7 +102,9 @@ func (c *MemoryCoordinator) acquireLocked(ctx context.Context, key string, s *me
 	s.cancel = cancel
 	backlog := s.items
 	s.items = nil
-	return &memoryHold{c: c, key: key, token: s.holder, ctx: holdCtx, cancel: cancel}, backlog
+	hold := &memoryHold{c: c, key: key, token: s.holder, ctx: holdCtx, cancel: cancel, stopped: make(chan struct{})}
+	s.hold = hold
+	return hold, backlog
 }
 
 func (c *MemoryCoordinator) EnqueueOrAcquire(ctx context.Context, key string, followUp FollowUp) (SessionHold, []FollowUp, error) {
@@ -127,6 +139,19 @@ func (c *MemoryCoordinator) Discard(_ context.Context, key string) ([]FollowUp, 
 	return items, nil
 }
 
+func (c *MemoryCoordinator) RequestStop(_ context.Context, key string) (bool, []FollowUp, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	s := c.session(key)
+	discarded := s.items
+	s.items = nil
+	if s.holder == "" || s.hold == nil || s.hold.token != s.holder {
+		return false, discarded, nil
+	}
+	s.hold.stop()
+	return true, discarded, nil
+}
+
 // Steal simulates another holder taking the session: the current holder's
 // context is cancelled and its lease is gone. Used by tests.
 func (c *MemoryCoordinator) Steal(key string) {
@@ -141,14 +166,41 @@ func (c *MemoryCoordinator) Steal(key string) {
 }
 
 type memoryHold struct {
-	c      *MemoryCoordinator
-	key    string
-	token  string
-	ctx    context.Context
-	cancel context.CancelFunc
+	c       *MemoryCoordinator
+	key     string
+	token   string
+	ctx     context.Context
+	cancel  context.CancelFunc
+	stopMu  sync.Mutex
+	stopped chan struct{}
+	isStop  bool
 }
 
 func (h *memoryHold) Context() context.Context { return h.ctx }
+
+func (h *memoryHold) stop() {
+	h.stopMu.Lock()
+	defer h.stopMu.Unlock()
+	if !h.isStop {
+		h.isStop = true
+		close(h.stopped)
+	}
+}
+
+func (h *memoryHold) Stopped() <-chan struct{} {
+	h.stopMu.Lock()
+	defer h.stopMu.Unlock()
+	return h.stopped
+}
+
+func (h *memoryHold) AcknowledgeStop(context.Context) {
+	h.stopMu.Lock()
+	defer h.stopMu.Unlock()
+	if h.isStop {
+		h.isStop = false
+		h.stopped = make(chan struct{})
+	}
+}
 
 func (h *memoryHold) ReleaseOrDrain(context.Context) ([]FollowUp, error) {
 	h.c.mu.Lock()
@@ -160,6 +212,7 @@ func (h *memoryHold) ReleaseOrDrain(context.Context) ([]FollowUp, error) {
 	if len(s.items) == 0 {
 		s.holder = ""
 		s.cancel = nil
+		s.hold = nil
 		h.cancel()
 		return nil, nil
 	}
@@ -175,6 +228,7 @@ func (h *memoryHold) Abandon() {
 	if s.holder == h.token {
 		s.holder = ""
 		s.cancel = nil
+		s.hold = nil
 	}
 	h.cancel()
 }
@@ -184,8 +238,12 @@ func (h *memoryHold) Abandon() {
 const (
 	sessionLeasePrefix = "butter:linear:lease:session:"
 	followUpListPrefix = "butter:linear:followups:"
+	stopMarkerPrefix   = "butter:linear:stop:"
+	stopChannelPrefix  = "butter:linear:stop-nudge:"
 	// followUpListTTL bounds how long an abandoned list survives.
 	followUpListTTL = 24 * time.Hour
+	// stopMarkerTTL bounds how long a stop waits for its holder to see it.
+	stopMarkerTTL = 10 * time.Minute
 )
 
 // enqueueOrAcquireScript takes the free lease (draining any backlog a dead
@@ -235,6 +293,30 @@ redis.call('DEL', KEYS[1])
 return items
 `)
 
+// requestStopScript discards the queue and, while a turn holds the
+// session, marks that holder stopped and nudges it — one step, so a stop can
+// neither miss the holder it was meant for nor reach the next one.
+var requestStopScript = redis.NewScript(`
+local items = redis.call('LRANGE', KEYS[2], 0, -1)
+redis.call('DEL', KEYS[2])
+local holder = redis.call('GET', KEYS[1])
+if not holder then
+  table.insert(items, 1, 'idle')
+  return items
+end
+redis.call('SET', KEYS[3], holder, 'PX', ARGV[1])
+redis.call('PUBLISH', ARGV[2], holder)
+table.insert(items, 1, 'held')
+return items
+`)
+
+var clearStopScript = redis.NewScript(`
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+`)
+
 var renewScript = redis.NewScript(`
 if redis.call('GET', KEYS[1]) == ARGV[1] then
   return redis.call('PEXPIRE', KEYS[1], ARGV[2])
@@ -256,6 +338,9 @@ type RedisCoordinator struct {
 	holder string
 	ttl    time.Duration
 	prefix string
+	// beforeSubscribe runs between acquiring a session and subscribing to
+	// its stop nudges. Tests use it to race a stop against a turn's start.
+	beforeSubscribe func()
 }
 
 // NewRedisCoordinator builds the coordinator. ttl bounds how long a crashed
@@ -271,6 +356,24 @@ var _ SessionCoordinator = (*RedisCoordinator)(nil)
 
 func (c *RedisCoordinator) keys(key string) []string {
 	return []string{c.prefix + sessionLeasePrefix + key, c.prefix + followUpListPrefix + key}
+}
+
+func (c *RedisCoordinator) stopKey(key string) string     { return c.prefix + stopMarkerPrefix + key }
+func (c *RedisCoordinator) stopChannel(key string) string { return c.prefix + stopChannelPrefix + key }
+
+func (c *RedisCoordinator) RequestStop(ctx context.Context, key string) (bool, []FollowUp, error) {
+	keys := append(c.keys(key), c.stopKey(key))
+	result, err := requestStopScript.Run(ctx, c.rdb, []string{keys[0], keys[1], keys[2]},
+		stopMarkerTTL.Milliseconds(), c.stopChannel(key)).Result()
+	if err != nil {
+		return false, nil, fmt.Errorf("request linear stop: %w", err)
+	}
+	status, raw := scriptResult(result)
+	discarded, err := decodeFollowUps(raw)
+	if err != nil {
+		return false, nil, err
+	}
+	return status == "held", discarded, nil
 }
 
 func decodeFollowUps(raw []any) ([]FollowUp, error) {
@@ -347,7 +450,19 @@ func (c *RedisCoordinator) Discard(ctx context.Context, key string) ([]FollowUp,
 
 func (c *RedisCoordinator) startHold(ctx context.Context, key, token string) *redisHold {
 	holdCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	h := &redisHold{c: c, key: key, token: token, ctx: holdCtx, cancel: cancel, done: make(chan struct{})}
+	h := &redisHold{c: c, key: key, token: token, ctx: holdCtx, cancel: cancel,
+		done: make(chan struct{}), stopped: make(chan struct{})}
+	if c.beforeSubscribe != nil {
+		c.beforeSubscribe()
+	}
+	// Subscribe first, then read the marker: a stop between acquisition
+	// and subscription is caught by the marker, one after by the nudge.
+	h.sub = c.rdb.Subscribe(holdCtx, c.stopChannel(key))
+	if _, err := h.sub.Receive(holdCtx); err != nil {
+		_ = h.sub.Close()
+		h.sub = nil
+	}
+	h.checkMarker(holdCtx)
 	go h.renew()
 	return h
 }
@@ -360,24 +475,77 @@ type redisHold struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	once   sync.Once
+	sub    *redis.PubSub
+
+	stopMu  sync.Mutex
+	stopped chan struct{}
+	isStop  bool
 }
 
 func (h *redisHold) Context() context.Context { return h.ctx }
+
+func (h *redisHold) markStopped() {
+	h.stopMu.Lock()
+	defer h.stopMu.Unlock()
+	if !h.isStop {
+		h.isStop = true
+		close(h.stopped)
+	}
+}
+
+func (h *redisHold) Stopped() <-chan struct{} {
+	h.stopMu.Lock()
+	defer h.stopMu.Unlock()
+	return h.stopped
+}
+
+func (h *redisHold) AcknowledgeStop(ctx context.Context) {
+	clearCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	_ = clearStopScript.Run(clearCtx, h.c.rdb, []string{h.c.stopKey(h.key)}, h.token).Err()
+	h.stopMu.Lock()
+	defer h.stopMu.Unlock()
+	if h.isStop {
+		h.isStop = false
+		h.stopped = make(chan struct{})
+	}
+}
+
+// checkMarker honors a stop marked for this holder.
+func (h *redisHold) checkMarker(ctx context.Context) {
+	if marker, err := h.c.rdb.Get(ctx, h.c.stopKey(h.key)).Result(); err == nil && marker == h.token {
+		h.markStopped()
+	}
+}
 
 func (h *redisHold) renew() {
 	defer close(h.done)
 	ticker := time.NewTicker(h.c.ttl / 3)
 	defer ticker.Stop()
+	var nudges <-chan *redis.Message
+	if h.sub != nil {
+		nudges = h.sub.Channel()
+	}
 	for {
 		select {
 		case <-h.ctx.Done():
 			return
+		case msg, ok := <-nudges:
+			if !ok {
+				nudges = nil
+				continue
+			}
+			if msg.Payload == h.token {
+				h.markStopped()
+			}
 		case <-ticker.C:
 			renewed, err := renewScript.Run(h.ctx, h.c.rdb, h.c.keys(h.key)[:1], h.token, h.c.ttl.Milliseconds()).Int64()
 			if err != nil || renewed == 0 {
 				h.cancel()
 				return
 			}
+			// The nudge is the fast path; the marker is the safety net.
+			h.checkMarker(h.ctx)
 		}
 	}
 }
@@ -386,6 +554,9 @@ func (h *redisHold) stop() {
 	h.once.Do(func() {
 		h.cancel()
 		<-h.done
+		if h.sub != nil {
+			_ = h.sub.Close()
+		}
 	})
 }
 
