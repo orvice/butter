@@ -280,3 +280,32 @@ func (s *Store) GetInstallationTokens(_ context.Context, workspaceID, id string)
 	}
 	return r.tokens, nil
 }
+
+func (s *Store) ReplaceInstallationTokens(_ context.Context, workspaceID, id string, expectedRevision int64, tokens linearrepo.InstallationTokens) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.lookupInstallation(workspaceID, id)
+	if err != nil {
+		return 0, err
+	}
+	if r.tokens.Revision != expectedRevision {
+		return 0, fmt.Errorf("linear installation %q tokens: %w", id, linearrepo.ErrRevisionConflict)
+	}
+	tokens.Revision = expectedRevision + 1
+	r.tokens = tokens
+	r.inst.UpdatedAt = timestamppb.New(time.Now().UTC())
+	return tokens.Revision, nil
+}
+
+func (s *Store) MarkInstallationNeedsReinstall(_ context.Context, workspaceID, id, reason string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.lookupInstallation(workspaceID, id)
+	if err != nil {
+		return err
+	}
+	r.inst.CredentialState = agentsv1.LinearInstallationCredentialState_LINEAR_INSTALLATION_CREDENTIAL_STATE_NEEDS_REINSTALL
+	r.inst.LastCredentialError = reason
+	r.inst.UpdatedAt = timestamppb.New(time.Now().UTC())
+	return nil
+}

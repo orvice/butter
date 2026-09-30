@@ -107,6 +107,14 @@ type Repository interface {
 	DeleteInstallation(ctx context.Context, workspaceID, id string) error
 	// GetInstallationTokens returns the stored tokens' ciphertext.
 	GetInstallationTokens(ctx context.Context, workspaceID, id string) (InstallationTokens, error)
+	// ReplaceInstallationTokens stores refreshed tokens when the stored
+	// token revision still equals expectedRevision, returning
+	// ErrRevisionConflict without writing otherwise. It returns the new
+	// revision.
+	ReplaceInstallationTokens(ctx context.Context, workspaceID, id string, expectedRevision int64, tokens InstallationTokens) (int64, error)
+	// MarkInstallationNeedsReinstall records that Linear revoked the token
+	// or refused to refresh it. Installing again clears the mark.
+	MarkInstallationNeedsReinstall(ctx context.Context, workspaceID, id, reason string) error
 }
 
 // StampCredentialState fills the App's derived credential fields from the

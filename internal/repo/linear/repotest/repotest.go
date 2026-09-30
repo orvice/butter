@@ -238,6 +238,55 @@ func Run(t *testing.T, factory Factory) {
 			t.Fatalf("installation after DeleteApp = %v, want ErrNotFound", err)
 		}
 	})
+
+	t.Run("RefreshedTokensAreFencedOnTheTokenRevision", func(t *testing.T) {
+		repo := factory(t)
+		ctx := t.Context()
+		if _, err := repo.CreateApp(ctx, "ws-a", app("app-1", "client-1", "Support"), linearrepo.AppCredentials{}); err != nil {
+			t.Fatalf("CreateApp: %v", err)
+		}
+		if _, err := repo.UpsertInstallation(ctx, "ws-a", installation("inst-1", "app-1", "org-1", "Acme"),
+			linearrepo.InstallationTokens{AccessToken: cred("access-1"), RefreshToken: cred("refresh-1")}); err != nil {
+			t.Fatalf("UpsertInstallation: %v", err)
+		}
+		stored, err := repo.GetInstallationTokens(ctx, "ws-a", "inst-1")
+		if err != nil {
+			t.Fatalf("GetInstallationTokens: %v", err)
+		}
+		next, err := repo.ReplaceInstallationTokens(ctx, "ws-a", "inst-1", stored.Revision,
+			linearrepo.InstallationTokens{AccessToken: cred("access-2"), RefreshToken: cred("refresh-2")})
+		if err != nil {
+			t.Fatalf("ReplaceInstallationTokens: %v", err)
+		}
+		if next != stored.Revision+1 {
+			t.Fatalf("revision = %d, want %d", next, stored.Revision+1)
+		}
+		if _, err := repo.ReplaceInstallationTokens(ctx, "ws-a", "inst-1", stored.Revision,
+			linearrepo.InstallationTokens{AccessToken: cred("access-3")}); !errors.Is(err, linearrepo.ErrRevisionConflict) {
+			t.Fatalf("stale ReplaceInstallationTokens = %v, want ErrRevisionConflict", err)
+		}
+		got, err := repo.GetInstallationTokens(ctx, "ws-a", "inst-1")
+		if err != nil || got.AccessToken != cred("access-2") || got.RefreshToken != cred("refresh-2") {
+			t.Fatalf("tokens = %+v, %v; want the first refresh only", got, err)
+		}
+
+		if err := repo.MarkInstallationNeedsReinstall(ctx, "ws-a", "inst-1", "refresh refused"); err != nil {
+			t.Fatalf("MarkInstallationNeedsReinstall: %v", err)
+		}
+		marked, err := repo.GetInstallation(ctx, "ws-a", "inst-1")
+		if err != nil || marked.GetCredentialState() != agentsv1.LinearInstallationCredentialState_LINEAR_INSTALLATION_CREDENTIAL_STATE_NEEDS_REINSTALL ||
+			marked.GetLastCredentialError() != "refresh refused" {
+			t.Fatalf("marked = %+v, %v", marked, err)
+		}
+		reinstalled, err := repo.UpsertInstallation(ctx, "ws-a", installation("inst-x", "app-1", "org-1", "Acme"),
+			linearrepo.InstallationTokens{AccessToken: cred("access-4")})
+		if err != nil {
+			t.Fatalf("reinstall: %v", err)
+		}
+		if reinstalled.GetCredentialState() != agentsv1.LinearInstallationCredentialState_LINEAR_INSTALLATION_CREDENTIAL_STATE_VALID || reinstalled.GetLastCredentialError() != "" {
+			t.Fatalf("reinstalled = %+v; want the mark cleared", reinstalled)
+		}
+	})
 }
 
 func installation(id, appID, orgID, orgName string) *agentsv1.LinearInstallation {

@@ -458,3 +458,47 @@ func sortApps(apps []*agentsv1.LinearApp) {
 		return apps[i].GetId() < apps[j].GetId()
 	})
 }
+
+func (s *Store) ReplaceInstallationTokens(ctx context.Context, workspaceID, id string, expectedRevision int64, tokens linearrepo.InstallationTokens) (int64, error) {
+	res, err := s.installations.UpdateOne(ctx,
+		bson.M{"_id": id, "workspace_id": workspaceID, "token_revision": expectedRevision},
+		bson.M{"$set": bson.M{
+			"access_token":         tokens.AccessToken.Ciphertext,
+			"access_token_key_id":  tokens.AccessToken.KeyID,
+			"refresh_token":        tokens.RefreshToken.Ciphertext,
+			"refresh_token_key_id": tokens.RefreshToken.KeyID,
+			"expires_at":           tokens.ExpiresAt.UTC(),
+			"token_revision":       expectedRevision + 1,
+		}})
+	if err != nil {
+		return 0, fmt.Errorf("replace linear installation %q tokens: %w", id, err)
+	}
+	if res.MatchedCount == 0 {
+		if _, err := s.GetInstallation(ctx, workspaceID, id); err != nil {
+			return 0, err
+		}
+		return 0, fmt.Errorf("linear installation %q tokens: %w", id, linearrepo.ErrRevisionConflict)
+	}
+	return expectedRevision + 1, nil
+}
+
+func (s *Store) MarkInstallationNeedsReinstall(ctx context.Context, workspaceID, id, reason string) error {
+	inst, err := s.GetInstallation(ctx, workspaceID, id)
+	if err != nil {
+		return err
+	}
+	inst.CredentialState = agentsv1.LinearInstallationCredentialState_LINEAR_INSTALLATION_CREDENTIAL_STATE_NEEDS_REINSTALL
+	inst.LastCredentialError = reason
+	inst.UpdatedAt = timestamppb.New(time.Now().UTC())
+	spec := proto.Clone(inst).(*agentsv1.LinearInstallation)
+	spec.Id, spec.WorkspaceId, spec.AppId, spec.OrganizationId, spec.InstalledAt = "", "", "", "", nil
+	encoded, err := protojson.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("marshal linear installation: %w", err)
+	}
+	if _, err := s.installations.UpdateOne(ctx, bson.M{"_id": id, "workspace_id": workspaceID},
+		bson.M{"$set": bson.M{"spec": string(encoded)}}); err != nil {
+		return fmt.Errorf("mark linear installation %q: %w", id, err)
+	}
+	return nil
+}
