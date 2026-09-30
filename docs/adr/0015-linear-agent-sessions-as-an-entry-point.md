@@ -1,8 +1,8 @@
 # ADR-0015: Linear Agent Sessions as a Butter entry point
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-30
-- Issue: #357 (PRD), #358 (spec)
+- Issue: #357 (PRD), #358 (spec), #360–#370 (implementation)
 - Builds on: ADR-0002 (Interrupt state derived from session events), ADR-0008
   (Telegram Channels and Destinations), ADR-0009 (the retry boundary), ADR-0011
   and ADR-0012 (Pi and Cursor agents backed by a ButterBox)
@@ -168,9 +168,11 @@ Several existing seams do **not** carry over as they are:
 
 7. **Stop bypasses the lease and cancels across Pods.**
    - **Stop path**: a `stop` prompt never waits behind the turn it is meant to
-     stop. Its handler clears the follow-up list and sets a short-lived stop
-     marker for the session. It then publishes a nudge on a Redis channel for
-     the session.
+     stop. In one atomic step its handler clears the follow-up list and, while
+     a turn holds the session, sets a short-lived stop marker holding that
+     holder's lease token and publishes a nudge on a Redis channel for the
+     session. Binding the marker to the token means a stop can never reach a
+     later holder.
    - **Holder**: the lease holder subscribes for the length of its turn and
      checks the marker when the turn starts, so a nudge that races the start is
      not lost. It cancels the turn context. A Pi or Cursor Agent aborts through
@@ -207,7 +209,9 @@ Several existing seams do **not** carry over as they are:
      name, plus a short, redacted parameter. At most one is posted every
      3 seconds, and consecutive duplicates are dropped.
    - **Model reasoning**: thought parts are not forwarded. Only operational
-     notices (context compaction, model retry) go out, as ephemeral `thought`s.
+     notices go out, as ephemeral `thought`s. In practice that is context
+     compaction: the runner exposes no model-retry signal, so there is no
+     retry notice to forward.
    - **Final**: the final text becomes the `response`. Failures and the
      `max_run_seconds` deadline become `error`. A response over 8000 runes is
      truncated, with a note and the external URL. The limit matches
@@ -308,3 +312,29 @@ The first draft left five questions open. The spec (#358) settles them for v1:
    Linear's real limit is confirmed.
 5. **Processing record**: a separate type that follows ADR-0009's state
    machine (decision 8). The Telegram record is not generalized.
+
+## Implementation notes
+
+What the implementation (#360–#370) settled beyond the decisions above:
+
+- **Session identity**: the runner uses `ContextInfo.channel_name` as the
+  ADK app name, so the channel name is the fixed `linear` rather than the
+  App's display name. A rename must never move history. The display name
+  travels in metadata instead. The session user is the organization, so
+  Memory Capture gets the prompting Linear user through the new
+  `ContextInfo.metadata.principal` override (`memoryhook`).
+- **Session coordination**: `SessionCoordinator` has an in-memory and a
+  Redis implementation, held to one contract suite. A holder that crashed
+  leaves `PROCESSING` records behind, and the next holder of the session
+  sweeps them (`FAILED_UNCERTAIN`, one "cut short" notice) before running
+  the backlog. This also covers follow-ups the dead holder had already
+  drained.
+- **Worker**: the per-Pod concurrency bound is 32. A Pod with no free slots
+  claims nothing and leaves the Stream to other Pods.
+- **Payload assumptions are not yet confirmed.** No real Linear delivery
+  has been observed. The dedupe header (`Linear-Delivery`), the top-level
+  `organizationId` and the prompting-user fields (the activity's `userId`
+  or `user.id`, then the session's `creatorId` or `creator.id`, then the
+  comment's user) are handled as decisions 3, 4 and 10 describe. The first
+  deliveries are logged at debug level so these can be checked, and the
+  fallbacks tightened once they are.

@@ -240,6 +240,58 @@ Redis，重启后仍然有效；候选列表被改动后失效的选择会自动
 记录不会启动，也不会被自动迁移；Notify Group 的 Discord webhook 出站 target
 仍是独立能力。
 
+### Linear（ADR-0015）
+
+Linear 是和 Telegram 并列的入口：有人把 Linear issue 委派给某个 app，或在评论里
+@ 它，Butter 就让这个 app 路由到的 Agent 在对应的 **Linear Agent Session** 里干活
+并回复。LLM、Workflow、Pi、Cursor 各类 Agent 都可以；Pi / Cursor 仍经 pibox /
+cursorbox 在 ButterBox 上执行。
+
+它由两个 workspace 资源描述：**Linear App** 是 workspace 注册的一个 Linear OAuth
+app，固定路由到一个 Agent——它在 Linear 里的 app 用户就是这个 Agent 的身份；
+**Linear Installation** 是这个 App 装进某个 Linear 组织的一次安装。
+
+**建立流程**
+
+1. 全局管理员在「Linear 平台设置」填写公网 base URL（https、不带路径；本地开发可用
+   http://localhost）。每个 App 的 callback / webhook 地址由它和不可变的 App ID 派生。
+2. 在 Linear（Settings → API → OAuth applications）建 OAuth app，勾选 Agent session
+   events。
+3. Workspace owner 在 Dashboard「Linear Apps」登记：client ID、路由的 Agent、准入
+   白名单、最长运行时间，以及只写的 client secret / webhook 签名 secret。页面给出要
+   贴回 Linear 的 callback URL 与 webhook URL。
+4. 点「Install to Linear」，在 Linear 授权后跳回，页面列出该 Installation。一个 App
+   可以装进多个 Linear 组织。
+5. 打开 inbound。前提：两个 secret 都已设置，且 Redis 配成持久化、无驱逐的队列。
+
+**一次 session 如何运行**
+
+- **确认**：新 session 在几秒内先回一条 thought（"Picked up …"），满足 Linear
+  「10 秒内无活动即标记 unresponsive」的要求，再开始跑 Agent；session 还会挂上回到
+  Butter 会话的外链。
+- **进度**：工具调用显示为 action（动词 + 一行打码后的参数），每 3 秒最多一条，
+  重复的丢弃；上下文压缩显示为临时 thought。模型推理和流式文本不会发到 Linear。
+- **回复**：最终文本作为 response，打码后超过 8000 字符截断并附 Butter 链接；失败、
+  超时（`max_run_seconds`，默认 1800 秒，0 为不限）作为 error。
+- **追加消息**：Agent 运行中收到的消息立即回一条「已排队」，本轮结束后合并进下一轮，
+  不丢、不与当前轮并发。
+- **停止**：Linear 的 stop 按钮无论 turn 在哪个 Pod 上都能停下它，并丢弃已排队的
+  消息；turn 真正结束后才回「Stopped」确认。之后发消息可在同一会话继续。
+- **Human Input**：Workflow 停在 Human Input 节点时，问题作为 elicitation 出现在
+  Linear；只有一个单选字段的表单显示为可选项。用户回复（选项或自由文本）后 Workflow
+  继续（ADR-0002 的 FIFO resume）。
+- **会话**：一个 Linear Agent Session 对应一个 Butter 会话
+  （`linear:{app}:{agent session}:{agent}`）；App 改路由到别的 Agent 会开新历史。
+  Memory Capture 把发消息的 Linear 用户记为 principal。
+
+**可靠性**：每次投递都有处理记录（ADR-0009 的重试边界），可能已跑过工具的失败进入
+死信、绝不自动重跑；回复先持久化再发送，发送失败可在「Linear Deliveries」页面补发，
+不重跑 Agent。Pod 崩溃中断的 turn 会在 session 里报「cut short」。
+
+**安全**：被准入的 Linear 用户可以驱动这个 Agent。对 Pi / Cursor Agent 而言，这等于
+能在其 ButterBox 上执行命令，包括该 box 用户能访问的一切。请用白名单限制到你愿意给
+这种权限的人；留空白名单即放行已安装组织的所有成员。
+
 ### Cron 调度
 
 - 后台 scheduler 按 cron 表达式触发 Agent 执行。
