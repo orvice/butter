@@ -33,6 +33,7 @@ import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authen
 import { Route as AuthenticatedTelegramUpdatesRouteImport } from './routes/_authenticated/telegram-updates'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as AuthenticatedAdminEndpointsRouteImport } from './routes/_authenticated/admin/endpoints'
 import { Route as AuthenticatedAdminGitHostsRouteImport } from './routes/_authenticated/admin/git-hosts'
 import { Route as AuthenticatedAdminGlobalMcpServersRouteImport } from './routes/_authenticated/admin/global-mcp-servers'
 import { Route as AuthenticatedAdminLinearRouteImport } from './routes/_authenticated/admin/linear'
@@ -205,6 +206,12 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminEndpointsRoute =
+  AuthenticatedAdminEndpointsRouteImport.update({
+    id: '/admin/endpoints',
+    path: '/admin/endpoints',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminGitHostsRoute =
   AuthenticatedAdminGitHostsRouteImport.update({
     id: '/admin/git-hosts',
@@ -507,6 +514,7 @@ export interface FileRoutesByFullPath {
   '/telegram-updates': typeof AuthenticatedTelegramUpdatesRoute
   '/users': typeof AuthenticatedUsersRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/admin/endpoints': typeof AuthenticatedAdminEndpointsRoute
   '/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
   '/admin/linear': typeof AuthenticatedAdminLinearRoute
@@ -578,6 +586,7 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/endpoints': typeof AuthenticatedAdminEndpointsRoute
   '/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
   '/admin/linear': typeof AuthenticatedAdminLinearRoute
@@ -652,6 +661,7 @@ export interface FileRoutesById {
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/admin/endpoints': typeof AuthenticatedAdminEndpointsRoute
   '/_authenticated/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
   '/_authenticated/admin/global-mcp-servers': typeof AuthenticatedAdminGlobalMcpServersRoute
   '/_authenticated/admin/linear': typeof AuthenticatedAdminLinearRoute
@@ -726,6 +736,7 @@ export interface FileRouteTypes {
     | '/telegram-updates'
     | '/users'
     | '/workspaces'
+    | '/admin/endpoints'
     | '/admin/git-hosts'
     | '/admin/global-mcp-servers'
     | '/admin/linear'
@@ -797,6 +808,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/workspaces'
     | '/'
+    | '/admin/endpoints'
     | '/admin/git-hosts'
     | '/admin/global-mcp-servers'
     | '/admin/linear'
@@ -870,6 +882,7 @@ export interface FileRouteTypes {
     | '/_authenticated/users'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
+    | '/_authenticated/admin/endpoints'
     | '/_authenticated/admin/git-hosts'
     | '/_authenticated/admin/global-mcp-servers'
     | '/_authenticated/admin/linear'
@@ -1098,6 +1111,13 @@ declare module '@tanstack/react-router' {
       path: '/workspaces'
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/endpoints': {
+      id: '/_authenticated/admin/endpoints'
+      path: '/admin/endpoints'
+      fullPath: '/admin/endpoints'
+      preLoaderRoute: typeof AuthenticatedAdminEndpointsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/git-hosts': {
@@ -1468,6 +1488,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAdminEndpointsRoute: typeof AuthenticatedAdminEndpointsRoute
   AuthenticatedAdminGitHostsRoute: typeof AuthenticatedAdminGitHostsRoute
   AuthenticatedAdminGlobalMcpServersRoute: typeof AuthenticatedAdminGlobalMcpServersRoute
   AuthenticatedAdminLinearRoute: typeof AuthenticatedAdminLinearRoute
@@ -1531,6 +1552,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAdminEndpointsRoute: AuthenticatedAdminEndpointsRoute,
   AuthenticatedAdminGitHostsRoute: AuthenticatedAdminGitHostsRoute,
   AuthenticatedAdminGlobalMcpServersRoute:
     AuthenticatedAdminGlobalMcpServersRoute,

@@ -198,6 +198,7 @@ test.describe('Authenticated pages smoke test', () => {
     { path: '/settings/display', name: 'Settings Display' },
     { path: '/admin/users', name: 'Admin Users' },
     { path: '/admin/global-mcp-servers', name: 'Admin Global MCP' },
+    { path: '/admin/endpoints', name: 'Admin Public Endpoints' },
     { path: '/manage', name: 'Manage' },
   ]
 

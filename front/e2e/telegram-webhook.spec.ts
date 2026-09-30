@@ -75,9 +75,9 @@ test('an admin configures the public webhook base URL', async ({ page }) => {
     },
   })
 
-  await page.goto('/admin/telegram')
-  await page.getByLabel('Public base URL').fill('https://butter.example.com')
-  await page.getByRole('button', { name: 'Save' }).click()
+  await page.goto('/admin/endpoints')
+  await page.getByLabel('Telegram public base URL').fill('https://butter.example.com')
+  await page.getByRole('button', { name: 'Save Telegram settings' }).click()
 
   await expect(page.getByText('Telegram settings updated').first()).toBeVisible()
   expect(sent).toBe('https://butter.example.com')
@@ -95,9 +95,9 @@ test('rejects a non-https base URL', async ({ page }) => {
       ),
   })
 
-  await page.goto('/admin/telegram')
-  await page.getByLabel('Public base URL').fill('http://butter.example.com')
-  await page.getByRole('button', { name: 'Save' }).click()
+  await page.goto('/admin/endpoints')
+  await page.getByLabel('Telegram public base URL').fill('http://butter.example.com')
+  await page.getByRole('button', { name: 'Save Telegram settings' }).click()
 
   await expect(page.getByText(/must use https/).first()).toBeVisible()
 })

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Plus, Send } from 'lucide-react'
+import { ListTree, Plus, Send } from 'lucide-react'
 import { useTelegramChannels } from '@/api/telegram'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { Badge } from '@/components/ui/badge'
@@ -18,12 +18,20 @@ export function TelegramChannelList() {
         title='Telegram Channels'
         subtitle='Each channel is one Telegram bot transport. Addresses live in its destinations.'
         actions={
-          <Button asChild>
-            <Link to='/telegram-channels/create'>
-              <Plus className='h-4 w-4' />
-              Add bot
-            </Link>
-          </Button>
+          <div className='flex gap-2'>
+            <Button variant='outline' asChild>
+              <Link to='/telegram-updates'>
+                <ListTree className='h-4 w-4' />
+                Updates
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link to='/telegram-channels/create'>
+                <Plus className='h-4 w-4' />
+                Add bot
+              </Link>
+            </Button>
+          </div>
         }
       />
       <PageScroll>

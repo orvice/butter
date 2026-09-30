@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import type { LinearApp } from '@/gen/agents/v1/linear_pb'
-import { MoreVertical, Pencil, Plus, SquareKanban, Trash2 } from 'lucide-react'
+import {
+  ListTree,
+  MoreVertical,
+  Pencil,
+  Plus,
+  SquareKanban,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
 import { useDeleteLinearApp, useLinearApps } from '@/api/linear'
@@ -104,12 +111,20 @@ export function LinearAppList() {
         title='Linear Apps'
         subtitle='Let people delegate Linear issues to an Agent, or mention it, and get the answer in Linear.'
         actions={
-          <Button size='sm' asChild>
-            <Link to='/linear-apps/create'>
-              <Plus className='size-4' />
-              Register Linear App
-            </Link>
-          </Button>
+          <div className='flex gap-2'>
+            <Button size='sm' variant='outline' asChild>
+              <Link to='/linear-deliveries'>
+                <ListTree className='size-4' />
+                Deliveries
+              </Link>
+            </Button>
+            <Button size='sm' asChild>
+              <Link to='/linear-apps/create'>
+                <Plus className='size-4' />
+                Register Linear App
+              </Link>
+            </Button>
+          </div>
         }
       />
       <PageScroll>

@@ -1,6 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { AdminLinearSettingsPage } from '@/features/admin/linear-settings'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/admin/linear')({
-  component: AdminLinearSettingsPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/endpoints', replace: true })
+  },
 })

@@ -207,8 +207,8 @@ Telegram 由 **Telegram Channel**（一个 Bot 传输通道）和 **Telegram Des
 
 **建立流程**
 
-1. 全局管理员在「Telegram 平台设置」填写公网 Webhook base URL（必须 https、不带
-   路径）。每个 Channel 的回调地址由它和不可变的 Channel ID 派生。
+1. 全局管理员在「Manage → Workspace → Administration → Public endpoints」的
+   Telegram 卡片填写公网 Webhook base URL（必须 https、不带路径）。每个 Channel 的回调地址由它和不可变的 Channel ID 派生。
 2. Workspace owner 提交 Bot Token 创建 Channel。Token 先经 `getMe` 校验才落库，
    Bot 身份从此**钉死**；轮换只接受同一个 Bot 的新 Token。Token 加密存储、只写不
    读，Dashboard 与 API 都不会再返回它。
@@ -253,8 +253,8 @@ app，固定路由到一个 Agent——它在 Linear 里的 app 用户就是这�
 
 **建立流程**
 
-1. 全局管理员在「Linear 平台设置」填写公网 base URL（https、不带路径；本地开发可用
-   http://localhost）。每个 App 的 callback / webhook 地址由它和不可变的 App ID 派生。
+1. 全局管理员在「Manage → Workspace → Administration → Public endpoints」的
+   Linear 卡片填写公网 base URL（https、不带路径；本地开发可用 http://localhost）。每个 App 的 callback / webhook 地址由它和不可变的 App ID 派生。
 2. 在 Linear（Settings → API → OAuth applications）建 OAuth app，勾选 Agent session
    events。
 3. Workspace owner 在 Dashboard「Linear Apps」登记：client ID、路由的 Agent、准入
@@ -285,7 +285,7 @@ app，固定路由到一个 Agent——它在 Linear 里的 app 用户就是这�
   Memory Capture 把发消息的 Linear 用户记为 principal。
 
 **可靠性**：每次投递都有处理记录（ADR-0009 的重试边界），可能已跑过工具的失败进入
-死信、绝不自动重跑；回复先持久化再发送，发送失败可在「Linear Deliveries」页面补发，
+死信、绝不自动重跑；回复先持久化再发送，发送失败可在 Linear Apps 页面的「Deliveries」里补发，
 不重跑 Agent。Pod 崩溃中断的 turn 会在 session 里报「cut short」。
 
 **安全**：被准入的 Linear 用户可以驱动这个 Agent。对 Pi / Cursor Agent 而言，这等于
