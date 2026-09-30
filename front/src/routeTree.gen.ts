@@ -23,6 +23,7 @@ import { Route as AuthenticatedApiTokensRouteImport } from './routes/_authentica
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedDaemonsRouteImport } from './routes/_authenticated/daemons'
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
+import { Route as AuthenticatedLinearDeliveriesRouteImport } from './routes/_authenticated/linear-deliveries'
 import { Route as AuthenticatedManageRouteImport } from './routes/_authenticated/manage'
 import { Route as AuthenticatedMemoryRouteImport } from './routes/_authenticated/memory'
 import { Route as AuthenticatedOperationsRouteImport } from './routes/_authenticated/operations'
@@ -148,6 +149,12 @@ const AuthenticatedIntegrationsRoute =
   AuthenticatedIntegrationsRouteImport.update({
     id: '/integrations',
     path: '/integrations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedLinearDeliveriesRoute =
+  AuthenticatedLinearDeliveriesRouteImport.update({
+    id: '/linear-deliveries',
+    path: '/linear-deliveries',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedManageRoute = AuthenticatedManageRouteImport.update({
@@ -491,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof AuthenticatedChatRoute
   '/daemons': typeof AuthenticatedDaemonsRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
+  '/linear-deliveries': typeof AuthenticatedLinearDeliveriesRoute
   '/manage': typeof AuthenticatedManageRoute
   '/memory': typeof AuthenticatedMemoryRoute
   '/operations': typeof AuthenticatedOperationsRoute
@@ -560,6 +568,7 @@ export interface FileRoutesByTo {
   '/chat': typeof AuthenticatedChatRoute
   '/daemons': typeof AuthenticatedDaemonsRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
+  '/linear-deliveries': typeof AuthenticatedLinearDeliveriesRoute
   '/manage': typeof AuthenticatedManageRoute
   '/memory': typeof AuthenticatedMemoryRoute
   '/operations': typeof AuthenticatedOperationsRoute
@@ -633,6 +642,7 @@ export interface FileRoutesById {
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/daemons': typeof AuthenticatedDaemonsRoute
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
+  '/_authenticated/linear-deliveries': typeof AuthenticatedLinearDeliveriesRoute
   '/_authenticated/manage': typeof AuthenticatedManageRoute
   '/_authenticated/memory': typeof AuthenticatedMemoryRoute
   '/_authenticated/operations': typeof AuthenticatedOperationsRoute
@@ -707,6 +717,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/daemons'
     | '/integrations'
+    | '/linear-deliveries'
     | '/manage'
     | '/memory'
     | '/operations'
@@ -776,6 +787,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/daemons'
     | '/integrations'
+    | '/linear-deliveries'
     | '/manage'
     | '/memory'
     | '/operations'
@@ -848,6 +860,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat'
     | '/_authenticated/daemons'
     | '/_authenticated/integrations'
+    | '/_authenticated/linear-deliveries'
     | '/_authenticated/manage'
     | '/_authenticated/memory'
     | '/_authenticated/operations'
@@ -1015,6 +1028,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/integrations'
       preLoaderRoute: typeof AuthenticatedIntegrationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/linear-deliveries': {
+      id: '/_authenticated/linear-deliveries'
+      path: '/linear-deliveries'
+      fullPath: '/linear-deliveries'
+      preLoaderRoute: typeof AuthenticatedLinearDeliveriesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/manage': {
@@ -1438,6 +1458,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedDaemonsRoute: typeof AuthenticatedDaemonsRoute
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
+  AuthenticatedLinearDeliveriesRoute: typeof AuthenticatedLinearDeliveriesRoute
   AuthenticatedManageRoute: typeof AuthenticatedManageRoute
   AuthenticatedMemoryRoute: typeof AuthenticatedMemoryRoute
   AuthenticatedOperationsRoute: typeof AuthenticatedOperationsRoute
@@ -1500,6 +1521,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedDaemonsRoute: AuthenticatedDaemonsRoute,
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
+  AuthenticatedLinearDeliveriesRoute: AuthenticatedLinearDeliveriesRoute,
   AuthenticatedManageRoute: AuthenticatedManageRoute,
   AuthenticatedMemoryRoute: AuthenticatedMemoryRoute,
   AuthenticatedOperationsRoute: AuthenticatedOperationsRoute,

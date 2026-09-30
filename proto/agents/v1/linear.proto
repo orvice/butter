@@ -319,3 +319,150 @@ message UpdateLinearSettingsRequest {
 message UpdateLinearSettingsResponse {
   LinearSettings settings = 1;
 }
+
+// =============================================================================
+// Linear processing records (ADR-0015 §8, ADR-0009).
+//
+// One record per accepted delivery. Its state answers one question: may the
+// Agent have run? Everything before that boundary retries automatically;
+// after it, a failure is dead-lettered for a person and never rerun. The
+// reply is persisted before it is posted, so a failed post is resent
+// without invoking the Agent.
+// =============================================================================
+
+enum LinearProcessingStatus {
+  LINEAR_PROCESSING_STATUS_UNSPECIFIED = 0;
+  // A follow-up waiting behind the session's current turn.
+  LINEAR_PROCESSING_STATUS_QUEUED = 1;
+  // Claimed from the queue; no Agent work started.
+  LINEAR_PROCESSING_STATUS_RECEIVED = 2;
+  // Agent work may have started. A crash from here is not safely retryable.
+  LINEAR_PROCESSING_STATUS_PROCESSING = 3;
+  // The reply is persisted; only posting it remains.
+  LINEAR_PROCESSING_STATUS_READY_TO_DELIVER = 4;
+  // Answered.
+  LINEAR_PROCESSING_STATUS_SUCCEEDED = 5;
+  // Failed before Agent work started, or the post failed. Safe to retry or
+  // resend.
+  LINEAR_PROCESSING_STATUS_FAILED = 6;
+  // Failed after Agent work may have started. Never retried automatically:
+  // a rerun could repeat tool side effects.
+  LINEAR_PROCESSING_STATUS_FAILED_UNCERTAIN = 7;
+  // Stopped by the user, or discarded by a stop while queued.
+  LINEAR_PROCESSING_STATUS_CANCELLED = 8;
+}
+
+// LinearProcessingRecord is the auditable state of one accepted delivery.
+message LinearProcessingRecord {
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 2;
+  // @gotags: json:"app_id,omitempty" bson:"app_id,omitempty"
+  string app_id = 3;
+  // @gotags: json:"installation_id,omitempty" bson:"installation_id,omitempty"
+  string installation_id = 4;
+  // @gotags: json:"agent_session_id,omitempty" bson:"agent_session_id,omitempty"
+  string agent_session_id = 5;
+  // created or prompted.
+  // @gotags: json:"action,omitempty" bson:"action,omitempty"
+  string action = 6;
+  // Linear's delivery ID (or the body hash); unique with app_id.
+  // @gotags: json:"delivery_id,omitempty" bson:"delivery_id,omitempty"
+  string delivery_id = 7;
+
+  // @gotags: json:"status,omitempty" bson:"status,omitempty"
+  LinearProcessingStatus status = 8;
+
+  // Stable across retries; shared by follow-ups run in one turn.
+  // @gotags: json:"invocation_id,omitempty" bson:"invocation_id,omitempty"
+  string invocation_id = 9;
+
+  // How many times the record has been claimed.
+  // @gotags: json:"attempts,omitempty" bson:"attempts,omitempty"
+  int32 attempts = 10;
+
+  // App revision frozen at acceptance.
+  // @gotags: json:"app_revision,omitempty" bson:"app_revision,omitempty"
+  int64 app_revision = 11;
+
+  // Sanitized failure summary. Never contains credential material.
+  // @gotags: json:"error,omitempty" bson:"error,omitempty"
+  string error = 12;
+
+  // The complete reply, persisted before it is posted.
+  // @gotags: json:"output,omitempty" bson:"output,omitempty"
+  string output = 13;
+
+  // The activity type the reply is posted as: response, elicitation or
+  // error.
+  // @gotags: json:"output_type,omitempty" bson:"output_type,omitempty"
+  string output_type = 14;
+
+  // An elicitation's signal and its metadata as JSON, e.g. select options.
+  // @gotags: json:"output_signal,omitempty" bson:"output_signal,omitempty"
+  string output_signal = 15;
+  // @gotags: json:"output_signal_metadata,omitempty" bson:"output_signal_metadata,omitempty"
+  string output_signal_metadata = 16;
+
+  // Whether the reply reached Linear.
+  // @gotags: json:"delivered,omitempty" bson:"delivered,omitempty"
+  bool delivered = 17;
+
+  // Whether the record needs a person.
+  // @gotags: json:"dead_lettered,omitempty" bson:"dead_lettered,omitempty"
+  bool dead_lettered = 18;
+
+  // @gotags: json:"prompting_user_id,omitempty" bson:"prompting_user_id,omitempty"
+  string prompting_user_id = 19;
+  // @gotags: json:"issue_identifier,omitempty" bson:"issue_identifier,omitempty"
+  string issue_identifier = 20;
+
+  // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 21;
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 22;
+  // When the record becomes eligible for TTL cleanup (30 days).
+  // @gotags: json:"expires_at,omitempty" bson:"expires_at,omitempty"
+  google.protobuf.Timestamp expires_at = 23;
+}
+
+// LinearProcessingService exposes processing records. Members read;
+// owners and admins resend a reply that was produced but not posted. There
+// is deliberately no rerun action.
+service LinearProcessingService {
+  rpc ListLinearProcessingRecords(ListLinearProcessingRecordsRequest) returns (ListLinearProcessingRecordsResponse);
+  rpc GetLinearProcessingRecord(GetLinearProcessingRecordRequest) returns (GetLinearProcessingRecordResponse);
+
+  // ResendLinearReply posts the persisted reply of a FAILED record. It never
+  // invokes the Agent, and it is refused when no reply was persisted.
+  rpc ResendLinearReply(ResendLinearReplyRequest) returns (ResendLinearReplyResponse);
+}
+
+message ListLinearProcessingRecordsRequest {
+  // Optional filters.
+  string app_id = 1;
+  LinearProcessingStatus status = 2;
+  // Maximum records to return. Defaults to 50, capped at 200.
+  int32 page_size = 3;
+}
+
+message ListLinearProcessingRecordsResponse {
+  repeated LinearProcessingRecord records = 1;
+}
+
+message GetLinearProcessingRecordRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetLinearProcessingRecordResponse {
+  LinearProcessingRecord record = 1;
+}
+
+message ResendLinearReplyRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ResendLinearReplyResponse {
+  LinearProcessingRecord record = 1;
+}

@@ -3206,3 +3206,976 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = UpdateLinearSettingsResponseValidationError{}
+
+// Validate checks the field values on LinearProcessingRecord with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *LinearProcessingRecord) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LinearProcessingRecord with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// LinearProcessingRecordMultiError, or nil if none found.
+func (m *LinearProcessingRecord) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LinearProcessingRecord) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for WorkspaceId
+
+	// no validation rules for AppId
+
+	// no validation rules for InstallationId
+
+	// no validation rules for AgentSessionId
+
+	// no validation rules for Action
+
+	// no validation rules for DeliveryId
+
+	// no validation rules for Status
+
+	// no validation rules for InvocationId
+
+	// no validation rules for Attempts
+
+	// no validation rules for AppRevision
+
+	// no validation rules for Error
+
+	// no validation rules for Output
+
+	// no validation rules for OutputType
+
+	// no validation rules for OutputSignal
+
+	// no validation rules for OutputSignalMetadata
+
+	// no validation rules for Delivered
+
+	// no validation rules for DeadLettered
+
+	// no validation rules for PromptingUserId
+
+	// no validation rules for IssueIdentifier
+
+	if all {
+		switch v := interface{}(m.GetCreatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LinearProcessingRecordValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LinearProcessingRecordValidationError{
+					field:  "CreatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCreatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return LinearProcessingRecordValidationError{
+				field:  "CreatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LinearProcessingRecordValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LinearProcessingRecordValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return LinearProcessingRecordValidationError{
+				field:  "UpdatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetExpiresAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LinearProcessingRecordValidationError{
+					field:  "ExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LinearProcessingRecordValidationError{
+					field:  "ExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExpiresAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return LinearProcessingRecordValidationError{
+				field:  "ExpiresAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return LinearProcessingRecordMultiError(errors)
+	}
+
+	return nil
+}
+
+// LinearProcessingRecordMultiError is an error wrapping multiple validation
+// errors returned by LinearProcessingRecord.ValidateAll() if the designated
+// constraints aren't met.
+type LinearProcessingRecordMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LinearProcessingRecordMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LinearProcessingRecordMultiError) AllErrors() []error { return m }
+
+// LinearProcessingRecordValidationError is the validation error returned by
+// LinearProcessingRecord.Validate if the designated constraints aren't met.
+type LinearProcessingRecordValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e LinearProcessingRecordValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e LinearProcessingRecordValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e LinearProcessingRecordValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e LinearProcessingRecordValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e LinearProcessingRecordValidationError) ErrorName() string {
+	return "LinearProcessingRecordValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e LinearProcessingRecordValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sLinearProcessingRecord.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = LinearProcessingRecordValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = LinearProcessingRecordValidationError{}
+
+// Validate checks the field values on ListLinearProcessingRecordsRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *ListLinearProcessingRecordsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListLinearProcessingRecordsRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// ListLinearProcessingRecordsRequestMultiError, or nil if none found.
+func (m *ListLinearProcessingRecordsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListLinearProcessingRecordsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AppId
+
+	// no validation rules for Status
+
+	// no validation rules for PageSize
+
+	if len(errors) > 0 {
+		return ListLinearProcessingRecordsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListLinearProcessingRecordsRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// ListLinearProcessingRecordsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type ListLinearProcessingRecordsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListLinearProcessingRecordsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListLinearProcessingRecordsRequestMultiError) AllErrors() []error { return m }
+
+// ListLinearProcessingRecordsRequestValidationError is the validation error
+// returned by ListLinearProcessingRecordsRequest.Validate if the designated
+// constraints aren't met.
+type ListLinearProcessingRecordsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListLinearProcessingRecordsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListLinearProcessingRecordsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListLinearProcessingRecordsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListLinearProcessingRecordsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListLinearProcessingRecordsRequestValidationError) ErrorName() string {
+	return "ListLinearProcessingRecordsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListLinearProcessingRecordsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListLinearProcessingRecordsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListLinearProcessingRecordsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListLinearProcessingRecordsRequestValidationError{}
+
+// Validate checks the field values on ListLinearProcessingRecordsResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *ListLinearProcessingRecordsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListLinearProcessingRecordsResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// ListLinearProcessingRecordsResponseMultiError, or nil if none found.
+func (m *ListLinearProcessingRecordsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListLinearProcessingRecordsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetRecords() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListLinearProcessingRecordsResponseValidationError{
+						field:  fmt.Sprintf("Records[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListLinearProcessingRecordsResponseValidationError{
+						field:  fmt.Sprintf("Records[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListLinearProcessingRecordsResponseValidationError{
+					field:  fmt.Sprintf("Records[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListLinearProcessingRecordsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListLinearProcessingRecordsResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// ListLinearProcessingRecordsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type ListLinearProcessingRecordsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListLinearProcessingRecordsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListLinearProcessingRecordsResponseMultiError) AllErrors() []error { return m }
+
+// ListLinearProcessingRecordsResponseValidationError is the validation error
+// returned by ListLinearProcessingRecordsResponse.Validate if the designated
+// constraints aren't met.
+type ListLinearProcessingRecordsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListLinearProcessingRecordsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListLinearProcessingRecordsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListLinearProcessingRecordsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListLinearProcessingRecordsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListLinearProcessingRecordsResponseValidationError) ErrorName() string {
+	return "ListLinearProcessingRecordsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListLinearProcessingRecordsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListLinearProcessingRecordsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListLinearProcessingRecordsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListLinearProcessingRecordsResponseValidationError{}
+
+// Validate checks the field values on GetLinearProcessingRecordRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *GetLinearProcessingRecordRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetLinearProcessingRecordRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GetLinearProcessingRecordRequestMultiError, or nil if none found.
+func (m *GetLinearProcessingRecordRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetLinearProcessingRecordRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := GetLinearProcessingRecordRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return GetLinearProcessingRecordRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetLinearProcessingRecordRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// GetLinearProcessingRecordRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetLinearProcessingRecordRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetLinearProcessingRecordRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetLinearProcessingRecordRequestMultiError) AllErrors() []error { return m }
+
+// GetLinearProcessingRecordRequestValidationError is the validation error
+// returned by GetLinearProcessingRecordRequest.Validate if the designated
+// constraints aren't met.
+type GetLinearProcessingRecordRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetLinearProcessingRecordRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetLinearProcessingRecordRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetLinearProcessingRecordRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetLinearProcessingRecordRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetLinearProcessingRecordRequestValidationError) ErrorName() string {
+	return "GetLinearProcessingRecordRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetLinearProcessingRecordRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetLinearProcessingRecordRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetLinearProcessingRecordRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetLinearProcessingRecordRequestValidationError{}
+
+// Validate checks the field values on GetLinearProcessingRecordResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *GetLinearProcessingRecordResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetLinearProcessingRecordResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// GetLinearProcessingRecordResponseMultiError, or nil if none found.
+func (m *GetLinearProcessingRecordResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetLinearProcessingRecordResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRecord()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetLinearProcessingRecordResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetLinearProcessingRecordResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRecord()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetLinearProcessingRecordResponseValidationError{
+				field:  "Record",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetLinearProcessingRecordResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetLinearProcessingRecordResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// GetLinearProcessingRecordResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetLinearProcessingRecordResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetLinearProcessingRecordResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetLinearProcessingRecordResponseMultiError) AllErrors() []error { return m }
+
+// GetLinearProcessingRecordResponseValidationError is the validation error
+// returned by GetLinearProcessingRecordResponse.Validate if the designated
+// constraints aren't met.
+type GetLinearProcessingRecordResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetLinearProcessingRecordResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetLinearProcessingRecordResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetLinearProcessingRecordResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetLinearProcessingRecordResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetLinearProcessingRecordResponseValidationError) ErrorName() string {
+	return "GetLinearProcessingRecordResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetLinearProcessingRecordResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetLinearProcessingRecordResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetLinearProcessingRecordResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetLinearProcessingRecordResponseValidationError{}
+
+// Validate checks the field values on ResendLinearReplyRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ResendLinearReplyRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ResendLinearReplyRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ResendLinearReplyRequestMultiError, or nil if none found.
+func (m *ResendLinearReplyRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ResendLinearReplyRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := ResendLinearReplyRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return ResendLinearReplyRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ResendLinearReplyRequestMultiError is an error wrapping multiple validation
+// errors returned by ResendLinearReplyRequest.ValidateAll() if the designated
+// constraints aren't met.
+type ResendLinearReplyRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ResendLinearReplyRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ResendLinearReplyRequestMultiError) AllErrors() []error { return m }
+
+// ResendLinearReplyRequestValidationError is the validation error returned by
+// ResendLinearReplyRequest.Validate if the designated constraints aren't met.
+type ResendLinearReplyRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ResendLinearReplyRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ResendLinearReplyRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ResendLinearReplyRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ResendLinearReplyRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ResendLinearReplyRequestValidationError) ErrorName() string {
+	return "ResendLinearReplyRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ResendLinearReplyRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sResendLinearReplyRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ResendLinearReplyRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ResendLinearReplyRequestValidationError{}
+
+// Validate checks the field values on ResendLinearReplyResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ResendLinearReplyResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ResendLinearReplyResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ResendLinearReplyResponseMultiError, or nil if none found.
+func (m *ResendLinearReplyResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ResendLinearReplyResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRecord()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ResendLinearReplyResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ResendLinearReplyResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRecord()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ResendLinearReplyResponseValidationError{
+				field:  "Record",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return ResendLinearReplyResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ResendLinearReplyResponseMultiError is an error wrapping multiple validation
+// errors returned by ResendLinearReplyResponse.ValidateAll() if the
+// designated constraints aren't met.
+type ResendLinearReplyResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ResendLinearReplyResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ResendLinearReplyResponseMultiError) AllErrors() []error { return m }
+
+// ResendLinearReplyResponseValidationError is the validation error returned by
+// ResendLinearReplyResponse.Validate if the designated constraints aren't met.
+type ResendLinearReplyResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ResendLinearReplyResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ResendLinearReplyResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ResendLinearReplyResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ResendLinearReplyResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ResendLinearReplyResponseValidationError) ErrorName() string {
+	return "ResendLinearReplyResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ResendLinearReplyResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sResendLinearReplyResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ResendLinearReplyResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ResendLinearReplyResponseValidationError{}

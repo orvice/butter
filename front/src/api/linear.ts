@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LinearAdminService,
   LinearAppService,
+  LinearProcessingService,
   type LinearApp,
+  type LinearProcessingRecord,
+  type LinearProcessingStatus,
   type LinearInstallation,
   type LinearSettings,
 } from '@/gen/agents/v1/linear_pb'
@@ -10,9 +13,11 @@ import { makeClient } from './transport'
 
 const appClient = makeClient(LinearAppService)
 const adminClient = makeClient(LinearAdminService)
+const processingClient = makeClient(LinearProcessingService)
 
 export const LINEAR_APPS_KEY = ['linear-apps'] as const
 const SETTINGS_KEY = ['linear-settings'] as const
+const PROCESSING_KEY = ['linear-processing'] as const
 
 // --- Platform settings (global admin) ---------------------------------------
 
@@ -188,5 +193,33 @@ export function useDeleteLinearInstallation() {
       qc.invalidateQueries({
         queryKey: [...LINEAR_APPS_KEY, input.appId, 'installations'],
       }),
+  })
+}
+
+// --- Processing records -------------------------------------------------------
+
+export function useLinearProcessingRecords(
+  filter: { appId?: string; status?: LinearProcessingStatus } = {}
+) {
+  return useQuery({
+    queryKey: [...PROCESSING_KEY, filter],
+    queryFn: async (): Promise<LinearProcessingRecord[]> => {
+      const res = await processingClient.listLinearProcessingRecords({
+        appId: filter.appId ?? '',
+        status: filter.status,
+      })
+      return res.records
+    },
+  })
+}
+
+export function useResendLinearReply() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await processingClient.resendLinearReply({ id })
+      return res.record
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: PROCESSING_KEY }),
   })
 }

@@ -607,3 +607,194 @@ var LinearAdminService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "agents/v1/linear.proto",
 }
+
+const (
+	LinearProcessingService_ListLinearProcessingRecords_FullMethodName = "/agents.v1.LinearProcessingService/ListLinearProcessingRecords"
+	LinearProcessingService_GetLinearProcessingRecord_FullMethodName   = "/agents.v1.LinearProcessingService/GetLinearProcessingRecord"
+	LinearProcessingService_ResendLinearReply_FullMethodName           = "/agents.v1.LinearProcessingService/ResendLinearReply"
+)
+
+// LinearProcessingServiceClient is the client API for LinearProcessingService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// LinearProcessingService exposes processing records. Members read;
+// owners and admins resend a reply that was produced but not posted. There
+// is deliberately no rerun action.
+type LinearProcessingServiceClient interface {
+	ListLinearProcessingRecords(ctx context.Context, in *ListLinearProcessingRecordsRequest, opts ...grpc.CallOption) (*ListLinearProcessingRecordsResponse, error)
+	GetLinearProcessingRecord(ctx context.Context, in *GetLinearProcessingRecordRequest, opts ...grpc.CallOption) (*GetLinearProcessingRecordResponse, error)
+	// ResendLinearReply posts the persisted reply of a FAILED record. It never
+	// invokes the Agent, and it is refused when no reply was persisted.
+	ResendLinearReply(ctx context.Context, in *ResendLinearReplyRequest, opts ...grpc.CallOption) (*ResendLinearReplyResponse, error)
+}
+
+type linearProcessingServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewLinearProcessingServiceClient(cc grpc.ClientConnInterface) LinearProcessingServiceClient {
+	return &linearProcessingServiceClient{cc}
+}
+
+func (c *linearProcessingServiceClient) ListLinearProcessingRecords(ctx context.Context, in *ListLinearProcessingRecordsRequest, opts ...grpc.CallOption) (*ListLinearProcessingRecordsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListLinearProcessingRecordsResponse)
+	err := c.cc.Invoke(ctx, LinearProcessingService_ListLinearProcessingRecords_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *linearProcessingServiceClient) GetLinearProcessingRecord(ctx context.Context, in *GetLinearProcessingRecordRequest, opts ...grpc.CallOption) (*GetLinearProcessingRecordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetLinearProcessingRecordResponse)
+	err := c.cc.Invoke(ctx, LinearProcessingService_GetLinearProcessingRecord_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *linearProcessingServiceClient) ResendLinearReply(ctx context.Context, in *ResendLinearReplyRequest, opts ...grpc.CallOption) (*ResendLinearReplyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResendLinearReplyResponse)
+	err := c.cc.Invoke(ctx, LinearProcessingService_ResendLinearReply_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// LinearProcessingServiceServer is the server API for LinearProcessingService service.
+// All implementations must embed UnimplementedLinearProcessingServiceServer
+// for forward compatibility.
+//
+// LinearProcessingService exposes processing records. Members read;
+// owners and admins resend a reply that was produced but not posted. There
+// is deliberately no rerun action.
+type LinearProcessingServiceServer interface {
+	ListLinearProcessingRecords(context.Context, *ListLinearProcessingRecordsRequest) (*ListLinearProcessingRecordsResponse, error)
+	GetLinearProcessingRecord(context.Context, *GetLinearProcessingRecordRequest) (*GetLinearProcessingRecordResponse, error)
+	// ResendLinearReply posts the persisted reply of a FAILED record. It never
+	// invokes the Agent, and it is refused when no reply was persisted.
+	ResendLinearReply(context.Context, *ResendLinearReplyRequest) (*ResendLinearReplyResponse, error)
+	mustEmbedUnimplementedLinearProcessingServiceServer()
+}
+
+// UnimplementedLinearProcessingServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedLinearProcessingServiceServer struct{}
+
+func (UnimplementedLinearProcessingServiceServer) ListLinearProcessingRecords(context.Context, *ListLinearProcessingRecordsRequest) (*ListLinearProcessingRecordsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListLinearProcessingRecords not implemented")
+}
+func (UnimplementedLinearProcessingServiceServer) GetLinearProcessingRecord(context.Context, *GetLinearProcessingRecordRequest) (*GetLinearProcessingRecordResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetLinearProcessingRecord not implemented")
+}
+func (UnimplementedLinearProcessingServiceServer) ResendLinearReply(context.Context, *ResendLinearReplyRequest) (*ResendLinearReplyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResendLinearReply not implemented")
+}
+func (UnimplementedLinearProcessingServiceServer) mustEmbedUnimplementedLinearProcessingServiceServer() {
+}
+func (UnimplementedLinearProcessingServiceServer) testEmbeddedByValue() {}
+
+// UnsafeLinearProcessingServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to LinearProcessingServiceServer will
+// result in compilation errors.
+type UnsafeLinearProcessingServiceServer interface {
+	mustEmbedUnimplementedLinearProcessingServiceServer()
+}
+
+func RegisterLinearProcessingServiceServer(s grpc.ServiceRegistrar, srv LinearProcessingServiceServer) {
+	// If the following call panics, it indicates UnimplementedLinearProcessingServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&LinearProcessingService_ServiceDesc, srv)
+}
+
+func _LinearProcessingService_ListLinearProcessingRecords_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLinearProcessingRecordsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LinearProcessingServiceServer).ListLinearProcessingRecords(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LinearProcessingService_ListLinearProcessingRecords_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LinearProcessingServiceServer).ListLinearProcessingRecords(ctx, req.(*ListLinearProcessingRecordsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LinearProcessingService_GetLinearProcessingRecord_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLinearProcessingRecordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LinearProcessingServiceServer).GetLinearProcessingRecord(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LinearProcessingService_GetLinearProcessingRecord_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LinearProcessingServiceServer).GetLinearProcessingRecord(ctx, req.(*GetLinearProcessingRecordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LinearProcessingService_ResendLinearReply_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResendLinearReplyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LinearProcessingServiceServer).ResendLinearReply(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LinearProcessingService_ResendLinearReply_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LinearProcessingServiceServer).ResendLinearReply(ctx, req.(*ResendLinearReplyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// LinearProcessingService_ServiceDesc is the grpc.ServiceDesc for LinearProcessingService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var LinearProcessingService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.LinearProcessingService",
+	HandlerType: (*LinearProcessingServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListLinearProcessingRecords",
+			Handler:    _LinearProcessingService_ListLinearProcessingRecords_Handler,
+		},
+		{
+			MethodName: "GetLinearProcessingRecord",
+			Handler:    _LinearProcessingService_GetLinearProcessingRecord_Handler,
+		},
+		{
+			MethodName: "ResendLinearReply",
+			Handler:    _LinearProcessingService_ResendLinearReply_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agents/v1/linear.proto",
+}

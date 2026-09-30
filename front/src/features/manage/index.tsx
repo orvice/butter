@@ -135,6 +135,13 @@ const CONNECTION_SECTIONS: ManageSection[] = [
         icon: SquareKanban,
       },
       {
+        title: 'Linear Deliveries',
+        description:
+          'Inspect Linear processing history and resend replies that never landed.',
+        to: '/linear-deliveries',
+        icon: ListTree,
+      },
+      {
         title: 'Notify Groups',
         description: 'Choose where automated results and alerts are delivered.',
         to: '/notify-groups',

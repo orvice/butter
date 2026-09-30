@@ -335,10 +335,10 @@ func TestBeginLinearInstallNeedsTheBaseURL(t *testing.T) {
 
 func TestInstallReturnURLMustStayOnAKnownOrigin(t *testing.T) {
 	for returnURL, wantPath := range map[string]string{
-		"https://evil.example/steal":            "",
-		"//evil.example/steal":                  "",
+		"https://evil.example/steal":             "",
+		"//evil.example/steal":                   "",
 		"https://butter.test/linear-apps/x/edit": "/linear-apps/x/edit",
-		"/linear-apps":                          "/linear-apps",
+		"/linear-apps":                           "/linear-apps",
 	} {
 		t.Run(returnURL, func(t *testing.T) {
 			fx := newInstallFixture(t)

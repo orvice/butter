@@ -73,6 +73,7 @@ type Handlers struct {
 	tgProcessingSvcServer  *application.TelegramProcessingServiceServer
 	linearAppSvcServer     *application.LinearAppServiceServer
 	linearAdminSvcServer   *application.LinearAdminServiceServer
+	linearProcSvcServer    *application.LinearProcessingServiceServer
 	linearReceiver         linearReceiverHolder
 	linearWorker           *linearruntime.Worker
 	tgReceiver             atomic.Value // *telegram.Receiver
@@ -566,6 +567,10 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.linearAppSvcServer.SetInstallStateRepo(result.LinearStateRepo)
 		}
 		h.agentSvcServer.SetLinearGuard(application.NewLinearReferenceGuard(result.LinearRepo))
+		if h.linearProcSvcServer != nil && result.LinearProcessingRepo != nil {
+			h.linearProcSvcServer.SetRepo(result.LinearProcessingRepo)
+			h.linearProcSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
 		h.wireLinearRuntime(result, linearKeyring)
 	}
 	if h.linearAdminSvcServer != nil && result.LinearSettingRepo != nil {
@@ -765,6 +770,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	linearAppConnectPath, linearAppConnectHandler := agentsv1connect.NewLinearAppServiceHandler(linearAppSvcServer, connectOpts...)
 	linearAdminSvcServer := application.NewLinearAdminServiceServer(nil)
 	linearAdminConnectPath, linearAdminConnectHandler := agentsv1connect.NewLinearAdminServiceHandler(linearAdminSvcServer, connectOpts...)
+	linearProcSvcServer := application.NewLinearProcessingServiceServer(nil)
+	linearProcConnectPath, linearProcConnectHandler := agentsv1connect.NewLinearProcessingServiceHandler(linearProcSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -800,6 +807,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		tgProcessingSvcServer:  tgProcessingSvcServer,
 		linearAppSvcServer:     linearAppSvcServer,
 		linearAdminSvcServer:   linearAdminSvcServer,
+		linearProcSvcServer:    linearProcSvcServer,
 		workspaceMCPSvc:        workspaceMCPSvc,
 		configStore:            configStore,
 		configRuntime:          configRuntime,
@@ -876,6 +884,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+tgProcessingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgProcessingConnectHandler)))
 		r.Any("/api"+linearAppConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", linearAppConnectHandler)))
 		r.Any("/api"+linearAdminConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", linearAdminConnectHandler)))
+		r.Any("/api"+linearProcConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", linearProcConnectHandler)))
 
 		// The Telegram callback is public: it authenticates with the
 		// per-Channel secret Telegram echoes, not with a Butter session, and

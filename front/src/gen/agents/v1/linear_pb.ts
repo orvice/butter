@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/linear.proto.
  */
 export const file_agents_v1_linear: GenFile = /*@__PURE__*/
-  fileDesc("ChZhZ2VudHMvdjEvbGluZWFyLnByb3RvEglhZ2VudHMudjEi4AMKCUxpbmVhckFwcBIKCgJpZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSEQoJY2xpZW50X2lkGAMgASgJEhAKCGFnZW50X2lkGAQgASgJEhcKD2luYm91bmRfZW5hYmxlZBgFIAEoCBIYChBhbGxvd2VkX3VzZXJfaWRzGAYgAygJEhwKD21heF9ydW5fc2Vjb25kcxgHIAEoBUgAiAEBEhAKCHJldmlzaW9uGAggASgDEj0KEGNyZWRlbnRpYWxfc3RhdGUYCSABKA4yIy5hZ2VudHMudjEuTGluZWFyQXBwQ3JlZGVudGlhbFN0YXRlEhkKEWNsaWVudF9zZWNyZXRfc2V0GAogASgIEhoKEndlYmhvb2tfc2VjcmV0X3NldBgLIAEoCBIUCgxjYWxsYmFja191cmwYDCABKAkSEwoLd2ViaG9va191cmwYDSABKAkSLgoKY3JlYXRlZF9hdBgOIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJQhIKEF9tYXhfcnVuX3NlY29uZHMiFwoVTGlzdExpbmVhckFwcHNSZXF1ZXN0IjwKFkxpc3RMaW5lYXJBcHBzUmVzcG9uc2USIgoEYXBwcxgBIAMoCzIULmFnZW50cy52MS5MaW5lYXJBcHAiKgoTR2V0TGluZWFyQXBwUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASI5ChRHZXRMaW5lYXJBcHBSZXNwb25zZRIhCgNhcHAYASABKAsyFC5hZ2VudHMudjEuTGluZWFyQXBwIpkBChZDcmVhdGVMaW5lYXJBcHBSZXF1ZXN0EiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHASGgoNY2xpZW50X3NlY3JldBgCIAEoCUgAiAEBEhsKDndlYmhvb2tfc2VjcmV0GAMgASgJSAGIAQFCEAoOX2NsaWVudF9zZWNyZXRCEQoPX3dlYmhvb2tfc2VjcmV0IjwKF0NyZWF0ZUxpbmVhckFwcFJlc3BvbnNlEiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHAiOwoWVXBkYXRlTGluZWFyQXBwUmVxdWVzdBIhCgNhcHAYASABKAsyFC5hZ2VudHMudjEuTGluZWFyQXBwIjwKF1VwZGF0ZUxpbmVhckFwcFJlc3BvbnNlEiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHAilwEKHlB1dExpbmVhckFwcENyZWRlbnRpYWxzUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESGgoNY2xpZW50X3NlY3JldBgCIAEoCUgAiAEBEhsKDndlYmhvb2tfc2VjcmV0GAMgASgJSAGIAQFCEAoOX2NsaWVudF9zZWNyZXRCEQoPX3dlYmhvb2tfc2VjcmV0IkQKH1B1dExpbmVhckFwcENyZWRlbnRpYWxzUmVzcG9uc2USIQoDYXBwGAEgASgLMhQuYWdlbnRzLnYxLkxpbmVhckFwcCItChZEZWxldGVMaW5lYXJBcHBSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIhkKF0RlbGV0ZUxpbmVhckFwcFJlc3BvbnNlIugCChJMaW5lYXJJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSDgoGYXBwX2lkGAIgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgDIAEoCRIZChFvcmdhbml6YXRpb25fbmFtZRgEIAEoCRITCgthcHBfdXNlcl9pZBgFIAEoCRIOCgZzY29wZXMYBiADKAkSRgoQY3JlZGVudGlhbF9zdGF0ZRgHIAEoDjIsLmFnZW50cy52MS5MaW5lYXJJbnN0YWxsYXRpb25DcmVkZW50aWFsU3RhdGUSHQoVbGFzdF9jcmVkZW50aWFsX2Vycm9yGAggASgJEjAKDGluc3RhbGxlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJIkgKGUJlZ2luTGluZWFySW5zdGFsbFJlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABEhIKCnJldHVybl91cmwYAiABKAkiMwoaQmVnaW5MaW5lYXJJbnN0YWxsUmVzcG9uc2USFQoNYXV0aG9yaXplX3VybBgBIAEoCSI5Ch5MaXN0TGluZWFySW5zdGFsbGF0aW9uc1JlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABIlcKH0xpc3RMaW5lYXJJbnN0YWxsYXRpb25zUmVzcG9uc2USNAoNaW5zdGFsbGF0aW9ucxgBIAMoCzIdLmFnZW50cy52MS5MaW5lYXJJbnN0YWxsYXRpb24iTwofRGVsZXRlTGluZWFySW5zdGFsbGF0aW9uUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESEwoCaWQYAiABKAlCB/pCBHICEAEiIgogRGVsZXRlTGluZWFySW5zdGFsbGF0aW9uUmVzcG9uc2UiWQoOTGluZWFyU2V0dGluZ3MSFwoPcHVibGljX2Jhc2VfdXJsGAEgASgJEi4KCnVwZGF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhoKGEdldExpbmVhclNldHRpbmdzUmVxdWVzdCJIChlHZXRMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuYWdlbnRzLnYxLkxpbmVhclNldHRpbmdzIkoKG1VwZGF0ZUxpbmVhclNldHRpbmdzUmVxdWVzdBIrCghzZXR0aW5ncxgBIAEoCzIZLmFnZW50cy52MS5MaW5lYXJTZXR0aW5ncyJLChxVcGRhdGVMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuYWdlbnRzLnYxLkxpbmVhclNldHRpbmdzKp0BChhMaW5lYXJBcHBDcmVkZW50aWFsU3RhdGUSKwonTElORUFSX0FQUF9DUkVERU5USUFMX1NUQVRFX1VOU1BFQ0lGSUVEEAASKgomTElORUFSX0FQUF9DUkVERU5USUFMX1NUQVRFX0lOQ09NUExFVEUQARIoCiRMSU5FQVJfQVBQX0NSRURFTlRJQUxfU1RBVEVfQ09NUExFVEUQAirDAQohTGluZWFySW5zdGFsbGF0aW9uQ3JlZGVudGlhbFN0YXRlEjQKMExJTkVBUl9JTlNUQUxMQVRJT05fQ1JFREVOVElBTF9TVEFURV9VTlNQRUNJRklFRBAAEi4KKkxJTkVBUl9JTlNUQUxMQVRJT05fQ1JFREVOVElBTF9TVEFURV9WQUxJRBABEjgKNExJTkVBUl9JTlNUQUxMQVRJT05fQ1JFREVOVElBTF9TVEFURV9ORUVEU19SRUlOU1RBTEwQAjKEBwoQTGluZWFyQXBwU2VydmljZRJVCg5MaXN0TGluZWFyQXBwcxIgLmFnZW50cy52MS5MaXN0TGluZWFyQXBwc1JlcXVlc3QaIS5hZ2VudHMudjEuTGlzdExpbmVhckFwcHNSZXNwb25zZRJPCgxHZXRMaW5lYXJBcHASHi5hZ2VudHMudjEuR2V0TGluZWFyQXBwUmVxdWVzdBofLmFnZW50cy52MS5HZXRMaW5lYXJBcHBSZXNwb25zZRJYCg9DcmVhdGVMaW5lYXJBcHASIS5hZ2VudHMudjEuQ3JlYXRlTGluZWFyQXBwUmVxdWVzdBoiLmFnZW50cy52MS5DcmVhdGVMaW5lYXJBcHBSZXNwb25zZRJYCg9VcGRhdGVMaW5lYXJBcHASIS5hZ2VudHMudjEuVXBkYXRlTGluZWFyQXBwUmVxdWVzdBoiLmFnZW50cy52MS5VcGRhdGVMaW5lYXJBcHBSZXNwb25zZRJwChdQdXRMaW5lYXJBcHBDcmVkZW50aWFscxIpLmFnZW50cy52MS5QdXRMaW5lYXJBcHBDcmVkZW50aWFsc1JlcXVlc3QaKi5hZ2VudHMudjEuUHV0TGluZWFyQXBwQ3JlZGVudGlhbHNSZXNwb25zZRJYCg9EZWxldGVMaW5lYXJBcHASIS5hZ2VudHMudjEuRGVsZXRlTGluZWFyQXBwUmVxdWVzdBoiLmFnZW50cy52MS5EZWxldGVMaW5lYXJBcHBSZXNwb25zZRJhChJCZWdpbkxpbmVhckluc3RhbGwSJC5hZ2VudHMudjEuQmVnaW5MaW5lYXJJbnN0YWxsUmVxdWVzdBolLmFnZW50cy52MS5CZWdpbkxpbmVhckluc3RhbGxSZXNwb25zZRJwChdMaXN0TGluZWFySW5zdGFsbGF0aW9ucxIpLmFnZW50cy52MS5MaXN0TGluZWFySW5zdGFsbGF0aW9uc1JlcXVlc3QaKi5hZ2VudHMudjEuTGlzdExpbmVhckluc3RhbGxhdGlvbnNSZXNwb25zZRJzChhEZWxldGVMaW5lYXJJbnN0YWxsYXRpb24SKi5hZ2VudHMudjEuRGVsZXRlTGluZWFySW5zdGFsbGF0aW9uUmVxdWVzdBorLmFnZW50cy52MS5EZWxldGVMaW5lYXJJbnN0YWxsYXRpb25SZXNwb25zZTLdAQoSTGluZWFyQWRtaW5TZXJ2aWNlEl4KEUdldExpbmVhclNldHRpbmdzEiMuYWdlbnRzLnYxLkdldExpbmVhclNldHRpbmdzUmVxdWVzdBokLmFnZW50cy52MS5HZXRMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlEmcKFFVwZGF0ZUxpbmVhclNldHRpbmdzEiYuYWdlbnRzLnYxLlVwZGF0ZUxpbmVhclNldHRpbmdzUmVxdWVzdBonLmFnZW50cy52MS5VcGRhdGVMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChZhZ2VudHMvdjEvbGluZWFyLnByb3RvEglhZ2VudHMudjEi4AMKCUxpbmVhckFwcBIKCgJpZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSEQoJY2xpZW50X2lkGAMgASgJEhAKCGFnZW50X2lkGAQgASgJEhcKD2luYm91bmRfZW5hYmxlZBgFIAEoCBIYChBhbGxvd2VkX3VzZXJfaWRzGAYgAygJEhwKD21heF9ydW5fc2Vjb25kcxgHIAEoBUgAiAEBEhAKCHJldmlzaW9uGAggASgDEj0KEGNyZWRlbnRpYWxfc3RhdGUYCSABKA4yIy5hZ2VudHMudjEuTGluZWFyQXBwQ3JlZGVudGlhbFN0YXRlEhkKEWNsaWVudF9zZWNyZXRfc2V0GAogASgIEhoKEndlYmhvb2tfc2VjcmV0X3NldBgLIAEoCBIUCgxjYWxsYmFja191cmwYDCABKAkSEwoLd2ViaG9va191cmwYDSABKAkSLgoKY3JlYXRlZF9hdBgOIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJQhIKEF9tYXhfcnVuX3NlY29uZHMiFwoVTGlzdExpbmVhckFwcHNSZXF1ZXN0IjwKFkxpc3RMaW5lYXJBcHBzUmVzcG9uc2USIgoEYXBwcxgBIAMoCzIULmFnZW50cy52MS5MaW5lYXJBcHAiKgoTR2V0TGluZWFyQXBwUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASI5ChRHZXRMaW5lYXJBcHBSZXNwb25zZRIhCgNhcHAYASABKAsyFC5hZ2VudHMudjEuTGluZWFyQXBwIpkBChZDcmVhdGVMaW5lYXJBcHBSZXF1ZXN0EiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHASGgoNY2xpZW50X3NlY3JldBgCIAEoCUgAiAEBEhsKDndlYmhvb2tfc2VjcmV0GAMgASgJSAGIAQFCEAoOX2NsaWVudF9zZWNyZXRCEQoPX3dlYmhvb2tfc2VjcmV0IjwKF0NyZWF0ZUxpbmVhckFwcFJlc3BvbnNlEiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHAiOwoWVXBkYXRlTGluZWFyQXBwUmVxdWVzdBIhCgNhcHAYASABKAsyFC5hZ2VudHMudjEuTGluZWFyQXBwIjwKF1VwZGF0ZUxpbmVhckFwcFJlc3BvbnNlEiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHAilwEKHlB1dExpbmVhckFwcENyZWRlbnRpYWxzUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESGgoNY2xpZW50X3NlY3JldBgCIAEoCUgAiAEBEhsKDndlYmhvb2tfc2VjcmV0GAMgASgJSAGIAQFCEAoOX2NsaWVudF9zZWNyZXRCEQoPX3dlYmhvb2tfc2VjcmV0IkQKH1B1dExpbmVhckFwcENyZWRlbnRpYWxzUmVzcG9uc2USIQoDYXBwGAEgASgLMhQuYWdlbnRzLnYxLkxpbmVhckFwcCItChZEZWxldGVMaW5lYXJBcHBSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIhkKF0RlbGV0ZUxpbmVhckFwcFJlc3BvbnNlIugCChJMaW5lYXJJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSDgoGYXBwX2lkGAIgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgDIAEoCRIZChFvcmdhbml6YXRpb25fbmFtZRgEIAEoCRITCgthcHBfdXNlcl9pZBgFIAEoCRIOCgZzY29wZXMYBiADKAkSRgoQY3JlZGVudGlhbF9zdGF0ZRgHIAEoDjIsLmFnZW50cy52MS5MaW5lYXJJbnN0YWxsYXRpb25DcmVkZW50aWFsU3RhdGUSHQoVbGFzdF9jcmVkZW50aWFsX2Vycm9yGAggASgJEjAKDGluc3RhbGxlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJIkgKGUJlZ2luTGluZWFySW5zdGFsbFJlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABEhIKCnJldHVybl91cmwYAiABKAkiMwoaQmVnaW5MaW5lYXJJbnN0YWxsUmVzcG9uc2USFQoNYXV0aG9yaXplX3VybBgBIAEoCSI5Ch5MaXN0TGluZWFySW5zdGFsbGF0aW9uc1JlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABIlcKH0xpc3RMaW5lYXJJbnN0YWxsYXRpb25zUmVzcG9uc2USNAoNaW5zdGFsbGF0aW9ucxgBIAMoCzIdLmFnZW50cy52MS5MaW5lYXJJbnN0YWxsYXRpb24iTwofRGVsZXRlTGluZWFySW5zdGFsbGF0aW9uUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESEwoCaWQYAiABKAlCB/pCBHICEAEiIgogRGVsZXRlTGluZWFySW5zdGFsbGF0aW9uUmVzcG9uc2UiWQoOTGluZWFyU2V0dGluZ3MSFwoPcHVibGljX2Jhc2VfdXJsGAEgASgJEi4KCnVwZGF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhoKGEdldExpbmVhclNldHRpbmdzUmVxdWVzdCJIChlHZXRMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuYWdlbnRzLnYxLkxpbmVhclNldHRpbmdzIkoKG1VwZGF0ZUxpbmVhclNldHRpbmdzUmVxdWVzdBIrCghzZXR0aW5ncxgBIAEoCzIZLmFnZW50cy52MS5MaW5lYXJTZXR0aW5ncyJLChxVcGRhdGVMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuYWdlbnRzLnYxLkxpbmVhclNldHRpbmdzIu4EChZMaW5lYXJQcm9jZXNzaW5nUmVjb3JkEgoKAmlkGAEgASgJEhQKDHdvcmtzcGFjZV9pZBgCIAEoCRIOCgZhcHBfaWQYAyABKAkSFwoPaW5zdGFsbGF0aW9uX2lkGAQgASgJEhgKEGFnZW50X3Nlc3Npb25faWQYBSABKAkSDgoGYWN0aW9uGAYgASgJEhMKC2RlbGl2ZXJ5X2lkGAcgASgJEjEKBnN0YXR1cxgIIAEoDjIhLmFnZW50cy52MS5MaW5lYXJQcm9jZXNzaW5nU3RhdHVzEhUKDWludm9jYXRpb25faWQYCSABKAkSEAoIYXR0ZW1wdHMYCiABKAUSFAoMYXBwX3JldmlzaW9uGAsgASgDEg0KBWVycm9yGAwgASgJEg4KBm91dHB1dBgNIAEoCRITCgtvdXRwdXRfdHlwZRgOIAEoCRIVCg1vdXRwdXRfc2lnbmFsGA8gASgJEh4KFm91dHB1dF9zaWduYWxfbWV0YWRhdGEYECABKAkSEQoJZGVsaXZlcmVkGBEgASgIEhUKDWRlYWRfbGV0dGVyZWQYEiABKAgSGQoRcHJvbXB0aW5nX3VzZXJfaWQYEyABKAkSGAoQaXNzdWVfaWRlbnRpZmllchgUIAEoCRIuCgpjcmVhdGVkX2F0GBUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GBYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpleHBpcmVzX2F0GBcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJ6CiJMaXN0TGluZWFyUHJvY2Vzc2luZ1JlY29yZHNSZXF1ZXN0Eg4KBmFwcF9pZBgBIAEoCRIxCgZzdGF0dXMYAiABKA4yIS5hZ2VudHMudjEuTGluZWFyUHJvY2Vzc2luZ1N0YXR1cxIRCglwYWdlX3NpemUYAyABKAUiWQojTGlzdExpbmVhclByb2Nlc3NpbmdSZWNvcmRzUmVzcG9uc2USMgoHcmVjb3JkcxgBIAMoCzIhLmFnZW50cy52MS5MaW5lYXJQcm9jZXNzaW5nUmVjb3JkIjcKIEdldExpbmVhclByb2Nlc3NpbmdSZWNvcmRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIlYKIUdldExpbmVhclByb2Nlc3NpbmdSZWNvcmRSZXNwb25zZRIxCgZyZWNvcmQYASABKAsyIS5hZ2VudHMudjEuTGluZWFyUHJvY2Vzc2luZ1JlY29yZCIvChhSZXNlbmRMaW5lYXJSZXBseVJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiTgoZUmVzZW5kTGluZWFyUmVwbHlSZXNwb25zZRIxCgZyZWNvcmQYASABKAsyIS5hZ2VudHMudjEuTGluZWFyUHJvY2Vzc2luZ1JlY29yZCqdAQoYTGluZWFyQXBwQ3JlZGVudGlhbFN0YXRlEisKJ0xJTkVBUl9BUFBfQ1JFREVOVElBTF9TVEFURV9VTlNQRUNJRklFRBAAEioKJkxJTkVBUl9BUFBfQ1JFREVOVElBTF9TVEFURV9JTkNPTVBMRVRFEAESKAokTElORUFSX0FQUF9DUkVERU5USUFMX1NUQVRFX0NPTVBMRVRFEAIqwwEKIUxpbmVhckluc3RhbGxhdGlvbkNyZWRlbnRpYWxTdGF0ZRI0CjBMSU5FQVJfSU5TVEFMTEFUSU9OX0NSRURFTlRJQUxfU1RBVEVfVU5TUEVDSUZJRUQQABIuCipMSU5FQVJfSU5TVEFMTEFUSU9OX0NSRURFTlRJQUxfU1RBVEVfVkFMSUQQARI4CjRMSU5FQVJfSU5TVEFMTEFUSU9OX0NSRURFTlRJQUxfU1RBVEVfTkVFRFNfUkVJTlNUQUxMEAIqigMKFkxpbmVhclByb2Nlc3NpbmdTdGF0dXMSKAokTElORUFSX1BST0NFU1NJTkdfU1RBVFVTX1VOU1BFQ0lGSUVEEAASIwofTElORUFSX1BST0NFU1NJTkdfU1RBVFVTX1FVRVVFRBABEiUKIUxJTkVBUl9QUk9DRVNTSU5HX1NUQVRVU19SRUNFSVZFRBACEicKI0xJTkVBUl9QUk9DRVNTSU5HX1NUQVRVU19QUk9DRVNTSU5HEAMSLQopTElORUFSX1BST0NFU1NJTkdfU1RBVFVTX1JFQURZX1RPX0RFTElWRVIQBBImCiJMSU5FQVJfUFJPQ0VTU0lOR19TVEFUVVNfU1VDQ0VFREVEEAUSIwofTElORUFSX1BST0NFU1NJTkdfU1RBVFVTX0ZBSUxFRBAGEi0KKUxJTkVBUl9QUk9DRVNTSU5HX1NUQVRVU19GQUlMRURfVU5DRVJUQUlOEAcSJgoiTElORUFSX1BST0NFU1NJTkdfU1RBVFVTX0NBTkNFTExFRBAIMoQHChBMaW5lYXJBcHBTZXJ2aWNlElUKDkxpc3RMaW5lYXJBcHBzEiAuYWdlbnRzLnYxLkxpc3RMaW5lYXJBcHBzUmVxdWVzdBohLmFnZW50cy52MS5MaXN0TGluZWFyQXBwc1Jlc3BvbnNlEk8KDEdldExpbmVhckFwcBIeLmFnZW50cy52MS5HZXRMaW5lYXJBcHBSZXF1ZXN0Gh8uYWdlbnRzLnYxLkdldExpbmVhckFwcFJlc3BvbnNlElgKD0NyZWF0ZUxpbmVhckFwcBIhLmFnZW50cy52MS5DcmVhdGVMaW5lYXJBcHBSZXF1ZXN0GiIuYWdlbnRzLnYxLkNyZWF0ZUxpbmVhckFwcFJlc3BvbnNlElgKD1VwZGF0ZUxpbmVhckFwcBIhLmFnZW50cy52MS5VcGRhdGVMaW5lYXJBcHBSZXF1ZXN0GiIuYWdlbnRzLnYxLlVwZGF0ZUxpbmVhckFwcFJlc3BvbnNlEnAKF1B1dExpbmVhckFwcENyZWRlbnRpYWxzEikuYWdlbnRzLnYxLlB1dExpbmVhckFwcENyZWRlbnRpYWxzUmVxdWVzdBoqLmFnZW50cy52MS5QdXRMaW5lYXJBcHBDcmVkZW50aWFsc1Jlc3BvbnNlElgKD0RlbGV0ZUxpbmVhckFwcBIhLmFnZW50cy52MS5EZWxldGVMaW5lYXJBcHBSZXF1ZXN0GiIuYWdlbnRzLnYxLkRlbGV0ZUxpbmVhckFwcFJlc3BvbnNlEmEKEkJlZ2luTGluZWFySW5zdGFsbBIkLmFnZW50cy52MS5CZWdpbkxpbmVhckluc3RhbGxSZXF1ZXN0GiUuYWdlbnRzLnYxLkJlZ2luTGluZWFySW5zdGFsbFJlc3BvbnNlEnAKF0xpc3RMaW5lYXJJbnN0YWxsYXRpb25zEikuYWdlbnRzLnYxLkxpc3RMaW5lYXJJbnN0YWxsYXRpb25zUmVxdWVzdBoqLmFnZW50cy52MS5MaXN0TGluZWFySW5zdGFsbGF0aW9uc1Jlc3BvbnNlEnMKGERlbGV0ZUxpbmVhckluc3RhbGxhdGlvbhIqLmFnZW50cy52MS5EZWxldGVMaW5lYXJJbnN0YWxsYXRpb25SZXF1ZXN0GisuYWdlbnRzLnYxLkRlbGV0ZUxpbmVhckluc3RhbGxhdGlvblJlc3BvbnNlMt0BChJMaW5lYXJBZG1pblNlcnZpY2USXgoRR2V0TGluZWFyU2V0dGluZ3MSIy5hZ2VudHMudjEuR2V0TGluZWFyU2V0dGluZ3NSZXF1ZXN0GiQuYWdlbnRzLnYxLkdldExpbmVhclNldHRpbmdzUmVzcG9uc2USZwoUVXBkYXRlTGluZWFyU2V0dGluZ3MSJi5hZ2VudHMudjEuVXBkYXRlTGluZWFyU2V0dGluZ3NSZXF1ZXN0GicuYWdlbnRzLnYxLlVwZGF0ZUxpbmVhclNldHRpbmdzUmVzcG9uc2Uy7wIKF0xpbmVhclByb2Nlc3NpbmdTZXJ2aWNlEnwKG0xpc3RMaW5lYXJQcm9jZXNzaW5nUmVjb3JkcxItLmFnZW50cy52MS5MaXN0TGluZWFyUHJvY2Vzc2luZ1JlY29yZHNSZXF1ZXN0Gi4uYWdlbnRzLnYxLkxpc3RMaW5lYXJQcm9jZXNzaW5nUmVjb3Jkc1Jlc3BvbnNlEnYKGUdldExpbmVhclByb2Nlc3NpbmdSZWNvcmQSKy5hZ2VudHMudjEuR2V0TGluZWFyUHJvY2Vzc2luZ1JlY29yZFJlcXVlc3QaLC5hZ2VudHMudjEuR2V0TGluZWFyUHJvY2Vzc2luZ1JlY29yZFJlc3BvbnNlEl4KEVJlc2VuZExpbmVhclJlcGx5EiMuYWdlbnRzLnYxLlJlc2VuZExpbmVhclJlcGx5UmVxdWVzdBokLmFnZW50cy52MS5SZXNlbmRMaW5lYXJSZXBseVJlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * LinearApp is one Linear OAuth application registered in a workspace.
@@ -704,6 +704,310 @@ export const UpdateLinearSettingsResponseSchema: GenMessage<UpdateLinearSettings
   messageDesc(file_agents_v1_linear, 24);
 
 /**
+ * LinearProcessingRecord is the auditable state of one accepted delivery.
+ *
+ * @generated from message agents.v1.LinearProcessingRecord
+ */
+export type LinearProcessingRecord = Message<"agents.v1.LinearProcessingRecord"> & {
+  /**
+   * @gotags: json:"id,omitempty" bson:"id,omitempty"
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+   *
+   * @generated from field: string workspace_id = 2;
+   */
+  workspaceId: string;
+
+  /**
+   * @gotags: json:"app_id,omitempty" bson:"app_id,omitempty"
+   *
+   * @generated from field: string app_id = 3;
+   */
+  appId: string;
+
+  /**
+   * @gotags: json:"installation_id,omitempty" bson:"installation_id,omitempty"
+   *
+   * @generated from field: string installation_id = 4;
+   */
+  installationId: string;
+
+  /**
+   * @gotags: json:"agent_session_id,omitempty" bson:"agent_session_id,omitempty"
+   *
+   * @generated from field: string agent_session_id = 5;
+   */
+  agentSessionId: string;
+
+  /**
+   * created or prompted.
+   * @gotags: json:"action,omitempty" bson:"action,omitempty"
+   *
+   * @generated from field: string action = 6;
+   */
+  action: string;
+
+  /**
+   * Linear's delivery ID (or the body hash); unique with app_id.
+   * @gotags: json:"delivery_id,omitempty" bson:"delivery_id,omitempty"
+   *
+   * @generated from field: string delivery_id = 7;
+   */
+  deliveryId: string;
+
+  /**
+   * @gotags: json:"status,omitempty" bson:"status,omitempty"
+   *
+   * @generated from field: agents.v1.LinearProcessingStatus status = 8;
+   */
+  status: LinearProcessingStatus;
+
+  /**
+   * Stable across retries; shared by follow-ups run in one turn.
+   * @gotags: json:"invocation_id,omitempty" bson:"invocation_id,omitempty"
+   *
+   * @generated from field: string invocation_id = 9;
+   */
+  invocationId: string;
+
+  /**
+   * How many times the record has been claimed.
+   * @gotags: json:"attempts,omitempty" bson:"attempts,omitempty"
+   *
+   * @generated from field: int32 attempts = 10;
+   */
+  attempts: number;
+
+  /**
+   * App revision frozen at acceptance.
+   * @gotags: json:"app_revision,omitempty" bson:"app_revision,omitempty"
+   *
+   * @generated from field: int64 app_revision = 11;
+   */
+  appRevision: bigint;
+
+  /**
+   * Sanitized failure summary. Never contains credential material.
+   * @gotags: json:"error,omitempty" bson:"error,omitempty"
+   *
+   * @generated from field: string error = 12;
+   */
+  error: string;
+
+  /**
+   * The complete reply, persisted before it is posted.
+   * @gotags: json:"output,omitempty" bson:"output,omitempty"
+   *
+   * @generated from field: string output = 13;
+   */
+  output: string;
+
+  /**
+   * The activity type the reply is posted as: response, elicitation or
+   * error.
+   * @gotags: json:"output_type,omitempty" bson:"output_type,omitempty"
+   *
+   * @generated from field: string output_type = 14;
+   */
+  outputType: string;
+
+  /**
+   * An elicitation's signal and its metadata as JSON, e.g. select options.
+   * @gotags: json:"output_signal,omitempty" bson:"output_signal,omitempty"
+   *
+   * @generated from field: string output_signal = 15;
+   */
+  outputSignal: string;
+
+  /**
+   * @gotags: json:"output_signal_metadata,omitempty" bson:"output_signal_metadata,omitempty"
+   *
+   * @generated from field: string output_signal_metadata = 16;
+   */
+  outputSignalMetadata: string;
+
+  /**
+   * Whether the reply reached Linear.
+   * @gotags: json:"delivered,omitempty" bson:"delivered,omitempty"
+   *
+   * @generated from field: bool delivered = 17;
+   */
+  delivered: boolean;
+
+  /**
+   * Whether the record needs a person.
+   * @gotags: json:"dead_lettered,omitempty" bson:"dead_lettered,omitempty"
+   *
+   * @generated from field: bool dead_lettered = 18;
+   */
+  deadLettered: boolean;
+
+  /**
+   * @gotags: json:"prompting_user_id,omitempty" bson:"prompting_user_id,omitempty"
+   *
+   * @generated from field: string prompting_user_id = 19;
+   */
+  promptingUserId: string;
+
+  /**
+   * @gotags: json:"issue_identifier,omitempty" bson:"issue_identifier,omitempty"
+   *
+   * @generated from field: string issue_identifier = 20;
+   */
+  issueIdentifier: string;
+
+  /**
+   * @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp created_at = 21;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp updated_at = 22;
+   */
+  updatedAt?: Timestamp;
+
+  /**
+   * When the record becomes eligible for TTL cleanup (30 days).
+   * @gotags: json:"expires_at,omitempty" bson:"expires_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp expires_at = 23;
+   */
+  expiresAt?: Timestamp;
+};
+
+/**
+ * Describes the message agents.v1.LinearProcessingRecord.
+ * Use `create(LinearProcessingRecordSchema)` to create a new message.
+ */
+export const LinearProcessingRecordSchema: GenMessage<LinearProcessingRecord> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 25);
+
+/**
+ * @generated from message agents.v1.ListLinearProcessingRecordsRequest
+ */
+export type ListLinearProcessingRecordsRequest = Message<"agents.v1.ListLinearProcessingRecordsRequest"> & {
+  /**
+   * Optional filters.
+   *
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+
+  /**
+   * @generated from field: agents.v1.LinearProcessingStatus status = 2;
+   */
+  status: LinearProcessingStatus;
+
+  /**
+   * Maximum records to return. Defaults to 50, capped at 200.
+   *
+   * @generated from field: int32 page_size = 3;
+   */
+  pageSize: number;
+};
+
+/**
+ * Describes the message agents.v1.ListLinearProcessingRecordsRequest.
+ * Use `create(ListLinearProcessingRecordsRequestSchema)` to create a new message.
+ */
+export const ListLinearProcessingRecordsRequestSchema: GenMessage<ListLinearProcessingRecordsRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 26);
+
+/**
+ * @generated from message agents.v1.ListLinearProcessingRecordsResponse
+ */
+export type ListLinearProcessingRecordsResponse = Message<"agents.v1.ListLinearProcessingRecordsResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.LinearProcessingRecord records = 1;
+   */
+  records: LinearProcessingRecord[];
+};
+
+/**
+ * Describes the message agents.v1.ListLinearProcessingRecordsResponse.
+ * Use `create(ListLinearProcessingRecordsResponseSchema)` to create a new message.
+ */
+export const ListLinearProcessingRecordsResponseSchema: GenMessage<ListLinearProcessingRecordsResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 27);
+
+/**
+ * @generated from message agents.v1.GetLinearProcessingRecordRequest
+ */
+export type GetLinearProcessingRecordRequest = Message<"agents.v1.GetLinearProcessingRecordRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message agents.v1.GetLinearProcessingRecordRequest.
+ * Use `create(GetLinearProcessingRecordRequestSchema)` to create a new message.
+ */
+export const GetLinearProcessingRecordRequestSchema: GenMessage<GetLinearProcessingRecordRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 28);
+
+/**
+ * @generated from message agents.v1.GetLinearProcessingRecordResponse
+ */
+export type GetLinearProcessingRecordResponse = Message<"agents.v1.GetLinearProcessingRecordResponse"> & {
+  /**
+   * @generated from field: agents.v1.LinearProcessingRecord record = 1;
+   */
+  record?: LinearProcessingRecord;
+};
+
+/**
+ * Describes the message agents.v1.GetLinearProcessingRecordResponse.
+ * Use `create(GetLinearProcessingRecordResponseSchema)` to create a new message.
+ */
+export const GetLinearProcessingRecordResponseSchema: GenMessage<GetLinearProcessingRecordResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 29);
+
+/**
+ * @generated from message agents.v1.ResendLinearReplyRequest
+ */
+export type ResendLinearReplyRequest = Message<"agents.v1.ResendLinearReplyRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message agents.v1.ResendLinearReplyRequest.
+ * Use `create(ResendLinearReplyRequestSchema)` to create a new message.
+ */
+export const ResendLinearReplyRequestSchema: GenMessage<ResendLinearReplyRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 30);
+
+/**
+ * @generated from message agents.v1.ResendLinearReplyResponse
+ */
+export type ResendLinearReplyResponse = Message<"agents.v1.ResendLinearReplyResponse"> & {
+  /**
+   * @generated from field: agents.v1.LinearProcessingRecord record = 1;
+   */
+  record?: LinearProcessingRecord;
+};
+
+/**
+ * Describes the message agents.v1.ResendLinearReplyResponse.
+ * Use `create(ResendLinearReplyResponseSchema)` to create a new message.
+ */
+export const ResendLinearReplyResponseSchema: GenMessage<ResendLinearReplyResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 31);
+
+/**
  * LinearAppCredentialState reports whether both App secrets are stored
  * without revealing either.
  *
@@ -768,6 +1072,80 @@ export enum LinearInstallationCredentialState {
  */
 export const LinearInstallationCredentialStateSchema: GenEnum<LinearInstallationCredentialState> = /*@__PURE__*/
   enumDesc(file_agents_v1_linear, 1);
+
+/**
+ * @generated from enum agents.v1.LinearProcessingStatus
+ */
+export enum LinearProcessingStatus {
+  /**
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A follow-up waiting behind the session's current turn.
+   *
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_QUEUED = 1;
+   */
+  QUEUED = 1,
+
+  /**
+   * Claimed from the queue; no Agent work started.
+   *
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_RECEIVED = 2;
+   */
+  RECEIVED = 2,
+
+  /**
+   * Agent work may have started. A crash from here is not safely retryable.
+   *
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_PROCESSING = 3;
+   */
+  PROCESSING = 3,
+
+  /**
+   * The reply is persisted; only posting it remains.
+   *
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_READY_TO_DELIVER = 4;
+   */
+  READY_TO_DELIVER = 4,
+
+  /**
+   * Answered.
+   *
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_SUCCEEDED = 5;
+   */
+  SUCCEEDED = 5,
+
+  /**
+   * Failed before Agent work started, or the post failed. Safe to retry or
+   * resend.
+   *
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_FAILED = 6;
+   */
+  FAILED = 6,
+
+  /**
+   * Failed after Agent work may have started. Never retried automatically:
+   * a rerun could repeat tool side effects.
+   *
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_FAILED_UNCERTAIN = 7;
+   */
+  FAILED_UNCERTAIN = 7,
+
+  /**
+   * Stopped by the user, or discarded by a stop while queued.
+   *
+   * @generated from enum value: LINEAR_PROCESSING_STATUS_CANCELLED = 8;
+   */
+  CANCELLED = 8,
+}
+
+/**
+ * Describes the enum agents.v1.LinearProcessingStatus.
+ */
+export const LinearProcessingStatusSchema: GenEnum<LinearProcessingStatus> = /*@__PURE__*/
+  enumDesc(file_agents_v1_linear, 2);
 
 /**
  * LinearAppService manages a workspace's Linear Apps. Members may read;
@@ -898,4 +1276,42 @@ export const LinearAdminService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_linear, 1);
+
+/**
+ * LinearProcessingService exposes processing records. Members read;
+ * owners and admins resend a reply that was produced but not posted. There
+ * is deliberately no rerun action.
+ *
+ * @generated from service agents.v1.LinearProcessingService
+ */
+export const LinearProcessingService: GenService<{
+  /**
+   * @generated from rpc agents.v1.LinearProcessingService.ListLinearProcessingRecords
+   */
+  listLinearProcessingRecords: {
+    methodKind: "unary";
+    input: typeof ListLinearProcessingRecordsRequestSchema;
+    output: typeof ListLinearProcessingRecordsResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.LinearProcessingService.GetLinearProcessingRecord
+   */
+  getLinearProcessingRecord: {
+    methodKind: "unary";
+    input: typeof GetLinearProcessingRecordRequestSchema;
+    output: typeof GetLinearProcessingRecordResponseSchema;
+  },
+  /**
+   * ResendLinearReply posts the persisted reply of a FAILED record. It never
+   * invokes the Agent, and it is refused when no reply was persisted.
+   *
+   * @generated from rpc agents.v1.LinearProcessingService.ResendLinearReply
+   */
+  resendLinearReply: {
+    methodKind: "unary";
+    input: typeof ResendLinearReplyRequestSchema;
+    output: typeof ResendLinearReplyResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_agents_v1_linear, 2);
 

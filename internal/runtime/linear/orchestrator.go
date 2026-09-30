@@ -17,6 +17,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/linearapi"
 	linearrepo "go.orx.me/apps/butter/internal/repo/linear"
+	"go.orx.me/apps/butter/internal/repo/linearprocessing"
 	"go.orx.me/apps/butter/internal/runtime/linearconn"
 	"go.orx.me/apps/butter/internal/runtime/memoryhook"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -66,24 +67,32 @@ type TokenProvider interface {
 // snapshot for authorization: an App disabled, or a user removed from the
 // allowlist, after acceptance must not get an Agent run.
 type Orchestrator struct {
-	repo    linearrepo.Repository
-	runner  AgentRunner
-	tokens  TokenProvider
-	linear  *linearapi.Client
-	guard   sessionguard.Guard
-	baseURL func(ctx context.Context) string
+	repo       linearrepo.Repository
+	runner     AgentRunner
+	tokens     TokenProvider
+	linear     *linearapi.Client
+	guard      sessionguard.Guard
+	baseURL    func(ctx context.Context) string
+	processing linearprocessing.Repository
+	// preAgentBackoff is the base delay between pre-Agent retries.
+	preAgentBackoff time.Duration
 }
 
 func NewOrchestrator(repo linearrepo.Repository, agents AgentRunner, tokens TokenProvider, client *linearapi.Client) *Orchestrator {
-	return &Orchestrator{repo: repo, runner: agents, tokens: tokens, linear: client}
+	return &Orchestrator{repo: repo, runner: agents, tokens: tokens, linear: client, preAgentBackoff: defaultPreAgentBackoff}
 }
+
+// SetProcessingRepo wires the retry-boundary state machine (ADR-0009).
+func (o *Orchestrator) SetProcessingRepo(repo linearprocessing.Repository) { o.processing = repo }
 
 // SetSessionGuard wires the per-session lease that serializes turns.
 func (o *Orchestrator) SetSessionGuard(guard sessionguard.Guard) { o.guard = guard }
 
 // SetExternalBaseURL wires where the dashboard lives, for the link from a
 // Linear Agent Session back to the Butter session.
-func (o *Orchestrator) SetExternalBaseURL(provider func(ctx context.Context) string) { o.baseURL = provider }
+func (o *Orchestrator) SetExternalBaseURL(provider func(ctx context.Context) string) {
+	o.baseURL = provider
+}
 
 // SessionID derives the Butter session of one Linear Agent Session and
 // Agent. Re-pointing the App to another Agent starts a fresh history.
@@ -104,6 +113,10 @@ type turn struct {
 	event *Event
 	app   *agentsv1.LinearApp
 	token string
+	// record and lease are the delivery's processing record and the claim
+	// that fences writes to it; both are empty without a processing repo.
+	record *agentsv1.LinearProcessingRecord
+	lease  string
 }
 
 func (t *turn) logger(ctx context.Context) *slog.Logger {
@@ -153,8 +166,16 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 	} else if err != nil {
 		return err
 	}
-	token, err := o.tokens.AccessToken(ctx, event.WorkspaceID, event.InstallationID)
-	if errors.Is(err, linearconn.ErrNeedsReinstall) || errors.Is(err, linearconn.ErrNoToken) {
+	var token string
+	err = o.retryPreAgent(ctx, func() error {
+		var tokenErr error
+		token, tokenErr = o.tokens.AccessToken(ctx, event.WorkspaceID, event.InstallationID)
+		if errors.Is(tokenErr, linearconn.ErrNeedsReinstall) || errors.Is(tokenErr, linearconn.ErrNoToken) {
+			return permanent(tokenErr)
+		}
+		return tokenErr
+	})
+	if isPermanent(err) {
 		// Nothing can be posted without a token; the dashboard shows why.
 		logger.Warn("cannot answer linear event", "err", err)
 		return nil
@@ -168,28 +189,52 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 			"accepted_revision", event.AppRevision, "current_revision", app.GetRevision())
 	}
 
-	if !app.GetInboundEnabled() {
-		_ = t.fail(ctx, "This Linear App is disabled in Butter, so nothing will run. A workspace admin can enable it again.")
+	action, err := o.claim(ctx, t)
+	if errors.Is(err, linearprocessing.ErrInProgress) {
+		logger.Debug("linear delivery is being handled elsewhere; deferring")
+		return ErrSessionBusy
+	}
+	if err != nil {
+		return err
+	}
+	switch action {
+	case linearprocessing.ClaimAcknowledge:
+		logger.Info("acknowledging linear delivery without repeating completed or uncertain work")
 		return nil
+	case linearprocessing.ClaimReportInterrupted:
+		defer o.release(ctx, t)
+		_ = t.fail(ctx, "The previous run was cut short before it finished, so it was not repeated. Send a message to continue in the same session.")
+		return nil
+	case linearprocessing.ClaimResumeDelivery:
+		defer o.release(ctx, t)
+		_ = o.deliver(ctx, t)
+		return nil
+	}
+	defer o.release(ctx, t)
+	ctx, stopHeartbeat := o.heartbeat(ctx, t)
+	defer stopHeartbeat()
+
+	if !app.GetInboundEnabled() {
+		return o.answer(ctx, t, linearapi.ActivityError,
+			"This Linear App is disabled in Butter, so nothing will run. A workspace admin can enable it again.")
 	}
 	if !admitted(app.GetAllowedUserIds(), event.PromptingUserID) {
 		logger.Info("linear user not admitted", "prompting_user_id", event.PromptingUserID)
-		_ = t.fail(ctx, "You are not allowed to use this agent. Ask a Butter workspace admin to add your Linear user ID to the Linear App's allowlist.")
-		return nil
+		return o.answer(ctx, t, linearapi.ActivityError,
+			"You are not allowed to use this agent. Ask a Butter workspace admin to add your Linear user ID to the Linear App's allowlist.")
 	}
 	if event.Stop {
-		_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityResponse, Body: "Nothing is running, so there is nothing to stop."})
-		return nil
+		return o.answer(ctx, t, linearapi.ActivityResponse, "Nothing is running, so there is nothing to stop.")
 	}
 
 	agentName, ok := o.runner.ResolveAgentRef(event.WorkspaceID, app.GetAgentId())
 	if !ok {
-		_ = t.fail(ctx, fmt.Sprintf("The Agent this Linear App routes to (%s) is not available in Butter right now.", app.GetAgentId()))
-		return nil
+		return o.answer(ctx, t, linearapi.ActivityError,
+			fmt.Sprintf("The Agent this Linear App routes to (%s) is not available in Butter right now.", app.GetAgentId()))
 	}
 	sessionID := SessionID(app.GetId(), event.AgentSessionID, app.GetAgentId())
 	userID := SessionUserID(app.GetId(), event.OrganizationID)
-	if event.Action == ActionCreated {
+	if event.Action == ActionCreated && t.record.GetAttempts() <= 1 {
 		// Linear marks a session unresponsive without an activity within
 		// seconds of its creation: acknowledge before any slow work.
 		_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityThought, Body: acknowledgement(event.Issue, agentName)})
@@ -212,7 +257,7 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 	return o.run(runCtx, t, agentName, sessionID, userID)
 }
 
-// run invokes the Agent and posts its outcome.
+// run invokes the Agent, persists its reply, then posts it.
 func (o *Orchestrator) run(ctx context.Context, t *turn, agentName, sessionID, userID string) error {
 	logger := t.logger(ctx)
 	hasHistory := false
@@ -233,6 +278,7 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, agentName, sessionID, u
 	}
 
 	ctxInfo := &agentsv1.ContextInfo{
+		Uuid:        t.record.GetInvocationId(),
 		SessionId:   sessionID,
 		UserId:      userID,
 		ChannelName: AppName,
@@ -250,25 +296,41 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, agentName, sessionID, u
 	if t.event.PromptingUserID != "" {
 		ctxInfo.Metadata[memoryhook.PrincipalMetadataKey] = "linear:" + t.event.PromptingUserID
 	}
+
+	// From here the Agent may run tools with side effects: a crash is no
+	// longer safely retryable.
+	if err := o.recordStatus(ctx, t, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_PROCESSING, ""); err != nil {
+		return err
+	}
 	logger.Info("invoking linear agent", "agent", agentName, "session_id", sessionID, "has_history", hasHistory)
 
 	started := time.Now()
 	result, err := o.runner.RunTurnSSE(runCtx, agentName, []*genai.Part{{Text: input}}, "", ctxInfo, nil, nil)
 	if err != nil {
+		body := "The agent could not finish: " + sanitizeError(err)
 		if errors.Is(runCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
-			_ = t.fail(ctx, fmt.Sprintf("The agent timed out after %s and was stopped.", formatElapsed(time.Since(started))))
-		} else {
-			_ = t.fail(ctx, "The agent could not finish: "+sanitizeError(err))
+			body = fmt.Sprintf("The agent timed out after %s and was stopped.", formatElapsed(time.Since(started)))
 		}
 		logger.Warn("linear agent turn failed", "err", err)
-		// The Agent may have run tools: never rerun it automatically.
+		// The Agent may have run tools: dead-letter, never rerun.
+		_ = o.recordUncertain(ctx, t, err)
+		_ = t.fail(ctx, body)
 		return nil
 	}
 	output := strings.TrimSpace(result.Output)
 	if output == "" {
 		output = "The agent finished without a text reply."
 	}
-	_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityResponse, Body: truncateResponse(output, o.externalURL(ctx, sessionID, userID))})
+	// Persist the reply before posting it: a failed post is then a resend,
+	// never a rerun.
+	if err := o.persistReply(ctx, t, linearapi.Activity{
+		Type: linearapi.ActivityResponse,
+		Body: truncateResponse(output, o.externalURL(ctx, sessionID, userID)),
+	}); err != nil {
+		_ = o.recordUncertain(ctx, t, err)
+		return nil
+	}
+	_ = o.deliver(ctx, t)
 	return nil
 }
 

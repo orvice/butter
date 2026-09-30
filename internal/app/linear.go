@@ -14,8 +14,8 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/linearapi"
 	"go.orx.me/apps/butter/internal/repo/linearsetting"
-	"go.orx.me/apps/butter/internal/runtime/linearconn"
 	linearruntime "go.orx.me/apps/butter/internal/runtime/linear"
+	"go.orx.me/apps/butter/internal/runtime/linearconn"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	"go.orx.me/apps/butter/internal/secretbox"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -82,6 +82,12 @@ func (h *Handlers) wireLinearRuntime(result *BootstrapResult, keyring *secretbox
 	orchestrator := linearruntime.NewOrchestrator(result.LinearRepo, result.RunnerSvc, tokens, client)
 	orchestrator.SetSessionGuard(sessionguard.NewRedis(result.Redis, instanceID, linearSessionLeasePrefix, linearSessionLeaseTTL))
 	orchestrator.SetExternalBaseURL(linearExternalBaseURL(h.cfg, result.LinearSettingRepo))
+	if result.LinearProcessingRepo != nil {
+		orchestrator.SetProcessingRepo(result.LinearProcessingRepo)
+		if h.linearProcSvcServer != nil {
+			h.linearProcSvcServer.SetResender(orchestrator)
+		}
+	}
 
 	h.linearWorker = linearruntime.NewWorker(queue, orchestrator, instanceID, linearruntime.DefaultConcurrency)
 	if err := h.linearWorker.Start(context.Background()); err != nil {

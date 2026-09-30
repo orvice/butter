@@ -25,6 +25,8 @@ const (
 	LinearAppServiceName = "agents.v1.LinearAppService"
 	// LinearAdminServiceName is the fully-qualified name of the LinearAdminService service.
 	LinearAdminServiceName = "agents.v1.LinearAdminService"
+	// LinearProcessingServiceName is the fully-qualified name of the LinearProcessingService service.
+	LinearProcessingServiceName = "agents.v1.LinearProcessingService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -68,6 +70,15 @@ const (
 	// LinearAdminServiceUpdateLinearSettingsProcedure is the fully-qualified name of the
 	// LinearAdminService's UpdateLinearSettings RPC.
 	LinearAdminServiceUpdateLinearSettingsProcedure = "/agents.v1.LinearAdminService/UpdateLinearSettings"
+	// LinearProcessingServiceListLinearProcessingRecordsProcedure is the fully-qualified name of the
+	// LinearProcessingService's ListLinearProcessingRecords RPC.
+	LinearProcessingServiceListLinearProcessingRecordsProcedure = "/agents.v1.LinearProcessingService/ListLinearProcessingRecords"
+	// LinearProcessingServiceGetLinearProcessingRecordProcedure is the fully-qualified name of the
+	// LinearProcessingService's GetLinearProcessingRecord RPC.
+	LinearProcessingServiceGetLinearProcessingRecordProcedure = "/agents.v1.LinearProcessingService/GetLinearProcessingRecord"
+	// LinearProcessingServiceResendLinearReplyProcedure is the fully-qualified name of the
+	// LinearProcessingService's ResendLinearReply RPC.
+	LinearProcessingServiceResendLinearReplyProcedure = "/agents.v1.LinearProcessingService/ResendLinearReply"
 )
 
 // LinearAppServiceClient is a client for the agents.v1.LinearAppService service.
@@ -462,4 +473,131 @@ func (UnimplementedLinearAdminServiceHandler) GetLinearSettings(context.Context,
 
 func (UnimplementedLinearAdminServiceHandler) UpdateLinearSettings(context.Context, *connect.Request[v1.UpdateLinearSettingsRequest]) (*connect.Response[v1.UpdateLinearSettingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.LinearAdminService.UpdateLinearSettings is not implemented"))
+}
+
+// LinearProcessingServiceClient is a client for the agents.v1.LinearProcessingService service.
+type LinearProcessingServiceClient interface {
+	ListLinearProcessingRecords(context.Context, *connect.Request[v1.ListLinearProcessingRecordsRequest]) (*connect.Response[v1.ListLinearProcessingRecordsResponse], error)
+	GetLinearProcessingRecord(context.Context, *connect.Request[v1.GetLinearProcessingRecordRequest]) (*connect.Response[v1.GetLinearProcessingRecordResponse], error)
+	// ResendLinearReply posts the persisted reply of a FAILED record. It never
+	// invokes the Agent, and it is refused when no reply was persisted.
+	ResendLinearReply(context.Context, *connect.Request[v1.ResendLinearReplyRequest]) (*connect.Response[v1.ResendLinearReplyResponse], error)
+}
+
+// NewLinearProcessingServiceClient constructs a client for the agents.v1.LinearProcessingService
+// service. By default, it uses the Connect protocol with the binary Protobuf Codec, asks for
+// gzipped responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply
+// the connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewLinearProcessingServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) LinearProcessingServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	linearProcessingServiceMethods := v1.File_agents_v1_linear_proto.Services().ByName("LinearProcessingService").Methods()
+	return &linearProcessingServiceClient{
+		listLinearProcessingRecords: connect.NewClient[v1.ListLinearProcessingRecordsRequest, v1.ListLinearProcessingRecordsResponse](
+			httpClient,
+			baseURL+LinearProcessingServiceListLinearProcessingRecordsProcedure,
+			connect.WithSchema(linearProcessingServiceMethods.ByName("ListLinearProcessingRecords")),
+			connect.WithClientOptions(opts...),
+		),
+		getLinearProcessingRecord: connect.NewClient[v1.GetLinearProcessingRecordRequest, v1.GetLinearProcessingRecordResponse](
+			httpClient,
+			baseURL+LinearProcessingServiceGetLinearProcessingRecordProcedure,
+			connect.WithSchema(linearProcessingServiceMethods.ByName("GetLinearProcessingRecord")),
+			connect.WithClientOptions(opts...),
+		),
+		resendLinearReply: connect.NewClient[v1.ResendLinearReplyRequest, v1.ResendLinearReplyResponse](
+			httpClient,
+			baseURL+LinearProcessingServiceResendLinearReplyProcedure,
+			connect.WithSchema(linearProcessingServiceMethods.ByName("ResendLinearReply")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// linearProcessingServiceClient implements LinearProcessingServiceClient.
+type linearProcessingServiceClient struct {
+	listLinearProcessingRecords *connect.Client[v1.ListLinearProcessingRecordsRequest, v1.ListLinearProcessingRecordsResponse]
+	getLinearProcessingRecord   *connect.Client[v1.GetLinearProcessingRecordRequest, v1.GetLinearProcessingRecordResponse]
+	resendLinearReply           *connect.Client[v1.ResendLinearReplyRequest, v1.ResendLinearReplyResponse]
+}
+
+// ListLinearProcessingRecords calls agents.v1.LinearProcessingService.ListLinearProcessingRecords.
+func (c *linearProcessingServiceClient) ListLinearProcessingRecords(ctx context.Context, req *connect.Request[v1.ListLinearProcessingRecordsRequest]) (*connect.Response[v1.ListLinearProcessingRecordsResponse], error) {
+	return c.listLinearProcessingRecords.CallUnary(ctx, req)
+}
+
+// GetLinearProcessingRecord calls agents.v1.LinearProcessingService.GetLinearProcessingRecord.
+func (c *linearProcessingServiceClient) GetLinearProcessingRecord(ctx context.Context, req *connect.Request[v1.GetLinearProcessingRecordRequest]) (*connect.Response[v1.GetLinearProcessingRecordResponse], error) {
+	return c.getLinearProcessingRecord.CallUnary(ctx, req)
+}
+
+// ResendLinearReply calls agents.v1.LinearProcessingService.ResendLinearReply.
+func (c *linearProcessingServiceClient) ResendLinearReply(ctx context.Context, req *connect.Request[v1.ResendLinearReplyRequest]) (*connect.Response[v1.ResendLinearReplyResponse], error) {
+	return c.resendLinearReply.CallUnary(ctx, req)
+}
+
+// LinearProcessingServiceHandler is an implementation of the agents.v1.LinearProcessingService
+// service.
+type LinearProcessingServiceHandler interface {
+	ListLinearProcessingRecords(context.Context, *connect.Request[v1.ListLinearProcessingRecordsRequest]) (*connect.Response[v1.ListLinearProcessingRecordsResponse], error)
+	GetLinearProcessingRecord(context.Context, *connect.Request[v1.GetLinearProcessingRecordRequest]) (*connect.Response[v1.GetLinearProcessingRecordResponse], error)
+	// ResendLinearReply posts the persisted reply of a FAILED record. It never
+	// invokes the Agent, and it is refused when no reply was persisted.
+	ResendLinearReply(context.Context, *connect.Request[v1.ResendLinearReplyRequest]) (*connect.Response[v1.ResendLinearReplyResponse], error)
+}
+
+// NewLinearProcessingServiceHandler builds an HTTP handler from the service implementation. It
+// returns the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewLinearProcessingServiceHandler(svc LinearProcessingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	linearProcessingServiceMethods := v1.File_agents_v1_linear_proto.Services().ByName("LinearProcessingService").Methods()
+	linearProcessingServiceListLinearProcessingRecordsHandler := connect.NewUnaryHandler(
+		LinearProcessingServiceListLinearProcessingRecordsProcedure,
+		svc.ListLinearProcessingRecords,
+		connect.WithSchema(linearProcessingServiceMethods.ByName("ListLinearProcessingRecords")),
+		connect.WithHandlerOptions(opts...),
+	)
+	linearProcessingServiceGetLinearProcessingRecordHandler := connect.NewUnaryHandler(
+		LinearProcessingServiceGetLinearProcessingRecordProcedure,
+		svc.GetLinearProcessingRecord,
+		connect.WithSchema(linearProcessingServiceMethods.ByName("GetLinearProcessingRecord")),
+		connect.WithHandlerOptions(opts...),
+	)
+	linearProcessingServiceResendLinearReplyHandler := connect.NewUnaryHandler(
+		LinearProcessingServiceResendLinearReplyProcedure,
+		svc.ResendLinearReply,
+		connect.WithSchema(linearProcessingServiceMethods.ByName("ResendLinearReply")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.LinearProcessingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case LinearProcessingServiceListLinearProcessingRecordsProcedure:
+			linearProcessingServiceListLinearProcessingRecordsHandler.ServeHTTP(w, r)
+		case LinearProcessingServiceGetLinearProcessingRecordProcedure:
+			linearProcessingServiceGetLinearProcessingRecordHandler.ServeHTTP(w, r)
+		case LinearProcessingServiceResendLinearReplyProcedure:
+			linearProcessingServiceResendLinearReplyHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedLinearProcessingServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedLinearProcessingServiceHandler struct{}
+
+func (UnimplementedLinearProcessingServiceHandler) ListLinearProcessingRecords(context.Context, *connect.Request[v1.ListLinearProcessingRecordsRequest]) (*connect.Response[v1.ListLinearProcessingRecordsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.LinearProcessingService.ListLinearProcessingRecords is not implemented"))
+}
+
+func (UnimplementedLinearProcessingServiceHandler) GetLinearProcessingRecord(context.Context, *connect.Request[v1.GetLinearProcessingRecordRequest]) (*connect.Response[v1.GetLinearProcessingRecordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.LinearProcessingService.GetLinearProcessingRecord is not implemented"))
+}
+
+func (UnimplementedLinearProcessingServiceHandler) ResendLinearReply(context.Context, *connect.Request[v1.ResendLinearReplyRequest]) (*connect.Response[v1.ResendLinearReplyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.LinearProcessingService.ResendLinearReply is not implemented"))
 }
