@@ -25,6 +25,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	linearruntime "go.orx.me/apps/butter/internal/runtime/linear"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryconn"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
@@ -72,6 +73,8 @@ type Handlers struct {
 	tgProcessingSvcServer  *application.TelegramProcessingServiceServer
 	linearAppSvcServer     *application.LinearAppServiceServer
 	linearAdminSvcServer   *application.LinearAdminServiceServer
+	linearReceiver         linearReceiverHolder
+	linearWorker           *linearruntime.Worker
 	tgReceiver             atomic.Value // *telegram.Receiver
 	tgReconciler           *telegramruntime.Reconciler
 	tgWorker               *telegramruntime.Worker
@@ -554,14 +557,16 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	// Linear Apps (ADR-0015). Their secrets go through the same
 	// database-backed master key as Telegram and ButterBox credentials.
 	if result.LinearRepo != nil {
+		linearKeyring := secretbox.NewKeyring(result.CryptoKeyRepo)
 		if h.linearAppSvcServer != nil {
 			h.linearAppSvcServer.SetRepo(result.LinearRepo)
-			h.linearAppSvcServer.SetKeyring(secretbox.NewKeyring(result.CryptoKeyRepo))
+			h.linearAppSvcServer.SetKeyring(linearKeyring)
 			h.linearAppSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 			h.linearAppSvcServer.SetSettingsRepo(result.LinearSettingRepo)
 			h.linearAppSvcServer.SetInstallStateRepo(result.LinearStateRepo)
 		}
 		h.agentSvcServer.SetLinearGuard(application.NewLinearReferenceGuard(result.LinearRepo))
+		h.wireLinearRuntime(result, linearKeyring)
 	}
 	if h.linearAdminSvcServer != nil && result.LinearSettingRepo != nil {
 		h.linearAdminSvcServer.SetRepo(result.LinearSettingRepo)
@@ -880,6 +885,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		// browser arrives from Linear, authenticated only by the
 		// single-use install state (ADR-0015).
 		httpHandler.NewLinearOAuthHandler(linearAppSvcServer).Register(r)
+		// The Linear webhook is public and signed by Linear (ADR-0015).
+		httpHandler.NewLinearWebhookHandler(&handlers.linearReceiver).Register(r)
 
 		webhookHandler := httpHandler.NewWebhookHandler(repoBindingSvcServer)
 		r.POST("/api/webhooks/repository/:workspace_id", webhookHandler.Handle)

@@ -11,6 +11,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/mem0"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 func recalled(target mem0memory.Target, text, created string) mem0memory.Recalled {
@@ -121,5 +122,18 @@ func TestRecallQuery(t *testing.T) {
 		if got := recallQuery(tc.text, tc.prior); got != tc.want {
 			t.Errorf("recallQuery(%q) = %q, want %q", tc.text, got, tc.want)
 		}
+	}
+}
+
+func TestPrincipalIsTheSessionUserUnlessTheEntryPointNamesOne(t *testing.T) {
+	if got := principalOf(&agentsv1.ContextInfo{UserId: "user:1"}); got != "user:1" {
+		t.Fatalf("principal = %q, want the session user", got)
+	}
+	shared := &agentsv1.ContextInfo{
+		UserId:   "linear:app-1:org-1",
+		Metadata: map[string]string{PrincipalMetadataKey: "linear:user-7"},
+	}
+	if got := principalOf(shared); got != "linear:user-7" {
+		t.Fatalf("principal = %q, want the named principal", got)
 	}
 }

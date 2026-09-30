@@ -294,7 +294,9 @@ func isPublicPath(path string) bool {
 	// The Telegram callback carries a Channel ID in the path and
 	// authenticates with the per-Channel secret Telegram echoes, not with a
 	// Butter session or workspace header.
-	return strings.HasPrefix(path, "/api/telegram/webhook/")
+	// The Linear webhook likewise carries an App ID and authenticates with
+	// Linear's HMAC signature over the body.
+	return strings.HasPrefix(path, "/api/telegram/webhook/") || strings.HasPrefix(path, linearWebhookPrefix)
 }
 
 func bearerToken(c *gin.Context) (string, bool) {

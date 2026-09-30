@@ -128,6 +128,19 @@ func New(svc *mem0memory.Service, sessions session.Service) *Hooks {
 	}
 }
 
+// PrincipalMetadataKey lets an entry point name the person behind a turn
+// when its session user is not a person — a Linear Agent Session is shared
+// by everyone on an issue, so its session user is the organization while the
+// prompting Linear user is the principal (ADR-0015).
+const PrincipalMetadataKey = "principal"
+
+func principalOf(info *agentsv1.ContextInfo) string {
+	if p := info.GetMetadata()[PrincipalMetadataKey]; p != "" {
+		return p
+	}
+	return info.GetUserId()
+}
+
 // Begin prepares memory for one turn. root is the invocation's root agent;
 // only its MemoryConfig applies. prior is the session as loaded before the
 // run (nil for a new session) and userParts the user's input as sent,
@@ -147,7 +160,7 @@ func (h *Hooks) Begin(ctx context.Context, root *agentsv1.Agent, info *agentsv1.
 			AgentID:     root.GetAgentId(),
 			SessionID:   info.GetSessionId(),
 			Channel:     channelOf(info),
-			Principal:   info.GetUserId(),
+			Principal:   principalOf(info),
 		},
 		config:   mc,
 		userText: mem0memory.PartsText(userParts),

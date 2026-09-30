@@ -7,6 +7,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -36,6 +37,7 @@ type linearFixture struct {
 	repo     *linearmemory.Store
 	settings *linearsettingmemory.Store
 	config   *configmemory.Store
+	queue    *stubQueueProbe
 }
 
 func newLinearFixture(t *testing.T) *linearFixture {
@@ -83,9 +85,11 @@ func newLinearFixture(t *testing.T) *linearFixture {
 	apps.SetAgentRepo(configStore)
 	apps.SetKeyring(secretbox.NewKeyring(cryptokeymemory.New()))
 	apps.SetSettingsRepo(settings)
+	queue := &stubQueueProbe{available: true}
+	apps.SetQueueProbe(queue)
 	return &linearFixture{
 		apps: apps, admin: NewLinearAdminServiceServer(settings),
-		repo: repo, settings: settings, config: configStore,
+		repo: repo, settings: settings, config: configStore, queue: queue,
 	}
 }
 
@@ -418,5 +422,27 @@ func TestOnlyGlobalAdminsManageLinearSettings(t *testing.T) {
 	got, err := fx.admin.GetLinearSettings(globalAdminCtx(), connect.NewRequest(&agentsv1.GetLinearSettingsRequest{}))
 	if err != nil || got.Msg.GetSettings().GetPublicBaseUrl() != "http://localhost:8080" {
 		t.Fatalf("settings = %+v, %v", got.Msg.GetSettings(), err)
+	}
+}
+
+func TestInboundRequiresADurableQueue(t *testing.T) {
+	fx := newLinearFixture(t)
+	app := fx.createApp(t, ownerA(), supportApp("client-1"), linearClientSecret, linearWebhookSecret)
+	update := proto.Clone(app).(*agentsv1.LinearApp)
+	update.InboundEnabled = true
+
+	for name, probe := range map[string]QueueProbe{
+		"no queue":        nil,
+		"queue not ready": &stubQueueProbe{available: true, readyErr: errors.New("maxmemory-policy must be noeviction")},
+	} {
+		fx.apps.SetQueueProbe(probe)
+		_, err := fx.apps.UpdateLinearApp(ownerA(), connect.NewRequest(&agentsv1.UpdateLinearAppRequest{App: update}))
+		if code := connectCode(t, err); code != connect.CodeFailedPrecondition {
+			t.Fatalf("%s: code = %v, want FailedPrecondition", name, code)
+		}
+	}
+	fx.apps.SetQueueProbe(fx.queue)
+	if _, err := fx.apps.UpdateLinearApp(ownerA(), connect.NewRequest(&agentsv1.UpdateLinearAppRequest{App: update})); err != nil {
+		t.Fatalf("enable with a durable queue: %v", err)
 	}
 }

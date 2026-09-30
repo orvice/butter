@@ -349,3 +349,90 @@ func describe(description, code string) string {
 	}
 	return code
 }
+
+// Activity is one agent activity posted to a Linear Agent Session.
+type Activity struct {
+	// Type is thought, action, elicitation, response or error.
+	Type string
+	// Body is the text of thought, elicitation, response and error.
+	Body string
+	// Action, Parameter and Result describe an action.
+	Action    string
+	Parameter string
+	Result    string
+	// Ephemeral activities are replaced by the next one. Linear accepts it
+	// on thought and action only.
+	Ephemeral bool
+	// Signal and SignalMetadata qualify an elicitation, e.g. "select".
+	Signal         string
+	SignalMetadata map[string]any
+}
+
+// Activity types.
+const (
+	ActivityThought     = "thought"
+	ActivityAction      = "action"
+	ActivityElicitation = "elicitation"
+	ActivityResponse    = "response"
+	ActivityError       = "error"
+)
+
+func (a Activity) content() map[string]any {
+	if a.Type == ActivityAction {
+		content := map[string]any{"type": a.Type, "action": a.Action, "parameter": a.Parameter}
+		if a.Result != "" {
+			content["result"] = a.Result
+		}
+		return content
+	}
+	return map[string]any{"type": a.Type, "body": a.Body}
+}
+
+// CreateActivity posts an activity to the agent session.
+func (c *Client) CreateActivity(ctx context.Context, accessToken, agentSessionID string, a Activity) error {
+	input := map[string]any{"agentSessionId": agentSessionID, "content": a.content()}
+	if a.Ephemeral && (a.Type == ActivityThought || a.Type == ActivityAction) {
+		input["ephemeral"] = true
+	}
+	if a.Signal != "" {
+		input["signal"] = a.Signal
+	}
+	if len(a.SignalMetadata) > 0 {
+		input["signalMetadata"] = a.SignalMetadata
+	}
+	var out struct {
+		AgentActivityCreate struct {
+			Success bool `json:"success"`
+		} `json:"agentActivityCreate"`
+	}
+	if err := c.GraphQL(ctx, accessToken, `mutation ButterAgentActivity($input: AgentActivityCreateInput!) {
+  agentActivityCreate(input: $input) { success }
+}`, map[string]any{"input": input}, &out); err != nil {
+		return err
+	}
+	if !out.AgentActivityCreate.Success {
+		return errors.New("linear agentActivityCreate returned success=false")
+	}
+	return nil
+}
+
+// SetSessionExternalURL links the agent session to a page outside Linear.
+func (c *Client) SetSessionExternalURL(ctx context.Context, accessToken, agentSessionID, label, externalURL string) error {
+	var out struct {
+		AgentSessionUpdate struct {
+			Success bool `json:"success"`
+		} `json:"agentSessionUpdate"`
+	}
+	if err := c.GraphQL(ctx, accessToken, `mutation ButterAgentSession($id: String!, $input: AgentSessionUpdateInput!) {
+  agentSessionUpdate(id: $id, input: $input) { success }
+}`, map[string]any{
+		"id":    agentSessionID,
+		"input": map[string]any{"externalUrls": []map[string]any{{"label": label, "url": externalURL}}},
+	}, &out); err != nil {
+		return err
+	}
+	if !out.AgentSessionUpdate.Success {
+		return errors.New("linear agentSessionUpdate returned success=false")
+	}
+	return nil
+}

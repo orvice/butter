@@ -57,6 +57,10 @@ type LinearAppServiceServer struct {
 	linear           *linearapi.Client
 	clock            func() time.Time
 	dashboardBaseURL func() string
+	// queue reports whether the durable receive queue is usable: inbound
+	// depends on it, so enabling without it would accept deliveries the
+	// fleet cannot durably hold.
+	queue QueueProbe
 }
 
 func NewLinearAppServiceServer(repo linearrepo.Repository) *LinearAppServiceServer {
@@ -73,6 +77,22 @@ func (s *LinearAppServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository)
 func (s *LinearAppServiceServer) SetAgentRepo(repo configrepo.AgentRepository) { s.agentRepo = repo }
 
 func (s *LinearAppServiceServer) SetKeyring(keyring *secretbox.Keyring) { s.keyring = keyring }
+
+// SetQueueProbe wires the durable-queue readiness check.
+func (s *LinearAppServiceServer) SetQueueProbe(probe QueueProbe) { s.queue = probe }
+
+// requireDurableQueue refuses inbound without durable Redis Streams.
+func (s *LinearAppServiceServer) requireDurableQueue(ctx context.Context) error {
+	if s.queue == nil || !s.queue.Available() {
+		return connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("enabling inbound requires Redis, configured as a durable queue"))
+	}
+	if err := s.queue.CheckReady(ctx); err != nil {
+		return connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("the Linear receive queue is not durable: %w", err))
+	}
+	return nil
+}
 
 // SetSettingsRepo wires the platform Linear settings the URLs derive from.
 func (s *LinearAppServiceServer) SetSettingsRepo(repo linearsetting.Repository) { s.settings = repo }
@@ -315,6 +335,9 @@ func (s *LinearAppServiceServer) CreateLinearApp(ctx context.Context, req *conne
 		if err := requireInboundCredentials(clientSecret.Set(), webhookSecret.Set()); err != nil {
 			return nil, err
 		}
+		if err := s.requireDurableQueue(ctx); err != nil {
+			return nil, err
+		}
 	}
 	app.Id = uuid.NewString()
 	created, err := s.repo.CreateApp(ctx, workspaceID, app, linearrepo.AppCredentials{
@@ -359,6 +382,9 @@ func (s *LinearAppServiceServer) UpdateLinearApp(ctx context.Context, req *conne
 	}
 	if app.GetInboundEnabled() {
 		if err := requireInboundCredentials(prev.GetClientSecretSet(), prev.GetWebhookSecretSet()); err != nil {
+			return nil, err
+		}
+		if err := s.requireDurableQueue(ctx); err != nil {
 			return nil, err
 		}
 	}
