@@ -55,6 +55,10 @@ type fakeRunner struct {
 	block    chan struct{}
 	started  chan struct{}
 	sessions session.Service
+	// emit, when set, plays events into the turn's callbacks.
+	emit func(onEvent runner.EventCallback, onCompaction runner.CompactionCallback)
+	// ran is how long the last RunTurnSSE took.
+	ran time.Duration
 }
 
 func newFakeRunner() *fakeRunner {
@@ -81,7 +85,13 @@ func (r *fakeRunner) GetSession(ctx context.Context, channelName, sessionID, use
 }
 
 func (r *fakeRunner) RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part, _ string,
-	info *agentsv1.ContextInfo, _ runner.EventCallback, _ runner.CompactionCallback) (*runner.TurnResult, error) {
+	info *agentsv1.ContextInfo, onEvent runner.EventCallback, onCompaction runner.CompactionCallback) (*runner.TurnResult, error) {
+	began := time.Now()
+	defer func() {
+		r.mu.Lock()
+		r.ran = time.Since(began)
+		r.mu.Unlock()
+	}()
 	call := runCall{
 		agent: agentName, sessionID: info.GetSessionId(), userID: info.GetUserId(),
 		channel: info.GetChannelName(), channelType: info.GetChannelType(),
@@ -92,10 +102,13 @@ func (r *fakeRunner) RunTurnSSE(ctx context.Context, agentName string, parts []*
 	}
 	r.mu.Lock()
 	r.calls = append(r.calls, call)
-	block, started, output, err := r.block, r.started, r.output, r.err
+	block, started, output, err, emit := r.block, r.started, r.output, r.err, r.emit
 	r.mu.Unlock()
 	if started != nil {
 		started <- struct{}{}
+	}
+	if emit != nil {
+		emit(onEvent, onCompaction)
 	}
 	if block != nil {
 		select {

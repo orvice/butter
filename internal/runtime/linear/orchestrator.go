@@ -75,13 +75,16 @@ type Orchestrator struct {
 	processing linearprocessing.Repository
 	// preAgentBackoff is the base delay between pre-Agent retries.
 	preAgentBackoff time.Duration
+	// progressInterval is the most often a progress activity posts.
+	progressInterval time.Duration
 }
 
 func NewOrchestrator(repo linearrepo.Repository, agents AgentRunner, tokens TokenProvider, client *linearapi.Client) *Orchestrator {
 	return &Orchestrator{
 		repo: repo, runner: agents, tokens: tokens, linear: client,
-		coord:           NewMemoryCoordinator(),
-		preAgentBackoff: defaultPreAgentBackoff,
+		coord:            NewMemoryCoordinator(),
+		preAgentBackoff:  defaultPreAgentBackoff,
+		progressInterval: defaultProgressInterval,
 	}
 }
 
@@ -528,7 +531,15 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts 
 		"has_history", hasHistory, "prompts", len(prompts))
 
 	started := time.Now()
-	result, err := o.runner.RunTurnSSE(runCtx, route.agentName, []*genai.Part{{Text: input}}, "", ctxInfo, nil, nil)
+	report := newProgress(func(a linearapi.Activity) {
+		if !stopped() {
+			_ = t.post(ctx, a)
+		}
+	}, o.progressInterval)
+	result, err := o.runner.RunTurnSSE(runCtx, route.agentName, []*genai.Part{{Text: input}}, "", ctxInfo,
+		report.observe, report.compaction)
+	// Nothing may land after the turn's outcome.
+	report.close()
 	if err != nil {
 		if stopped() {
 			// The user stopped it: cancelled, not dead-lettered. The stop
