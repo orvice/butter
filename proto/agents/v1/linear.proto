@@ -120,7 +120,19 @@ service LinearAppService {
   // PutLinearAppCredentials sets or clears the write-only secrets.
   rpc PutLinearAppCredentials(PutLinearAppCredentialsRequest) returns (PutLinearAppCredentialsResponse);
 
+  // DeleteLinearApp removes the App together with its installations.
   rpc DeleteLinearApp(DeleteLinearAppRequest) returns (DeleteLinearAppResponse);
+
+  // BeginLinearInstall starts installing the App into a Linear organization:
+  // it returns Linear's authorize URL, carrying a single-use state that the
+  // public OAuth callback consumes.
+  rpc BeginLinearInstall(BeginLinearInstallRequest) returns (BeginLinearInstallResponse);
+
+  rpc ListLinearInstallations(ListLinearInstallationsRequest) returns (ListLinearInstallationsResponse);
+
+  // DeleteLinearInstallation removes an installation, revoking its token at
+  // Linear as a best effort.
+  rpc DeleteLinearInstallation(DeleteLinearInstallationRequest) returns (DeleteLinearInstallationResponse);
 }
 
 message ListLinearAppsRequest {}
@@ -183,6 +195,91 @@ message DeleteLinearAppRequest {
 }
 
 message DeleteLinearAppResponse {}
+
+// LinearInstallationCredentialState reports whether an installation's token
+// is usable without revealing it.
+enum LinearInstallationCredentialState {
+  LINEAR_INSTALLATION_CREDENTIAL_STATE_UNSPECIFIED = 0;
+  // The stored token worked, or was refreshed, on last use.
+  LINEAR_INSTALLATION_CREDENTIAL_STATE_VALID = 1;
+  // Linear revoked the token or refused to refresh it; install again.
+  LINEAR_INSTALLATION_CREDENTIAL_STATE_NEEDS_REINSTALL = 2;
+}
+
+// LinearInstallation is a Linear App installed into one Linear
+// organization. Its access and refresh tokens are not proto fields: they sit
+// behind the same credential seam as the App's secrets.
+message LinearInstallation {
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // @gotags: json:"app_id,omitempty" bson:"app_id,omitempty"
+  string app_id = 2;
+
+  // The Linear organization (Linear calls it a workspace) the App is
+  // installed in. Unique per App.
+  // @gotags: json:"organization_id,omitempty" bson:"organization_id,omitempty"
+  string organization_id = 3;
+
+  // @gotags: json:"organization_name,omitempty" bson:"organization_name,omitempty"
+  string organization_name = 4;
+
+  // The App's own user in that organization (its `viewer.id`), which is
+  // what people delegate issues to and mention.
+  // @gotags: json:"app_user_id,omitempty" bson:"app_user_id,omitempty"
+  string app_user_id = 5;
+
+  // Scopes Linear granted.
+  // @gotags: json:"scopes,omitempty" bson:"scopes,omitempty"
+  repeated string scopes = 6;
+
+  // Server-owned. Never carries credential material.
+  // @gotags: json:"credential_state,omitempty" bson:"credential_state,omitempty"
+  LinearInstallationCredentialState credential_state = 7;
+
+  // Sanitized reason the installation needs reinstalling. Empty otherwise.
+  // @gotags: json:"last_credential_error,omitempty" bson:"last_credential_error,omitempty"
+  string last_credential_error = 8;
+
+  // First install time; kept when the App is installed again.
+  // @gotags: json:"installed_at,omitempty" bson:"installed_at,omitempty"
+  google.protobuf.Timestamp installed_at = 9;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 10;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+message BeginLinearInstallRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Where the browser lands after the install: a relative path, or an
+  // absolute URL on the configured Linear base URL's or dashboard's origin.
+  // Anything else falls back to the App's page.
+  string return_url = 2;
+}
+
+message BeginLinearInstallResponse {
+  // Linear's authorize URL to open in the browser.
+  string authorize_url = 1;
+}
+
+message ListLinearInstallationsRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ListLinearInstallationsResponse {
+  repeated LinearInstallation installations = 1;
+}
+
+message DeleteLinearInstallationRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+  string id = 2 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteLinearInstallationResponse {}
 
 // =============================================================================
 // LinearAdminService manages platform-level Linear settings.

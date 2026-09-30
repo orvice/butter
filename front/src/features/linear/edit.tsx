@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { KeyRound, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -14,10 +14,12 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { LinearAppForm, type LinearAppFormValues } from './form'
+import { InstallResultBanner, InstallationsCard } from './installations'
 import { CopyField, CredentialStateBadge } from './shared'
 
 export function LinearAppEdit() {
   const { id } = useParams({ from: '/_authenticated/linear-apps/$id/edit' })
+  const search = useSearch({ from: '/_authenticated/linear-apps/$id/edit' })
   const navigate = useNavigate()
   const { data: app, isLoading } = useLinearApp(id)
   const updateMutation = useUpdateLinearApp()
@@ -55,6 +57,10 @@ export function LinearAppEdit() {
       />
       <PageScroll className='max-w-3xl'>
         <div className='space-y-6'>
+          <InstallResultBanner
+            outcome={search.linear_install}
+            reason={search.reason}
+          />
           <Card>
             <CardHeader className='pb-2'>
               <CardTitle className='flex items-center gap-2 text-base'>
@@ -82,6 +88,11 @@ export function LinearAppEdit() {
               />
             </CardContent>
           </Card>
+
+          <InstallationsCard
+            appId={app.id}
+            canInstall={app.clientSecretSet && Boolean(app.callbackUrl)}
+          />
 
           <LinearAppForm
             mode='edit'

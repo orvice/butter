@@ -5,6 +5,7 @@ package repotest
 import (
 	"errors"
 	"testing"
+	"time"
 
 	linearrepo "go.orx.me/apps/butter/internal/repo/linear"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -144,4 +145,104 @@ func Run(t *testing.T, factory Factory) {
 			t.Fatalf("cross-workspace GetAppCredentials = %v, want ErrNotFound", err)
 		}
 	})
+
+	t.Run("InstallingAgainKeepsTheInstallationAndReplacesItsTokens", func(t *testing.T) {
+		repo := factory(t)
+		ctx := t.Context()
+		if _, err := repo.CreateApp(ctx, "ws-a", app("app-1", "client-1", "Support"), linearrepo.AppCredentials{}); err != nil {
+			t.Fatalf("CreateApp: %v", err)
+		}
+		expiry := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond)
+		first, err := repo.UpsertInstallation(ctx, "ws-a", installation("inst-1", "app-1", "org-1", "Acme"),
+			linearrepo.InstallationTokens{AccessToken: cred("access-1"), RefreshToken: cred("refresh-1"), ExpiresAt: expiry})
+		if err != nil {
+			t.Fatalf("first UpsertInstallation: %v", err)
+		}
+		if first.GetId() != "inst-1" || first.GetWorkspaceId() != "ws-a" || first.GetInstalledAt() == nil {
+			t.Fatalf("first = %+v; want inst-1 in ws-a with installed_at", first)
+		}
+		if first.GetCredentialState() != agentsv1.LinearInstallationCredentialState_LINEAR_INSTALLATION_CREDENTIAL_STATE_VALID {
+			t.Fatalf("credential_state = %v, want VALID", first.GetCredentialState())
+		}
+		tokens, err := repo.GetInstallationTokens(ctx, "ws-a", "inst-1")
+		if err != nil {
+			t.Fatalf("GetInstallationTokens: %v", err)
+		}
+		if tokens.AccessToken != cred("access-1") || !tokens.ExpiresAt.Equal(expiry) {
+			t.Fatalf("tokens = %+v; want the stored access token and expiry", tokens)
+		}
+
+		again := installation("inst-other", "app-1", "org-1", "Acme Renamed")
+		again.AppUserId = "app-user-2"
+		second, err := repo.UpsertInstallation(ctx, "ws-a", again,
+			linearrepo.InstallationTokens{AccessToken: cred("access-2"), RefreshToken: cred("refresh-2")})
+		if err != nil {
+			t.Fatalf("second UpsertInstallation: %v", err)
+		}
+		if second.GetId() != "inst-1" || second.GetOrganizationName() != "Acme Renamed" || second.GetAppUserId() != "app-user-2" {
+			t.Fatalf("second = %+v; want the same installation with new identity fields", second)
+		}
+		if !second.GetInstalledAt().AsTime().Equal(first.GetInstalledAt().AsTime()) {
+			t.Fatal("installing again changed installed_at")
+		}
+		newTokens, err := repo.GetInstallationTokens(ctx, "ws-a", "inst-1")
+		if err != nil {
+			t.Fatalf("GetInstallationTokens: %v", err)
+		}
+		if newTokens.AccessToken != cred("access-2") || newTokens.Revision <= tokens.Revision {
+			t.Fatalf("tokens after reinstall = %+v; want the new token and a higher revision than %d", newTokens, tokens.Revision)
+		}
+
+		list, err := repo.ListInstallations(ctx, "ws-a", "app-1")
+		if err != nil || len(list) != 1 {
+			t.Fatalf("ListInstallations = %d, %v; want 1", len(list), err)
+		}
+		found, err := repo.FindInstallation(ctx, "ws-a", "app-1", "org-1")
+		if err != nil || found.GetId() != "inst-1" {
+			t.Fatalf("FindInstallation = %+v, %v", found, err)
+		}
+		if _, err := repo.FindInstallation(ctx, "ws-a", "app-1", "org-2"); !errors.Is(err, linearrepo.ErrNotFound) {
+			t.Fatalf("FindInstallation(unknown org) = %v, want ErrNotFound", err)
+		}
+		if _, err := repo.GetInstallation(ctx, "ws-b", "inst-1"); !errors.Is(err, linearrepo.ErrNotFound) {
+			t.Fatalf("cross-workspace GetInstallation = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("InstallationsNeedTheirAppAndGoWithIt", func(t *testing.T) {
+		repo := factory(t)
+		ctx := t.Context()
+		if _, err := repo.UpsertInstallation(ctx, "ws-a", installation("inst-1", "missing", "org-1", "Acme"),
+			linearrepo.InstallationTokens{}); !errors.Is(err, linearrepo.ErrNotFound) {
+			t.Fatalf("UpsertInstallation for a missing App = %v, want ErrNotFound", err)
+		}
+		if _, err := repo.CreateApp(ctx, "ws-a", app("app-1", "client-1", "Support"), linearrepo.AppCredentials{}); err != nil {
+			t.Fatalf("CreateApp: %v", err)
+		}
+		for _, org := range []string{"org-1", "org-2"} {
+			if _, err := repo.UpsertInstallation(ctx, "ws-a", installation("inst-"+org, "app-1", org, org),
+				linearrepo.InstallationTokens{AccessToken: cred(org)}); err != nil {
+				t.Fatalf("UpsertInstallation(%s): %v", org, err)
+			}
+		}
+		if err := repo.DeleteInstallation(ctx, "ws-a", "inst-org-1"); err != nil {
+			t.Fatalf("DeleteInstallation: %v", err)
+		}
+		if err := repo.DeleteInstallation(ctx, "ws-a", "inst-org-1"); !errors.Is(err, linearrepo.ErrNotFound) {
+			t.Fatalf("second DeleteInstallation = %v, want ErrNotFound", err)
+		}
+		if err := repo.DeleteApp(ctx, "ws-a", "app-1"); err != nil {
+			t.Fatalf("DeleteApp: %v", err)
+		}
+		if _, err := repo.GetInstallation(ctx, "ws-a", "inst-org-2"); !errors.Is(err, linearrepo.ErrNotFound) {
+			t.Fatalf("installation after DeleteApp = %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func installation(id, appID, orgID, orgName string) *agentsv1.LinearInstallation {
+	return &agentsv1.LinearInstallation{
+		Id: id, AppId: appID, OrganizationId: orgID, OrganizationName: orgName,
+		AppUserId: "app-user-1", Scopes: []string{"read", "write"},
+	}
 }

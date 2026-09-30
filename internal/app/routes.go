@@ -559,6 +559,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.linearAppSvcServer.SetKeyring(secretbox.NewKeyring(result.CryptoKeyRepo))
 			h.linearAppSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 			h.linearAppSvcServer.SetSettingsRepo(result.LinearSettingRepo)
+			h.linearAppSvcServer.SetInstallStateRepo(result.LinearStateRepo)
 		}
 		h.agentSvcServer.SetLinearGuard(application.NewLinearReferenceGuard(result.LinearRepo))
 	}
@@ -754,6 +755,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	tgProcessingConnectPath, tgProcessingConnectHandler := agentsv1connect.NewTelegramProcessingServiceHandler(tgProcessingSvcServer, connectOpts...)
 	linearAppSvcServer := application.NewLinearAppServiceServer(nil)
 	linearAppSvcServer.SetAgentRepo(configStore)
+	// Lazy provider: SetupRoutes runs before core.New loads YAML into cfg.
+	linearAppSvcServer.SetDashboardBaseURL(func() string { return cfg.MCPOAuth.DashboardBaseURL })
 	linearAppConnectPath, linearAppConnectHandler := agentsv1connect.NewLinearAppServiceHandler(linearAppSvcServer, connectOpts...)
 	linearAdminSvcServer := application.NewLinearAdminServiceServer(nil)
 	linearAdminConnectPath, linearAdminConnectHandler := agentsv1connect.NewLinearAdminServiceHandler(linearAdminSvcServer, connectOpts...)
@@ -873,6 +876,10 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		// per-Channel secret Telegram echoes, not with a Butter session, and
 		// it must be reachable on every Pod behind the load balancer.
 		httpHandler.NewTelegramWebhookHandler(handlers).Register(r)
+		// The Linear OAuth callback is public for the same reason: the
+		// browser arrives from Linear, authenticated only by the
+		// single-use install state (ADR-0015).
+		httpHandler.NewLinearOAuthHandler(linearAppSvcServer).Register(r)
 
 		webhookHandler := httpHandler.NewWebhookHandler(repoBindingSvcServer)
 		r.POST("/api/webhooks/repository/:workspace_id", webhookHandler.Handle)

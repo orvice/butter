@@ -3,6 +3,7 @@ import {
   LinearAdminService,
   LinearAppService,
   type LinearApp,
+  type LinearInstallation,
   type LinearSettings,
 } from '@/gen/agents/v1/linear_pb'
 import { makeClient } from './transport'
@@ -151,5 +152,41 @@ export function useDeleteLinearApp() {
       await appClient.deleteLinearApp({ id })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: LINEAR_APPS_KEY }),
+  })
+}
+
+// --- Installations ------------------------------------------------------------
+
+export function useLinearInstallations(appId: string | undefined) {
+  return useQuery({
+    queryKey: [...LINEAR_APPS_KEY, appId, 'installations'],
+    enabled: Boolean(appId),
+    queryFn: async (): Promise<LinearInstallation[]> => {
+      const res = await appClient.listLinearInstallations({ appId: appId! })
+      return res.installations
+    },
+  })
+}
+
+/** Starts an install; the caller sends the browser to the returned URL. */
+export function useBeginLinearInstall() {
+  return useMutation({
+    mutationFn: async (input: { appId: string; returnUrl: string }) => {
+      const res = await appClient.beginLinearInstall(input)
+      return res.authorizeUrl
+    },
+  })
+}
+
+export function useDeleteLinearInstallation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { appId: string; id: string }) => {
+      await appClient.deleteLinearInstallation(input)
+    },
+    onSuccess: (_data, input) =>
+      qc.invalidateQueries({
+        queryKey: [...LINEAR_APPS_KEY, input.appId, 'installations'],
+      }),
   })
 }

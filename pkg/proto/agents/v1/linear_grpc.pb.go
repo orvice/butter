@@ -19,12 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LinearAppService_ListLinearApps_FullMethodName          = "/agents.v1.LinearAppService/ListLinearApps"
-	LinearAppService_GetLinearApp_FullMethodName            = "/agents.v1.LinearAppService/GetLinearApp"
-	LinearAppService_CreateLinearApp_FullMethodName         = "/agents.v1.LinearAppService/CreateLinearApp"
-	LinearAppService_UpdateLinearApp_FullMethodName         = "/agents.v1.LinearAppService/UpdateLinearApp"
-	LinearAppService_PutLinearAppCredentials_FullMethodName = "/agents.v1.LinearAppService/PutLinearAppCredentials"
-	LinearAppService_DeleteLinearApp_FullMethodName         = "/agents.v1.LinearAppService/DeleteLinearApp"
+	LinearAppService_ListLinearApps_FullMethodName           = "/agents.v1.LinearAppService/ListLinearApps"
+	LinearAppService_GetLinearApp_FullMethodName             = "/agents.v1.LinearAppService/GetLinearApp"
+	LinearAppService_CreateLinearApp_FullMethodName          = "/agents.v1.LinearAppService/CreateLinearApp"
+	LinearAppService_UpdateLinearApp_FullMethodName          = "/agents.v1.LinearAppService/UpdateLinearApp"
+	LinearAppService_PutLinearAppCredentials_FullMethodName  = "/agents.v1.LinearAppService/PutLinearAppCredentials"
+	LinearAppService_DeleteLinearApp_FullMethodName          = "/agents.v1.LinearAppService/DeleteLinearApp"
+	LinearAppService_BeginLinearInstall_FullMethodName       = "/agents.v1.LinearAppService/BeginLinearInstall"
+	LinearAppService_ListLinearInstallations_FullMethodName  = "/agents.v1.LinearAppService/ListLinearInstallations"
+	LinearAppService_DeleteLinearInstallation_FullMethodName = "/agents.v1.LinearAppService/DeleteLinearInstallation"
 )
 
 // LinearAppServiceClient is the client API for LinearAppService service.
@@ -43,7 +46,16 @@ type LinearAppServiceClient interface {
 	UpdateLinearApp(ctx context.Context, in *UpdateLinearAppRequest, opts ...grpc.CallOption) (*UpdateLinearAppResponse, error)
 	// PutLinearAppCredentials sets or clears the write-only secrets.
 	PutLinearAppCredentials(ctx context.Context, in *PutLinearAppCredentialsRequest, opts ...grpc.CallOption) (*PutLinearAppCredentialsResponse, error)
+	// DeleteLinearApp removes the App together with its installations.
 	DeleteLinearApp(ctx context.Context, in *DeleteLinearAppRequest, opts ...grpc.CallOption) (*DeleteLinearAppResponse, error)
+	// BeginLinearInstall starts installing the App into a Linear organization:
+	// it returns Linear's authorize URL, carrying a single-use state that the
+	// public OAuth callback consumes.
+	BeginLinearInstall(ctx context.Context, in *BeginLinearInstallRequest, opts ...grpc.CallOption) (*BeginLinearInstallResponse, error)
+	ListLinearInstallations(ctx context.Context, in *ListLinearInstallationsRequest, opts ...grpc.CallOption) (*ListLinearInstallationsResponse, error)
+	// DeleteLinearInstallation removes an installation, revoking its token at
+	// Linear as a best effort.
+	DeleteLinearInstallation(ctx context.Context, in *DeleteLinearInstallationRequest, opts ...grpc.CallOption) (*DeleteLinearInstallationResponse, error)
 }
 
 type linearAppServiceClient struct {
@@ -114,6 +126,36 @@ func (c *linearAppServiceClient) DeleteLinearApp(ctx context.Context, in *Delete
 	return out, nil
 }
 
+func (c *linearAppServiceClient) BeginLinearInstall(ctx context.Context, in *BeginLinearInstallRequest, opts ...grpc.CallOption) (*BeginLinearInstallResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BeginLinearInstallResponse)
+	err := c.cc.Invoke(ctx, LinearAppService_BeginLinearInstall_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *linearAppServiceClient) ListLinearInstallations(ctx context.Context, in *ListLinearInstallationsRequest, opts ...grpc.CallOption) (*ListLinearInstallationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListLinearInstallationsResponse)
+	err := c.cc.Invoke(ctx, LinearAppService_ListLinearInstallations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *linearAppServiceClient) DeleteLinearInstallation(ctx context.Context, in *DeleteLinearInstallationRequest, opts ...grpc.CallOption) (*DeleteLinearInstallationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteLinearInstallationResponse)
+	err := c.cc.Invoke(ctx, LinearAppService_DeleteLinearInstallation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LinearAppServiceServer is the server API for LinearAppService service.
 // All implementations must embed UnimplementedLinearAppServiceServer
 // for forward compatibility.
@@ -130,7 +172,16 @@ type LinearAppServiceServer interface {
 	UpdateLinearApp(context.Context, *UpdateLinearAppRequest) (*UpdateLinearAppResponse, error)
 	// PutLinearAppCredentials sets or clears the write-only secrets.
 	PutLinearAppCredentials(context.Context, *PutLinearAppCredentialsRequest) (*PutLinearAppCredentialsResponse, error)
+	// DeleteLinearApp removes the App together with its installations.
 	DeleteLinearApp(context.Context, *DeleteLinearAppRequest) (*DeleteLinearAppResponse, error)
+	// BeginLinearInstall starts installing the App into a Linear organization:
+	// it returns Linear's authorize URL, carrying a single-use state that the
+	// public OAuth callback consumes.
+	BeginLinearInstall(context.Context, *BeginLinearInstallRequest) (*BeginLinearInstallResponse, error)
+	ListLinearInstallations(context.Context, *ListLinearInstallationsRequest) (*ListLinearInstallationsResponse, error)
+	// DeleteLinearInstallation removes an installation, revoking its token at
+	// Linear as a best effort.
+	DeleteLinearInstallation(context.Context, *DeleteLinearInstallationRequest) (*DeleteLinearInstallationResponse, error)
 	mustEmbedUnimplementedLinearAppServiceServer()
 }
 
@@ -158,6 +209,15 @@ func (UnimplementedLinearAppServiceServer) PutLinearAppCredentials(context.Conte
 }
 func (UnimplementedLinearAppServiceServer) DeleteLinearApp(context.Context, *DeleteLinearAppRequest) (*DeleteLinearAppResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteLinearApp not implemented")
+}
+func (UnimplementedLinearAppServiceServer) BeginLinearInstall(context.Context, *BeginLinearInstallRequest) (*BeginLinearInstallResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BeginLinearInstall not implemented")
+}
+func (UnimplementedLinearAppServiceServer) ListLinearInstallations(context.Context, *ListLinearInstallationsRequest) (*ListLinearInstallationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListLinearInstallations not implemented")
+}
+func (UnimplementedLinearAppServiceServer) DeleteLinearInstallation(context.Context, *DeleteLinearInstallationRequest) (*DeleteLinearInstallationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteLinearInstallation not implemented")
 }
 func (UnimplementedLinearAppServiceServer) mustEmbedUnimplementedLinearAppServiceServer() {}
 func (UnimplementedLinearAppServiceServer) testEmbeddedByValue()                          {}
@@ -288,6 +348,60 @@ func _LinearAppService_DeleteLinearApp_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LinearAppService_BeginLinearInstall_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginLinearInstallRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LinearAppServiceServer).BeginLinearInstall(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LinearAppService_BeginLinearInstall_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LinearAppServiceServer).BeginLinearInstall(ctx, req.(*BeginLinearInstallRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LinearAppService_ListLinearInstallations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLinearInstallationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LinearAppServiceServer).ListLinearInstallations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LinearAppService_ListLinearInstallations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LinearAppServiceServer).ListLinearInstallations(ctx, req.(*ListLinearInstallationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LinearAppService_DeleteLinearInstallation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteLinearInstallationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LinearAppServiceServer).DeleteLinearInstallation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LinearAppService_DeleteLinearInstallation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LinearAppServiceServer).DeleteLinearInstallation(ctx, req.(*DeleteLinearInstallationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LinearAppService_ServiceDesc is the grpc.ServiceDesc for LinearAppService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -318,6 +432,18 @@ var LinearAppService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteLinearApp",
 			Handler:    _LinearAppService_DeleteLinearApp_Handler,
+		},
+		{
+			MethodName: "BeginLinearInstall",
+			Handler:    _LinearAppService_BeginLinearInstall_Handler,
+		},
+		{
+			MethodName: "ListLinearInstallations",
+			Handler:    _LinearAppService_ListLinearInstallations_Handler,
+		},
+		{
+			MethodName: "DeleteLinearInstallation",
+			Handler:    _LinearAppService_DeleteLinearInstallation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

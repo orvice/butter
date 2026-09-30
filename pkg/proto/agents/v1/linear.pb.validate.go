@@ -1703,6 +1703,882 @@ var _ interface {
 	ErrorName() string
 } = DeleteLinearAppResponseValidationError{}
 
+// Validate checks the field values on LinearInstallation with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *LinearInstallation) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LinearInstallation with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// LinearInstallationMultiError, or nil if none found.
+func (m *LinearInstallation) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LinearInstallation) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for AppId
+
+	// no validation rules for OrganizationId
+
+	// no validation rules for OrganizationName
+
+	// no validation rules for AppUserId
+
+	// no validation rules for CredentialState
+
+	// no validation rules for LastCredentialError
+
+	if all {
+		switch v := interface{}(m.GetInstalledAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LinearInstallationValidationError{
+					field:  "InstalledAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LinearInstallationValidationError{
+					field:  "InstalledAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetInstalledAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return LinearInstallationValidationError{
+				field:  "InstalledAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LinearInstallationValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LinearInstallationValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return LinearInstallationValidationError{
+				field:  "UpdatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for WorkspaceId
+
+	if len(errors) > 0 {
+		return LinearInstallationMultiError(errors)
+	}
+
+	return nil
+}
+
+// LinearInstallationMultiError is an error wrapping multiple validation errors
+// returned by LinearInstallation.ValidateAll() if the designated constraints
+// aren't met.
+type LinearInstallationMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LinearInstallationMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LinearInstallationMultiError) AllErrors() []error { return m }
+
+// LinearInstallationValidationError is the validation error returned by
+// LinearInstallation.Validate if the designated constraints aren't met.
+type LinearInstallationValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e LinearInstallationValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e LinearInstallationValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e LinearInstallationValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e LinearInstallationValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e LinearInstallationValidationError) ErrorName() string {
+	return "LinearInstallationValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e LinearInstallationValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sLinearInstallation.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = LinearInstallationValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = LinearInstallationValidationError{}
+
+// Validate checks the field values on BeginLinearInstallRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *BeginLinearInstallRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on BeginLinearInstallRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// BeginLinearInstallRequestMultiError, or nil if none found.
+func (m *BeginLinearInstallRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *BeginLinearInstallRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetAppId()) < 1 {
+		err := BeginLinearInstallRequestValidationError{
+			field:  "AppId",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	// no validation rules for ReturnUrl
+
+	if len(errors) > 0 {
+		return BeginLinearInstallRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// BeginLinearInstallRequestMultiError is an error wrapping multiple validation
+// errors returned by BeginLinearInstallRequest.ValidateAll() if the
+// designated constraints aren't met.
+type BeginLinearInstallRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m BeginLinearInstallRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m BeginLinearInstallRequestMultiError) AllErrors() []error { return m }
+
+// BeginLinearInstallRequestValidationError is the validation error returned by
+// BeginLinearInstallRequest.Validate if the designated constraints aren't met.
+type BeginLinearInstallRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e BeginLinearInstallRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e BeginLinearInstallRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e BeginLinearInstallRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e BeginLinearInstallRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e BeginLinearInstallRequestValidationError) ErrorName() string {
+	return "BeginLinearInstallRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e BeginLinearInstallRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sBeginLinearInstallRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = BeginLinearInstallRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = BeginLinearInstallRequestValidationError{}
+
+// Validate checks the field values on BeginLinearInstallResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *BeginLinearInstallResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on BeginLinearInstallResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// BeginLinearInstallResponseMultiError, or nil if none found.
+func (m *BeginLinearInstallResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *BeginLinearInstallResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AuthorizeUrl
+
+	if len(errors) > 0 {
+		return BeginLinearInstallResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// BeginLinearInstallResponseMultiError is an error wrapping multiple
+// validation errors returned by BeginLinearInstallResponse.ValidateAll() if
+// the designated constraints aren't met.
+type BeginLinearInstallResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m BeginLinearInstallResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m BeginLinearInstallResponseMultiError) AllErrors() []error { return m }
+
+// BeginLinearInstallResponseValidationError is the validation error returned
+// by BeginLinearInstallResponse.Validate if the designated constraints aren't met.
+type BeginLinearInstallResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e BeginLinearInstallResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e BeginLinearInstallResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e BeginLinearInstallResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e BeginLinearInstallResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e BeginLinearInstallResponseValidationError) ErrorName() string {
+	return "BeginLinearInstallResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e BeginLinearInstallResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sBeginLinearInstallResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = BeginLinearInstallResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = BeginLinearInstallResponseValidationError{}
+
+// Validate checks the field values on ListLinearInstallationsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListLinearInstallationsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListLinearInstallationsRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// ListLinearInstallationsRequestMultiError, or nil if none found.
+func (m *ListLinearInstallationsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListLinearInstallationsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetAppId()) < 1 {
+		err := ListLinearInstallationsRequestValidationError{
+			field:  "AppId",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return ListLinearInstallationsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListLinearInstallationsRequestMultiError is an error wrapping multiple
+// validation errors returned by ListLinearInstallationsRequest.ValidateAll()
+// if the designated constraints aren't met.
+type ListLinearInstallationsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListLinearInstallationsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListLinearInstallationsRequestMultiError) AllErrors() []error { return m }
+
+// ListLinearInstallationsRequestValidationError is the validation error
+// returned by ListLinearInstallationsRequest.Validate if the designated
+// constraints aren't met.
+type ListLinearInstallationsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListLinearInstallationsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListLinearInstallationsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListLinearInstallationsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListLinearInstallationsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListLinearInstallationsRequestValidationError) ErrorName() string {
+	return "ListLinearInstallationsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListLinearInstallationsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListLinearInstallationsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListLinearInstallationsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListLinearInstallationsRequestValidationError{}
+
+// Validate checks the field values on ListLinearInstallationsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListLinearInstallationsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListLinearInstallationsResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// ListLinearInstallationsResponseMultiError, or nil if none found.
+func (m *ListLinearInstallationsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListLinearInstallationsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetInstallations() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListLinearInstallationsResponseValidationError{
+						field:  fmt.Sprintf("Installations[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListLinearInstallationsResponseValidationError{
+						field:  fmt.Sprintf("Installations[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListLinearInstallationsResponseValidationError{
+					field:  fmt.Sprintf("Installations[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListLinearInstallationsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListLinearInstallationsResponseMultiError is an error wrapping multiple
+// validation errors returned by ListLinearInstallationsResponse.ValidateAll()
+// if the designated constraints aren't met.
+type ListLinearInstallationsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListLinearInstallationsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListLinearInstallationsResponseMultiError) AllErrors() []error { return m }
+
+// ListLinearInstallationsResponseValidationError is the validation error
+// returned by ListLinearInstallationsResponse.Validate if the designated
+// constraints aren't met.
+type ListLinearInstallationsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListLinearInstallationsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListLinearInstallationsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListLinearInstallationsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListLinearInstallationsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListLinearInstallationsResponseValidationError) ErrorName() string {
+	return "ListLinearInstallationsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListLinearInstallationsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListLinearInstallationsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListLinearInstallationsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListLinearInstallationsResponseValidationError{}
+
+// Validate checks the field values on DeleteLinearInstallationRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *DeleteLinearInstallationRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteLinearInstallationRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// DeleteLinearInstallationRequestMultiError, or nil if none found.
+func (m *DeleteLinearInstallationRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteLinearInstallationRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetAppId()) < 1 {
+		err := DeleteLinearInstallationRequestValidationError{
+			field:  "AppId",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := DeleteLinearInstallationRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return DeleteLinearInstallationRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteLinearInstallationRequestMultiError is an error wrapping multiple
+// validation errors returned by DeleteLinearInstallationRequest.ValidateAll()
+// if the designated constraints aren't met.
+type DeleteLinearInstallationRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteLinearInstallationRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteLinearInstallationRequestMultiError) AllErrors() []error { return m }
+
+// DeleteLinearInstallationRequestValidationError is the validation error
+// returned by DeleteLinearInstallationRequest.Validate if the designated
+// constraints aren't met.
+type DeleteLinearInstallationRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteLinearInstallationRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteLinearInstallationRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteLinearInstallationRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteLinearInstallationRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteLinearInstallationRequestValidationError) ErrorName() string {
+	return "DeleteLinearInstallationRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteLinearInstallationRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteLinearInstallationRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteLinearInstallationRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteLinearInstallationRequestValidationError{}
+
+// Validate checks the field values on DeleteLinearInstallationResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *DeleteLinearInstallationResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeleteLinearInstallationResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// DeleteLinearInstallationResponseMultiError, or nil if none found.
+func (m *DeleteLinearInstallationResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeleteLinearInstallationResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return DeleteLinearInstallationResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeleteLinearInstallationResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// DeleteLinearInstallationResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DeleteLinearInstallationResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeleteLinearInstallationResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeleteLinearInstallationResponseMultiError) AllErrors() []error { return m }
+
+// DeleteLinearInstallationResponseValidationError is the validation error
+// returned by DeleteLinearInstallationResponse.Validate if the designated
+// constraints aren't met.
+type DeleteLinearInstallationResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeleteLinearInstallationResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeleteLinearInstallationResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeleteLinearInstallationResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeleteLinearInstallationResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeleteLinearInstallationResponseValidationError) ErrorName() string {
+	return "DeleteLinearInstallationResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DeleteLinearInstallationResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeleteLinearInstallationResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeleteLinearInstallationResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeleteLinearInstallationResponseValidationError{}
+
 // Validate checks the field values on LinearSettings with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

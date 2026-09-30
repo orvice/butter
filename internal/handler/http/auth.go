@@ -285,7 +285,10 @@ func isPublicPath(path string) bool {
 		"/api/agents.v1.DaemonConnectorService/Poll",
 		"/api/agents.v1.DaemonConnectorService/ReportTaskUpdate",
 		"/api/agents.v1.DaemonConnectorService/Unregister",
-		"/api/mcp/oauth/callback":
+		"/api/mcp/oauth/callback",
+		// The browser returns from Linear without a Butter session; the
+		// single-use install state authenticates the callback.
+		LinearOAuthCallbackPath:
 		return true
 	}
 	// The Telegram callback carries a Channel ID in the path and

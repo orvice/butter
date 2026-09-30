@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/linear.proto.
  */
 export const file_agents_v1_linear: GenFile = /*@__PURE__*/
-  fileDesc("ChZhZ2VudHMvdjEvbGluZWFyLnByb3RvEglhZ2VudHMudjEi4AMKCUxpbmVhckFwcBIKCgJpZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSEQoJY2xpZW50X2lkGAMgASgJEhAKCGFnZW50X2lkGAQgASgJEhcKD2luYm91bmRfZW5hYmxlZBgFIAEoCBIYChBhbGxvd2VkX3VzZXJfaWRzGAYgAygJEhwKD21heF9ydW5fc2Vjb25kcxgHIAEoBUgAiAEBEhAKCHJldmlzaW9uGAggASgDEj0KEGNyZWRlbnRpYWxfc3RhdGUYCSABKA4yIy5hZ2VudHMudjEuTGluZWFyQXBwQ3JlZGVudGlhbFN0YXRlEhkKEWNsaWVudF9zZWNyZXRfc2V0GAogASgIEhoKEndlYmhvb2tfc2VjcmV0X3NldBgLIAEoCBIUCgxjYWxsYmFja191cmwYDCABKAkSEwoLd2ViaG9va191cmwYDSABKAkSLgoKY3JlYXRlZF9hdBgOIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJQhIKEF9tYXhfcnVuX3NlY29uZHMiFwoVTGlzdExpbmVhckFwcHNSZXF1ZXN0IjwKFkxpc3RMaW5lYXJBcHBzUmVzcG9uc2USIgoEYXBwcxgBIAMoCzIULmFnZW50cy52MS5MaW5lYXJBcHAiKgoTR2V0TGluZWFyQXBwUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASI5ChRHZXRMaW5lYXJBcHBSZXNwb25zZRIhCgNhcHAYASABKAsyFC5hZ2VudHMudjEuTGluZWFyQXBwIpkBChZDcmVhdGVMaW5lYXJBcHBSZXF1ZXN0EiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHASGgoNY2xpZW50X3NlY3JldBgCIAEoCUgAiAEBEhsKDndlYmhvb2tfc2VjcmV0GAMgASgJSAGIAQFCEAoOX2NsaWVudF9zZWNyZXRCEQoPX3dlYmhvb2tfc2VjcmV0IjwKF0NyZWF0ZUxpbmVhckFwcFJlc3BvbnNlEiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHAiOwoWVXBkYXRlTGluZWFyQXBwUmVxdWVzdBIhCgNhcHAYASABKAsyFC5hZ2VudHMudjEuTGluZWFyQXBwIjwKF1VwZGF0ZUxpbmVhckFwcFJlc3BvbnNlEiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHAilwEKHlB1dExpbmVhckFwcENyZWRlbnRpYWxzUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESGgoNY2xpZW50X3NlY3JldBgCIAEoCUgAiAEBEhsKDndlYmhvb2tfc2VjcmV0GAMgASgJSAGIAQFCEAoOX2NsaWVudF9zZWNyZXRCEQoPX3dlYmhvb2tfc2VjcmV0IkQKH1B1dExpbmVhckFwcENyZWRlbnRpYWxzUmVzcG9uc2USIQoDYXBwGAEgASgLMhQuYWdlbnRzLnYxLkxpbmVhckFwcCItChZEZWxldGVMaW5lYXJBcHBSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIhkKF0RlbGV0ZUxpbmVhckFwcFJlc3BvbnNlIlkKDkxpbmVhclNldHRpbmdzEhcKD3B1YmxpY19iYXNlX3VybBgBIAEoCRIuCgp1cGRhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIaChhHZXRMaW5lYXJTZXR0aW5nc1JlcXVlc3QiSAoZR2V0TGluZWFyU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmFnZW50cy52MS5MaW5lYXJTZXR0aW5ncyJKChtVcGRhdGVMaW5lYXJTZXR0aW5nc1JlcXVlc3QSKwoIc2V0dGluZ3MYASABKAsyGS5hZ2VudHMudjEuTGluZWFyU2V0dGluZ3MiSwocVXBkYXRlTGluZWFyU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLmFnZW50cy52MS5MaW5lYXJTZXR0aW5ncyqdAQoYTGluZWFyQXBwQ3JlZGVudGlhbFN0YXRlEisKJ0xJTkVBUl9BUFBfQ1JFREVOVElBTF9TVEFURV9VTlNQRUNJRklFRBAAEioKJkxJTkVBUl9BUFBfQ1JFREVOVElBTF9TVEFURV9JTkNPTVBMRVRFEAESKAokTElORUFSX0FQUF9DUkVERU5USUFMX1NUQVRFX0NPTVBMRVRFEAIyugQKEExpbmVhckFwcFNlcnZpY2USVQoOTGlzdExpbmVhckFwcHMSIC5hZ2VudHMudjEuTGlzdExpbmVhckFwcHNSZXF1ZXN0GiEuYWdlbnRzLnYxLkxpc3RMaW5lYXJBcHBzUmVzcG9uc2USTwoMR2V0TGluZWFyQXBwEh4uYWdlbnRzLnYxLkdldExpbmVhckFwcFJlcXVlc3QaHy5hZ2VudHMudjEuR2V0TGluZWFyQXBwUmVzcG9uc2USWAoPQ3JlYXRlTGluZWFyQXBwEiEuYWdlbnRzLnYxLkNyZWF0ZUxpbmVhckFwcFJlcXVlc3QaIi5hZ2VudHMudjEuQ3JlYXRlTGluZWFyQXBwUmVzcG9uc2USWAoPVXBkYXRlTGluZWFyQXBwEiEuYWdlbnRzLnYxLlVwZGF0ZUxpbmVhckFwcFJlcXVlc3QaIi5hZ2VudHMudjEuVXBkYXRlTGluZWFyQXBwUmVzcG9uc2UScAoXUHV0TGluZWFyQXBwQ3JlZGVudGlhbHMSKS5hZ2VudHMudjEuUHV0TGluZWFyQXBwQ3JlZGVudGlhbHNSZXF1ZXN0GiouYWdlbnRzLnYxLlB1dExpbmVhckFwcENyZWRlbnRpYWxzUmVzcG9uc2USWAoPRGVsZXRlTGluZWFyQXBwEiEuYWdlbnRzLnYxLkRlbGV0ZUxpbmVhckFwcFJlcXVlc3QaIi5hZ2VudHMudjEuRGVsZXRlTGluZWFyQXBwUmVzcG9uc2Uy3QEKEkxpbmVhckFkbWluU2VydmljZRJeChFHZXRMaW5lYXJTZXR0aW5ncxIjLmFnZW50cy52MS5HZXRMaW5lYXJTZXR0aW5nc1JlcXVlc3QaJC5hZ2VudHMudjEuR2V0TGluZWFyU2V0dGluZ3NSZXNwb25zZRJnChRVcGRhdGVMaW5lYXJTZXR0aW5ncxImLmFnZW50cy52MS5VcGRhdGVMaW5lYXJTZXR0aW5nc1JlcXVlc3QaJy5hZ2VudHMudjEuVXBkYXRlTGluZWFyU2V0dGluZ3NSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChZhZ2VudHMvdjEvbGluZWFyLnByb3RvEglhZ2VudHMudjEi4AMKCUxpbmVhckFwcBIKCgJpZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSEQoJY2xpZW50X2lkGAMgASgJEhAKCGFnZW50X2lkGAQgASgJEhcKD2luYm91bmRfZW5hYmxlZBgFIAEoCBIYChBhbGxvd2VkX3VzZXJfaWRzGAYgAygJEhwKD21heF9ydW5fc2Vjb25kcxgHIAEoBUgAiAEBEhAKCHJldmlzaW9uGAggASgDEj0KEGNyZWRlbnRpYWxfc3RhdGUYCSABKA4yIy5hZ2VudHMudjEuTGluZWFyQXBwQ3JlZGVudGlhbFN0YXRlEhkKEWNsaWVudF9zZWNyZXRfc2V0GAogASgIEhoKEndlYmhvb2tfc2VjcmV0X3NldBgLIAEoCBIUCgxjYWxsYmFja191cmwYDCABKAkSEwoLd2ViaG9va191cmwYDSABKAkSLgoKY3JlYXRlZF9hdBgOIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJQhIKEF9tYXhfcnVuX3NlY29uZHMiFwoVTGlzdExpbmVhckFwcHNSZXF1ZXN0IjwKFkxpc3RMaW5lYXJBcHBzUmVzcG9uc2USIgoEYXBwcxgBIAMoCzIULmFnZW50cy52MS5MaW5lYXJBcHAiKgoTR2V0TGluZWFyQXBwUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASI5ChRHZXRMaW5lYXJBcHBSZXNwb25zZRIhCgNhcHAYASABKAsyFC5hZ2VudHMudjEuTGluZWFyQXBwIpkBChZDcmVhdGVMaW5lYXJBcHBSZXF1ZXN0EiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHASGgoNY2xpZW50X3NlY3JldBgCIAEoCUgAiAEBEhsKDndlYmhvb2tfc2VjcmV0GAMgASgJSAGIAQFCEAoOX2NsaWVudF9zZWNyZXRCEQoPX3dlYmhvb2tfc2VjcmV0IjwKF0NyZWF0ZUxpbmVhckFwcFJlc3BvbnNlEiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHAiOwoWVXBkYXRlTGluZWFyQXBwUmVxdWVzdBIhCgNhcHAYASABKAsyFC5hZ2VudHMudjEuTGluZWFyQXBwIjwKF1VwZGF0ZUxpbmVhckFwcFJlc3BvbnNlEiEKA2FwcBgBIAEoCzIULmFnZW50cy52MS5MaW5lYXJBcHAilwEKHlB1dExpbmVhckFwcENyZWRlbnRpYWxzUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESGgoNY2xpZW50X3NlY3JldBgCIAEoCUgAiAEBEhsKDndlYmhvb2tfc2VjcmV0GAMgASgJSAGIAQFCEAoOX2NsaWVudF9zZWNyZXRCEQoPX3dlYmhvb2tfc2VjcmV0IkQKH1B1dExpbmVhckFwcENyZWRlbnRpYWxzUmVzcG9uc2USIQoDYXBwGAEgASgLMhQuYWdlbnRzLnYxLkxpbmVhckFwcCItChZEZWxldGVMaW5lYXJBcHBSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIhkKF0RlbGV0ZUxpbmVhckFwcFJlc3BvbnNlIugCChJMaW5lYXJJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSDgoGYXBwX2lkGAIgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgDIAEoCRIZChFvcmdhbml6YXRpb25fbmFtZRgEIAEoCRITCgthcHBfdXNlcl9pZBgFIAEoCRIOCgZzY29wZXMYBiADKAkSRgoQY3JlZGVudGlhbF9zdGF0ZRgHIAEoDjIsLmFnZW50cy52MS5MaW5lYXJJbnN0YWxsYXRpb25DcmVkZW50aWFsU3RhdGUSHQoVbGFzdF9jcmVkZW50aWFsX2Vycm9yGAggASgJEjAKDGluc3RhbGxlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMd29ya3NwYWNlX2lkGGQgASgJIkgKGUJlZ2luTGluZWFySW5zdGFsbFJlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABEhIKCnJldHVybl91cmwYAiABKAkiMwoaQmVnaW5MaW5lYXJJbnN0YWxsUmVzcG9uc2USFQoNYXV0aG9yaXplX3VybBgBIAEoCSI5Ch5MaXN0TGluZWFySW5zdGFsbGF0aW9uc1JlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABIlcKH0xpc3RMaW5lYXJJbnN0YWxsYXRpb25zUmVzcG9uc2USNAoNaW5zdGFsbGF0aW9ucxgBIAMoCzIdLmFnZW50cy52MS5MaW5lYXJJbnN0YWxsYXRpb24iTwofRGVsZXRlTGluZWFySW5zdGFsbGF0aW9uUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESEwoCaWQYAiABKAlCB/pCBHICEAEiIgogRGVsZXRlTGluZWFySW5zdGFsbGF0aW9uUmVzcG9uc2UiWQoOTGluZWFyU2V0dGluZ3MSFwoPcHVibGljX2Jhc2VfdXJsGAEgASgJEi4KCnVwZGF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhoKGEdldExpbmVhclNldHRpbmdzUmVxdWVzdCJIChlHZXRMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuYWdlbnRzLnYxLkxpbmVhclNldHRpbmdzIkoKG1VwZGF0ZUxpbmVhclNldHRpbmdzUmVxdWVzdBIrCghzZXR0aW5ncxgBIAEoCzIZLmFnZW50cy52MS5MaW5lYXJTZXR0aW5ncyJLChxVcGRhdGVMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkuYWdlbnRzLnYxLkxpbmVhclNldHRpbmdzKp0BChhMaW5lYXJBcHBDcmVkZW50aWFsU3RhdGUSKwonTElORUFSX0FQUF9DUkVERU5USUFMX1NUQVRFX1VOU1BFQ0lGSUVEEAASKgomTElORUFSX0FQUF9DUkVERU5USUFMX1NUQVRFX0lOQ09NUExFVEUQARIoCiRMSU5FQVJfQVBQX0NSRURFTlRJQUxfU1RBVEVfQ09NUExFVEUQAirDAQohTGluZWFySW5zdGFsbGF0aW9uQ3JlZGVudGlhbFN0YXRlEjQKMExJTkVBUl9JTlNUQUxMQVRJT05fQ1JFREVOVElBTF9TVEFURV9VTlNQRUNJRklFRBAAEi4KKkxJTkVBUl9JTlNUQUxMQVRJT05fQ1JFREVOVElBTF9TVEFURV9WQUxJRBABEjgKNExJTkVBUl9JTlNUQUxMQVRJT05fQ1JFREVOVElBTF9TVEFURV9ORUVEU19SRUlOU1RBTEwQAjKEBwoQTGluZWFyQXBwU2VydmljZRJVCg5MaXN0TGluZWFyQXBwcxIgLmFnZW50cy52MS5MaXN0TGluZWFyQXBwc1JlcXVlc3QaIS5hZ2VudHMudjEuTGlzdExpbmVhckFwcHNSZXNwb25zZRJPCgxHZXRMaW5lYXJBcHASHi5hZ2VudHMudjEuR2V0TGluZWFyQXBwUmVxdWVzdBofLmFnZW50cy52MS5HZXRMaW5lYXJBcHBSZXNwb25zZRJYCg9DcmVhdGVMaW5lYXJBcHASIS5hZ2VudHMudjEuQ3JlYXRlTGluZWFyQXBwUmVxdWVzdBoiLmFnZW50cy52MS5DcmVhdGVMaW5lYXJBcHBSZXNwb25zZRJYCg9VcGRhdGVMaW5lYXJBcHASIS5hZ2VudHMudjEuVXBkYXRlTGluZWFyQXBwUmVxdWVzdBoiLmFnZW50cy52MS5VcGRhdGVMaW5lYXJBcHBSZXNwb25zZRJwChdQdXRMaW5lYXJBcHBDcmVkZW50aWFscxIpLmFnZW50cy52MS5QdXRMaW5lYXJBcHBDcmVkZW50aWFsc1JlcXVlc3QaKi5hZ2VudHMudjEuUHV0TGluZWFyQXBwQ3JlZGVudGlhbHNSZXNwb25zZRJYCg9EZWxldGVMaW5lYXJBcHASIS5hZ2VudHMudjEuRGVsZXRlTGluZWFyQXBwUmVxdWVzdBoiLmFnZW50cy52MS5EZWxldGVMaW5lYXJBcHBSZXNwb25zZRJhChJCZWdpbkxpbmVhckluc3RhbGwSJC5hZ2VudHMudjEuQmVnaW5MaW5lYXJJbnN0YWxsUmVxdWVzdBolLmFnZW50cy52MS5CZWdpbkxpbmVhckluc3RhbGxSZXNwb25zZRJwChdMaXN0TGluZWFySW5zdGFsbGF0aW9ucxIpLmFnZW50cy52MS5MaXN0TGluZWFySW5zdGFsbGF0aW9uc1JlcXVlc3QaKi5hZ2VudHMudjEuTGlzdExpbmVhckluc3RhbGxhdGlvbnNSZXNwb25zZRJzChhEZWxldGVMaW5lYXJJbnN0YWxsYXRpb24SKi5hZ2VudHMudjEuRGVsZXRlTGluZWFySW5zdGFsbGF0aW9uUmVxdWVzdBorLmFnZW50cy52MS5EZWxldGVMaW5lYXJJbnN0YWxsYXRpb25SZXNwb25zZTLdAQoSTGluZWFyQWRtaW5TZXJ2aWNlEl4KEUdldExpbmVhclNldHRpbmdzEiMuYWdlbnRzLnYxLkdldExpbmVhclNldHRpbmdzUmVxdWVzdBokLmFnZW50cy52MS5HZXRMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlEmcKFFVwZGF0ZUxpbmVhclNldHRpbmdzEiYuYWdlbnRzLnYxLlVwZGF0ZUxpbmVhclNldHRpbmdzUmVxdWVzdBonLmFnZW50cy52MS5VcGRhdGVMaW5lYXJTZXR0aW5nc1Jlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * LinearApp is one Linear OAuth application registered in a workspace.
@@ -394,6 +394,221 @@ export const DeleteLinearAppResponseSchema: GenMessage<DeleteLinearAppResponse> 
   messageDesc(file_agents_v1_linear, 12);
 
 /**
+ * LinearInstallation is a Linear App installed into one Linear
+ * organization. Its access and refresh tokens are not proto fields: they sit
+ * behind the same credential seam as the App's secrets.
+ *
+ * @generated from message agents.v1.LinearInstallation
+ */
+export type LinearInstallation = Message<"agents.v1.LinearInstallation"> & {
+  /**
+   * @gotags: json:"id,omitempty" bson:"id,omitempty"
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @gotags: json:"app_id,omitempty" bson:"app_id,omitempty"
+   *
+   * @generated from field: string app_id = 2;
+   */
+  appId: string;
+
+  /**
+   * The Linear organization (Linear calls it a workspace) the App is
+   * installed in. Unique per App.
+   * @gotags: json:"organization_id,omitempty" bson:"organization_id,omitempty"
+   *
+   * @generated from field: string organization_id = 3;
+   */
+  organizationId: string;
+
+  /**
+   * @gotags: json:"organization_name,omitempty" bson:"organization_name,omitempty"
+   *
+   * @generated from field: string organization_name = 4;
+   */
+  organizationName: string;
+
+  /**
+   * The App's own user in that organization (its `viewer.id`), which is
+   * what people delegate issues to and mention.
+   * @gotags: json:"app_user_id,omitempty" bson:"app_user_id,omitempty"
+   *
+   * @generated from field: string app_user_id = 5;
+   */
+  appUserId: string;
+
+  /**
+   * Scopes Linear granted.
+   * @gotags: json:"scopes,omitempty" bson:"scopes,omitempty"
+   *
+   * @generated from field: repeated string scopes = 6;
+   */
+  scopes: string[];
+
+  /**
+   * Server-owned. Never carries credential material.
+   * @gotags: json:"credential_state,omitempty" bson:"credential_state,omitempty"
+   *
+   * @generated from field: agents.v1.LinearInstallationCredentialState credential_state = 7;
+   */
+  credentialState: LinearInstallationCredentialState;
+
+  /**
+   * Sanitized reason the installation needs reinstalling. Empty otherwise.
+   * @gotags: json:"last_credential_error,omitempty" bson:"last_credential_error,omitempty"
+   *
+   * @generated from field: string last_credential_error = 8;
+   */
+  lastCredentialError: string;
+
+  /**
+   * First install time; kept when the App is installed again.
+   * @gotags: json:"installed_at,omitempty" bson:"installed_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp installed_at = 9;
+   */
+  installedAt?: Timestamp;
+
+  /**
+   * @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+   *
+   * @generated from field: google.protobuf.Timestamp updated_at = 10;
+   */
+  updatedAt?: Timestamp;
+
+  /**
+   * @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+   *
+   * @generated from field: string workspace_id = 100;
+   */
+  workspaceId: string;
+};
+
+/**
+ * Describes the message agents.v1.LinearInstallation.
+ * Use `create(LinearInstallationSchema)` to create a new message.
+ */
+export const LinearInstallationSchema: GenMessage<LinearInstallation> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 13);
+
+/**
+ * @generated from message agents.v1.BeginLinearInstallRequest
+ */
+export type BeginLinearInstallRequest = Message<"agents.v1.BeginLinearInstallRequest"> & {
+  /**
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+
+  /**
+   * Where the browser lands after the install: a relative path, or an
+   * absolute URL on the configured Linear base URL's or dashboard's origin.
+   * Anything else falls back to the App's page.
+   *
+   * @generated from field: string return_url = 2;
+   */
+  returnUrl: string;
+};
+
+/**
+ * Describes the message agents.v1.BeginLinearInstallRequest.
+ * Use `create(BeginLinearInstallRequestSchema)` to create a new message.
+ */
+export const BeginLinearInstallRequestSchema: GenMessage<BeginLinearInstallRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 14);
+
+/**
+ * @generated from message agents.v1.BeginLinearInstallResponse
+ */
+export type BeginLinearInstallResponse = Message<"agents.v1.BeginLinearInstallResponse"> & {
+  /**
+   * Linear's authorize URL to open in the browser.
+   *
+   * @generated from field: string authorize_url = 1;
+   */
+  authorizeUrl: string;
+};
+
+/**
+ * Describes the message agents.v1.BeginLinearInstallResponse.
+ * Use `create(BeginLinearInstallResponseSchema)` to create a new message.
+ */
+export const BeginLinearInstallResponseSchema: GenMessage<BeginLinearInstallResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 15);
+
+/**
+ * @generated from message agents.v1.ListLinearInstallationsRequest
+ */
+export type ListLinearInstallationsRequest = Message<"agents.v1.ListLinearInstallationsRequest"> & {
+  /**
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+};
+
+/**
+ * Describes the message agents.v1.ListLinearInstallationsRequest.
+ * Use `create(ListLinearInstallationsRequestSchema)` to create a new message.
+ */
+export const ListLinearInstallationsRequestSchema: GenMessage<ListLinearInstallationsRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 16);
+
+/**
+ * @generated from message agents.v1.ListLinearInstallationsResponse
+ */
+export type ListLinearInstallationsResponse = Message<"agents.v1.ListLinearInstallationsResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.LinearInstallation installations = 1;
+   */
+  installations: LinearInstallation[];
+};
+
+/**
+ * Describes the message agents.v1.ListLinearInstallationsResponse.
+ * Use `create(ListLinearInstallationsResponseSchema)` to create a new message.
+ */
+export const ListLinearInstallationsResponseSchema: GenMessage<ListLinearInstallationsResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 17);
+
+/**
+ * @generated from message agents.v1.DeleteLinearInstallationRequest
+ */
+export type DeleteLinearInstallationRequest = Message<"agents.v1.DeleteLinearInstallationRequest"> & {
+  /**
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+
+  /**
+   * @generated from field: string id = 2;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message agents.v1.DeleteLinearInstallationRequest.
+ * Use `create(DeleteLinearInstallationRequestSchema)` to create a new message.
+ */
+export const DeleteLinearInstallationRequestSchema: GenMessage<DeleteLinearInstallationRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 18);
+
+/**
+ * @generated from message agents.v1.DeleteLinearInstallationResponse
+ */
+export type DeleteLinearInstallationResponse = Message<"agents.v1.DeleteLinearInstallationResponse"> & {
+};
+
+/**
+ * Describes the message agents.v1.DeleteLinearInstallationResponse.
+ * Use `create(DeleteLinearInstallationResponseSchema)` to create a new message.
+ */
+export const DeleteLinearInstallationResponseSchema: GenMessage<DeleteLinearInstallationResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_linear, 19);
+
+/**
  * LinearSettings holds platform-level Linear configuration.
  *
  * @generated from message agents.v1.LinearSettings
@@ -422,7 +637,7 @@ export type LinearSettings = Message<"agents.v1.LinearSettings"> & {
  * Use `create(LinearSettingsSchema)` to create a new message.
  */
 export const LinearSettingsSchema: GenMessage<LinearSettings> = /*@__PURE__*/
-  messageDesc(file_agents_v1_linear, 13);
+  messageDesc(file_agents_v1_linear, 20);
 
 /**
  * @generated from message agents.v1.GetLinearSettingsRequest
@@ -435,7 +650,7 @@ export type GetLinearSettingsRequest = Message<"agents.v1.GetLinearSettingsReque
  * Use `create(GetLinearSettingsRequestSchema)` to create a new message.
  */
 export const GetLinearSettingsRequestSchema: GenMessage<GetLinearSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_linear, 14);
+  messageDesc(file_agents_v1_linear, 21);
 
 /**
  * @generated from message agents.v1.GetLinearSettingsResponse
@@ -452,7 +667,7 @@ export type GetLinearSettingsResponse = Message<"agents.v1.GetLinearSettingsResp
  * Use `create(GetLinearSettingsResponseSchema)` to create a new message.
  */
 export const GetLinearSettingsResponseSchema: GenMessage<GetLinearSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_linear, 15);
+  messageDesc(file_agents_v1_linear, 22);
 
 /**
  * @generated from message agents.v1.UpdateLinearSettingsRequest
@@ -469,7 +684,7 @@ export type UpdateLinearSettingsRequest = Message<"agents.v1.UpdateLinearSetting
  * Use `create(UpdateLinearSettingsRequestSchema)` to create a new message.
  */
 export const UpdateLinearSettingsRequestSchema: GenMessage<UpdateLinearSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_linear, 16);
+  messageDesc(file_agents_v1_linear, 23);
 
 /**
  * @generated from message agents.v1.UpdateLinearSettingsResponse
@@ -486,7 +701,7 @@ export type UpdateLinearSettingsResponse = Message<"agents.v1.UpdateLinearSettin
  * Use `create(UpdateLinearSettingsResponseSchema)` to create a new message.
  */
 export const UpdateLinearSettingsResponseSchema: GenMessage<UpdateLinearSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_linear, 17);
+  messageDesc(file_agents_v1_linear, 24);
 
 /**
  * LinearAppCredentialState reports whether both App secrets are stored
@@ -520,6 +735,39 @@ export enum LinearAppCredentialState {
  */
 export const LinearAppCredentialStateSchema: GenEnum<LinearAppCredentialState> = /*@__PURE__*/
   enumDesc(file_agents_v1_linear, 0);
+
+/**
+ * LinearInstallationCredentialState reports whether an installation's token
+ * is usable without revealing it.
+ *
+ * @generated from enum agents.v1.LinearInstallationCredentialState
+ */
+export enum LinearInstallationCredentialState {
+  /**
+   * @generated from enum value: LINEAR_INSTALLATION_CREDENTIAL_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The stored token worked, or was refreshed, on last use.
+   *
+   * @generated from enum value: LINEAR_INSTALLATION_CREDENTIAL_STATE_VALID = 1;
+   */
+  VALID = 1,
+
+  /**
+   * Linear revoked the token or refused to refresh it; install again.
+   *
+   * @generated from enum value: LINEAR_INSTALLATION_CREDENTIAL_STATE_NEEDS_REINSTALL = 2;
+   */
+  NEEDS_REINSTALL = 2,
+}
+
+/**
+ * Describes the enum agents.v1.LinearInstallationCredentialState.
+ */
+export const LinearInstallationCredentialStateSchema: GenEnum<LinearInstallationCredentialState> = /*@__PURE__*/
+  enumDesc(file_agents_v1_linear, 1);
 
 /**
  * LinearAppService manages a workspace's Linear Apps. Members may read;
@@ -576,12 +824,45 @@ export const LinearAppService: GenService<{
     output: typeof PutLinearAppCredentialsResponseSchema;
   },
   /**
+   * DeleteLinearApp removes the App together with its installations.
+   *
    * @generated from rpc agents.v1.LinearAppService.DeleteLinearApp
    */
   deleteLinearApp: {
     methodKind: "unary";
     input: typeof DeleteLinearAppRequestSchema;
     output: typeof DeleteLinearAppResponseSchema;
+  },
+  /**
+   * BeginLinearInstall starts installing the App into a Linear organization:
+   * it returns Linear's authorize URL, carrying a single-use state that the
+   * public OAuth callback consumes.
+   *
+   * @generated from rpc agents.v1.LinearAppService.BeginLinearInstall
+   */
+  beginLinearInstall: {
+    methodKind: "unary";
+    input: typeof BeginLinearInstallRequestSchema;
+    output: typeof BeginLinearInstallResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.LinearAppService.ListLinearInstallations
+   */
+  listLinearInstallations: {
+    methodKind: "unary";
+    input: typeof ListLinearInstallationsRequestSchema;
+    output: typeof ListLinearInstallationsResponseSchema;
+  },
+  /**
+   * DeleteLinearInstallation removes an installation, revoking its token at
+   * Linear as a best effort.
+   *
+   * @generated from rpc agents.v1.LinearAppService.DeleteLinearInstallation
+   */
+  deleteLinearInstallation: {
+    methodKind: "unary";
+    input: typeof DeleteLinearInstallationRequestSchema;
+    output: typeof DeleteLinearInstallationResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_linear, 0);

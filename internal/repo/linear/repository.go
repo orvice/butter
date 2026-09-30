@@ -1,4 +1,8 @@
-// Package linear stores Linear Apps (ADR-0015).
+// Package linear stores Linear Apps and their Installations (ADR-0015).
+//
+// Apps and Installations live behind one repository because their
+// invariants are joint: an Installation's organization is only unique
+// relative to an App, and deleting an App removes its Installations.
 //
 // The App's client secret and webhook signing secret are handled through a
 // credential seam, exactly as Telegram Bot Tokens and ButterBox tokens are
@@ -12,6 +16,7 @@ package linear
 import (
 	"context"
 	"errors"
+	"time"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -40,6 +45,17 @@ func (c Credential) Set() bool { return c.Ciphertext != "" }
 type AppCredentials struct {
 	ClientSecret  Credential
 	WebhookSecret Credential
+}
+
+// InstallationTokens are an Installation's OAuth tokens, encrypted.
+type InstallationTokens struct {
+	AccessToken  Credential
+	RefreshToken Credential
+	// ExpiresAt is when the access token expires; zero when unknown.
+	ExpiresAt time.Time
+	// Revision increments on every token write. Refreshing is fenced on
+	// it, because Linear rotates refresh tokens.
+	Revision int64
 }
 
 // CredentialChange updates an App's secrets. A nil field keeps the stored
@@ -75,7 +91,22 @@ type Repository interface {
 	// GetAppCredentials returns the stored secrets' ciphertext; unset
 	// fields are simply not Set().
 	GetAppCredentials(ctx context.Context, workspaceID, id string) (AppCredentials, error)
+	// DeleteApp removes an App together with its Installations.
 	DeleteApp(ctx context.Context, workspaceID, id string) error
+
+	// UpsertInstallation stores the App's installation into one Linear
+	// organization, keyed by (app ID, organization ID). Installing again
+	// keeps the Installation's ID and installed_at, replaces its identity
+	// fields and tokens, and marks its credential VALID. It returns
+	// ErrNotFound when the App does not exist in the workspace.
+	UpsertInstallation(ctx context.Context, workspaceID string, inst *agentsv1.LinearInstallation, tokens InstallationTokens) (*agentsv1.LinearInstallation, error)
+	ListInstallations(ctx context.Context, workspaceID, appID string) ([]*agentsv1.LinearInstallation, error)
+	GetInstallation(ctx context.Context, workspaceID, id string) (*agentsv1.LinearInstallation, error)
+	// FindInstallation resolves the App's installation in one organization.
+	FindInstallation(ctx context.Context, workspaceID, appID, organizationID string) (*agentsv1.LinearInstallation, error)
+	DeleteInstallation(ctx context.Context, workspaceID, id string) error
+	// GetInstallationTokens returns the stored tokens' ciphertext.
+	GetInstallationTokens(ctx context.Context, workspaceID, id string) (InstallationTokens, error)
 }
 
 // StampCredentialState fills the App's derived credential fields from the

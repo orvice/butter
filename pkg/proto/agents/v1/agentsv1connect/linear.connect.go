@@ -53,6 +53,15 @@ const (
 	// LinearAppServiceDeleteLinearAppProcedure is the fully-qualified name of the LinearAppService's
 	// DeleteLinearApp RPC.
 	LinearAppServiceDeleteLinearAppProcedure = "/agents.v1.LinearAppService/DeleteLinearApp"
+	// LinearAppServiceBeginLinearInstallProcedure is the fully-qualified name of the LinearAppService's
+	// BeginLinearInstall RPC.
+	LinearAppServiceBeginLinearInstallProcedure = "/agents.v1.LinearAppService/BeginLinearInstall"
+	// LinearAppServiceListLinearInstallationsProcedure is the fully-qualified name of the
+	// LinearAppService's ListLinearInstallations RPC.
+	LinearAppServiceListLinearInstallationsProcedure = "/agents.v1.LinearAppService/ListLinearInstallations"
+	// LinearAppServiceDeleteLinearInstallationProcedure is the fully-qualified name of the
+	// LinearAppService's DeleteLinearInstallation RPC.
+	LinearAppServiceDeleteLinearInstallationProcedure = "/agents.v1.LinearAppService/DeleteLinearInstallation"
 	// LinearAdminServiceGetLinearSettingsProcedure is the fully-qualified name of the
 	// LinearAdminService's GetLinearSettings RPC.
 	LinearAdminServiceGetLinearSettingsProcedure = "/agents.v1.LinearAdminService/GetLinearSettings"
@@ -72,7 +81,16 @@ type LinearAppServiceClient interface {
 	UpdateLinearApp(context.Context, *connect.Request[v1.UpdateLinearAppRequest]) (*connect.Response[v1.UpdateLinearAppResponse], error)
 	// PutLinearAppCredentials sets or clears the write-only secrets.
 	PutLinearAppCredentials(context.Context, *connect.Request[v1.PutLinearAppCredentialsRequest]) (*connect.Response[v1.PutLinearAppCredentialsResponse], error)
+	// DeleteLinearApp removes the App together with its installations.
 	DeleteLinearApp(context.Context, *connect.Request[v1.DeleteLinearAppRequest]) (*connect.Response[v1.DeleteLinearAppResponse], error)
+	// BeginLinearInstall starts installing the App into a Linear organization:
+	// it returns Linear's authorize URL, carrying a single-use state that the
+	// public OAuth callback consumes.
+	BeginLinearInstall(context.Context, *connect.Request[v1.BeginLinearInstallRequest]) (*connect.Response[v1.BeginLinearInstallResponse], error)
+	ListLinearInstallations(context.Context, *connect.Request[v1.ListLinearInstallationsRequest]) (*connect.Response[v1.ListLinearInstallationsResponse], error)
+	// DeleteLinearInstallation removes an installation, revoking its token at
+	// Linear as a best effort.
+	DeleteLinearInstallation(context.Context, *connect.Request[v1.DeleteLinearInstallationRequest]) (*connect.Response[v1.DeleteLinearInstallationResponse], error)
 }
 
 // NewLinearAppServiceClient constructs a client for the agents.v1.LinearAppService service. By
@@ -122,17 +140,38 @@ func NewLinearAppServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(linearAppServiceMethods.ByName("DeleteLinearApp")),
 			connect.WithClientOptions(opts...),
 		),
+		beginLinearInstall: connect.NewClient[v1.BeginLinearInstallRequest, v1.BeginLinearInstallResponse](
+			httpClient,
+			baseURL+LinearAppServiceBeginLinearInstallProcedure,
+			connect.WithSchema(linearAppServiceMethods.ByName("BeginLinearInstall")),
+			connect.WithClientOptions(opts...),
+		),
+		listLinearInstallations: connect.NewClient[v1.ListLinearInstallationsRequest, v1.ListLinearInstallationsResponse](
+			httpClient,
+			baseURL+LinearAppServiceListLinearInstallationsProcedure,
+			connect.WithSchema(linearAppServiceMethods.ByName("ListLinearInstallations")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteLinearInstallation: connect.NewClient[v1.DeleteLinearInstallationRequest, v1.DeleteLinearInstallationResponse](
+			httpClient,
+			baseURL+LinearAppServiceDeleteLinearInstallationProcedure,
+			connect.WithSchema(linearAppServiceMethods.ByName("DeleteLinearInstallation")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // linearAppServiceClient implements LinearAppServiceClient.
 type linearAppServiceClient struct {
-	listLinearApps          *connect.Client[v1.ListLinearAppsRequest, v1.ListLinearAppsResponse]
-	getLinearApp            *connect.Client[v1.GetLinearAppRequest, v1.GetLinearAppResponse]
-	createLinearApp         *connect.Client[v1.CreateLinearAppRequest, v1.CreateLinearAppResponse]
-	updateLinearApp         *connect.Client[v1.UpdateLinearAppRequest, v1.UpdateLinearAppResponse]
-	putLinearAppCredentials *connect.Client[v1.PutLinearAppCredentialsRequest, v1.PutLinearAppCredentialsResponse]
-	deleteLinearApp         *connect.Client[v1.DeleteLinearAppRequest, v1.DeleteLinearAppResponse]
+	listLinearApps           *connect.Client[v1.ListLinearAppsRequest, v1.ListLinearAppsResponse]
+	getLinearApp             *connect.Client[v1.GetLinearAppRequest, v1.GetLinearAppResponse]
+	createLinearApp          *connect.Client[v1.CreateLinearAppRequest, v1.CreateLinearAppResponse]
+	updateLinearApp          *connect.Client[v1.UpdateLinearAppRequest, v1.UpdateLinearAppResponse]
+	putLinearAppCredentials  *connect.Client[v1.PutLinearAppCredentialsRequest, v1.PutLinearAppCredentialsResponse]
+	deleteLinearApp          *connect.Client[v1.DeleteLinearAppRequest, v1.DeleteLinearAppResponse]
+	beginLinearInstall       *connect.Client[v1.BeginLinearInstallRequest, v1.BeginLinearInstallResponse]
+	listLinearInstallations  *connect.Client[v1.ListLinearInstallationsRequest, v1.ListLinearInstallationsResponse]
+	deleteLinearInstallation *connect.Client[v1.DeleteLinearInstallationRequest, v1.DeleteLinearInstallationResponse]
 }
 
 // ListLinearApps calls agents.v1.LinearAppService.ListLinearApps.
@@ -165,6 +204,21 @@ func (c *linearAppServiceClient) DeleteLinearApp(ctx context.Context, req *conne
 	return c.deleteLinearApp.CallUnary(ctx, req)
 }
 
+// BeginLinearInstall calls agents.v1.LinearAppService.BeginLinearInstall.
+func (c *linearAppServiceClient) BeginLinearInstall(ctx context.Context, req *connect.Request[v1.BeginLinearInstallRequest]) (*connect.Response[v1.BeginLinearInstallResponse], error) {
+	return c.beginLinearInstall.CallUnary(ctx, req)
+}
+
+// ListLinearInstallations calls agents.v1.LinearAppService.ListLinearInstallations.
+func (c *linearAppServiceClient) ListLinearInstallations(ctx context.Context, req *connect.Request[v1.ListLinearInstallationsRequest]) (*connect.Response[v1.ListLinearInstallationsResponse], error) {
+	return c.listLinearInstallations.CallUnary(ctx, req)
+}
+
+// DeleteLinearInstallation calls agents.v1.LinearAppService.DeleteLinearInstallation.
+func (c *linearAppServiceClient) DeleteLinearInstallation(ctx context.Context, req *connect.Request[v1.DeleteLinearInstallationRequest]) (*connect.Response[v1.DeleteLinearInstallationResponse], error) {
+	return c.deleteLinearInstallation.CallUnary(ctx, req)
+}
+
 // LinearAppServiceHandler is an implementation of the agents.v1.LinearAppService service.
 type LinearAppServiceHandler interface {
 	ListLinearApps(context.Context, *connect.Request[v1.ListLinearAppsRequest]) (*connect.Response[v1.ListLinearAppsResponse], error)
@@ -176,7 +230,16 @@ type LinearAppServiceHandler interface {
 	UpdateLinearApp(context.Context, *connect.Request[v1.UpdateLinearAppRequest]) (*connect.Response[v1.UpdateLinearAppResponse], error)
 	// PutLinearAppCredentials sets or clears the write-only secrets.
 	PutLinearAppCredentials(context.Context, *connect.Request[v1.PutLinearAppCredentialsRequest]) (*connect.Response[v1.PutLinearAppCredentialsResponse], error)
+	// DeleteLinearApp removes the App together with its installations.
 	DeleteLinearApp(context.Context, *connect.Request[v1.DeleteLinearAppRequest]) (*connect.Response[v1.DeleteLinearAppResponse], error)
+	// BeginLinearInstall starts installing the App into a Linear organization:
+	// it returns Linear's authorize URL, carrying a single-use state that the
+	// public OAuth callback consumes.
+	BeginLinearInstall(context.Context, *connect.Request[v1.BeginLinearInstallRequest]) (*connect.Response[v1.BeginLinearInstallResponse], error)
+	ListLinearInstallations(context.Context, *connect.Request[v1.ListLinearInstallationsRequest]) (*connect.Response[v1.ListLinearInstallationsResponse], error)
+	// DeleteLinearInstallation removes an installation, revoking its token at
+	// Linear as a best effort.
+	DeleteLinearInstallation(context.Context, *connect.Request[v1.DeleteLinearInstallationRequest]) (*connect.Response[v1.DeleteLinearInstallationResponse], error)
 }
 
 // NewLinearAppServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -222,6 +285,24 @@ func NewLinearAppServiceHandler(svc LinearAppServiceHandler, opts ...connect.Han
 		connect.WithSchema(linearAppServiceMethods.ByName("DeleteLinearApp")),
 		connect.WithHandlerOptions(opts...),
 	)
+	linearAppServiceBeginLinearInstallHandler := connect.NewUnaryHandler(
+		LinearAppServiceBeginLinearInstallProcedure,
+		svc.BeginLinearInstall,
+		connect.WithSchema(linearAppServiceMethods.ByName("BeginLinearInstall")),
+		connect.WithHandlerOptions(opts...),
+	)
+	linearAppServiceListLinearInstallationsHandler := connect.NewUnaryHandler(
+		LinearAppServiceListLinearInstallationsProcedure,
+		svc.ListLinearInstallations,
+		connect.WithSchema(linearAppServiceMethods.ByName("ListLinearInstallations")),
+		connect.WithHandlerOptions(opts...),
+	)
+	linearAppServiceDeleteLinearInstallationHandler := connect.NewUnaryHandler(
+		LinearAppServiceDeleteLinearInstallationProcedure,
+		svc.DeleteLinearInstallation,
+		connect.WithSchema(linearAppServiceMethods.ByName("DeleteLinearInstallation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.LinearAppService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LinearAppServiceListLinearAppsProcedure:
@@ -236,6 +317,12 @@ func NewLinearAppServiceHandler(svc LinearAppServiceHandler, opts ...connect.Han
 			linearAppServicePutLinearAppCredentialsHandler.ServeHTTP(w, r)
 		case LinearAppServiceDeleteLinearAppProcedure:
 			linearAppServiceDeleteLinearAppHandler.ServeHTTP(w, r)
+		case LinearAppServiceBeginLinearInstallProcedure:
+			linearAppServiceBeginLinearInstallHandler.ServeHTTP(w, r)
+		case LinearAppServiceListLinearInstallationsProcedure:
+			linearAppServiceListLinearInstallationsHandler.ServeHTTP(w, r)
+		case LinearAppServiceDeleteLinearInstallationProcedure:
+			linearAppServiceDeleteLinearInstallationHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -267,6 +354,18 @@ func (UnimplementedLinearAppServiceHandler) PutLinearAppCredentials(context.Cont
 
 func (UnimplementedLinearAppServiceHandler) DeleteLinearApp(context.Context, *connect.Request[v1.DeleteLinearAppRequest]) (*connect.Response[v1.DeleteLinearAppResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.LinearAppService.DeleteLinearApp is not implemented"))
+}
+
+func (UnimplementedLinearAppServiceHandler) BeginLinearInstall(context.Context, *connect.Request[v1.BeginLinearInstallRequest]) (*connect.Response[v1.BeginLinearInstallResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.LinearAppService.BeginLinearInstall is not implemented"))
+}
+
+func (UnimplementedLinearAppServiceHandler) ListLinearInstallations(context.Context, *connect.Request[v1.ListLinearInstallationsRequest]) (*connect.Response[v1.ListLinearInstallationsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.LinearAppService.ListLinearInstallations is not implemented"))
+}
+
+func (UnimplementedLinearAppServiceHandler) DeleteLinearInstallation(context.Context, *connect.Request[v1.DeleteLinearInstallationRequest]) (*connect.Response[v1.DeleteLinearInstallationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.LinearAppService.DeleteLinearInstallation is not implemented"))
 }
 
 // LinearAdminServiceClient is a client for the agents.v1.LinearAdminService service.

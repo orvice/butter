@@ -59,6 +59,9 @@ import (
 	linearsettingrepo "go.orx.me/apps/butter/internal/repo/linearsetting"
 	linearsettingmemory "go.orx.me/apps/butter/internal/repo/linearsetting/memory"
 	linearsettingmongo "go.orx.me/apps/butter/internal/repo/linearsetting/mongo"
+	linearstaterepo "go.orx.me/apps/butter/internal/repo/linearstate"
+	linearstatememory "go.orx.me/apps/butter/internal/repo/linearstate/memory"
+	linearstatemongo "go.orx.me/apps/butter/internal/repo/linearstate/mongo"
 	mcpoauthrepo "go.orx.me/apps/butter/internal/repo/mcpoauth"
 	mcpoauthmemory "go.orx.me/apps/butter/internal/repo/mcpoauth/memory"
 	mcpoauthmongo "go.orx.me/apps/butter/internal/repo/mcpoauth/mongo"
@@ -140,6 +143,7 @@ type BootstrapResult struct {
 	TelegramProcessingRepo telegramprocessingrepo.Repository
 	LinearRepo             linearrepo.Repository
 	LinearSettingRepo      linearsettingrepo.Repository
+	LinearStateRepo        linearstaterepo.Repository
 	CryptoKeyRepo          cryptokeyrepo.Repository
 	RepoCacheRepo          repocache.Repository
 	AgentContentRepo       agentcontentrepo.Repository
@@ -202,6 +206,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		telegramProcessingRepo telegramprocessingrepo.Repository
 		linearRepo             linearrepo.Repository
 		linearSettingRepo      linearsettingrepo.Repository
+		linearStateRepo        linearstaterepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -250,6 +255,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		telegramProcessingRepo = telegramprocessingmongo.New(db)
 		linearRepo = linearmongo.New(db)
 		linearSettingRepo = linearsettingmongo.New(db)
+		linearStateRepo = linearstatemongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -273,6 +279,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		telegramProcessingRepo = telegramprocessingmemory.New()
 		linearRepo = linearmemory.New()
 		linearSettingRepo = linearsettingmemory.New()
+		linearStateRepo = linearstatememory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -360,6 +367,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := linearSettingRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create linear settings indexes", "err", err)
+		return nil, err
+	}
+	if err := linearStateRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create linear install state indexes", "err", err)
 		return nil, err
 	}
 	if err := applyActiveContent(ctx, cfg.Agents, bindingRepo, contentRepo); err != nil {
@@ -579,6 +590,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		TelegramProcessingRepo: telegramProcessingRepo,
 		LinearRepo:             linearRepo,
 		LinearSettingRepo:      linearSettingRepo,
+		LinearStateRepo:        linearStateRepo,
 		CryptoKeyRepo:          cryptoKeyRepo,
 		RepoCacheRepo:          cacheRepo,
 		AgentContentRepo:       contentRepo,
